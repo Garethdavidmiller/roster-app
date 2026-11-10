@@ -43,18 +43,21 @@ const {
     summariseAccountGaps,
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push');
-const { mustReclaim } = require('./member-identity');
+const { requireAdmin, readJsonBody } = require('./request-helpers');
+const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('./member-identity');
 
 /**
- * The `updateUser` field that removes every sign-in method but the password from an account being
- * TAKEN BACK (v24.56, auth review). Resetting the password of an account an outsider registered
- * left any other method they had linked to it working. Empty when there is nothing to remove.
- * @param {{ providerData?: Array<{ providerId: string }> }} user
- * @returns {{ providersToUnlink?: string[] }}
+ * Stamp `passwordStatus/{member}.resetAt`, the marker a device's SILENT sign-in is refused against
+ * (AUTH_AND_SESSIONS.md 23). Every path that puts an account back on the surname default calls it
+ * FIRST and stops if it throws (functions-core-2): the default is what a forgotten device signs itself
+ * back in with, so a stamp failing after the reset let the very phone it was meant to sign out return.
+ * A stamp for a reset that then fails costs one typed sign-in, which the admin asked for anyway.
+ * @param {string} member
+ * @returns {Promise<void>}
  */
-function unlinkOtherProviders(user) {
-    const others = (user.providerData || []).map((p) => p.providerId).filter((id) => id && id !== 'password');
-    return others.length ? { providersToUnlink: others } : {};
+async function stampResetAt(member) {
+    await getFirestore().collection('passwordStatus').doc(member).set(
+        { resetAt: FieldValue.serverTimestamp() }, { merge: true });
 }
 const { isViewerAccount } = require('./calendar-viewer-auth');
 const rosterMembers = require('./roster-members.json');
@@ -66,16 +69,20 @@ const rosterMembers = require('./roster-members.json');
  * @param {string}   deps.VAPID_PUBLIC_KEY
  * @param {string}   deps.STAFF_SITE_URL
  * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS
+ * @param {number}   [deps.resetRequestAnswerFloorMs]  the test seam for RESET_REQUEST_ANSWER_FLOOR_MS;
+ *                                                   index.js passes nothing, so production keeps it
  */
-function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, ADMIN_FUNCTION_ORIGINS }) {
-
+function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, ADMIN_FUNCTION_ORIGINS,
+    resetRequestAnswerFloorMs }) {
 
 /**
  * POST /setupRosterAuth
  *
  * Creates Firebase Auth accounts for all active roster members and optionally
  * disables accounts for anyone who has left. Run any time membership changes —
- * it is fully idempotent (existing accounts are skipped).
+ * it is idempotent: an existing, enabled account that already carries claims is
+ * re-claimed as it stands, and one that does not (registered from outside, or
+ * disabled as a leaver's) is reset to the member's default first.
  *
  * B4: the member + role (admin/manager/linksDesigner) lists are SERVER-OWNED — read from
  * roster-members.json (generated from roster-data.js by generate-roster-members.mjs), NOT the
@@ -97,9 +104,12 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  * Auth: Authorization: Bearer <Firebase ID token with admin custom claim>
  *
  * Response:
- *   { created, skipped, disabled, failed: string[],
+ *   { created, skipped, reclaimed, disabled, failed: string[],
  *     orphanSweepFailed?: true,
  *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
+ *   `reclaimed` names every member whose account this run put back on the surname default and
+ *   signed out — an account registered from outside (taken back) or a disabled one re-enabled.
+ *   The admin is the only person who can tell them, which is why they are named.
  */
 const setupRosterAuth = onRequest(
     {
@@ -112,25 +122,12 @@ const setupRosterAuth = onRequest(
             return res.status(405).json({ error: 'Method not allowed' });
         }
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            // checkRevoked=true: this function re-provisions accounts, so a revoked/disabled admin's
-            // still-cached token must be rejected immediately, not honoured for up to ~1h (v17.42).
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict, matching parseRosterPDF — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        // This re-provisions accounts, so a revoked admin's cached token is refused at once (requireAdmin).
+        if (!(await requireAdmin(req, res))) return;
 
-        // firebase-functions v2 auto-parses req.body only when Content-Type: application/json
-        // is sent. Fall back to rawBody so callers that omit the header still work, and so
-        // admin claims are never silently skipped due to an unparsed body.
-        // B4: only ACTION flags are honoured from the request body (member + role lists are
-        // SERVER-OWNED below). parseSetupActionFlags owns the raw-body fallback (a non-JSON
-        // Content-Type would otherwise drop the flags). Unit-tested in roster-parse-helpers.test.mjs.
+        // B4: only ACTION flags come from the body (the member and role lists are SERVER-OWNED, below).
+        // parseSetupActionFlags reads them from rawBody too — v2 parses req.body only for a JSON
+        // Content-Type — so no flag is silently dropped. Unit-tested in roster-parse-helpers.test.mjs.
         const { removeOrphans, confirmOrphanRemoval } = parseSetupActionFlags(req.body, req.rawBody);
 
         // ── Server-owned member + role lists (B4) ────────────────────────────────────────────────
@@ -202,12 +199,20 @@ const setupRosterAuth = onRequest(
                 if (err.code === 'auth/email-already-exists') {
                     // Fetch UID so we can still (re)apply claims, and re-enable
                     // if the account was previously disabled (returning staff member).
-                    let reclaiming = false;
+                    let reclaiming = false, reEnabling = false;
                     try {
                         const existing = await getAuth().getUserByEmail(email);
                         // The shared PIN account with this email linked to it: never adopted (the next unlock rebuilds it).
                         if (isViewerAccount(existing)) {
                             failed.push(`${name} (${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock)`);
+                            continue;
+                        }
+                        // An account whose claims belong to ANOTHER member is never adopted: stamping
+                        // this name's claims on it would hand that member this one's identity and tier.
+                        const other = claimedByAnotherMember(existing);
+                        if (other) {
+                            failed.push(`${name} (${email} holds an account claimed for "${other}" — check it in the Firebase console)`);
+                            console.error(`[setupRosterAuth] ${email} holds an account claimed for another member — not adopted`);
                             continue;
                         }
                         uid = existing.uid;
@@ -221,24 +226,34 @@ const setupRosterAuth = onRequest(
                             // member's claims. So take it back first: the password becomes the one the
                             // member would have been given, the display name the roster's, and every
                             // session on it is revoked. Reported by name, so the admin can tell the
-                            // member what their password now is.
+                            // member what their password now is. resetAt FIRST (stampResetAt): a failed
+                            // stamp is a reclaim-failed with nothing touched.
+                            await stampResetAt(name);
                             await getAuth().updateUser(uid, { password, displayName: name, disabled: false, ...unlinkOtherProviders(existing) });
                             await getAuth().revokeRefreshTokens(uid);
                             reclaimed.push(name);
                             console.warn(`[setupRosterAuth] Reclaimed an account with no server claims: ${email}`);
-                            // The same Settings nudge an admin reset gives. Best-effort: a missed
-                            // nudge does not make the take-back a failure.
+                        } else if (existing.disabled) {
+                            reEnabling = true;
+                            // A DISABLED ACCOUNT IS NEVER HANDED BACK AS IT WAS (lead-1, 10 Nov 2026):
+                            // it is a leaver's, still on the password its holder chose, and whoever
+                            // returns under the same initial and surname derives the same email. So it
+                            // is reset as an admin reset is — stamp, surname default, sessions revoked,
+                            // the previous holder's push records released — and ONLY THEN enabled. A
+                            // failure leaves it disabled for the next run. Named in `reclaimed`.
+                            await stampResetAt(name);
+                            await getAuth().updateUser(uid, { password, displayName: name, ...unlinkOtherProviders(existing) });
+                            await getAuth().revokeRefreshTokens(uid);
                             try {
-                                await getFirestore().collection('passwordStatus').doc(name).set(
-                                    { resetAt: FieldValue.serverTimestamp() }, { merge: true });
-                            } catch (stampErr) {
-                                console.error(`[setupRosterAuth] resetAt stamp failed after reclaim for ${name}`, stampErr && stampErr.code);
+                                const n = await releasePushForOwner(uid);
+                                if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) left on a re-enabled account: ${email}`);
+                            } catch (pushErr) {
+                                console.warn(`[setupRosterAuth] Could not remove push records on a re-enabled account (${email}): ${pushErr.message}`);
                             }
+                            await getAuth().updateUser(uid, { disabled: false });
+                            reclaimed.push(name);
+                            console.warn(`[setupRosterAuth] Re-enabled a disabled account on the default password, signed out: ${email}`);
                         } else {
-                            if (existing.disabled) {
-                                await getAuth().updateUser(uid, { disabled: false });
-                                console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
-                            }
                             skipped.push(name);
                         }
                     } catch (lookupErr) {
@@ -246,7 +261,7 @@ const setupRosterAuth = onRequest(
                         // before the failing call). Stamping after a failed take-back would give the
                         // outsider the member's claims, and the next run would adopt it for good.
                         uid = undefined;
-                        const what = reclaiming ? 'reclaim-failed' : 'lookup-failed';
+                        const what = reclaiming ? 'reclaim-failed' : reEnabling ? 're-enable-failed' : 'lookup-failed';
                         failed.push(`${name} (${what}: ${lookupErr.message})`);
                         console.error(`[setupRosterAuth] ${what} for ${name}: ${lookupErr.message}`);
                     }
@@ -257,17 +272,11 @@ const setupRosterAuth = onRequest(
                 }
             }
 
-            // Set or clear the admin/manager custom claim — applies to both new and existing
-            // accounts. Also sets the name claim for all members — required by Firestore rules
-            // for staffContact owner-isolation and override per-member isolation (B2).
-            // setCustomUserClaims REPLACES all claims, so a demoted member (removed from the
-            // admin/manager list) automatically loses the elevated claim on the next run.
-            // admin outranks manager: an admin is never also given manager (admin already
-            // satisfies every rule the manager claim would).
+            // Set the tier's claims on new and existing accounts alike. Every account gets `name` (the
+            // rules' per-member isolation, B2); claimsForTier (unit-tested) owns the tiers — admin
+            // outranks manager, linksDesigner is additive. setCustomUserClaims REPLACES all claims, so
+            // a member removed from the admin/manager list loses the elevated claim on the next run.
             if (uid) {
-                // claimsForTier (unit-tested) owns the tier logic: admin outranks manager, linksDesigner
-                // is additive, every account gets `name`. setCustomUserClaims REPLACES all claims, so a
-                // demoted member loses the elevated claim on the next run.
                 const claims = claimsForTier(name, { adminSet: adminMembers, managerSet: managerMembers, designerSet: designerMembers });
                 try {
                     // A just-created account left claimless is one the NEXT run takes back (password
@@ -285,17 +294,11 @@ const setupRosterAuth = onRequest(
             }
         }
 
-        // Disable accounts for leavers — anyone with @myb-roster.local not in the
-        // validated active set (built during the main loop above). Wrapped so a transient
-        // listUsers failure can't 500 the whole request AFTER the account-creation loop
-        // already ran — that discarded the populated created/skipped/failed report and left
-        // the admin unable to tell which accounts WERE provisioned (v16.23). Re-running is
-        // idempotent, so a partial report + orphanSweepFailed flag beats a raw failure.
-        // Leaver handling (B4: DRY-RUN by default; disables only with an explicit confirm). An orphan
-        // is any @myb-roster.local account not in the server active set. `removeOrphans` alone returns
-        // the list that WOULD be disabled (orphansToDisable) for the admin to review; a second call with
-        // `confirmOrphanRemoval` then disables + REVOKES refresh tokens (so a disabled account's existing
-        // session stops being accepted for writes within the hour, not just blocked from re-signing-in).
+        // Leavers — any @myb-roster.local account outside the validated active set built above. B4:
+        // DRY-RUN by default. `removeOrphans` alone returns what WOULD be disabled (orphansToDisable);
+        // `confirmOrphanRemoval` disables + REVOKES, so an open session stops being accepted within the
+        // hour. Wrapped so a listUsers failure cannot 500 the request AFTER the loop above ran, and
+        // throw away the report of what WAS provisioned (v16.23): a partial report + orphanSweepFailed.
         let orphanSweepFailed = false;
         const orphansToDisable = [];  // dry-run preview: labels that WOULD be disabled
         if (removeOrphans) {
@@ -351,18 +354,18 @@ const setupRosterAuth = onRequest(
 );
 
 /**
- * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Resets ONE member's Firebase Auth
- * password back to their surname default and stamps `passwordStatus/{member}.resetAt` (Admin SDK,
- * bypassing Firestore rules) so the account is flagged as surname-default again (the Settings nudge
- * then prompts them to choose a new one — there is no forced overlay yet; that is Phase 2). This is
- * the only ADMIN / server-side password-write path — self-service changes go through the client
- * `setOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
+ * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Stamps `passwordStatus/{member}.
+ * resetAt` FIRST (Admin SDK, bypassing Firestore rules — no stamp, no reset: stampResetAt), then puts
+ * ONE member's Firebase Auth password back to their surname default and signs their other devices
+ * out; at their next sign-in the forced overlay (CONFIG.FORCE_PASSWORD_SET) has them choose their
+ * own. The only ADMIN / server-side password-write path — self-service changes go through the client
+ * `changeOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
  *
- * Admin-only — the same guard as setupRosterAuth (verifyIdToken(checkRevoked) + admin claim). Target
- * must be a SERVER-OWNED provisioned account (roster-members.json), never a raw client name.
+ * Admin-only (requireAdmin). Target must be a SERVER-OWNED provisioned account (roster-members.json),
+ * never a raw client name.
  *
- * Body: { member: string, revoke?: boolean }. `revoke` (default true) signs the member out of their
- * OTHER devices — true for a real reset; false for a Phase-2 migration nudge (leave working sessions).
+ * Body: { member: string }. A reset ALWAYS signs the other devices out. `revoke: false` belonged to
+ * the Phase-2 migration nudge the forced overlay replaced; nothing sends it, and it is ignored.
  */
 const resetMemberPassword = onRequest(
     // The VAPID secret is for the "your password was reset" push below: without it the key reads '' in production.
@@ -370,25 +373,10 @@ const resetMemberPassword = onRequest(
     async (req, res) => {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            // checkRevoked=true — a disabled/revoked admin's still-cached token must not reset accounts.
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        if (!(await requireAdmin(req, res))) return;   // a revoked admin's cached token must not reset accounts
 
-        // Body (raw-body fallback like setupRosterAuth): member name + optional revoke.
-        let body = req.body;
-        if (!body || typeof body !== 'object') {
-            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
-        }
+        const body = readJsonBody(req);   // the member's name, in whatever shape the body arrived
         const member = typeof body.member === 'string' ? body.member.trim() : '';
-        const revoke = body.revoke !== false;   // default true
         if (!member) return res.status(400).json({ error: 'Missing member' });
 
         // Target must be a server-owned provisioned account (B4) — never trust a raw client name.
@@ -411,58 +399,53 @@ const resetMemberPassword = onRequest(
             if (isViewerAccount(user)) {
                 return res.status(409).json({ error: `${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock` });
             }
+            // …and an account claimed for ANOTHER member is not this member's to reset (as Set up
+            // accounts refuses to adopt it): it would put that member on this one's default.
+            const other = claimedByAnotherMember(user);
+            if (other) {
+                return res.status(409).json({ error: `${email} holds an account claimed for "${other}" — check it in the Firebase console` });
+            }
             // AN ACCOUNT THIS SERVER NEVER STAMPED is TAKEN BACK, not just re-passworded (v24.56, auth
             // review) — the same as setupRosterAuth does, for the same reason: it was registered from
-            // outside, so its display name and any other sign-in method are the outsider's, and its
-            // sessions must end whatever the admin chose for `revoke`.
+            // outside, so its display name and any other sign-in method are the outsider's.
             const takeBack = mustReclaim(user);
+            // THE STAMP FIRST, AND IT MUST LAND (functions-core-2). resetAt is what keeps the other
+            // devices out once the password is the surname default (AUTH_AND_SESSIONS.md 23); stamped
+            // after, a failed write let the lost phone straight back in. No stamp, nothing changes.
+            try {
+                await stampResetAt(member);
+            } catch (stampErr) {
+                console.error('[resetMemberPassword] resetAt stamp failed — nothing was changed for', member,
+                              stampErr && stampErr.code, stampErr);
+                return res.status(503).json({ error: 'Could not record the reset, so nothing was changed — try again' });
+            }
             await getAuth().updateUser(user.uid, takeBack
                 ? { password, displayName: member, disabled: false, ...unlinkOtherProviders(user) }
                 : { password });
             // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
             // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,
-            // so a failure there took the whole call to the generic 500 — skipping the resetAt
-            // stamp on the way. The admin was told the reset failed about an account whose password
-            // was now the surname default; the reasonable next move is to retry, or to tell the
-            // member their old password still works. Neither is true.
+            // so a failure there took the whole call to the generic 500. The admin was told the
+            // reset failed about an account whose password was now the surname default; the
+            // reasonable next move is to retry, or to tell the member their old password still
+            // works. Neither is true.
             //
-            // Each later stage is now attempted on its own and REPORTED on its own. The rule this
-            // encodes is the one the stamp already followed and revocation did not: once the
+            // Each later stage is now attempted on its own and REPORTED on its own: once the
             // password mutation succeeds, this endpoint reports what happened, never "nothing did".
             let revoked = false;
-            if (revoke || takeBack) {
-                try {
-                    await getAuth().revokeRefreshTokens(user.uid);
-                    revoked = true;
-                } catch (revokeErr) {
-                    // The one consequence worth naming: the member's OTHER devices may still hold
-                    // working sessions. That is a security-relevant partial state, so it is logged
-                    // as an error and returned to the admin rather than folded into a boolean.
-                    console.error('[resetMemberPassword] revoke failed (password WAS reset) for', member,
-                                  revokeErr && revokeErr.code, revokeErr);
-                }
-            }
-            // Stamp resetAt so the member is prompted to set a new password. merge preserves any
-            // existing passwordSetAt (whose staleness vs this resetAt is what marks them un-migrated).
-            // The password is ALREADY changed + sessions revoked by this point, so a failure of only
-            // this Firestore stamp must NOT report the reset as failed (the old 500 told the admin
-            // "nothing changed" when the account was in fact reset). Surface it as a partial success:
-            // the reset stands, but the "un-migrated" flag couldn't be written, so the member won't be
-            // nudged to re-set until a re-run. A retry heals the stamp (the reset is idempotent).
-            let stamped = true;
             try {
-                await getFirestore().collection('passwordStatus').doc(member).set(
-                    { resetAt: FieldValue.serverTimestamp() },
-                    { merge: true },
-                );
-            } catch (stampErr) {
-                stamped = false;
-                console.error('[resetMemberPassword] resetAt stamp failed (password WAS reset) for', member, stampErr && stampErr.code, stampErr);
+                await getAuth().revokeRefreshTokens(user.uid);
+                revoked = true;
+            } catch (revokeErr) {
+                // The one consequence worth naming: the member's OTHER devices may still hold
+                // working sessions. That is a security-relevant partial state, so it is logged
+                // as an error and returned to the admin rather than folded into a boolean.
+                console.error('[resetMemberPassword] revoke failed (password WAS reset) for', member,
+                              revokeErr && revokeErr.code, revokeErr);
             }
             // TELL THE MEMBER (v23.62, owner request). Until now the one person this is ABOUT was
-            // the only person not told: their password had become the surname default and — with
-            // `revoke` — every other device was signed out, and they learned both by failing to
-            // sign in. This closes the loop on their OWN devices.
+            // the only person not told: their password had become the surname default and every
+            // other device was signed out, and they learned both by failing to sign in. This
+            // closes the loop on their OWN devices.
             //
             // `sendTargetedPush`, never `fanOutPush`, and the rule is the CONTENT's rather than a
             // convention: it names a person and says their credential changed.
@@ -499,11 +482,11 @@ const resetMemberPassword = onRequest(
                 console.error('[resetMemberPassword] notify failed (password WAS reset) for', member,
                               pushErr && pushErr.code, pushErr);
             }
-            // `revoked` is now what HAPPENED, not what was asked for. A caller reading the old
-            // field saw the REQUEST echoed back, which is the same value on the failure path.
+            // `revoked` is what HAPPENED. `stamped` is always true here (no reset proceeds without
+            // its stamp) and stays in the answer because Operations still reads it.
             return res.json({
-                ok: true, member, revoked, stamped, notified,
-                ...((revoke || takeBack) && !revoked ? { revokeFailed: true } : {}),
+                ok: true, member, revoked, stamped: true, notified,
+                ...(!revoked ? { revokeFailed: true } : {}),
                 // The account still carries NO claim, so the member cannot use the app on it until
                 // Set up accounts stamps one — Operations says so (v24.57).
                 ...(takeBack ? { takenBack: true } : {}),
@@ -541,7 +524,7 @@ const resetMemberPassword = onRequest(
  * How the abuse surface is bounded:
  *  · **The doc ID is the member name**, so the collection can never exceed the roster. Flooding is
  *    impossible BY CONSTRUCTION, not by rate limiting — the worst case is one stale row per member.
- *  · **The name must be in the server-owned `activeMembers` list** (roster-members.json, B4). That also
+ *  · **The name must be on the server-owned roster** (`processMembers`: roster-members.json, B4). That also
  *    makes the name safe for the admin card to render: it came from OUR list, never the request body.
  *  · **No free text of any kind is stored.** An unauthenticated endpoint writing caller-controlled
  *    strings into an admin UI is an injection surface for no benefit.
@@ -549,14 +532,26 @@ const resetMemberPassword = onRequest(
  *  · **maxInstances** caps the cost of a flood. (The eventual real control is App Check — Track D.)
  *  · **No enumeration**: it answers the same way for any roster name whether or not an account exists,
  *    and the roster names are already public in the login dropdown, so nothing new is revealed.
+ *  · **No "who is locked out" oracle**: a recorded request and a throttled repeat get the same body,
+ *    and neither is answered before RESET_REQUEST_ANSWER_FLOOR_MS, so their timing matches too.
  *
  * Body: { member: string }. Always 200 for a valid roster name.
  */
 const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
+// No answer to a valid name before this long after the request began (functions-core-4). A throttled
+// repeat answered after two round trips and a recorded request after four to six plus a push, so the
+// TIMING named who was locked out right now — what the identical body exists to hide. Sized above the
+// recorded path's ordinary time; a push slow enough to pass it still shows, the price of not making a
+// locked-out member wait longer (their screen reads "Sending…").
+const RESET_REQUEST_ANSWER_FLOOR_MS = 2_000;
+const answerFloorMs = Number.isFinite(resetRequestAnswerFloorMs) ? resetRequestAnswerFloorMs : RESET_REQUEST_ANSWER_FLOOR_MS;
 // How long the admin notification may take before the endpoint gives up on it and answers the member
 // anyway. Well inside the function's 30s timeout, leaving room for the record itself — the request is
 // the product, the push is a courtesy, and the courtesy must never cost the product.
 const ADMIN_NOTIFY_BUDGET_MS = 10_000;
+// Each admin push's own bound, well inside that budget (functions-core-6): after the lookups, the
+// transport's default 10 s meant a stalled push service always outlasted it.
+const ADMIN_NOTIFY_SEND_TIMEOUT_MS = 5_000;
 // One admin push per this window, however many DIFFERENT members file a request inside it. The
 // per-member throttle above cannot bound a walk of the public roster; this can. Chosen to be long
 // enough to absorb a scripted burst and short enough that a genuine second request later in a shift
@@ -644,18 +639,21 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
         }),
         uids,
         '[reset-request]',
+        { timeoutMs: ADMIN_NOTIFY_SEND_TIMEOUT_MS },
     );
 
     // Record that the admin was REACHED, which is what the next request's coalescing decision needs
     // to know. Nothing is stamped when no subscription accepted the message, so the next member in
     // the window rings the phone instead of inheriting a silence. Wrapped: failing to write the
     // stamp only costs a duplicate notification later, and the push has already gone.
+    //
+    // update(), never a merge-set (functions-core-6): this can run after the member was answered and
+    // the admin has cleared the row, and a merge brought it back holding only `notifiedAt` — a request
+    // nobody made. update() refuses a row that has gone, which is the right answer.
     if (accepted > 0) {
         try {
-            await getFirestore().collection('resetRequests').doc(member).set(
-                { notifiedAt: FieldValue.serverTimestamp() },
-                { merge: true },
-            );
+            await getFirestore().collection('resetRequests').doc(member).update(
+                { notifiedAt: FieldValue.serverTimestamp() });
         } catch (e) {
             console.warn('[requestPasswordReset] could not stamp notifiedAt for', member, e && e.code);
         }
@@ -672,16 +670,15 @@ const requestPasswordReset = onRequest(
         secrets: [VAPID_PRIVATE_KEY],
     },
     async (req, res) => {
+        // Measured from the top, so the floor covers every round trip either path makes.
+        const answerNotBefore = Date.now() + answerFloorMs;
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
         // The kill switch, server-side (v18.97). 503 rather than 404: it is honest about the endpoint
         // existing but being closed, and it does not change what an outsider can learn about the
         // roster. The client link is hidden separately by CONFIG.PASSWORD_RESET_REQUESTS.
         if (!RESET_REQUESTS_ENABLED) return res.status(503).json({ error: 'Reset requests are temporarily unavailable' });
 
-        let body = req.body;
-        if (!body || typeof body !== 'object') {
-            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
-        }
+        const body = readJsonBody(req);   // a Buffer body used to answer 400 "Missing member" (functions-core-8)
         const member = typeof body.member === 'string' ? body.member.trim() : '';
         if (!member) return res.status(400).json({ error: 'Missing member' });
 
@@ -757,6 +754,8 @@ const requestPasswordReset = onRequest(
             // returning an error to a member whose request WAS successfully recorded, telling them
             // nobody heard them when the doorbell had already rung. Exactly the never-settles-is-
             // not-a-rejection class v18.94 fixed in the forced overlay; it must not come back here.
+            // The race stops the WAITING, not the work, so each send has its own bound and the stamp
+            // it ends with cannot re-create a cleared row (ADMIN_NOTIFY_SEND_TIMEOUT_MS, functions-core-6).
             if (recorded) {
                 /** @type {ReturnType<typeof setTimeout>|undefined} */ let notifyTimer;
                 try {
@@ -778,7 +777,10 @@ const requestPasswordReset = onRequest(
             // the comment beside it warned against: anyone could poll the 50 public names and learn who
             // is locked out RIGHT NOW — a ready-made pretext for a "hi, it's IT about your password
             // reset" call, aimed at the people most likely to fall for it. The distinction stays in the
-            // log line, where only the admin can see it.
+            // log line, where only the admin can see it. AND NO SOONER than the floor, or the timing
+            // says it instead (RESET_REQUEST_ANSWER_FLOOR_MS, functions-core-4).
+            const holdMs = answerNotBefore - Date.now();
+            if (holdMs > 0) await new Promise((resolve) => setTimeout(resolve, holdMs));
             return res.json({ ok: true });
         } catch (e) {
             console.error('[requestPasswordReset] failed for', member, e && e.code, e);
@@ -827,16 +829,7 @@ const getSignInStats = onRequest(
     async (req, res) => {
         if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        if (!(await requireAdmin(req, res))) return;
 
         // An ALLOWLIST of the current roster, not a denylist of admins (v18.97, external review).
         // Excluding only admins counted every other enabled account in the project — a leaver whose
@@ -897,16 +890,7 @@ const getAccountSetupGaps = onRequest(
     async (req, res) => {
         if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        if (!(await requireAdmin(req, res))) return;
 
         const cfg = resolveRosterAuthConfig(rosterMembers);
         if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });

@@ -93,21 +93,24 @@ export function weekStartForMonth(displayed, today) {
  *   showing, so switching into the team grid opens on that month rather than dragging the reader
  *   back to today. See `weekStartForMonth`. Optional: omitted, the grid opens on today's week,
  *   which is what it always did.
+ * @param {Function} [deps.onMonthRead]  the repaint for a month read that lands later: the
+ *   coordinator's SHARED one, which repaints whichever surface is live by then. Team View may have
+ *   been left, and `refreshFromCache` then does nothing — a swipe onto that month sat on "Checking
+ *   this month" although it had been read (10 Nov 2026). Omitted, `refreshFromCache`.
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
- * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void, isGridShown: () => boolean, isGridConfirmed: () => boolean }}
+ * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void, isGridShown: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
                                 getSelectedMemberIndex, isFirstRun, renderCalendar, getDisplayedMonth,
-                                _pushOverlayState, _clearOverlayHistory }) {
+                                onMonthRead, _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
 
     let teamViewMode = false;
-    /** What the last team render was allowed to SHOW — the `decideDisplay` verdict for the week, not
-     *  a boolean derived from it. Both questions the boot metric asks (is a grid up? is it confirmed
-     *  against the server?) are answers to this one value, and deriving them from two separate flags
-     *  is how they would come to disagree. See `isGridShown` / `isGridConfirmed` below.
+    /** What the last team render was allowed to SHOW — the `decideDisplay` verdict for the week, kept
+     *  whole rather than as a boolean, so the boot metric's question (is a grid up?) is answered from
+     *  the same value the render used. See `isGridShown` below.
      *  @type {'loading'|'unavailable'|'stale'|'render'} */
     let _lastRenderDisplay = 'loading';
 
@@ -122,14 +125,19 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *  relaunched straight into the grid) keeps it, because that reader has not navigated anywhere. */
     let currentTeamWeekStart = getSunday(new Date());
 
-    /** Grade tab shown in team view. Defaults to the logged-in member's role. */
-    let currentTeamGrade = (() => {
+    /** Grade tab shown in team view: the grade of the member the Calendar is showing, decided each
+     *  time the view OPENS until the reader picks a tab — that choice then stays. It was decided once,
+     *  at load, so a first run fixed it on the default member nobody picked (10 Nov 2026). */
+    let currentTeamGrade = 'CEA';
+    let _gradeChosen = false;
+    function openingGrade() {
+        if (_gradeChosen) return currentTeamGrade;
         try {
-            const idx  = getSelectedMemberIndex();
+            const idx  = isFirstRun?.() ? -1 : getSelectedMemberIndex();
             const role = idx >= 0 ? teamMembers[idx].role : 'CEA';
             return TEAM_GRADES.includes(role) ? role : 'CEA';
         } catch { return 'CEA'; }
-    })();
+    }
 
     // ── HELPERS ───────────────────────────────────────────────────────────────
 
@@ -391,7 +399,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         if (gradeTabList) {
             gradeTabList.addEventListener('click', e => {
                 const tab = /** @type {Element} */ (e.target).closest('.grade-tab');
-                if (tab) renderTeamView(/** @type {HTMLElement} */ (tab).dataset.grade ?? '', { skipFetch: true });
+                if (tab) { _gradeChosen = true; renderTeamView(/** @type {HTMLElement} */ (tab).dataset.grade ?? '', { skipFetch: true }); }
             });
             gradeTabList.addEventListener('keydown', e => {
                 const ke = /** @type {KeyboardEvent} */ (e);
@@ -401,6 +409,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                 const idx  = tabs.findIndex(t => t === document.activeElement);
                 if (idx === -1) return;
                 const next = /** @type {HTMLElement} */ (tabs[(idx + (ke.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]);
+                _gradeChosen = true;
                 renderTeamView(next.dataset.grade ?? '', { skipFetch: true });
                 /** @type {HTMLElement} */ (calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade ?? ''}"]`))?.focus();
             });
@@ -572,10 +581,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      * `ensureOverridesCached` is deduped by `fetchedMonths`, so a month already owned by the calendar
      * fetch is a no-op here (the cache already holds its data — no re-query, no eviction) and only a
      * genuinely un-fetched month (e.g. a week navigated outside the 3-month window) triggers one
-     * authoritative fetch. `refreshFromCache` repaints the CURRENT week/grade from cache (focus-
-     * preserving, and a no-op once team view is exited), so a late fetch can never render a stale week
-     * — which also subsumes the old fetch-token guard. A Sun–Sat week can straddle two months, so
-     * ensure each distinct month the week touches.
+     * authoritative fetch. A month that lands later repaints whichever surface is live (`onMonthRead`):
+     * in Team View that is `refreshFromCache`, which redraws the CURRENT week/grade from cache (focus-
+     * preserving), so a late fetch can never render a stale week — which also subsumes the old
+     * fetch-token guard. A Sun–Sat week can straddle two months, so ensure each distinct month the
+     * week touches.
      * @param {Date[]} weekDates  the 7 Sun–Sat dates of the shown week
      */
     function ensureTeamWeekCached(weekDates) {
@@ -587,24 +597,29 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             const key = monthKey(d.getFullYear(), d.getMonth());
             if (seen.has(key)) continue;
             seen.add(key);
-            ensureOverridesCached(d.getFullYear(), d.getMonth(), refreshFromCache);
+            ensureOverridesCached(d.getFullYear(), d.getMonth(), onMonthRead ?? refreshFromCache);
         }
     }
 
     /**
      * Re-render the grid from the ALREADY-populated shared cache, no re-fetch (v18.21). Called by the
-     * initial 3-month fetch's success path when team view is active, and by `ensureTeamWeekCached`
-     * when a month it needed has just landed. `skipFetch` avoids a redundant query / fetch↔render
+     * initial 3-month fetch's success path when team view is active, and by the coordinator's repaint
+     * when a month the week needed has just landed. `skipFetch` avoids a redundant query / fetch↔render
      * loop. Focus preservation (v18.22, same v16.69 pattern): this async repaint can land right after
      * a keyboard navigation restored focus, and without capture/restore it dropped focus to <body>.
      */
     function refreshFromCache() {
         if (!teamViewMode) return;
-        const _display  = document.getElementById('calendarDisplay');
-        const _activeId = document.activeElement instanceof HTMLElement
-            && _display?.contains(document.activeElement) ? document.activeElement.id : null;
+        const _activeId = focusedControlId();
         renderTeamView(currentTeamGrade, { skipFetch: true });
         if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
+    }
+
+    /** The id of the Team View control holding focus — a render rebuilds every one of them, so the
+     *  caller hands focus to the new node by it — or null when focus is elsewhere. */
+    function focusedControlId() {
+        const active = document.activeElement;
+        return active instanceof HTMLElement && document.getElementById('calendarDisplay')?.contains(active) ? active.id || null : null;
     }
 
     /**
@@ -633,7 +648,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             _pushOverlayState(toggleTeamView); // Back returns to calendar
             // The month the reader is ON, not the month the clock is on — see `weekStartForMonth`.
             currentTeamWeekStart = weekStartForMonth(getDisplayedMonth?.(), new Date());
-            renderTeamView(currentTeamGrade);
+            renderTeamView(openingGrade());
         } else {
             _clearOverlayHistory(toggleTeamView); // Remove THIS overlay's pushed entry when exiting via button
             watchHintFit(null, null);             // the week's box is about to go: stop watching it
@@ -646,10 +661,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *
      * It used to be installed by the About lightbox's own print button, which meant the paper the
      * roster landed on depended on WHICH ROUTE you printed by: the button gave A4 landscape, while
-     * Ctrl+P, the browser's File → Print, the `p` keyboard shortcut in `calendar-app.js` and
-     * AirPrint all fell through to the stylesheet's portrait — measured, by rendering the same page
-     * both ways (297×210 against 210×297). A seven-column grid of shift times is a landscape
-     * document whichever control the reader happened to use.
+     * Ctrl+P, the browser's File → Print and AirPrint all fell through to the stylesheet's portrait
+     * — measured, by rendering the same page both ways (297×210 against 210×297). (The `p` key does
+     * not print here: `calendar-app.js` stops Team View's keys before it.) A seven-column grid of
+     * shift times is a landscape document whichever control the reader happened to use.
      *
      * Owning it here also retires the leak it used to guard against. The rule is present exactly
      * while team view is, so it cannot linger into a later portrait calendar print; the old
@@ -730,14 +745,19 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         // so Back exits the app instead of returning to the month calendar — inconsistent with
         // entering team view via the toggle.
         _pushOverlayState(toggleTeamView);
-        renderTeamView(currentTeamGrade);
+        renderTeamView(openingGrade());
     }
 
-    /** Jumps to the current week — called from the global Today button when in team view. */
+    /** Jumps to the current week — called from the global Today button and the T key in team view.
+     *  T is pressed with focus on Prev, Next, the week label or a tab, all rebuilt here, so focus is
+     *  handed to the new node (10 Nov 2026); "Back to this week" is not drawn on this week, so it goes
+     *  to Next, as that button's own click does. */
     function jumpToCurrentWeek() {
+        const id = focusedControlId();
         currentTeamWeekStart = getSunday(new Date());
         renderTeamView(currentTeamGrade);
         announceTeamWeek();
+        if (id) /** @type {HTMLElement|null} */ (document.getElementById(id) ?? document.getElementById('tvNextWeek'))?.focus();
     }
 
     // ── PUBLIC API ────────────────────────────────────────────────────────────
@@ -752,14 +772,5 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         /** @returns {boolean} did the last team render draw SHIFT DATA, rather than the withheld
          *  "checking"/"couldn't check" panel? False before the first render. */
         isGridShown: () => teamViewMode && _lastRenderDisplay !== 'loading' && _lastRenderDisplay !== 'unavailable',
-        // ── AND WHETHER IT IS CONFIRMED (v21.37, external review) ───────────────────────────────
-        // The boot ladder's last rung. Team View could reach "Shifts shown" and never "Confirmed",
-        // because the metric returned as soon as it had answered the first question — so a launch
-        // that restores straight into Team View was counted in one stage and not the other. That is
-        // not a roster fault (the grid was correct either way), but LATENCY.md decides whether
-        // Phase 2 is worth doing from the GAP between those two rungs, and a whole surface missing
-        // from the far end inflates it. A measurement that is about to inform an architectural
-        // decision has to count the same loads at both ends.
-        isGridConfirmed: () => teamViewMode && _lastRenderDisplay === 'render',
     };
 }

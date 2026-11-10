@@ -101,13 +101,18 @@ export function showBootSkeleton() {
     // REAL grid's, taken from a rendered calendar rather than guessed, so the swap is a fill-in
     // rather than a re-layout. `aria-hidden` because it is scenery: the live region above is what a
     // screen reader should hear, and 42 announced blanks is what it should not.
-    mountLockCard({
+    const card = mountLockCard({
         id: 'calendarBooting',
         className: 'cal-boot',
         html:
-            '<p class="sr-only" role="status">Loading the roster…</p>' +
+            '<p class="sr-only" role="status"></p>' +
             '<div class="cal-boot-head" aria-hidden="true"></div>' +
             '<div class="cal-boot-days" aria-hidden="true">' + '<span></span>'.repeat(7) + '</div>' +
             '<div class="cal-boot-grid" aria-hidden="true">' + '<span class="cal-boot-cell"></span>'.repeat(42) + '</div>',
     });
+    // The words go in AFTER the region is in the document (cal-data-11, 10 Nov 2026): a live region
+    // announces changes made while it is in the accessibility tree, and text it was created with is
+    // read by nobody — the rule login-overlay.js states and the PIN card's message channel follows.
+    const status = card?.querySelector('[role="status"]');
+    if (status) status.textContent = 'Loading the roster…';
 }

@@ -1,6 +1,6 @@
 /**
  * runner-parity.test.mjs — AN OPT-IN SPEC MUST NOT RUN IN THE BEHAVIOURAL LANES.
- * Run: node --test runner-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs runner-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

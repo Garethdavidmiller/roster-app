@@ -155,12 +155,15 @@ export function initTransferCard() {
             const v = lsGet(k);
             if (v !== null) entries[k] = v;
         }
-        const exportedAt = new Date().toISOString();
+        // One instant, two forms: the blob records it exactly, and the filename takes the day it is
+        // HERE — named from the UTC form, a copy saved after midnight in summer carried the day
+        // before (paycalc-2-21).
+        const now = new Date();
         const blob = buildBackup({
             entries, member, slug: memberSlug(member),
-            appVersion: APP_VERSION, exportedAt, prefix: pcPrefix(),
+            appVersion: APP_VERSION, exportedAt: now.toISOString(), prefix: pcPrefix(),
         });
-        return { text: JSON.stringify(blob, null, 2), name: backupFilename(member, exportedAt) };
+        return { text: JSON.stringify(blob, null, 2), name: backupFilename(member, now) };
     }
 
     dlBtn?.addEventListener('click', () => {
@@ -334,6 +337,30 @@ export function initTransferCard() {
     });
 
     refreshSummary();
+
+    // THE LIST SAYS WHAT IS HERE NOW, NOT WHAT WAS HERE AT LOAD (paycalc-2-11). It was painted once,
+    // as the page opened, so a member who entered payslips and then opened the card to save a copy
+    // read a list without them — on the one card whose list answers "what am I about to carry?" (the
+    // file itself was always right: makeBackup reads storage at the tap). So it is read again each
+    // time the card opens, by whatever route — a tap, the keyboard, a link — and while it is open,
+    // after any entry elsewhere on the page, once that entry's own handler has saved it.
+    const bodyEl = document.getElementById('payTransferBody');
+    const isOpen = () => !!bodyEl?.classList.contains('open');
+    if (bodyEl && typeof MutationObserver === 'function') {
+        let wasOpen = isOpen();
+        new MutationObserver(() => {
+            const open = isOpen();
+            if (open && !wasOpen) refreshSummary();
+            wasOpen = open;
+        }).observe(bodyEl, { attributes: true, attributeFilter: ['class'] });
+    }
+    /** @param {Event} e */
+    const afterEntryElsewhere = (e) => {
+        if (!isOpen() || (e.target instanceof Node && card.contains(e.target))) return;
+        setTimeout(refreshSummary, 0);
+    };
+    document.addEventListener('input', afterEntryElsewhere);
+    document.addEventListener('change', afterEntryElsewhere);
 
     // Settings points here with `#payTransferCard`. The card is collapsed by default, so a bare
     // fragment jump would land the member on a closed header; the shared helper opens it and keeps

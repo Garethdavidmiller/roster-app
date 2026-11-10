@@ -19,7 +19,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours } from './admin-shift-rules.js';
+import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours, checkDayRules, isBoxingDay, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
+import { CONFIG } from './roster-data.js';
 import { TYPES } from './admin-shift-types.js';
 
 /** A harness with no neighbours unless the test supplies them. */
@@ -184,5 +185,68 @@ describe('the pieces', () => {
         assert.equal(parseMinutes('07:30'), 450);
         assert.equal(fmtHours(720), '12h');
         assert.equal(fmtHours(570), '9.5h');
+    });
+});
+
+// ── THE DAYS THAT TAKE NO CHANGE AT ALL (whole-app check, Nov 2026) ────────────────────────────────
+describe('checkDayRules — before the start date, and an Other day on Boxing Day', () => {
+    const starter = { name: 'Starter', startDate: new Date(2026, 5, 3) };   // Wed 3 June 2026
+    const fmt = (/** @type {string} */ d) => d;
+
+    test('a change before the start date is refused; on the start date and after it is not', () => {
+        const { errors, failedDates } = checkDayRules({ member: starter, formatDate: fmt, toSave: [
+            { date: '2026-06-02', type: 'correction' }, { date: '2026-06-03', type: 'shift' }, { date: '2026-06-04', type: 'annual_leave' }] });
+        assert.deepEqual(failedDates, ['2026-06-02']);
+        assert.deepEqual(errors, ['2026-06-02: before the start date, so a change here would never show on the Calendar']);
+    });
+
+    test('an Other day on Boxing Day is refused, in any year; Spare (its own type) and work are not', () => {
+        const { errors, failedDates } = checkDayRules({ member: { name: 'Any' }, formatDate: fmt, toSave: [
+            { date: '2026-12-26', type: 'other' }, { date: '2031-12-26', type: 'other' },
+            { date: '2026-12-26', type: 'spare_shift' }, { date: '2026-12-26', type: 'rdw' }, { date: '2026-12-25', type: 'other' }] });
+        assert.deepEqual(failedDates, ['2026-12-26', '2031-12-26']);
+        assert.deepEqual(errors, ['2026-12-26: an "Other" day cannot be recorded on Boxing Day',
+                                  '2031-12-26: an "Other" day cannot be recorded on Boxing Day']);
+    });
+
+    test('a member with no start date, and an ordinary week, refuse nothing', () => {
+        assert.deepEqual(checkDayRules({ member: { name: 'Any' }, formatDate: fmt, toSave: [{ date: '2026-06-01', type: 'shift' }] }),
+            { errors: [], failedDates: [] });
+        assert.equal(isBoxingDay('2026-12-26'), true);
+        assert.equal(isBoxingDay('2026-12-25'), false);
+        assert.equal(isBoxingDay('2026-06-26'), false);
+    });
+});
+
+// ── THE CONFIGURED YEARS ARE THE EDGE OF THE WEEK GRID (whole-app check, Nov 2026) ─────────────────
+describe('weekStepAllowed / linkableDate — the week grid stays inside CONFIG.MIN_YEAR–MAX_YEAR', () => {
+    const [MIN, MAX] = [CONFIG.MIN_YEAR, CONFIG.MAX_YEAR];
+
+    test('a week inside the years moves either way; one step past an edge is refused', () => {
+        assert.equal(weekStepAllowed(`${MAX}-12-24`, 7), true, 'the last whole week of the last year');
+        assert.equal(weekStepAllowed(`${MAX}-12-26`, 7), false, 'into the next year');
+        assert.equal(weekStepAllowed(`${MAX}-12-26`, -7), true);
+        assert.equal(weekStepAllowed(`${MIN}-01-08`, -7), true);
+        assert.equal(weekStepAllowed(`${MIN}-01-03`, -7), false, 'into the year before');
+        assert.equal(weekStepAllowed(`${MIN}-01-03`, 7), true);
+    });
+
+    test('a week already outside (an old record’s ✎ Edit) may always step back towards the years', () => {
+        assert.equal(weekStepAllowed(`${MAX + 1}-06-10`, -7), true);
+        assert.equal(weekStepAllowed(`${MAX + 1}-06-10`, 7), false);
+        assert.equal(weekStepAllowed(`${MIN - 1}-06-10`, 7), true);
+        assert.equal(weekStepAllowed(`${MIN - 1}-06-10`, -7), false);
+    });
+
+    test('a ?date= is a real day inside the years, or it is not used', () => {
+        assert.equal(linkableDate(`${MIN}-02-28`), true);
+        assert.equal(linkableDate(`${MAX}-12-31`), true);
+        assert.equal(linkableDate('2026-02-30'), false, '30 February: the date field empties it, and the arrows made NaN of it');
+        assert.equal(linkableDate('2026-13-01'), false);
+        assert.equal(linkableDate(`${MAX + 1}-01-01`), false);
+        assert.equal(linkableDate(`${MIN - 1}-12-31`), false);
+        assert.equal(linkableDate('2026-1-5'), false);
+        assert.equal(linkableDate(null), false);
+        assert.equal(linkableDate(''), false);
     });
 });

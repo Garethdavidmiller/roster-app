@@ -15,8 +15,9 @@
  * `session.js` feeds the store purely as a side-effect (wrapped so a store error can never break
  * auth), so `sessionReady` and every page behave exactly as before. The store is now CONSUMED via
  * the policy layer: `guardNamedSession` (page-session.js), which every named page runs, and paycalc
- * call `requirePage(getAuthSnapshot(), …)` (auth-policy.js) for their B1 enforcement decision. ONLY the
- * session.js bridge dispatches — everything else reads via `getAuthSnapshot`/`subscribeAuth`.
+ * call `requirePage(getAuthSnapshot(), …)` (auth-policy.js) for their B1 enforcement decision, and the
+ * forced password overlay reads it. ONLY the session.js bridge dispatches, and everything else reads a
+ * snapshot once — `subscribeAuth` has no production subscriber (see it, below).
  */
 import { reduceAuthState, INITIAL_STATE } from './auth-state-core.js';
 
@@ -36,6 +37,10 @@ export function getAuthSnapshot() {
  * Subscribe to identity changes. The listener is called IMMEDIATELY with the current state,
  * then again on every change. Returns an unsubscribe function. A listener that throws is
  * isolated (logged, never breaks dispatch or other listeners).
+ *
+ * NOTHING IN PRODUCTION SUBSCRIBES: every page decides once, from `getAuthSnapshot()`, and its
+ * tests are the only callers. It is kept for the single-owner auth shell, which is future work
+ * (AUTH_ARCHITECTURE.md) — so do not read a page as reacting to a later change of state.
  * @param {(s: AuthState) => void} listener
  * @returns {() => void}
  */

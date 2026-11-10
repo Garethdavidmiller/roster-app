@@ -96,7 +96,9 @@ function pageFrom(rowSpecs, { top = 700, rowH = 50 } = {}) {
 
 describe('rulesFromOperatorList — the drawn rules', () => {
     // A fake OPS enum and a fake operator list in pdfjs's shape: [fns[], args[]] per constructPath.
-    const OPS = { constructPath: 91, moveTo: 13, lineTo: 14, rectangle: 19, curveTo: 15, closePath: 18 };
+    // curveTo2/curveTo3 are PDF `v`/`y`, with pdfjs v4's own numbers; the enum lacked them until
+    // import-server-7, which is how the reader came to skip them without stepping over their operands.
+    const OPS = { constructPath: 91, moveTo: 13, lineTo: 14, rectangle: 19, curveTo: 15, curveTo2: 16, curveTo3: 17, closePath: 18 };
     const seg = (x1, y1, x2, y2) => [[OPS.moveTo, OPS.lineTo], [x1, y1, x2, y2]];
     const ops = (...paths) => ({ fnArray: paths.map(() => OPS.constructPath), argsArray: paths });
 
@@ -118,6 +120,20 @@ describe('rulesFromOperatorList — the drawn rules', () => {
     test('a short tick and a diagonal are neither', () => {
         const { vx, hy } = rulesFromOperatorList(ops(seg(100, 100, 100, 102), seg(100, 100, 200, 300)), OPS);
         assert.deepEqual(vx, []); assert.deepEqual(hy, []);
+    });
+
+    test('a `v` or `y` curve steps over its four operands, so the rest of its path is read true', () => {
+        // m 400 20 · v 400.2 60 420 40 · l 430 45 — a curve, then a short diagonal: no rule at all.
+        // With the curve's operands left unread, the line took 400.2 60 for its end point, and a
+        // vertical "rule" at x 400 gave the page ten columns and cost it the grid.
+        for (const op of [OPS.curveTo2, OPS.curveTo3]) {
+            const { vx, hy } = rulesFromOperatorList(ops([[OPS.moveTo, op, OPS.lineTo], [400, 20, 400.2, 60, 420, 40, 430, 45]]), OPS);
+            assert.deepEqual([vx, hy], [[], []], `op ${op}`);
+            // …and a rule drawn after the curve in the same path is still found where it is.
+            const after = rulesFromOperatorList(ops([[OPS.moveTo, op, OPS.moveTo, OPS.lineTo],
+                [10, 10, 1, 2, 3, 4, 154.8, 100, 154.8, 700]]), OPS);
+            assert.deepEqual(after.vx, [154.8], `op ${op}`);
+        }
     });
 
     test('the pdfjs-6 encoding (a non-iterable fns) is skipped, not thrown — the v4 pin, stated', () => {
@@ -557,6 +573,38 @@ describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip
         const g = await extractRosterGeometry(buildPdf([['q 0.5 w 100 100 m 100 700 l S Q']]));
         assert.equal(g.available, false);
         assert.equal(g.reason, 'no-text');
+    });
+
+    test('a stroked `v` or `y` curve beside the table does not cost the page its grid (import-server-7)', async () => {
+        // Through the REAL pdfjs, which routes both operators into the same path data as the rules.
+        for (const curve of ['400 20 m 400.2 60 420 40 v 430 45 l S', '400 20 m 400.2 60 420 40 y 430 45 l S']) {
+            const page = rosterPage(ROSTER);
+            page.push(`q 0.5 w ${curve} Q`);
+            const g = await extractRosterGeometry(buildPdf([page]));
+            assert.equal(g.available, true, `${curve}: ${g.reason}`);
+            assert.deepEqual(g.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant']);
+        }
+    });
+
+    test('a page read that places no member row says so — not "no-text", which means a scanned sheet', async () => {
+        // The grid and its heading only.
+        const headingOnly = await extractRosterGeometry(buildPdf([rosterPage([ROSTER[0]])]));
+        assert.deepEqual([headingOnly.available, headingOnly.pagesRead, headingOnly.reason], [false, 1, 'no-rows']);
+        // The whole fixture drawn twice the size under a halving `cm`. It LOOKS the same, but its rules
+        // are read raw and its text transformed (the module header), so no run lands in the grid.
+        const k = 2, top = 700, rowH = 50;
+        const lines = [`${1 / k} 0 0 ${1 / k} 0 0 cm`, 'q 0.5 w'];
+        for (const x of VX) lines.push(`${x * k} ${100 * k} m ${x * k} ${top * k} l S`);
+        for (let r = 0; r <= ROSTER.length; r++) lines.push(`${25.3 * k} ${(top - r * rowH) * k} m ${822.5 * k} ${(top - r * rowH) * k} l S`);
+        lines.push('Q');
+        ROSTER.forEach(([name, ...cells], r) => {
+            const y = (top - r * rowH - rowH / 2) * k;
+            const text = (/** @type {string} */ s, /** @type {number} */ x) => lines.push(`BT /F1 ${9 * k} Tf ${x * k} ${y} Td (${s}) Tj ET`);
+            if (name) text(name, NAME_X);
+            cells.forEach((c, i) => { if (c) text(c, COL_X[i]); });
+        });
+        const scaled = await extractRosterGeometry(buildPdf([lines]));
+        assert.deepEqual([scaled.available, scaled.pagesRead, scaled.reason], [false, 1, 'no-rows']);
     });
 
     test('garbage bytes never throw', async () => {

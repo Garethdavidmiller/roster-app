@@ -326,8 +326,14 @@ async function _disableNotifications() {
  * On a shared device that owner outlived the sign-out, so whoever picked it up next got them.
  *
  * When the delete is CONFIRMED the browser subscription is kept, so the device keeps its
- * notification setting: the re-save throttle is cleared, and the next page load re-saves the record
- * as whoever is signed in then. Only a confirmed delete earns that — see the last paragraph.
+ * notification setting: the re-save throttle is cleared, and the next `getNotifState()` re-saves the
+ * record as whoever is signed in then. Only a confirmed delete earns that — see the last paragraph.
+ * That re-save is a signed-in CALENDAR load's, and no other page's (whole-app review, 10 Nov 2026):
+ * `calendar-notif-prompt.js` is `getNotifState`'s only caller, and the drawer's bell and the Settings
+ * card read through `peekNotifState`, which writes nothing by design. So a member who signs back in
+ * on any other page sees "on" with no record behind it, and nothing reaches this device until their
+ * next Calendar load. Stated rather than changed here: closing it means a page other than the
+ * Calendar writing on load, which is that page's decision to take.
  *
  * UNLESS THE RECORD CANNOT BE DELETED (48-hour review). The rule lets only its owner delete it, and
  * the Calendar's member card is shown precisely when a local session has OUTLIVED its Firebase

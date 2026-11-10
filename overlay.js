@@ -253,9 +253,18 @@ window.addEventListener('popstate', () => {
     try { fn?.(); } finally { _handlingPop = false; }
 });
 
-/** What Tab can reach in `container` (enabled, rendered) — one list for the trap and the focus guard. @param {Element} container */
+/**
+ * What Tab can reach in `container` (enabled, rendered, in the Tab order) — one list for the trap and
+ * the focus guard. A NEGATIVE tabindex takes a control out of the Tab order whatever its tag, and the
+ * trap's two ends must be stops Tab can land on: counted, the date picker's last day, the sign-in
+ * card's hidden username field and the 1px select behind a picker trigger each became an end that
+ * focus never reached, so the trap never wrapped and Tab walked out of the dialog.
+ * @param {Element} container
+ */
 function _tabStops(container) {
-    return /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')]).filter(el => !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null);
+    return /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]')]).filter(el =>
+        !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null
+        && !(Number.parseInt(el.getAttribute('tabindex') ?? '', 10) < 0));
 }
 
 /**
@@ -288,14 +297,27 @@ export function trapFocus(container, e) {
 // `_isTopOverlay` orders the stack, and an open `aria-modal` surface NOT on it that paints above (by
 // z-index, then document order) stands the guard down — the sign-in card a lost session mounts over a
 // dialog, the password-force card. Fighting those would leave a member unable to type a password.
+/** An element's layer as it paints: its computed z-index, `auto` as 0. @param {Element} el */
+const _zOf = (el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
 /** Does an open modal surface off the stack paint above `overlay`? (A shut drawer is aria-hidden; a shut lightbox has no boxes.) @param {Element} overlay */
 function _unstackedSurfaceAbove(overlay) {
-    const z = (/** @type {Element} */ el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
     return Array.from(document.querySelectorAll('[aria-modal="true"]')).some(el => {
         if (el === overlay || el.contains(overlay) || overlay.contains(el)) return false;
         if (el.getAttribute('aria-hidden') === 'true' || !el.getClientRects().length) return false;
-        return z(el) > z(overlay) || (z(el) === z(overlay) && !!(overlay.compareDocumentPosition(el) & 4));   // 4: FOLLOWING
+        return _zOf(el) > _zOf(overlay) || (_zOf(el) === _zOf(overlay) && !!(overlay.compareDocumentPosition(el) & 4));   // 4: FOLLOWING
     });
+}
+/**
+ * The highest layer on screen: the open lightboxes and sheets, and the modal surfaces off the stack
+ * (the sign-in and password cards) — shown, and not aria-hidden, as above. 0 when nothing is up.
+ */
+function _highestOpenLayer() {
+    let top = 0;
+    for (const el of Array.from(document.querySelectorAll('.lb-overlay, [aria-modal="true"]'))) {
+        if (el.getAttribute('aria-hidden') === 'true' || !el.getClientRects().length) continue;
+        top = Math.max(top, _zOf(el));
+    }
+    return top;
 }
 /** Pull focus landing outside `overlay` back in. Returns the detach. @param {Element} overlay @param {Element} panel @param {() => boolean} isTop */
 function _guardFocus(overlay, panel, isTop) {
@@ -312,6 +334,24 @@ function _guardFocus(overlay, panel, isTop) {
     document.addEventListener('focusin', onFocusIn, true);
     return () => document.removeEventListener('focusin', onFocusIn, true);
 }
+/**
+ * Close on a tap on the BACKDROP: a press and a release on the overlay itself. A mouse drag that starts
+ * inside the card and ends on the backdrop — selecting a prompt's text — arrives as a `click` on the
+ * overlay too, because a click goes to the nearest element the press and the release share, and it
+ * closed the prompt under the selection. A click with no press seen (one made in code) still counts.
+ * @param {Element} overlay
+ * @param {() => void} close
+ */
+export function closeOnBackdropTap(overlay, close) {
+    /** @type {EventTarget|null} */ let pressedOn = null;
+    overlay.addEventListener('pointerdown', e => { pressedOn = e.target; });
+    overlay.addEventListener('click', e => {
+        const from = pressedOn;
+        pressedOn = null;
+        if (e.target === overlay && (from === null || from === overlay)) close();
+    });
+}
+
 /** Input types that raise no keyboard; any other input, and a textarea, is typed into. */
 const _NO_KEYBOARD = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image', 'range', 'color', 'hidden']);
 const _isTextEntry = (/** @type {any} */ el) => el?.tagName === 'TEXTAREA' || (el?.tagName === 'INPUT' && !_NO_KEYBOARD.has(String(el.type || 'text').toLowerCase()));
@@ -374,8 +414,8 @@ export function watchScrollFade(panel) {
  * .open + focus, body scroll lock, Android Back support, Escape to close,
  * a Tab trap and a guard for focus moves Tab never sees, and a text field focused in the tap.
  *
- * Default wiring added here: clicking the backdrop (the overlay itself, not
- * the content card) closes, and the close button closes. Callers add any
+ * Default wiring added here: a tap on the backdrop (the overlay itself, not
+ * the content card — `closeOnBackdropTap`) closes, and the close button closes. Callers add any
  * further triggers themselves and prepare dynamic content BEFORE calling
  * open() — or via onOpen, which runs before the overlay becomes visible.
  *
@@ -444,7 +484,12 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         requestAnimationFrame(() => {
             overlay.classList.add('open');
             if (focusedEarly) return;
-            const explicit = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
+            const explicit = /** @type {any} */ (typeof initialFocus === 'function' ? initialFocus() : initialFocus);
+            // A NAMED TARGET THAT WILL NOT TAKE FOCUS COUNTS AS NONE. A disabled first row (the Links
+            // ··· More sheet's, on an unsaved design) refuses `focus()`, which left focus on the control
+            // behind the dialog — where Enter acts on the page and a screen reader is never moved in.
+            explicit?.focus?.();
+            if (explicit && document.activeElement === explicit) return;
             // Default focus goes to the dialog PANEL (given a `tabindex="-1"`), NOT the ✕ close button.
             // Moving focus into the dialog on open is the WAI-ARIA pattern, but landing it on the close
             // BUTTON makes a keyboard-focus ring appear around the ✕ even when the dialog was opened by
@@ -453,13 +498,13 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
             // tabindex="-1" is outside the global :focus-visible ring selector (button/[tabindex="0"]),
             // so screen-reader users still get moved into the dialog with no ring on a control.
             // Explicit initialFocus callers (login field, confirm/prompt input) are unchanged.
-            let target = explicit;
             const panel = /** @type {HTMLElement|null} */ (content ?? null);
-            if (!target && panel) {
+            if (panel) {
                 if (!panel.hasAttribute('tabindex')) panel.setAttribute('tabindex', '-1');
-                target = panel;
+                panel.focus?.();
+                return;
             }
-            (target ?? closeBtn)?.focus?.();
+            /** @type {any} */ (closeBtn)?.focus?.();
         });
         document.addEventListener('keydown', onKey);
     }
@@ -516,7 +561,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         return _settling;
     }
 
-    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    closeOnBackdropTap(overlay, close);
     closeBtn?.addEventListener('click', close);
 
     return { open, close };
@@ -543,7 +588,8 @@ let _dialogSeq = 0;
  * @param {string} [o.placeholder]         - input placeholder (prompt)
  * @param {number} [o.maxLength]           - input maxlength (prompt)
  * @param {(input: HTMLInputElement|null) => any} o.resultOnConfirm - value to resolve on confirm
- * @param {any}     o.resultOnCancel       - value to resolve on cancel/dismiss
+ * @param {any}     o.resultOnCancel       - value to resolve on the Cancel button
+ * @param {any}     o.resultOnDismiss      - value to resolve on a dismissal: the backdrop, Escape, Android Back
  * @returns {Promise<any>}
  */
 function _openDialog(o) {
@@ -607,14 +653,41 @@ function _openDialog(o) {
 
         overlay.appendChild(content);
         document.body.appendChild(overlay);
+        // ON TOP OF WHATEVER IS SHOWING (routed from the pwa audit, 10 Nov 2026). A dialog's layer is the
+        // lightbox base, but one can open over a HIGHER layer: a notification tapped while a page holds
+        // unsaved work asks its question over whatever is up (sw-register.js) — the picker sheet, the
+        // sign-in card, a notice. It painted BENEATH that layer while holding the keyboard — focus on its
+        // button, Tab trapped in it, Escape its own — so Enter answered a question nobody could see. The
+        // newest overlay is the top of the stack (`_isTopOverlay`); it paints at the top too: one above
+        // the highest layer showing, and only when one outranks it, so the usual dialog gains no style.
+        // (This one is not `.visible` yet, so it has no boxes and is not counted among them.)
+        const beneath = _highestOpenLayer();
+        if (beneath > _zOf(overlay)) overlay.style.zIndex = String(beneath + 1);
 
         let settled = false;
-        let result = o.resultOnCancel;
+        // Until a button is pressed the dialog is being DISMISSED — the backdrop, Escape or Android Back
+        // — which `confirmDialog` reads as Cancel unless its caller must tell "not now" from "no": the
+        // unsaved-work offer, whose Cancel deletes the kept work (unsaved-draft.js).
+        let result = o.resultOnDismiss;
+        // ONE ANSWER PER DIALOG. The card stays on screen, and tappable, through its close fade, so a
+        // second tap used to run its button again: a double tap on "Open in Safari" ran `onConfirm`
+        // twice, and Cancel then Confirm resolved a cancelled dialog as confirmed. The first answer —
+        // a button, or a dismissal (`onClose` below) — stands.
+        let answered = false;
+        /** @param {() => any} pick */
+        const answer = (pick) => {
+            if (answered) return;
+            answered = true;
+            // try/finally so a throwing resultOnConfirm can never leave the dialog open and the Promise
+            // pending (today both resolvers are total, but this keeps the contract robust).
+            try { result = pick(); } finally { lb.close(); }
+        };
 
         const lb = createLightbox({
             overlay,
             content,
-            closeBtn: cancelBtn,                       // Cancel = the close control (also Esc/backdrop/Back)
+            // No `closeBtn`: Cancel is wired below, because it is an ANSWER, and createLightbox's close
+            // control would resolve it as a dismissal. The backdrop, Escape and Back stay its own.
             initialFocus: () => input ?? confirmBtn,
             // Resolve when the close has LANDED, not as it starts. Callers chain dialogs
             // (`if (!await confirmDialog(…)) return; await promptDialog(…)`), and a resolve here in
@@ -622,6 +695,7 @@ function _openDialog(o) {
             // still in flight — the traversal popped the NEW entry, so Back then left the page.
             afterClose: () => { if (!settled) { settled = true; resolve(result); } },
             onClose: () => {
+                answered = true;   // a dismissal is an answer too: no button may change it during the fade
                 // Remove the dynamic node AFTER the close transition (not synchronously here): a
                 // node detached now would suppress dismissOverlay's transitionend, forcing its 500ms
                 // fallback AND skipping the fade-out every other lightbox shows. 500ms clears the
@@ -631,10 +705,9 @@ function _openDialog(o) {
             },
         });
 
-        // try/finally so a throwing resultOnConfirm can never leave the dialog open and the Promise
-        // pending (today both resolvers are total, but this keeps the contract robust).
-        const confirmAndClose = () => { try { result = o.resultOnConfirm(input); } finally { lb.close(); } };
+        const confirmAndClose = () => answer(() => o.resultOnConfirm(input));
         confirmBtn.addEventListener('click', confirmAndClose);
+        cancelBtn.addEventListener('click', () => answer(() => o.resultOnCancel));
         // Enter in the prompt input submits (mirrors native prompt()).
         input?.addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); confirmAndClose(); }
@@ -647,13 +720,15 @@ function _openDialog(o) {
 /**
  * Promise-based replacement for the browser's confirm(), styled as an app lightbox (inherits the
  * createLightbox lifecycle: focus trap, Escape, Android Back, scroll lock, transitionend fallback).
- * Resolves true if the user confirms; false on Cancel / backdrop / Escape / Android Back.
+ * Resolves true if the user confirms and false on Cancel. A DISMISSAL — backdrop, Escape, Android
+ * Back — resolves `dismissResult`, which is false, a Cancel, unless the caller passes something else.
  *
  * ASYNC by nature — it cannot stand in for confirm() in a SYNCHRONOUS context that must decide
  * `preventDefault()` inline (a capture-phase navigation guard) or in a `beforeunload` handler.
  * For a navigation guard, intercept-always then navigate when the returned Promise resolves true;
  * beforeunload must keep the native dialog.
  *
+ * @template [D=false]
  * @param {object} opts
  * @param {string}  opts.message
  * @param {string} [opts.title]
@@ -662,9 +737,12 @@ function _openDialog(o) {
  * @param {boolean} [opts.danger=false]  - style the confirm button as destructive (e.g. Delete)
  * @param {() => void} [opts.onConfirm]  - run synchronously INSIDE the confirm tap, for work that
  *                                         needs the user gesture (window.open)
- * @returns {Promise<boolean>}
+ * @param {D} [opts.dismissResult]       - what a dismissal resolves to (default false). For a question
+ *   whose Cancel destroys something, so that a tap meant for the page behind cannot: the unsaved-work
+ *   offer passes null, and a dismissed offer is asked again next load (unsaved-draft.js).
+ * @returns {Promise<boolean|D>}
  */
-export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, onConfirm }) {
+export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, onConfirm, dismissResult }) {
     return _openDialog({
         message, title, confirmLabel, cancelLabel, danger,
         withInput: false,
@@ -673,6 +751,7 @@ export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel
         // (`window.open`) belongs here, not after the await. print-guard.js → explainNoPrint.
         resultOnConfirm: () => { onConfirm?.(); return true; },
         resultOnCancel: false,
+        resultOnDismiss: dismissResult === undefined ? false : dismissResult,
     });
 }
 
@@ -697,5 +776,6 @@ export function promptDialog({ message, title, defaultValue = '', placeholder, m
         withInput: true, defaultValue, placeholder, maxLength,
         resultOnConfirm: input => (input ? input.value : null),
         resultOnCancel: null,
+        resultOnDismiss: null,
     });
 }

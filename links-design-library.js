@@ -37,8 +37,9 @@
 import { CONFIG, escapeHtml } from './roster-data.js';
 import { serverTimestamp } from './firebase-client.js';
 import { createLightbox, confirmDialog } from './overlay.js';
-import { checkName } from './links-design-naming.js';
+import { checkName, nameConflict } from './links-design-naming.js';
 import { ROTATING_LINES } from './links-design.js';
+import { PROPOSALS } from './links-proposals.js';
 import { docPayload, restoredEntryFrom, binEntryFromDoc, binEntryFrom } from './links-design-doc.js';
 import { isOlderDesign, olderDesigns, canKeepOnlyShortlist, keepOnlyShortlistMessage, keptOnlyShortlistLine } from './links-shortlist.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
@@ -60,7 +61,18 @@ import { unconfirmedWriteLine } from './claim-retry.js';
  * @property {() => any} getHeader           the masthead, once built (the bin opens from its ··· sheet)
  * @property {(ids: Set<string>) => void} removeDesigns  drop these from the live list; if one was open,
  *   open the next live design, else the first of the shortlist (Keep only the shortlist)
+ * @property {() => (string|null)} [activeId]  the open SAVED design's id — null for a proposal's copy
+ *   or an unsaved design. Without it, Keep only the shortlist cannot tell whether the open design is
+ *   among those moving, and warns about unsaved work whenever there is any
  */
+
+/** The workspace status line's third voice — neither success nor error — as a queued save uses it:
+ *  the coordinator renders an empty tone as the bare class. Its `actionStatus` names only 'ok' and
+ *  'err' so far, hence the cast. */
+const NEUTRAL = /** @type {any} */ ('');
+
+/** What a write still in this browser's queue is called — `saveChanges`'s words for a queued save. */
+const IN_THIS_BROWSER = 'Saved in this browser — it uploads the next time Links is open here with a connection.';
 
 /**
  * Build the library and wire its two panels. Call once, after the design store exists.
@@ -73,14 +85,21 @@ export function createDesignLibrary(ctx) {
     let bin = [];
     /** Automatic moves to the bin still in flight (v24.48). @type {Map<string, Promise<any>>} */
     const _pending = new Map();
+    /**
+     * Bin rows with a Restore or Remove for good still answering (whole-app fix, Nov 2026). The row's
+     * buttons stay live during the await, and a second tap ran the action again: a second restore
+     * found the design already live and reported, in the error style, that "someone else" had
+     * restored it. A row takes one action at a time. @type {Set<string>}
+     */
+    const _busy = new Set();
 
     // ── Import a pasted design ──────────────────────────────────────────────────────────────────
     //
     // The RULES are all in `links-import.js`; everything here is the panel. Two things about the
     // shape of this flow are deliberate:
     //
-    //  1. CHECK BEFORE SAVE, always, even when the paste is perfect. A design is 168 cells the
-    //     reader has never seen as a grid, and it came from somebody else — so "it parsed" is not
+    //  1. CHECK BEFORE SAVE, always, even when the paste is perfect. A design is every cell of the
+    //     rotation, unseen as a grid, and it came from somebody else — so "it parsed" is not
     //     the same as "this is what I meant to import". The check states what would be written and
     //     any assumption made on the way, and only then does Save appear.
     //  2. It saves as a NEW design and never touches the open one. An import that could overwrite
@@ -92,6 +111,8 @@ export function createDesignLibrary(ctx) {
     let _importParsed = null;
     /** The import lightbox handle, assigned by `initDesignImport` below. @type {any} */
     let _importLb = null;
+    /** Is the import panel in front of the designer? Kept by its own open and close. */
+    let _importShowing = false;
 
     /** @param {string} id */
     function _importEl(id) { return /** @type {any} */ (document.getElementById(id)); }
@@ -167,7 +188,10 @@ export function createDesignLibrary(ctx) {
         if (!_importParsed) return;
         const name = (_importEl('linksImportName')?.value ?? '').trim();
         if (!name) { _importStatus('Give the design a name first.', 'bad'); return; }
-        const nameCheck = checkName(name, { existing: ctx.getDesigns(), noun: 'design' });
+        // …and not a SHORTLISTED PROPOSAL's name either: the proposals sit in the same picker and the
+        // same Compare chips, where two of one name cannot be told apart (whole-app fix, Nov 2026).
+        const asDesign = checkName(name, { existing: ctx.getDesigns(), noun: 'design' });
+        const nameCheck = asDesign.ok ? checkName(name, { existing: [...PROPOSALS], noun: 'shortlisted proposal' }) : asDesign;
         if (!nameCheck.ok) { _importStatus(nameCheck.message || 'That name cannot be used.', 'bad'); return; }
         const btn = _importEl('linksImportSave');
         if (btn) btn.disabled = true;
@@ -177,14 +201,25 @@ export function createDesignLibrary(ctx) {
             // An imported design starts on the app default window, like a new one — the paste
             // describes duties, and a window it never mentioned must not be inferred from them.
             // Through the store, so the baseline is armed identically however a design is born.
-            const { id: importedId, updatedAt: ts, baseline: impBase } = await ctx.store.create(
+            const { id: importedId, updatedAt: ts, baseline: impBase, queued } = await ctx.store.create(
                 docPayload({ name, patterns, window: null },
                            { updatedBy: ctx.currentUser, updatedAt: serverTimestamp() }));
             const d = restoredEntryFrom({ id: importedId, name, patterns, window: null }, { updatedAt: ts, updatedBy: ctx.currentUser, revision: impBase.loadedRevision });
             ctx.addDesign(d);
-            _importLb?.close();
-            ctx.activate(d);
-            ctx.actionStatus(`Imported “${name}”. Check it against the sheet it came from.`, 'ok');   // a success, not an error (it rendered RED until v23.30)
+            // OPENED ONLY FROM THE PANEL IT WAS SAVED FROM (whole-app fix, Nov 2026). An online create
+            // waits for the server's answer, and on a weak connection the designer can close the panel
+            // and go back to their design meanwhile; opening the import when it landed replaced
+            // whatever they had edited since. Closed, it is listed and left for them to open.
+            const stillShowing = _importShowing;
+            if (stillShowing) { _importLb?.close(); ctx.activate(d); } else ctx.renderPicker();
+            // A create that had to be QUEUED is in this browser, not on the server, and says so in
+            // `saveChanges`'s words and without the success colour (links-design.md → "A queued save
+            // does not say ✓ Saved"); a confirmed one is a success, not an error (it rendered RED
+            // until v23.30).
+            ctx.actionStatus([`Imported “${name}”.`,
+                queued ? IN_THIS_BROWSER : '',
+                stillShowing ? '' : 'It is in the design list, not opened, because the import panel was closed while it saved.',
+                'Check it against the sheet it came from.'].filter(Boolean).join(' '), queued ? NEUTRAL : 'ok');
         } catch (err) {
             console.error('[Links] Import failed:', err);
             _importStatus(unconfirmedWriteLine(err, 'this design', 'the design list') ?? 'Couldn’t save the design — check your connection and try again.', 'bad');
@@ -213,12 +248,13 @@ export function createDesignLibrary(ctx) {
      */
     async function restoreDesign(id) {
         const d = bin.find(x => x.id === id);
-        if (!d) return;
+        if (!d || _busy.has(id)) return;
         // The duplicate-name rule every other way in already holds — the bin was the way round it.
         if (checkName(d.name, { existing: ctx.getDesigns(), noun: 'design' }).reason === 'duplicate') {
             _binStatus(`There is already a design called “${d.name}”. Rename that one first, then restore this — two with the same name cannot be told apart in the list.`);
             return;
         }
+        _busy.add(id);
         try {
             await _pending.get(id);
             const res = await ctx.store.restore(id, ctx.currentUser);
@@ -253,10 +289,17 @@ export function createDesignLibrary(ctx) {
             // Restoring into an EMPTY workspace OPENS the design — the masthead names the open one.
             if (!ctx.hasOpenDesign()) ctx.activate(restored); else ctx.renderPicker();
             renderBinList();
-            _binStatus(`“${restored.name}” restored.`, 'ok');
+            // A SHORTLISTED PROPOSAL OF THE SAME NAME is a clash the rule above cannot refuse: a
+            // proposal cannot be renamed, so "rename that one first" has no answer, and refusing would
+            // leave this design in the bin for good. It comes back, and the line says what to do.
+            _binStatus(nameConflict(restored.name, [...PROPOSALS])
+                ? `“${restored.name}” restored. A shortlisted proposal has the same name — rename this one, so the two can be told apart in the list.`
+                : `“${restored.name}” restored.`, 'ok');
         } catch (err) {
             console.error('[Links] Restore failed:', err);
             _binStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t restore that design — check your connection and try again.');
+        } finally {
+            _busy.delete(id);
         }
     }
 
@@ -266,13 +309,23 @@ export function createDesignLibrary(ctx) {
      */
     async function purgeDesign(id) {
         const d = bin.find(x => x.id === id);
-        if (!d) return;
-        if (!await confirmDialog({
-            title: 'Remove for good',
-            message: `Permanently remove "${d.name}"?\n\nThis one can't be undone.`,
-            confirmLabel: 'Remove for good',
-            danger: true,
-        })) return;
+        if (!d || _busy.has(id)) return;
+        _busy.add(id);   // from the question on, so a double tap cannot stack two confirms either
+        try {
+            if (!await confirmDialog({
+                title: 'Remove for good',
+                message: `Permanently remove "${d.name}"?\n\nThis one can't be undone.`,
+                confirmLabel: 'Remove for good',
+                danger: true,
+            })) return;
+            await purgeConfirmed(id, d);
+        } finally {
+            _busy.delete(id);
+        }
+    }
+
+    /** The removal itself, once confirmed. @param {string} id @param {any} d the bin row */
+    async function purgeConfirmed(id, d) {
         try {
             // The re-read-inside-the-transaction rule is the store's (v21.87). It matters most
             // here: this is the only hard delete left in the workspace, and the row that was
@@ -316,7 +369,8 @@ export function createDesignLibrary(ctx) {
                 // press feedback as every confirm dialog (v19.43). These were a third, page-local
                 // recipe: ~26px tall pills with no press animation.
                 `<div class="bin-row-actions">` +
-                    `<button class="bin-restore dialog-btn dialog-btn-confirm" data-id="${id}" type="button">Restore</button>` +
+                    `<button class="bin-restore dialog-btn dialog-btn-confirm" data-id="${id}" type="button" ` +
+                        `aria-label="Restore ${escapeHtml(d.name)}">Restore</button>` +
                     `<button class="bin-purge dialog-btn dialog-btn-cancel" data-id="${id}" type="button" ` +
                         `aria-label="Remove ${escapeHtml(d.name)} for good">Remove for good</button>` +
                 `</div></div>`;
@@ -356,6 +410,8 @@ export function createDesignLibrary(ctx) {
             content:  /** @type {HTMLElement} */ (content),
             closeBtn: /** @type {HTMLElement} */ (closeBtn),
             initialFocus: () => document.getElementById('linksImportText'),
+            onOpen()  { _importShowing = true; },
+            onClose() { _importShowing = false; },
         });
         document.getElementById('linksImportCheck')?.addEventListener('click', checkImport);
         document.getElementById('linksImportSave')?.addEventListener('click', saveImport);
@@ -390,9 +446,13 @@ export function createDesignLibrary(ctx) {
     async function keepOnlyShortlist() {
         if (!keepOffered()) return;
         const older = olderDesigns(ctx.getDesigns());
+        // Unsaved work is lost only if the OPEN design is one of those moving — `removeDesigns` replaces
+        // the working copy only then — so the dialog says so only then (whole-app fix, Nov 2026).
+        // Without `activeId` it cannot tell, and warns: the safe direction.
+        const openMoves = !ctx.activeId || older.some(d => d.id === ctx.activeId?.());
         if (!await confirmDialog({
             title: 'Keep only the shortlist',
-            message: keepOnlyShortlistMessage(older, { currentUser: ctx.currentUser, dirty: ctx.isDirty() }),
+            message: keepOnlyShortlistMessage(older, { currentUser: ctx.currentUser, dirty: ctx.isDirty() && openMoves }),
             confirmLabel: 'Move them',
             danger: true,
         })) return;

@@ -11,12 +11,12 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { parseOtherValue, buildOverrideWrite, nextReplacedType, nextLeaveYear } from './override-utils.js';
+import { parseOtherValue, buildOverrideWrite, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
-import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
+import { entryControlHtml, paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -24,7 +24,7 @@ import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, R
 export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange, computeCellStates };
 import { setStatus } from './status-text.js';
 import { SIGNED_OUT_CODE, UNCONFIRMED_CODE, UNCONFIRMED_LINE, signedOutLine } from './claim-retry.js';
-import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy } from './roster-alignment.js';
+import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy, defaultWeekEnding } from './roster-alignment.js';
 import { withSlowSaveNotice } from './slow-save.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -61,6 +61,21 @@ function parseFailureLine(err, { online, elapsedMs, wasHidden }) {
     }
     if (unreachable) return "Couldn't reach the server — check your internet connection or try again later.";
     return 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
+}
+
+/**
+ * The words after "Couldn't read the roster: " for a refusal with no words of its own (whole-app
+ * fix, Nov 2026). Every refusal `parseRosterPDF` writes is JSON with a sentence for the admin; a body
+ * that is not JSON comes from the platform in front of it — a gateway answering a parse that ran past
+ * the function's 120-second limit (the case PARSE_ABORT_MS waits for). All of them read "Unexpected
+ * error — please try again or contact support", and there is no support: the reader is the admin.
+ * @param {number} status @returns {string}
+ */
+export function statusFailureLine(status) {
+    if (status === 504 || status === 408) return 'The server stopped the read because it took too long. Try again — if it happens twice, try again later.';
+    if (status === 413) return 'The file is too large for the server to read. Try a smaller PDF.';
+    if (status >= 500) return `The server could not finish the read (error ${status}). Try again in a few minutes.`;
+    return `The server refused the read (error ${status}). Try again.`;
 }
 
 /**
@@ -131,20 +146,14 @@ export function manualShiftDisplay(s) {
  */
 export async function _saveOverrideBatches(toWrite, currentUser) {
     const refused = toWrite.filter(w => !w.deleteOnly && typeof w.value === 'string' && isZeroLengthRange(w.value)).length;
-    // Batches cap at 500 ops: an item is a delete + a set + a delete per `alsoDelete`, so chunk by OPS.
-    const chunks = /** @type {typeof toWrite[]} */ ([]); let cur = /** @type {typeof toWrite} */ ([]), ops = 0;
-    for (const w of toWrite) {
-        const n = 2 + (w.alsoDelete?.length ?? 0);
-        if (cur.length && ops + n > 450) { chunks.push(cur); cur = []; ops = 0; }
-        cur.push(w); ops += n;
-    }
-    if (cur.length) chunks.push(cur);
+    // Batches cap at 500 writes: an item is a delete + a set + a delete per `alsoDelete` (override-utils.js).
+    const chunks = chunkByWrites(toWrite, w => 2 + (w.alsoDelete?.length ?? 0));
     let _committedChunks = 0;
     for (const chunk of chunks) {
         try {
         await withSlowSaveNotice(writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
-            for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom, swapped, alsoDelete } of chunk) {
+            for (const { memberName, date, value, replaceId, deleteOnly, replacedFrom, swapped, alsoDelete } of chunk) {
                 const dropDuplicates = () => { for (const id of alsoDelete ?? []) batch.delete(doc(db, COLLECTIONS.overrides, id)); };
                 if (deleteOnly) {
                     // REMOVE_IMPORT — delete the stale import doc and write nothing.
@@ -167,7 +176,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                 // Map shift value to override type — pass date so Sunday shifts are correctly
                 // saved as 'rdw' and an explicit RDW| prefix is honoured. (value is a real string
                 // here — deleteOnly items, the only ones with a null value, continued above.)
-                const type = shiftValueToOverrideType(/** @type {string} */ (value), baseShift, date);
+                const type = shiftValueToOverrideType(/** @type {string} */ (value), date);
                 // Strip the internal "RDW|" encoding before saving — Firestore stores the plain
                 // time as the value (e.g. "14:30-22:00"), type field carries 'rdw'.
                 let savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
@@ -240,16 +249,18 @@ export async function fetchOverridesForWeek(dates) {
 
 /**
  * Initialise the weekly roster upload pipeline.
- * Wires up all DOM event listeners for the Roster Upload card in admin.html.
+ * Wires up all DOM event listeners for the Roster Upload card in operations.html.
  *
  * @param {object}   opts
  * @param {string}   opts.currentUser    - Logged-in member name (written to changedBy on saves)
  * @param {boolean}  opts.currentIsAdmin - Whether the user has admin rights
  * @param {string}   opts.parseUrl       - Cloud Function URL for parseRosterPDF
  * @param {Function} opts.getIdToken     - Async function returning the current user's Firebase ID token
- * @param {Function} opts.loadOverrides  - Refreshes the override cache and week grid after a save
+ * @param {Function} [opts.loadOverrides] - IGNORED (whole-app fix, Nov 2026): Operations has no Saved
+ *   Changes list to refresh, so the call did nothing, and its import pulled twelve Admin modules onto
+ *   the page. Accepted only until operations-app.js stops passing it.
  */
-export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdToken, loadOverrides }) {
+export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdToken }) {
     if (!currentIsAdmin) return;
 
     const esc = escapeHtml;  // local alias
@@ -279,23 +290,29 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     /** @type {any} */ let _parsedResult = null;      // response from parseRosterPDF Cloud Function
     /** @type {any} */ let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
     /** @type {File|null} */ let _parsedFile = null;  // the PDF that WAS read — the picker may hold a newer one
+    // A SAVE STILL WAITING FOR THE SERVER keeps every way to a second one shut (whole-app fix, Nov 2026).
+    // Any touch in the review re-ran refreshOutcome, which handed Save back mid-save; a roster import
+    // mints new ids, so the second press wrote a second copy of every row (slow-save.js's rule 2).
+    let _saving = false;
+    let _readWeek = '';   // the week ending a read in flight was SENT with — see the week's change listener
+    const lockForSave = (/** @type {boolean} */ on) => {
+        _saving = on; changeList.inert = on; cancelBtn.disabled = on; fileInput.disabled = on;
+        parseBtn.disabled = on || !fileInput.files?.length;
+    };
 
-    // Default week ending to the next Saturday (roster PDFs always end on a Saturday).
-    // If today is already Saturday, jump to the one after so we default to the upcoming week.
-    {
-        const today = new Date();
-        const day   = today.getDay(); // 0=Sun … 6=Sat
-        const daysUntilNextSaturday = day === 6 ? 7 : 6 - day;
-        const nextSaturday = new Date(today);
-        nextSaturday.setDate(today.getDate() + daysUntilNextSaturday);
-        weekEndingEl.value = formatISO(nextSaturday);
-    }
+    // The week the form offers first: from Thursday the following week, which is the one a Thursday
+    // release covers (owner, 10 Nov 2026 — the rule and its reasoning are in roster-alignment.js).
+    weekEndingEl.value = defaultWeekEnding(Date.now());
 
     // ---- Snap any non-Saturday selection to the nearest Saturday ----
     // HTML date inputs have no built-in day-of-week restriction, so we enforce
     // it here: if the user picks a date that isn't a Saturday, we move it forward
     // to the next Saturday automatically.
     weekEndingEl.addEventListener('change', () => {
+        // LOCKED WHILE A READ IS OUT (whole-app fix, Nov 2026): the date picker's trigger does not follow
+        // the input's `disabled`, so a week picked mid-read is put back here, before the trigger re-reads
+        // the value — the form must show the week that was SENT, which is the week the review is for.
+        if (_readWeek) { weekEndingEl.value = _readWeek; return; }
         if (!weekEndingEl.value) return;
         const picked = parseISODate(weekEndingEl.value);
         const day    = picked.getDay(); // 0=Sun … 6=Sat
@@ -356,6 +373,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         rosterTypeEl.disabled       = true;
         weekEndingEl.disabled       = true;
         fileInput.disabled          = true;
+        _readWeek                   = weekEnding;
 
         // What a failure's words depend on (`parseFailureLine`): when the read went, and if it was left.
         let readStartedAt = 0, leftDuringRead = false;
@@ -384,9 +402,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             readStartedAt  = Date.now();
             leftDuringRead = document.visibilityState === 'hidden';
             document.addEventListener('visibilitychange', noteLeft);
-            let response;
             try {
-                response = await fetch(parseUrl, {
+                const response = await fetch(parseUrl, {
                     method: 'POST',
                     headers: {
                         'Authorization':  `Bearer ${idToken}`,
@@ -397,18 +414,21 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     body: base64,
                     signal: abortCtrl.signal,
                 });
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    // The server's message is written for the admin ("check the roster type is correct"),
+                    // so carry it; a body with no words gets the status's (statusFailureLine).
+                    const words = typeof errData.error === 'string' ? errData.error : '';
+                    throw Object.assign(new Error(words || `Server error (${response.status})`),
+                        { adminLine: words || statusFailureLine(response.status) });
+                }
+                // THE BODY IS INSIDE THE BOUND TOO (whole-app fix, Nov 2026). `fetch` resolves on the
+                // headers, and the timer was cleared there, so a body that stalled after them left the
+                // read on "Reading…" for ever — the hole fetch-timeout.js closed for its own callers.
+                _parsedResult = await response.json();
             } finally {
                 clearTimeout(abortTimer);
             }
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                // The server's message is written for the admin ("check the roster type is correct"), so carry it.
-                throw Object.assign(new Error(errData.error || `Server error (${response.status})`),
-                    { serverMessage: typeof errData.error === 'string' ? errData.error : '' });
-            }
-
-            _parsedResult = await response.json();
             _parsedFile   = file;
             parseFeedback.textContent = '';
 
@@ -438,7 +458,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     elapsedMs: readStartedAt ? Date.now() - readStartedAt : Infinity,
                     wasHidden: leftDuringRead,
                 });
-                const userMsg = inTransit ?? (_err.serverMessage || 'Unexpected error — please try again or contact support.');
+                const userMsg = inTransit ?? (_err.adminLine || 'Something unexpected went wrong. Try again.');
                 parseFeedback.textContent = `Couldn't read the roster: ${userMsg}`;
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             }
@@ -452,19 +472,24 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             rosterTypeEl.disabled = false;
             weekEndingEl.disabled = false;
             fileInput.disabled    = false;
+            _readWeek             = '';
         }
     });
 
-    // ---- "Start over" button ----
+    // ---- "Upload a different file" — or, on a refused read, "Read the roster again" ----
     cancelBtn.addEventListener('click', () => {
+        // The refused read's label is now what the button DOES (whole-app fix, Nov 2026): it only ever
+        // cleared the form, the chosen PDF with it, so nothing was read until the same file was found.
+        const again = [...(_cellStates?.values() ?? [])].some(st => st.rosterBlocked) && !!fileInput.files?.length;
         reviewSection.classList.remove('visible');
         _parsedResult = null;
         _cellStates   = null;
+        applyFeedback.textContent = '';
+        applyFeedback.className   = 'huddle-feedback';
+        if (again) { parseBtn.click(); return; }
         fileInput.value           = '';
         fileNameEl.classList.remove('visible');
         parseBtn.disabled         = true;
-        applyFeedback.textContent = '';
-        applyFeedback.className   = 'huddle-feedback';
     });
 
     // ---- "Save changes" button ----
@@ -484,13 +509,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         applyBtn.disabled    = true;
         applyBtn.textContent = `Saving ${toWrite.length} change${toWrite.length !== 1 ? 's' : ''}…`;
         applyFeedback.textContent = '';
+        lockForSave(true);
 
         try {
             const refused = await _saveOverrideBatches(toWrite, currentUser);
             const applied = toWrite.length - refused;
 
-            await loadOverrides();   // re-read: the new doc ids are not known here
-            // The older manual copies a written row took with it are SAID, never silent (48-hour review) —
+            // The older copies a written row took with it are SAID, never silent (48-hour review) —
             // as Admin's delete names them. A refused row removed none.
             const dups = toWrite.reduce((n, w) => n + (w.deleteOnly || !(typeof w.value === 'string' && isZeroLengthRange(w.value)) ? (w.alsoDelete?.length ?? 0) : 0), 0);
             applyFeedback.textContent = `Done — ${applied} change${applied !== 1 ? 's' : ''} applied to the roster.`
@@ -512,16 +537,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // A sign-out is AMBIGUOUS even on chunk 1 (the batch may still land): close as partial (v24.39).
             if (_applyErr?.partialCommit || _applyErr?.code === SIGNED_OUT_CODE) {
                 // Earlier chunks committed before the failure — partial import is live in Firestore.
-                // Resync the Saved-changes list and CLOSE the review (its remaining rows are now
-                // ambiguous against the partially-applied state; a fresh re-upload re-reads truth
-                // via the v16.25 fail-closed conflict-read) (v16.25).
-                try { await loadOverrides(); } catch { /* best-effort */ }
+                // CLOSE the review (its remaining rows are now ambiguous against the partially-applied
+                // state; reading the roster again re-reads the truth via the v16.25 fail-closed
+                // conflict-read) (v16.25). This page has no Saved Changes list, so none is named.
                 reviewSection.classList.remove('visible');
                 _parsedResult = null;
                 _cellStates   = null;
                 applyFeedback.textContent = _applyErr.code === SIGNED_OUT_CODE
-                    ? signedOutLine('this roster', 'Saved Changes before applying again')
-                    : "The connection dropped part-way — some of the roster may already be saved. The saved changes list has been refreshed; re-read the roster to check before applying again.";
+                    ? signedOutLine('this roster', 'what was saved by reading the roster again')
+                    : 'The connection dropped part-way — some of the roster may already be saved. Read the roster again to check what was saved before applying it again.';
                 applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
                 applyBtn.disabled    = true;
                 applyBtn.textContent = 'Save changes';
@@ -541,7 +565,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
             applyBtn.disabled    = false;
             applyBtn.textContent = 'Save changes';
-        }
+        } finally { lockForSave(false); }
     });
 
     // ------------------------------------------------------------------
@@ -561,14 +585,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const base64 = /** @type {string} */ (reader.result).split(',')[1];
                 resolve(base64);
             };
-            reader.onerror = () => reject(new Error('Could not read the file'));
+            // Said, not swallowed into the generic line: a phone cannot open a file kept only in the cloud.
+            reader.onerror = () => reject(Object.assign(new Error('Could not read the file'), { adminLine:
+                "This device couldn't open the PDF. Choose it again — if it is kept in a cloud folder, save a copy to the device first." }));
             reader.readAsDataURL(file);
         });
     }
 
     /**
      * Render the post-parse review UI as a list of per-person cards.
-     * Only people with at least one DIFF or CONFLICT are shown.
+     * Only people with a row to show — a change, a question, or a day the app declined to record.
      * Uses event delegation on changeList so no listener accumulation on re-render.
      *
      * @param {any} parsedResult
@@ -584,12 +610,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         // Recompute what pressing "Save changes" will actually do, and refresh BOTH the Save
         // button (label carries the running count + disables when nothing will be written) and
-        // the plain-language outcome summary above the list. Presentation only — the state
-        // machine (computeCellStates) and the `chosen` model are unchanged.
+        // the plain-language outcome summary above the list. The counts and the words are
+        // roster-review-states.js's (`reviewOutcome`, `outcomeHtml`), taken from the Save's own writes.
         function refreshOutcome() {
+            if (_saving) return;   // never re-arm Save while one is sending (see lockForSave)
+            const o = reviewOutcome(cellStates, entryLeftAsRest);
             // A refused read has no outcome to summarise (v22.16): "Save 41 changes" beside
             // "nothing has been selected" is what makes a safety gate read as a suggestion.
-            if ([...cellStates.values()].some(st => st.rosterBlocked)) {
+            if (o.blocked) {
                 // The Save button is REMOVED, not relabelled (v22.16 polish). Leaving it in place
                 // reading "Read the roster again" put an instruction on a dead control while the
                 // button that actually does that — "Upload a different file" — sat underneath it
@@ -606,60 +634,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             applyBtn.hidden = false;
             cancelBtn?.classList.remove('roster-cancel-btn--primary');
             if (cancelBtn) cancelBtn.textContent = 'Upload a different file';
-            let updates = 0, clears = 0, conflictsTotal = 0, conflictsSwitched = 0, unreadable = 0;
-            for (const st of cellStates.values()) {
-                if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
-                else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
-                // "Rest day — leave it" over an old import DELETES it: a clear, not a shift updated (whole-app review).
-                else if (st.state === 'GUARDED')       { const gw = guardedWrites(st, '', ''); if (gw.length) { if (gw[0].deleteOnly) clears++; else updates++; } }
-                else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
-                else if (st.state === 'UNREADABLE')    {
-                    // A resolved one is an update, not an outstanding "couldn't read" — otherwise the
-                    // banner keeps reporting a problem the admin has just fixed.
-                    if (typeof st.chosen === 'number' && st.options?.[st.chosen]) updates++;
-                    else if (st.chosen === 'entered' && st.entered) updates++;
-                    else if (!entryLeftAsRest(st)) unreadable++;   // answered "rest day": nothing to save, nothing unread
-                }
-            }
-            const writes = updates + clears;
+            const writes = o.updates + o.clears;
             applyBtn.disabled    = writes === 0;
             applyBtn.textContent = writes === 0 ? 'Nothing to save' : `Save ${writes} change${writes !== 1 ? 's' : ''}`;
-
-            const lines = [];
-            if (updates > 0)
-                lines.push(`<div class="ro-line ro-up"><span class="ro-k">✓</span><span><strong>${updates}</strong> shift${updates !== 1 ? 's' : ''} will be updated</span></div>`);
-            if (clears > 0)
-                lines.push(`<div class="ro-line ro-clear"><span class="ro-k">✓</span><span><strong>${clears}</strong> old ${clears !== 1 ? 'entries' : 'entry'} will be cleared</span></div>`);
-            if (conflictsTotal > 0) {
-                const kept   = conflictsTotal - conflictsSwitched;
-                const detail = conflictsSwitched > 0
-                    ? `${conflictsSwitched} switched to the new roster, ${kept} kept as you saved`
-                    : 'kept as you saved — change below if needed';
-                lines.push(`<div class="ro-line ro-choice"><span class="ro-k">?</span><span><strong>${conflictsTotal}</strong> ${conflictsTotal !== 1 ? 'days need' : 'day needs'} your choice — ${detail}</span></div>`);
-            }
-            if (unreadable > 0)
-                lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${unreadable}</strong> cell${unreadable !== 1 ? 's' : ''} couldn't be read — nothing saved</span></div>`);
-
-            // SAY WHAT IS BEING WITHHELD (v22.16 polish). A suspect member's rows are unticked, so
-            // they contribute to no count above — and the summary went silent about the one thing
-            // that had changed. A withheld row is an outcome; "nothing will happen to these" is
-            // exactly what the admin needs to read before they scroll past them.
-            // Only rows STILL unticked are held back: one the admin has checked and ticked is counted
-            // above, and counting it here too said the same day was both saving and withheld.
-            const heldBack = [...cellStates.values()].filter(st =>
-                st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length;
-            if (heldBack > 0)
-                lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${heldBack}</strong> `
-                    + `day${heldBack !== 1 ? 's' : ''} held back — the week may be a day out, so nothing there is selected</span></div>`);
-
-            if (lines.length === 0) { outcomeEl.hidden = true; outcomeEl.innerHTML = ''; return; }
-            outcomeEl.hidden = false;
-            const anySuspect = [...cellStates.values()].some(st => st.drift);
-            const hint = (updates > 0 || clears > 0)
-                ? `<p class="ro-hint">Ticked rows will save — tap a ✓ to skip that row.${
-                    anySuspect ? ' Rows flagged as possibly a day out start unticked; tick only what you have checked against the PDF.' : ''}</p>`
-                : '';
-            outcomeEl.innerHTML = `<h4 class="ro-h">When you tap “Save changes”</h4>${lines.join('')}${hint}`;
+            const html = outcomeHtml(o);
+            outcomeEl.hidden = !html;
+            outcomeEl.innerHTML = html;
         }
 
         // ---- Cross-check confidence note (v16.70) ----
@@ -820,6 +800,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
                             <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
+                            ${s.christmas ? `<span class="roster-remove-note">${CHRISTMAS_NOTE}</span>` : ''}
                         </div>
                         <span class="roster-act act-update">Update</span>`;
                 } else if (s.state === 'REMOVE_IMPORT') {
@@ -837,7 +818,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${manualShiftDisplay(s)}</span>
                             <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.baseShift, date)}</span>
-                            <span class="roster-remove-note">no longer on the roster</span>
+                            <span class="roster-remove-note">${s.christmas ? CHRISTMAS_NOTE : 'no longer on the roster'}</span>
                         </div>
                         <span class="roster-act act-clear">Clear old</span>`;
                 } else if (s.state === 'GUARDED') {
@@ -874,9 +855,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             ${s.draft?.open ? entryControlHtml(key, s, date) : ''}
                         </div>`;
                 } else if (s.state === 'UNREADABLE') {
-                    // Skip-only: the PDF cell couldn't be parsed. No tick and no write — just surfaces
-                    // the unreadable value so it isn't silently lost. The admin fixes the PDF and
-                    // re-uploads, or records the shift via Change a Shift.
+                    // No readings to offer: the cell couldn't be parsed. No tick, and nothing is written
+                    // unless the admin enters the day below (roster-entry-control.js).
                     row.classList.add('roster-change-unreadable', 'roster-change-row--stacked');
                     // The head keeps the ordinary day/value pairing side by side; the ROW becomes a
                     // column so the entry control sits underneath at full width. Without the wrapper
@@ -933,6 +913,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 }
                 section.appendChild(row);
             }
+            // A refused read's controls do nothing (v22.16), so they SAY so: disabled, and off the Tab
+            // order, rather than live-looking buttons that ignore a press (whole-app fix, Nov 2026).
+            if (alignment.blocked) section.querySelectorAll('button').forEach(b => { b.disabled = true; });
 
             changeList.appendChild(section);
             sectionsShown++;
@@ -1046,14 +1029,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             s.chosen = null;
                             s.entered = null;
                             s.draft = { type: null, from: '', to: '', open: false };
-                            rowEl.querySelector('.roster-entry')?.remove();
-                            rowEl.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
-                                const on = /** @type {HTMLElement} */ (b).dataset.opt === 'skip';
-                                b.classList.toggle('is-chosen', on);
-                                b.setAttribute('aria-pressed', String(on));
-                                b.classList.remove('is-open');
-                            });
-                            patchEntryRow(rowEl, false, s);
+                            paintUnreadableRow(rowEl, s);
                         }
                     }
                 });
@@ -1062,10 +1038,6 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             }
 
             // ---- The in-place entry for an unreadable cell (v22.17) ----
-            // Every change here re-renders the whole table rather than patching the row in place.
-            // The row's shape depends on the pill (times appear only for Shift/RDW), so a patch
-            // would have to rebuild it anyway — and the draft lives on the state, so a full render
-            // cannot lose a half-typed time the way reading values back off the DOM could.
             // Any control INSIDE the entry editor: a type pill, an Other flavour, the RDW tick.
             // `entryClick` owns which of those exist and what each does to the draft; this only
             // redraws the control — never the list, see `redrawEntry`'s header for the measurement.
@@ -1076,7 +1048,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 if (!s || !entryClick(entryHit, s)) return;
                 const pillRow = /** @type {any} */ (entryHit.closest('.roster-change-row'));
                 redrawEntry(pillRow, entryHit.dataset.key ?? '', s);
-                patchEntryRow(pillRow, s.chosen === 'entered' && !!s.entered, s);
+                paintUnreadableRow(pillRow, s);
                 refreshOutcome();
                 return;
             }
@@ -1104,7 +1076,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     if (raw === 'enter') {
                         // Toggling the editor SHUT does not discard the entry — a re-render would
                         // then wipe a value the admin had already committed, which is the one thing
-                        // a disclosure must never do. Only Skip un-chooses.
+                        // a disclosure must never do. Only Skip, or picking a reading, un-chooses.
                         // In place, never a re-render — `redrawEntry`'s header has the measurement.
                         const nowOpen = !s.draft?.open;
                         s.draft = { ...(s.draft || { type: null, from: '', to: '' }), open: nowOpen };
@@ -1112,18 +1084,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             choiceBtn, choiceBtn.dataset.key ?? '', s, nowOpen);
                         return;
                     }
+                    // A picked reading or Skip IS the answer, so the entry and its editor go with it: left
+                    // open, the editor said "this day will be saved" of a value Save no longer wrote.
                     s.chosen = raw === 'skip' ? null : Number(raw);
-                    if (raw === 'skip') { s.entered = null; s.draft = { type: null, from: '', to: '', open: false }; }
-                    const box = /** @type {any} */ (choiceBtn.closest('.roster-pick'));
-                    box.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
-                        const on = b.dataset.opt === raw;
-                        b.classList.toggle('is-chosen', on);
-                        b.setAttribute('aria-pressed', String(on));
-                    });
-                    const rowEl = /** @type {any} */ (choiceBtn.closest('.roster-change-row'));
-                    rowEl.classList.toggle('roster-change-unreadable', s.chosen === null);
-                    const act = rowEl.querySelector('.roster-act');   // one style until answered
-                    if (act) { act.textContent = s.chosen === null ? "Couldn't read" : 'Your choice'; act.className = `roster-act ${unreadableTagClass(s)}`; }
+                    s.entered = null; s.draft = { type: null, from: '', to: '', open: false };
+                    paintUnreadableRow(choiceBtn.closest('.roster-change-row'), s);
                     refreshOutcome();
                     return;
                 }
@@ -1166,7 +1131,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // input the admin is typing into. But leaving the row alone was worse than it looked:
             // the head still read "Not saved · couldn't read — check the paper roster" while the
             // summary above had already counted the entry, so the screen contradicted itself.
-            patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered, s);
+            paintUnreadableRow(el.closest('.roster-change-row'), s);
             refreshOutcome();
         };
         changeList.addEventListener('input', /** @param {any} e */ e => entryTime(e, formatClockInput));

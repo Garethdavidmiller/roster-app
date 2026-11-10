@@ -43,7 +43,7 @@ export function isRestShift(shift) {
 export const LEGACY_OVERRIDE_TYPES = Object.freeze(['allocated', 'overtime', 'swap']);
 
 export const CONTRACTED_WORK_TYPES = new Set([
-    'shift', 'spare_shift', 'other',
+    'shift', 'spare_shift', 'other',  // the last two only on a ROSTERED day — isContractedWorkOverride
     'allocated', 'swap',              // retired — a historic `replacedType` only; contracted, like `shift`
 ]);
 
@@ -60,15 +60,20 @@ export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
 /**
  * Was the member CONTRACTED to work the day this override describes?
  *
- * Answers from the override alone, so it is the one place the swap-vs-overtime distinction lives.
+ * Answers from the override, so it is the one place the swap-vs-overtime distinction lives.
  * A rest-valued override (`correction`/RD — the other half of a swap) is not work whatever its
  * type, which is checked first because it is the stronger statement.
  *
+ * AN OTHER DAY OR A SPARE TURN ON A BASE REST DAY IS NOT CONTRACTED (owner, 10 Nov 2026: "Free, like plain
+ * RDW"): there it is rest-day working (composeOtherValue forces the marker), so leave over it is free, as
+ * over `rdw`. Only its TYPE survives leave, so the base roster is the witness: the leave paths pass it.
+ *
  * @param {{type?:string, value?:string}|null|undefined} ov
+ * @param {string} [baseShift] the day's base shift; without one (display, the roster review) both count
  * @returns {boolean|null} true/false, or null when `ov` carries no usable information — the caller
  *          must then fall back to the base roster rather than treat "unknown" as "no".
  */
-export function isContractedWorkOverride(ov) {
+export function isContractedWorkOverride(ov, baseShift) {
     if (!ov || !ov.type) return null;
     if (isRestShift(ov.value || '')) return false;          // a rest VALUE is not work whatever its type
     // A `correction` is classifiable by TYPE ALONE: its value is pinned to 'RD' by both TYPES'
@@ -77,7 +82,7 @@ export function isContractedWorkOverride(ov) {
     // the first cut read a `replacedValue` that no write path has ever produced, so a swapped-OUT
     // day's AL was charged the moment the correction doc was destroyed).
     if (ov.type === 'correction') return false;
-    if (CONTRACTED_WORK_TYPES.has(ov.type)) return true;
+    if (CONTRACTED_WORK_TYPES.has(ov.type)) return !((ov.type === 'other' || ov.type === 'spare_shift') && isRestShift(baseShift ?? ''));
     if (VOLUNTARY_WORK_TYPES.has(ov.type)) return false;
     // `sick`, `annual_leave` and anything unrecognised describe an ABSENCE, not a contract. They
     // say nothing about whether the member was due to work, so they must answer "unknown" and let
@@ -108,9 +113,11 @@ export function contractEvidence(ov) {
  * Display-suppression rule (CLAUDE.md "Sundays are non-contracted", layer 5) — SINGLE SOURCE for the
  * calendar renderer, Team Week View, and month legend so they can never disagree. True when an
  * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base
- * (unless it replaced contracted work — a swapped-in day) OR any Sunday, and `annual_leave` / Other-family (`other`) on any Sunday. (A worked Sunday is always
- * RDW, never AL/Absent; Sundays and rest days are non-contracted — such overrides are only ever
- * legacy/hand-written data.) `rdw`, `correction`, `spare_shift`, and plain `shift` are never suppressed.
+ * (unless it replaced contracted work — a swapped-in day) OR any Sunday, and `annual_leave` / Other-family
+ * (`other`) on any Sunday. A worked Sunday is always RDW, never AL/Absent, so a Sunday one is legacy or
+ * hand-written data — every write path refuses it; an absence on a rest-day base is not (Admin's week
+ * grid still records one) and is hidden all the same. `rdw`, `correction`, `spare_shift`, and plain
+ * `shift` are never suppressed.
  * Takes `sunday` as a boolean (not the date) so this module stays free of a roster-data import — that
  * would be a cycle, since roster-data imports from here. Callers pass `isSunday(dateStr)`.
  * @param {{type: string, replacedType?: string|null}} override
@@ -389,7 +396,6 @@ export function nextReplacedType(existing, newType) {
  * @param {any} incoming
  * @returns {boolean}
  */
-// Rule: see CLAUDE.md — "shouldReplaceOverride" precedence: manual beats import; within same source, newer wins.
 export function shouldReplaceOverride(existing, incoming) {
     if (!existing) return true;
     const existingIsImport = (existing.source || '') === 'roster_import';
@@ -464,15 +470,11 @@ export function reconcileRangeIntoCache(cache, records, startStr, endStr, opts =
         //
         // `note` stays in the list deliberately: it is '' on every override in production, so it can
         // only ever cause a SPURIOUS repaint, and a spurious repaint is free where a missed one is
-        // the defect above. Add a field here whenever a display path starts reading it.
-        if (!existing
-            || existing.type      !== record.type
-            || existing.value     !== record.value
-            || existing.note      !== record.note
-            || existing.source    !== record.source
-            || existing.changedBy !== record.changedBy) {
-            displayChanged = true;
-        }
+        // the defect above. Add a field here whenever a display path starts reading it — as
+        // `leaveYear` (the day panel's previous-year line) and `replacedType` (whether an absence on a
+        // rest day shows, isOverrideDisplaySuppressed) did without being added, until 10 Nov 2026.
+        const shown = ['type', 'value', 'note', 'source', 'changedBy', 'leaveYear', 'replacedType'];
+        if (!existing || shown.some(f => existing[f] !== record[f])) displayChanged = true;
         cache.set(key, record);
     }
     return displayChanged;
@@ -585,8 +587,8 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 // the optional time range is the trainer's ACTUAL hours, entered manually by the
 // admin — or, for a MEETING only, the times printed on the roster ("10:00-14:00 MTG" imports
 // as 'MEET 10:00-14:00', v25.38). No other flavour's upload carries times. This module is the client-side single
-// source for the grammar; a deliberate duplicate of the RECOGNITION grammar (the
-// looser roster-word aliases) lives in functions/roster-parse-helpers.js —
+// source for the grammar; a deliberate duplicate of the RECOGNITION grammar (the looser roster-word
+// aliases, OTHER_DAY_ALIASES and BARE_OTHER_DAY) lives in functions/roster-other-days.js —
 // Cloud Functions are CommonJS and cannot import this module (same accepted
 // pattern as normaliseSurname). If the grammar changes, update both.
 
@@ -654,10 +656,6 @@ export function parseOtherValue(v) {
     };
 }
 
-/** Single HH:MM field, bounded 00-23 / 00-59. Mirrors TIME_RE in roster-data.js; kept local so
- *  this module stays import-free and unit-testable in plain Node. */
-const _HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 /**
  * COMPOSE an Other-family value — the writer half of the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`,
  * living next to `parseOtherValue` (its reader) so the two can never drift apart (v18.85).
@@ -696,7 +694,7 @@ export function composeOtherValue(f) {
     let time = '';
     if (s || e) {
         if (!s || !e)                             return { error: 'fill in both times, or leave both blank to use the default hours' };
-        if (!_HHMM_RE.test(s) || !_HHMM_RE.test(e)) return { error: 'times must be in HH:MM format (e.g. 07:00)' };
+        if (!isClockTime(s) || !isClockTime(e))   return { error: 'times must be in HH:MM format (e.g. 07:00)' };
         // Equal start/end would validate as a 0h shift but PAY as 24h (the overnight wrap in the
         // duration maths) — reject at the only place these times are authored.
         if (s === e)                              return { error: 'start and end times are the same' };
@@ -772,7 +770,8 @@ const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift']);
  *              correction→'RD', spare_shift→'SPARE').
  *   rdwTime    rdw override → `override.value`; parseable Other → its hours-slot string
  *              (actual time → 'RDW' → the base shift's own time → ''); '' otherwise.
- *   derivedRdw parseable Other day only: true when RDW via the explicit flag OR a rest-day base.
+ *   derivedRdw true when the day is rest-day working by DERIVATION, not an `rdw` override: a parseable
+ *              Other day with the flag or a rest-day base, or a timed `shift` on a Sunday. Read for Other days.
  *
  * It returned a fourth field, `note`, until v22.69. The renderer was its only consumer — the hover
  * tooltip and the day-detail panel — and both were removed with it; see `buildOverrideWrite` above

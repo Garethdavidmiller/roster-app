@@ -34,7 +34,7 @@ import { DAYS, ROTATING_LINES, calcHourlyCoverage } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
 import { normaliseWindow, windowForDay, windowsDiffer, rowMinutes } from './links-window.js';
-import { DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DAY_CLASSES, peakHours, summariseDemand } from './links-demand.js';
+import { DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DAY_CLASSES, peakHours, dutySpans, summariseDemand } from './links-demand.js';
 
 /** The five days the weekday demand class stands for. */
 const WEEKDAYS = Object.freeze(['mon', 'tue', 'wed', 'thu', 'fri']);
@@ -48,9 +48,8 @@ function readAgainstService(design, lines) {
     const hourly = calcHourlyCoverage(design.patterns, lines);
     const win = normaliseWindow(design.window);
     const sum = summariseDemand({
-        profile: DEC_2026_DEMAND,
         movements: DEC_2026_MOVEMENTS,
-        hourly,
+        spans: dutySpans(design.patterns, lines),
         days: DAYS,
         windowFor: (day) => rowMinutes(windowForDay(win, day)),
     });

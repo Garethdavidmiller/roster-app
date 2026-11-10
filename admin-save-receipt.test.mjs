@@ -177,7 +177,7 @@ describe('Christmas Day and Boxing Day are named as themselves (v25.37)', () => 
 
     test('leave already recorded there stays, and the line says it is never counted', () => {
         assert.deepEqual(receipt(['2026-12-26'], ['2026-12-26']).lines, [
-            '[2026-12-26] — Boxing Day; the leave already recorded here was left as it is and is never counted (untick the day to remove it)',
+            '[2026-12-26] — Boxing Day; the leave already recorded here was left as it is and is never counted (select AL on the day again to remove it)',
         ]);
     });
 

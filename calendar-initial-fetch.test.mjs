@@ -28,6 +28,7 @@ let _clearMonthsHistory = []; // calls to clearFetchedMonth
 let _fakeFetchInProgress = false;
 let _cacheFetchImpl   = () => Promise.resolve(false);   // phase 1: local-cache paint
 let _releaseImpl      = () => [];   // releaseStaleMonths — which months the return-to-page released
+let _owedHistory      = [];   // calls to oweRecheck — the months a failed first load leaves owed a re-check
 
 mock.module('./calendar-overrides.js', {
     namedExports: {
@@ -36,6 +37,7 @@ mock.module('./calendar-overrides.js', {
         addFetchedMonths(keys)       { _addMonthsHistory.push([...keys]); },
         clearFetchedMonth(key)       { _clearMonthsHistory.push(key); },
         releaseStaleMonths:          (...args) => _releaseImpl(...args),
+        oweRecheck(keys)             { _owedHistory.push([...keys]); },
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
         fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),
@@ -48,11 +50,14 @@ mock.module('./calendar-overrides.js', {
 mock.module('./roster-data.js', {
     namedExports: {
         formatISO: d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        // calendar-state.js (the month on screen, which the chip sits above — cal-data-5) reads its bounds.
+        CONFIG: { MIN_YEAR: 2024, MAX_YEAR: 2040 },
     },
 });
 
 const { initInitialFetch } = await import('./calendar-initial-fetch.js');
-const { knowledgeOf, _reset: resetKnowledge } = await import('./calendar-data-state.js');
+const { knowledgeOf, noteKnowledge, _reset: resetKnowledge } = await import('./calendar-data-state.js');
+const { setDisplayMonth, setDisplayYear } = await import('./calendar-state.js');
 
 // ── Minimal DOM helpers ───────────────────────────────────────────────────────
 
@@ -150,16 +155,25 @@ function rebuildHeader() {
     renderHeaderIntoDOM();
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+    // A test that ends with its sync in flight can leave the read itself still to be ISSUED — and issued
+    // after the reset below, it meets this test's resolving fake, lands, and confirms its months inside
+    // the NEXT test (measured, 10 Nov 2026). Let it be issued against its own test's fakes first.
+    await new Promise(r => setImmediate(r));
     _progressHistory     = [];
     _addMonthsHistory    = [];
     _clearMonthsHistory  = [];
+    _owedHistory         = [];
     _fakeFetchInProgress = false;
     _fetchImpl           = () => Promise.resolve();
     _grantGen            = 0;
     _hasAccess           = true;
     _cacheFetchImpl      = () => Promise.resolve(false);
     setupDOM();
+    // The knowledge module is REAL and process-wide, and since cal-data-5 a month on screen known
+    // current withdraws the failure chip — so one test's settled months must not reach the next.
+    resetKnowledge();
+    setDisplayMonth(new Date().getMonth()); setDisplayYear(new Date().getFullYear());
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -451,6 +465,51 @@ describe('failure path', () => {
         assert.equal(getSyncChip(), null, 'and the header watcher does not re-attach it');
     });
 
+    // cal-data-5 (10 Nov 2026). The failure render re-reads the month on screen, and when that read
+    // WORKS — a blip, or the signal back on the next visit — the grid is drawn as current while the
+    // header watcher put "Couldn't update — try again" back above it after every render.
+    test('the month on screen confirmed since: the next render withdraws the failure, not re-attaches it', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(new Error('x'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        assert.ok(getSyncChip()?._classes.has('sync-chip-error'), 'premise: the failure chip is up');
+        const now = new Date();
+        noteKnowledge(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, 'authoritative');   // its own read landed
+        rebuildHeader();   // …and repainted the grid
+        assert.equal(getSyncChip(), null, '"Couldn\'t update" went back above a month the server has just answered for');
+        rebuildHeader();
+        assert.equal(getSyncChip(), null, 'and stays withdrawn');
+    });
+
+    test('…but a month confirmed ELSEWHERE does not: the chip is about the grid it sits above', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(new Error('x'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        const now = new Date();
+        const away = new Date(now.getFullYear(), now.getMonth() + 5, 1);
+        noteKnowledge(`${away.getFullYear()}-${String(away.getMonth() + 1).padStart(2, '0')}`, 'authoritative');
+        rebuildHeader();
+        assert.ok(getSyncChip()?._classes.has('sync-chip-error'), 'a month nobody is looking at took the retry away');
+        setDisplayMonth(away.getMonth()); setDisplayYear(away.getFullYear());   // the member goes there
+        rebuildHeader();
+        assert.equal(getSyncChip(), null, 'over THAT grid, which is current, the failure is withdrawn');
+    });
+
+    test('…and only the failure: "Updating your shifts…" is still true over a confirmed month, so it comes back', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});                  // the window's read is still out
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        t.mock.timers.tick(800);
+        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…', 'premise: the updating chip is up');
+        const now = new Date();
+        noteKnowledge(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, 'authoritative');
+        rebuildHeader();
+        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…',
+            'a header rebuild over a confirmed month took away a sync that is still running');
+    });
+
     test('dismissSyncError leaves a sync that is still RUNNING alone', (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => new Promise(() => {});
@@ -524,6 +583,19 @@ describe('a refused read re-locks; a failed one offers the retry', () => {
         assert.equal(_clearMonthsHistory.length, 3, 'the three months are still released for the next grant');
     });
 
+    test('a refused boot read records NOTHING against the months — a lock is not a failed month (cal-data-6)', async (t) => {
+        // It used to record `error` before asking whether the refusal was about access, and the
+        // record outlived the lock: the next grant's first render was "Couldn't check this month"
+        // while its own read was still in flight.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        resetKnowledge();
+        _fetchImpl = () => Promise.reject(DENIED());
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => {} });
+        await flushAsync();
+        const monthNow = (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)(new Date());
+        assert.equal(knowledgeOf(monthNow), 'unknown', 'the refusal was recorded as a failed month');
+    });
+
     test('a boot read that FAILED for the network keeps the retry, and does not re-lock', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => Promise.reject(OFFLINE());
@@ -562,6 +634,33 @@ describe('a refused read re-locks; a failed one offers the retry', () => {
         assert.equal(lost, 0, 'a network failure on the retry was treated as lost access');
         assert.notEqual(chip._removed, true, 'the chip is still the way to try again');
         assert.equal(chip.textContent, "⚠ Couldn't update — try again");
+    });
+
+    // cal-data-4 (10 Nov 2026). A phone opened in a signal gap kept the saved copy and "Couldn't
+    // update" after the signal came back: the failure released the three months unread, so coming
+    // back to the page found nothing to hand back. calendar-overrides.js decides which of them hold a
+    // copy (only those are owed); this pins that the first load asks.
+    test('a boot read that FAILED for the network owes its three months a re-check on return', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        initInitialFetch({ isTeamViewMode: () => true, renderCalendar: () => {}, renderTeamView: () => {}, onAccessLost: () => {} });
+        await flushAsync();
+        assert.deepEqual(_owedHistory, [_addMonthsHistory[0]], 'the months a failed first load leaves on screen were never asked for again');
+    });
+
+    test('…and so does its retry; a REFUSED read owes nothing — the unlock card is the recovery', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => {} });
+        await flushAsync();
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        getSyncChip()._fire('click');
+        await flushAsync();
+        assert.equal(_owedHistory.length, 2, 'the failed retry left the same months owed');
+        _fetchImpl = () => Promise.reject(DENIED());
+        getSyncChip()._fire('click');
+        await flushAsync();
+        assert.equal(_owedHistory.length, 2, 'a refusal owed a re-check to a Calendar that has just locked');
     });
 });
 
@@ -800,6 +899,40 @@ describe('visibilitychange', () => {
         _releaseImpl = () => [];
         assert.equal(refetches, 1, 'the released months were never asked for again');
         assert.equal(repaints, 0, 'a cache repaint is not a re-read');
+    });
+
+    // cal-data-8 (10 Nov 2026). A page that is never hidden never comes BACK into view, so it went on
+    // showing what each month held when first read, as current, for as long as it stayed open.
+    test('a page that STAYS in view runs the same check every ten minutes', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+        let renders = 0, refetches = 0;
+        let teamView = false;
+        initInitialFetch({ isTeamViewMode: () => teamView, renderCalendar: () => { renders++; },
+            renderTeamView: () => {}, refetchTeamView: () => { refetches++; } });
+        await flushAsync();
+        const settled = renders;
+        _releaseImpl = () => ['2026-10'];
+        global.document.hidden = false;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(renders, settled + 1, 'ten minutes in view and nothing was asked for again');
+        teamView = true;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(refetches, 1, 'and Team View re-READS, as it does on a return');
+    });
+
+    test('…but not while hidden, nor on a Calendar that has lost its access', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+        let renders = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { renders++; } });
+        await flushAsync();
+        const settled = renders;
+        _releaseImpl = () => ['2026-10'];
+        global.document.hidden = true;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(renders, settled, 'a hidden page is checked when it comes back, not on the clock');
+        global.document.hidden = false; _hasAccess = false;
+        t.mock.timers.tick(10 * 60_000);
+        assert.equal(renders, settled, 'a locked Calendar has nothing to draw and must not read');
     });
 });
 

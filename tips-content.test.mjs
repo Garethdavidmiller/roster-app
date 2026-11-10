@@ -28,7 +28,7 @@ import { ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
 // with the same values.
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
-import { DAYTIME } from './trains-render.js';
+import { DAYTIME, renderFurtherChanges } from './trains-render.js';
 
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
@@ -47,7 +47,7 @@ const PAGES = [
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
-    { js: 'trains-tips.js',    html: 'trains.html', scope: { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, DAYTIME, JOURNEY_PLANNER_URL } },
+    { js: 'trains-tips.js',    html: 'trains.html', scope: { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, DAYTIME, JOURNEY_PLANNER_URL, renderFurtherChanges } },
 ];
 
 /**
@@ -130,6 +130,96 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
             GRADES.ces.contr = 147;
             assert.match(tipOf(await import('./paycalc-help.js?differ')), /CEA 150, CES 147/);
         } finally { [GRADES.cea.contr, GRADES.ces.contr] = saved; }
+    });
+});
+
+// ── WHAT OPERATIONS' RESET QUEUE QUOTES (Nov 2026 review) ───────────────────────────────────────
+// The queue's hint quoted "ask the admin to reset my password" while the sign-in link reads "Can’t get
+// in? Ask the admin to reset your password" — a quote nobody could find on the screen it names. Both
+// the hint and the ? panel are held to the link's own words, read from login-overlay.js.
+describe('operations — the reset queue quotes the sign-in link as it reads', () => {
+    const m = /const RESET_BTN_LABEL = ([\s\S]*?);\n/.exec(readFileSync('login-overlay.js', 'utf8'));
+    assert.ok(m, 'login-overlay.js: RESET_BTN_LABEL not found — update this test to read the link from its new home');
+    const link = String(new Function(`return (${m[1]});`)()).replace(/<[^>]+>/g, '');
+
+    test('the card hint quotes the link\'s opening words', () => {
+        const hint = /<span class="hint">Staff who tapped “([^”]+)”/.exec(readFileSync('operations.html', 'utf8'))?.[1];
+        assert.ok(hint && link.startsWith(hint), `operations.html quotes "${hint}"; the link reads "${link}"`);
+    });
+
+    test('the ? panel quotes the link in full', () => {
+        const first = readCardTips('operations-tips.js')['reset-requests'].sections[0].items[0].html;
+        assert.equal(/“([^”]+)”/.exec(first)?.[1], link);
+    });
+});
+
+// ── WHAT SETTINGS SAYS YOU WILL GET (Nov 2026 review) ───────────────────────────────────────────
+// The Notifications card lists the kinds of notification a member agrees to; its ? panel lists them
+// again. The card gained "Timetable changes" at v24.97 and the panel did not, under a comment insisting
+// it named every kind. Each list is held to the other: every kind on the card is named in the panel's
+// "What you'll get", and the panel names nothing the card does not. The card uses the short form of a
+// name ("Retail Circular"), the panel the full one ("Weekly Retail Circular"), so the panel's name must
+// END with the card's.
+describe('settings — the ? panel names the notifications the card lists', () => {
+    const card = [...readFileSync('settings.html', 'utf8').matchAll(/<span class="notif-kind">([^<]+?)(?: ·)?<\/span>/g)]
+        .map(m => m[1].trim());
+    const got = readCardTips('settings-app.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const named = (got?.items ?? []).map((/** @type {any} */ i) => /<strong>([^<]+)<\/strong>/.exec(i.html)?.[1] ?? '');
+
+    test('premise: both lists were found', () => {
+        assert.ok(card.length >= 4, `settings.html: found ${card.length} .notif-kind spans`);
+        assert.ok(named.length >= 4, 'settings-app.js: no "What you\'ll get" section in the notifications tips');
+    });
+    test('every kind on the card is in the panel', () => {
+        const missing = card.filter(k => !named.some(n => n.endsWith(k)));
+        assert.deepEqual(missing, [], `the card lists ${missing.join(', ')}; the ? panel does not`);
+    });
+    test('the panel names nothing the card does not', () => {
+        const extra = named.filter(n => !card.some(k => n.endsWith(k)));
+        assert.deepEqual(extra, [], `the ? panel lists ${extra.join(', ')}; the card does not`);
+    });
+});
+
+// ── THE PAY REMINDER SAYS WHO IT REACHES (whole-app check, 10 Nov 2026) ─────────────────────────
+// Since contracts-b-3 the server sends it only to the grades the Pay Calculator prices, and the panel
+// still promised it to everybody — a Dispatcher or a manager agreed to a reminder that never comes.
+// The grades are read from the server's own list, so the panel and the send cannot part.
+describe('settings — the ? panel says who the pay reminder is for', () => {
+    const server = readFileSync('functions/pay-reminder.js', 'utf8');
+    const list = /PAY_REMINDER_GRADES\s*=\s*Object\.freeze\(\[([^\]]*)\]\)/.exec(server)?.[1] ?? '';
+    const grades = [...list.matchAll(/'(\w+)'/g)].map(m => m[1].toUpperCase());
+    const got = readCardTips('settings-app.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const item = (got?.items ?? []).map((/** @type {any} */ i) => String(i.html)).find((/** @type {string} */ h) => h.startsWith('<strong>Pay reminder</strong>')) ?? '';
+
+    test('premise: the server\'s grades and the panel\'s item were found', () => {
+        assert.ok(grades.length > 0, 'functions/pay-reminder.js: PAY_REMINDER_GRADES was not found');
+        assert.ok(item, 'settings-app.js: no Pay reminder item in "What you\'ll get"');
+    });
+    test('the item names every grade the server sends it to', () => {
+        for (const g of grades) assert.match(item, new RegExp(`\\b${g}\\b`), `the panel promises the reminder without saying it is for ${g} colleagues: ${item}`);
+    });
+});
+
+// ── WHAT THE WORK EMAIL IS FOR (Nov 2026 review) ────────────────────────────────────────────────
+// CLAUDE.md's wording convention: the email is for "account recovery", and "Self-service recovery isn't
+// available yet. For now, ask the admin if you forget your password." The card says exactly that; its ?
+// panel kept the roadmap promise the convention replaced ("one day you can reset your own password by
+// email. That is not built yet"). The panel is held to the card's own sentence.
+describe('settings — the Work Email ? panel says what the card says the email is for', () => {
+    const html = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
+    const sentence = /Self-service recovery isn’t available yet\. For now, ask the admin if you forget your password/.exec(html)?.[0];
+    const tip = readCardTips('settings-app.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
+        .map((/** @type {any} */ i) => i.html.replace(/<[^>]+>/g, '')).join(' ');
+
+    test('premise: the card states the convention', () => {
+        assert.ok(sentence, 'settings.html: the Work Email card no longer carries the convention\'s sentence');
+    });
+    test('the panel names account recovery and carries the card\'s sentence', () => {
+        assert.match(tip, /account recovery/);
+        assert.ok(sentence && tip.includes(sentence), `the Work Email ? panel reads: ${tip}`);
+    });
+    test('and makes no roadmap promise', () => {
+        assert.doesNotMatch(tip, /one day|not built yet|coming soon/i);
     });
 });
 

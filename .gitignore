@@ -1,13 +1,27 @@
 # Archives — may be created during development uploads; never commit
-*.zip
+*.[zZ][iI][pP]
 
 # Personal financial data — must never be committed to source control.
 # Reference payslips live OUTSIDE this repo at ../roster-private/payslips/
 # so they can never be accidentally committed. These rules are a safety net
 # in case any payslip/screenshot is ever dropped into the working tree.
-*.pdf
-*.jpg
-*.jpeg
+# EITHER CASE: matching is case-sensitive on Linux, where sessions run, and a phone or a scanner
+# names its files IMG_0042.JPG, IMG_0042.HEIC and SCAN.PDF. (The Links 26 PDFs are force-added.)
+*.[pP][dD][fF]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[hH][eE][iI][cC]
+example-payslips/
+
+# THE FILES THE DOCUMENTED WORKFLOWS ACTUALLY BRING IN (whole-app check, 10 November 2026). The depot
+# annual-leave workbook names every colleague against their leave (docs/AL_WORKBOOK.md), and its own
+# recipe unzips `xl/` out of it in the working directory; a Huddle is a Word document. None of these
+# kinds is tracked anywhere, and the Pages mirror would serve whatever one `git add -A` committed.
+*.[xX][lL][sS][xX]
+*.[xX][lL][sS]
+*.[cC][sS][vV]
+*.[dD][oO][cC][xX]
+xl/
 
 # Node dependencies
 node_modules/
@@ -35,5 +49,7 @@ ui-debug.log
 *.local.js
 
 # The AL workbook reconciliation log — names colleagues against their leave figures, and
-# `docs/` is served by the GitHub Pages mirror at HTTP 200. Same rule as the payslip fixture.
-docs/AL_WORKBOOK.local.md
+# `docs/` is served by the GitHub Pages mirror at HTTP 200. Same rule as the payslip fixture, and
+# the same glob: doc-parity.test.mjs exempts EVERY `*.local.md` from its index as gitignored, so a
+# second private log named by the convention must be ignored too, not only this one path.
+*.local.md

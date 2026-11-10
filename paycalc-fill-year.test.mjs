@@ -186,6 +186,18 @@ test('the all-clear receipt exists — a tap with nothing eligible must say so, 
         /already has entries — nothing to fill/);
 });
 
+test('ONE payslip is spoken of in the singular (paycalc-2-20)', () => {
+    // "15 Jan — open each of those payslips" read as though some were left out of the list.
+    const p = { payday: new Date(2026, 0, 15) };
+    const one = fillYearReceipt({ filled: [], unreached: [p], nothing: [], corrupt: [], unsaved: [p] }, () => '15 Jan').join(' ');
+    assert.match(one, /open that payslip and use/);
+    assert.match(one, /refused to store it \(/);
+    assert.doesNotMatch(one, /each of those|store them/);
+    const two = fillYearReceipt({ filled: [], unreached: [p, p], nothing: [], corrupt: [], unsaved: [p, p] }, () => '15 Jan').join(' ');
+    assert.match(two, /open each of those payslips/);
+    assert.match(two, /refused to store them/);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // RULE 5 — THE FILL OWNS THE CALENDAR'S FIELDS AND NOTHING ELSE (v22.13)
 //

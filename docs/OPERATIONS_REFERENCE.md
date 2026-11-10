@@ -443,7 +443,7 @@ before relying on this summary:
 | C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
-`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`; `getSurname()` in `session.js` delegates to `normaliseSurname()`. The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
+`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. The client never CREATES a missing account: one that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js`.
 
@@ -655,9 +655,11 @@ If the block says it **couldn't check** — the connection, an account list the 
 (it declines to name the whole roster as missing rather than guess), or an answer it could not read —
 that is a third answer and not a pass. Retry it.
 
-**"Taken back and reset to the default password"** (v24.24) is a line Set up accounts prints when it
-finds an account at a roster email carrying no custom claim at all — somebody registered that email
-from outside before the server provisioned it. It resets the password to the member's surname
+**"Reset to the default password and signed out"** (v24.24; worded "Taken back and reset to the default
+password" until 10 Nov 2026) is a line Set up accounts prints when it finds an account at a roster
+email carrying no custom claim at all — somebody registered that email from outside before the server
+provisioned it — and also for a DISABLED account at a roster email that it re-enables, such as a
+returning leaver's, from whom nothing was taken back. It resets the password to the member's surname
 default, signs out every session on it, stamps `resetAt` (so Settings asks them to choose a new one)
 and then stamps the claims. The member named there should be told their password is their surname.
 For anybody provisioned before v24.24 this never fires: their accounts already carry claims. A

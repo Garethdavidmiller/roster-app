@@ -179,6 +179,43 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
     expect(await docReads(page), 'the held read ran once the PIN was in').toBeGreaterThan(before);
 });
 
+// ── …AND BY A SIGN-IN, WHICH RELOADS THE PAGE (whole-app review, 10 Nov 2026) ────────────────────
+// Both sign-ins on the locked Calendar end in a reload, and the tap had been consumed long before, so
+// "Enter the staff PIN, or sign in" was true only of the PIN. The tap the lock is holding is written
+// down as the page unloads and taken back by the next load (calendar-doc-viewer.js and
+// calendar-huddle-viewer.js, `pagehide`).
+test('locked: a Circular deep link is FINISHED by a sign-in too — the reload carries the tap', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
+    await page.goto('/index.html#circular');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+    await page.locator('#docViewerClose').click();
+    await expect(page.locator('#docViewer')).toBeHidden();
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#docViewerBody'), 'the member signed in, and the document they tapped for never came')
+        .toContainText('No Weekly Retail Circular has been uploaded yet', { timeout: 10_000 });
+});
+
+test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page }) => {
+    const stored = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
+    await page.addInitScript((s) => {
+        window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true,
+            huddleDoc: { date: '2026-09-25', storageUrl: s, fileType: 'pdf' } });
+    }, stored);
+    await page.goto('/');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#huddleOpenFileBtn'), 'the member signed in, and the Huddle they tapped for never came')
+        .toBeVisible({ timeout: 10_000 });
+});
+
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
     await page.goto('/index.html');
     await expect(page.locator('#calendarLock')).toBeVisible();

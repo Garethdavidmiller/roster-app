@@ -17,7 +17,8 @@
  * fails or is still running, a later re-render from any unrelated action would otherwise draw three
  * rows and label them "(all staff)" with the button agreeing. A manager asking "has anyone else
  * booked that week?" would get no, and act on it. That shipped once in this release and is the
- * reason the check is here rather than at the toggle.
+ * reason the check is here rather than at the toggle. The same holds for ONE member: an empty list
+ * for a member whose records were never read is "loading" or "couldn't load", not "no changes".
  *
  * The renderers and permissions arrive through `initSavedChanges` rather than being imported, which
  * is what keeps this out of a cycle with the coordinator that wires it.
@@ -28,13 +29,25 @@ import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './f
 
 const BULK_DELETE_CHUNK = 200;   // per committed batch — under Firestore's 500, as the range booking
 import { TYPES, rowValueText } from './admin-shift-types.js';
-import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates, assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
+import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates,
+         assertDeletable, DELETE_REFUSED, hasOverrideAuthorityFor, loadFailedFor } from './admin-override-store.js';
 import { setStatus } from './status-text.js';
-import { unconfirmedWriteLine } from './claim-retry.js';
+import { unconfirmedWriteLine, isAccessFailure } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
+// The two-tap ✕ and the feedback line's fade, shared with the Recorded-dates lists (their header says why).
+import { armConfirm, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 
 /** The receipt's account of a duplicate cleared alongside (v24.48): said, never silent. @param {number} n */
 const _olderCopies = (n) => n > 0 ? `, and ${n} older cop${n === 1 ? 'y' : 'ies'} of the same day` : '';
+/** Newest first, then by name — the order every write path left the cache in, so the list no longer
+ *  depends on which path last touched it: a member's read returns Firestore's id order (whole-app
+ *  check, 10 Nov 2026). @param {any} a @param {any} b */
+const _newestFirst = (a, b) => (b.date || '').localeCompare(a.date || '')
+    || (a.memberName || '').localeCompare(b.memberName || '') || String(a.id).localeCompare(String(b.id));
+/** What to do about a failed delete, said for where the fix is: a refused write is not a poor signal,
+ *  and blaming the connection "sends them to fix the one thing that is not wrong" (claim-retry.js). */
+const _cause = (/** @type {any} */ err) => isAccessFailure(err)
+    ? 'you may have been signed out. Please sign in again.' : 'check your connection and try again.';
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin   = false;
 let _currentIsManager = false;
@@ -77,19 +90,19 @@ export function initSavedChanges(deps) {
     _initOverridesTable();
 }
 
-/** Clears the "show all staff" toggle and re-renders the table. Call when the selected member changes. */
+/** Clears the "show all staff" toggle and re-renders the table. Call when the selected member changes.
+ *  A new member is a new list, so the month filter starts again from the role's default: applied on the
+ *  first render only, one member with nothing this month left every later one on "All months". */
 export function resetTableMemberFilter() {
     _tableShowAllOverrides = false;
+    const filter = document.getElementById('overridesMonthFilter');
+    if (filter) delete filter.dataset.initialized;
     renderTable();
 }
 
 /** Whether the list is showing every member rather than the selected one. */
 let _tableShowAllOverrides = false;
 
-/**
- * Loads override documents from Firestore into the store's cache,
- * then renders the table, week grid, and calls onAfterSave to refresh AL/sick banners.
- */
 /**
  * Renders the Saved Changes table from _allOverrides.
  * Filtered by the currently selected member and the month/year dropdown.
@@ -101,28 +114,29 @@ export function renderTable() {
     const listCount          = document.getElementById('listCount');
     const overridesMonthFilter = /** @type {HTMLSelectElement|null} */ (document.getElementById('overridesMonthFilter'));
     const selectAllOverrides = /** @type {HTMLInputElement|null} */ (document.getElementById('selectAllOverrides'));
-    const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
+    const bulkDeleteBtn      = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkDeleteBtn'));
+    const countChip          = document.getElementById('overridesCountChip');
     const selectedMember     = fieldMember?.value;
-    // THE ALL-STAFF VIEW ASKS A DIFFERENT QUESTION, SO IT ASKS IT HERE TOO (v21.38, review). The
-    // toggle flips a flag and then STARTS a load; if that load fails, is still running, or was
-    // coalesced away, the flag stays true with a per-member cache behind it — and this function
-    // would render three rows and label them "(all staff)" with the button agreeing. A manager
-    // asking "has anyone else booked that week?" would get no, and act on it. `coversAllStaff()` is
-    // the LIST's question — distinct from `hasOverrideAuthorityFor`, which is every WRITE's.
+    // THE TOOLBAR STARTS AGAIN WITH THE ROWS (whole-app check, 10 Nov 2026). Every row is rebuilt, so
+    // nothing is ticked: before either exit below, or an emptied list kept a live "Delete selected"
+    // and a ticked "Select all", and a partial selection kept "Select all" at its dash.
+    if (selectAllOverrides) { selectAllOverrides.checked = false; selectAllOverrides.indeterminate = false; }
+    if (bulkDeleteBtn) { bulkDeleteBtn.style.display = 'none'; if (bulkDeleteBtn.classList.contains('confirming')) disarmConfirm(bulkDeleteBtn, 'Delete selected'); }
+    // THE ALL-STAFF VIEW ASKS A DIFFERENT QUESTION, SO IT ASKS IT HERE TOO (v21.38, review): the toggle
+    // only STARTS a load, and a failed or running one leaves the flag over a per-member cache — three
+    // rows labelled "(all staff)" (header). `coversAllStaff()` is the LIST's question;
+    // `hasOverrideAuthorityFor` is every WRITE's.
     const showAll            = _tableShowAllOverrides && coversAllStaff();
-    // One member on screen → their name is stated once, at the top, not on every row (v23.12).
-    // add/remove rather than toggle(force): the unit suite's fake DOM has no `toggle`, and a throw
-    // here aborted the whole render — the empty-list message never appeared and the bulk-delete
-    // test caught it. A real browser has both; the fake is the reason to prefer the pair.
+    // One member on screen → their name is stated once, at the top, not on every row (v23.12). add/remove,
+    // not toggle(force): the unit suite's fake DOM has no `toggle`, and a throw there aborted the render.
     const memberFilter       = showAll ? '' : (selectedMember || '');
     // Keyed on the FILTER, not on the toggle (v23.15 review): with no member selected and the
     // All-staff view off, the rows below are everyone's, and hiding the names on that list would
     // leave nothing to tell one row from the next.
-    const tbody = document.getElementById('overrideTableBody');
-    if (tbody) { if (memberFilter) tbody.classList.add('oc-single-member'); else tbody.classList.remove('oc-single-member'); }
-    const memberRows         = memberFilter
+    if (tableBody) { if (memberFilter) tableBody.classList.add('oc-single-member'); else tableBody.classList.remove('oc-single-member'); }
+    const memberRows         = (memberFilter
         ? getAllOverrides().filter(o => o.memberName === memberFilter)
-        : getAllOverrides();
+        : getAllOverrides()).slice().sort(_newestFirst);
 
     // Update "Show all / This member" toggle button
     const showAllBtn = document.getElementById('showAllOverridesBtn');
@@ -132,6 +146,23 @@ export function renderTable() {
         // "All staff" toggle to them, contradicting the card's "your own changes only" tip.
         showAllBtn.hidden = !selectedMember || !(_currentIsAdmin || _currentIsManager);
         showAllBtn.textContent = showAll ? 'This member only' : 'All staff';
+    }
+
+    // NOT READ IS NOT "NO CHANGES" (whole-app check, 10 Nov 2026). An unread member and one with nothing
+    // recorded are the same empty slice; this said "No recorded changes yet" over a failed load (replacing
+    // its Retry) or a running one. Before the month filter, which would take its default from nothing.
+    // Rows a capped all-staff read left in the cache are still listed, under the cap note below.
+    if (memberFilter && !showAll && !memberRows.length && !hasOverrideAuthorityFor(memberFilter)) {
+        const failed = loadFailedFor(memberFilter);
+        if (listCount) listCount.textContent = failed ? 'Error' : 'Loading…';
+        if (countChip) countChip.textContent = '';
+        if (tableBody) tableBody.innerHTML = failed
+            ? `<div class="override-state">${globalThis.navigator?.onLine === false
+                ? 'You\'re offline — saved changes can\'t be checked until you reconnect.' : 'Couldn\'t load saved changes.'}`
+              + '<br><span class="reload-link" data-retry-member role="button" tabindex="0">↻ Retry</span></div>'
+            : '<div role="status"><span class="visually-hidden">Loading saved changes…</span></div>'
+              + '<div class="skeleton-row" aria-hidden="true"></div>'.repeat(3);
+        return;
     }
 
     if (overridesMonthFilter) {
@@ -170,12 +201,9 @@ export function renderTable() {
         const capped  = isTruncated() ? ` — showing the ${OVERRIDES_QUERY_CAP} most recent; older changes aren't listed` : '';
         listCount.textContent = label + context + capped;
     }
-    // Header context chip (v18.16): the count at a glance while the card is collapsed. Mirrors the
-    // list's current view (member/month filter); empty at zero — the :empty rule hides the chip.
-    // "+" when the load hit the query cap (v18.23 — no-silent-caps, matching the Error Log chip's
-    // '100+'): a capped load means older rows exist beyond ANY current view, so a bare number on a
-    // collapsed card would read as exact.
-    const countChip = document.getElementById('overridesCountChip');
+    // Header context chip (v18.16): the list's current count while the card is collapsed, empty at zero
+    // (its :empty rule hides it). "+" when the load hit the query cap (v18.23, no-silent-caps): older
+    // rows exist beyond ANY view then, so a bare number would read as exact.
     if (countChip) countChip.textContent = rows.length
         ? String(rows.length) + (isTruncated() ? '+' : '') : '';
 
@@ -191,8 +219,6 @@ export function renderTable() {
     }
 
     if (tableBody) tableBody.innerHTML = '';
-    if (selectAllOverrides) selectAllOverrides.checked = false;
-    if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
 
     rows.forEach(o => {
         const typeMeta     = TYPES[o.type];
@@ -202,10 +228,11 @@ export function renderTable() {
         const ename = escapeHtml(o.memberName || '');
         const card = document.createElement('div');
         card.className = 'override-card';
+        // The shown date is escaped too: the rules pin `date`, but an Admin-SDK write passes no rule.
         card.innerHTML = `
             <input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${edate}">
             <div class="oc-body">
-                <div class="oc-head"><span class="oc-date">${formatDisplay(o.date)}</span><span class="oc-member">${ename}</span></div>
+                <div class="oc-head"><span class="oc-date">${escapeHtml(formatDisplay(o.date))}</span><span class="oc-member">${ename}</span></div>
                 <div class="oc-detail"><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}${rowValueText(etype, o.value) ? `<span class="oc-value">${escapeHtml(rowValueText(etype, o.value))}</span>` : ''}</div>
             </div>
             <div class="oc-actions">
@@ -214,8 +241,7 @@ export function renderTable() {
             </div>`;
         if (tableBody) tableBody.appendChild(card);
     });
-    // Delegated listeners attached once in _initOverridesTable() — see below.
-    // Previously: 3 × N listeners per render (e.g. 6000 for 2000 overrides).
+    // Listeners are delegated once, in _initOverridesTable() — not 3 × N per render.
 }
 
 function _updateBulkDeleteVisibility() {
@@ -223,7 +249,7 @@ function _updateBulkDeleteVisibility() {
     const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
     const selectAllOverrides = /** @type {HTMLInputElement|null} */ (document.getElementById('selectAllOverrides'));
     const checkedCount = tableBody?.querySelectorAll('.row-select:checked').length ?? 0;
-    if (bulkDeleteBtn) { bulkDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none'; if (bulkDeleteBtn.classList.contains('confirming')) _disarmConfirmButton(/** @type {HTMLButtonElement} */ (bulkDeleteBtn), 'Delete selected'); }   // a changed selection disarms (v25.06)
+    if (bulkDeleteBtn) { bulkDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none'; if (bulkDeleteBtn.classList.contains('confirming')) disarmConfirm(bulkDeleteBtn, 'Delete selected'); }   // a changed selection disarms (v25.06)
     if (selectAllOverrides) {
         const total = tableBody?.querySelectorAll('.row-select').length ?? 0;
         selectAllOverrides.checked       = total > 0 && checkedCount === total;
@@ -231,38 +257,22 @@ function _updateBulkDeleteVisibility() {
     }
 }
 
-/**
- * @param {HTMLButtonElement} btn
- * @param {string} confirmLabel
- * @param {string} resetLabel
- * @param {string} [armedName] the armed name where "Confirm" + the idle one would not contain what the button SHOWS — the bulk
- *   button's count, said by a voice user as "Delete 3" (WCAG 2.5.3; 6 Nov 2026). It also stops a re-arm reading "Confirm confirm".
- */
-function _armConfirmButton(btn, confirmLabel, resetLabel, armedName) {
-    btn.classList.add('confirming');
-    btn.textContent = confirmLabel;
-    // A DESTRUCTIVE TWO-STEP CONTROL MUST SAY ITS MEANING CHANGED (v23.16, external review). The
-    // recorded-dates ✕ renames itself "Confirm delete …" while armed; this one kept announcing
-    // "Delete G. Miller 2026-09-01" under a button that now read "Delete?". The idle name is kept on
-    // the element so `_disarmConfirmButton` can restore it from any exit (timer, failure, success).
-    const idle = btn.getAttribute('aria-label');
-    if (idle) {
-        if (!btn.dataset.idleLabel) btn.dataset.idleLabel = idle;
-        btn.setAttribute('aria-label', armedName ?? `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
-    }
-    const b = /** @type {any} */ (btn); clearTimeout(b.armTimer);   // a re-arm gets its own five seconds (48-hour review)
-    b.armTimer = setTimeout(() => { if (btn.classList.contains('confirming')) _disarmConfirmButton(btn, resetLabel); }, 5000);
+/** Every write to `#listFeedback`: ONE fade per line, cancelled by each new message, so one delete's fade
+ *  no longer takes down the next one's refusal. @param {string} text @param {'success'|'error'} kind @param {number} [fade] */
+function _sayList(text, kind, fade = 0) {
+    const el = document.getElementById('listFeedback');
+    if (!el) return;
+    holdFeedback(el);
+    setStatus(el, text);
+    el.className = `list-feedback ${kind}`;
+    if (fade) fadeFeedback(el, 'list-feedback', fade);
 }
 
-/**
- * The armed control back to idle — label, class and accessible name together, so no exit can
- * restore two of the three (the shipped shape: the glyph came back and the name stayed "Confirm").
- * @param {HTMLButtonElement} btn @param {string} resetLabel
- */
-function _disarmConfirmButton(btn, resetLabel) {
-    btn.classList.remove('confirming');
-    btn.textContent = resetLabel;
-    if (btn.dataset.idleLabel) btn.setAttribute('aria-label', btn.dataset.idleLabel);
+/** A delete rebuilt the list under the focused control: hand focus to the ✕ now in its place, or to
+ *  the line saying what happened — never to <body> (whole-app check, 10 Nov 2026). @param {number} pos */
+function _refocusAfterDelete(pos) {
+    const left = [...(document.getElementById('overrideTableBody')?.querySelectorAll('.btn-delete') ?? [])];
+    /** @type {any} */ (left[Math.min(pos, left.length - 1)] ?? document.getElementById('listFeedback'))?.focus();
 }
 
 /** @param {MouseEvent} e */
@@ -270,20 +280,16 @@ async function _handleDelete(e) {
     // closest() makes this work both directly and via delegation.
     const btn     = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('.btn-delete'));
     if (!btn) return;
-    const listFeedback = document.getElementById('listFeedback');
-    const fieldMember  = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
-    const fieldDate    = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
-    if (!btn.classList.contains('confirming')) {
-        _armConfirmButton(btn, 'Delete?', '✕');
-        return;
-    }
+    if (!btn.classList.contains('confirming')) { armConfirm(btn, 'Delete?', '✕'); return; }
     // Signed out: say so, not "check your connection" — the write would be refused anyway (v24.38).
-    if (!auth.currentUser) { _disarmConfirmButton(btn, '✕'); if (listFeedback) { setStatus(listFeedback, "⚠ You've been signed out — please sign in again."); listFeedback.className = 'list-feedback error'; } return; }
+    if (!auth.currentUser) { disarmConfirm(btn, '✕'); _sayList("⚠ You've been signed out — please sign in again.", 'error'); return; }
     const deleted = getAllOverrides().find(o => o.id === btn.dataset.id);
     // The row AND any older manual copy of the same day (v24.48 duplicates — external review, Oct
     // 2026): deleting only the newer one let the older resurface as the day's value, which the week
     // editor's delete already prevented. One batch, so the day is never left half-cleared.
     const ids = [...withManualDuplicates([btn.dataset.id ?? ''])];
+    const hadFocus = document.activeElement === btn;
+    const pos = [...(document.getElementById('overrideTableBody')?.querySelectorAll('.btn-delete') ?? [])].indexOf(btn);
     btn.disabled = true;
     btn.textContent = '…';
     try {
@@ -302,25 +308,24 @@ async function _handleDelete(e) {
         // Don't rebuild the week grid over unsaved staged edits — deleting a Saved-Changes row is
         // unrelated to whatever the admin is mid-editing in the grid (v16.82). The delete is already
         // reflected in the table above; the grid refreshes next time it's rebuilt.
+        const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+        const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
         if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
-        if (deleted && listFeedback) {
+        if (deleted) {
             const typeMeta = TYPES[deleted.type];
-            setStatus(listFeedback, `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})${_olderCopies(ids.length - 1)}`);
-            listFeedback.className = 'list-feedback success';
-            setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
+            _sayList(`✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})${_olderCopies(ids.length - 1)}`, 'success', 6000);
         }
+        if (hadFocus) _refocusAfterDelete(pos);
     } catch (err) {
         console.error('[Admin] Delete failed:', err);
         btn.disabled = false;
-        _disarmConfirmButton(btn, '✕');
-        if (listFeedback) {
-            setStatus(listFeedback, (/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
-                : (/** @type {any} */ (err))?.code === 'unavailable'
-                ? '⚠ You appear to be offline — reconnect and try again.'
-                : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-                : '⚠ Could not delete — check your connection and try again.');
-            listFeedback.className = 'list-feedback error';
-        }
+        disarmConfirm(btn, '✕');
+        if (hadFocus) btn.focus();
+        _sayList((/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
+            : (/** @type {any} */ (err))?.code === 'unavailable'
+            ? '⚠ You appear to be offline — reconnect and try again.'
+            : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
+            : '⚠ Could not delete — ' + _cause(err), 'error');
     }
 }
 
@@ -328,7 +333,6 @@ function _initOverridesTable() {
     const selectAllOverrides = /** @type {HTMLInputElement|null} */ (document.getElementById('selectAllOverrides'));
     const bulkDeleteBtn      = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkDeleteBtn'));
     const overridesMonthFilter = document.getElementById('overridesMonthFilter');
-    const listFeedback       = document.getElementById('listFeedback');
     const fieldMember        = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const fieldDate          = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
 
@@ -336,10 +340,17 @@ function _initOverridesTable() {
     // attaching N per-row listeners on every renderTable() call.
     const tableBody = document.getElementById('overrideTableBody');
     if (tableBody) {
+        // The Retry `renderTable` draws for an unread member asks for THAT member, by name: a bare
+        // `loadOverrides()` re-reads everybody once an All-staff read has been made.
+        const retry = () => { loadOverrides({ everyone: false, member: fieldMember?.value ?? '' }); };
         tableBody.addEventListener('click', (e) => {
             const target = /** @type {Element} */ (e.target);
             if (target.closest('.btn-delete')) return _handleDelete(e);
             if (target.closest('.btn-edit'))   return _onEditRow(e);
+            if (target.closest('[data-retry-member]')) retry();
+        });
+        tableBody.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && /** @type {Element} */ (e.target).closest('[data-retry-member]')) { e.preventDefault(); retry(); }
         });
         tableBody.addEventListener('change', (e) => {
             if (/** @type {Element} */ (e.target).closest('.row-select')) _updateBulkDeleteVisibility();
@@ -364,15 +375,18 @@ function _initOverridesTable() {
             // Two-tap confirm, ARMED FOR THIS SELECTION (v25.06): "⚠ Delete 1?" once deleted all three ticked by the 2nd tap.
             if (!bulkDeleteBtn.classList.contains('confirming') || bulkDeleteBtn.dataset.armedFor !== picked.join('|')) {
                 bulkDeleteBtn.dataset.armedFor = picked.join('|');
-                _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected', `Confirm delete ${picked.length} selected change${picked.length !== 1 ? 's' : ''}`);
+                armConfirm(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected', `Confirm delete ${picked.length} selected change${picked.length !== 1 ? 's' : ''}`);
                 return;
             }
-            _disarmConfirmButton(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
+            disarmConfirm(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
             if (!auth.currentUser) {   // as the single delete (v24.38)
-                if (listFeedback) { setStatus(listFeedback, "⚠ You've been signed out — please sign in again."); listFeedback.className = 'list-feedback error'; }
+                _sayList("⚠ You've been signed out — please sign in again.", 'error');
                 return;
             }
 
+            // Focus, if it was here, goes afterwards to what happened — or back here when nothing went.
+            const hadFocus = document.activeElement === bulkDeleteBtn;
+            /** @type {HTMLElement|null|undefined} */ let refocus;
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${picked.length}…`;
             /** @type {string[]} */
@@ -397,44 +411,29 @@ function _initOverridesTable() {
                 _onAfterSave();
                 // Preserve unsaved staged week-grid edits across a bulk delete (v16.82) — see _handleDelete.
                 if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
-                if (listFeedback) {
-                    setStatus(listFeedback, `✓ Deleted ${picked.length} saved change${picked.length !== 1 ? 's' : ''}${_olderCopies(ids.length - picked.length)}`);
-                    listFeedback.className = 'list-feedback success';
-                    setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
-                }
+                _sayList(`✓ Deleted ${picked.length} saved change${picked.length !== 1 ? 's' : ''}${_olderCopies(ids.length - picked.length)}`, 'success', 6000);
+                refocus = document.getElementById('listFeedback');
             } catch (err) {
                 console.error('[Admin] Bulk delete failed:', err);
                 if (committed.length) { removeFromCache(committed); renderTable(); }
-                if (listFeedback) {
-                    setStatus(listFeedback, (/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
-                        : (/** @type {any} */ (err))?.code === 'unavailable'
-                        ? '⚠ You appear to be offline — reconnect and try again.'
-                        : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-                        : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. Check your connection and try again.`
-                        : '⚠ Bulk delete failed — check your connection and try again.');
-                    listFeedback.className = 'list-feedback error';
-                }
+                const cause = _cause(err);
+                _sayList((/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
+                    : (/** @type {any} */ (err))?.code === 'unavailable'
+                    ? '⚠ You appear to be offline — reconnect and try again.'
+                    : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
+                    : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
+                    : '⚠ Bulk delete failed — ' + cause, 'error');
+                refocus = committed.length ? document.getElementById('listFeedback') : bulkDeleteBtn;
             } finally {
-                // RESTORE THE LABEL ON EVERY PATH, NOT JUST THE FAILING ONE (v21.94).
-                //
-                // The success path restored neither, and nothing else in the app writes this
-                // button's `disabled` or `textContent` — `renderTable()` and
-                // `_updateBulkDeleteVisibility()` only touch `style.display`. So one successful
-                // bulk delete left it disabled reading “Deleting 3…” for the rest of the page
-                // life, and ticking more rows re-SHOWED it in that dead state. Worse when the
-                // delete emptied the view: `renderTable()` returns from its `!rows.length` branch
-                // BEFORE the line that hides the button, so the dead control sat above an empty list.
-                //
-                // The single-row Delete has the same shape and is fine only because `renderTable()`
-                // rebuilds `#overrideTableBody` and destroys that node. This button lives OUTSIDE
-                // the table body, so it survives — and that asymmetry is exactly what made this
-                // invisible to inspection.
-                //
-                // Label only; VISIBILITY stays with `_updateBulkDeleteVisibility`, which is the
-                // pattern `executeSave` and `createRangeBookingSection` already follow.
+                // RESTORE THE LABEL ON EVERY PATH, NOT JUST THE FAILING ONE (v21.94). Nothing else
+                // writes this button's `disabled` or label, and unlike a row's ✕ it lives OUTSIDE the
+                // table body, so no re-render replaces it: one successful bulk delete once left it
+                // disabled reading "Deleting 3…" for the rest of the page life. Label only — VISIBILITY
+                // is `renderTable`'s and `_updateBulkDeleteVisibility`'s.
                 bulkDeleteBtn.disabled = false;
-                _disarmConfirmButton(bulkDeleteBtn, 'Delete selected');
+                disarmConfirm(bulkDeleteBtn, 'Delete selected');
             }
+            if (hadFocus) refocus?.focus();
         });
     }
 
@@ -457,4 +456,3 @@ function _initOverridesTable() {
         renderTable();
     });
 }
-

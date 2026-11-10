@@ -57,8 +57,18 @@ function merge(into, patch) {
     return into;
 }
 
+/** Wait, once, for a write the test is holding open (`state.holdNext`). */
+async function heldUntilReleased(path) {
+    for (const [prefix, gate] of state.holdNext) {
+        if (!path.startsWith(prefix)) continue;
+        state.holdNext.delete(prefix);
+        await gate;
+        return;
+    }
+}
 export async function setDoc(ref, data, opts) {
     state.ops.push({ op: 'set', path: ref.path, data, opts });
+    await heldUntilReleased(ref.path);
     failIfArmed(ref.path);
     const prev = state.docs.get(ref.path);
     state.docs.set(ref.path, opts && opts.merge && prev ? merge(prev, data) : { ...data });

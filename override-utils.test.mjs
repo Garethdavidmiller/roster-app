@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PILL_TYPES, TYPES } from './admin-shift-types.js';
 import { manualOverrideId } from './override-id.js';
+import { isClockTime } from './clock-input.js';
 import { isSunday, TIME_RE, teamMembers } from './roster-data.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
@@ -365,6 +366,43 @@ describe('reconcileRangeIntoCache', () => {
             const cache = seed(rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' }));
             assert.equal(run(cache, rec('07:00-16:00', 'manual', 100, { changedBy: 'S. Silva' })), false);
         });
+
+        // Two more fields a display path reads were never added to the comparison (whole-app review,
+        // 10 Nov 2026): `leaveYear`, which the day panel turns into "comes out of last year's
+        // allowance", and an absence's `replacedType`, which decides whether it shows on a rest day.
+        it('a January leave day moved to the previous year is a display change', () => {
+            const leave = { type: 'annual_leave', value: 'AL', note: '', source: 'manual', createdAt: { seconds: 100 } };
+            const cache = new Map([[at('2027-01-05'), leave]]);
+            const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2027-01-05', { ...leave, leaveYear: 2026 })],
+                '2027-01-01', '2027-01-31');
+            assert.equal(changed, true, 'the panel would go on saying nothing about the year it comes out of');
+        });
+
+        it('an absence gaining the swap it replaced is a display change — it now shows on a rest day', () => {
+            const sick = { type: 'sick', value: 'SICK', note: '', source: 'manual', createdAt: { seconds: 100 } };
+            const cache = seed(sick);
+            assert.equal(run(cache, { ...sick, replacedType: 'shift' }), true);
+        });
+    });
+});
+
+// The HH:MM rule has two homes: `isClockTime` (clock-input.js), which this module now uses for the
+// Other day's times, and the exported `TIME_RE` (roster-data.js) that Admin's boxes test with. A
+// RegExp cannot be derived from a function, so the second copy stays — held to the first here, over
+// every four-digit time, so the two cannot drift apart (whole-app review, 10 Nov 2026).
+describe('TIME_RE and isClockTime are one rule', () => {
+    it('agree on every HH:MM from 00:00 to 99:99, and on the shapes around it', () => {
+        const disagree = [];
+        for (let h = 0; h < 100; h++) {
+            for (let m = 0; m < 100; m++) {
+                const v = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                if (TIME_RE.test(v) !== isClockTime(v)) disagree.push(v);
+            }
+        }
+        for (const v of ['8:00', '08:0', '0800', ' 08:00', '08:00 ', '', '08:00-16:00']) {
+            if (TIME_RE.test(v) !== isClockTime(v)) disagree.push(JSON.stringify(v));
+        }
+        assert.deepEqual(disagree, []);
     });
 });
 
@@ -1334,6 +1372,25 @@ describe('contracted work vs volunteered work', () => {
         assert.equal(isContractedWorkOverride({ type: 'swap',      value: '07:00-15:00' }), true);
         assert.equal(isContractedWorkOverride({ type: 'allocated', value: '07:00-15:00' }), true);
         assert.equal(isContractedWorkOverride({ type: 'overtime',  value: '07:00-15:00' }), false);
+    });
+
+    // The owner's answer to the review's question (10 Nov 2026): "Free, like plain RDW." On a base REST
+    // day an Other day or a Spare turn is rest-day working, so leave over it costs nothing. Only the
+    // TYPE survives leave, so the answer needs the day's base — which only the leave paths pass.
+    it('an Other day or a Spare turn is contracted on a ROSTERED day, and not on a base REST day', () => {
+        for (const ov of [{ type: 'other', value: 'TRG RDW' }, { type: 'other' }, { type: 'spare_shift', value: 'SPARE' }]) {
+            assert.equal(isContractedWorkOverride(ov, 'RD'), false, `${ov.type} on a rest day is rest-day working`);
+            assert.equal(isContractedWorkOverride(ov, 'OFF'), false);
+            assert.equal(isContractedWorkOverride(ov, '06:20-14:20'), true, `${ov.type} on a rostered day is the contract`);
+            assert.equal(isContractedWorkOverride(ov), true, 'no base given (display, the review): the answer is unchanged');
+        }
+    });
+
+    it('a recorded swap stays contracted on a rest day — the one way leave reaches one (VAL-AL-001)', () => {
+        assert.equal(isContractedWorkOverride({ type: 'shift' }, 'RD'), true);
+        assert.equal(isContractedWorkOverride({ type: 'swap' }, 'RD'), true);
+        assert.equal(isContractedWorkOverride({ type: 'rdw' }, '06:20-14:20'), false, 'RDW is never contracted');
+        assert.equal(isContractedWorkOverride({ type: 'sick' }, 'RD'), null, 'an absence still asks the base');
     });
 });
 

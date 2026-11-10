@@ -12,7 +12,7 @@
  */
 
 import { getBaseShift, formatISO, getBankHolidays, parseISODate } from './roster-data.js';
-import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS, shouldReplaceOverride } from './override-utils.js';
+import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
@@ -22,8 +22,21 @@ import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-c
 // previous period can never leak into the current one.
 let _overridesByDate = new Map();
 
-/** Test-only: inject a pre-built overrides map so unit tests bypass Firestore. */
-export function _setOverridesForTest(/** @type {any} */ map) { _overridesByDate = map; }
+// …and ONE PER PAYSLIP since that reset. The year fill (paycalc-year-card.js) fetches payslip after
+// payslip into this module while the one on screen stays put, and a single map with a single
+// "loaded" belonged to whichever payslip it reached last: the on-screen payslip's own Replace read
+// 'loaded', priced itself from another payslip's changes (a recorded Sunday back to its base hours)
+// and cleared what that map called zero (paycalc-2-8). So each answer is kept under the payslip it
+// is FOR, a suggestion reads its own payslip's, and `getOverridesFetchState(p)` answers for that
+// payslip alone. `null` is a payslip whose fetch came back without the server's answer.
+/** @type {Map<string, Map<string, any>|null>} */
+const _byPayslip = new Map();
+const _NO_CHANGES = new Map();
+/** A payslip's key in `_byPayslip`: the window its changes are fetched for. @param {{ start: Date, cutoff: Date }} p */
+const _payslipKey = p => `${formatISO(p.start)}..${formatISO(p.cutoff)}`;
+
+/** Test-only: inject a pre-built overrides map so unit tests bypass Firestore. It stands for every payslip. */
+export function _setOverridesForTest(/** @type {any} */ map) { _overridesByDate = map; _byPayslip.clear(); }
 
 /** Test-only: inject an extra date as a BH for a given year. Ensures cache is
  *  populated from real BHs first, then adds the extra date. */
@@ -52,17 +65,29 @@ let _overrideFetchToken = 0;
 // 'base-only': No session, or fetch failed — showing base roster only.
 // 'loaded':    Firestore succeeded — overrides applied to suggestions.
 let _overridesFetchState = 'base-only';
+/** What the last reset said — the answer for a payslip with no fetch of its own back since. */
+let _resetState = 'base-only';
 
 /** Called from onPeriodChange to reset the cache before a new fetch starts. */
 export function resetOverrides(/** @type {any} */ newState) {
   _overrideFetchToken++;
   _overridesByDate = new Map();
+  _byPayslip.clear();
   _overridesFetchState = newState;
+  _resetState = newState;
 }
 
-/** Returns the current fetch state string for use in UI badge rendering. */
-export function getOverridesFetchState() {
-  return _overridesFetchState;
+/**
+ * The fetch state, for the badge and the fills. Given a payslip it answers for THAT payslip: 'loaded'
+ * only when its own recorded changes are in hand, 'base-only' when its own fetch failed, otherwise
+ * what the last reset said ('checking' while the period change's fetch is out). With no payslip, the
+ * state the last fetch left — whichever payslip that was for.
+ * @param {{ start: Date, cutoff: Date }} [p]
+ */
+export function getOverridesFetchState(p) {
+  if (!p) return _overridesFetchState;
+  const own = _byPayslip.get(_payslipKey(p));
+  return own ? 'loaded' : own === null ? 'base-only' : _resetState;
 }
 
 // ── BANK HOLIDAY HELPERS ──────────────────────────────────────────────────────
@@ -93,7 +118,8 @@ const _fmtOt = (/** @type {any} */ m) => { const h = Math.floor(m / 60), mm = m 
 // ── FIRESTORE FETCH ───────────────────────────────────────────────────────────
 /**
  * Queries Firestore for override documents in the period window and stores
- * them in _overridesByDate keyed by ISO date. Non-work values (AL, RD, SICK,
+ * them keyed by ISO date — under this payslip in `_byPayslip`, and as the shared
+ * `_overridesByDate`. Non-work values (AL, RD, SICK,
  * SPARE) are kept — getRosterSuggestion needs to know about them to skip the
  * base shift on that day.
  *
@@ -138,6 +164,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     if (snap?.metadata?.fromCache) {
       _overridesByDate = new Map();
       _overridesFetchState = 'base-only';
+      _byPayslip.set(_payslipKey(p), null);
       return 'cached';
     }
     const map = new Map();
@@ -155,6 +182,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     });
     _overridesByDate = map;
     _overridesFetchState = 'loaded';
+    _byPayslip.set(_payslipKey(p), map);
     return 'loaded';
   } catch (err) {
     // A stale failure must not touch state either — without this check a slow
@@ -163,6 +191,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     if (thisToken !== _overrideFetchToken) return 'cancelled';
     console.warn('[paycalc-roster-suggestions] fetchOverridesForPeriod failed — using base roster only:', (/** @type {any} */ (err))?.message ?? err);
     _overridesFetchState = 'base-only';
+    _byPayslip.set(_payslipKey(p), null);
     return 'base-only';
   }
 }
@@ -170,6 +199,8 @@ export async function fetchOverridesForPeriod(p, memberName) {
 // ── SUGGESTION ENGINE ─────────────────────────────────────────────────────────
 /** A bare Training day from the pattern, on a bank holiday: the contracted day (owner, 7 Nov 2026). */
 export const BARE_TRAINING_DAY_MINS = 7 * 60;
+/** How the day list names those 7 hours — a default the member checks, never a record. */
+const BARE_DAY_LABEL = `${BARE_TRAINING_DAY_MINS / 60}h default — adjust to actual`;
 
 /**
  * Scan the period window using the logged-in member's base roster, merged with
@@ -198,12 +229,19 @@ export function getRosterSuggestion(p, member) {
   // …and which hold the 7h DEFAULT for a bare Training day from the pattern on a bank holiday.
   const defaulted7h = { bh: false };
   const days = [];
+  // This payslip's own recorded changes (see `_byPayslip`); the shared map only where this payslip
+  // has no fetch back since the reset — which is how a test injects one.
+  const key = _payslipKey(p);
+  const changes = _byPayslip.has(key) ? (_byPayslip.get(key) || _NO_CHANGES) : _overridesByDate;
 
   const cur = new Date(p.start);
   while (cur <= p.cutoff) {
     const noon = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12);
     const iso  = formatISO(cur);
-    const ov   = _overridesByDate.get(iso);
+    // A record dated before the member's start date is suppressed, exactly as every display layer
+    // suppresses it — the base there is already RD (getBaseShift), and the Calendar shows a rest day,
+    // so the suggestion must not pay for one (paycalc-3-6).
+    const ov   = isBeforeMemberStart(member, noon) ? undefined : changes.get(iso);
 
     // Always read baseValue independently so the split logic can compare
     // the override duration against the rostered duration.
@@ -279,11 +317,12 @@ export function getRosterSuggestion(p, member) {
     // weekday is contracted basic pay, a Sunday or Boxing Day cannot be a training day, and no
     // pattern has a bare Training Saturday. Absence and an untimed Other day on top pay as the day
     // underneath, so they reach this too (effValue is the base).
-    const _bareBase = effValue === baseValue ? parseOtherValue(baseValue) : null;
-    if (_bareBase && !_bareBase.time && !_bareBase.rdw && cur.getDay() !== 0
+    const _baseOther = parseOtherValue(baseValue);
+    const baseIsBareOther = !!_baseOther && !_baseOther.time && !_baseOther.rdw;
+    if (effValue === baseValue && baseIsBareOther && cur.getDay() !== 0
         && !(cur.getMonth() === 11 && cur.getDate() === 26) && _isDateBH(cur)) {
       bhMins += BARE_TRAINING_DAY_MINS; bhCount++; defaulted7h.bh = true;
-      days.push({ date: new Date(cur), shift: `${BARE_TRAINING_DAY_MINS / 60}h default — adjust to actual`, type: 'bh', source: 'base' });
+      days.push({ date: new Date(cur), shift: BARE_DAY_LABEL, type: 'bh', source: 'base' });
       cur.setDate(cur.getDate() + 1);
       continue;
     }
@@ -300,11 +339,19 @@ export function getRosterSuggestion(p, member) {
       const isBH     = !isBoxing && _isDateBH(cur);
       const fromOv   = _otherFromOv !== null ? _otherFromOv : (ov && ov.type === 'sick' ? false : !!ov);
 
+      // A BARE TRAINING DAY FROM THE PATTERN IS THE ROSTERED 7-HOUR DAY ON A BANK HOLIDAY — with times
+      // recorded on it as much as without (paycalc-3-4). The no-times case is the branch above; a record
+      // WITH times (a timed Training day, a plain shift, a rest day worked on top) found no rostered
+      // shift here to cap against, so the rest-day branch below paid the whole day as Bank Holiday
+      // Overtime — on top of contracted hours, where rostered hours only carry the premium. Only on a
+      // bank holiday, the one day the owner's decision covers (paycalc.md): a weekday is contracted
+      // basic pay, and inferring an overtime split there would be a category nobody decided.
+      const bareRostered = isBH && dow !== 0 && baseIsBareOther;
       // Pre-compute base duration to cap rostered hours and detect overtime
       // when admin extends a shift beyond the base roster.
-      const baseWorked = baseValue && baseValue.includes('-') && baseValue.includes(':');
-      let baseMins = 0;
-      if (baseWorked) {
+      const baseWorked = bareRostered || (baseValue && baseValue.includes('-') && baseValue.includes(':'));
+      let baseMins = bareRostered ? BARE_TRAINING_DAY_MINS : 0;
+      if (baseWorked && !bareRostered) {
         const [bst, ben] = baseValue.split('-');
         const [bsh, bsm] = bst.split(':').map(Number);
         const [beh, bem] = ben.split(':').map(Number);
@@ -315,8 +362,12 @@ export function getRosterSuggestion(p, member) {
       // rostered shift still pays the FULL shift. Without this, the shift-override split below
       // (Math.min(mins, baseMins) on the Sat/BH branches) credited only the Other-day duration —
       // e.g. training 12:00-16:00 on a base Saturday 13:30-21:00 suggested 4h sat instead of 7.5h.
-      // Over-runs are unaffected (mins > baseMins); weekdays were already safe (excess-only).
-      if (_otherFromOv === true && baseWorked && mins < baseMins) mins = baseMins;
+      // Over-runs are unaffected (mins > baseMins); weekdays were already safe (excess-only). On a
+      // bare Training base the shift it lifts to is the 7-hour DEFAULT, not a record, so it says so.
+      if (_otherFromOv === true && baseWorked && mins < baseMins) {
+        mins = baseMins;
+        if (bareRostered) defaulted7h.bh = true;
+      }
 
       if (isBoxing) {
         boxMins += mins; boxCount++;
@@ -337,7 +388,8 @@ export function getRosterSuggestion(p, member) {
           if (baseWorked) {
             bhMins   += baseMins; bhCount++;
             bhOtMins += mins;     bhOtCount++;
-            days.push({ date: new Date(cur), shift: baseValue, type: 'bh',   source: 'base'     });
+            if (bareRostered) defaulted7h.bh = true;   // its rostered hours are the 7-hour default
+            days.push({ date: new Date(cur), shift: bareRostered ? BARE_DAY_LABEL : baseValue, type: 'bh', source: 'base' });
             days.push({ date: new Date(cur), shift: effValue,  type: 'bhOt', source: 'override' });
           } else {
             bhOtMins += mins; bhOtCount++;

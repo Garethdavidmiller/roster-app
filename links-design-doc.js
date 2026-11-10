@@ -81,8 +81,8 @@ export const PREVIOUS_LINK_LENGTH = 24;
  *   · last saved BEFORE the release — so a design anybody has saved since, including one RESTORED
  *     from the bin (a restore stamps `updatedAt`), is never moved again: restoring is a decision,
  *     and binning it on the next page open would undo it silently, forever;
- *   · nothing on the lines past 24 — so a 26-line design saved on the release day (a generated
- *     one fills every line) is never mistaken for an old one by the clock alone;
+ *   · nothing on the lines past 24 — so a design drawn at the new length on the release day (a
+ *     generated one fills every line) is never mistaken for an old one by the clock alone;
  *   · something ON the first 24 — so a BLANK design, which says nothing about its link, is left alone.
  *
  * A timestamp that has not resolved yet (`null`, the writer's own pending save) is NOT old: when in

@@ -67,12 +67,25 @@ let _user = { getIdToken: async () => 'tok-1' };
 
 /** When true, every Firestore snapshot says the device's cache answered it. */
 let _fromCache = false;
+/**
+ * What each subcollection read returns, by collection NAME — so the reviewer's revision branch can
+ * be reached at all (it was not: every read answered empty, overtime-core-5). A name with no entry
+ * answers empty, under `_fromCache`, as before.
+ * @type {Record<string, { docs?: { id: string, data: any }[], fromCache?: boolean, throws?: boolean }>}
+ */
+let _snaps = {};
 
 mock.module('./firebase-client.js', {
     namedExports: {
         auth: { get currentUser() { return _user; } },
-        db: {}, collection: () => ({}), doc: () => ({}),
-        getDocs: async () => ({ metadata: { fromCache: _fromCache }, forEach() {} }),
+        db: {}, collection: (/** @type {any} */ _parent, /** @type {string} */ name) => ({ name }), doc: () => ({}),
+        getDocs: async (/** @type {any} */ coll) => {
+            const s = _snaps[coll?.name];
+            if (s?.throws) throw Object.assign(new Error('read refused'), { code: 'permission-denied' });
+            const docs = s?.docs || [];
+            return { metadata: { fromCache: s?.fromCache ?? _fromCache },
+                forEach: (/** @type {any} */ cb) => docs.forEach(d => cb({ id: d.id, data: () => d.data })) };
+        },
     },
 });
 mock.module('./overtime-roster.js', { namedExports: { loadRosterForMembers: async () => ({}) } });
@@ -91,6 +104,7 @@ const freshData = () => import(`./overtime-data.js?n=${++_n}`);
 beforeEach(() => {
     _calls = [];
     _fromCache = false;
+    _snaps = {};
     _user = { getIdToken: async () => 'tok-1' };
     _respond = async () => ({ ok: true, status: 200, json: async () => ({}) });
     mock.timers.enable({ apis: ['setTimeout'] });
@@ -238,6 +252,40 @@ describe('2 · a timeout reported as a failure', () => {
         assert.equal(_calls.length, 0);
     });
 
+    // ── NO SIGNAL IS NOT AN EXPIRED SIGN-IN (overtime-core-3, Nov 2026) ─────────────────────────
+    //
+    // The hourly token lapses while a half-filled form sits open; Submit on a platform with no
+    // signal cannot refresh it. That was `no-session` — "Your sign-in has expired. Reload the page"
+    // — and a reload on a phone throws away every answer not yet submitted, where pressing Submit
+    // again once the signal returned would simply have worked. The SDK names the case itself: a
+    // refresh that cannot reach the network fails `auth/network-request-failed`, its own timeout
+    // included, and it treats every OTHER failure as a token that is no longer valid.
+    const networkFailure = () => Object.assign(new Error('network'), { code: 'auth/network-request-failed' });
+
+    test('a token refresh with no network is `offline` — nothing was sent, and nobody was signed out', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async () => { throw networkFailure(); } };
+        const r = await data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        assert.equal(/** @type {any} */ (r).code, 'offline');
+        assert.equal(_calls.length, 0, 'nothing left the device, so there is nothing to reconcile');
+    });
+
+    test('a token the server REFUSED is still `no-session` — guard the guard', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async () => { throw Object.assign(new Error('expired'), { code: 'auth/user-token-expired' }); } };
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).code, 'no-session');
+    });
+
+    test('and the forced-fresh retry after a 403 tells the two apart the same way', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async (/** @type {boolean} */ fresh) => { if (fresh) throw networkFailure(); return 'tok-stale'; } };
+        _respond = async () => ({ ok: false, status: 403, json: async () => ({ error: 'Forbidden — reviewer access required' }) });
+        const r = await data.getOvertimeManagerOverview();
+        assert.equal(/** @type {any} */ (r).code, 'offline', 'the refresh could not be asked — not a lost sign-in');
+        assert.equal(_calls.length, 1);
+    });
+
     // Whole-app review, Oct 2026: a member given the manager role holds a token minted without it
     // until the hourly refresh, and every call — every Try again — was refused for that hour.
     test('a 403 is retried ONCE on a forced-fresh token, and the fresh answer is the one returned', async () => {
@@ -349,6 +397,49 @@ describe('5 · the reviewer\'s week, read from the device\'s cache', () => {
         const data = await freshData();
         const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: 0 });
         assert.equal(r.ok, true);
+    });
+
+    // THE REVISION READS ARE HELD TO THE SAME RULE (overtime-core-5, Nov 2026). The two lists come
+    // from the server, the connection drops, and each reviser's revisions are answered by the cache:
+    // possibly nothing, possibly an older history. The week then painted as current with "Changed
+    // after initial deadline" missing, or a day's age stale, for exactly the members who revised.
+    // A revision read that THROWS stays what it was — the head shows, the markers are omitted.
+    const DEADLINE = 5_000;
+    const reviser = (/** @type {any} */ revisions) => ({
+        participants: { docs: [{ id: 'A. One', data: { createdAt: 1_000 } }] },
+        submissions:  { docs: [{ id: 'A. One', data: {
+            currentRevision: 2, days: { d: { mode: 'unavailable' } }, firstAcceptedAt: 1_000, updatedAt: 6_000 } }] },
+        revisions,
+    });
+    const history = [
+        { id: '000001', data: { revision: 1, days: { d: { mode: 'all_day' } }, acceptedAt: 1_000 } },
+        { id: '000002', data: { revision: 2, days: { d: { mode: 'unavailable' } }, acceptedAt: 6_000 } },
+    ];
+
+    test('a REVISION read the cache answered fails the load, like the lists', async () => {
+        const data = await freshData();
+        _snaps = reviser({ docs: history, fromCache: true });
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, false, 'a cached history beside a current head is yesterday presented as today');
+    });
+
+    test('a revision read the SERVER answered loads, with the history it implies — guard the guard', async () => {
+        const data = await freshData();
+        _snaps = reviser({ docs: history });
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, true);
+        assert.equal(r.submissions.get('A. One').history.changedSinceInitial, true);
+    });
+
+    test('and a revision read that THROWS is still not a failed week — the head shows, the marker is omitted', async () => {
+        // The deliberate half (loadWeekDetail's comment): a missing history is not a missing
+        // submission. Pinned so that the cache rule above is never widened into this one.
+        const data = await freshData();
+        _snaps = reviser({ throws: true });
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, true);
+        assert.deepEqual(r.submissions.get('A. One').days, { d: { mode: 'unavailable' } });
+        assert.equal(r.submissions.get('A. One').history.changedSinceInitial, false);
     });
 });
 

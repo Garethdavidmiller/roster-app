@@ -85,6 +85,9 @@ function usableWith(document) {
 const RELOAD_KEY = /var RELOAD_KEY = '([^']+)'/.exec(SRC)?.[1] ?? '';
 const TIMEOUT_MS = Number(/var TIMEOUT_MS = (\d+);/.exec(SRC)?.[1]);
 
+/** The element most recently given focus, across every fake page. @type {any} */
+let lastFocused = null;
+
 /** An element with the surface the watchdog touches, recording what it was given. @param {string} tag */
 function el(tag) {
     /** @type {Set<string>} */ const classes = new Set();
@@ -100,8 +103,12 @@ function el(tag) {
         appendChild(/** @type {any} */ c) { this.children.push(c); return c; },
         removeChild(/** @type {any} */ c) { this.children = this.children.filter(x => x !== c); return c; },
         addEventListener() {},
+        focus() { lastFocused = this; },
     };
 }
+
+/** Every element at or under `node`. @param {any} node @returns {any[]} */
+const allUnder = (node) => [node, ...node.children.flatMap(allUnder)];
 
 /** Every piece of text under an element. @param {any} node @returns {string} */
 const textUnder = (node) => [node.textContent, ...node.children.map(textUnder)].join(' ');
@@ -155,6 +162,8 @@ function launch({ hidden = false, page = 'stuck', store = new Map() } = {}) {
         reloads: () => reloads,
         /** The recovery panel is up: a splash surface, re-roled and carrying its title. */
         panel: () => [splash, ...built].some(s => s.attrs.role === 'alertdialog' && /couldn.t finish loading/.test(textUnder(s))),
+        /** The surface the panel was drawn on, or null. */
+        panelEl: () => [splash, ...built].find(s => s.attrs.role === 'alertdialog') ?? null,
         /** The delays of the windows still running. */
         pending: () => live().map(t => t.ms),
         /** Every window ever started, ended or not. */
@@ -256,6 +265,27 @@ describe('the watchdog stands down on the RIGHT condition', () => {
         const w = launch({ page: 'blank', store });
         w.fire();
         assert.equal(w.panel(), true, 'the blank page detected the fault and then had nowhere to say so');
+    });
+
+    test('the panel is an alertdialog a screen reader can NAME, and focus moves into it', () => {
+        // The role was switched on an element that had been on the page all along, with no name and
+        // no focus move — the case least likely to be announced, at the one moment the app has
+        // nothing else to offer. Both surfaces: the splash reused, and one built where it had gone.
+        for (const page of /** @type {const} */ (['stuck', 'blank'])) {
+            const w = launch({ page, store: new Map([[RELOAD_KEY, '1']]) });   // its one reload spent
+            lastFocused = null;
+            w.fire();
+            const dlg = w.panelEl();
+            assert.ok(dlg, `${page}: no recovery panel`);
+            const byId = (/** @type {string} */ id) => allUnder(dlg).find(n => n.id === id);
+            assert.match(textUnder(byId(dlg.attrs['aria-labelledby']) ?? el('none')), /couldn.t finish loading/,
+                `${page}: the dialog is not named from its title`);
+            assert.match(textUnder(byId(dlg.attrs['aria-describedby']) ?? el('none')), /took too long/,
+                `${page}: the dialog is not described by its explanation`);
+            assert.equal(dlg.attrs['aria-modal'], 'true');
+            assert.equal(lastFocused?.textContent, 'Reload', `${page}: focus did not move to the dialog's first action`);
+            assert.ok(allUnder(dlg).includes(lastFocused), `${page}: the focused control is not inside the dialog`);
+        }
     });
 
     test('the recovery panel can be built where the splash has already gone', () => {

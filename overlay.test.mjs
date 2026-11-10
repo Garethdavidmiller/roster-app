@@ -594,6 +594,37 @@ describe('createLightbox — focus goes back to whatever opened it', () => {
     });
 });
 
+describe('createLightbox — an initial focus that cannot take focus falls back to the panel', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    // The Links ··· More sheet names its first row, which is DISABLED on an unsaved design. `focus()`
+    // on it does nothing, so focus stayed on the ··· button behind the dialog: Enter acted on the page,
+    // and a screen reader was never moved in. A target that refuses focus is treated as no target.
+    test('a disabled explicit target: focus goes to the panel, as if none were named', () => {
+        const opener = makeBtn();
+        global.document.activeElement = opener;
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };
+        const disabled = Object.assign(makeEl({ tagName: 'BUTTON' }), { disabled: true, focus() { /* a disabled control refuses focus */ } });
+        const overlay = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, initialFocus: () => disabled });
+        lb.open();
+        assert.equal(global.document.activeElement, content, 'focus stayed on the control behind the dialog');
+        lb.close(); overlay._trigger('transitionend');
+    });
+
+    test('a target that takes focus keeps it', () => {
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };
+        const row = Object.assign(makeEl({ tagName: 'BUTTON' }), { focus() { global.document.activeElement = row; } });
+        const overlay = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, initialFocus: () => row });
+        lb.open();
+        assert.equal(global.document.activeElement, row);
+        lb.close(); overlay._trigger('transitionend');
+    });
+});
+
 describe('createLightbox — a fade that never reports its end still finishes', () => {
     beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
 
@@ -653,6 +684,24 @@ describe('createLightbox — a tap on the backdrop closes it, a tap on the panel
         closeBtn._trigger('click', { target: closeBtn });
         assert.equal(overlay.classList.contains('open'), false);
     });
+
+    // A mouse drag that starts in the card and ends on the backdrop — selecting a prompt's text — is a
+    // `click` on the overlay too: a click goes to the nearest element the press and release share.
+    test('a press that began inside the card and was released on the backdrop does not close it', () => {
+        const { overlay, content } = build();
+        overlay._trigger('pointerdown', { target: content });
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), true, 'a text selection dragged out of the card closed the dialog');
+        overlay._trigger('click', { target: overlay });       // the next click, made in code with no press
+        assert.equal(overlay.classList.contains('open'), false, 'a press is forgotten at its click — one made in code still closes');
+    });
+
+    test('a press AND release on the backdrop still closes it', () => {
+        const { overlay } = build();
+        overlay._trigger('pointerdown', { target: overlay });
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), false);
+    });
 });
 
 describe('createLightbox — an onClose that throws cannot strand the overlay', () => {
@@ -693,6 +742,37 @@ describe('trapFocus — hidden controls are not tab stops', () => {
         assert.equal(prevented, true, 'Tab was let through to the page behind the dialog');
         assert.equal(first.wasFocused, true);
         assert.equal(hidden.wasFocused, false);
+    });
+});
+
+describe('trapFocus — a control with a negative tabindex is not a tab stop', () => {
+    // The date picker's month is ONE Tab stop (a roving tabindex: every other day is `tabindex="-1"`),
+    // and the sign-in card's username field is there only for the password manager. Tab never lands
+    // on either, so counted as the trap's ends the wrap never fired and focus walked out of the dialog.
+    const shown = () => Object.assign(makeBtn(), { offsetParent: {} });
+    const outOfOrder = () => Object.assign(shown(), { getAttribute: (/** @type {string} */ a) => (a === 'tabindex' ? '-1' : null) });
+
+    test('Tab from the day the keyboard is on wraps to the ✕, past the month\'s other days', () => {
+        const close = shown(), day = shown();
+        global.document.activeElement = day;
+        let prevented = false;
+        trapFocus(makeContainer([close, day, outOfOrder(), outOfOrder()]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Tab was let through — out of the dialog');
+        assert.equal(close.wasFocused, true);
+    });
+
+    test('Shift+Tab from the first real control wraps to the last, past the hidden field before it', () => {
+        const username = outOfOrder(), grade = shown(), back = shown();
+        global.document.activeElement = grade;
+        let prevented = false;
+        trapFocus(makeContainer([username, grade, back]), {
+            key: 'Tab', shiftKey: true, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Shift+Tab was let through to the page behind the card');
+        assert.equal(back.wasFocused, true);
+        assert.equal(username.wasFocused, false);
     });
 });
 
