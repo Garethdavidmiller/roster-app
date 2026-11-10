@@ -719,7 +719,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         status: ff13.length ? 'present' : 'clear', value: ff13.length, threshold: `${MIN_REST_MINUTES / 60}h`,
         detail: ff13.length
             ? `Shortest rest between consecutive duties is ${_hm(/** @type {number} */(worst))}. Same finding as the short-turnaround check above — one rule, reported twice.`
-            : 'Every pair of consecutive duties has at least 12 hours between them. Same rule as the short-turnaround check above.' });
+            : `Every pair of consecutive duties has at least ${MIN_REST_MINUTES / 60} hours between them. Same rule as the short-turnaround check above.` });
 
     return {
         results,

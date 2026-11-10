@@ -32,7 +32,7 @@
  * sheet. Not keyed on the section's name — a section that renamed itself would slip a hardcoded
  * list while making the identical claim.
  */
-import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks,
+import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
@@ -50,6 +50,8 @@ import { escapeHtml } from './roster-data.js';
 // which would have made all three wrong in three different ways.
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = ROTATING_LINES;
+/** The minimum rest in words, from the generator's own gate figure — never typed as "12". */
+const MIN_REST_HOURS = `${MIN_REST_MINUTES / 60} hours`;
 
 /**
  * The ORR family whose rows this panel ROLLS UP into one line while they are all not-applicable.
@@ -510,7 +512,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (turnarounds.length === 0) {
             rows.push(
                 `<div class="check-row check-good">` +
-                `${tick}<div class="check-body"><strong>Rest between shifts</strong> — always 12 hours or more</div>` +
+                `${tick}<div class="check-body"><strong>Rest between shifts</strong> — always ${MIN_REST_HOURS} or more</div>` +
                 `</div>`
             );
         } else {
@@ -522,7 +524,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             rows.push(
                 `<div class="check-row check-bad">` +
                 `${cross}<div class="check-body">` +
-                `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than 12 hours rest` +
+                `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than ${MIN_REST_HOURS} rest` +
                 `<ul class="check-list">${cap.map((/** @type {any} */ t) =>
                     `<li>Line ${t.fromLine} ${t.fromDay} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
                     `Line ${t.toLine} ${t.toDay} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
@@ -838,7 +840,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         /** @type {{fix: string[], discuss: string[]}} */
         const triage = { fix: [], discuss: [] };
         if (unfilledLines.length) triage.fix.push(`${unfilledLines.length} of ${totalWeeks} lines not yet designed`);
-        if (turnarounds.length)   triage.fix.push(`${turnarounds.length} transition${turnarounds.length === 1 ? '' : 's'} with under 12 hours rest`);
+        if (turnarounds.length)   triage.fix.push(`${turnarounds.length} transition${turnarounds.length === 1 ? '' : 's'} with under ${MIN_REST_HOURS} rest`);
         if (limits.breaches)      triage.fix.push(`${limits.breaches} ${POLICY_SOURCE_CONFIRMED ? 'company limit' : 'configured limit'}${limits.breaches === 1 ? '' : 's'} breached`);
         // THE AMBER ROWS BELONG HERE TOO. The first cut read only the red rows and the fatigue
         // counts, so a design short of contract, or with a third of the weekends off, produced

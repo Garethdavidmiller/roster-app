@@ -79,7 +79,7 @@
  * and attempt 6's three starts all converged into minima that broke the spread. If all three fail,
  * the attempt falls back to attempt 0 and the status line says so.
  */
-import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek, isRest } from './links-design.js';
+import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek, isRest, MIN_REST_MINUTES } from './links-design.js';
 
 /** The things the order can be TUNED for — each one a checkbox. Order matters: it is the display
  *  order too. Rest across the week boundary was the sixth until v25.06 and is now a constraint, like
@@ -363,7 +363,9 @@ export function runExcess(patterns, order, target) {
  * @param {{minRestMinutes?: number, maxRunTarget?: number}} [opts]
  */
 export function scoreOrder(patterns, order, opts = {}) {
-    const minRest = opts.minRestMinutes ?? 12 * 60;
+    // The generator's own gate figure, never a copy: a reorder filtering on a different minimum could
+    // put back the Saturday-into-Sunday turnaround the gate had just repaired.
+    const minRest = opts.minRestMinutes ?? MIN_REST_MINUTES;
     const steps = [], breaks = [];
     let unmeasurable = 0, shortBoundary = 0;
 

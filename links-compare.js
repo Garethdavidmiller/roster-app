@@ -14,7 +14,7 @@
  * design collection + a few render callbacks and local helpers (all defined in links-app.js).
  */
 import { escapeHtml } from './roster-data.js';
-import { DAYS, ROTATING_LINES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
+import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 import { compareDesigns } from './links-compare-analysis.js';
@@ -211,7 +211,7 @@ export function initLinksCompare(deps) {
             `<ul class="compare-sum-list">` +
             row('Hours a week (excl. Sunday)', hrs(ha), hrs(hb)) +
             row('Full weekends off', ca.weekendsOff, cb.weekendsOff) +
-            row('Rest under 12 hours', ca.turnarounds.length, cb.turnarounds.length) +
+            row(`Rest under ${MIN_REST_MINUTES / 60} hours`, ca.turnarounds.length, cb.turnarounds.length) +
             row('ORR factors present', fa.present, fb.present) +
             `</ul>`;
     }
