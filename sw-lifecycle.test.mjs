@@ -34,8 +34,10 @@ const MARKER = `${ORIGIN}/__precache-complete`;
 /** Worker timers run this much faster, so a 30 s fetch timeout costs 300 ms of test time. */
 const SPEED = 100;
 
-/** In-memory Cache Storage keyed by absolute URL, with `delete`. @param {Record<string, Record<string, string>>} seed */
-function makeCaches(seed) {
+/** In-memory Cache Storage keyed by absolute URL, with `delete`. With `readBodies`, `put` reads the
+ *  whole body before it resolves, as the real Cache API does — so a body that never ends hangs it.
+ *  @param {Record<string, Record<string, string>>} seed @param {boolean} [readBodies] */
+function makeCaches(seed, readBodies = false) {
     /** @type {Map<string, Map<string, Response>>} */
     const stores = new Map();
     const key = (/** @type {any} */ req, ignoreSearch = false) => {
@@ -53,13 +55,17 @@ function makeCaches(seed) {
                 if (opts?.ignoreSearch) for (const [k, v] of m) if (key(k, true) === key(req, true)) return v.clone();
                 return undefined;
             },
-            async put(/** @type {any} */ req, /** @type {Response} */ res) { m.set(key(req), res); },
+            async put(/** @type {any} */ req, /** @type {Response} */ res) {
+                m.set(key(req), readBodies ? new Response(await res.arrayBuffer(), { status: res.status, headers: res.headers }) : res);
+            },
             async keys() { return [...m.keys()]; },
         };
     };
     for (const [name, entries] of Object.entries(seed)) {
-        const c = cacheFor(name);
-        for (const [path, body] of Object.entries(entries)) c.put(path, new Response(body, { headers: { 'content-type': 'text/html' } }));
+        if (!stores.has(name)) stores.set(name, new Map());
+        const m = /** @type {Map<string, Response>} */ (stores.get(name));
+        // Seeded synchronously, not through `put`: the worker reads its marker the moment it boots.
+        for (const [path, body] of Object.entries(entries)) m.set(key(path), new Response(body, { headers: { 'content-type': 'text/html' } }));
     }
     return {
         stores,
@@ -81,11 +87,12 @@ const okAsset = () => new Response(new Uint8Array([120]), { status: 200 });
 const never = () => new Promise(() => {});
 
 /**
- * Boot the real worker. `network` answers every fetch the worker makes.
- * @param {{ seed: Record<string, Record<string, string>>, network: (url: string) => Promise<Response> }} o
+ * Boot the real worker. `network` answers every fetch the worker makes, and is handed the request's
+ * abort signal. `readBodies`: see makeCaches.
+ * @param {{ seed: Record<string, Record<string, string>>, network: (url: string, signal?: AbortSignal) => Promise<Response>, readBodies?: boolean }} o
  */
 function boot(o) {
-    const { stores, api } = makeCaches(o.seed);
+    const { stores, api } = makeCaches(o.seed, o.readBodies);
     /** @type {Record<string, Function>} */
     const listeners = {};
     const fetched = /** @type {string[]} */ ([]);
@@ -108,7 +115,7 @@ function boot(o) {
         fetch: (/** @type {any} */ req) => {
             const url = typeof req === 'string' ? new URL(req, SCOPE).href : req.url;
             fetched.push(url);
-            return o.network(url);
+            return o.network(url, typeof req === 'string' ? undefined : req.signal);
         },
         setTimeout: (/** @type {Function} */ fn, /** @type {number} */ ms) => setTimeout(fn, (ms || 0) / SPEED),
         clearTimeout,
@@ -117,7 +124,11 @@ function boot(o) {
     };
     vm.createContext(ctx);
     vm.runInContext(SW_SRC, ctx, { filename: 'service-worker.js' });
-    return { listeners, stores, fetched, skippedWaiting: () => skipped };
+    return {
+        listeners, stores, fetched, skippedWaiting: () => skipped,
+        /** Is a warm-up still running? Read from the worker's own state, not guessed from fetches. */
+        warming: () => vm.runInContext('_warmupInFlight !== null', ctx),
+    };
 }
 
 /** Fire a lifecycle event and report whether every promise it was told to wait for settled in time. */
@@ -177,6 +188,34 @@ describe('service worker — a PARTIAL warm-up keeps the fallback and retries (v
         await warmupDone(w);
         assert.equal(w.stores.has(OLD_CACHE), false, 'a complete warm-up sweeps the superseded cache');
         assert.equal(w.stores.get(CACHE)?.has(MARKER), true);
+    });
+});
+
+// ── A BODY THAT STALLS AFTER ITS HEADERS (Nov 2026) ──────────────────────────────────────────────
+// The warm-up's 30 s timeout was cleared when the HEADERS arrived, so a body that then stalled — the
+// signal dropping half-way through a file — hung `cache.put`, its batch and the whole warm-up for the
+// life of the worker: no later file cached, no marker, no sweep, and every fetch event's waitUntil
+// keeping the worker pinned. The fake Cache reads bodies here, as the real one does.
+describe('service worker — a warm-up body that stalls after its headers', () => {
+    test('the 30 s timeout covers the body: that file is abandoned and the warm-up FINISHES', async () => {
+        let aborted = 0;
+        /** @param {string} url @param {AbortSignal} [signal] */
+        const stallOne = (url, signal) => Promise.resolve(url.endsWith('/calendar-app.js')
+            ? new Response(new ReadableStream({ start(c) {
+                c.enqueue(new TextEncoder().encode('export const x = 1;'));   // half a file, then nothing
+                signal?.addEventListener('abort', () => { aborted++; c.error(new DOMException('aborted', 'AbortError')); });
+            } }), { status: 200 })
+            : okAsset());
+        const w = boot({ seed: { [CACHE]: {}, [OLD_CACHE]: { './index.html': 'old release' } }, network: stallOne, readBodies: true });
+        const deadline = Date.now() + 3000;   // 300 s of worker time — ten times the timeout
+        while (!w.fetched.length && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));   // it has started
+        assert.ok(w.warming(), 'premise: a warm-up is running');
+        while (w.warming() && Date.now() < deadline) await new Promise(r => setTimeout(r, 15));
+        assert.equal(w.warming(), false, 'the warm-up never finished — one stalled body held it for the life of the worker');
+        assert.ok(aborted > 0, 'the stalled body is aborted by the timeout, not left open');
+        assert.ok(w.stores.get(CACHE)?.has(`${ORIGIN}/fip-guide.css`), 'files after the stalled batch are still cached');
+        assert.equal(w.stores.get(CACHE)?.has(MARKER), false, 'one file missed, so no marker: the next wake retries it');
+        assert.ok(w.stores.has(OLD_CACHE), 'and the old release is kept as the fallback for the file that missed');
     });
 });
 

@@ -484,15 +484,20 @@ function ctSafe(assetPath, res) {
     return !ct.includes('text/html');   // unknown extension — keep the original lenient reject-html rule
 }
 
-/** fetch with a hard timeout (v16.23). The warm-up had NO per-fetch timeout, so one hung
- *  fetch (half-open TCP on flaky mobile) stalled its batch forever — the marker was never
- *  written and every fetch event's waitUntil(_warmupInFlight) kept the SW pinned alive.
- *  An abort REJECTS, which the per-asset .catch records as a miss → normal retry-next-wake. */
-function fetchWithTimeout(req, ms = 30000) {
-    if (typeof AbortController === 'undefined') return fetch(req);
+/** fetch, and hand the response to `store`, inside ONE hard timeout (v16.23). The warm-up had NO
+ *  per-fetch timeout, so one hung fetch (half-open TCP on flaky mobile) stalled its batch forever —
+ *  the marker was never written and every fetch event's waitUntil(_warmupInFlight) kept the SW
+ *  pinned alive. THE BODY IS INSIDE IT TOO (Nov 2026): the timer used to be cleared when the HEADERS
+ *  arrived, so a body that stalled after them hung `cache.put` in exactly the same way. The abort
+ *  errors the body stream, which rejects the put. Either rejection is recorded by the per-asset
+ *  .catch as a miss → normal retry-next-wake. (fetch-timeout.js holds the same rule for the pages.)
+ *  @param {RequestInfo} req @param {(res: Response) => any} store @param {number} [ms] */
+async function fetchAndStore(req, store, ms = 30000) {
+    if (typeof AbortController === 'undefined') return store(await fetch(req));
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), ms);
-    return fetch(new Request(req, { signal: c.signal })).finally(() => clearTimeout(t));
+    try { return await store(await fetch(new Request(req, { signal: c.signal }))); }
+    finally { clearTimeout(t); }
 }
 
 async function warmCacheAndSweepOld() {
@@ -508,10 +513,11 @@ async function warmCacheAndSweepOld() {
         // the same moment — skip anything already present instead of fetching it twice.
         // (Everything in this version-pinned cache was fetched fresh from the origin.)
         if (await cache.match(asset)) return;
-        const res = await fetchWithTimeout(new Request(asset, revalidate ? { cache: 'no-cache' } : {}));
-        if (res.ok && ctSafe(asset, res)) return cache.put(asset, unredirect(res));
-        allOk = false;   // non-ok OR wrong content-type (interstitial) — don't cache, don't sweep, retry next wake
-        console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}): ${res.ok ? 'unexpected content-type' : `HTTP ${res.status}`}`);
+        await fetchAndStore(new Request(asset, revalidate ? { cache: 'no-cache' } : {}), res => {
+            if (res.ok && ctSafe(asset, res)) return cache.put(asset, unredirect(res));
+            allOk = false;   // non-ok OR wrong content-type (interstitial) — don't cache, don't sweep, retry next wake
+            console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}): ${res.ok ? 'unexpected content-type' : `HTTP ${res.status}`}`);
+        });
     })().catch(err => { allOk = false; console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err); });
     await fetchInBatches(CORE_ASSETS, a => precache(a, true));
     await fetchInBatches(SUPPLEMENTARY_ASSETS, a => precache(a, true));
@@ -524,10 +530,11 @@ async function warmCacheAndSweepOld() {
     const sdkCache = await caches.open(SDK_CACHE_NAME);
     const precacheSdk = sdkUrl => (async () => {
         if (await sdkCache.match(sdkUrl)) return;   // runtime route may have cached it already
-        const res = await fetchWithTimeout(sdkUrl);
-        if (res.ok && ctSafe(sdkUrl, res)) return sdkCache.put(sdkUrl, res);
-        sdkOk = false;   // non-ok OR an HTML interstitial masquerading as the SDK module
-        console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}): ${res.ok ? 'unexpected content-type' : `HTTP ${res.status}`}`);
+        await fetchAndStore(sdkUrl, res => {
+            if (res.ok && ctSafe(sdkUrl, res)) return sdkCache.put(sdkUrl, res);
+            sdkOk = false;   // non-ok OR an HTML interstitial masquerading as the SDK module
+            console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}): ${res.ok ? 'unexpected content-type' : `HTTP ${res.status}`}`);
+        });
     })().catch(err => { sdkOk = false; console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}):`, err); });
     await fetchInBatches(SDK_ASSETS, precacheSdk);
 
