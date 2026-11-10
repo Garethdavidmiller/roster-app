@@ -45,6 +45,8 @@ let sessionValue = null;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
 let signOutBehavior = 'ok';
+/** Lets a 'held' sign-out finish. @type {(v?: any) => void} */
+let releaseSignOut = () => {};
 let lastFetchBody = null;
 
 const auth = { get currentUser() { return currentUser; } };
@@ -69,6 +71,9 @@ mock.module('./firebase-client.js', {
             // identity still live.
             if (signOutBehavior === 'reject') { const e = new Error('signout failed'); e.code = 'auth/network-request-failed'; throw e; }
             if (signOutBehavior === 'noop') return;
+            // cal-data-10: the real SDK clears `currentUser` only once its queue runs, so a sign-out
+            // in flight still reads as the old user. 'held' keeps it there until the test releases it.
+            if (signOutBehavior === 'held') await new Promise(r => { releaseSignOut = r; });
             currentUser = null;
         },
         // A RECORDER, not a feature. The Calendar no longer signs anybody in anonymously (the
@@ -1003,6 +1008,46 @@ describe('initCalendarAccess', () => {
             claimsLand({ claims: { calendarViewer: true } });     // the first session's slow check lands
             await new Promise(r => setTimeout(r, 0));
             assert.equal(getAccessType(), 'none', 'a session the exchange had signed out was granted');
+        });
+
+        test('…nor one whose claim lands while the exchange is still signing it out — the exchange grants, once', async () => {
+            globalThis.window.location.hash = '#staff-pin';
+            let grants = 0;
+            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
+            /** @type {(v: any) => void} */ let claimsLand = () => {};
+            emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: () => new Promise(r => { claimsLand = r; }) });
+            signOutBehavior = 'held';
+            ops = [];
+            const exchange = unlockWithPin('1234');               // the PIN typed meanwhile
+            await waitFor(() => ops.includes('signOut'), 'the exchange to start signing the restored session out');
+            claimsLand({ claims: { calendarViewer: true } });     // the restored session's check lands now
+            await turn();
+            assert.equal(getAccessType(), 'none',
+                'the restored session was granted while the exchange was signing it out — and the exchange grants again');
+            releaseSignOut();
+            assert.equal((await exchange).ok, true);
+            assert.equal(getAccessType(), 'viewer');
+            assert.equal(grants, 1, 'the Calendar was granted twice');
+        });
+
+        test('…nor, when the exchange\'s own sign-in is announced, a claim read that outlasts the exchange\'s grant', async () => {
+            globalThis.window.location.hash = '#staff-pin';
+            let grants = 0;
+            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
+            /** @type {null | ((v: any) => void)} */ let watcherRead = null;
+            tokenUser = {
+                uid: 'calendar-viewer', isAnonymous: false,
+                // The watcher reads first and its answer is slow; the exchange's own read is not.
+                getIdTokenResult: () => (watcherRead ? Promise.resolve({ claims: { calendarViewer: true } })
+                    : new Promise(r => { watcherRead = r; })),
+            };
+            emitOnSignIn = true;
+            assert.equal((await unlockWithPin('1234')).ok, true);
+            assert.ok(watcherRead, 'premise: the watcher was told of the exchange\'s sign-in and is reading its claim');
+            assert.equal(grants, 1, 'premise: the exchange granted');
+            /** @type {(v: any) => void} */ (watcherRead)({ claims: { calendarViewer: true } });
+            await turn();
+            assert.equal(grants, 1, 'the watcher granted the same session a second time — the gate was rebuilt twice');
         });
     });
 

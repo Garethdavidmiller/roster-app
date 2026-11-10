@@ -227,7 +227,7 @@ function watchForLateNamedIdentity() {
             // page; re-granting would run the workspace hooks a second time.
             if (_accessType !== 'none') { stop(); return; }
             const late = decideAccess({ session: getSession(), firebaseUser: u });
-            if (late === 'viewer' && !_unlocking) { grantLateViewer(u, stop); return; }
+            if (late === 'viewer') { grantLateViewer(u, stop); return; }
             if (late !== 'named') return;
             stop();
             console.warn('[CalendarAccess] a named identity restored after the access decision — granting.');
@@ -237,8 +237,9 @@ function watchForLateNamedIdentity() {
     return stop;
 }
 
-/** True while the PIN card's exchange is signing the viewer in: it checks the claim and grants for
- *  itself, and the watcher granting on that sign-in as well would grant twice. */
+/** True while the PIN card's exchange is signing in. It checks the claim and grants for itself, so a
+ *  late viewer granted meanwhile — the exchange's own sign-in, or a restored session it is part-way
+ *  through signing out — would be granted twice. */
 let _unlocking = false;
 
 /**
@@ -250,7 +251,9 @@ async function grantLateViewer(u, stop) {
     /** @type {any} */ let claims;
     try { claims = (await u.getIdTokenResult())?.claims; } catch { return; }
     if (claims?.[CALENDAR_VIEWER_CLAIM] !== true) return;
-    if (_accessType !== 'none' || auth.currentUser !== u) return;   // granted, or signed out by an exchange, meanwhile
+    // Granted meanwhile, or signed out by an exchange — or an exchange is still signing it out: the
+    // SDK clears `currentUser` only when its own queue runs, so that one still reads as `u` here.
+    if (_unlocking || _accessType !== 'none' || auth.currentUser !== u) return;
     stop();
     console.warn('[CalendarAccess] a staff-PIN session restored after the access decision — granting.');
     grant('viewer');
