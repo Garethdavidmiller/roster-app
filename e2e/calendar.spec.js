@@ -1345,6 +1345,16 @@ test('install strip: pressing Install fires the browser prompt and does not come
     expect(await page.evaluate(() => /** @type {any} */ (window).__promptFired)).toBe(true);
     await expect(page.locator('#installPrompt')).toBeHidden();
     expect(await page.evaluate(() => localStorage.getItem('myb_install_prompt_done'))).toBe('1');
+    // …and a "Cancel" in Chrome's dialog does not bring it back (whole-app review, 10 Nov 2026):
+    // Chromium fires `beforeinstallprompt` again once the member's choice resolves, and the strip
+    // used to show itself for any offer that arrived.
+    await page.evaluate(() => {
+        const again = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (again).prompt = () => Promise.resolve();
+        window.dispatchEvent(again);
+    });
+    await page.waitForTimeout(100);   // the handler's accessReady hop
+    await expect(page.locator('#installPrompt')).toBeHidden();
 });
 
 // ── AN UNREADABLE `--prompt-available` FAILS CLOSED (v22.32, external review) ───────────────────
