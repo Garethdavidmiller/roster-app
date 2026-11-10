@@ -1993,6 +1993,36 @@ describe('a member invited into the beta AFTER a window was created', () => {
         assert.deepEqual(again.body.added, [], 'a second press must be a no-op, not a second write');
     });
 
+    test('two top-ups racing never overwrite a participant — not even one withdrawn in between', async () => {
+        // The nightly run and a reviewer's Add both read "S. Silva is missing". The first commits
+        // her; a reviewer then stops asking her; the second commits. Written with `set`, the second
+        // REPLACED her document and the withdrawal silently vanished — invariant 5's reason for
+        // creating with `create`, at the one place that still used `set`. Simulated at the commit:
+        // between this top-up's read and its commit, she appears, already withdrawn.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { db, eps } = buildWider(seededWindow());
+        const SILVA = `overtimeWindows/${WEEK}/participants/S. Silva`;
+        const realBatch = db.batch;
+        db.batch = () => {
+            const b = realBatch();
+            const commit = b.commit;
+            b.commit = async () => {
+                if (!db._store.has(SILVA)) {
+                    db._store.set(SILVA, { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5, uid: null,
+                        withdrawn: true, withdrawnAt: { toMillis: () => M.initialDeadlineAt - 86400000 }, withdrawnBy: 'H. Croft' });
+                }
+                return commit();
+            };
+            return b;
+        };
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(db._store.get(SILVA).withdrawn, true, 'the reviewer\'s withdrawal stands');
+        assert.equal(db._store.get(SILVA).withdrawnBy, 'H. Croft');
+        assert.deepEqual(r.body.added, [], 'and this top-up claims nobody another writer added');
+    });
+
     // ── THE BOUNDARY IS THE **INITIAL** DEADLINE, not the final one (v20.81) ───────────────────
     //
     // What keeps the freeze meaningful: somebody added to a week they could not answer ON TIME is a

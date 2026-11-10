@@ -329,6 +329,11 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         return Timestamp.fromMillis(ms);
     }
 
+    /** Did a `create` find its document already there? Firestore's ALREADY_EXISTS (gRPC code 6). */
+    function isAlreadyExists(err) {
+        return !!err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message)));
+    }
+
     // ── createOvertimeWindow ────────────────────────────────────────────────────────────────────
 
     /**
@@ -471,7 +476,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         try {
             await batch.commit();
         } catch (err) {
-            const now = err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message))) ? await ref.get() : null;
+            const now = isAlreadyExists(err) ? await ref.get() : null;
             if (!now || !now.exists) throw err;
             return existed(ref, now.data(), nowMs);
         }
@@ -558,9 +563,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * A CLOSED window was already refused and still is. Nobody is ever REMOVED, at any phase: a
      * population only grows.
      *
+     * @param {boolean} [retried] set on the one re-read after another writer got there first
      * @returns {Promise<string[]>} the names added, for the caller to report
      */
-    async function addMissingParticipants(ref, data, nowMs) {
+    async function addMissingParticipants(ref, data, nowMs, retried = false) {
         const milestones = storedMilestones(data);
         if (milestones.retentionUntil <= nowMs) return [];
         if (OT.phaseFor(milestones, nowMs) !== 'INITIAL_OPEN') return [];
@@ -578,9 +584,14 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return [];
         }
 
+        // CREATE, not set, as at window creation (invariant 5). Two top-ups can both read somebody as
+        // missing — the nightly run and a reviewer's Add — and a reviewer can withdraw that person
+        // between the first commit and the second. A `set` then REPLACED the document and the
+        // withdrawal silently vanished. A batch is atomic, so a create that finds a document there
+        // writes nothing at all: read again, once, and add whoever is still missing.
         const batch = db().batch();
         for (const p of missing) {
-            batch.set(ref.collection('participants').doc(p.memberName), {
+            batch.create(ref.collection('participants').doc(p.memberName), {
                 memberName:  p.memberName,
                 uid:         null,
                 grade:       p.grade,
@@ -588,7 +599,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 createdAt:   FieldValue.serverTimestamp(),
             });
         }
-        await batch.commit();
+        try {
+            await batch.commit();
+        } catch (err) {
+            if (!retried && isAlreadyExists(err)) return addMissingParticipants(ref, data, nowMs, true);
+            throw err;
+        }
         console.log(`[addMissingParticipants] ${data.weekEnding} + ${missing.length}: ${missing.map(p => p.memberName).join(', ')}`);
         return missing.map(p => p.memberName);
     }
