@@ -33,7 +33,7 @@ const setDoc = (/** @type {string} */ id, /** @type {number} */ at, extra = {}) 
  * A fake Firestore with one seam: `onRead` runs INSIDE the transaction, between its read and its
  * commit. That is the whole point — it is the interleaving a real client cannot be made to produce.
  */
-function fakeDb({ docs = {}, onRead = null, failList = false } = {}) {
+function fakeDb({ docs = {}, onRead = null, failList = false, fromCache = false } = {}) {
     const store = { ...docs };
     const calls = { sets: [], deletes: [] };
     return {
@@ -44,10 +44,12 @@ function fakeDb({ docs = {}, onRead = null, failList = false } = {}) {
             collectionPath: 'linkTargetSets',
             setsCol: {},
             doc: (/** @type {any} */ _db, /** @type {string} */ _path, /** @type {string} */ id) => ({ id }),
+            // `fromCache` is how the REAL SDK answers a query it cannot take to the server: it RESOLVES
+            // from the local cache rather than failing (whole-app fix, Nov 2026).
             getDocs: async () => {
                 if (failList) throw new Error('permission-denied');
                 const rows = Object.values(store);
-                return { forEach: (/** @type {any} */ fn) => rows.forEach(r => fn({ id: r.id, data: () => r })) };
+                return { metadata: { fromCache }, forEach: (/** @type {any} */ fn) => rows.forEach(r => fn({ id: r.id, data: () => r })) };
             },
             writeWithClaimRetry: (/** @type {any} */ fn) => fn(),
             runTransaction: async (/** @type {any} */ _db, /** @type {any} */ body) => body({
@@ -87,6 +89,23 @@ describe('reading the list: a failure is not an empty collection', () => {
             'an empty account reports error, so the fix has merely moved the confusion: a designer '
             + 'with no sets is told something went wrong.');
         assert.deepEqual(res.sets, []);
+    });
+
+    test('an EMPTY answer from the offline cache is "could not tell", not "none saved"', async () => {
+        // The real SDK does not throw for a query it cannot take to the server: it resolves from the
+        // local cache — EMPTY in a browser that has never read the collection. That empty answer reached
+        // the picker as "No staffing setups saved yet", the exact sentence rule 1 forbids, about setups
+        // it could not see. The tests above modelled a failed read only as a throw.
+        const res = await createTargetSetStore(fakeDb({ docs: {}, fromCache: true }).deps).list();
+        assert.equal(res.status, 'error', 'nothing cached says nothing about what colleagues have saved');
+        assert.deepEqual(res.sets, []);
+    });
+
+    test('…while a cached list WITH rows is kept — stale at worst, and it never claims there are none', async () => {
+        const res = await createTargetSetStore(fakeDb({ docs: { a: setDoc('a', 10) }, fromCache: true }).deps).list();
+        assert.equal(res.status, 'ready');
+        assert.equal(res.sets.length, 1);
+        assert.equal(res.fromCache, true, 'and the caller can tell it came from the cache');
     });
 
     test('rows come back sorted, and a corrupt document is skipped whole rather than half-loaded', async () => {
