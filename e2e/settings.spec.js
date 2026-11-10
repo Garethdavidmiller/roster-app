@@ -782,6 +782,26 @@ test('settings: on a desktop the Work Email explainer keeps a reading measure', 
     expect(m.width).toBeLessThanOrEqual(m.cap + 1);
 });
 
+// The header shares the cards' column at EVERY width (whole-app review, Nov 2026). It was capped only from
+// 768px, so between 581 and 767 — a phone on its side, a foldable, a narrow window — it spanned the window
+// while the cards sat in a 560px column: at 700px the burger 60px left of them, the badge 60px right.
+test('settings: the header spans the cards\' column at every width, a phone on its side included', async ({ page }) => {
+    await seedSession(page);
+    for (const width of [375, 600, 700, 767, 768, 1024, 1366]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/settings.html');
+        await page.locator('.app .card').first().waitFor();
+        const m = await page.evaluate(() => {
+            const edges = (/** @type {string} */ sel) => {
+                const r = /** @type {HTMLElement} */ (document.querySelector(sel)).getBoundingClientRect();
+                return [Math.round(r.left), Math.round(r.right)];
+            };
+            return { header: edges('.app-header'), column: edges('.app') };
+        });
+        expect(m.header, `at ${width}px the header spans ${m.header}, the cards ${m.column}`).toEqual(m.column);
+    }
+});
+
 // SET2 — "You'll get: …" was one run joined with " · ", so a line could end "· Pay" and the next start
 // "reminder". Each kind and its separator is unbreakable now; a line breaks only after a "·".
 test('settings: the notification kinds break between themselves, never inside one', async ({ page }) => {

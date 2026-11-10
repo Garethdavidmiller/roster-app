@@ -23,12 +23,15 @@ body {
     }
 }
 
-.app { max-width: 560px; margin: 0 auto; }
+/* The header takes the column's cap at EVERY width, so the burger and the badge sit over the cards'
+   edges. Capped only from 768px, between 581 and 767px the header spanned the window while the cards
+   sat in a 560px column — at 700px the burger 60px left of them, the badge 60px right (whole-app
+   review, Nov 2026); a phone on its side lands exactly there. */
+.app, .app-header { max-width: 560px; margin-left: auto; margin-right: auto; }
 @media (min-width: 768px) {
     /* Tablet tier: one centred 600px panel (v18.59). Below 1024px there is not room for two
        columns, and the cards are forms — a 700px+ single column would stretch every field. */
-    .app { max-width: 600px; }
-    .app-header { max-width: 600px; margin-left: auto; margin-right: auto; }
+    .app, .app-header { max-width: 600px; }
 }
 .app-header { margin-bottom: 4px; }
 
