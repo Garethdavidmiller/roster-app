@@ -777,6 +777,67 @@ describe('a design REMOVED FOR GOOD is not recreated by an ordinary save', () =>
     });
 });
 
+describe('a RENAME of a design deleted elsewhere renames nothing (whole-app fix, Nov 2026)', () => {
+    // The one transaction in the store that did not ask. A colleague BINNED the design: our rename
+    // renamed the binned copy and signed it as ours, while our picker went on showing it live. They
+    // REMOVED IT FOR GOOD: our merge wrote a skeleton the rules refuse, and the designer read "check
+    // your connection" however often they tried. Save and restore already say what happened; rename
+    // now hands the workspace the same fact, as an error it cannot mistake for success.
+    const isGone = (/** @type {any} */ data) => (/** @type {any} */ err) =>
+        err.code === 'deleted-elsewhere' && (data === null ? err.deletedData === null : err.deletedData?.deletedBy === data);
+
+    test('binned elsewhere: refused, with who binned it, and the binned copy untouched', async () => {
+        const { api, writes } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4,
+            deletedAt: ts(1500), deletedBy: THEM } });
+        await assert.rejects(createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 }), isGone(THEM));
+        assert.deepEqual(writes, []);
+    });
+
+    test('removed for good: refused with no deleter invented, and no skeleton written', async () => {
+        const { api, writes, current } = makeDb({ initial: null });
+        await assert.rejects(createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 }), isGone(null));
+        assert.deepEqual(writes, []);
+        assert.equal(current(), null);
+    });
+
+    test('offline: a cache that knows it was binned, or removed, refuses too — nothing is queued', async () => {
+        for (const [initial, cache, who] of /** @type {Array<[any, any, any]>} */ ([
+            [{ name: 'A', revision: 4, deletedAt: ts(1500), deletedBy: THEM }, null, THEM],
+            [null, 'knows-deleted', null],
+        ])) {
+            const { api, writes } = makeDb({ initial, cache, failTx: { code: 'unavailable', message: 'client is offline' } });
+            api.isOnline = () => false;
+            await assert.rejects(createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 }), isGone(who));
+            assert.deepEqual(writes, [], JSON.stringify(initial));
+        }
+    });
+
+    test('a RETRIED rename decides afresh — a design restored between attempts is renamed', async () => {
+        const { api, writes } = makeDb();
+        let attempt = 0;
+        const live = { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4 };
+        api.runTransaction = async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
+            /** @type {any[]} */ let pending = [];
+            const tx = {
+                get: async () => {
+                    attempt++;
+                    return attempt === 1 ? { exists: () => false, data: () => undefined } : { exists: () => true, data: () => live };
+                },
+                set: (/** @type {any} */ _r, /** @type {any} */ p) => pending.push({ kind: 'tx-merge', payload: p }),
+            };
+            await fn(tx);   // the losing attempt: Firestore discards what it wrote
+            pending = [];
+            const r = await fn(tx);
+            writes.push(...pending);
+            return r;
+        };
+        const res = await createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
+        assert.equal(attempt, 2, 'premise: the body ran twice');
+        assert.equal(res.baselineFresh, true, 'the second attempt found it live, at the revision we hold');
+        assert.equal(writes.length, 1);
+    });
+});
+
 describe('a rename on a STALE baseline does not sign a colleague\'s save as ours', () => {
     // We hold revision 4; S. Silva saved 5. Our rename cannot advance our baseline — correct — but
     // it wrote `updatedBy: us`, so our next save's conflict dialog named US as the person who "saved

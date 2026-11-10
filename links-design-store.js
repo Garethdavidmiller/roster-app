@@ -87,6 +87,9 @@ const _offlineByDefault = () => typeof navigator !== 'undefined' && navigator.on
  */
 const NEVER_OFFLINE = new Set([UNCONFIRMED_CODE, SIGNED_OUT_CODE]);
 
+/** The code a RENAME throws when its design is no longer live — the word `save` returns as a status. */
+const DELETED_ELSEWHERE = 'deleted-elsewhere';
+
 /**
  * Was this failure the absence of a server, rather than a server that said no?
  * @param {any} err @param {() => boolean} isOfflineNow  true when the device reports itself OFFLINE
@@ -172,6 +175,15 @@ export function createDesignStore(deps) {
      * @param {number|null} known
      */
     const queuedRevision = (known) => Math.max((known ?? 0) + 1, Date.now());
+
+    /**
+     * A rename's answer for a design that is no longer live — binned, or removed for good (`deletedData`
+     * null). THROWN rather than returned: a caller that does not know this answer takes its error path,
+     * where a returned one would let it rename the row on screen with nothing written.
+     * @param {any} deletedData
+     */
+    const deletedElsewhere = (deletedData) => Object.assign(
+        new Error('The design was deleted elsewhere while it was open here'), { code: DELETED_ELSEWHERE, deletedData });
 
     /** Read a document's server `updatedAt`, or null if it cannot be read. */
     const readStamp = async (/** @type {any} */ ref) => {
@@ -432,14 +444,25 @@ export function createDesignStore(deps) {
          * @param {number|null} [o.preRevision] the revision we hold for that doc (v22.18) — exact,
          *   where `preBaseline` is the pre-v22.18 fallback
          * @returns {Promise<{ baselineFresh: boolean, revision: number|null, updatedAt: any, queued: boolean }>}
+         * @throws an error whose `code` is `'deleted-elsewhere'` when the design is no longer live, with
+         *   `deletedData` (null when it was removed for good) — never a rename of the binned copy
          */
         async rename({ id, name, by, preBaseline, preRevision = null }) {
             const ref = refFor(id);
             let baselineFresh = false;
             let committed = 0;
+            /** What the transaction found where a live design should be. @type {any} */
+            let gone = null;
             try {
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    gone = null;
                     const snap = await tx.get(ref);
+                    // IS IT STILL A LIVE DESIGN? Asked here like every other transaction in this
+                    // store (whole-app fix, Nov 2026). Binned elsewhere, the merge renamed the binned
+                    // copy and signed it as ours while our picker showed it live; removed for good, it
+                    // wrote a skeleton the rules refuse, and the designer read "check your connection"
+                    // about a design no retry would bring back.
+                    if (!snap.exists() || isDeleted(snap.data())) { gone = { deletedData: snap.exists() ? snap.data() : null }; return; }
                     // Reassigned on every attempt: a retried transaction must not keep the verdict
                     // of the attempt that lost. Asked of the document with our own queued rename seen
                     // through (`ownRenames`), and the counter moved from the one really there.
@@ -469,9 +492,15 @@ export function createDesignStore(deps) {
                 // left alone, a colleague holding the current one saved over the new name unasked.
                 // And like any unverified rename it does not sign the content as ours (above).
                 baselineFresh = canAdvanceBaseline(null, preBaseline, false);
-                /** @type {any} */ let cached = null;
-                try { cached = (await cacheRead(ref)).data() ?? null; }
+                /** @type {any} */ let snap = null;
+                try { snap = await cacheRead(ref); }
                 catch { /* nothing cached — the next offline save consults nothing either */ }
+                // A deletion this device KNOWS of refuses here too: queued, the merge would rename the
+                // binned copy on sync, or write the skeleton the rules refuse (see `cacheRead`).
+                if (snap && (!snap.exists() || isDeleted(snap.data()))) {
+                    throw deletedElsewhere(snap.exists() ? snap.data() : null);
+                }
+                /** @type {any} */ const cached = snap?.data() ?? null;
                 // A SECOND offline rename sees through the first — its revision is ours, not a save.
                 const under = throughOwnRename(id, cached)?.revision;
                 const rev = queuedRevision(preRevision);
@@ -481,6 +510,7 @@ export function createDesignStore(deps) {
                     stamp: cached?.updatedAt?.toMillis?.() ?? null, by: cached?.updatedBy ?? null });
                 return { baselineFresh, revision: null, updatedAt: null, queued: true };
             }
+            if (gone) throw deletedElsewhere(gone.deletedData);
             // A rename that may advance the baseline advances it to the revision it COMMITTED —
             // exactly, and with no read-back to race. `updatedAt` is still returned for the picker's
             // "last saved" line, which is display only.
