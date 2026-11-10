@@ -742,6 +742,56 @@ describe('getRosterSuggestion — Sunday-on-BH payroll rule', () => {
 
 });
 
+// ── A SHIFT CHANGE ON A WEEKDAY REST DAY IS NEVER INFERRED (invariant 11; contracts-b-5) ──────────
+// The first half of paycalc.md invariant 11 — swap shifts and rest-day weekday changes are never
+// inferred — rests on ONE condition in the weekday branch, `fromOv && baseWorked`: on a rest-day base
+// `baseMins` is 0, so without it the whole shift is "excess" and is offered as Overtime 1.25, which
+// "Fill from calendar" then saves. Every weekday fixture above sits on a worked base, so deleting
+// `baseWorked` left this file green.
+describe('getRosterSuggestion — a shift change on a weekday rest day', () => {
+  const RD_TUE = '2026-06-09';
+
+  test('the fixture is a weekday rest day', async () => {
+    const { getBaseShift } = await import('./roster-data.js');
+    assert.equal(getBaseShift(lSpringer, parseISODate(RD_TUE)), 'RD');
+  });
+
+  test('a plain shift recorded there suggests no overtime — a swap pays in ways the app cannot predict', () => {
+    _setOverridesForTest(new Map([[RD_TUE, { type: 'shift', value: '09:00-17:00', _ts: 1, _manual: true }]]));
+    assert.equal(getRosterSuggestion(period(RD_TUE), lSpringer), null, 'the whole shift was offered as Overtime 1.25');
+  });
+
+  test('CONTROL: a rest day worked recorded there is Rest Day Working', () => {
+    _setOverridesForTest(new Map([[RD_TUE, { type: 'rdw', value: '09:00-17:00', _ts: 1, _manual: true }]]));
+    const s = getRosterSuggestion(period(RD_TUE), lSpringer);
+    assert.equal(s?.rdwH, 8);
+    assert.equal(s?.otH, 0);
+  });
+});
+
+// ── A RECORD DATED BEFORE THE MEMBER STARTED (paycalc-3-6) ───────────────────────────────────────
+// Every display layer suppresses a recorded change dated before a member's start date
+// (`isBeforeMemberStart`, override-utils.js: "Always call this helper"), so the Calendar shows a rest
+// day there. The suggestion engine did not ask, and counted the record — then the page applied it to
+// the estimate on view: pay for a day the app itself says came before they started.
+describe('getRosterSuggestion — a record dated before the member\'s start date', () => {
+  const joiner = { ...cReen, startDate: new Date(2026, 3, 13) };   // starts Mon 13 Apr 2026
+
+  test('suggests nothing for a bank holiday or a Saturday worked before the start date', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-06', { type: 'shift', value: '12:00-21:00', _ts: 1, _manual: true }],   // Easter Monday
+      ['2026-04-11', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],   // a Saturday
+    ]));
+    assert.equal(getRosterSuggestion(period('2026-04-05', '2026-04-12'), joiner), null,
+      'the Calendar shows rest days there, and the pay suggestion counted the records anyway');
+  });
+
+  test('CONTROL: the same kind of record from the start date on is counted', () => {
+    _setOverridesForTest(new Map([['2026-04-18', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }]]));
+    assert.equal(getRosterSuggestion(period('2026-04-13', '2026-04-19'), joiner)?.rdwH, 8);
+  });
+});
+
 // ── A TRAINING DAY FROM THE PATTERN ON A BANK HOLIDAY (owner, 7 Nov 2026) ──────────────────────
 // Fixed pattern 3 is a bare TRG Monday to Friday — no times — and the engine prices only a timed
 // day, so a bank holiday inside a trainee's weeks suggested no "Bank Holiday Rostered" hours at all,

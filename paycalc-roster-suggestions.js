@@ -12,7 +12,7 @@
  */
 
 import { getBaseShift, formatISO, getBankHolidays, parseISODate } from './roster-data.js';
-import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS, shouldReplaceOverride } from './override-utils.js';
+import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
@@ -205,7 +205,10 @@ export function getRosterSuggestion(p, member) {
   while (cur <= p.cutoff) {
     const noon = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12);
     const iso  = formatISO(cur);
-    const ov   = _overridesByDate.get(iso);
+    // A record dated before the member's start date is suppressed, exactly as every display layer
+    // suppresses it — the base there is already RD (getBaseShift), and the Calendar shows a rest day,
+    // so the suggestion must not pay for one (paycalc-3-6).
+    const ov   = isBeforeMemberStart(member, noon) ? undefined : _overridesByDate.get(iso);
 
     // Always read baseValue independently so the split logic can compare
     // the override duration against the rostered duration.
