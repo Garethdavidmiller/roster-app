@@ -210,6 +210,19 @@ describe('setting your own password', () => {
     });
 });
 
+describe('every member\'s password status (the admin\'s table)', () => {
+    test('a row is named by its document id — a stored `memberName` field can never rename it', async () => {
+        // The id is what the rules bind and what the table acts on; getResetRequests put the id last
+        // for this reason at v18.94, and this read still put the stored field over it.
+        signIn();
+        state.docs.set(`passwordStatus/${MEMBER}`, { memberName: 'Somebody Else', passwordSetAt: fakeTimestamp(5) });
+        const rows = await fc.getAllPasswordStatus();
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].memberName, MEMBER);
+        assert.equal(rows[0].passwordSetAt.toMillis(), 5, 'and the rest of the record is kept');
+    });
+});
+
 // A deadline belongs on the password change alone (settings-ops-2): the stamp is a Firestore write that
 // settles only when the server acknowledges it, and timed with the change it turned a changed password
 // into "we couldn't confirm" wherever commits were slow. The forced overlay times this call.

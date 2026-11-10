@@ -635,7 +635,9 @@ export async function savePasswordSetAt(memberName) {
  */
 export async function getAllPasswordStatus() {
     const snap = await getDocs(collection(db, COLLECTIONS.passwordStatus));
-    return snap.docs.map(/** @param {any} d */ d => ({ memberName: d.id, ...d.data() }));
+    // memberName AFTER the spread, as getResetRequests below (v18.94): the doc id is what the rules
+    // bind, so a stored field of the same name must never win over it.
+    return snap.docs.map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }));
 }
 
 /**
