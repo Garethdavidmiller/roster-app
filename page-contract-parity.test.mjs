@@ -540,7 +540,7 @@ test('every app page records its own usage under an id the rules allow', () => {
     // under-reports for as long as nobody notices. firestore-contract-parity checks the two lists
     // against each other; this checks that the page is in them at all.
     const rules = read('./firestore.rules');
-    const allow = rules.match(/counts\.keys\(\)\.hasOnly\(\[([\s\S]*?)\]\)/);
+    const allow = rules.match(/function pvCountIds\(\) \{\s*return \[([\s\S]*?)\];/);
     assert.ok(allow, 'analytics counts allowlist not found');
     for (const page of APP_PAGES) {
         const id = pageIdOf(page);
