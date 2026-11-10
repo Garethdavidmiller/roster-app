@@ -2598,6 +2598,95 @@ test('admin: the week label follows the swipe, so the grid and its heading agree
         .toContain(String(saturday.getDate()));
 });
 
+/** Where `dragWeek` drags the grid towards the next week, without dragging it. @param {import('@playwright/test').Page} page */
+async function weekDragPoints(page) {
+    await page.locator('#weekGrid').scrollIntoViewIfNeeded();
+    const box = /** @type {{ x: number, y: number, width: number, height: number }} */ (await page.locator('#weekGrid').boundingBox());
+    const vh = /** @type {{ height: number }} */ (page.viewportSize()).height;
+    return { from: box.x + box.width - 30, to: box.x + 40, y: (Math.max(box.y, 0) + Math.min(box.y + box.height, vh)) / 2 };
+}
+
+// A READ LANDING DURING A SWIPE (whole-app check, Nov 2026). A load finishing mid-gesture redraws the grid for
+// the week the date still names; the swipe then committed anyway, so the heading and the date moved on while
+// the rows stayed on the old week. Landing between the press and the drag left TWO weeks in the grid.
+test('admin: a read landing during a week swipe leaves one week, the one the date names', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    for (const when of ['before the drag starts', 'mid-drag']) {
+        await page.waitForFunction(() => document.querySelectorAll('.week-carousel-panel').length === 0, null, { timeout: 5000 });
+        const start = await page.locator('#fieldDate').inputValue();
+        // A background read held open — the return-to-page refresh or a Retry, as the store runs it.
+        await page.evaluate(async () => {
+            const w = /** @type {any} */ (window);
+            w.__E2E.docsHeld = true;
+            const m = await import('./admin-overrides.js');
+            w.__landed = m.loadOverrides({ everyone: false, member: 'G. Miller' });
+        });
+        const land = () => page.evaluate(async () => { const w = /** @type {any} */ (window); w.__E2E.docsHeld = false; await w.__landed; });
+        const { from, to, y } = await weekDragPoints(page);
+        await page.mouse.move(from, y);
+        await page.mouse.down();
+        if (when === 'before the drag starts') await land();
+        await page.mouse.move((from + to) / 2, y, { steps: 7 });
+        if (when === 'before the drag starts') {
+            expect(await page.locator('#weekGrid .week-panel:not(.week-carousel-panel)').evaluate(p => /** @type {HTMLElement} */ (p).style.transform),
+                'the week on screen follows the drag, not the one the read replaced').not.toBe('');
+        }
+        if (when === 'mid-drag') await land();
+        await page.mouse.move(to, y, { steps: 7 });
+        await page.mouse.up();
+        await expect.poll(() => page.locator('#fieldDate').inputValue(), { message: when }).not.toBe(start);
+        const iso = await page.locator('#fieldDate').inputValue();
+        expect(Math.round((Date.parse(iso) - Date.parse(start)) / 86400000), when).toBe(7);
+        await expect.poll(() => page.locator('#weekGrid .day-row').evaluateAll(rs => rs.map(r => r.getAttribute('data-date'))),
+            { message: `${when}: the rows are the week the date names` }).toContain(iso);
+        await expect(page.locator('#weekGrid .week-panel'), `${when}: one week in the grid`).toHaveCount(1);
+    }
+});
+
+// A MOUSE SWIPES WITH ITS MAIN BUTTON, AND ONLY WHILE IT IS HELD (whole-app check, Nov 2026). A right-click opens
+// the menu on the press and a Mac never hands the page its release, and a press released outside the grid is
+// never heard either; the grid stayed armed, and the next bare movement over it slid the week under the cursor.
+test('admin: only the main mouse button, held, drags the week — and a pointer that has gone is not an error', async ({ page }) => {
+    /** @type {string[]} */ const errors = [];
+    page.on('pageerror', (err) => errors.push(err.message));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const start = await page.locator('#fieldDate').inputValue();
+    const unmoved = async (/** @type {string} */ what) => {
+        expect(await page.evaluate(() => document.querySelectorAll('.week-carousel-panel').length), `${what}: no week built to slide in`).toBe(0);
+        expect(await page.locator('#weekGrid .week-panel').evaluate(p => /** @type {HTMLElement} */ (p).style.transform), `${what}: the week has not moved`).toBe('');
+    };
+    /** @param {string} type @param {Record<string, number>} o */
+    const fire = (type, o) => page.locator('#weekGrid').evaluate((g, a) => g.dispatchEvent(new PointerEvent(a.type,
+        { bubbles: true, isPrimary: true, pointerType: 'mouse', ...a.o })), { type, o });
+    let { from, to, y } = await weekDragPoints(page);
+
+    // A drag with the RIGHT button held.
+    await page.mouse.move(from, y);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(to, y, { steps: 14 });
+    await unmoved('a right-button drag');
+    await page.mouse.up({ button: 'right' });
+
+    // A main-button press whose release the grid never heard, then a bare movement over it.
+    ({ from, to, y } = await weekDragPoints(page));
+    await page.mouse.move(from, y);
+    await page.locator('#weekGrid').evaluate((g, a) => g.dispatchEvent(new PointerEvent('pointerdown',
+        { bubbles: true, isPrimary: true, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1, clientX: a.from, clientY: a.y })), { from, y });
+    await page.mouse.move(to, y, { steps: 14 });   // no button held
+    await unmoved('a press released elsewhere');
+
+    // A pointer the browser no longer knows: capturing it throws, which must end the gesture, not escape it.
+    await fire('pointerdown', { pointerId: 99, button: 0, buttons: 1, clientX: from, clientY: y });
+    await fire('pointermove', { pointerId: 99, button: -1, buttons: 1, clientX: to, clientY: y });
+    await unmoved('a pointer that has gone');
+    expect(errors, 'no uncaught error').toEqual([]);
+    await expect(page.locator('#fieldDate')).toHaveValue(start);
+});
+
 // ── THE WEEK JUMP OPENS THE APP'S OWN CALENDAR (v23.38) ───────────────────────────────────────
 //
 // The rules are unit-tested (date-picker.test.mjs covers `monthCells`). What only a browser can

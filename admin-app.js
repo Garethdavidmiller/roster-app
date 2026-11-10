@@ -538,7 +538,7 @@ export function init() {
             updateSickBookedBox();
             userMadeChanges = false;
         },
-        onSettled: () => { resetBulkPills(); updateSaveBtn(); },
+        onSettled: (redrawn) => { if (redrawn) renderWeekGrid(); resetBulkPills(); updateSaveBtn(); },
         shiftWeek,
     });
 

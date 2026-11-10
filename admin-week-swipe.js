@@ -50,7 +50,9 @@ import { buildWeekGridInto } from './admin-week-editor.js';
  * @param {HTMLElement} deps.nextWeekBtn
  * @param {() => boolean} deps.canNavigate        may we leave this week? (staged work, no member)
  * @param {(iso: string) => void} deps.onWeekCommitted  the date has moved — refresh what depends on it
- * @param {() => void} deps.onSettled            the animation is over — the grid is editable again
+ * @param {(redrawn: boolean) => void} deps.onSettled  the animation is over — the grid is editable again.
+ *   `redrawn`: a load replaced the grid during the gesture, so the panels it moved were not the ones on
+ *   screen, and the new week has to be drawn afresh.
  * @param {(delta: number) => void} deps.shiftWeek      what the arrows do
  * @returns {void}
  */
@@ -103,10 +105,26 @@ export function initAdminWeekSwipe({
         }, DURATION_MS + 50);
     }
 
+    /** Stop listening and put the grid back as it was: a cancelled pointer, or a mouse whose release
+     *  happened somewhere this grid never heard. @param {PointerEvent} e */
+    function abandon(e) {
+        swipeListening = false; swipeCooldown = false;
+        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (swipeDragging) {
+            swipeDragging = false;
+            if (swipePanelCurrent) { swipePanelCurrent.style.transition = swipePanelCurrent.style.transform = swipePanelCurrent.style.willChange = ''; }
+            discardPanels(); swipePanelCurrent = null;
+        }
+    }
+
     // pointerdown: record start position only — no capture, no panel building yet.
     weekGrid.addEventListener('pointerdown', e => {
         if (e.clientX < 24) return; // leave iOS system back-swipe region
         if (!e.isPrimary || swipeCooldown) return;
+        // A MOUSE SWIPES WITH ITS MAIN BUTTON ONLY (whole-app check, Nov 2026). A right-click opens the
+        // menu on the press, and on a Mac or Linux desktop the page never hears the release — so the grid
+        // stayed armed, and the next bare movement over it slid the week under the cursor.
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         // ONE question, asked by the coordinator: may we leave this week? It is false for staged
         // work (never carry an unsaved edit into another week) and false with no member or week
         // loaded (there is nothing to swipe between). Both were inline here; neither is a fact
@@ -124,6 +142,9 @@ export function initAdminWeekSwipe({
     // pointermove: confirm direction; start carousel only when clearly horizontal.
     weekGrid.addEventListener('pointermove', e => {
         if (!e.isPrimary || !swipeListening) return;
+        // …and a mouse with no button held is not dragging, whatever its last press was: the release
+        // went somewhere else. Back as it was, rather than read as a drag from that old press.
+        if (e.pointerType === 'mouse' && e.buttons === 0) { abandon(e); return; }
         const dx = e.clientX - swipeStartX;
         const dy = e.clientY - swipeStartY;
 
@@ -136,9 +157,13 @@ export function initAdminWeekSwipe({
                 return;
             }
 
+            // A LOAD CAN REDRAW THE GRID UNDER THE GESTURE (whole-app check, Nov 2026): a read landing
+            // since the press replaced the panel taken then. Drag the one on screen, or two weeks stay.
+            if (!swipePanelCurrent.isConnected) swipePanelCurrent = weekGrid.querySelector('.week-panel:not(.week-carousel-panel)');
+            if (!swipePanelCurrent) { swipeListening = false; return; }
             // Horizontal confirmed — commit to swipe gesture
             swipePanelWidth = Math.ceil(weekGrid.getBoundingClientRect().width);
-            weekGrid.setPointerCapture(e.pointerId);
+            try { weekGrid.setPointerCapture(e.pointerId); } catch (_) { abandon(e); return; }   // the pointer has already gone
             swipePanelCurrent.style.transition = 'none';
             swipePanelCurrent.style.willChange = 'transform';
             swipePanelPrev = buildAdjPanel(-1);
@@ -175,6 +200,8 @@ export function initAdminWeekSwipe({
             const incoming = goLeft ? swipePanelNext : swipePanelPrev;
             const discard  = goLeft ? swipePanelPrev : swipePanelNext;
             if (!incoming) { snapBack(); return; }
+            // Redrawn mid-drag: what moved was off screen, and the old week is still showing (see above).
+            const redrawn = !swipePanelCurrent.isConnected || !incoming.isConnected;
 
             // Commit: advance date state before animation so label is correct
             const d = parseISODate(fieldDate.value);
@@ -203,7 +230,7 @@ export function initAdminWeekSwipe({
                 incoming.style.transition = incoming.style.transform = incoming.style.willChange = '';
                 if (swipePanelCurrent && swipePanelCurrent.parentNode) swipePanelCurrent.remove();
                 swipePanelPrev = swipePanelNext = swipePanelCurrent = null;
-                onSettled();
+                onSettled(redrawn);
                 swipeCooldown = false;
             }
             const timer = setTimeout(restore, DURATION_MS + 50);
@@ -216,13 +243,7 @@ export function initAdminWeekSwipe({
 
     weekGrid.addEventListener('pointercancel', e => {
         if (!e.isPrimary || !swipeListening) return;
-        swipeListening = false; swipeCooldown = false;
-        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
-        if (swipeDragging) {
-            swipeDragging = false;
-            if (swipePanelCurrent) { swipePanelCurrent.style.transition = swipePanelCurrent.style.transform = swipePanelCurrent.style.willChange = ''; }
-            discardPanels(); swipePanelCurrent = null;
-        }
+        abandon(e);
     });
 
     // Button handlers inside IIFE so they share the swipeCooldown closure variable
