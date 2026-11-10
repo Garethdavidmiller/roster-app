@@ -3689,17 +3689,17 @@ body.auth-ready .boot-placeholder { display: none; }
     -webkit-tap-highlight-color: transparent;
     box-sizing: border-box;
 }
-.btn-action:active           { transform: scale(var(--press-scale)); }
+.btn-action:active:not(:disabled) { transform: scale(var(--press-scale)); }
 .btn-action + .btn-action    { margin-top: 8px; }
 .btn-primary                 { background: var(--primary-blue); color: white; }
-.btn-primary:active          { background: var(--primary-blue-dark); }
+.btn-primary:active:not(:disabled) { background: var(--primary-blue-dark); }
 @media (hover: hover) and (pointer: fine) {
-    .btn-primary:hover       { background: var(--primary-blue-dark); }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-blue-dark); }
 }
 .btn-secondary               { background: white; color: var(--primary-blue); border-color: var(--border-mid); }
-.btn-secondary:active        { background: var(--bg-light); }
+.btn-secondary:active:not(:disabled) { background: var(--bg-light); }
 @media (hover: hover) and (pointer: fine) {
-    .btn-secondary:hover     { background: var(--bg-light); }
+    .btn-secondary:hover:not(:disabled) { background: var(--bg-light); }
 }
 
 /* ── Save / primary-action button (admin, operations, links pages) ─ */
