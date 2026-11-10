@@ -99,9 +99,9 @@
         <ul class="settings-summary-items" id="settingsSummaryItems"></ul>
     </div>
 
-    <!-- Two column WRAPPERS, not two columns' worth of grid placement (v20.72). They are
-         `display: contents` below 1024px, so the mobile page is exactly the stack it was and this
-         markup costs nothing there. On desktop they become the flex columns the app already uses on
+    <!-- Two column WRAPPERS, not two columns' worth of grid placement (v20.72). Below 1024px they are
+         plain blocks (no rule styles them there), so the mobile page is the same single stack of
+         cards. On desktop they become the flex columns the app already uses on
          admin and paycalc — and the wrapper is the part that matters: placing four cards into grid
          cells individually lets the taller column's overflow be distributed into the OTHER column's
          row gaps, which is the paycalc void v18.47 had to unpick. One card per column per row can
