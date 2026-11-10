@@ -177,6 +177,12 @@ Found by the November 2026 review, each measured on its own background:
 None was reachable by the scan: each needs a state no axe test drives. Each now has its own e2e test,
 in `e2e/admin.spec.js` or `e2e/operations.spec.js`. It is the BH badges' lesson again.
 
+### Leave panel "Remaining" label — `color-contrast` (SERIOUS), phone layout — ✅ FIXED (10 Nov 2026)
+
+White at 0.6 on the glass measured 4.14:1 for its 10px text; the desktop scan could only call it
+obscured. `.al-lb-lbl` takes `--on-navy-muted` (0.70) now: 5.0:1. Found by the new scan of the
+Calendar's glass panels, which is why that scan exists.
+
 ## The surface the gate could not reach — the roster review table
 
 The section above states the rule; this is the largest thing it had been hiding. The gate scans
@@ -310,8 +316,9 @@ entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and recor
 4. ~~Make it block (`test:e2e` includes `@a11y`)~~ ✅
 5. ~~Wire more rendered STATES per page beyond the one settled snapshot~~ ✅ — forced transient
 states (sync-chip, active pills); **open-overlay states (H2): the login overlay, the nav drawer
-open, and the About lightbox open** — each a full interactive surface (focus trap, buttons, headings)
-the settled scans can't reach. All axe-clean.
+open, and the About lightbox open**; and since 10 Nov 2026 the Calendar's day, leave and Team View
+help panels, and Operations with every card open — each a full interactive surface (focus trap,
+buttons, headings) the settled scans can't reach. All axe-clean.
 
 **CI gate — ✅ in place.** The axe `@a11y` spec runs as part of `npm run test:e2e`, and the `smoke`
 job in `.github/workflows/e2e.yml` runs it on every branch/PR, one job per Playwright project — so a
