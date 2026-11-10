@@ -1923,6 +1923,12 @@ test('links sets: the row says whether the table still matches the set', async (
     await page.locator('#genSlotRows tr').first().locator('[data-class="weekday"]').fill('7');
     await expect(page.locator('#genSetHint')).toContainText('You have changed the table');
     await expect(page.locator('#genSetHint')).not.toContainText('still matches');
+
+    // …and a SECOND edit (links-analysis-2). The first edit used to be the only one the row knew came
+    // after a load: the second dropped the setup's stamp, and the row offered to load it over the work.
+    await page.locator('#genSlotRows tr').first().locator('[data-class="weekday"]').fill('8');
+    await expect(page.locator('#genSetHint')).toContainText('You have changed the table');
+    await expect(page.locator('#genSetHint')).not.toContainText('Press Use setup');
 });
 
 test('links sets: Load asks before it throws away a table you have changed', async ({ page }) => {
