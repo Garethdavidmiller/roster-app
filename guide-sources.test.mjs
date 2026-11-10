@@ -54,11 +54,12 @@ const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact', 'Draft',
 // Markers that make a provisional claim VISIBLE, per class. The list is per-class rather than
 // per-guide because the two guides express the same idea in their own idiom — the Rangers page
 // tints a whole card (`rr-card--draft`) or a single callout (`rr-unresolved`); the Railcard page
-// has only ever needed the claim-level form (`rc-unsourced`). What must not drift is the RULE:
+// has only ever needed the claim-level form (`rc-unsourced`), and the FIP page's first Conflict (Vilnius–Riga,
+// owner, 10 Nov 2026) is a claim-level callout too (`fip-unresolved`). What must not drift is the RULE:
 // a Draft and a Conflict may never share a marker, in either dialect.
 const PROVISIONAL = {
     Draft:    ['rr-card--draft', 'rc-unsourced'],
-    Conflict: ['rr-card--conflict', 'rr-unresolved'],
+    Conflict: ['rr-card--conflict', 'rr-unresolved', 'fip-unresolved'],
 };
 const COLS = ['ID', 'Guide', 'Section', 'Class', 'Reviewed', 'Next', 'Source'];
 

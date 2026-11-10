@@ -40,6 +40,18 @@
         <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="PDF — save or print this guide">⤓ PDF</button>
     </header>
 
+    <!-- THE SOURCE BANNER (owner, 10 Nov 2026). A page that carries a provisional claim says so above the
+         chip bar, where it cannot be scrolled past before the first card and where it prints:
+         guide-sources.test.mjs requires it, naming every unsettled state on the page. Amber, not red —
+         nothing here is wrong; one claim cannot be settled from its source. Remove it with the last
+         .fip-unresolved callout, never before. -->
+    <div class="source-banner" role="note">
+        <div class="draft-title"><span aria-hidden="true">⚠</span> Sources disagree on one train</div>
+        <p>One claim on this page is marked <strong>Source conflict</strong>: whether FIP covers the
+        <strong>Vilnius–Riga</strong> train. Rail Staff Travel's own Lithuania page gives two answers, so ask
+        Rail Staff Travel before you rely on it.</p>
+    </div>
+
     <nav class="chip-bar" aria-label="Jump to section">
         <button class="chip" type="button" data-target="sec-need">Overview</button>
         <button class="chip" type="button" data-target="sec-how">How it works</button>
@@ -954,7 +966,14 @@
                 <p><strong>A seat reservation is mandatory</strong> on <strong>Vilnius–Klaipėda</strong> and <strong>Vilnius–Riga</strong>, in both directions. On local routes, <strong>first class requires a reservation too — but it is free</strong>.</p>
                 <div class="box box-red mt-8">
                     <strong>⚠ Vilnius–Tallinn — FIP not valid</strong>
-                    FIP facilities do not apply to the <strong>international services on the Vilnius to Tallinn line</strong>. That connection runs Vilnius–Riga–Valga–Tallinn, and its first leg is LTG Link's Vilnius–Riga train — the route listed for a reservation above. Rail Staff Travel's two statements do not settle whether FIP covers Vilnius–Riga, so <strong>ask Rail Staff Travel before you rely on it</strong>.
+                    FIP facilities do not apply to the <strong>international services on the Vilnius to Tallinn line</strong>.
+                </div>
+                <!-- CLAIM-LEVEL CONFLICT (owner, 10 Nov 2026): a register row of its own, fip-vilnius-riga, so the
+                     settled lines of this card do not inherit its doubt. Same idea as the Rangers guide's
+                     .rr-unresolved; the marker is required by guide-sources.test.mjs. -->
+                <div class="box fip-unresolved" data-guide-source="fip-vilnius-riga">
+                    <strong>⚠ Vilnius–Riga — source conflict</strong>
+                    Rail Staff Travel gives two answers. Its Lithuania page lists <strong>Vilnius–Riga</strong> among the routes that need a seat reservation, above — and it says FIP is not valid on the international services on the Vilnius to Tallinn line, whose first leg is LTG Link's Vilnius–Riga train. <strong>Ask Rail Staff Travel before you rely on FIP to Riga.</strong>
                 </div>
                 <p><strong>Your coupon runs to Mockava</strong> — the only boundary point LTG Link publishes, on the Polish (PKP) side. Beyond it you need PKP's own coupon or a through discounted ticket.</p>
                 <div class="box box-yellow mb-0">
@@ -973,7 +992,10 @@
                     <span class="tag tag-warn">Vilnius–Riga: ask RST first</span>
                 </div>
                 <p><strong>Latvia has no FIP undertaking of its own</strong> — neither LDz nor the passenger operator Vivi is on Rail Staff Travel's carrier list, and there is no Latvia country page. On Latvian trains you pay standard fares.</p>
-                <p><strong>Vilnius to Riga is not settled.</strong> <strong>LTG Link</strong> — the <em>Lithuanian</em> undertaking — carries the Vilnius–Riga leg, and Rail Staff Travel lists Vilnius–Riga among LTG Link's reservation routes. But the same page says FIP is <strong>not valid on the international services on the Vilnius to Tallinn line</strong>, and that train is the first leg of the Vilnius–Riga–Tallinn connection. <strong>Ask Rail Staff Travel before you rely on FIP to Riga.</strong> If it does apply, it comes out of your <strong>LTG Link</strong> allocation, not a Latvian one.</p>
+                <div class="box fip-unresolved" data-guide-source="fip-vilnius-riga">
+                    <strong>⚠ Vilnius–Riga — source conflict</strong>
+                    <strong>LTG Link</strong> — the <em>Lithuanian</em> undertaking — carries the Vilnius–Riga leg, and Rail Staff Travel lists Vilnius–Riga among LTG Link's reservation routes. But the same page says FIP is not valid on the international services on the Vilnius to Tallinn line, and that train is the first leg of the Vilnius–Riga–Tallinn connection. <strong>Ask Rail Staff Travel before you rely on FIP to Riga.</strong> If it does apply, it comes out of your <strong>LTG Link</strong> allocation, not a Latvian one.
+                </div>
                 <p><strong>Beyond Riga</strong>, on to Valga at the Estonian border, the carrier is <strong>Vivi</strong>, which is outside FIP — budget for the public fare.</p>
                 <p class="src-note">Listed here as a destination note rather than a member country: "Latvia is in FIP" is false, and whether FIP reaches Riga is a question for Rail Staff Travel.</p>
                 <p class="country-reviewed">✓ Checked Nov 2026 against Rail Staff Travel</p>

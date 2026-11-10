@@ -732,18 +732,23 @@ test('guides: from 800px the header\'s ← and ⤓ PDF sit on the content column
                 const back = /** @type {HTMLElement} */ (document.querySelector('.page-header .btn-back')).getBoundingClientRect();
                 const pdf = /** @type {HTMLElement} */ (document.querySelector('.page-header .btn-pdf')).getBoundingClientRect();
                 const band = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect();
-                // The amber source banner between the header and the chips (railcard, rangers) too.
-                const banner = document.querySelector('.source-banner > *')?.getBoundingClientRect();
+                // The amber source banner between the header and the chips (railcard, rangers, fip) too —
+                // EVERY line of it: the FIP banner's title sat on the column while its paragraph, whose own
+                // `margin: 0` undid the centring, started 260px to the left (10 Nov 2026), and reading the
+                // first child alone passed it.
+                const banner = [...document.querySelectorAll('.source-banner > *')].map(el => {
+                    const b = el.getBoundingClientRect();
+                    return [b.left, b.right];
+                });
                 return { textLeft: r.left + parseFloat(cs.paddingLeft), textRight: r.right - parseFloat(cs.paddingRight),
-                         back: back.left, pdf: pdf.right, bandLeft: band.left, bandRight: band.right,
-                         banner: banner ? [banner.left, banner.right] : null };
+                         back: back.left, pdf: pdf.right, bandLeft: band.left, bandRight: band.right, banner };
             }, column);
             expect(Math.abs(m.back - m.textLeft), `${guide} at ${width}px: ← at ${m.back}, the text at ${m.textLeft}`).toBeLessThanOrEqual(1);
             expect(Math.abs(m.pdf - m.textRight), `${guide} at ${width}px: ⤓ PDF ends at ${m.pdf}, the text at ${m.textRight}`).toBeLessThanOrEqual(1);
             expect([m.bandLeft, m.bandRight], `${guide} at ${width}px: the navy band stays full-bleed`).toEqual([0, width]);
-            if (m.banner) {
-                expect(Math.abs(m.banner[0] - m.textLeft) + Math.abs(m.banner[1] - m.textRight),
-                    `${guide} at ${width}px: the source banner's words span ${m.banner}, the text ${m.textLeft}–${m.textRight}`).toBeLessThanOrEqual(2);
+            for (const [i, line] of m.banner.entries()) {
+                expect(Math.abs(line[0] - m.textLeft) + Math.abs(line[1] - m.textRight),
+                    `${guide} at ${width}px: the source banner's line ${i + 1} spans ${line}, the text ${m.textLeft}–${m.textRight}`).toBeLessThanOrEqual(2);
             }
         }
     }

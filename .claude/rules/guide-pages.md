@@ -351,6 +351,17 @@ country page):
   supplement to a *leisure* coupon only.
 - **Record a stated absence as an absence.** RST publishes no child-fare ages for Lithuania and no
   Swedish/Finnish undertaking exists; a blank reads as "no restriction".
+- **A source that gives two answers is a `Conflict`, on the claim.** The page's first is the
+  Vilnius–Riga train (owner, 10 Nov 2026): RST's Lithuania page lists it as a reservation route and
+  excludes the Vilnius–Tallinn line it starts. It has its own row, `fip-vilnius-riga`, and on the
+  Lithuania and Latvia cards a `.fip-unresolved` callout (a red EDGE and label — a red box here means
+  "not valid", which is an answer), so the cards' settled lines keep their own state. A page with a
+  Conflict also carries the amber `.source-banner` above the chip bar, naming it; both are required by
+  `guide-sources.test.mjs`, and both go when the row is settled.
+- **Name the operators the source names as outside FIP.** Where a country page lists "Non FIP
+  operators", the card's "⚠ Other operators — FIP not valid" box gives that list as the page gives it,
+  with its own register row, so a member planning a trip learns which trains in that country their
+  coupon will not cover. A list the page calls not exhaustive is said to be not exhaustive.
 
 **The booking-reach table** (`#booking-table`) is the page's only table. It stacks below 560px via
 `data-label` generated content, and carries explicit `role="table"/"row"/"cell"` because
