@@ -61,4 +61,27 @@ function mustReclaim(user) {
     return !c || Object.keys(c).length === 0;
 }
 
-module.exports = { memberNameFromClaims, mustReclaim };
+/**
+ * The OTHER member an existing account's claims belong to, or `null` when they are this address's own
+ * (whole-app check, 10 Nov 2026). setupRosterAuth stamps a roster name's claims onto whatever account
+ * holds that name's email, and adopted any account already carrying a claim — so an account that came
+ * to hold a not-yet-provisioned colleague's address (an email change, wherever the project allows
+ * one) would have been handed that colleague's identity and tier. The test is the ADDRESS: the member
+ * named in the claims must derive to this account's own email. A member renamed with a spelling that
+ * still derives it is the same person, and an account an admin gave `{ admin: true }` names nobody.
+ * A claimed name that derives no address at all is treated as somebody else's — never assumed ours.
+ * @param {{ email?: string, customClaims?: Record<string, any>|null }} user
+ * @returns {string|null}
+ */
+function claimedByAnotherMember(user) {
+    const c = user && user.customClaims;
+    if (!c || typeof c !== 'object') return null;
+    const claimed = [c.member, c.name].find((n) => typeof n === 'string' && n) || null;
+    if (!claimed) return null;
+    let derived = '';
+    try { derived = nameToEmail(claimed); } catch (_) { /* underivable: not this address's */ }
+    const own = typeof user.email === 'string' ? user.email.toLowerCase() : '';
+    return derived && own && derived.toLowerCase() === own ? null : claimed;
+}
+
+module.exports = { memberNameFromClaims, mustReclaim, claimedByAnotherMember };

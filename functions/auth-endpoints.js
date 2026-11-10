@@ -43,7 +43,7 @@ const {
     summariseAccountGaps,
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push');
-const { mustReclaim } = require('./member-identity');
+const { mustReclaim, claimedByAnotherMember } = require('./member-identity');
 
 /**
  * The `updateUser` field that removes every sign-in method but the password from an account being
@@ -234,6 +234,14 @@ const setupRosterAuth = onRequest(
                         // The shared PIN account with this email linked to it: never adopted (the next unlock rebuilds it).
                         if (isViewerAccount(existing)) {
                             failed.push(`${name} (${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock)`);
+                            continue;
+                        }
+                        // An account whose claims belong to ANOTHER member is never adopted: stamping
+                        // this name's claims on it would hand that member this one's identity and tier.
+                        const other = claimedByAnotherMember(existing);
+                        if (other) {
+                            failed.push(`${name} (${email} holds an account claimed for "${other}" — check it in the Firebase console)`);
+                            console.error(`[setupRosterAuth] ${email} holds an account claimed for another member — not adopted`);
                             continue;
                         }
                         uid = existing.uid;
@@ -455,6 +463,12 @@ const resetMemberPassword = onRequest(
             // known password and revoke every PIN session either (v24.38).
             if (isViewerAccount(user)) {
                 return res.status(409).json({ error: `${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock` });
+            }
+            // …and an account claimed for ANOTHER member is not this member's to reset (as Set up
+            // accounts refuses to adopt it): it would put that member on this one's default.
+            const other = claimedByAnotherMember(user);
+            if (other) {
+                return res.status(409).json({ error: `${email} holds an account claimed for "${other}" — check it in the Firebase console` });
             }
             // AN ACCOUNT THIS SERVER NEVER STAMPED is TAKEN BACK, not just re-passworded (v24.56, auth
             // review) — the same as setupRosterAuth does, for the same reason: it was registered from

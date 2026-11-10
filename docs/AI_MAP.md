@@ -570,6 +570,10 @@ Which member a verified ID token speaks for, or none — the server copy of `isM
   `functions/documents.js`.
 - `mustReclaim(user)` — an existing account at a roster email with NO custom claim must be taken back
   before `setupRosterAuth` stamps it (`functions/auth-endpoints.js`).
+- `claimedByAnotherMember(user)` — the OTHER member an existing account's claims name, or `null` when
+  the member they name derives to the account's own email (a respelling that still derives it is the
+  same person; `{ admin: true }` names nobody). `setupRosterAuth` does not adopt such an account and
+  `resetMemberPassword` refuses it (409).
 
 ### `functions/london-clock.js`
 An ISO calendar date, and the instant it names in London — machinery, not Overtime policy. **It requires

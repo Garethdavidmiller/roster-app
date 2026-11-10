@@ -1114,6 +1114,48 @@ describe('setupRosterAuth never re-enables an account on its old password', () =
     });
 });
 
+// ── AN ACCOUNT CLAIMED FOR SOMEBODY ELSE IS NOT ADOPTED (cross-area lead, 10 Nov 2026) ─────────
+// Set up accounts stamps the roster name's claims onto whatever account holds that name's email, and
+// adopted any account already carrying a claim. If an account provisioned for one member ever came to
+// hold a not-yet-provisioned colleague's address (an email change, wherever the project allows one),
+// the next run handed it that colleague's identity and tier — a manager's, say. The test is the
+// email: an account belongs here only if the member its claims name derives to this address. A
+// renamed member whose spelling still derives the same address passes, and so does `{ admin: true }`.
+describe('setupRosterAuth and the admin reset refuse an account whose claims name another member', () => {
+    const movedAccount = { uid: 'uid_moved', email: emailFor(MEMBER2), displayName: MEMBER, disabled: false,
+        customClaims: { name: MEMBER, member: MEMBER } };
+
+    test('Set up accounts reports it and stamps nothing on it', async () => {
+        const { eps, authOps } = build({ existingUsers: [movedAccount] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.code, 200);
+        assert.deepEqual(authOps.filter((o) => o.uid === 'uid_moved' && AUTH_MUTATIONS.includes(o.op)), [],
+            `${MEMBER}'s account was given ${MEMBER2}'s identity`);
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER2} (`) && f.includes(MEMBER)), out.body.failed.join(' | '));
+        assert.ok(!out.body.skipped.includes(MEMBER2) && !out.body.reclaimed.includes(MEMBER2));
+    });
+
+    test('a renamed member whose spelling still derives the same address IS adopted', async () => {
+        const renamed = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: 'l. SPRINGER', disabled: false,
+            customClaims: { name: 'l. SPRINGER', member: 'l. SPRINGER' } };
+        const { eps, authOps } = build({ existingUsers: [renamed] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.ok(out.body.skipped.includes(MEMBER), out.body.failed.join(' | '));
+        const stamp = authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER));
+        assert.equal(stamp && stamp.claims.member, MEMBER, 'the same person, re-stamped under the roster spelling');
+    });
+
+    test('the admin reset refuses it too — no password, no revocation, no notice', async () => {
+        const { eps, authOps, sends, stamps } = build({ existingUsers: [movedAccount] });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER2 }));
+        assert.equal(out.code, 409);
+        assert.match(out.body.error, new RegExp(MEMBER.replace('.', '\\.')));
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [], 'another member\'s account was reset');
+        assert.deepEqual(sends, []);
+        assert.deepEqual(stamps, [], 'and no reset was recorded against the member asked about');
+    });
+});
+
 // ── THE SHARED PIN ACCOUNT IS NEVER A MEMBER (Sep 2026 review) ─────────────────────────────────
 // Any PIN holder can link an email/password to the shared `calendar-viewer` account. Linking a
 // not-yet-provisioned member's DERIVED email made this endpoint's email-already-exists path find
