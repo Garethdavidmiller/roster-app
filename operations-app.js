@@ -492,7 +492,8 @@ export function init() {
 
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
-                if (e.key === 'Escape') { form.remove(); sayEmail(setBtn, m.name); }
+                // Focus back to the button that opened the form, not to the page (Nov 2026 review).
+                if (e.key === 'Escape') { form.remove(); sayEmail(setBtn, m.name); setBtn.focus(); }
             });
         }
 
@@ -631,9 +632,12 @@ export function init() {
             try {
                 const fresh = await withClaimRetry(getAllPasswordStatus);
                 statusMap = new Map(fresh.map(/** @param {any} s */ s => [s.memberName, s]));
+                // The re-draw destroys this button; focus that was on it (or had already fallen to the
+                // page, as it does from a disabled button) follows the row rather than vanishing.
+                const follow = document.activeElement === btn || document.activeElement === document.body;
                 renderForGrade(filterSelect.value);   // re-rendered — and a row on its default looks just as it did, so it says so (whole-app review)
-                const again = [...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset');
-                if (again) sayDone(again);
+                const again = /** @type {HTMLElement|null|undefined} */ ([...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset'));
+                if (again) { sayDone(again); if (follow) again.focus(); }
             } catch (e) {
                 console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);
                 sayDone(btn);

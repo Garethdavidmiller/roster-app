@@ -1081,6 +1081,60 @@ test('operations account status: every row button\'s name holds its visible word
     expect(await nameMismatches(page), 'a reset that landed: Reset ✓').toEqual([]);
 });
 
+// ── KEYBOARD FOCUS IS NEVER DROPPED ON THE PAGE (Nov 2026 review) ───────────────────────────────
+// Escape in the inline email form removed the field that had focus and returned it nowhere, and a reset
+// that landed re-drew the list under the button that had made it — the save and remove paths already
+// put focus somewhere visible; these two did not.
+test('operations account status: Escape out of the email form returns focus to its button', async ({ page }) => {
+    await page.addInitScript((byPath) => { /** @type {any} */ (window).__E2E = { docs: [], docsByPath: byPath }; }, ACCT_EMAIL_ROWS);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').filter({ hasNot: page.locator('.email-set-btn--remove') }).first();
+    const btn = row.locator('.email-set-btn');
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    await expect(row.locator('.email-set-form input')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(row.locator('.email-set-form')).toHaveCount(0);
+    await expect(btn).toHaveText('Set email');
+    await expect(btn, 'focus fell to the page').toBeFocused();
+});
+
+test('operations account status: a reset that lands keeps focus on that row\'s Reset', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ revoked: true, stamped: true, notified: true }),
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').nth(1);
+    const name = await row.getAttribute('data-member');
+    await row.locator('.btn-acct-reset').focus();
+    await page.keyboard.press('Enter');
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    const again = page.locator(`.acct-row[data-member="${name}"] .btn-acct-reset`);
+    await expect(again).toHaveText('Reset ✓');
+    await expect(again, 'the re-drawn list took focus with it').toBeFocused();
+});
+
+// WCAG 2.5.3 again: each file input's name must hold the words of the label that stands for it on
+// screen ("Choose file", "Choose PDF"). They were "Choose huddle PDF or Word document" and the like, so
+// "click Choose file" reached nothing. axe does not test inputs for this, so it is measured here.
+test('operations: every file input\'s name begins with the words of its visible label', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const pairs = await page.locator('label.huddle-file-label').evaluateAll(labels => labels.map(l => [
+        (l.textContent || '').trim(), document.getElementById(l.getAttribute('for') || '')?.getAttribute('aria-label') || '']));
+    expect(pairs.length).toBe(4);
+    for (const [label, name] of pairs) expect(name.startsWith(label), `"${name}" does not begin with "${label}"`).toBe(true);
+});
+
 test('operations account status: a failed Remove leaves the open edit form its own error line', async ({ page }) => {
     // 48-hour review, Nov 2026. The Remove failure cleared the FIRST error line in the row — with the
     // edit form open, that was the form's — so the form's own save failure then wrote to a detached
