@@ -169,7 +169,11 @@ export function assessRosterAlignment(parsedResult) {
     // knows one); geometry does not, and must not borrow one.
     // Only names actually ON this review count: the server filters unknown names AFTER its witness
     // runs, so a refused name can arrive that no row carries, and a phantom must not trip the breaker.
-    const onReview = new Set((parsedResult?.parsed || []).map(e => e.memberName));
+    // "On the review" is the test the base-roster verdict above applies — known and not hidden — so a
+    // leaver the server still prints, refused by the grid, cannot make two real refusals into three
+    // and block the read under a name the admin is never shown (whole-app fix, Nov 2026).
+    const onReview = new Set((parsedResult?.parsed || []).map(e => e.memberName)
+        .filter(name => teamMembers.some(m => m.name === name && !m.hidden)));
     const geometryRefused = new Set((Array.isArray(parsedResult?.geometryRefused) ? parsedResult.geometryRefused : [])
         .filter(name => onReview.has(name)));
     for (const name of geometryRefused) if (!byMember.has(name)) byMember.set(name, 'geometry');

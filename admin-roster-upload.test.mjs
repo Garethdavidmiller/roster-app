@@ -1819,6 +1819,21 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
         assert.deepEqual(a.suspects, ['G. Miller']);
     });
 
+    // Whole-app fix, Nov 2026: a LEAVER the server still prints (its generated name list lags the
+    // `hidden` flag) has a row in the read but none on the review. Refused by the grid, they counted
+    // toward the three, so two real refusals blocked the whole read under a banner naming somebody the
+    // admin could not see — and there is no "save anyway". Same test as a drifted row: on the review.
+    test('a hidden member\'s refused row is not counted either — they have no row on the review', () => {
+        const leaver = teamMembers.find(/** @param {any} m */ m => m.hidden && !m.managerOnly);
+        assert.ok(leaver, 'needs a leaver on the roster');
+        const real = [MEMBER, others[0]];
+        const parsed = [...real, leaver].map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const a = assessRosterAlignment({ parsed, dates: DATES, geometryRefused: [...real, leaver].map(m => m.name) });
+        assert.equal(a.blocked, false, 'two real refusals are not three');
+        assert.deepEqual([...a.suspects].sort(), real.map(m => m.name).sort());
+        assert.ok(!a.geometryRefused.includes(leaver.name));
+    });
+
     // The detector's coverage is NOT uniform, and the repo described it as "the one AI-independent
     // witness" without ever saying so. A flat Mon–Fri line gives a one-day shift only two moved
     // cells, never the three the threshold needs — so the signal is genuinely absent rather than
