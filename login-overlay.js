@@ -37,6 +37,11 @@
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
+import { isCredentialRejection } from './auth-identity.js';
+// The one deadline helper (sessions-6 — this card kept a copy that differed only in the error's code).
+// Every page that loads this module statically already loads password-force.js statically, and the
+// Calendar loads this one on demand, so the import adds nothing to any page's start-up.
+import { withTimeout } from './password-force.js';
 import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
@@ -59,18 +64,6 @@ const GRADE_KEY   = 'myb_login_grade';
 const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span> '
     + '<span class="login-reset-clause">Ask the admin to reset your password</span>';
 
-/** Resolve `promise`, or reject after `ms`, so a hung async step can't strand the login overlay.
- *  Clears the timer on either outcome. (The underlying promise keeps running — that is fine; a late
- *  success is simply ignored and benefits the next attempt.)
- *  @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>} */
-function withTimeout(promise, ms) {
-    /** @type {any} */ let timer;
-    return /** @type {Promise<T>} */ (Promise.race([
-        promise,
-        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timed out')), ms); }),
-    ]).finally(() => clearTimeout(timer)));
-}
-
 /**
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
  * Firebase session, time-boxed, and commits the LOCAL session ONLY if auth genuinely resolves — so
@@ -86,14 +79,16 @@ function withTimeout(promise, ms) {
  * @param {() => void} deps.clearSession
  * @param {() => (string|null|undefined)} deps.getAuthError
  * @param {(code: any) => boolean} deps.isTransient
+ * @param {(code: any) => boolean} [deps.isCredential]  a DEFINITIVE credential rejection — by default
+ *   the shared `isCredentialRejection` (auth-identity.js) the sign-in ladder itself stops on
  * @param {() => boolean} [deps.keepsLocalSession]  true when this device already holds a session for
  *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
  * @param {number} [deps.timeoutMs]
- * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'storage' }>}
+ * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage' }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, keepsLocalSession = () => false, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
@@ -118,8 +113,18 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // Definitive credential rejection — covers BOTH a wrong/forgotten password AND an account that
         // was never provisioned (auth/user-not-found). The remedy for the latter is set-up, not a
         // reset, so the wording names "the admin" generically (an account matter — house rule) and
-        // doesn't wrongly promise a reset that can't fix an unset-up account.
-        return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
+        // doesn't wrongly promise a reset that can't fix an unset-up account. ONE sentence for both,
+        // so the card never tells a stranger which of the two it was.
+        if (isCredential(code)) return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
+        // EVERYTHING ELSE IS NOT A PASSWORD PROBLEM (sessions-2, Nov 2026). Until then this fell through
+        // to the line above: a site missing from the API key's allowed referrers, a disabled account,
+        // sign-in switched off, or the Calendar viewer that could not be signed out — each told the
+        // member their password was wrong, counted towards the lockout and, from the second, pushed
+        // the reset link, filing requests a reset cannot answer. So: not counted, no reset prompt, the
+        // typed password kept for the retry. The sentence names no cause and no account state, so it
+        // reads the same for every name (Firebase's own response is in the browser anyway); "the
+        // admin" because each cause is an app or account matter.
+        return { ok: false, kind: 'other', error: 'Couldn’t sign you in. Try again — if it keeps happening, ask the admin.' };
     }
     // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
     // on an iPhone, Safari's Block All Cookies; Private Browsing has not refused storage since iOS 11,
@@ -135,19 +140,41 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
 }
 
 /**
+ * The sign-in core's dependencies for one attempt, bound to the member and the password they typed —
+ * what the card's submit passes to `runNamedSignIn`. Exported so the unit suite drives this exact
+ * wiring through the real session.js (login-overlay.test.mjs), rather than a copy of it.
+ * @param {string} name     the member picked in the card
+ * @param {string} typedPw  the password as typed — never normalised (PASSWORD_DESIGN.md §3.2)
+ */
+export function signInDeps(name, typedPw) {
+    return {
+        ensureNamedSession: () => ensureNamedSession(name, { password: typedPw }),
+        saveSession:        () => saveSession(name),
+        clearSession,
+        getAuthError:       getFirebaseAuthError,
+        isTransient:        isTransientAuthError,
+        isCredential:       isCredentialRejection,
+        keepsLocalSession:  () => getSession()?.name === name,
+    };
+}
+
+/**
  * Tear down the in-place login overlay (in-place sign-in — AUTH_ARCHITECTURE.md
  * Phase 9). A coordinator whose `onSuccess` initialises the page in place (rather than reloading) calls
  * this to remove the overlay and reveal the now-rendered page. Safe to call when no overlay is present
  * (a normal already-signed-in load) — it then does nothing, so coordinators can call it unconditionally
  * on their authorised path. Only unlocks body scroll when an overlay actually existed, so it never
- * disturbs scroll state on a page that never showed the overlay.
+ * disturbs scroll state on a page that never showed the overlay — and only for the MODAL card, the one
+ * that locked it: an inline card (the Calendar's front door) never did, and releasing a lock for it
+ * would release somebody else's, a drawer's or a lightbox's still open over the page.
  * @returns {void}
  */
 export function dismissLoginOverlay() {
     const el = document.getElementById('loginOverlay');
     if (!el) return;
+    const lockedScroll = !el.classList.contains('login-overlay--inline');
     el.remove();
-    unlockBodyScroll();
+    if (lockedScroll) unlockBodyScroll();
 }
 
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in".
@@ -186,7 +213,7 @@ function overlayHtml(pageLabel, alternative, notice, about) {
             <label for="loginPassword">Password</label>
             <div class="login-pw-wrap">
                 <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="loginPwHint">
-                <button type="button" id="loginPwToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+                <button type="button" id="loginPwToggle" class="login-pw-toggle" aria-label="Show password">Show</button>
             </div>
             <div id="loginPwHint" class="login-hint">Your surname in lowercase — or the password you’ve set yourself.</div>
         </div>
@@ -267,8 +294,8 @@ function fillAbout(overlay, about) {
  * @param {object} opts
  * @param {string} opts.pageLabel  Subtitle prefix, e.g. 'Admin', 'Settings', 'Operations'.
  * @param {(name: string) => (void | Promise<void>)} opts.onSuccess  Runs after a CONFIRMED named
- *   sign-in (surname matched AND, when B1 is on, the member's own Firebase session is active).
- *   Typically `() => window.location.reload()`; admin passes an inline email-check + reload.
+ *   sign-in: Firebase accepted the typed password, the member's own named session is active, and the
+ *   local session is saved. Typically the page's in-place start, with a reload as the fallback.
  * @param {HTMLElement|null} [opts.host]  Mount INLINE inside this element instead of as a fixed
  *   modal over the page (see the module header). No scroll lock, no focus trap, no Escape.
  * @param {{ label: string, hint?: string, onSelect: () => void }|null} [opts.alternative]  Replaces
@@ -345,16 +372,21 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLElement} */ (overlay.querySelector('.login-back'));
 
-    // Show/hide the password. It isn't a secret (the hint literally states the convention), and
-    // typing it blind on a phone is the main cause of the 3-strikes 30s lockout — so a reveal
-    // toggle removes lock-outs with no security cost. Starts masked, so the field still reads as a
-    // normal password field.
+    // Show/hide the password. Typing it blind on a phone is the main cause of the 3-strikes 30s
+    // lockout, so the card offers a reveal. It IS a secret — members choose their own since
+    // FORCE_PASSWORD_SET — so it starts masked, shows only when the member asks, and is masked again
+    // whenever the person in the card changes (`personChanged`, below).
+    // A plain button whose name says what it will do, NOT a toggle (sessions-5): with `aria-pressed`
+    // as well, a screen reader read "Hide password, pressed" — a toggle's label must not change with
+    // its state (WAI-ARIA APG, Button), and this one's visible "Show"/"Hide" has to stay in its name.
+    /** @param {boolean} shown */
+    function setPasswordShown(shown) {
+        passwordInput.type = shown ? 'text' : 'password';
+        pwToggle.textContent = shown ? 'Hide' : 'Show';
+        pwToggle.setAttribute('aria-label', shown ? 'Hide password' : 'Show password');
+    }
     pwToggle?.addEventListener('click', () => {
-        const revealing = passwordInput.type === 'password';
-        passwordInput.type = revealing ? 'text' : 'password';
-        pwToggle.textContent = revealing ? 'Hide' : 'Show';
-        pwToggle.setAttribute('aria-pressed', revealing ? 'true' : 'false');
-        pwToggle.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+        setPasswordShown(passwordInput.type === 'password');
         passwordInput.focus();
     });
 
@@ -494,11 +526,19 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         (namePreset ? passwordInput : gradeRestored ? nameTrigger() : gradeTrigger())?.focus();
     }
 
-    gradeSelect.addEventListener('change', () => {
+    /** The person in the card just changed — a different grade or name — so nothing of the previous
+     *  person's may stay (sessions-3, Nov 2026; until then only the first two went): their error,
+     *  their reset-request line or emphasis (see `resetResetRequest`), and a password they chose to
+     *  show, or the next person types theirs in clear. Their failure streak is not reset here but
+     *  counted per person (`_failFor`), because a `change` can fire for the same name re-picked. */
+    function personChanged() {
         errorEl.classList.remove('visible');
-        // The person in the card just changed, so any "Request sent" line and any stuck-member
-        // emphasis belonged to somebody else — see resetResetRequest for why that matters.
         resetResetRequest();
+        setPasswordShown(false);
+    }
+
+    gradeSelect.addEventListener('change', () => {
+        personChanged();
         passwordInput.value = '';
         nameSelect.value = '';
         populateNames(gradeSelect.value);
@@ -509,8 +549,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     const usernameInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginUsername'));
     nameSelect.addEventListener('change', () => { usernameInput.value = nameSelect.value; });
     nameSelect.addEventListener('change', () => {
-        errorEl.classList.remove('visible');
-        resetResetRequest();   // see the grade handler
+        personChanged();
         // Already emptied in the tap for this name (`focusOnPick`, above): anything here now was
         // typed for it, after the pick. Any other change — a test's `selectOption` — clears as before.
         if (_pwClearedFor !== nameSelect.value) passwordInput.value = '';
@@ -518,10 +557,12 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         if (nameSelect.value) passwordInput.focus();
     });
 
-    let _failCount   = 0;
+    let _failCount   = 0;       // credential failures in a row by `_failFor`, the person they are counted for
+    let _failFor     = '';
     let _lockedUntil = 0;
     let _attempting  = false;
     let _signingIn   = false;   // true ONLY while Firebase auth is genuinely in flight (not lockout)
+    let _resetSeq    = 0;       // reset-request sends and changes of person — see the request's click
     // This client-side lockout is a UX measure only — it resets on page reload. Real rate
     // limiting is enforced server-side by Firebase Auth.
 
@@ -551,8 +592,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
      *  Now the link is not tied to any failure: it means "I am the person named above and I cannot get
      *  in", so the dropdown IS the referent and reading it at click time is the correct behaviour
      *  rather than the bug. What must not survive a name change is the *status* text — "Request sent"
-     *  under a different name would tell the new member their request is filed when it is not. */
+     *  under a different name would tell the new member their request is filed when it is not — nor
+     *  the outcome of a send still on its way, which `_resetSeq` drops when it lands. */
     function resetResetRequest() {
+        _resetSeq++;
         if (resetBtn) {
             resetBtn.hidden = false;
             resetBtn.disabled = false;
@@ -575,6 +618,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     resetBtn?.addEventListener('click', async () => {
         const name = nameSelect.value;
         if (!name) { setResetStatus('Choose your name first.', 'fail'); return; }
+        // Is this send still the latest thing to have happened to the control? A change of person
+        // bumps the count too (`resetResetRequest`), so a send that lands after one is not written
+        // under the NEW name (sessions-3): "Request sent" would tell somebody who filed nothing that
+        // they had, with no button left to file theirs. `personChanged` has already put the control
+        // back to rest for them, so a stale outcome touches nothing at all.
+        const seq = ++_resetSeq;
+        const current = () => seq === _resetSeq;
         resetBtn.disabled = true;
         // innerHTML, not textContent: the label carries the span that places its line break, and a
         // textContent round trip would restore it flattened — balanced in the wrong place again.
@@ -588,12 +638,14 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 import('./firebase-client.js'), import('./fetch-timeout.js')]);
             timedOut = (e) => isFetchTimeout(e?.cause);
             await requestPasswordReset(name);
+            if (!current()) return;
             // Replace the control rather than leaving a re-tappable button: the request is recorded
             // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
             resetBtn.hidden = true;
             setResetStatus('Request sent. The admin will reset your password and let you know.', 'ok');
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
+            if (!current()) return;
             // A TIMEOUT is not a failure to send: the server records the request before it answers,
             // so it may well have arrived (Sep 2026 review). Saying "couldn't send" would have the
             // member ask again, and the throttle then drops the repeat without a word.
@@ -603,9 +655,11 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         } finally {
             // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
-            // re-revealed a dead control.
-            resetBtn.disabled = false;
-            resetBtn.innerHTML = original;
+            // re-revealed a dead control. Not for a stale send: the control is no longer its own.
+            if (current()) {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = original;
+            }
         }
     });
 
@@ -664,21 +718,18 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
             // class; see runNamedSignIn / LOGIN_INCIDENT.md). On failure we restore the button and
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
-            const _result = await runNamedSignIn({
-                ensureNamedSession: () => ensureNamedSession(name, { password: typedPw }),
-                saveSession:        () => saveSession(name),
-                clearSession,
-                getAuthError:       getFirebaseAuthError,
-                isTransient:        isTransientAuthError,
-                keepsLocalSession:  () => getSession()?.name === name,
-            });
+            const _result = await runNamedSignIn(signInDeps(name, typedPw));
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
                 // Client 3-strikes → 30s lockout — ONLY on a genuine wrong password (`kind:'credential'`),
                 // never on a network/timeout/rate-limit failure (which would punish a connectivity
-                // problem). Firebase does the real rate-limiting; this is a UX brake on hammering.
+                // problem) or any other cause (`'other'`, which no password could fix). Firebase does
+                // the real rate-limiting; this is a UX brake on hammering.
                 if (_result.kind === 'credential') {
+                    // Counted PER PERSON (sessions-3): a newcomer's first mistake is their first, not the
+                    // previous person's third — which locked them out and pushed them to a reset.
+                    if (_failFor !== name) { _failFor = name; _failCount = 0; }
                     _failCount++;
                     // From the SECOND failure (FIX, v18.94). v18.93 revealed on the first, which
                     // contradicted its own stated rationale — "the remedy for a mistype is to try
@@ -709,10 +760,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 return;
             }
             _failCount = 0;   // a successful sign-in clears the wrong-password streak
-            // …and with it the stuck-member emphasis. The overlay is REUSED, not rebuilt
-            // (`initLoginOverlay` returns early when one exists), and in-place sign-in hides
-            // it without a reload — so a later re-show would otherwise open on a card still
-            // flagging failures that have since been resolved.
+            // …and with it the stuck-member emphasis, for a card that stays up after a success —
+            // `onSuccess` failing (below) asks the member to try again on this one. A dismissed card
+            // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
             resetResetRequest();
             // One-shot "a real sign-in just happened" marker for the forced set-password overlay
             // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written HERE — the one place every
@@ -749,7 +799,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (Date.now() >= _lockedUntil) {
                 _attempting = false;
                 // Belt-and-braces: an UNEXPECTED throw after the button was set to "Signing in…"
-                // (line ~298) but before any normal branch restored it would leave it stuck disabled
+                // (above) but before any normal branch restored it would leave it stuck disabled
                 // (a soft-lock). Every intended exit already restores the button — success left the
                 // page, failure/lockout branches reset it — so acting ONLY on the still-"Signing in…"
                 // text touches nothing but the genuinely-stuck case, and never the success/lockout label.

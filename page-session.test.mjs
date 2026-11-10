@@ -302,16 +302,17 @@ describe('back/forward cache', () => {
 // The About panel's links joined the drawer's: Admin's "View staff roster" left staged edits behind
 // without one, because the guard looked for `.nav-panel` alone.
 describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', () => {
-    /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither).
-     *  @param {{ href: string, zone?: string, target?: string }} o */
-    function tapOn({ href, zone = '#iconLightbox', target = '' }) {
+    /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither). `click`
+     *  holds what a real click carries — `button` and the modifier keys — when a test needs them.
+     *  @param {{ href: string, zone?: string, target?: string, click?: Record<string, any> }} o */
+    function tapOn({ href, zone = '#iconLightbox', target = '', click = {} }) {
         /** @type {any} */ const link = {
             target,
             getAttribute: (/** @type {string} */ n) => (n === 'href' ? href : null),
             closest: (/** @type {string} */ sel) => (sel === 'a[href]' ? link : sel === zone ? {} : null),
             click: () => log.push(`follow:${href}`),
         };
-        const e = { target: { closest: (/** @type {string} */ sel) => link.closest(sel) }, prevented: false,
+        const e = { ...click, target: { closest: (/** @type {string} */ sel) => link.closest(sel) }, prevented: false,
             preventDefault() { this.prevented = true; }, stopPropagation() {} };
         fireDoc('click', e);
         return e;
@@ -349,6 +350,26 @@ describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', (
         }
         await answered();
         assert.deepEqual(log, [], 'nothing asked, nothing followed by the guard');
+    });
+
+    test('a click that opens the link in a new tab or window is not asked about — "Leave" could not honour it (routed from shared-ui)', async () => {
+        // Ctrl/Cmd-click on a drawer pill with staged edits asked "Leave this page anyway?", and Leave
+        // then re-clicked the link with no modifier — so THIS tab went, and the work with it (seen in
+        // Chromium, Nov 2026). A new tab, a new window or a download leaves the page where it is.
+        const fresh = await import('./page-session.js?new-tab');
+        fresh.askBeforeLeavingByDrawer(() => true);
+        for (const click of [{ button: 0, ctrlKey: true }, { button: 0, metaKey: true }, { button: 0, shiftKey: true },
+            { button: 0, altKey: true }, { button: 1 }]) {
+            assert.equal(tapOn({ href: './', zone: '.nav-panel', click }).prevented, false, JSON.stringify(click));
+        }
+        await answered();
+        assert.deepEqual(log, [], 'nothing asked, nothing followed by the guard');
+        // CONTROL: the plain click a tap, Enter or the guard's own re-click makes is still asked about,
+        // and so is a click built in code with no `button` at all.
+        assert.equal(tapOn({ href: './', zone: '.nav-panel', click: { button: 0 } }).prevented, true);
+        assert.equal(tapOn({ href: './', zone: '.nav-panel' }).prevented, true);
+        await answered();
+        assert.deepEqual(log, ['confirm', 'confirm', 'follow:./', 'follow:./']);
     });
 
     test('a link anywhere else on the page, or a page with nothing unsaved, is not asked about', async () => {

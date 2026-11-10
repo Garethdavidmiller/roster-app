@@ -7,7 +7,7 @@
  *   `nav-panel.js` pattern) so the pages it runs on need no HTML of their own.
  * Does NOT own: the sign-in candidate ladder (session.js), the password rules
  *   (`validateNewPassword` in auth-identity.js — shared with the Settings card), the migration flag
- *   (`passwordStatus`, written by `setOwnPassword`), or the admin reset (a Cloud Function).
+ *   (`passwordStatus`, stamped by `changeOwnPassword`), or the admin reset (a Cloud Function).
  *
  * ── WHY IT IS SAFE TO BLOCK ───────────────────────────────────────────────────────────────────
  * Blocking a member is the whole point — a dismissible prompt is the Phase-1 nudge, which produced
@@ -65,7 +65,7 @@
 import { lsGet, lsDel } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
-import { getPasswordStatus, setOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
+import { getPasswordStatus, changeOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection, validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
@@ -190,7 +190,7 @@ function _mount() {
                 <label for="pwfNew">New password</label>
                 <div class="login-pw-wrap">
                     <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="pwfNewHint">
-                    <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+                    <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password">Show</button>
                 </div>
                 <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters. Anything you'll remember — it replaces your surname everywhere you sign in.</div>
             </div>
@@ -284,12 +284,13 @@ function _show(member) {
             if (e.key === 'Enter' && !saveBtn.disabled && [newEl, confEl, curEl].includes(/** @type {any} */ (e.target))) { e.preventDefault(); saveBtn.click(); }
         });
 
+        // A plain button whose name says what it will do — not a toggle as well, which read "Hide
+        // password, pressed" (sessions-5; the sign-in card's `setPasswordShown` has the reasoning).
         toggle.addEventListener('click', () => {
             const show = newEl.type === 'password';
             newEl.type = confEl.type = show ? 'text' : 'password';
             toggle.textContent = show ? 'Hide' : 'Show';
             toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-            toggle.setAttribute('aria-pressed', String(show));
         });
 
         escBtn.addEventListener('click', close);
@@ -322,12 +323,15 @@ function _show(member) {
                 // free and "it did not happen" is a true statement about it.
                 if (!curWrap.hidden) await withTimeout(reauthenticateWithPassword(member, curEl.value), SAVE_TIMEOUT_MS);
                 // The WRITE is different — see settleOrTimeout. A deadline here means "we don't know",
-                // never "it failed".
-                const res = await settleOrTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                // never "it failed". It times the password change ALONE (settings-ops-2): its
+                // migration stamp, a Firestore write that can be slow where the change was not, goes
+                // on in the background (`changeOwnPassword`), and waited for here it turned a changed
+                // password into "we couldn't confirm".
+                const res = await settleOrTimeout(changeOwnPassword(member, next), SAVE_TIMEOUT_MS);
                 if (res.status === 'pending') { onIndeterminate(res.settled); return; }
                 if (res.status === 'failed')  throw res.error;
                 // The password IS changed at this point. A missing migration stamp is a soft note
-                // (setOwnPassword's own contract), never a failure — do not re-prompt on it.
+                // (setOwnPassword's contract, in firebase-client.js), never a failure — do not re-prompt.
                 onWriteConfirmed();
             } catch (e) {
                 failures++;
@@ -452,12 +456,13 @@ function _show(member) {
  *
  * @param {string|null|undefined} member
  * @param {{ ready?: Promise<any> }} [opts]  `ready` is a barrier that resolves once the Firebase session is
- *   settled. The four `sessionReady` pages pass it; paycalc calls this from inside its own post-auth
- *   callback and passes nothing (already settled). Raced with a timeout so a page whose barrier never
- *   resolves degrades to "don't show" instead of hanging.
- * @returns {Promise<boolean>} whether the overlay was shown. No caller consumes it today — the
- *   work-email check that used to defer to it was retired at v19.30 — but it is the honest result of
- *   the call, and the next overlay that has to queue behind this one will need it.
+ *   settled. Admin passes its `sessionReady`, and the Calendar its own `ensureNamedSession` (see the
+ *   header); the other named pages call this only once `sessionReady` has settled, and paycalc from
+ *   inside its own post-auth callback, so they pass nothing. Raced with a timeout so a page whose
+ *   barrier never resolves degrades to "don't show" instead of hanging.
+ * @returns {Promise<boolean>} whether the overlay was shown. It settles only once the overlay has closed
+ *   (or was never shown), which is why the Calendar and the Pay Calculator queue their own notices
+ *   behind it.
  */
 export async function initPasswordForce(member, { ready } = {}) {
     if (!member) return false;
