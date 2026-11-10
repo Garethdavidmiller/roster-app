@@ -30,7 +30,7 @@
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
          DAY_NAMES, MONTH_ABB, escapeHtml, parseISODate, isWorkedShift } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS } from './override-utils.js';
 import { isWorkingDate } from './al-entitlement.js';
 import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
@@ -40,8 +40,9 @@ import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-o
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
 // this cluster was the seam and the bulk bar was not.
-import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, isStagedRow, prefillRow }
-    from './admin-week-row-state.js';
+import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, isStagedRow, prefillRow,
+         rosteredWords } from './admin-week-row-state.js';
+export { rosteredWords };   // its home is the row's own words now; exported here as it always was
 // The grid's time boxes — typed formatting and the HH:MM check — moved out at v24.64, for the same
 // reason as the line above, and now share clock-input.js's rule rather than restating it.
 import { initTimeInputs } from './admin-time-inputs.js';
@@ -56,21 +57,6 @@ let _canPickMember = false;   // admin or manager: the member field is theirs to
 /** Delegated listeners are attached once per page life — see the note inside initWeekEditor. */
 let _wired = false;
 
-/**
- * A base shift as a manager reads it in the week grid's warning: an Other-family day by its full word
- * ("Training", with its times if it has any), a spare day as "Spare", anything else — a time — as its
- * value. The warning printed the raw code, so a manager ticking RDW on one of a trainee's days read
- * "Originally rostered TRG this day" (6 Nov 2026 review), and on a spare week "SPARE" (7 Nov).
- * `OTHER_FLAVOURS` is the one table of the Other words; "Spare" is the grid's own badge word.
- * @param {string} baseShift
- * @returns {string}
- */
-export function rosteredWords(baseShift) {
-    const other = parseOtherValue(baseShift);
-    if (!other) return baseShift === 'SPARE' ? 'Spare' : baseShift;
-    const word = OTHER_FLAVOURS[other.flavour]?.full ?? other.flavour;
-    return other.time ? `${word} ${other.time}` : word;
-}
 
 /**
  * @param {object} deps

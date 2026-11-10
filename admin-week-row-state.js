@@ -37,8 +37,24 @@
  */
 
 import { TYPES } from './admin-shift-types.js';
-import { parseOtherValue } from './override-utils.js';
+import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { setStatus } from './status-text.js';
+
+/**
+ * A base shift as a manager reads it in the week grid's warning: an Other-family day by its full word
+ * ("Training", with its times if it has any), a spare day as "Spare", anything else — a time — as its
+ * value. The warning printed the raw code, so a manager ticking RDW on one of a trainee's days read
+ * "Originally rostered TRG this day" (6 Nov 2026 review), and on a spare week "SPARE" (7 Nov).
+ * `OTHER_FLAVOURS` is the one table of the Other words; "Spare" is the grid's own badge word.
+ * @param {string} baseShift
+ * @returns {string}
+ */
+export function rosteredWords(baseShift) {
+    const other = parseOtherValue(baseShift);
+    if (!other) return baseShift === 'SPARE' ? 'Spare' : baseShift;
+    const word = OTHER_FLAVOURS[other.flavour]?.full ?? other.flavour;
+    return other.time ? `${word} ${other.time}` : word;
+}
 
 /**
  * Show the "originally rostered" warning only when the RDW tick is ON for a day whose
