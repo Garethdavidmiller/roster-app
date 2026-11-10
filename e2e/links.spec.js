@@ -706,11 +706,14 @@ test('links: the fatigue panel collapses its "nothing to report" rows but still 
     // Select the meta by the section it belongs to, never by position. This read `.first()` until
     // v19.80, when the hard-limits section landed above the fatigue one and quietly became "first" —
     // so the assertion compared the disclosure label against a hard-limit summary line and got NaN.
+    // The heading counts clear and not applicable APART (whole-app review, Nov 2026: NOT-APPLICABLE
+    // is not CLEAR), and the disclosure holds both, so its label is their sum.
     const meta = await page.locator('.check-section-head:has-text("Fatigue factors") .check-section-meta').textContent();
     const clear = Number((meta.match(/(\d+) clear/) || [])[1]);
+    const notApplicable = Number((meta.match(/(\d+) not applicable/) || [])[1] ?? 0);
     const label = await page.locator('.check-quiet-label').textContent();
     expect(Number((label.match(/^(\d+)/) || [])[1]),
-        'the heading count and the disclosure label must describe the same set').toBe(clear);
+        'the heading counts and the disclosure label must describe the same set').toBe(clear + notApplicable);
 
     await page.locator('.check-quiet-summary').click();
     await expect.poll(() => rows.count()).toBeGreaterThan(collapsed);
