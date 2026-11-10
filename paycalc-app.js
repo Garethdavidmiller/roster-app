@@ -48,7 +48,7 @@ import {
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
-  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
+  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS, recordCalendarFigures,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, commitPriorHppActual, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
@@ -489,6 +489,7 @@ export function init() {
       });
       try {
         lsSet(periodKey(pNum), JSON.stringify(d));
+        recordCalendarFigures(pNum);   // the snapshot describes what was just saved: gold pairs at their saved values (paycalc-3-1)
         updateSaveStatus(pNum);
       } catch { /* storage unavailable */ }
       _runCalcBackPay();   // the lump accrues from SAVED hours, so it re-prices from what was just saved (paycalc-2-2)

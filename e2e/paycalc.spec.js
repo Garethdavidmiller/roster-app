@@ -317,6 +317,49 @@ test('paycalc: editing a calendar-filled box takes "Hours from calendar" away at
     await expect(page.locator('#provChips')).not.toContainText('Hours from calendar');
 });
 
+// ── A REFRESHED CALENDAR FIGURE THE MEMBER SAVES IS STILL THE CALENDAR'S (paycalc-3-1, 10 Nov 2026) ──
+// The background refresh SHOWS a changed calendar figure gold without saving it (invariant 11), and
+// the member's next edit anywhere on the payslip saves it with the rest (implicit acceptance). The
+// snapshot saying which saved figures came from the calendar must then describe what was saved —
+// autosave re-records it (`recordCalendarFigures`) — or the saved 16 below stops being gold and stops
+// following the calendar's next change.
+test('paycalc: a refreshed calendar figure the member saves keeps following the calendar', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // The calendar's answer is read from sessionStorage at each load, so a reload can change it.
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        const times = sessionStorage.getItem('rdwTimes') || '08:00-16:00';
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-07-09', type: 'rdw', value: times, source: 'manual' }] };
+    });
+    const loaded = () => expect(page.locator('#rosterStateBadge')).toContainText('Includes recorded changes', { timeout: 10000 });
+    const rdw = page.locator('#rdwH');
+
+    await page.goto('/paycalc.html');
+    await loaded();
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(rdw, 'premise: the calendar\'s 8 hours, filled and saved').toHaveValue('8');
+
+    await page.evaluate(() => sessionStorage.setItem('rdwTimes', '06:00-22:00'));
+    await page.reload();
+    await loaded();
+    await expect(rdw, 'premise: the calendar\'s new 16 hours are shown, not saved').toHaveValue('16');
+    await expect(rdw).toHaveClass(/roster-suggested/);
+
+    await page.locator('#otH').fill('1');   // an edit elsewhere saves the payslip, the gold 16 with it
+    await page.locator('#otH').blur();
+
+    await page.evaluate(() => sessionStorage.setItem('rdwTimes', '06:00-24:00'));
+    await page.reload();
+    await loaded();
+    await expect(rdw, 'the saved 16 came from the calendar, so it is still gold').toHaveClass(/roster-suggested/);
+    await expect(rdw, '…and follows the calendar to its 18 hours').toHaveValue('18');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // Whole-app review, Oct 2026: a SETTING change (the loan plan, the pension scheme) ran the payslip's
 // autosave, which writes the whole form — the calendar's display-only suggestion with it (invariant 11:
 // viewing never persists) — and wrote over saved entries that could not be read.
