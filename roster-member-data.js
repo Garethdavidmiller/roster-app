@@ -45,7 +45,9 @@ export const teamMembers = [
     // Temporary move to fixed pattern 2 (09:00–16:00 Mon–Fri) from Sun 28 Jun 2026 via
     // rosterChanges — base stays main wk10 until then, so she only leaves the link from
     // 28 Jun (vacating wk10, the slot after O. Mylla — taken by new starter K. Jedlinski).
-    // AL stays the standard CEA 32 (base rosterType 'main'). To revert: delete rosterChanges.
+    // AL stays the standard CEA 32 (her contract decides it, not the line). To END the move, ADD a
+    // `rosterChanges` entry dated from her return, onto whichever line she takes (wk10 is K.
+    // Jedlinski's now). Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA',
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
