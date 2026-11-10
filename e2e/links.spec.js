@@ -2267,7 +2267,7 @@ test('links: with reduced motion the "Saving…" dot holds still', async ({ page
     }
 });
 
-test('links: the generator\'s boxes and the Import fields wear the app\'s field recipe', async ({ page }) => {
+test('links: the generator\'s boxes and the Import fields wear the app\'s field recipe', async ({ page, browserName }) => {
     // css-tokens.md: every focusable field carries the 4px --focus-ring, inside a modal included, and
     // the thing a member types into wears --field-border and --radius-field. The generator's number
     // boxes and time selects had the outline alone; the Import dialog's two fields had the outline
@@ -2275,22 +2275,28 @@ test('links: the generator\'s boxes and the Import fields wear the app\'s field 
     await openMixedDesign(page);
     const token = await page.evaluate(() => {
         const probe = document.createElement('div');
-        probe.style.cssText = 'box-shadow: var(--focus-ring); border: var(--field-border); border-radius: var(--radius-field)';
+        probe.style.cssText = 'box-shadow: var(--focus-ring); border: var(--field-border); border-radius: var(--radius-field); outline: var(--focus-outline)';
         document.body.append(probe);
         const cs = getComputedStyle(probe);
-        const t = { ring: cs.boxShadow, edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
+        const t = { ring: cs.boxShadow, edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius,
+                    outline: `${cs.outlineWidth} ${cs.outlineStyle} ${cs.outlineColor}` };
         probe.remove();
         return t;
     });
     const look = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
         const cs = getComputedStyle(el);
-        return { focus: el.matches(':focus-visible'), ring: cs.boxShadow,
+        return { focus: el.matches(':focus-visible'), ring: cs.boxShadow, outline: `${cs.outlineWidth} ${cs.outlineStyle} ${cs.outlineColor}`,
+                 platformSelect: el.tagName === 'SELECT' && cs.appearance !== 'none',
                  edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
     }));
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     for (const sel of ['.gen-slot-count', '.gen-slot-time']) {
         await page.locator(sel).first().focus();
-        expect(await look(sel), `${sel} with focus`).toMatchObject({ focus: true, ring: token.ring });
+        const seen = await look(sel);
+        expect(seen, `${sel} with focus`).toMatchObject({ focus: true, outline: token.outline });
+        // WebKit paints no shadow on a <select> that keeps the platform's face, and on a touch screen the time
+        // boxes keep it by decision (links.css, "THE CLOSED FACE IS THE APP'S"): there the outline is the ring.
+        if (!(browserName === 'webkit' && seen.platformSelect)) expect(seen.ring, `${sel}'s ring with focus`).toBe(token.ring);
     }
     // The setup buttons beside them are pills, and wore the dialog corner (--radius-xl), which looks
     // the same only while a pill is under 40px tall — chip-radius-parity reads chip NAMES, not this.
