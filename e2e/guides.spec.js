@@ -894,3 +894,18 @@ test('fip: the text link centres under its buttons, the no-match box keeps the c
     await page.emulateMedia({ media: 'print' });
     expect(await page.locator('.tag-note').first().evaluate(t => getComputedStyle(t).printColorAdjust)).toBe('exact');
 });
+
+test('staff guide: the badge grid stacks when its pair no longer fits, so larger text stays on the screen', async ({ page }) => {
+    // Two `1fr` tracks could not shrink below their widest badge, so under larger text the grid
+    // widened the whole column past the screen's edge — 19px at 1.5× on a 375px phone.
+    for (const [w, k] of [[360, 1], [375, 1.3], [375, 1.5], [412, 1.6]]) {
+        await page.setViewportSize({ width: w, height: 800 });
+        await page.goto('/staff-guide.html');
+        await page.evaluate(() => document.fonts.ready);
+        if (k !== 1) await scaleTextOnce(page, k);
+        const m = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: innerWidth,
+            columns: getComputedStyle(/** @type {Element} */ (document.querySelector('.badge-grid'))).gridTemplateColumns.split(' ').length }));
+        expect(m.scroll, `the page's width at ${w}px, ${k}× text`).toBeLessThanOrEqual(m.width);
+        if (k === 1) expect(m.columns, 'a phone keeps the pair at the default size').toBe(2);
+    }
+});
