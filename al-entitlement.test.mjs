@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor } from './al-entitlement.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
@@ -543,11 +543,68 @@ describe('a Dispatcher entitlement splits into the two things it is made of', ()
         assert.equal(dispatcherBreakdown({ member: null, year: 2026, overrides: [] }), null);
         // Management exits at the ROLE check, not the entitlement one — said plainly because the
         // line below looks like it covers both and does not. The `entitlement === null` guard inside
-        // `dispatcherBreakdown` is UNREACHABLE today: every Dispatcher gets a number, and every
-        // other role has already returned. Deleting it leaves this suite green, which is the honest
-        // state of it — kept as a fail-closed guard for the day `getALEntitlement` grows a null path
-        // for a Dispatcher, not claimed as tested.
+        // `dispatcherBreakdown` is reached by a Dispatcher in a year before they joined, and is
+        // tested in 'a year before the member joined has no allowance on record' below.
         assert.equal(dispatcherBreakdown({ member: { name: 'M', role: 'Management' }, year: 2026, overrides: [] }), null);
+    });
+});
+
+// ── NO ALLOWANCE FOR A YEAR BEFORE THE MEMBER JOINED (whole-app review, 10 Nov 2026) ────────────
+//
+// Every year before the joining year read the full contract figure with all of it remaining — on the
+// Calendar's leave panel, whose year arrows reach back to MIN_YEAR, and in the January carry-back,
+// which offered a January starter the year before they arrived as somewhere to take leave from. A
+// year before somebody joined is no entitlement on record, and every surface already has a state
+// for that. Asked through the doors the surfaces read, not only `getALEntitlement`.
+describe('a year before the member joined has no allowance on record', () => {
+    const joiner = /** @type {any} */ (teamMembers.find(m => m.name === 'J. Davies'));
+    const TODAY = '2026-11-10';
+
+    test('the premise: a real member who joined during 2026, with a pro-rated first year', () => {
+        assert.ok(joiner?.startDate instanceof Date && joiner.startDate.getFullYear() === 2026);
+        assert.equal(typeof joiner.proRatedAL?.[2026], 'number');
+    });
+
+    test('the leave panel and the banner have no figures for the years before', () => {
+        for (const year of [2024, 2025]) {
+            const pos = alPosition({ overrides: [], member: joiner, year, todayStr: TODAY });
+            assert.equal(pos.entitlement, null, `${year} must not read a full year's allowance`);
+            assert.equal(pos.remaining, null, `${year} must not read all of it remaining`);
+            assert.equal(entitlementNote({ member: joiner, year, overrides: [] }), null);
+        }
+    });
+
+    test('the joining year and the years after are unchanged', () => {
+        assert.equal(entitlementFor(joiner, 2026, []), joiner.proRatedAL[2026]);
+        assert.equal(entitlementFor(joiner, 2027, []), 32);
+    });
+
+    test('a Dispatcher too — the base and the earned days both start with them', () => {
+        const disp = { name: 'D', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1,
+                       startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } };
+        assert.equal(entitlementFor(disp, 2025, []), null);
+        assert.equal(dispatcherBreakdown({ member: disp, year: 2025, overrides: [] }), null,
+            'nothing to split — not a "22 base" caption for a year they were not here');
+        assert.equal(entitlementNote({ member: disp, year: 2025, overrides: [] }), null);
+        assert.equal(dispatcherBreakdown({ member: disp, year: 2026, overrides: [] })?.base, 12);
+    });
+
+    test('the January carry-back offers a January starter nothing from the year before they joined', () => {
+        const jan = { name: 'X. Test', currentWeek: 3, rosterType: 'main', role: 'CEA',
+                      startDate: new Date(2027, 0, 4), proRatedAL: { 2027: 31 } };
+        // Three January days the starter WORKS by the base roster, so each one costs a day.
+        const days = [];
+        for (let d = new Date(2027, 0, 4, 12); days.length < 3; d.setDate(d.getDate() + 1)) {
+            if (d.getDay() !== 0 && !isRestShift(getBaseShift(jan, d))) days.push(formatISO(d));
+        }
+        const overrides = days.map(date => ({ memberName: jan.name, date, type: 'annual_leave', value: 'AL' }));
+        const byDate = new Map(overrides.map(o => [o.date, o]));
+        assert.ok(days.every(date => consumesEntitlement(jan, date, byDate)), 'premise: the days cost a day');
+        assert.deepEqual(leaveYearChoices({ overrides, member: jan, todayStr: '2027-01-10' }), [],
+            '2026 is not a year they had leave in, so it is no place to take January\'s leave from');
+        // The same days for somebody who was here the year before ARE offered — the joining year is why.
+        const earlier = { ...jan, startDate: new Date(2026, 0, 5), proRatedAL: { 2026: 31 } };
+        assert.equal(leaveYearChoices({ overrides, member: earlier, todayStr: '2027-01-10' }).length, 1);
     });
 });
 

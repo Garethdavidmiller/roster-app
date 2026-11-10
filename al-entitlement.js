@@ -291,9 +291,8 @@ export function dispatcherBreakdown({ member, year, overrides }) {
     if (!member || member.role !== 'Dispatcher') return null;
     const y = parseInt(String(year), 10);
     const entitlement = entitlementFor(member, y, overrides);
-    // Unreachable today — every Dispatcher gets a number and every other role returned above —
-    // so removing it leaves the tests green. Kept fail-closed rather than deleted, and said
-    // here rather than covered by a test that would only be pretending.
+    // A year before the Dispatcher joined has no entitlement on record (getALEntitlement), so there
+    // is nothing to split — without this, `entitlement - base` would invent a lieu count from null.
     if (entitlement === null) return null;
 
     const proRated = member.proRatedAL?.[y] !== undefined;

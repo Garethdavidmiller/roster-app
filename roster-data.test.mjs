@@ -1104,6 +1104,22 @@ test('getALEntitlement: proRatedAL overrides standard entitlement for the joinin
     assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
 });
 
+// A year that ended before the member joined has no allowance on record (whole-app review, 10 Nov
+// 2026). It read the full contract figure — 32 for a 2026 joiner's 2025, all of it remaining.
+test('getALEntitlement: nothing on record for a year before the member joined', () => {
+    const joiner = { role: 'CEA', rosterType: 'main', currentWeek: 1, startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 20 } };
+    assert.equal(getALEntitlement(joiner, 2024), null);
+    assert.equal(getALEntitlement(joiner, 2025), null);
+    assert.equal(getALEntitlement(joiner, 2026), 20, 'the joining year is unchanged');
+    assert.equal(getALEntitlement(joiner, 2027), 32, 'and so is every year after it');
+    // A return on full-year terms (`noProRate`) has its whole first year, and still nothing before it.
+    const back = { role: 'CES', rosterType: 'ces', currentWeek: 1, startDate: new Date(2026, 5, 9), noProRate: true };
+    assert.equal(getALEntitlement(back, 2025), null);
+    assert.equal(getALEntitlement(back, 2026), 34);
+    // A member with no start date is unaffected in any year.
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', currentWeek: 1 }, 2024), 32);
+});
+
 // ---------------------------------------------------------------------------
 // computeEaster
 // ---------------------------------------------------------------------------

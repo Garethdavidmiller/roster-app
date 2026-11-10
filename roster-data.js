@@ -222,13 +222,21 @@ export function isWorkedShift(shift) {
  * @param {any}    member    - teamMembers entry
  * @param {number} [year]    - calendar year; defaults to current year
  * @param {Array<any>}  [overrides] - all override objects for this member; defaults to []
- * @returns {number|null} null when there is no entitlement on record for this member — either the
- *   member could not be resolved at all, or their role has no leave figure here. Callers must TEST
- *   for it and refuse to render, never coerce: `null - taken - booked` is a plausible NUMBER, not
- *   NaN, so the one arithmetic that looks harmless is the one that invents a balance.
+ * @returns {number|null} null when there is no entitlement on record for this member — the member
+ *   could not be resolved at all, their role has no leave figure here, or the year ended before
+ *   they joined. Callers must TEST for it and refuse to render, never coerce: `null - taken -
+ *   booked` is a plausible NUMBER, not NaN, so the one arithmetic that looks harmless is the one
+ *   that invents a balance.
  */
 export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
     if (!member) return null;   // unresolved member — see the null convention below
+
+    // NO ALLOWANCE FOR A YEAR BEFORE THE MEMBER JOINED (whole-app review, 10 Nov 2026). Such a year
+    // read the full contract figure with all of it remaining — on the Calendar's leave panel, whose
+    // year arrows reach back to MIN_YEAR, and in the January carry-back, which offered a January
+    // starter the year before they arrived as somewhere to take their leave from. It is no
+    // entitlement on record, so both fall into the em-dash state they already draw for null.
+    if (member.startDate instanceof Date && year < member.startDate.getFullYear()) return null;
 
     // A DISPATCHER'S LIEU DAYS ARE EARNED, SO PRO-RATING MUST NOT REMOVE THEM (v22.50, owner
     // decision). The 22 is an allowance a part-year deserves part of; a lieu day is owed because a
