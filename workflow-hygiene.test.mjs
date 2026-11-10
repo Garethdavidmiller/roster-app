@@ -2226,3 +2226,113 @@ describe('every CI lane runs the command it is there for', () => {
     }
 });
 
+// ── THE RACE DETECTOR FILES WHAT IT FINDS, ONCE, AND COUNTS ONLY RACES (10 Nov 2026 review) ─────
+//
+// race-detector.yml found races and could not file them: it has no checkout, and gh's issue and
+// label commands look for one, so every call failed, a warning went to a green hourly log, and no
+// `ci-race` issue could appear — which reads as "no races", the very question DECISIONS.md is waiting
+// on. It also counted an ordinary double push as a "superseded" race, and would have re-posted each
+// instance every hour. Its step is run here with real Python and a `gh` that, like the real one with
+// no checkout, refuses issue and label commands unless GH_REPO names the repository.
+describe('the race detector files what it finds, once, and counts only races', () => {
+    const script = stepScript(readFileSync(join(WF_DIR, 'race-detector.yml'), 'utf8'),
+        'Find commits where the branch-head run beat the merge-result run');
+    const [R, S, D, E] = ['a', 'b', 'd', 'e'].map(c => c.repeat(40));
+    const at = (/** @type {string} */ hms) => `2026-11-09T${hms}Z`;
+    const tests = (/** @type {string} */ sha, /** @type {string} */ event, /** @type {string} */ conclusion, /** @type {string} */ queued) =>
+        ({ name: 'Tests', head_sha: sha, event, conclusion, created_at: at(queued), run_started_at: at(queued),
+            head_branch: 'claude/x', html_url: `https://example.invalid/${sha[0]}-${event}` });
+    const RUNS = [
+        // The race, consequential: the push run was queued 4 minutes AFTER the merge-result run, cancelled it, and passed.
+        tests(R, 'pull_request', 'cancelled', '11:49:00'), tests(R, 'push', 'success', '11:53:00'),
+        // The race, superseded: queued after it too, then cancelled by the next push to the branch.
+        tests(S, 'pull_request', 'cancelled', '12:00:00'), tests(S, 'push', 'cancelled', '12:03:00'),
+        // NOT a race — a double push: D's push run was queued first and cancelled by its own merge-result
+        // run, which E's push then cancelled; E's own pair then ran the designed way.
+        tests(D, 'push', 'cancelled', '13:00:00'), tests(D, 'pull_request', 'cancelled', '13:00:05'),
+        tests(E, 'push', 'cancelled', '13:05:00'), tests(E, 'pull_request', 'success', '13:05:04'),
+        // Another workflow's runs are not this one's business.
+        { ...tests(D, 'pull_request', 'cancelled', '13:00:05'), name: 'Deploy Firebase Hosting' },
+    ];
+    const ghStub = `#!/usr/bin/env node
+const { readFileSync, appendFileSync, writeFileSync } = require('node:fs');
+const a = process.argv.slice(2);
+appendFileSync(process.env.GH_LOG, a.slice(0, 2).join(' ') + '\\n');
+if (a[0] === 'api') { process.stdout.write(readFileSync(process.env.STUB_RUNS, 'utf8')); process.exit(0); }
+if (!process.env.GH_REPO) { console.error('failed to run git: fatal: not a git repository (or any of the parent directories): .git'); process.exit(1); }
+if (a[0] === 'issue' && a[1] === 'list') { process.stdout.write(process.env.STUB_EXISTING ? process.env.STUB_EXISTING + '\\n' : ''); process.exit(0); }
+if (a[0] === 'issue' && a[1] === 'view') { process.stdout.write(process.env.STUB_KNOWN || ''); process.exit(0); }
+if (a[0] === 'label' && a[1] === 'create') process.exit(0);
+if (a[0] === 'issue' && (a[1] === 'create' || a[1] === 'comment')) {
+    if (process.env.STUB_FAIL_FILE) { console.error('HTTP 502'); process.exit(1); }
+    writeFileSync(process.env.GH_BODY, a.slice(0, 3).join(' ') + '\\n' + a[a.indexOf('--body') + 1]);
+    process.exit(0);
+}
+console.error('stub gh: unexpected ' + a.join(' ')); process.exit(2);
+`;
+    /** @param {Record<string, string>} [env] */
+    const detect = (env = {}) => {
+        const dir = mkdtempSync(join(tmpdir(), 'race-'));
+        try {
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            writeFileSync(join(bin, 'gh'), ghStub, { mode: 0o755 });
+            writeFileSync(join(dir, 'detect.sh'), script);
+            writeFileSync(join(dir, 'runs-fixture.json'), JSON.stringify({ workflow_runs: RUNS }));
+            writeFileSync(join(dir, 'calls'), '');
+            writeFileSync(join(dir, 'body'), '');
+            /** @type {Record<string, string|undefined>} */
+            const vars = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_LOG: join(dir, 'calls'), GH_BODY: join(dir, 'body'),
+                STUB_RUNS: join(dir, 'runs-fixture.json'), GH_TOKEN: 'stub', REPO: 'owner/roster-app', ...env };
+            delete vars.GH_REPO;   // the workflow's env does not set it; the script must
+            let status = 0, out = '';
+            try {
+                out = execFileSync('bash', ['-e', 'detect.sh'], { cwd: dir, env: vars, encoding: 'utf8', stdio: 'pipe' });
+            } catch (/** @type {any} */ e) {
+                status = e.status;
+                out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+            }
+            return { status, out, body: readFileSync(join(dir, 'body'), 'utf8'),
+                calls: readFileSync(join(dir, 'calls'), 'utf8').split('\n').filter(Boolean) };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    const short = (/** @type {string} */ sha) => `\`${sha.slice(0, 9)}\``;
+
+    test('it files the two races in a new issue, and creates the label first', () => {
+        const r = detect();
+        assert.equal(r.status, 0, r.out);
+        assert.match(r.body, /^issue create /, `no issue was filed:\n${r.out}`);
+        assert.ok(r.body.includes(`**consequential** · ${short(R)}`), r.body);
+        assert.ok(r.body.includes(`**superseded** · ${short(S)}`), r.body);
+        assert.ok(r.calls.indexOf('label create') > -1 && r.calls.indexOf('label create') < r.calls.indexOf('issue create'),
+            `the label must exist before the issue that carries it:\n${r.calls.join('\n')}`);
+    });
+
+    test('a double push is not a race', () => {
+        const r = detect();
+        for (const sha of [D, E]) assert.ok(!r.body.includes(short(sha)), `${short(sha)} was counted as a race:\n${r.body}`);
+    });
+
+    test('an instance the open issue already records is not posted again', () => {
+        const r = detect({ STUB_EXISTING: '7', STUB_KNOWN: `- **consequential** · ${short(R)} on \`claude/x\` …` });
+        assert.match(r.body, /^issue comment 7\n/, `the open issue was not commented on:\n${r.out}`);
+        assert.ok(!r.body.includes(short(R)), 'an instance already on the issue was posted again');
+        assert.ok(r.body.includes(short(S)), 'the new instance must still be posted');
+    });
+
+    test('when every instance is already recorded, nothing is posted', () => {
+        const r = detect({ STUB_EXISTING: '7', STUB_KNOWN: `${short(R)}\n${short(S)}` });
+        assert.equal(r.status, 0, r.out);
+        assert.equal(r.body, '', 'a comment repeating what the issue already says was posted');
+        assert.match(r.out, /No new wrong-way races/);
+    });
+
+    test('an instance it cannot file fails the run instead of warning a green log', () => {
+        const r = detect({ STUB_FAIL_FILE: '1' });
+        assert.equal(r.status, 1, `a race that could not be filed left the run green:\n${r.out}`);
+        assert.match(r.out, /::error::could not create the tracking issue/);
+    });
+});
+

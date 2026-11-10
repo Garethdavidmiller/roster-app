@@ -55,8 +55,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          # One page of recent `Tests` runs. 100 covers well over a day at this repo's rate, and the
-          # dedupe below means re-reporting an instance already recorded is harmless anyway.
+          # gh's issue and label commands find their repository from a git checkout, and this job has
+          # none. Until 10 Nov 2026 every one of them failed "not a git repository", the warning was
+          # printed, and the run went green: no issue could ever appear, which reads exactly like
+          # "no races". Named here, they need no checkout.
+          export GH_REPO="$REPO"
+          LABEL="ci-race"
+
+          # One page of recent `Tests` runs. 100 covers well over a day at this repo's rate.
           if ! gh api "repos/$REPO/actions/runs?per_page=100" > runs.json 2>err.txt; then
             # FAIL LOUD, NOT SILENT. A detector that dies quietly reports "no races" forever, which
             # is indistinguishable from a healthy repo — precisely the defect it was built to end.
@@ -64,9 +70,20 @@ jobs:
             exit 0
           fi
 
+          # WHAT THE OPEN ISSUE ALREADY RECORDS, so an instance is reported once — not again every
+          # hour for as long as it stays among the last 100 runs. An unreadable issue leaves this
+          # empty, which can repeat an instance but never hides a new one.
+          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+          : > known.txt
+          if [ -n "$EXISTING" ]; then
+            gh issue view "$EXISTING" --json body,comments --jq '.body, .comments[].body' > known.txt 2>/dev/null || true
+          fi
+
           python3 - <<'PY' > found.txt
           import json, collections, os
 
+          known = open('known.txt').read()
           runs = [r for r in json.load(open('runs.json')).get('workflow_runs', [])
                   if r.get('name') == 'Tests']
           by_sha = collections.defaultdict(list)
@@ -78,13 +95,12 @@ jobs:
               pr   = [r for r in rs if r['event'] == 'pull_request']
               push = [r for r in rs if r['event'] == 'push']
               # The wrong-way race, stated exactly: for ONE commit, the merge-result run was
-              # cancelled AND no merge-result run for that commit completed, while a branch-head
-              # run reached a real conclusion. The second clause is what separates this from
-              # ordinary supersession — a newer push to the same PR also cancels a PR run, and
-              # that is correct behaviour, not a race.
+              # cancelled, no merge-result run for that commit completed, and a branch-head run was
+              # queued after it. The last two clauses are what separate this from ordinary
+              # supersession — a newer push to the same PR also cancels a PR run, and that is
+              # correct behaviour, not a race.
               pr_cancelled = [r for r in pr if r['conclusion'] == 'cancelled']
               pr_settled   = [r for r in pr if r['conclusion'] in ('success', 'failure')]
-              push_settled = [r for r in push if r['conclusion'] in ('success', 'failure')]
 
               # THE RACE IS "the merge-result evidence was destroyed", and nothing more. A PR run
               # cancelled while ANOTHER PR run for the same commit completed is ordinary
@@ -92,6 +108,20 @@ jobs:
               # counted.
               if not (pr_cancelled and not pr_settled):
                   continue
+
+              # AND THE PUSH RUN WAS QUEUED SECOND (10 Nov 2026 review). The group cancels whichever
+              # run was queued FIRST, so the race is a push run queued AFTER the merge-result run it
+              # cancelled. A push run queued BEFORE it is the designed order — the merge-result run
+              # cancelled it — and when the next push to the same branch then cancels that one too,
+              # nothing raced: it is a commit superseded by a newer one. Counted, every double push
+              # read as a "superseded" race, and the count is the evidence this exists to produce.
+              first_pr = min(r.get('created_at') or '' for r in pr_cancelled)
+              late = [r for r in push if (r.get('created_at') or '') > first_pr]
+              if not late:
+                  continue
+              if f"`{sha[:9]}`" in known:
+                  continue
+              late_settled = [r for r in late if r['conclusion'] in ('success', 'failure')]
 
               # Then say which KIND, because they are not equally serious and lumping them together
               # would inflate the case for a risky change:
@@ -101,19 +131,19 @@ jobs:
               #   superseded    — nothing completed for this commit either, because the push run was
               #                   itself killed by a later push. The mechanism fired; nobody was hurt.
               #
-              # The first cut of this workflow required `push_settled` and so reported ONLY the
+              # The first cut of this workflow required a settled push run and so reported ONLY the
               # first kind. Run against the day the race was discovered, it found NOTHING — both
               # real instances were the second kind. A detector that answers "no races" on the day
               # of two races is the exact silence it was built to end, so it now reports both.
-              w = (push_settled or push or [None])[0]
+              w = (late_settled or late)[0]
               out.append({
                   'sha': sha[:9],
-                  'branch': (w or pr_cancelled[0]).get('head_branch') or '?',
-                  'kind': 'consequential' if push_settled else 'superseded',
+                  'branch': w.get('head_branch') or '?',
+                  'kind': 'consequential' if late_settled else 'superseded',
                   'pr_started': pr_cancelled[0]['run_started_at'],
-                  'push_started': (w or {}).get('run_started_at', '—'),
-                  'push_conclusion': (w or {}).get('conclusion') or 'none',
-                  'url': (w or pr_cancelled[0])['html_url'],
+                  'push_started': w.get('run_started_at') or '—',
+                  'push_conclusion': w.get('conclusion') or 'none',
+                  'url': w['html_url'],
               })
 
           for o in sorted(out, key=lambda o: o['push_started']):
@@ -126,14 +156,13 @@ jobs:
           PY
 
           if [ ! -s found.txt ]; then
-            echo "No wrong-way races in the last 100 Tests runs."
+            echo "No new wrong-way races in the last 100 Tests runs."
             exit 0
           fi
 
           echo "::warning::the branch-head run beat the merge-result run — see the tracking issue"
           cat found.txt
 
-          LABEL="ci-race"
           BODY=$(printf '%s\n' \
             "The \`push\` run (branch head) outlived the \`pull_request\` run (synthetic merge commit) for the same commit." \
             "" \
@@ -145,14 +174,17 @@ jobs:
             "" \
             "Detected by \`.github/workflows/race-detector.yml\`. Comments accumulate on this one issue on purpose: a run of these is one situation." )
 
-          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number \
-            --jq '.[0].number' 2>/dev/null || echo "")
+          # The label must exist before an issue can carry it; creating it again is a no-op.
+          gh label create "$LABEL" --color FBCA04 \
+            --description "A branch-head test run outlived its merge-result run" 2>/dev/null || true
 
+          # An instance that cannot be filed FAILS the run. The issue is the deliverable, and a
+          # warning on a green hourly run is read by nobody — the silence this replaced.
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "$BODY" \
-              || echo "::warning::could not comment on issue #${EXISTING}"
+              || { echo "::error::could not comment on issue #${EXISTING}; the instances above are recorded only in this log"; exit 1; }
           else
             gh issue create --title "CI: the branch-head run beat the merge-result run" \
               --label "$LABEL" --body "$BODY" \
-              || echo "::warning::could not create the tracking issue"
+              || { echo "::error::could not create the tracking issue; the instances above are recorded only in this log"; exit 1; }
           fi
