@@ -238,7 +238,7 @@ anything in the import.** This section is the request/response reference and the
 - **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates it via the Firebase Admin SDK and requires the admin custom claim, as `setupRosterAuth` does. There is no shared roster secret.
 - **CORS:** `cors: ADMIN_FUNCTION_ORIGINS` — an explicit origin allowlist (`functions/index.js`): `https://garethdavidmiller.github.io`, `https://myb-roster.web.app`, `https://myb-roster.firebaseapp.com`. This is defence-in-depth; the real control is the Firebase ID token + admin claim, so a browser from an unlisted origin is blocked at preflight *and* would fail auth. Add any new hosting domain to the `ADMIN_FUNCTION_ORIGINS` array. (`ingestHuddle` keeps `cors: false` — server-to-server.)
 - **AI model and settings:** `MODEL_REQUEST` in `functions/roster-prompt.js` — which model, how it may think, `max_tokens` — sent as one non-streaming `messages.create` through `@anthropic-ai/sdk`, `timeoutSeconds: 120`. Its header holds the reasoning: why thinking stays off as far as the model allows (it spends `max_tokens`, and truncated the roster JSON into "The AI returned an unreadable response"), why the model ID is complete as written, and why a newer API version is a migration rather than a dependency bump. `index-endpoints.test.mjs` pins the request shape through the real handler, and a decline (`stop_reason: 'refusal'`) is reported as a decline (`DECLINED_ERROR`) rather than as an unreadable answer to retry. **Re-enabling thinking through streaming failed in production** (v16.27, "Couldn't read the roster — unexpected error", rolled back at v16.28); day-column accuracy is protected by the server-side defences instead, which do not depend on the model.
-- **The defences, in one line each** (the contract is `.claude/rules/roster-import.md`): `applySundayScanCorrections` (the Sunday-anchored repair) and `applyColumnScanCrossCheck` (a second, column-by-column read cross-checked cell by cell) on the server; `assessRosterAlignment` (`roster-alignment.js`) on the client, which correlates each parsed week against the member's own base roster and REFUSES the whole read when three or more members drift the same way; and the PDF's own drawn grid (`functions/roster-geometry.js`), which refuses any AI day landing in a physically EMPTY cell. **The row read and `columnScan` are not independent witnesses** — two readings by one model of one PDF in one call — which is why the alignment check compares against something the PDF cannot influence, and why the grid is the strong witness. When the grid places every member, the cells are extracted by coordinate and the model only normalises them (`buildCellTable`) — it never assigns a day and is sent no PDF; one unplaced name falls the whole document back to the PDF path.
+- **The defences, in one line each** (the contract is `.claude/rules/roster-import.md`): `applySundayScanCorrections` (the Sunday-anchored repair) and `applyColumnScanCrossCheck` (a second, column-by-column read cross-checked cell by cell) on the server; `assessRosterAlignment` (`roster-alignment.js`) on the client, which correlates each parsed week against the member's own base roster and REFUSES the whole read when three or more members drift the same way; and the PDF's own drawn grid (`functions/roster-geometry.js`), which refuses any AI day landing in a physically EMPTY cell. Before any of them, the sheet's own printed week (`functions/roster-week-heading.js`): a PDF whose `Week Ending: DD/MM/YYYY` heading names a Saturday other than `X-Week-Ending` is refused whole, before anything is written. **The row read and `columnScan` are not independent witnesses** — two readings by one model of one PDF in one call — which is why the alignment check compares against something the PDF cannot influence, and why the grid is the strong witness. When the grid places every member, the cells are extracted by coordinate and the model only normalises them (`buildCellTable`) — it never assigns a day and is sent no PDF; one unplaced name falls the whole document back to the PDF path.
 - **Why direct PDF input (the fallback path):** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
 **Request format:**
@@ -287,6 +287,7 @@ Body:
 - **`choices`** — the two candidate readings for each cell the cross-check flagged, keyed `"memberName|date"`, so the review can offer a pick instead of a dead "couldn't read" row.
 - **`geometry`** — `{ status, checked, total, pagesRead, pagesRejected }` for the PDF's-own-grid witness (`functions/roster-geometry.js`): `status` is `"complete"` (every returned member was matched to a geometry row and checked), `"partial"` (some — the rest are named in the Functions log as unmatched) or `"unavailable"` (no grid found, no text layer, `pdfjs-dist` absent, or nobody matched — the witness did not run for this read). Unlike `crossCheck`, this IS an independent witness: it reads the file's coordinates, not the model. It is counted over the rows the admin will see, never a hallucinated name.
 - **`geometryRefused`** — the member names whose rows the witness refused (a claim read where the PDF's cell is empty), filtered to names on the review. Consumed by `assessRosterAlignment` (roster-alignment.js): such a row starts unticked with its own wording, and refusals count toward the three-member breaker. The refused cells themselves are already `UNKNOWN|…` in `parsed`.
+- **A sheet for another week** — `409 { "error": "This roster is for the week ending Saturday 12 September 2026, but the week chosen is Saturday 5 September 2026. Choose the matching week and upload it again.", "sheetWeekEnding": "2026-09-12" }`, which the upload page shows after "Couldn't read the roster:". A PDF printing two different weeks is refused with "Upload one week's roster at a time." No heading read (no text layer, another layout, a date that is not a Saturday) refuses nothing: the Functions log says "the sheet's own week was not checked: …".
 
 ### What the roster codes mean (do not weaken without testing)
 
@@ -300,7 +301,7 @@ In one line each (the reasoning is `.claude/rules/roster-import.md`):
 - **`NA` / `N/A` and `NS`** (not available) → **a rest day, on every day, Sundays included** (owner, 6 Nov 2026). Weeks imported between 24 Sep and 6 Nov 2026 hold their NA days as Absent; nothing stored says which absences those were, so they change only when that week's roster is uploaded again.
 - **The Other family** (OTHER_DAYS.md): `TRG`/`TRAINING`/`TRAIN` → `"TRG"`; `INDUCTION`/`IND` → `"IND"`; `ASSESSMENT(S)`/`ASSESS` → `"ASSESS"`; `TEAM DAY`/`TEAM` → `"TEAM"`; `UNION COURSE`/`UNION` → `"UNION"`; `MTG`/`MEETING` → `"MEET"`; an RDW marker either side is preserved as the canonical `"FLAVOUR RDW"`. Saved as `type: 'other'` with the value verbatim. **A meeting is always a meeting**, and keeps printed times in either order (`"10:00-14:00 MTG"` → `"MEET 10:00-14:00"`); a meeting cell it cannot read cleanly goes to review, never to a plain shift. Any other Other cell WITH times goes to review when the code comes first; written time-first it still imports as a plain shift — a known gap. **A training or meeting day on a Sunday is never recorded** (a GUARDED row); one printed WITH times is rest-day working at those times.
 - **Cell layout is decided by CONTENT, never by line POSITION.** A duty/diagram code (`"CEA 16"`, `"D24"`) is ignored *wherever it appears*; a status code (`AL`, `SPARE`, an absence code) is the cell's value *wherever it appears*, second line included. A line-position rule ("only the first line is the shift value") once silently discarded annual leave, because on a non-worked day the second line holds the STATUS code. Pinned by `roster-prompt-parity.test.mjs`; do not reintroduce any line-position rule.
-- **A blank cell means different things on different days.** A blank or absent Sunday is `RD`, never a copy of Monday's shift (Sunday is uncontracted and the sheets leave a non-working Sunday empty). **Mon–Sat is the opposite**: the rosters state an unworked weekday explicitly, so a blank there is a cell nobody read and becomes an UNREADABLE review row rather than a silent rest day. Expect a handful where a member appears on TWO rosters and works only part of the week on the second — defaulting them to RD would write rest days over the shifts the other roster's import had just recorded. If the roster office puts explicit `RD`s in those cells, the rows go away.
+- **A blank cell means different things on different days.** A blank or absent Sunday is `RD`, never a copy of Monday's shift (Sunday is uncontracted and the sheets leave a non-working Sunday empty). **Mon–Sat is the opposite**: the rosters state an unworked weekday explicitly, so a blank there is a cell nobody read and becomes an UNREADABLE review row rather than a silent rest day. Expect a handful where a member appears on TWO rosters and works only part of the week on the second — defaulting them to RD would write rest days over the shifts the other roster's import had just recorded. If the roster office puts explicit `RD`s in those cells, the rows go away. On a row whose Monday to Saturday were all unread, the Sunday is a question too (whole-app fix, Nov 2026).
 - **A worked Sunday does NOT carry an RDW marker, and must never be treated as suspicious for lacking one.** RDW means *a rest day being worked*; Sunday is uncontracted, so its work is inherently overtime and the sheet never labels it.
 - **A code that is not in the table is never read as a rest day** — it reaches the admin as an UNREADABLE review row carrying the raw text.
 - **Leave, an absence or an Other day on a Sunday is never recorded, and leave or an absence on a base REST day is recorded only when the admin answers that it was a swapped working day** — both arrive as GUARDED rows (below), never silently. Full-pay absence applies only to rostered days. Mirrors the in-app rule — CLAUDE.md "Sundays are non-contracted".
@@ -313,7 +314,9 @@ parsedResult (from Cloud Function)
 computeCellStates(parsedResult, existingOverrides)
   — roster-review-states.js (re-exported by admin-roster-upload.js). Classifies each day:
     MATCH         = PDF matches base roster, nothing to do (not shown)
-    DIFF          = PDF differs from base roster — pre-ticked to save
+    DIFF          = PDF differs from base roster (a weekday RDW at the base shift's own hours included)
+                    — pre-ticked to save, except on 25 and 26 December from 2026, which start unticked
+                    with a note that the app's Christmas leave decides them
     CONFLICT      = a manual override already exists but differs from PDF — "Keep saved" (the default,
                     writes nothing) or "Use new roster"
     COVERED       = an override already matches PDF, nothing to do
@@ -325,10 +328,15 @@ computeCellStates(parsedResult, existingOverrides)
                     Sunday. Shown and explained, never silently dropped. Leave or an absence on a rest
                     day ASKS "Was it a swapped working day?": only "Swapped — record it" writes (stamped
                     `replacedType`); "Rest day — leave it" writes nothing and clears an earlier record
-                    on that day; unanswered writes nothing. "Skip all" takes an answer back
+                    on that day; unanswered writes nothing. "Skip all" takes an answer back. On 25 and
+                    26 December from 2026 nothing is asked: the app's Christmas leave decides those
+                    days, and an earlier import there is offered as an unticked "Clear old"
     UNREADABLE    = normaliseShift couldn't parse the cell (UNKNOWN| sentinel). Answered on the row:
                     (a) pick one of the server's two candidate readings (`choices`), offered only when
-                    they survive normalisation as DIFFERENT values; (b) ENTER the shift — type pills
+                    they survive normalisation as DIFFERENT values and neither is leave or an absence
+                    on a base rest day (such a cell offers no picks; its entry asks the swapped-day
+                    question); a rest day picked or entered over a base rest day writes nothing new,
+                    only clearing what the day held; (b) ENTER the shift — type pills
                     generated from `PILL_TYPES` (Other included, with the week editor's flavour chips)
                     plus 24-hour HH:MM boxes (`roster-entry-control.js`), composed through
                     `manualCellValue` and then the SAME `normaliseCellValue` guards every parsed value
@@ -350,7 +358,7 @@ renderReviewTable() — per-person card list:
     — an UNKNOWN| value → "couldn't read …"
         ↓
 Apply approved changes:
-  shiftValueToOverrideType(value, baseShift, date) → Firestore type field (roster-cell-rules.js)
+  shiftValueToOverrideType(value, date) → Firestore type field (roster-cell-rules.js)
     — date detects Sunday: worked times → 'rdw'; AL/SICK → 'correction' (RD) backstop
   Strip "RDW|" prefix → save plain time as value
   source: 'roster_import' on all saved docs
@@ -409,8 +417,8 @@ before relying on this summary:
 1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer.
 2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
-4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8s timeout, with a short-lived URL requested from `getDocumentUrl` in parallel:
-   - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted or when the server signed a different file than the one read (its returned `storagePath` does not match — `resolveDocumentOpenUrl`). A PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` so it renders with images instead of downloading (no Mammoth-style inline HTML conversion, unlike the Huddle). `closePanelForNavigation()` closes the drawer.
+4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8 s budget (`DOC_FETCH_BUDGET_MS`), with a short-lived URL requested from `getDocumentUrl` in parallel against the same budget. A read that runs past it is handled as a Firestore error (below); a short-lived URL that runs past it gives way to the stored `storageUrl`:
+   - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted or when the server signed a different file than the one read (its returned `storagePath` does not match — `resolveDocumentOpenUrl`). A PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` so it renders with images instead of downloading (no Mammoth-style inline HTML conversion, unlike the Huddle). `closePanel()` closes the drawer, popping its history entry.
    - On success with no document (null): `newTab.close()` cancels the blank tab; the coming-soon lightbox is shown.
    - On Firestore error: same as null — cancels the blank tab, shows a retry message in the coming-soon lightbox.
 5. `_docFetching` is reset to `false` in `.finally()`.
@@ -445,11 +453,11 @@ before relying on this summary:
 | C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
-`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
+`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third. The rules engine's `lower()` lowers A–Z only, so `memberEmailFor` maps İ (U+0130) and the Kelvin sign (U+212A) by hand to match JavaScript's `toLowerCase()`; the rules suite pins six such names.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. The client never CREATES a missing account: one that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js`.
 
-**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and (by default) revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's. It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
+**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's. It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
 
 ### Locked-out member → reset request queue
 
@@ -536,26 +544,29 @@ The fix: in `functions/`, `npm audit fix --omit=dev` (never `--force`, which can
 check the lockfile diff is patch/minor releases only, run `npm run test:functions`, bump the version
 (CI counts `functions/package-lock.json` as served) and merge. The deploy re-runs on the merge.
 
-## The Pages mirror — putting it behind the Hosting gate
+## The Pages mirror — behind the Hosting gate
 
-**Why.** Most staff open the app on the GitHub Pages mirror, and GitHub builds it straight from
-`main` with no test of any kind. On 24 Oct 2026 v24.94 failed the Firebase Hosting gate while the
-mirror shipped it, so for about three hours most staff ran a release the gate had refused. `main`
-also requires no checks before a merge. That is `ARCHITECTURE.md` → EXC-008.
+**Why.** Most staff open the app on the GitHub Pages mirror. Until 10 November 2026 GitHub built it
+straight from `main` with no test of any kind: on 24 Oct 2026 v24.94 failed the Firebase Hosting gate
+while the mirror shipped it, so for about three hours most staff ran a release the gate had refused.
+Since 10 November 2026 the mirror is published by `deploy-mirror.yml`, and only after a passing Hosting
+run; the first release it published was v25.65. What is still open is that `main` requires no checks
+before a merge — `ARCHITECTURE.md` → EXC-008, and step 1 below.
 
-**What is already in the repository.** `deploy-mirror.yml` publishes the
+**How it works.** `deploy-mirror.yml` publishes the
 mirror from the commit a SUCCESSFUL "Deploy Firebase Hosting" run released, and from nothing else:
 it checks that the run was a push to this repository's `main` or a run started here by hand (a fork's
 pull request with a workflow named like the deploy is refused) and that `main` contains the commit,
 checks every precached file is in the site, deploys, then proves the live mirror serves that
-version, and a failure lands on the same `deploy-failure` issue as the other deploys. **It does
-nothing until the switch below** — it reads the Pages setting first and stands down while the branch
-build is in charge. The hourly currency check knows the difference too: once the mirror is gated it
-trails Hosting rather than leading it, so "both origins behind" during a release is not reported.
+version, and a failure lands on the same `deploy-failure` issue as the other deploys. It reads the
+Pages setting first, and stands down if Pages is ever set back to build from the branch (Undoing it,
+below). The hourly currency check knows the difference too: the gated mirror trails Hosting rather
+than leading it, so "both origins behind" during a release is not reported.
 
-**The owner's steps — none of these can be done from the repository.**
+**The owner's settings — none of them can be made from the repository.** Steps 2 and 3 were made on
+10 November 2026; step 1 is still open.
 
-1. **Require the checks on `main`.** GitHub → the repo → Settings → Rules → Rulesets → New branch
+1. **Require the checks on `main` — still open.** GitHub → the repo → Settings → Rules → Rulesets → New branch
    ruleset. Target the default branch. Turn on **Require status checks to pass** and **Require
    branches to be up to date before merging**, and add the checks from a recent pull request run:
    `version`, `unit`, `nodeps`, `functions`, `rules`, `csp` and every `smoke` entry (one per screen
@@ -563,19 +574,23 @@ trails Hosting rather than leading it, so "both origins behind" during a release
    `guard` (it decides whether the others run), and `visual` / `visual-webkit`, which are report-only
    by design. Whether the `webkit` entries gate merging is your call: the deploy gate deliberately
    runs Chromium only (DECISIONS.md, 8 Sep 2026).
-2. **Require approval for outside contributors.** Settings → Actions → General → "Approval for running
-   fork pull request workflows from contributors" → **Require approval for all external contributors**.
-   The mirror no longer trusts such runs; this stops them running at all.
-3. **Switch the Pages source.** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
-4. **Publish once, now.** Actions → "Deploy GitHub Pages mirror" → Run workflow, from `main`. A manual
-   run, or a re-run, publishes the newest commit Hosting released from `main` — never main's tip.
-5. **Check it.** Open `https://garethdavidmiller.github.io/roster-app/` in a private window: past the
-   splash, no red errors in the console (the deployment health check at the top of CLAUDE.md).
+2. **Require approval for outside contributors — made 10 Nov 2026.** Settings → Actions → General →
+   "Approval for running fork pull request workflows from contributors" → **Require approval for all
+   external contributors**. The mirror does not trust such runs anyway; this stops them running at all.
+3. **Switch the Pages source — made 10 Nov 2026.** Settings → Pages → Build and deployment → Source:
+   **GitHub Actions**.
 
-**What changes afterwards.** The mirror updates a minute or two after a Hosting deploy finishes
-(about twenty-five minutes after a merge) instead of a minute after the push. A push that changes only
-docs or tests republishes neither origin, exactly as Hosting already behaves. A failed gate leaves
-BOTH origins on the previous release, and the issue says so.
+**Publishing by hand.** Actions → "Deploy GitHub Pages mirror" → Run workflow, from `main`. A manual
+run, or a re-run, publishes the newest commit Hosting released from `main` — never main's tip.
+**After any change here, check it**: open `https://garethdavidmiller.github.io/roster-app/` in a
+private window — past the splash, no red errors in the console (the deployment health check at the top
+of CLAUDE.md).
+
+**What it means for a release.** The mirror updates after a Hosting deploy finishes (about
+twenty-five minutes after a merge), not a minute after the push; the first, v25.65, went live about
+nine minutes after its Hosting run ended. A push that changes only docs or tests republishes neither
+origin, exactly as Hosting already behaves. A failed gate leaves BOTH origins on the previous release,
+and the issue says so.
 
 **Undoing it.** Set the Pages source back to "Deploy from a branch" (`main`, `/ (root)`). The
 workflow notices and stands down; nothing else needs touching. The `.nojekyll` file is what the
@@ -636,8 +651,9 @@ this is run, and the surname default is still a valid password for it (`ARCHITEC
 
 **It also stops their notifications.** A leaver who never pressed Sign
 out — the normal case: they simply stop opening the app — keeps a push record stamped with their
-account, and the staff broadcasts (the Huddle, the documents, pay reminders) go to every record, so
-their phone went on receiving them indefinitely. The confirmed sweep now deletes the records the
+account, and the staff broadcasts (the Huddle, the Circular, the Newsletter and the one-off timetable
+reminder) go to every record, so their phone went on receiving them indefinitely. The pay reminder is
+not one of them: it is targeted from the current roster, so it never reaches a leaver. The confirmed sweep now deletes the records the
 disabled account owns (`releasePushForOwner`, `functions/push.js`). A record older than v17.76 has no
 owner and cannot be attributed; it goes when the push service retires it.
 
@@ -661,9 +677,11 @@ that is a third answer and not a pass. Retry it.
 password" until 10 Nov 2026) is a line Set up accounts prints when it finds an account at a roster
 email carrying no custom claim at all — somebody registered that email from outside before the server
 provisioned it — and also for a DISABLED account at a roster email that it re-enables, such as a
-returning leaver's, from whom nothing was taken back. It resets the password to the member's surname
-default, signs out every session on it, stamps `resetAt` (so Settings asks them to choose a new one)
-and then stamps the claims. The member named there should be told their password is their surname.
+returning leaver's, from whom nothing was taken back. It stamps `resetAt` FIRST (so Settings asks them
+to choose a new one, and a stamp that cannot be written changes nothing), then resets the password to
+the member's surname default and signs out every session on it. A disabled account also has the push
+records it owns removed, and is enabled only after all of that. The claims are stamped last. The
+member named there should be told their password is their surname.
 For anybody provisioned before v24.24 this never fires: their accounts already carry claims. A
 **`reclaim-failed`** entry under failures means the take-back did not complete and NO claims were
 stamped on that account — run Set up accounts again.
@@ -679,6 +697,14 @@ Nothing to do here while Overtime is paused (`OVERTIME_AVAILABILITY.md` → Paus
 **Their data stays, and that is deliberate.** Overrides are keyed by name, so their past shifts, AL
 and absences remain an accurate record of what happened. Their `staffContact` work email also
 survives; removing it is a separate decision nobody is forced into by this procedure.
+
+## Changing a member's roster name
+
+There is no rename procedure today, and one consequence is easy to miss. A member's Pay Calculator
+figures on each device are stored under their name, so after the change they stay under the old one.
+A backup they saved under the old name is refused, and the app tells them to contact the admin.
+Ask them to note their figures before the change. Carrying the figures across would need a
+former-name record on the member, which does not exist yet.
 
 ---
 
@@ -1027,7 +1053,8 @@ week, until the horizon rolls past them.
 expected count, out of every day panel and out of the chip beside the card title, and a **Not being
 asked** footnote appears at the bottom of the week naming them, who stopped asking, and when. Their
 form and anything they already said are kept — this changes what the week expects, not what
-happened. **Ask again** on that footnote puts them back.
+happened. **Ask again** on that footnote puts them back — until the first deadline for somebody
+stopped before it, and while the week is open for somebody stopped after it.
 
 *Who is being asked* lists everybody the week still expects, each marked **Answered** or **No form
 yet** — so somebody who submitted one week and left the next can be withdrawn too, which is a common
@@ -1181,9 +1208,17 @@ since v25.60 to everyone on the normal CEA contract and the managers (owner, 9 N
 live for everyone with a cea contract and the managers"). Before that it was a preview for the admin and the names in
 `CONFIG.NEWLINK_PREVIEW` (`roster-data.js`), who still reach it by that list.
 
-**Every setting is one line in `newlink-config.js`** — `STARTS`, `TIMETABLE_STARTS`, `CONTACT`,
-`CONTACT_ROLE`, `CLOSES`, `AUDIENCE`, `PHASE`, `PACK_BASE` and the "Have your say" lines — so changing
-one never means touching the page. Each is an owner decision, recorded beside its line.
+**Every setting is one line in `newlink-config.js`** — `CHOSEN`, `STARTS`, `TIMETABLE_STARTS`,
+`CONTACT`, `CONTACT_ROLE`, `CLOSES`, `AUDIENCE`, `PHASE`, `PACK_BASE` and the "Have your say" lines — so
+changing one never means touching the page. Each is an owner decision, recorded beside its line.
+
+**When a design is chosen, name it in `CHOSEN`** — 'Balanced V6', 'Level Crossing' or 'Middle Ground',
+spelt as the page shows it (owner, 10 Nov 2026: "Add a 'decided' state"). `PHASE` follows it to
+'decided': the status card says the design has been chosen and when the link starts, and the page stops
+asking for views — no "For discussion, not a decision", no Have your say. A name not on the shortlist is
+refused, and `newlink-config.test.mjs` fails on it. **If nothing is chosen by the start (`STARTS`), the
+page stops asking for views anyway** and says only that the contact will confirm the outcome; it never
+names a design by itself. The page is open to the same people in every phase.
 
 **Who is in charge is part of the wording.** The contact leads the change (`CONTACT_ROLE`, owner,
 4 Nov 2026); the admin built the page and the tooling and is in charge of neither the change nor the
@@ -1214,8 +1249,51 @@ name that is not an active member of the roster.
 
 **Its PDFs come from the GitHub Pages mirror** (`PACK_BASE`), because Firebase Hosting serves nothing
 under `docs/`. Retiring the mirror breaks those links — move the files into a served folder first. And
-once the mirror follows the Hosting gate, a `docs/`-only push republishes nothing (`docs/**` is in the
-Hosting deploy's `paths-ignore`), so a changed PDF reaches the page only with the next app release.
+since the mirror follows the Hosting gate (10 November 2026), a `docs/`-only push republishes nothing
+(`docs/**` is in the Hosting deploy's `paths-ignore`), so a changed PDF reaches the page only with the
+next app release.
+
+### When the new link starts — bringing it into the roster
+
+**Never edit `weeklyRoster` in place, and never change `MAIN_ROSTER_WEEKS` or
+`MAIN_ROSTER_REFERENCE_DATE`.** A roster pattern has no start date: `getBaseShift` reads one table for
+every date, past and future, so an in-place edit redraws every day already worked. Simulated on
+10 November 2026 with a shortlisted design's table, 5,433 of the 6,573 base shifts the main-link members had
+between 1 January and 9 November 2026 came out different. It also re-judges every leave day recorded
+without a `replacedType`, moving 2026's "taken" in the very weeks the January carry-back reads 2026's
+remaining days as its cap, and "Fill from calendar" for a 2026 payslip moves too. Nothing errors;
+`roster-data.test.mjs` ("a pattern in force is never edited in place") pins every existing week and
+fails instead.
+
+**Bring the link in as its own roster type, and move each colleague onto it with a dated
+`rosterChanges` entry**, in one release:
+
+1. **The table.** Add the chosen design's weeks to `roster-cycle-data.js` as a NEW export, copied cell
+   for cell from its entry in `links-proposals.js`. Add the export to `validateRosterPatterns`' default
+   list (`roster-data.js`), or nothing checks it. Every cell must pass that validator: RD, OFF, SPARE, a
+   real `HH:MM-HH:MM` whose ends differ, or a bare Other flavour Monday to Saturday. Classify the export
+   in `public-data-classification.test.mjs` (a shift pattern, public).
+2. **Its length and reference Sunday** in `CONFIG` (`roster-data.js`): a `…_ROSTER_WEEKS` equal to the
+   design's number of lines, and a `…_ROSTER_REFERENCE_DATE` at noon on a Sunday — the start Sunday is
+   simplest — each classified in `public-data-classification.test.mjs`.
+3. **The type, everywhere the five are named today:** `getWeekNumberForDate` (length and reference
+   Sunday) and `getRosterForMember` (table, length, week prefix), both in `roster-data.js`, and the
+   member check in `calendar-member.js` (its "Unknown rosterType" list). **An unknown type falls through
+   to `main` silently**, so a missed branch draws today's link under the new name and nothing errors.
+4. **The moves.** For each colleague who moves — by the owner's list, which goes by CONTRACT, not line:
+   a normal CEA contract on the bilingual link moves too, and the `fixed` rows are the owner's call —
+   ADD a `rosterChanges` entry `{ from: <start Sunday>, rosterType: '<new type>', currentWeek: <their
+   line> }` after any existing ones. With the reference Sunday set to the start Sunday, `currentWeek` is
+   simply the line they start on (it is REFERENCE-ANCHORED: `.claude/rules/roster-data.md`). Leave each
+   member's base fields and `weeklyRoster` exactly as they are: they draw every date before the start.
+5. **What reads the main link by name:** the Links workspace seeds from `weeklyRoster`
+   (`links-seed.js`, `links-app.js`). Decide whether it should seed from the new table; leave
+   `weeklyRoster` in place either way.
+6. **Before releasing:** check that every member's base shift on every date before the start Sunday is
+   unchanged (snapshot and compare), that each mover's first week reads their line, and that the new
+   type is in the `ROTATING` set of `roster-data.test.mjs`'s "no two rows hold one rotating line" test;
+   then the suite must pass. No `npm run generate:roster-members`: the server copy carries no
+   `rosterChanges` and no pattern.
 
 ### Keep only the shortlist (Links)
 
