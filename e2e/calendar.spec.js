@@ -105,6 +105,65 @@ test('day detail: names the roster it was changed from, and opens at full size',
         .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
 });
 
+// THE CHANGE'S CAPTION READS ON THE GLASS (whole-app review, 10 Nov 2026). "Changed from base roster" is
+// 10px white on the panel's see-through glass, and at 55% it measured 4.3–4.4:1 over the light calendar
+// card: under the 4.5:1 its size needs, the one caption the Oct 2026 contrast pass left behind. axe rates
+// text on a see-through sheet as incomplete, so this reads the ground the browser painted BESIDE the
+// caption and composites the caption's own colour on it, as the browser does.
+test('day detail: the "Changed from base roster" caption clears 4.5:1 on the glass over the calendar', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [3, 4].map(d => ({ id: 'ov' + d, memberName: 'G. Miller',
+            date: `2026-09-0${d}`, type: 'shift', value: '07:00-16:00', note: '' }));
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const idx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => /** @type {HTMLElement} */ (c).dataset.detailBase));
+    expect(idx, 'premise: a changed day').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(idx).click();
+    await expect(page.locator('#dayDetailContent')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await expect(page.locator('#dayDetailLightbox')).toHaveCSS('opacity', '1');
+    const caption = page.locator('#dayDetailChange .ddc-eyebrow');
+    const box = /** @type {{x: number, y: number, width: number, height: number}} */ (await caption.boundingBox());
+    const shot = (await page.screenshot({ clip: { x: box.x - 16, y: box.y, width: box.width + 32, height: box.height } })).toString('base64');
+    const colour = await caption.evaluate(el => getComputedStyle(el).color);
+    const lab = await page.context().newPage();
+    const ratio = await lab.evaluate(async ([png, css]) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${png}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, c.width, c.height).data;
+        // The ground: the outer 13px of the 16px margin each side of the caption, every row — glass, no glyph.
+        /** @type {number[]} */ const xs = [];
+        for (let k = 0; k < 13; k++) xs.push(k, c.width - 1 - k);
+        let n = 0; const sum = [0, 0, 0];
+        for (let y = 0; y < c.height; y++) for (const x of xs) {
+            const k = 4 * (y * c.width + x);
+            for (let i = 0; i < 3; i++) sum[i] += d[k + i];
+            n++;
+        }
+        const ground = sum.map(v => v / n);
+        const [r, gr, b, a = 1] = (css.match(/[\d.]+/g) || []).map(Number);
+        const text = [r, gr, b].map((v, i) => v * a + ground[i] * (1 - a));
+        const lum = (/** @type {number[]} */ rgb) => {
+            const [R, G, B] = rgb.map(v => { const s = v / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+            return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+        };
+        const [hi, lo] = [lum(text), lum(ground)].sort((p, q) => q - p);
+        return (hi + 0.05) / (lo + 0.05);
+    }, [shot, colour]);
+    await lab.close();
+    expect(ratio, `the caption measured ${ratio.toFixed(2)}:1 on its glass`).toBeGreaterThanOrEqual(4.5);
+});
+
 // A change WITHIN one shift kind — a time tweak, and probably the commonest change there is. The
 // badge carries the kind, so both sides classify as Early and the pair drew `☀️ EARLY → ☀️ EARLY`:
 // two identical pills either side of an arrow, reading as "nothing changed" directly under a
@@ -2093,6 +2152,185 @@ for (const [width, scale, expectRows] of [[412, 1.0, 1], [412, 1.15, 1], [412, 1
     });
 }
 
+// ─── THE PAGE TITLE NEVER COVERS THE BURGER (whole-app review, 10 Nov 2026) ─────────────────────
+// The title is centred on the page over the header, and Android's text size grows its words while
+// the viewport stays put, so at 360px and 1.5× the logo covered the right half of ☰ — a tap there
+// opened About instead of the menu — and at 2× the title ran off both edges. Its width is now capped
+// at the room the burger leaves; where the cap binds the words take a second line. Three things
+// pinned, measured: at the default size the title is ONE line at every phone width (the owner's
+// compact header is unchanged); under scaling the logo stays clear of the burger and a tap on any
+// part of the ☰ reaches the menu; and nothing runs off the screen.
+for (const [width, scale] of [[320, 1.0], [360, 1.0], [412, 1.0], [320, 1.3], [360, 1.5], [393, 1.5], [360, 2.0], [412, 2.0]]) {
+    test(`calendar: the page title stays clear of the burger at ${width}px under ${scale}× text`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.addInitScript((sc) => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: sc }); }, scale);
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        if (scale !== 1) {
+            // Every used font size × k, read before any is written so none compounds — what the OS does.
+            await page.evaluate((k) => {
+                const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+                const px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+                els.forEach((e, i) => { if (px[i]) e.style.fontSize = `${px[i] * k}px`; });
+            }, scale);
+        }
+        const g = await page.evaluate(() => {
+            const rect = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            const burger = rect('#navMenuBtn'), logo = rect('.title-icon'), h1 = rect('.header h1');
+            // The words' own lines — the text node, not the h1, whose range would count the logo as one.
+            const words = /** @type {Text} */ ([.../** @type {Element} */ (document.querySelector('.header h1')).childNodes]
+                .find(n => n.nodeType === Node.TEXT_NODE && n.textContent?.trim()));
+            const range = document.createRange();
+            range.selectNodeContents(words);
+            const lines = new Set([...range.getClientRects()].filter(r => r.width > 0).map(r => Math.round(r.top))).size;
+            // A tap on each part of the ☰, as a thumb would land it.
+            const taps = [0.25, 0.5, 0.75, 0.95].map(f => document.elementFromPoint(burger.left + burger.width * f,
+                burger.top + burger.height / 2)?.closest('#navMenuBtn') ? 'menu' : 'not the menu');
+            return { clear: logo.left - burger.right, taps, lines, left: h1.left, right: h1.right, vw: innerWidth };
+        });
+        expect(g.clear, `the logo stays clear of the burger (${g.clear.toFixed(1)}px)`).toBeGreaterThanOrEqual(2);
+        expect(g.taps, 'every part of the ☰ opens the menu').toEqual(['menu', 'menu', 'menu', 'menu']);
+        expect(g.left >= 0 && g.right <= g.vw, 'the title stays on the screen').toBe(true);
+        if (scale === 1) expect(g.lines, 'at the default size the title is one line').toBe(1);
+    });
+}
+
+/** Every finite animation and transition on the page run to its end — a wait, never a sleep. */
+const settleMotion = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => Promise.all(
+    document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null))));
+
+/** A colour token as this page computes it, for comparing with a computed fill. */
+const resolvedColour = (/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ name) => page.evaluate((n) => {
+    const probe = document.body.appendChild(document.createElement('div'));
+    probe.style.backgroundColor = `var(${n})`;
+    const value = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return value;
+}, name);
+
+// ─── THE HEADER LOGO KEEPS STILL FOR A MEMBER WHO ASKED FOR LESS MOTION (whole-app fix, 10 Nov 2026) ─
+// The logo opens About, and under a mouse it grows to 1.12× — decoration that exists to move. The
+// sub-pages' logo stops for reduced motion (shared.css .app-icon); this one went on growing, on a
+// 0.12s transition, exactly as it does for everybody else. The premise is measured first, so the
+// test can see the grow it says is gone.
+test('calendar: with reduced motion the header logo does not grow under the mouse', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedMember(page);
+    await seedMemberSession(page);
+    const hovered = async (/** @type {'reduce' | 'no-preference'} */ motion) => {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('.title-icon').hover();
+        await settleMotion(page);
+        return page.locator('.title-icon').evaluate(el => ({
+            transform: getComputedStyle(el).transform, duration: getComputedStyle(el).transitionDuration }));
+    };
+    expect((await hovered('no-preference')).transform, 'premise: for everybody else the logo grows').toBe('matrix(1.12, 0, 0, 1.12, 0, 0)');
+    expect(await hovered('reduce'), 'no grow, and no transition to run one').toEqual({ transform: 'none', duration: '0s' });
+});
+
+// ─── A MONTH ARROW AT A BOUND OFFERS A MOUSE NOTHING (whole-app fix, 10 Nov 2026) ─────────────────
+// At the last month the Calendar shows, Next is `aria-disabled` and faded (calendar-app.js) — never
+// `disabled`, which drops a keyboard user's focus — and pressing it does nothing. It still offered
+// the hand, the navy hover lift and the press, so to a mouse it looked like a way forward. Prev
+// beside it keeps all three. The Today button's gold hover is read as well: the arrow is let out of
+// the shared hover rule through :where(), because a plain second :not() raises that rule over
+// Today's, Pay's and AL's own hover colours (measured: Today hovered navy).
+test('calendar: a month arrow at the last month offers a mouse no hand, no hover lift and no press', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await page.clock.setFixedTime(new Date(`${CONFIG.MAX_YEAR}-12-10T09:00:00Z`));
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('#nextMonth'), 'premise: the last month has no next').toHaveAttribute('aria-disabled', 'true');
+    const look = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { cursor: cs.cursor, fill: cs.backgroundColor, transform: cs.transform };
+    });
+    const hovered = async (/** @type {string} */ sel) => { await page.locator(sel).hover(); await settleMotion(page); return look(sel); };
+
+    const live = await hovered('#prevMonth');
+    expect(live, 'premise: a live arrow offers the hand, darkens and lifts under the mouse').toEqual({
+        cursor: 'pointer', fill: await resolvedColour(page, '--primary-blue-dark'), transform: 'matrix(1, 0, 0, 1, 0, -1)' });
+
+    expect(await hovered('#nextMonth'), 'the arrow at the bound, under the mouse').toEqual({
+        cursor: 'default', fill: await resolvedColour(page, '--primary-blue'), transform: 'none' });
+    await page.mouse.down();   // the mouse is over it: a press, held
+    await settleMotion(page);
+    const pressed = (await look('#nextMonth')).transform;
+    await page.mouse.up();
+    expect(pressed, 'a press does not squash it').toBe('none');
+
+    expect((await hovered('.controls button.today-btn')).fill, 'Today keeps its own gold hover')
+        .toBe(await resolvedColour(page, '--accent-gold-dark'));
+});
+
+// ─── THE LOADING SHAPE IS THE GRID'S SHAPE (whole-app fix, 10 Nov 2026) ───────────────────────────
+// The boot skeleton exists so that nothing moves when the real grid replaces it, and says its sizes are
+// the real grid's. Its corners were the desktop cell's 16px at every width, where a phone's cells and
+// day heads are 6px. The real skeleton is mounted (calendar-lock-slot.js), over a drawn month.
+for (const width of [390, 800]) {
+    test(`calendar: the loading skeleton wears the real grid's corners at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        const corners = await page.evaluate(async () => {
+            const radius = (/** @type {string} */ s) => getComputedStyle(/** @type {Element} */ (document.querySelector(s))).borderTopLeftRadius;
+            const real = { cell: radius('.calendar-day:not(.other-month)'), head: radius('.day-header') };
+            const { showBootSkeleton } = await import('./calendar-lock-slot.js');
+            showBootSkeleton();
+            return { real, boot: { cell: radius('.cal-boot-cell'), head: radius('.cal-boot-days span') } };
+        });
+        expect(corners.boot, `the skeleton's corners are the grid's (${JSON.stringify(corners.real)})`).toEqual(corners.real);
+    });
+}
+
+// ─── THE LEAVE PANEL'S LABELS LOSE THEIR TRACKING AT 320px (whole-app fix, 10 Nov 2026) ────────────
+// The 320px rule that buys back the width of "ENTITLEMENT" sat ABOVE the label's own rule, so its
+// tracking half lost on source order and had never applied. Measured against the 0.3px it has above.
+test('calendar: at 320px the leave panel\'s labels drop their tracking', async ({ page }) => {
+    await seedMember(page);
+    await seedMemberSession(page);
+    const tracking = async (/** @type {number} */ width) => {
+        await page.setViewportSize({ width, height: 700 });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#alBtn').click();
+        await expect(page.locator('#alLightboxContent')).toBeVisible();
+        return page.locator('.al-lb-lbl').first().evaluate(el => getComputedStyle(el).letterSpacing);
+    };
+    expect(await tracking(375), 'premise: the labels are tracked at a phone\'s usual width').toBe('0.3px');
+    expect(['normal', '0px'], 'no tracking at 320px').toContain(await tracking(320));
+});
+
+// ─── WHILE DECEMBER LOADS, THE 25TH SHIMMERS WHOLE (whole-app fix, 10 Nov 2026) ────────────────────
+// The loading shimmer and the Christmas tree are both a cell's ::after at equal specificity. The shimmer
+// won but kept the tree's translateX(-50%), so on the 25th it swept half the cell, shifted off its left
+// edge. The class the first load sets while its read is out (calendar-initial-fetch.js) is set by hand:
+// the stubbed reads answer before a frame of it could be read.
+test('calendar: while December loads, the 25th\'s shimmer covers its own cell', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day.christmas-day')).toBeVisible();
+    expect(await page.locator('.calendar-day.christmas-day').evaluate(el => getComputedStyle(el, '::after').transform),
+        'premise: the tree is centred by a transform').not.toBe('none');
+    await page.evaluate(() => document.querySelector('#calendarDisplay .calendar-grid')?.classList.add('calendar-fetching'));
+    expect(await page.locator('.calendar-fetching .calendar-day.christmas-day').evaluate(el => getComputedStyle(el, '::after').transform),
+        'the shimmer is not moved by the tree\'s transform').toBe('none');
+});
+
 // ─── ON A WIDE SCREEN THE TEAM VIEW BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86) ─────────────
 // At 1280px the two arrows sat at the far edges of a 1040px card, 400px from the label they move,
 // while the month view directly above keeps Prev · name · Next as one compact centred group. Both
@@ -3281,6 +3519,33 @@ test('calendar: Team View opens on the month you were browsing, not the current 
 // test, which is the case that broke: the tap must still open the Huddle, on the stored url, at once.
 // A Daily Huddle tap with nothing to show used to do NOTHING — the hash handler opened only on a
 // loaded Huddle — and stayed armed, so one arriving later opened over whatever the member was doing.
+// ── LESS MOTION MEANS THE HUDDLE APPEARS, NOT SLIDES (whole-app review, 10 Nov 2026) ─────────────
+// Every lightbox on this page opens without movement for a member who has asked for reduced motion;
+// the Huddle viewer, its own full-screen panel, still slid up the screen's whole height. Sampled every
+// frame from the tap, one-shot: its top edge must never leave the top of the screen.
+test('huddle: with reduced motion the viewer appears in place, and still closes', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const tops = await page.evaluate(() => new Promise((resolve) => {
+        const v = /** @type {HTMLElement} */ (document.getElementById('huddleViewer'));
+        /** @type {number[]} */ const seen = [];
+        const t0 = performance.now();
+        const tick = () => {
+            if (v.classList.contains('visible')) seen.push(Math.round(v.getBoundingClientRect().top));
+            if (performance.now() - t0 < 400) requestAnimationFrame(tick); else resolve(seen);
+        };
+        location.hash = '#huddle';
+        requestAnimationFrame(tick);
+    }));
+    expect(tops.length, 'premise: the viewer opened').toBeGreaterThan(3);
+    expect(Math.max(...tops), 'the panel slid in from below').toBe(0);
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+});
+
 test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
     await seedMemberSession(page, 'G. Miller');
@@ -3778,6 +4043,42 @@ test('calendar: the leave panel steps to next year and links to that year\'s rec
     await expect(page.locator('#alLightbox')).not.toHaveClass(/open/);
     await page.locator('#alBtn').click();
     await expect(year).toHaveText('2026');
+});
+
+// ── THE LEAVE PANEL'S LINKS SHOW WHERE THE KEYBOARD IS (whole-app review, 10 Nov 2026) ──────────
+// "Record leave" and "Leave dates" had no focus rule, so Tab gave them the app's NAVY fallback ring,
+// drawn 2px out on the panel's navy glass — 1.0–1.8:1, no indicator at all — while every other control
+// on the panel wears gold. calendar-controls-parity.test.mjs names the rule; this proves it wins.
+test('calendar: the leave panel\'s two links take the gold focus ring on its navy glass', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbViewLink'), 'premise: the member\'s own panel shows both links').toBeVisible();
+    const ringOf = (/** @type {string} */ token) => page.evaluate((t) => {
+        const probe = document.body.appendChild(document.createElement('div'));
+        probe.style.outline = `var(${t})`;
+        const c = getComputedStyle(probe).outlineColor;
+        probe.remove();
+        return c;
+    }, token);
+    const gold = await ringOf('--focus-outline-gold');
+    expect(gold, 'premise: the gold and navy rings are two colours').not.toBe(await ringOf('--focus-outline'));
+    for (const name of ['Record leave', 'Leave dates']) {
+        let ring = null;
+        for (let i = 0; i < 12 && !ring; i++) {
+            await page.keyboard.press('Tab');
+            ring = await page.evaluate((n) => {
+                const el = document.activeElement;
+                if (!el?.matches('.al-lb-link') || el.textContent !== n) return null;
+                const cs = getComputedStyle(el);
+                return { style: cs.outlineStyle, width: cs.outlineWidth, colour: cs.outlineColor };
+            }, name);
+        }
+        expect(ring, `"${name}"`).toEqual({ style: 'solid', width: '2px', colour: gold });
+    }
 });
 
 // ── WHOSE LEAVE IT IS (v25.50, owner, 7 Nov 2026) ──────────────────────────────────────────────
