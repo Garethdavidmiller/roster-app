@@ -64,6 +64,21 @@ function parseFailureLine(err, { online, elapsedMs, wasHidden }) {
 }
 
 /**
+ * The words after "Couldn't read the roster: " for a refusal with no words of its own (whole-app
+ * fix, Nov 2026). Every refusal `parseRosterPDF` writes is JSON with a sentence for the admin; a body
+ * that is not JSON comes from the platform in front of it — a gateway answering a parse that ran past
+ * the function's 120-second limit (the case PARSE_ABORT_MS waits for). All of them read "Unexpected
+ * error — please try again or contact support", and there is no support: the reader is the admin.
+ * @param {number} status @returns {string}
+ */
+export function statusFailureLine(status) {
+    if (status === 504 || status === 408) return 'The server stopped the read because it took too long. Try again — if it happens twice, try again later.';
+    if (status === 413) return 'The file is too large for the server to read. Try a smaller PDF.';
+    if (status >= 500) return `The server could not finish the read (error ${status}). Try again in a few minutes.`;
+    return `The server refused the read (error ${status}). Try again.`;
+}
+
+/**
  * Badge HTML (+ raw time for worked shifts) for one shift value in the review table.
  * Pure and stateless, so it lives at module scope and is reused across renders
  * rather than being re-created inside renderReviewTable on every parse.
@@ -379,9 +394,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             readStartedAt  = Date.now();
             leftDuringRead = document.visibilityState === 'hidden';
             document.addEventListener('visibilitychange', noteLeft);
-            let response;
             try {
-                response = await fetch(parseUrl, {
+                const response = await fetch(parseUrl, {
                     method: 'POST',
                     headers: {
                         'Authorization':  `Bearer ${idToken}`,
@@ -392,18 +406,21 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     body: base64,
                     signal: abortCtrl.signal,
                 });
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    // The server's message is written for the admin ("check the roster type is correct"),
+                    // so carry it; a body with no words gets the status's (statusFailureLine).
+                    const words = typeof errData.error === 'string' ? errData.error : '';
+                    throw Object.assign(new Error(words || `Server error (${response.status})`),
+                        { adminLine: words || statusFailureLine(response.status) });
+                }
+                // THE BODY IS INSIDE THE BOUND TOO (whole-app fix, Nov 2026). `fetch` resolves on the
+                // headers, and the timer was cleared there, so a body that stalled after them left the
+                // read on "Reading…" for ever — the hole fetch-timeout.js closed for its own callers.
+                _parsedResult = await response.json();
             } finally {
                 clearTimeout(abortTimer);
             }
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                // The server's message is written for the admin ("check the roster type is correct"), so carry it.
-                throw Object.assign(new Error(errData.error || `Server error (${response.status})`),
-                    { serverMessage: typeof errData.error === 'string' ? errData.error : '' });
-            }
-
-            _parsedResult = await response.json();
             _parsedFile   = file;
             parseFeedback.textContent = '';
 
@@ -433,7 +450,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     elapsedMs: readStartedAt ? Date.now() - readStartedAt : Infinity,
                     wasHidden: leftDuringRead,
                 });
-                const userMsg = inTransit ?? (_err.serverMessage || 'Unexpected error — please try again or contact support.');
+                const userMsg = inTransit ?? (_err.adminLine || 'Something unexpected went wrong. Try again.');
                 parseFeedback.textContent = `Couldn't read the roster: ${userMsg}`;
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             }
@@ -557,7 +574,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const base64 = /** @type {string} */ (reader.result).split(',')[1];
                 resolve(base64);
             };
-            reader.onerror = () => reject(new Error('Could not read the file'));
+            // Said, not swallowed into the generic line: a phone cannot open a file kept only in the cloud.
+            reader.onerror = () => reject(Object.assign(new Error('Could not read the file'), { adminLine:
+                "This device couldn't open the PDF. Choose it again — if it is kept in a cloud folder, save a copy to the device first." }));
             reader.readAsDataURL(file);
         });
     }

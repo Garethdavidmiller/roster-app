@@ -2304,9 +2304,23 @@ describe('a roster read that fails in transit says what happened', () => {
     });
 
     test('anything that is not a failure in transit is left to the caller, which carries the server\'s words', () => {
-        assert.equal(line(Object.assign(new Error('The AI found no recognisable staff members'), { serverMessage: 'x' }), seen()), null);
+        assert.equal(line(Object.assign(new Error('The AI found no recognisable staff members'), { adminLine: 'x' }), seen()), null);
         assert.equal(line(new SyntaxError('Unexpected token'), seen({ elapsedMs: 1 })), null);
         assert.equal(line(new TypeError('Cannot read properties of undefined'), seen({ elapsedMs: 1 })), null);
+    });
+
+    // Whole-app fix, Nov 2026: a refusal whose body carries no words — the platform's, not the
+    // handler's — was "Unexpected error — please try again or contact support". The words now come
+    // from the status; the browser half (a 504 and a body that stalls) is in e2e/operations.spec.js.
+    test('a refusal with no words of its own is worded from its status, and never sends anyone to "support"', async () => {
+        const { statusFailureLine } = await import('./admin-roster-upload.js');
+        assert.match(statusFailureLine(504), /^The server stopped the read because it took too long\. Try again/);
+        assert.match(statusFailureLine(408), /took too long/);
+        assert.match(statusFailureLine(413), /too large/);
+        assert.match(statusFailureLine(500), /^The server could not finish the read \(error 500\)/);
+        assert.match(statusFailureLine(503), /\(error 503\)/);
+        assert.match(statusFailureLine(429), /^The server refused the read \(error 429\)/);
+        for (const s of [400, 413, 429, 500, 502, 503, 504]) assert.doesNotMatch(statusFailureLine(s), /support/i, String(s));
     });
 });
 

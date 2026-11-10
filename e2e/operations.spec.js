@@ -2743,6 +2743,45 @@ test.describe('operations: the roster read, cut off', () => {
         await expect(page.locator('#rosterParseFeedback')).toContainText('The connection dropped before it finished.');
         await page.context().setOffline(false);
     });
+
+    // Whole-app fix, Nov 2026 (import-client-10): a parse that runs past the function's own limit is
+    // answered by the platform, not the handler — a gateway error whose body is not JSON — and it was
+    // reported as "Unexpected error — please try again or contact support". There is no support.
+    test('a gateway timeout with no words of its own says the read took too long', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.route('**/parseRosterPDF*', route => route.fulfill({ status: 504, contentType: 'text/plain', body: 'upstream request timeout' }));
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        await page.locator('#rosterParseBtn').click();
+        const feedback = page.locator('#rosterParseFeedback');
+        await expect(feedback).toContainText("Couldn't read the roster: The server stopped the read because it took too long.");
+        await expect(feedback).not.toContainText('support');
+    });
+
+    // …and a body that STALLS after its headers (the pwa review's lead): the bound was cleared when
+    // the headers arrived, so `response.json()` waited for ever with the form locked on "Reading…".
+    // The stand-in's body read rejects with an AbortError when the request's signal aborts — what a
+    // real fetch does (a ReadableStream errored by hand reaches `json()` as "Failed to fetch" instead).
+    test('a reply whose body stalls is still ended by the read\'s own bound', async ({ page }) => {
+        await page.clock.install({ time: new Date('2026-11-10T10:00:00Z') });
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            const real = window.fetch;
+            /** @type {any} */ (window).fetch = (/** @type {any} */ input, /** @type {any} */ init) => {
+                if (!String(input instanceof Request ? input.url : input).includes('parseRosterPDF')) return real(input, init);
+                const json = () => new Promise((_, reject) => init?.signal?.addEventListener('abort',
+                    () => reject(new DOMException('The operation was aborted.', 'AbortError'))));
+                return Promise.resolve({ ok: true, status: 200, json });
+            };
+        });
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        await page.locator('#rosterParseBtn').click();
+        await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
+        await page.clock.runFor(131_000);
+        await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Parsing took longer than expected.");
+        await expect(page.locator('#rosterParseBtn')).toHaveText('Read roster');
+    });
 });
 
 // ── THE DESKTOP AUDIT (Nov 2026) ─────────────────────────────────────────────────────────────────
