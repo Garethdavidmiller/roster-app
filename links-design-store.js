@@ -41,7 +41,8 @@
  * online save could also produce.** See `sendWrite` and `queuedRevision`. A save, a rename, a delete
  * and a create alike — the create names its document with an auto-id reference so it can be queued
  * too. Online, the save, the rename and the delete are transactions, so a server the device cannot
- * reach FAILS them and they are queued; only the online create still waits on a plain write.
+ * reach FAILS them and they are queued; the create, a plain write, is given `SLOW_SAVE_MS` to be
+ * answered and is called queued after that.
  *
  * ── WHAT IS DELIBERATELY NOT HERE ───────────────────────────────────────────────────────────────
  *
@@ -60,12 +61,13 @@
 import { conflictOf, baselineAfterWrite, baselineAfterCommit, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
 import { isDeleted } from './links-deletion.js';
 import { SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
+import { SLOW_SAVE_MS } from './slow-save.js';
 
 /**
  * @typedef {object} StoreDeps
  * @property {any} db
  * @property {Function} doc @property {Function} getDoc @property {Function} setDoc
- * @property {Function} addDoc @property {Function} getDocs @property {Function} runTransaction
+ * @property {Function} getDocs @property {Function} runTransaction
  * @property {Function} serverTimestamp @property {Function} deleteField
  * @property {any} designsCol                     the collection reference
  * @property {Function} withClaimRetry            wraps every write (stale-claim self-heal)
@@ -104,7 +106,7 @@ export function isOfflineFailure(err, isOfflineNow = _offlineByDefault) {
  */
 export function createDesignStore(deps) {
     const {
-        db, doc, getDoc, setDoc, addDoc, getDocs, runTransaction,
+        db, doc, getDoc, setDoc, getDocs, runTransaction,
         serverTimestamp, deleteField, designsCol, withClaimRetry,
     } = deps;
     const _isOnline = deps.isOnline;
@@ -240,28 +242,20 @@ export function createDesignStore(deps) {
             // nothing to race — the document did not exist — so this is the one place the number is
             // certain without a transaction, and the baseline is exact from the first save onward.
             const body = { ...payload, revision: 1 };
-            // OFFLINE, RULE 4 (Sep 2026 re-review): `addDoc` resolves only on the server's ack, so it
-            // held "Saving…" until the signal came back. An auto-id reference names the document
-            // BEFORE the write, so it is queued and returned at once — still revision 1, and still
-            // exact, because nobody else can write a document whose id only this device holds.
-            if (offlineNow()) {
-                const queuedRef = doc(designsCol);
-                await queueWrite(() => setDoc(queuedRef, body));
-                return { id: queuedRef.id, updatedAt: null, queued: true, baseline: baselineAfterCommit(1) };
-            }
-            // Online the create is AWAITED, so on a connection that is up but cannot reach Firestore it
-            // has no bound, unlike the transactions, which the SDK fails there (whole-app fix, Nov 2026).
-            // Bounding it (`sendWrite`) needs the document named BEFORE the write, as the branch above
-            // does, so that an unanswered create can still come back as queued with its id; the e2e
-            // double mints no id for `doc(col)` and models a create only through `addDoc`, so that
-            // change waits on e2e/fixtures.js.
-            const ref = await withClaimRetry(() => addDoc(designsCol, body));
-            const updatedAt = await readStamp(ref);
-            return {
-                id: ref.id,
-                updatedAt,
-                baseline: baselineAfterCommit(1),
-            };
+            // An auto-id reference names the document BEFORE the write, so a create the server has not
+            // answered still has an id to come back with — still revision 1, and still exact, because
+            // nobody else can write a document whose id only this device holds.
+            const ref = doc(designsCol);
+            const queued = () => ({ id: ref.id, updatedAt: null, queued: true, baseline: baselineAfterCommit(1) });
+            // OFFLINE, RULE 4 (Sep 2026 re-review): a create resolves only on the server's ack, so it held
+            // "Saving…" until the signal came back. Offline it is queued and returned at once.
+            if (offlineNow()) { await queueWrite(() => setDoc(ref, body)); return queued(); }
+            // ONLINE, BOUNDED (links-design-2, whole-app fix, Nov 2026). On a connection that is up but
+            // cannot reach Firestore the create was AWAITED with no bound, unlike the transactions, which
+            // the SDK fails there: "Creating…" until the signal came back, while the designer went on
+            // working. It waits as long as a slow save does, and unanswered comes back queued, with its id.
+            if (await sendWrite(() => setDoc(ref, body), SLOW_SAVE_MS) === 'queued') return queued();
+            return { id: ref.id, updatedAt: await readStamp(ref), baseline: baselineAfterCommit(1) };
         },
 
         /**

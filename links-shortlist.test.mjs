@@ -155,6 +155,8 @@ describe('the wiring (links-design-library.js, links-app.js, links.html)', () =>
         assert.match(lib, code("getElementById('designMoreBtn')?.addEventListener('click', () => { if (keepRow) keepRow.style.display = keepOffered() ? '' : 'none'; });"));
         assert.match(lib, code("keepRow?.addEventListener('click', () => { const h = ctx.getHeader(); if (h) h.viaSheet(keepOnlyShortlist); else keepOnlyShortlist(); });"));
         assert.match(html, code('<button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none">'));
-        assert.match(app, code('removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else renderDesignPicker(); },'));
+        // Compare is reset either way, so the page is DRAWN again either way (links-app-10): with the
+        // picker alone, Keep only the shortlist in compare mode left the two compare grids up.
+        assert.match(app, code('removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else { renderDesignPicker(); renderGrid(); renderBrushBar(); compare.renderCompare(); } },'));
     });
 });

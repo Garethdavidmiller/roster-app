@@ -19,9 +19,10 @@
  * Organised by what a wrong answer DESTROYS, because in a shared workspace it is never our own
  * work: it is the colleague's, they never saw it happen, and they find out on reopening.
  */
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDesignStore, isOfflineFailure } from './links-design-store.js';
+import { SLOW_SAVE_MS } from './slow-save.js';
 import { conflictOf } from './links-concurrency.js';
 import { runGatedWrite, _resetUnconfirmedWrites, SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
 
@@ -1005,6 +1006,40 @@ describe('a queued write does not wait for a server that is not there', () => {
         assert.equal(wrote?.revision, 1, 'the queued create was issued, as revision 1');
         // Revision 1 is exact: nobody else can write a document whose id only this device holds.
         assert.equal(/** @type {any} */ (res).baseline.loadedRevision, 1);
+    });
+
+    test('create ONLINE, on a connection that cannot reach the server (links-design-2, whole-app fix, Nov 2026)', async () => {
+        // The browser says online — Wi-Fi with no uplink — and the server never answers. The create was
+        // AWAITED with no bound, unlike the transactions, which the SDK fails there: "Creating…" until the
+        // signal came back. It now waits as long as a slow save does, and then comes back queued, with the
+        // id it was named with before the write. Fake timers, so the bound itself is what is measured.
+        const { api } = makeDb();
+        api.isOnline = () => true;
+        /** @type {any} */ let wrote = null;
+        api.setDoc = (_ref, payload) => { wrote = payload; return neverResolves(); };
+        const flushed = () => new Promise(r => setImmediate(() => r('hung')));
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            const pending = createDesignStore(api).create({ name: 'New' });
+            mock.timers.tick(SLOW_SAVE_MS - 1);
+            assert.equal(await Promise.race([pending, flushed()]), 'hung', 'not before the bound');
+            mock.timers.tick(1);
+            const res = /** @type {any} */ (await Promise.race([pending, flushed()]));
+            assert.notEqual(res, 'hung', 'the press has an answer once the bound has passed');
+            assert.equal(res.queued, true, 'and it is in the SDK\'s queue, and says so');
+            assert.equal(res.id, ID, 'with the id it was named with before the write');
+            assert.equal(wrote?.revision, 1, 'the create was issued, as revision 1');
+        } finally { mock.timers.reset(); }
+    });
+
+    test('…while an online create the server answers in time is not called queued, and reads its stamp back', async () => {
+        const { api, writes } = makeDb();
+        const res = await createDesignStore(api).create({ name: 'New', updatedAt: api.serverTimestamp() });
+        assert.ok(!res.queued);
+        assert.equal(res.id, ID);
+        assert.equal(writes.length, 1, 'one write');
+        assert.equal(writes[0].payload.name, 'New');
+        assert.notEqual(res.updatedAt, null, 'the stamp the server holds, read back');
     });
 
     test('soft delete (whole-app review, Oct 2026)', async () => {
