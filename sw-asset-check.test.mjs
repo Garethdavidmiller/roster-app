@@ -84,7 +84,8 @@ test('every root .html and .css file is precached (offline availability, non-JS 
     //
     // IMPORTANT: the precache set is CORE_ASSETS + SUPPLEMENTARY_ASSETS ONLY — deliberately NOT
     // NETWORK_FIRST_FILES. The warm-up (warmCacheAndSweepOld) fetches CORE/SUPPLEMENTARY/FONT/ICON/SDK
-    // but NEVER NETWORK_FIRST_FILES (which is purely the stale-while-revalidate MATCH set). A file
+    // but NEVER NETWORK_FIRST_FILES (which is purely a MATCH set: the managed files served from the
+    // version's cache and never re-fetched once there — the name is history). A file
     // listed only in NETWORK_FIRST_FILES is served-from-cache-if-present but never PRECACHED, so it is
     // unavailable on a device that installs and goes offline before ever visiting it. Including
     // NETWORK_FIRST_FILES here (the pre-fix bug) made that regression pass CI. (Mirrors the JS test's
@@ -108,7 +109,7 @@ test('purify.es.mjs is network-first AND precached (the .mjs runtime asset the .
     const arrayOf = (name) => swArray(sw, name);
     const inList = (list, f) => list.includes(`'${f}'`) || list.includes(`"${f}"`) || list.includes(`'./${f}'`) || list.includes(`"./${f}"`);
     const F = 'purify.es.mjs';
-    assert.ok(inList(arrayOf('NETWORK_FIRST_FILES'), F), 'purify.es.mjs must be in NETWORK_FIRST_FILES (served stale-while-revalidate)');
+    assert.ok(inList(arrayOf('NETWORK_FIRST_FILES'), F), 'purify.es.mjs must be in NETWORK_FIRST_FILES (served from the version cache, never re-fetched once there)');
     assert.ok(inList(arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS'), F), 'purify.es.mjs must be precached (offline DOCX sanitising)');
 });
 
