@@ -26,8 +26,8 @@
  * geometry tests skip elsewhere. The print-media DOM tests run everywhere, which matters — WebKit
  * is the engine half this station reads on, and it is where the `beforeprint` assumption came from.
  */
-import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, seedMemberSession, waitForPageSettled } from './helpers.js';
+import { test, expect, forcePasswordSet } from './fixtures.js';
+import { seedSession, seedMember, seedMemberSession, waitForPageSettled, signInThroughOverlay } from './helpers.js';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
 const A4_W = 595, A4_H = 842;
@@ -425,6 +425,49 @@ test('an open Daily Huddle is not printed, and says so @print', async ({ page })
     expect(seen.calendarVisible, 'the calendar is not silently substituted').toBe(false);
 });
 
+
+// ── AN OPEN LIGHTBOX DOES NOT CUT THE PRINT TO ONE SHEET (whole-app review, Nov 2026) ────────────────
+// Every lightbox scroll-locks the page by fixing the body (shared.css → body.lb-open), and the lock stayed
+// on in print: Ctrl/Cmd+P with Pay's help sheet open printed ONE sheet of three, shifted up by however far
+// the page had been scrolled, and Trains printed its open Tips panel over a cut-down page. Counted off the
+// real PDF, against the same page printed with nothing open; the shift is the body's computed position.
+test('printing with a lightbox open prints the whole page, and not the lightbox @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    for (const [url, ready, open, panel] of /** @type {Array<[string, string, string, string]>} */ ([
+        ['/paycalc.html', '.ty-tab.active', '.help-btn', '#helpLightbox'],
+        ['/trains.html', '.btn-card-tips', '.btn-card-tips', '#tipsLightbox'],
+    ])) {
+        await page.goto(url);
+        await page.locator(ready).first().waitFor();
+        await page.evaluate(() => document.fonts.ready);
+        const closed = sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
+        expect(closed, `premise: ${url} prints on more than one sheet`).toBeGreaterThan(1);
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.locator(open).first().click();
+        await expect(page.locator(panel)).toHaveClass(/\bopen\b/);
+        expect(await page.evaluate(() => document.body.classList.contains('lb-open')), `premise: ${url} is scroll-locked`).toBe(true);
+        expect(sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true })), `${url} with a lightbox open`).toBe(closed);
+        const onPaper = await inPrint(page, () => ({ body: getComputedStyle(document.body).position,
+            panel: getComputedStyle(/** @type {HTMLElement} */ (document.querySelector('.lb-overlay.open'))).display }));
+        expect(onPaper, `${url}: on paper the body flows and the lightbox is gone`).toEqual({ body: 'static', panel: 'none' });
+        await page.keyboard.press('Escape');
+    }
+});
+
+// …but a SIGN-IN sheet keeps its lock on paper. Behind the set-password card is the signed-in page it is holding
+// back — a mandatory step (auth.spec.js) — so printing must not be the way round it: the card prints, alone.
+test('printing behind the set-password card prints the card, not the page it holds back @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await forcePasswordSet(page);
+    await page.goto('/paycalc.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+    expect(sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true })), 'one sheet: the card').toBe(1);
+    expect(await inPrint(page, () => getComputedStyle(document.body).position), 'the body stays locked on paper').toBe('fixed');
+});
 
 // ── A NAME IS NEVER ELLIPSISED ON PAPER (v23.71) ────────────────────────────────────────────────
 //

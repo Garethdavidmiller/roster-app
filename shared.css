@@ -1002,6 +1002,21 @@ body.lb-open {
     overflow: hidden;
 }
 body.lb-open #stickyTotal { display: none !important; }
+/* PAPER HAS NO SCROLL TO LOCK (whole-app review, Nov 2026). Printing while a lightbox, the drawer or the
+   Huddle viewer was open — Ctrl/Cmd+P, the browser's Print — laid out ONE sheet, because a fixed body is one
+   viewport-tall box, shifted up by however far the page was scrolled: Pay's three sheets came out as one with
+   its help sheet open, Trains' two as one with Tips open (and Trains printed the Tips panel over it). On
+   paper the body returns to the flow and the lightboxes go: none is the page, and with the body flowing a
+   fixed one would repeat on every sheet.
+   NOT while a SIGN-IN sheet is up. That lock is a gate rather than a scroll lock: behind the set-password
+   card is the signed-in page it is holding back, and behind the sign-in card an empty page, so either prints
+   as it always has — the card, on one sheet. (`:has()` unsupported: the rule drops, and the lock stays.) */
+@media print {
+    body.lb-open:not(:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible)) {
+        position: static; top: auto; left: auto; right: auto; width: auto; overflow: visible;
+    }
+    .lb-overlay { display: none !important; }
+}
 
 /* Content panel — structural positioning and open animation.    */
 /* Theme: colours, padding, border-radius, width stay in ID.     */
