@@ -847,3 +847,21 @@ describe('a refusal about the REVIEWER is worded, never the server\'s sentence i
         assert.doesNotMatch(dom.otConfirmText.innerHTML, /\(offline\)/);
     });
 });
+
+describe('a horizon row speaks of a past deadline in the past tense (overtime-ui-16)', () => {
+    // The first row is always a closed week, and it read "Closes Tue 18 Aug · 12:00" beside "Form
+    // closed". The mocked clock reads Thu 20 Aug.
+    test('passed deadlines read "were due" and "Closed"; coming ones "due" and "Closes"', async () => {
+        const DONE = week('2026-08-29', '2026-08-23', { state: 'created-closed',
+            initialDeadlineAt: Date.parse('2026-08-11T11:00:00Z'), finalDeadlineAt: Date.parse('2026-08-18T11:00:00Z') });
+        const HALF = week('2026-09-05', '2026-08-30', {
+            initialDeadlineAt: Date.parse('2026-08-18T11:00:00Z'), finalDeadlineAt: Date.parse('2026-08-25T11:00:00Z') });
+        detailFor.set(HALF.weekEnding, detail(2, 1));
+        overviewQueue = [{ ok: true, data: { planningWeeks: [DONE, HALF, WEEK_B], retained: [] } }];
+        await makeController().loadHorizon();
+        const rows = dom.otHorizonContent.innerHTML.split('ot-week-row ').slice(1);
+        assert.match(rows[0], /Answers were due Tue 11 Aug · 12:00<br>\s*Closed Tue 18 Aug · 12:00/);
+        assert.match(rows[1], /Answers were due Tue 18 Aug · 12:00<br>\s*Closes Tue 25 Aug · 12:00/);
+        assert.match(rows[2], /Answers due Tue 25 Aug · 12:00<br>\s*Closes Tue 1 Sep · 12:00/);
+    });
+});

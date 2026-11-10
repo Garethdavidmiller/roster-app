@@ -254,13 +254,16 @@ function renderHorizonRow(w) {
             // recessive button under a red label reads as "nothing you can do".
             ? `<button type="button" class="ot-row-btn${w.state === 'not-created-overdue' ? ' ot-row-btn--primary' : ''}" data-create="${esc(w.weekEnding)}">Open now</button>`
             : '');
+    // A deadline that has gone is stated in the past tense (overtime-ui-16): the first row is always
+    // a closed week, and it said "Closes …" beside "Form closed". Past at the instant, as phases are.
+    const now = OTD.correctedNow();
     return `
         <div class="ot-week-row ot-week-row--${tone}">
             <div class="ot-week-main">
                 <div class="ot-week-title">${esc(weekLabel(w.weekEnding))}</div>
                 <div class="ot-week-meta">
-                    Answers due ${esc(deadlineLabel(w.initialDeadlineAt))}<br>
-                    Closes ${esc(deadlineLabel(w.finalDeadlineAt))}
+                    ${now >= w.initialDeadlineAt ? 'Answers were due' : 'Answers due'} ${esc(deadlineLabel(w.initialDeadlineAt))}<br>
+                    ${now >= w.finalDeadlineAt ? 'Closed' : 'Closes'} ${esc(deadlineLabel(w.finalDeadlineAt))}
                     ${counts ? `<br>${esc(counts)}` : ''}
                 </div>
                 <span class="ot-week-state ot-week-state--${tone}">${esc(label)}</span>
