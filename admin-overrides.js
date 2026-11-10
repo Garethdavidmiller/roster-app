@@ -40,10 +40,6 @@ import { formatDisplay } from './admin-period-dates.js';
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 let _currentUser      = '';
-let _currentIsAdmin   = false;
-// Managers have full access too (edit any member on their behalf). Both admin and manager
-// may view the "All staff" override list; a locked self-service user may not.
-let _currentIsManager = false;
 /** @type {(msg: string, lines?: string[]) => void} */
 let _showSuccess      = () => {};
 /** @type {(msg: string) => void} */
@@ -52,12 +48,6 @@ let _showError        = () => {};
 let _onAfterSave      = () => {};  // refresh AL/sick banners after any write
 /** @type {() => void} */
 let _markChanged      = () => {};
-/** @type {(e: MouseEvent) => void} */
-let _onEditRow        = () => {};  // handleEdit lives in admin-app.js; passed as callback
-
-// When true, renderTable shows all members instead of only the selected member.
-// Reset to false when the selected member changes.
-
 
 /**
  * Builds a Map<dateISO, override> for a specific member from the override cache.
@@ -100,8 +90,6 @@ export { isWorkingDate } from './al-entitlement.js';
 export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = false, showSuccess, showError,
                                  onAfterSave, markChanged, onEditRow }) {
     _currentUser    = currentUser;
-    _currentIsAdmin = currentIsAdmin;
-    _currentIsManager = currentIsManager;
     _showSuccess    = showSuccess;
     // The store owns the cache and the reads; it repaints through these. Injected rather than
     // imported back, which is what keeps the graph acyclic (import-graph.test.mjs).
@@ -125,7 +113,6 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
     _showError      = showError;
     _onAfterSave    = onAfterSave;
     _markChanged    = markChanged;
-    _onEditRow      = onEditRow;
 
     // The once-only wiring guard lives with the LISTENERS, in `initWeekEditor` and
     // `initSavedChanges` (v21.94). It used to be an `if` with an empty body here, left behind when
