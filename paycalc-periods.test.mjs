@@ -105,7 +105,7 @@ const {
     _setSelectPeriod, prevPeriod, nextPeriod,
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
     visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
-    periodLinkMissNote, ytdUpdateFrom, ytdAnchorStatus, ytdSourceToStamp, appendPayslipOptions,
+    periodLinkMissNote, ytdUpdateFrom, ytdAnchorStatus, ytdSourceToStamp, appendPayslipOptions, ytdSourceAfterRetype,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -1098,8 +1098,9 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     const oct23 = byNum(57), nov20 = byNum(58), dec18 = byNum(59), first = byNum(48 + TY.first);
     const NOV7 = new Date(2026, 10, 7, 10), NOV21 = new Date(2026, 10, 21, 10);
     const from = `your <strong>23 Oct payslip</strong> (P${payslipPeriodNum(oct23)})`;
-    /** The 20 Nov payslip on 7 Nov, figures from 23 Oct in the boxes, then whatever a case changes. @param {object} [o] */
-    const status = (o = {}) => ytdAnchorStatus({ p: nov20, ty: TY, src: oct23.num, hasFigures: true, now: NOV7, ...o });
+    /** The 20 Nov payslip on 7 Nov, figures from 23 Oct in the boxes, then whatever a case changes.
+     *  `inUse` is computeTax's `usingCumulative`, as calculate() hands it over. @param {object} [o] */
+    const status = (o = {}) => ytdAnchorStatus({ p: nov20, ty: TY, src: oct23.num, hasFigures: true, inUse: false, now: NOV7, ...o });
 
     test('fixture: the grid has the payslips these cases name', () => {
         assert.equal(oct23.payday.getDate(), 23);
@@ -1107,8 +1108,8 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
         assert.equal(dec18.payday.getDate(), 18);
     });
 
-    test('on the payslip straight after the source the figures are in use — note and chip agree', () => {
-        assert.deepEqual(status(), { noteLive: true, chip: '✓ in use', chipLive: true,
+    test('where computeTax used the figures — note and chip agree they are in use', () => {
+        assert.deepEqual(status({ inUse: true }), { noteLive: true, chip: '✓ in use', chipLive: true,
             note: `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.` });
     });
 
@@ -1121,10 +1122,45 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
             + `standard method. Update them from your <strong>20 Nov payslip</strong> (P${payslipPeriodNum(nov20)}) to sharpen it.`);
     });
 
-    test('empty boxes: the chip has nothing to report, while the note still names the source', () => {
-        const empty = status({ hasFigures: false });
-        assert.deepEqual([empty.chip, empty.chipLive, empty.noteLive], ['', false, true]);
-        assert.match(empty.note, /they sharpen/);
+    // ── "IN USE" IS WHAT computeTax DID (whole-app review, Nov 2026) ────────────────────────────────
+    // The card worked it out for itself — "the payslip after the source, and either box has text" —
+    // and called figures "in use" in three states where the standard method ran.
+    test('empty boxes: nothing to report — no chip, and no note claiming the figures sharpen anything', () => {
+        // It read "✓ … they sharpen this payslip's tax estimate" over two empty boxes.
+        assert.deepEqual(status({ hasFigures: false }), { noteLive: false, chip: '', chipLive: false, note: '' });
+    });
+
+    test('one figure of the pair on the payslip after the source: not in use, and the note says what is missing', () => {
+        const half = status();
+        assert.deepEqual([half.chip, half.chipLive, half.noteLive], ['not in use', false, false]);
+        assert.equal(half.note, `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and `
+            + '<strong>Tax Paid</strong> to sharpen this payslip\'s tax estimate.');
+    });
+
+    test('a week 1 / month 1 code: not in use, and the note says the code is why', () => {
+        for (const taxCode of ['1257L M1', '1257LW1', '0T X']) {
+            const s = status({ taxCode });
+            assert.deepEqual([s.chip, s.chipLive], ['not in use', false], taxCode);
+            assert.match(s.note, /a tax code ending in W1, M1 or X works out each payslip on its own/, taxCode);
+        }
+    });
+
+    test('the chip and the note follow computeTax over every pair and code — never the boxes', () => {
+        const t = getThresholds(TY.label);
+        const periodN = nov20.num - 48 - TY.first + 1;
+        const pairs = [[13200, 1650], [13200, null], [null, 1650], [null, null]];
+        for (const taxCode of ['1257L', '1257L M1', '0TW1', '1257LX', 'K100', 'BR', 'D0']) {
+            for (const [ytdPay, ytdTax] of pairs) {
+                const { usingCumulative } = computeTax(3100, taxCode, t, { ytdPay, ytdTax, periodN });
+                const hasFigures = ytdPay != null || ytdTax != null;
+                const s = status({ taxCode, hasFigures, inUse: usingCumulative });
+                const at = `${taxCode} pay=${ytdPay} tax=${ytdTax}`;
+                assert.equal(s.chipLive, usingCumulative, at);
+                assert.equal(s.noteLive, usingCumulative, at);
+                assert.equal(/they sharpen/.test(s.note), usingCumulative, at);
+                assert.equal(s.chip, hasFigures ? (usingCumulative ? '✓ in use' : 'not in use') : '', at);
+            }
+        }
     });
 
     test('no source on record: no note and no chip — the card already asks for one three times', () => {
@@ -1145,5 +1181,86 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
         assert.equal(ytdSourceToStamp('', true, TY, NOV7), null, 'anything recorded counts — only a key never written is stamped');
         assert.equal(ytdSourceToStamp('56', true, TY, NOV7), null, 'a recorded source is kept');
         assert.equal(ytdSourceToStamp(null, false, TY, NOV7), null, 'no figures, nothing to anchor');
+    });
+});
+
+// ── FIGURES TYPED IN AGAIN FOLLOW THE PAYSLIP THE LINE NAMED (whole-app review, Nov 2026) ─────────
+// The take-home line asks for the latest figures every month, but the source was stamped on FIRST
+// entry only: typing the 23 Oct totals over figures recorded from 25 Sep left them anchored there, so
+// the line kept asking and the 23 Oct payslip — straight after the old source — counted its own pay
+// twice (£628.80 of tax for £435.00). On 16 Nov 2026 the 20 Nov payslip is next and 23 Oct is paid.
+describe('ytdSourceAfterRetype — where re-typed Year to Date figures are anchored', () => {
+    const TY = /** @type {any} */ (PC_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
+    const byNum = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+    const sep25 = byNum(56), oct23 = byNum(57), nov20 = byNum(58), dec18 = byNum(59);
+    const NOV16 = new Date(2026, 10, 16, 10), FLOOR = 48 + PC_CONFIG.FIRST_OFFSET;
+    const retype = (/** @type {string|null} */ raw, o = {}) =>
+        ytdSourceAfterRetype(raw, { p: nov20, ty: TY, now: NOV16, firstPNum: FLOOR, ...o });
+
+    test('figures recorded from an older payslip move to the one the line asks for', () => {
+        assert.equal(retype(String(sep25.num)), oct23.num);
+        assert.equal(ytdUpdateFrom({ p: nov20, ty: TY, src: sep25.num, inUse: false, taxCode: '1257L', now: NOV16, firstPNum: FLOOR }),
+            oct23, 'premise: that is the payslip the line names');
+    });
+
+    test('left alone where there is nothing to move: already there, later, or never recorded', () => {
+        assert.equal(retype(String(oct23.num)), null, 'already the payslip named');
+        assert.equal(retype(String(nov20.num)), null, 'from this payslip — newer than the one named');
+        assert.equal(retype(null), null, 'never recorded: the first-entry stamp decides');
+        assert.equal(retype('0'), null, 'a member who detached the figures meant it');
+        assert.equal(retype(''), null);
+    });
+
+    test('never on a payslip already paid, nor before the payslip to copy from can be in hand', () => {
+        assert.equal(retype(String(sep25.num), { p: oct23 }), null, 'the 23 Oct payslip is paid on 16 Nov');
+        assert.equal(retype(String(sep25.num), { p: dec18 }), nov20.num,
+            'for the 18 Dec estimate, the 20 Nov payslip — in hand since its cut-off on 14 Nov…');
+        assert.equal(retype(String(oct23.num), { p: dec18, now: new Date(2026, 10, 7, 10) }), null,
+            '…but on 7 Nov it is not, so nothing is named to move to');
+    });
+
+    test('on every day of the year, a recorded older source moves exactly to what the line names', () => {
+        for (let day = new Date(2026, 3, 1, 12); day < new Date(2027, 3, 30); day.setDate(day.getDate() + 3)) {
+            for (const p of getPeriods().filter((/** @type {any} */ x) => x.num > 48 + TY.first && x.num <= 48 + TY.last)) {
+                const src = 48 + TY.first;
+                const named = ytdUpdateFrom({ p, ty: TY, src, inUse: false, taxCode: '1257L', now: day, firstPNum: FLOOR });
+                const moved = ytdSourceAfterRetype(String(src), { p, ty: TY, now: day, firstPNum: FLOOR });
+                assert.equal(moved, named && src < named.num ? named.num : null, `${p.payday.toDateString()} on ${day.toDateString()}`);
+            }
+        }
+    });
+});
+
+// ── A MID-YEAR JOINER IS NEVER SENT TO A PAYSLIP FROM BEFORE THEY STARTED (whole-app review) ──────
+// A starter on Mon 23 Nov 2026 opens the page on 30 Nov: their first payslip is 18 Dec, and the 20 Nov
+// one has a pro-rate factor of 0. The line, the picker and the first-entry stamp all named 20 Nov.
+describe('the Year to Date rules keep to the payslips a joiner was employed for', () => {
+    const TY = /** @type {any} */ (PC_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
+    const byNum = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+    const nov20 = byNum(58), dec18 = byNum(59), jan15 = byNum(60);
+    const NOV30 = new Date(2026, 10, 30, 10), DEC20 = new Date(2026, 11, 20, 10);
+    const JOINER = { startDate: new Date(2026, 10, 23) };
+
+    test('fixture: the 20 Nov payslip is before the start, the 18 Dec one is the first', () => {
+        assert.equal(calcProRateFactor(JOINER.startDate, nov20.start, nov20.cutoff), 0);
+        assert.ok(calcProRateFactor(JOINER.startDate, dec18.start, dec18.cutoff) > 0);
+    });
+
+    test('the line, the picker, the stamp and the note say nothing of a payslip before the start', () => {
+        setEarliestVisiblePeriod(JOINER);
+        try {
+            assert.equal(ytdUpdateFrom({ p: dec18, ty: TY, src: 0, inUse: false, taxCode: '1257L', now: NOV30 }), null,
+                'the line does not ask for the 20 Nov figures');
+            assert.equal(ytdSourceOffered(nov20, TY, NOV30), false, 'the picker does not offer 20 Nov');
+            assert.equal(ytdSourceToStamp(null, true, TY, NOV30), null, 'a first entry is not stamped 20 Nov');
+            assert.ok(!/20 Nov/.test(ytdAnchorStatus({ p: dec18, ty: TY, src: 61, hasFigures: true, now: DEC20 }).note),
+                'the note does not offer 20 Nov to update from');
+            // From their own first payslip on, everything works as for anyone else.
+            assert.equal(ytdUpdateFrom({ p: jan15, ty: TY, src: 0, inUse: false, taxCode: '1257L', now: DEC20 }), dec18);
+            assert.equal(ytdSourceOffered(dec18, TY, DEC20), true);
+        } finally {
+            setEarliestVisiblePeriod(null);
+        }
+        assert.equal(ytdSourceOffered(nov20, TY, NOV30), true, 'a member with no start date is not clamped');
     });
 });

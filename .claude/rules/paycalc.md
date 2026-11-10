@@ -666,7 +666,8 @@ match the payslip box.
 
 **Year to Date figures are ANCHORED to their source payslip (owner request).** The card records which
 payslip the two totals were copied from (`ytdSrcKey(ty)`, a "From which payslip?" select auto-stamped
-to the latest PAID payslip on first entry, correctable).
+to the latest PAID payslip on first entry, moved to the payslip the take-home line names when they are
+typed in again over an older one (`ytdSourceAfterRetype`), correctable).
 - **Payslips are issued before payday**, so from the current payslip's cut-off the picker also offers
   it (`ytdSourceOffered`): a member copying from it picks it, and an anchor one payslip early would
   count its pay twice. The first-entry stamp keeps the standing rule (`ytdAutoSource`); do not replace
@@ -674,9 +675,9 @@ to the latest PAID payslip on first entry, correctable).
   stamped one payslip LATE on the first open after payday.
 - **The cumulative PAYE method in `calculate()` engages ONLY on the payslip immediately after the
   source** (`p.num === src + 1`); any other payslip nulls the Year to Date inputs and falls back to the
-  standard non-cumulative method. **That guard is one line and its regression is silent on screen**,
-  because `_updateYtdNote` derives the chip and the note from the same rule independently — without it
-  the header says "not in use" over a figure that is using them. `e2e/paycalc.spec.js` → "Year to Date
+  standard non-cumulative method. **That guard is one line and its regression is quiet on screen**:
+  the chip and the note follow `computeTax`'s `usingCumulative`, so without it they call the figures
+  "in use" on every payslip, beside a £ priced on stale totals. `e2e/paycalc.spec.js` → "Year to Date
   figures sharpen ONLY the payslip after their source" asserts the two together, probing the figures by
   their EFFECT (clear the boxes; the £ must move on source + 1 and must not move anywhere else).
 - Legacy figures with no recorded source are stamped on load with the app's old standing assumption
@@ -684,7 +685,7 @@ to the latest PAID payslip on first entry, correctable).
   is unchanged — outside the cut-off-to-payday window above, where nothing is guessed.
 - **`#ytdUptoNote`** states the position per payslip ("✓ … sharpen this payslip's estimate" / "uses
   the standard method — update from P__") and is EMPTY (hidden via `:empty`) while no source is
-  recorded, because the header hint, field labels and select label already carry the copy-and-pick
+  recorded or no figure entered, because the header hint, field labels and select label already carry the copy-and-pick
   instruction. The source select's placeholder is the short "— choose a payslip —"; the two £ inputs
   carry example-figure placeholders ("e.g. 21,758.94"), never the zero-like "0.00".
 - **The January-HPP pointer is PERIOD-GATED:** `#ytdJanHppHint` ("This is the January payslip your
@@ -692,7 +693,7 @@ to the latest PAID payslip on first entry, correctable).
   the viewed payslip is the January one that carries HPP (the same `_hppTy` match that gates the HPP
   take-home add); the year-round version is in the card's `?` help.
 - `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the year's paid payslips, newest first (plus,
-  from its cut-off, the one about to be paid).
+  from its cut-off, the one about to be paid), never one from before a mid-year joiner started.
 - **Header status chip:** `#ytdStatusChip` in the card header shows the in-use state even while the
   card is collapsed — green "✓ in use" when the figures sharpen the viewed payslip, neutral "not in
   use" otherwise, hidden when there is nothing to report (no figures, no source, or the year's first
@@ -711,6 +712,7 @@ opens the card at `#ytdPay`. It is quiet:
 - for a W1/M1/X or NT code, which the figures cannot change — read exactly as `computeTax` reads the
   code, and cross-checked against `computeTax` over twenty codes in `paycalc-periods.test.mjs`;
 - for a code `computeTax` does not recognise (`recognised: false`), whose estimate they make worse;
+- for a payslip from before a mid-year joiner started, which carries none of their figures;
 - while the figures are in use (`inUse` is `computeTax`'s `usingCumulative`, so one figure, or an
   unreadable one, is not in use) or come from this payslip or a later one;
 - until the payslip to copy from can be in hand (`payslipMayBeInHand`, from its cut-off);

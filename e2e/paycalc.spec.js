@@ -1740,10 +1740,13 @@ test('paycalc: the take-home asks for the latest Year to Date figures, and stops
     await expect(page.locator('#ytdPay')).toBeFocused();
     await expect(page.locator('#payslipCard')).toBeInViewport();
 
-    // One figure is not a pair: the estimate cannot use it yet, so the line stays.
+    // One figure is not a pair: the estimate cannot use it yet, so the line stays — and the card's chip
+    // says so too, from what computeTax did rather than from "a box has text" (whole-app review).
     await page.fill('#ytdPay', '13200');
     await page.dispatchEvent('#ytdPay', 'input');
     await expect(line).toBeVisible();
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('fill in both Taxable Pay and Tax Paid');
     // Both figures, stamped to the 23 Oct payslip: in use, so the line goes.
     await page.fill('#ytdTax', '1650');
     await page.dispatchEvent('#ytdTax', 'input');
@@ -1779,6 +1782,49 @@ test('paycalc: Year to Date figures from an older payslip are asked for again', 
     await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
     await expect(page.locator('#netYtdNudge')).toBeVisible();
     await expect(page.locator('#netYtdNudge')).toContainText('from your 23 Oct payslip');
+
+    // Doing what it asks MOVES the source (whole-app review, Nov 2026): the figures were stamped on
+    // first entry only, so re-typed ones stayed on 25 Sep — the line kept asking, and the 23 Oct
+    // payslip, straight after that old source, counted its own pay twice.
+    await page.locator('#netYtdNudgeBtn').click();
+    await page.fill('#ytdPay', '14300');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '1840');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('57');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('from your 23 Oct payslip');
+    await expect(page.locator('#netYtdNudge')).toBeHidden();
+    await page.locator('#periodSelect').selectOption('57');
+    await expect(page.locator('#netPeriod')).toContainText('23 Oct');
+    await expect(page.locator('#ytdStatusChip'), 'the 23 Oct payslip no longer counts its own pay twice').toHaveText('not in use');
+    expect(errors).toHaveLength(0);
+});
+
+// A week 1 / month 1 code never uses the figures, and the card said "✓ in use" over it all the same
+// (whole-app review, Nov 2026). The code is a setting, not a Year to Date box — so this pins that the
+// chip is written by calculate() from computeTax's own answer, on every recalculation.
+test('paycalc: under a week 1 / month 1 tax code the Year to Date card says its figures are not in use', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '13200');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '1650');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await page.locator('#taxCode').fill('1257L M1');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('a tax code ending in W1, M1 or X works out each payslip on its own');
+    await page.locator('#taxCode').fill('1257L');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
     expect(errors).toHaveLength(0);
 });
 

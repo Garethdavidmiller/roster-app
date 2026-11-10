@@ -36,7 +36,7 @@ import {
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, buildYtdSourceSelect, ytdSourceToStamp, ytdAnchorStatus, payslipMayBeInHand, ytdUpdateFrom,
+  _setSelectPeriod, buildYtdSourceSelect, ytdSourceToStamp, ytdSourceAfterRetype, ytdAnchorStatus, payslipMayBeInHand, ytdUpdateFrom,
   appendPayslipOptions,
 } from './paycalc-periods.js';
 import {
@@ -243,11 +243,11 @@ export function init() {
 
     /**
      * Refresh the Year to Date card's source anchor for the viewed tax year: rebuild the "From which
-     * payslip?" select, record a source for figures that never had one (`ytdSourceToStamp`), select
-     * the stored source and rewrite the note and chip.
-     * @param {any} ty @param {any} p
+     * payslip?" select, record a source for figures that never had one (`ytdSourceToStamp`) and select
+     * the stored source. Its note and chip follow in the calculate() that every caller runs next.
+     * @param {any} ty
      */
-    function _refreshYtdSrc(ty, p) {
+    function _refreshYtdSrc(ty) {
       const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ytdSrcSelect'));
       if (!sel) return;
       buildYtdSourceSelect(ty);
@@ -256,15 +256,16 @@ export function init() {
       if (stamp != null) lsSet(ytdSrcKey(ty), String(stamp));
       const src = stamp ?? (parseInt(_rawSrc ?? '', 10) || 0);
       if (src) _setSelectPeriod(sel, src);
-      _updateYtdNote(ty, p, src);
     }
 
-    /** The Year to Date note and header chip for the payslip on screen (`ytdAnchorStatus`).
-     *  @param {any} ty @param {any} p @param {number} src */
-    function _updateYtdNote(ty, p, src) {
+    /** The Year to Date note and header chip for the payslip on screen (`ytdAnchorStatus`), from what
+     *  computeTax DID — written by calculate() on every run, so a tax code or a half-typed pair that
+     *  stops the figures being used is said at once.
+     *  @param {any} ty @param {any} p @param {number} src @param {boolean} inUse @param {string} taxCode */
+    function _updateYtdNote(ty, p, src, inUse, taxCode) {
       const note = document.getElementById('ytdUptoNote');
       if (!note) return;
-      const s = ytdAnchorStatus({ p, ty, src, hasFigures: _ytdHasFigures() });
+      const s = ytdAnchorStatus({ p, ty, src, hasFigures: _ytdHasFigures(), inUse, taxCode });
       note.classList.toggle('ytd-upto-note--live', s.noteLive);
       note.innerHTML = s.note;   // '' is hidden by `.ytd-upto-note:empty`
       const chip = document.getElementById('ytdStatusChip');
@@ -340,7 +341,7 @@ export function init() {
 
       // The Year to Date figures are stored per tax year WITH the payslip they were copied from; the
       // cumulative method uses them only on the payslip straight after it (see calculate()).
-      _refreshYtdSrc(ty, p);
+      _refreshYtdSrc(ty);
 
       // This tax year's HPP amount source, restored BEFORE loadPeriodData() runs calculate() (calcHPP
       // reads the mode), so each year shows its own choice.
@@ -748,6 +749,7 @@ export function init() {
         { ytdPay: ytdP, ytdTax: ytdT, periodN },
       );
       paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
+      _updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed);     // "in use" is what computeTax did
 
       // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases)
       const ni = computeNI(sacGross, thresholds.ni);
@@ -1360,12 +1362,16 @@ export function init() {
 
     // Payslip card inputs
     // Year to Date figures: stamp the source payslip on first entry (the latest paid one, where the
-    // totals almost always come from), then persist + recalc; the select corrects it.
+    // totals almost always come from), and move an older one to the payslip the take-home line names
+    // when they are typed in again (ytdSourceAfterRetype); then persist + recalc. The select corrects it.
     const _ytdFigureInput = () => {
       saveSettings();
       const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       const _ty2 = taxYearForPeriod(_p2);
-      if (!lsGet(ytdSrcKey(_ty2))) _refreshYtdSrc(_ty2, _p2); else _updateYtdNote(_ty2, _p2, parseInt(lsGet(ytdSrcKey(_ty2)) ?? '', 10) || 0);
+      const _raw = lsGet(ytdSrcKey(_ty2));
+      const _moved = ytdSourceAfterRetype(_raw, { p: _p2, ty: _ty2 });
+      if (_moved != null) lsSet(ytdSrcKey(_ty2), String(_moved));
+      if (_moved != null || !_raw) _refreshYtdSrc(_ty2);
       calculate();
     };
     /** @type {HTMLElement} */ (document.getElementById('ytdPay')).addEventListener('input', _ytdFigureInput);
@@ -1379,8 +1385,7 @@ export function init() {
       // the key instead let the load-time stamp re-anchor them on the next period change, as the
       // figures remain; '0' is a recorded value it leaves alone (ytdSourceToStamp).
       if (_v) lsSet(ytdSrcKey(_ty2), _v); else lsSet(ytdSrcKey(_ty2), '0');
-      _updateYtdNote(_ty2, _p2, parseInt(_v, 10) || 0);
-      calculate();
+      calculate();   // which rewrites the note and chip
     });
 
     // The prior year's confirmed premium commits on `change` (leaving the field), NEVER on `input`:
