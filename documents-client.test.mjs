@@ -503,6 +503,16 @@ describe('the latest Circular or Newsletter: an empty cache is not "none uploade
         }
     });
 
+    test('…and a CONNECTION failure, not an access one — the drawer says "check your signal", never "signed out"', async () => {
+        // nav-panel.js words a rejection by `isAccessFailure`: true is "you may have been signed out",
+        // false is "Couldn't connect — check your signal". An empty offline cache is the second.
+        const { isAccessFailure } = await import('./claim-retry.js');
+        const client = reading({ empty: true, docs: [], metadata: { fromCache: true } });
+        const err = await client.getLatestCircular().then(() => null, e => e);
+        assert.ok(err, 'it rejected');
+        assert.equal(isAccessFailure(err), false);
+    });
+
     test('the SERVER\'s empty answer is "none uploaded" — the gate is a gate, not a disablement', async () => {
         const client = reading({ empty: true, docs: [], metadata: { fromCache: false } });
         assert.equal(await client.getLatestCircular(), null);
