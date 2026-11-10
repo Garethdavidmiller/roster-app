@@ -5,7 +5,8 @@
  *
  * Owns: `computeCellStates` — the classification (MATCH · DIFF · CONFLICT · COVERED ·
  *   REMOVE_IMPORT · UNREADABLE · GUARDED), the `chosen` default that decides what a Save writes,
- *   and the `UNKNOWN|` / `RDW|` review encodings the renderer reads back.
+ *   and what one Save writes and says (`collectRosterWrites`, `reviewOutcome`). The `UNKNOWN|` /
+ *   `RDW|` review encodings are roster-cell-rules.js's, re-exported here for the renderer.
  * Does NOT own: the parse, the review table's DOM, the entry control, or any write.
  * Edit here for: a new cell state, or a change to what is ticked by default.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
@@ -48,27 +49,16 @@
 
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { shouldReplaceOverride, isContractedWorkOverride, contractEvidence } from './override-utils.js';
-import { normaliseCellValue } from './roster-cell-rules.js';
+import { normaliseCellValue, RDW_PREFIX, isRdwEncoded, stripRdw, UNKNOWN_PREFIX, isUnknownEncoded, stripUnknown } from './roster-cell-rules.js';
 import { assessRosterAlignment } from './roster-alignment.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
 
 /** Why a Christmas Day or Boxing Day row starts unticked (owner, 10 Nov 2026) — the row's note. */
 export const CHRISTMAS_NOTE = 'Not selected — the app’s Christmas leave decides 25 and 26 December.';
 
-/** The review's internal marker for "this worked time is rest-day working". The value SAVED to
- *  Firestore is the bare time — the RDW-ness lives in the override's `type` — so this prefix
- *  exists only between the parse and the save. `admin-roster-upload.js` imports both predicates
- *  back rather than keeping a second copy. */
-export const RDW_PREFIX     = 'RDW|';
-export const isRdwEncoded   = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
-export const stripRdw       = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
-
-/** UNKNOWN|<raw> — a value the AI returned that `normaliseShift` (server) could not recognise as a
- *  shift. Surfaced in review as an UNREADABLE cell so a garbled real shift isn't silently dropped;
- *  never written to Firestore (see rule 3 above, and the save path). Mirrors the RDW encoding. */
-export const UNKNOWN_PREFIX   = 'UNKNOWN|';
-export const isUnknownEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(UNKNOWN_PREFIX);
-export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFIX.length);
+/** The `RDW|` / `UNKNOWN|` review encodings are defined ONCE, in roster-cell-rules.js, and re-exported
+ *  here for the renderer and the tests that have always reached them through this module. */
+export { RDW_PREFIX, isRdwEncoded, stripRdw, UNKNOWN_PREFIX, isUnknownEncoded, stripUnknown };
 
 /**
  * Compute the state of every (member, date) cell in the review table.

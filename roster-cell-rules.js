@@ -3,7 +3,8 @@
  * roster-cell-rules.js — what a parsed roster cell MEANS as an override.
  *
  * Owns: the two rules that stand between "the PDF said X" and "we wrote Y" — the per-cell guards
- *   (`normaliseCellValue`) and the value-to-override-type mapping (`shiftValueToOverrideType`).
+ *   (`normaliseCellValue`) and the value-to-override-type mapping (`shiftValueToOverrideType`) — and
+ *   the `RDW|` / `UNKNOWN|` review encodings every import module reads.
  * Does NOT own: the parse, the review states, the renderer, or any write.
  * Edit here for: a guard, or a new override type the import can produce.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
@@ -30,9 +31,24 @@
 import { isSunday } from './roster-data.js';
 import { sundaySafeValue, isOtherValue } from './override-utils.js';
 
-const RDW_PREFIX   = 'RDW|';
-const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
-const stripRdw     = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
+// ── THE TWO REVIEW-ONLY ENCODINGS, DEFINED ONCE (whole-app fix, Nov 2026) ─────────────────────────
+// They were written out in this module, in roster-alignment.js and in roster-review-states.js, whose
+// comment said a second copy was what it avoided. This module is the one all three can import
+// without a cycle; roster-review-states.js re-exports them for the renderer and its tests.
+
+/** The review's internal marker for "this worked time is rest-day working". The value SAVED to
+ *  Firestore is the bare time — the RDW-ness lives in the override's `type` — so this prefix
+ *  exists only between the parse and the save. */
+export const RDW_PREFIX     = 'RDW|';
+export const isRdwEncoded   = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
+export const stripRdw       = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
+
+/** UNKNOWN|<raw> — a value the AI returned that `normaliseShift` (server) could not recognise as a
+ *  shift. Surfaced in review as an UNREADABLE cell so a garbled real shift isn't silently dropped;
+ *  never written to Firestore (roster-review-states.js, rule 3). Mirrors the RDW encoding. */
+export const UNKNOWN_PREFIX   = 'UNKNOWN|';
+export const isUnknownEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(UNKNOWN_PREFIX);
+export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFIX.length);
 
 /**
  * Normalise one parsed cell value into the pair the review table compares and saves.

@@ -36,6 +36,7 @@
 
 import { teamMembers, getBaseShift, parseISODate, formatISO } from './roster-data.js';
 import { londonDate } from './date-format.js';
+import { isRdwEncoded, stripRdw, isUnknownEncoded } from './roster-cell-rules.js';
 
 /**
  * The week ending the upload form offers before anybody picks one (owner, 10 Nov 2026).
@@ -60,12 +61,6 @@ export function defaultWeekEnding(now) {
 
 /** 'left' | 'right' from the base-roster detector; 'geometry' when the PDF's own grid refused a cell on the row. */
 /** @typedef {'left'|'right'|'geometry'} Drift */
-
-const RDW_PREFIX       = 'RDW|';
-const UNKNOWN_PREFIX   = 'UNKNOWN|';
-const isRdwEncoded     = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
-const stripRdw         = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
-const isUnknownEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(UNKNOWN_PREFIX);
 
 /**
  * Detect a parsed row that looks shifted by ONE DAY against the member's own base roster —
