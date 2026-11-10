@@ -1413,14 +1413,27 @@ describe('getPensionForPeriod', () => {
   // is only the fallback used before a payslip is resolved — so the £151.86 step from the award
   // payslip could move a month, or take the old amount, with the whole estate green. Each would put
   // every current take-home about £4.50 out.
-  test('the 28 Aug 2026 award payslip → £151.86; the payslip before it keeps £147.36', () => {
+  // THE RISE BEGAN INSIDE THE 31 JUL 2026 PAYSLIP (twelve payslips re-read 10 Nov 2026): it
+  // prints two "Smart RPS CR Scheme" lines, £113.90 + £36.84, where this table held £147.36 — that
+  // payslip's estimate was £3.38 out on pension alone.
+  test('each 2026/27 payslip carries the pension printed on it: £147.36, then £150.74 split, then £151.86', () => {
     for (const grade of ['cea', 'ces']) {
-      assert.equal(getPensionForPeriod(grade, new Date(2026, 6, 31)), 147.36, `${grade}: 31 Jul 2026 — the last payslip before the award`);
-      assert.equal(getPensionForPeriod(grade, new Date(2026, 7, 27)), 147.36, `${grade}: the day before the step`);
-      assert.equal(getPensionForPeriod(grade, new Date(2026, 7, 28)), 151.86, `${grade}: the award payslip itself`);
-      assert.equal(getPensionForPeriod(grade, new Date(2026, 8, 25)), 151.86, `${grade}: 25 Sep 2026`);
-      assert.equal(getPensionForPeriod(grade, new Date(2026, 10, 20)), 151.86, `${grade}: 20 Nov 2026`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 6, 3, 12)), 147.36, `${grade}: 3 Jul 2026 — the last whole period at the old amount`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 6, 31, 12)), 150.74, `${grade}: 31 Jul 2026 — the split payslip`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 7, 28, 12)), 151.86, `${grade}: the award payslip itself`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 8, 25, 12)), 151.86, `${grade}: 25 Sep 2026`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 9, 23, 12)), 151.86, `${grade}: 23 Oct 2026`);
+      assert.equal(getPensionForPeriod(grade, new Date(2026, 10, 20, 12)), 151.86, `${grade}: 20 Nov 2026`);
     }
+  });
+
+  test('the 31 Jul 2026 figure IS that payslip\'s two lines: 21 days at the new amount, 7 at the old', () => {
+    // Read from the table's own neighbours, so neither amount can move without this one following.
+    const at = (/** @type {Date} */ d) => getPensionForPeriod('cea', d);
+    const r2 = (/** @type {number} */ x) => Math.round(x * 100) / 100;
+    const lines = [r2(at(new Date(2026, 7, 28, 12)) * 21 / 28), r2(at(new Date(2026, 6, 3, 12)) * 7 / 28)];
+    assert.deepEqual(lines, [113.90, 36.84], 'the two "Smart RPS CR Scheme" lines printed on the 31 Jul 2026 payslip');
+    assert.equal(at(new Date(2026, 6, 31, 12)), r2(lines[0] + lines[1]));
   });
 
   test('the grade default IS the newest step — the fallback cannot drift from the record', () => {
