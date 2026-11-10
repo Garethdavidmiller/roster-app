@@ -716,6 +716,45 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
     expect(wrong, 'pages not rendering in the app typeface').toEqual([]);
 });
 
+// ── …AND SO DOES EVERY CONTROL ON IT (whole-app review, Nov 2026) ──────────────────────────────────────
+// A form control does not inherit the page's typeface: the browser gives `button`, `input`, `select` and
+// `textarea` a font of their own, so every control without a `font-family` rule of its own was drawn in
+// Arial — the burger on all nine pages, Pay's hours fields and its Clear and ± buttons, the date picker's
+// arrows, the prompt dialog's field, the FIP finder's clear ✕. Asked of every control a page holds, shown
+// or not, and of the two that are built only when opened. A box that names a face on purpose (the
+// monospace paste boxes) is not a browser default, and is the one face allowed besides Inter.
+test('every control on every page and guide is set in Inter, not the browser\'s control font', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    const census = () => page.evaluate(() => [...document.querySelectorAll('button, input, select, textarea')]
+        .filter(el => !['checkbox', 'radio', 'hidden'].includes(el.getAttribute('type') ?? ''))
+        .map(el => ({ el, face: getComputedStyle(el).fontFamily }))
+        .filter(({ face }) => !/^"?Inter\b/.test(face) && !/^ui-monospace\b/.test(face))
+        .map(({ el, face }) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} → ${face.split(',')[0]}`));
+    /** @type {string[]} */
+    const wrong = [];
+    const GUIDES = ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide'].map(g => `/${g}.html`);
+    for (const url of [...APP_URLS, ...GUIDES]) {
+        await page.goto(url);
+        if (APP_URLS.includes(url)) await waitForPageSettled(page);
+        wrong.push(...(await census()).map(c => `${url} ${c}`));
+    }
+    // Built on demand: the date picker (Admin's week label opens it) and the prompt dialog.
+    await page.goto('/admin.html');
+    await waitForPageSettled(page);
+    await page.locator('#weekNavLabel').click();
+    await expect(page.locator('.dp-content')).toBeVisible();
+    wrong.push(...(await census()).map(c => `the date picker ${c}`));
+    await page.goto('/links.html');
+    await page.evaluate(async () => {
+        const { promptDialog } = await import('/overlay.js');
+        promptDialog({ title: 'Name', message: 'Name?', defaultValue: 'seed' });
+    });
+    await expect(page.locator('.dialog-overlay .dialog-input')).toBeVisible();
+    wrong.push(...(await census()).map(c => `the prompt dialog ${c}`));
+    expect(wrong, 'controls in the browser\'s own font').toEqual([]);
+});
+
 // ── No focusable field may sit under 16px on a touch device (v19.61) ─────────────────────────────
 // iOS force-zooms the page when you focus a field smaller than 16px, and the app has said "never go
 // below 16px on a focusable field" in css-tokens.md since v11.77 — with NOTHING enforcing it.

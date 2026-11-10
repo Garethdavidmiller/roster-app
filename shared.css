@@ -555,6 +555,14 @@
     scrollbar-color: var(--border-mid) transparent;
 }
 
+/* A FORM CONTROL DOES NOT INHERIT THE PAGE'S TYPEFACE. The browser gives `button`, `input`, `select` and
+   `textarea` a font of their own — Arial on Windows and Linux, the system face on a phone — so every control
+   without a `font-family` rule of its own was drawn in it: the burger on every page, the date picker's
+   arrows, the prompt dialog's field, Pay's hours fields and its Clear and ± buttons (whole-app review,
+   Nov 2026, measured page by page). Inter is the app's only typeface (css-tokens.md). An element rule, so
+   any class that names a face of its own — the monospace paste boxes — still wins. */
+button, input, select, textarea { font-family: inherit; }
+
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {

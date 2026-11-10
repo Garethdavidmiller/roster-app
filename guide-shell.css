@@ -66,6 +66,9 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
 :where(p) { text-wrap: pretty; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* A form control takes the browser's own font, not the page's: the FIP country finder's clear ✕ was Arial.
+   The same rule as shared.css's, restated for the reason `--scroll-thumb` is (whole-app review, Nov 2026). */
+button, input, select, textarea { font-family: inherit; }
 
 /* ── Full-bleed sticky page header ──────────────────────────────────────────
    Back arrow (left) · title + subtitle · ⤓ PDF button (right). */
