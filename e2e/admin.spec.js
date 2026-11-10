@@ -754,9 +754,13 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     const thisYear = await read();
     expect(thisYear.taken, 'the fixture must actually be on record, or every figure below is a true zero')
         .toBeGreaterThan(0);
+    // AND IT SAYS WHICH YEAR (whole-app check, Nov 2026; admin-2-14): four figures with no year beside them.
+    const entLbl = page.locator('#alBannerLblEntitlement');
+    await expect(entLbl).toHaveText('2026 entitlement');
 
     await scroll('#alRpNext');
     await expect(page.locator('#alRpLabel, #alRangePicker .rp-label')).toContainText('2027');
+    await expect(entLbl, 'the year moves with the figures').toHaveText('2027 entitlement');
     const nextYear = await read();
     expect(nextYear.taken, 'leave taken in 2026 is being counted against 2027').toBe(0);
     expect(nextYear.remaining, 'a year with nothing booked shows the whole entitlement')
@@ -1122,6 +1126,58 @@ test('admin: the over-entitlement question stays up past an earlier success mess
     // pinned. 7.6s from here is past the fade however long the clicks above took.
     await page.clock.fastForward(7_600);
     await expect(bar, 'the question must wait for an answer, not for a timer').toHaveClass(/visible/);
+});
+
+// ONE WRITE AT A TIME, "SAVE ANYWAY" INCLUDED (whole-app check, Nov 2026; routed from admin-2). The bar's
+// Save anyway ran the week's save whatever else was sending: beside an absence booking still writing, two
+// writes to one page at once (the v24.38 duplicate-record race), and the week's save then released the lock
+// the booking still held. It now waits, as the cards' own Save buttons do.
+test('admin: "Save anyway" does not start while a booking is still sending', async ({ page }) => {
+    test.setTimeout(45_000);
+    const TAKEN = [];
+    for (const m of ['06', '07']) for (let d = 1; d <= 28; d++) TAKEN.push(`2026-${m}-${String(d).padStart(2, '0')}`);
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');   // a real user, so neither write is refused
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = dates.map((date, i) => ({ id: `al-${i}`, memberName: 'G. Miller', date,
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    }, TAKEN);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    // An absence picked and ready to record (Tue 8 Sep 2026, a working day on his line).
+    await page.locator('#sickToggleHeader').click();
+    await page.locator('#sickRpNext').click();
+    const day = page.locator('#sickRpGrid .rp-day[data-iso="2026-09-08"]');
+    await day.click();
+    await day.click();
+    await expect(page.locator('#sickSaveBtn')).toBeEnabled();
+    // A week's leave over the allowance: the bar asks.
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2026-11-16';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Nov 2026');
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    for (const btn of await page.locator('.day-row .al-swap-btn[data-swap="no"]').all()) {
+        if (await btn.isVisible()) await clickInView(btn);
+    }
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#alConfirmBar')).toHaveClass(/visible/);
+    // The absence starts sending, and is held there…
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.holdCommits = true; });
+    await clickInView(page.locator('#sickSaveBtn'));
+    const held = () => page.evaluate(() => (/** @type {any} */ (window).__E2E._held || []).length);
+    await expect.poll(held, { message: 'premise: the booking is sending' }).toBe(1);
+    // …and Save anyway, pressed meanwhile, waits.
+    await page.locator('#alConfirmSaveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('Another change is still saving — try again when it has finished.');
+    expect(await held(), 'one write at a time').toBe(1);
+    await expect(page.locator('#alConfirmBar'), 'the question stays, to answer once the booking is in').toHaveClass(/visible/);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
 });
 
 // Whole-app review, Oct 2026: a leave range picked while the member's records were still loading was
@@ -2362,6 +2418,69 @@ test('admin: a booked period a colleague has since changed is not deleted, and t
     await expect(page.locator('#alBookedBody .btn-period-delete')).toHaveCount(1);
 });
 
+// THE FEEDBACK LINE HAS ONE FADE (whole-app check, Nov 2026; routed from admin-2, admin-2-7). A delete's
+// "✓ Deleted" set its own untracked six-second timer, which then took down whatever the line said next —
+// here the refusal of a second delete, gone three seconds after it appeared.
+test('admin: a refused delete straight after a delete stays on screen past the first one\'s fade', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    const me = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const works = (/** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(getBaseShift(me, d));
+    const firstWorked = (/** @type {Date} */ from) => { const d = new Date(from); while (!works(d)) d.setDate(d.getDate() + 1); return d; };
+    const a = firstWorked(new Date(2026, 2, 2));
+    const days = [iso(a), iso(firstWorked(new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7)))];   // two periods
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript((ds) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: ds.map((/** @type {string} */ date, /** @type {number} */ i) => ({ id: 'k' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })),
+        });
+    }, days);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    const dels = page.locator('#alBookedBody .btn-period-delete');
+    await dels.first().click();
+    await dels.first().click();
+    const line = page.locator('#alFeedback');
+    await expect(line).toContainText('Deleted 1 AL day');
+    // A colleague changes the other day; deleting it now is refused, on the same line.
+    await page.evaluate((d) => { /** @type {any} */ (window).__E2E.getDocData = { memberName: 'G. Miller', date: d, type: 'rdw', value: '09:00-17:00' }; }, days[1]);
+    await page.clock.fastForward(3_000);
+    await dels.first().click();
+    await dels.first().click();
+    await expect(line).toContainText(/Someone else has changed this/);
+    await page.clock.fastForward(4_000);   // past the first delete's six seconds
+    await expect(line, 'the refusal is still there to read').toHaveClass(/\berror\b/);
+    await expect(line).toBeVisible();
+});
+
+// A REFUSED PERIOD DELETE IS NOT BLAMED ON THE CONNECTION (whole-app check, Nov 2026; routed from admin-2,
+// admin-2-10). Anything not named was "Delete failed — check your connection", a refusal by the rules included.
+test('admin: a period delete the rules refuse says so, not "check your connection"', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    // The stub records each delete it is handed; recording this one throws the rules' refusal instead.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.batchDeletes = { push() {
+        throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' }); } }; });
+    const btn = page.locator('#alBookedBody .btn-period-delete').first();
+    await btn.click();
+    await btn.click();
+    await expect(page.locator('#alFeedback')).toContainText('you may have been signed out');
+    await expect(page.locator('#alFeedback')).not.toContainText('check your connection');
+});
+
 test('admin: an armed Saved Changes delete says so in its accessible name, and says it only while armed', async ({ page }) => {
     // The recorded-dates ✕ already renames itself "Confirm delete …" while armed; this control kept
     // announcing "Delete G. Miller 2026-09-01" under a button reading "Delete?" (external review,
@@ -3018,6 +3137,20 @@ test('admin: only the main mouse button, held, drags the week — and a pointer 
         { bubbles: true, isPrimary: true, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1, clientX: a.from, clientY: a.y })), { from, y });
     await page.mouse.move(to, y, { steps: 14 });   // no button held
     await unmoved('a press released elsewhere');
+
+    // A press released OFF the grid, and then a drag begun elsewhere carried in with the button held: the
+    // grid still took it as the old press's swipe (the document hears that release; the grid did not).
+    ({ from, to, y } = await weekDragPoints(page));
+    const box = /** @type {{ x: number, y: number, width: number, height: number }} */ (await page.locator('#weekGrid').boundingBox());
+    await page.mouse.move(from, y);
+    await page.mouse.down();
+    await page.mouse.move(from, box.y - 20);                 // straight off the grid, unseen by it
+    await page.mouse.up();
+    await page.mouse.move(box.x + box.width / 2, box.y - 20);
+    await page.mouse.down();                                   // a new press, NOT on the grid
+    await page.mouse.move(to, y, { steps: 14 });               // carried in, button held
+    await unmoved('a drag begun off the grid');
+    await page.mouse.up();
 
     // A pointer the browser no longer knows: capturing it throws, which must end the gesture, not escape it.
     await fire('pointerdown', { pointerId: 99, button: 0, buttons: 1, clientX: from, clientY: y });
@@ -4086,7 +4219,7 @@ test('admin: the Record Absence tips say a Sunday rostered as work is set as a r
     await page.locator('.btn-card-tips[data-card="sick-days"]').click();
     const tips = page.locator('#tipsLbBody');
     await expect(tips).toContainText('Rest days and Sundays inside the range are skipped automatically');
-    await expect(tips).toContainText('a Sunday rostered as work is set as a rest day, so its shift no longer shows');
+    await expect(tips).toContainText('Sundays are never recorded as absence — a rostered Sunday in the range is set as a rest day, and the preview names it.');
 });
 
 // ── THE DESKTOP AUDIT (Nov 2026) ─────────────────────────────────────────────────────────────────

@@ -7,15 +7,15 @@
  *   kept week draft, and initialising every card's module on load.
  * Does NOT own: the week grid and bulk bar (admin-week-editor.js), what a save writes
  *   (admin-overrides.js), the AL and Absence cards (admin-al.js, admin-sick.js, admin-range-booking.js),
- *   the roster PDF review (admin-roster-upload.js), staff Firebase Auth set-up (admin-auth.js), pay
- *   maths, calendar display or roster data.
+ *   pay maths, calendar display or roster data. The roster PDF review and staff account set-up are
+ *   Operations' (operations-app.js), not on this page.
  * Edit here for: login, page wiring, the Save collector. Not here: the grid, a save's write, shared CSS.
  */
 
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { unconfirmedWriteLine } from './claim-retry.js';
+import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage } from './page-session.js';
 import { createDraftSlot, savedSignature, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -43,7 +43,7 @@ import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from '.
 import { alPosition, consumesEntitlement, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
-import { createBookedPeriods } from './admin-booked-periods.js';
+import { createBookedPeriods, fadeFeedback, holdFeedback } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -128,7 +128,7 @@ export function init() {
                 // reloadOnSuccess is set on the B1 stale-session path (see the _adminAuth.then block in
                 // initAuthorised): initAuthorised() ALREADY ran optimistically there and resolved the
                 // one-shot sessionReady, which cannot be re-resolved — so re-initialising in place would
-                // leave feature modules (admin-overrides, huddle, admin-auth) gated on a stale/failed auth
+                // leave feature modules (admin-overrides, admin-override-store) gated on a stale/failed auth
                 // barrier. Reload for a fresh page life + fresh sessionReady, mirroring operations/settings/
                 // links' B1 handling. The normal not-signed-in path (initAuthorised never ran, sessionReady
                 // still pending) initialises in place as before, falling back to a reload if init throws.
@@ -236,7 +236,7 @@ export function init() {
                         { icon: '🪑', html: 'You never say why. Only the dates are saved; the reason is not recorded anywhere in the app.' },
                     ]},
                     { heading: 'Good to know', items: [
-                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically — though a Sunday rostered as work is set as a rest day, so its shift no longer shows.' },
+                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically. Sundays are never recorded as absence — a rostered Sunday in the range is set as a rest day, and the preview names it.' },
                         { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and everybody can see it, the same as annual leave. What they cannot see is why.' },
                     ]},
                 ],
@@ -616,6 +616,9 @@ export function init() {
         takenEl.textContent  = String(taken);
         bookedEl.textContent = String(booked);
         entEl.textContent    = String(entitlement);
+        // …AND WHICH YEAR (whole-app check, Nov 2026; admin-2-14): a save keeps the picker on the year it booked.
+        const entLbl = document.getElementById('alBannerLblEntitlement');
+        if (entLbl) entLbl.textContent = `${yearStr} entitlement`;
 
         // What the entitlement is made of — a Dispatcher's base and bank-holiday days, anybody's
         // Boxing Day in lieu (v25.37) — in ONE line shared with the Calendar's leave panel
@@ -914,16 +917,10 @@ export function init() {
         name.textContent = who;
         row.hidden = !who;
     }
-    function syncMemberDisplay() {
-        const memberDisplay = document.getElementById('alMemberDisplay');
-        if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
-        _syncMemberFor('alMemberFor', 'alMemberForName');
-    }
-    function syncSickMemberDisplay() {
-        const memberDisplay = document.getElementById('sickMemberDisplay');
-        if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
-        _syncMemberFor('sickMemberFor', 'sickMemberForName');
-    }
+    // The two cards' read-only "Staff member" labels are gone from admin.html (whole-app check, Nov 2026 —
+    // hidden for good, still written to); "Recording for" is what each card says about its member now.
+    function syncMemberDisplay()     { _syncMemberFor('alMemberFor', 'alMemberForName'); }
+    function syncSickMemberDisplay() { _syncMemberFor('sickMemberFor', 'sickMemberForName'); }
 
     // Preview refreshers exposed by initALSection / initSickSection (assigned when those
     // run, further down). Called on member change so the AL/absence previews can't keep
@@ -1177,6 +1174,8 @@ export function init() {
         // already nulled by hideALConfirm and fall into the AL-booking branch — an unintended,
         // entitlement-unchecked AL write. Re-enabled by showALConfirm the next time the bar opens.
         if (alConfirmSaveBtn.disabled) return;
+        // ONE WRITE AT A TIME (v24.38), this button too (Nov 2026): a booking still sending holds the lock, which this save's end released.
+        if (_alPendingSave && isSaveInFlight()) return showError('Another change is still saving — try again when it has finished.');
         alConfirmSaveBtn.disabled = true;
         if (_alPendingSave) {
             // Week editor path — toSave is an array of override entries
@@ -1280,6 +1279,7 @@ export function init() {
         await sessionReady;
         if (!auth.currentUser) {
             if (feedbackEl) {
+                holdFeedback(feedbackEl);
                 setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
                 feedbackEl.className = 'feedback error';
             }
@@ -1310,7 +1310,7 @@ export function init() {
             if (feedbackEl) {
                 setStatus(feedbackEl, said);
                 feedbackEl.className = 'feedback success';
-                setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
+                fadeFeedback(feedbackEl, 'feedback', 6000);   // the line's ONE fade, which a later message cancels (admin-2-7)
             }
             // The inline line above sits at the top of the card; the row that was just deleted can
             // be a screen below it. A destructive action whose confirmation lands off-screen is one
@@ -1319,12 +1319,14 @@ export function init() {
         } catch (err) {
             console.error('[Admin] Period delete failed:', err);
             if (feedbackEl) {
+                // Never blamed on the connection when it was a refusal (admin-2-10): `saveFailureMessage` words each cause.
                 const msg = (/** @type {any} */ (err)).code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
                     : (/** @type {any} */ (err)).code === 'unavailable'
                     ? '⚠ You appear to be offline — reconnect and try again.'
                     : unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                         ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-                        : '⚠ Delete failed — check your connection and try again.';
+                        : '⚠ ' + saveFailureMessage(err);
+                holdFeedback(feedbackEl);   // an earlier delete's fade must not take this error down (admin-2-7)
                 feedbackEl.textContent = msg;
                 feedbackEl.className = 'feedback error';
                 // An error has to be READ, so it stays inline rather than in a 4s toast — and is
@@ -1428,10 +1430,8 @@ export function init() {
         alMember.disabled     = true;
         _setSelectValue(sickMember, currentUser);
         sickMember.disabled   = true;
-        // Refresh the absence card's display label too (v16.23) — the module-scope restore may have
-        // stamped a COLLEAGUE's name into #sickMemberDisplay (myb_roster_selected_member follows
-        // whichever calendar the user last viewed), and with the select disabled no change event
-        // ever corrects it. The write targeted sickMember.value (self) — display-only, but alarming.
+        // And the absence card's member row (v16.23): with the select disabled no change event ever
+        // re-syncs it. (Its read-only label, which once showed a colleague's name here, is gone.)
         syncSickMemberDisplay();
         lsSet(SELECTED_MEMBER, currentUser);
 
@@ -1532,8 +1532,8 @@ export function init() {
         // Returning user with a valid localStorage session never passes through the
         // login click handler, so re-establish the Firebase Auth session here.
         // Without this, auth.currentUser stays null and every Firestore write fails.
-        // resolveSession() fulfils sessionReady so feature modules (admin-auth.js,
-        // admin-overrides.js, huddle.js) can import sessionReady instead of window._mybSession.
+        // resolveSession() fulfils sessionReady so feature modules (admin-overrides.js, admin-override-store.js,
+        // admin-leave-year-save.js) can import sessionReady instead of window._mybSession.
         const _adminAuth = ensureNamedSession(currentUser);
         resolveSession(_adminAuth);
         // B1.2: a returning local session that can't be confirmed as this member's OWN Firebase

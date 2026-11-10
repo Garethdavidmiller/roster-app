@@ -248,6 +248,19 @@ export function initAdminWeekSwipe({
         abandon(e);
     });
 
+    // A RELEASE THE GRID NEVER HEARD ENDS THE PRESS HERE (whole-app check, Nov 2026 — the pattern of the
+    // leave picker and calendar-swipe.js). Before the swipe is sure of itself nothing is captured, so a
+    // press released off the grid reached only the document, and the grid kept listening: a later drag
+    // begun ELSEWHERE, carried in with the button held, moved the week from that old press. Bubble
+    // phase, so a release on the grid has already been handled. (The bare-move check above is the
+    // other half: a release that reached nobody, as a menu opened by a Mac's ctrl-click takes it.)
+    /** @param {PointerEvent} e */
+    function abandonUncaptured(e) {
+        if (e.isPrimary && swipeListening && !swipeDragging) swipeListening = false;
+    }
+    document.addEventListener('pointerup', abandonUncaptured);
+    document.addEventListener('pointercancel', abandonUncaptured);
+
     // Button handlers inside IIFE so they share the swipeCooldown closure variable
     /** @type {HTMLElement} */ (prevWeekBtn).addEventListener('click', () => { if (!swipeCooldown) shiftWeek(-1); });
     /** @type {HTMLElement} */ (nextWeekBtn).addEventListener('click', () => { if (!swipeCooldown) shiftWeek(+1); });

@@ -12,13 +12,13 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
+import { shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { db, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { saveFailureMessage } from './claim-retry.js';
 // The cache, what it knows, and the reads that fill it — see admin-override-store.js. Re-exported
 // below so admin-app.js and the tests keep one import site for the whole Change-a-Shift surface.
-import { TYPES, PILL_TYPES, WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
+import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
          resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight } from './admin-week-editor.js';
@@ -33,6 +33,7 @@ export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
+import { rangeSundayCorrections } from './admin-al-projection.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
@@ -434,26 +435,12 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // Which dates are written: `rangeWriteDates` — an answered-"free" rest day never (review A2).
     const workingDates = rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates: [...swapped] });
 
-    // Sundays within the range that have a worked base shift need an explicit RD correction
-    // so the base roster shift doesn't still show on the calendar during the absence period.
-    const sundayCorrections = memberObj
-        ? dates.filter(dateStr => {
-            if (!isSunday(dateStr)) return false;
-            const base = getBaseShift(memberObj, parseISODate(dateStr));
-            if (isRestShift(base)) return false;
-            // Skip the RD correction when the existing override is already a rest shift (RD/OFF —
-            // nothing to correct, avoid churn) OR is a genuinely WORKED override that correction/RD
-            // would silently ERASE — WORKED_OVERRIDE_TYPES, the current rdw/shift/spare_shift. The
-            // three retired types (allocated/overtime/swap) are NOT in it: put back on 6 Nov 2026 as a
-            // defence, they left again on 7 Nov once no record of them was found (admin-shift-types.js
-            // says why). A NON-worked override that
-            // shouldn't be on a Sunday (sick/AL) still gets corrected to RD, preserving the v12.61
-            // masking behaviour for those. (v16.19)
-            const ov = ovByDate.get(dateStr);
-            if (ov && (isRestShift(ov.value) || WORKED_OVERRIDE_TYPES.has(ov.type))) return false;
-            return true;
-          })
-        : [];
+    // Sundays within the range that have a worked base shift need an explicit RD correction so the base
+    // roster shift doesn't still show on the calendar during the absence period — skipped where the day
+    // already holds a rest value, or a WORKED record (WORKED_OVERRIDE_TYPES) it would erase; a leave or
+    // absence record still gets corrected, the v12.61 masking (v16.19). ONE rule, which the range cards'
+    // preview and receipt name too (whole-app check, Nov 2026): `rangeSundayCorrections`, admin-al-projection.js.
+    const sundayCorrections = rangeSundayCorrections({ dates, memberObj, ovByDate });
 
     // No working days → record nothing (and report sundayCount:0 accurately). A Sunday RD
     // correction only makes sense ALONGSIDE an AL/absence booking (so a worked Sunday inside the

@@ -79,12 +79,12 @@ export function initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits,
 //     over-entitlement check — which a cold cache would make wrong (a real <12h gap missed, or a valid
 //     save wrongly blocked). It disables Save BEFORE the await (the v16.23 "disable before the first
 //     await" invariant) so no double-tap window opens.
-// The AL RANGE card's pre-save reads — the over-entitlement warning (admin-al.js checkEntitlement, via
-// admin-range-booking's preSave), the swap answers and the "left alone" receipt lines — were left
-// ungated on two premises that no longer hold (whole-app check, Nov 2026; admin-2-1): that the cache is
-// long warm by then (since v21.38 every member switch starts a fresh, staged load), and that a cold miss
-// only SKIPS a warning (since v23.75 the swap answers are decided from it too). The write itself still
-// self-gates (recordRangeOverrides). Whether that card waits for the member is admin-range-booking.js's to say.
+//   • The RANGE cards (AL and Absence) gate at the click: until `hasOverrideAuthorityFor(member)` they
+//     refuse and say why (admin-range-booking.js, whole-app check, Nov 2026; admin-2-1), so their
+//     pre-save reads — the over-entitlement warning, the swap answers, the "left alone" receipt lines —
+//     are never built from a cold cache. They had been left ungated on two premises that stopped
+//     holding: that the cache is long warm by then (since v21.38 every member switch starts a fresh,
+//     staged load), and that a cold miss only SKIPS a warning (since v23.75 the swap answers too).
 // Resolving on FAILURE too is deliberate — if the first read errored Firestore is unreachable and the
 // write will fail its own commit anyway, better than hanging the Save button forever. loadOverrides()
 // is called unconditionally in the AUTHORISED admin-init branch (not the not-signed-in/login branch,
