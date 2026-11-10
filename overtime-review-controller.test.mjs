@@ -87,13 +87,20 @@ mock.module('./overtime-data.js', {
     },
 });
 
+/** Every restamp of the sheet's "Printed …" line, as [host, instant]. */
+let stamped = /** @type {any[]} */ ([]);
 mock.module('./overtime-manager.js', {
     namedExports: {
         renderWeekDetail: (_host, win, data, opts) => {
             painted.push({ weekEnding: win.weekEnding, phase: win.phase, dates: opts.dates, grade: opts.grade, day: opts.day, data, opts });
         },
+        stampPrinted: (/** @type {any} */ host, /** @type {number} */ at) => { stamped.push([host, at]); },
     },
 });
+
+/** The page's window, as far as the controller uses it: the listeners it adds. */
+const windowListeners = /** @type {Record<string, Function>} */ ({});
+globalThis.window = /** @type {any} */ ({ addEventListener: (/** @type {string} */ t, /** @type {Function} */ f) => { windowListeners[t] = f; } });
 
 /** Every confirmation the controller asked for, in order — its words are part of what it promises. */
 let dialogs = /** @type {any[]} */ ([]);
@@ -689,5 +696,23 @@ describe('the Stop-asking confirmation promises only the undo the rule allows (o
         await painted.at(-1).opts.onAsk('P0', false);
         assert.match(dialogs.at(-1).message, /put them back while the week is open\./);
         assert.doesNotMatch(dialogs.map(d => d.message).join(' '), /while the form is open/);
+    });
+});
+
+describe('the sheet says when it was PRINTED (overtime-ui-7)', () => {
+    // "Printed …" was drawn once, at paint, by the device clock: two printouts of a week opened at
+    // 09:00 and printed at 10:30 and 11:15 both read 09:00, on the line whose job is to order them.
+    test('each paint is stamped by the corrected clock, and printing restamps the workspace', async () => {
+        detailFor.set(A, detail(2, 1));
+        stamped = [];
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const NOW = Date.parse('2026-08-20T09:00:00Z');   // the mocked corrected clock
+        assert.equal(painted.at(-1).opts.printedAt, NOW, 'the paint carries the corrected clock');
+        assert.equal(typeof windowListeners.beforeprint, 'function', 'the page listens for printing');
+        windowListeners.beforeprint();
+        assert.equal(stamped.at(-1)?.[0], dom.otWeekContent, 'the workspace is restamped');
+        assert.equal(stamped.at(-1)?.[1], NOW, 'by the corrected clock, as the as-at line beside it is');
     });
 });

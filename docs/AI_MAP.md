@@ -507,8 +507,11 @@ The reviewer's workspace for one selected week — By day, Awaiting, the partici
 sheet — rendered from data handed in (paused — see the Overtime entry). It performs no reads
 (`loadWeekDetail` in `overtime-data.js` does) and imports only DOM-free modules, so
 `overtime-manager.test.mjs` drives it with a two-line fake DOM.
-- `renderWeekDetail(host, win, data, { dates, now, grade?, onGrade?, day?, onDay?, onRefresh?, onAsk? })`
-  — the single export; the surface is a pure function of `(data, state)`.
+- `renderWeekDetail(host, win, data, { dates, now, grade?, onGrade?, day?, onDay?, onRefresh?, onAsk?,
+  refreshFailed?, printedAt? })` — the surface is a pure function of `(data, state)`; `refreshFailed`
+  keeps a snapshot whose newer read did not arrive, and says so.
+- `stampPrinted(host, nowMs)` — restamps the sheet's "Printed …" line as it prints (`beforeprint`); iOS
+  fires none for AirPrint, so there it keeps the paint's stamp.
 - **Rules its header and comments argue:** three sections per date — Available, Not available, No
   response — that never merge, an empty one still showing its heading; GRADE re-renders every count, DAY
   only hides rows; the grade is the reviewer's and survives a week switch (`overtime-review-controller.js`

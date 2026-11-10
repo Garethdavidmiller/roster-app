@@ -20,7 +20,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderWeekDetail } from './overtime-manager.js';
+import { renderWeekDetail, stampPrinted } from './overtime-manager.js';
 
 const WIN = {
     weekEnding: '2026-09-05', weekStart: '2026-08-30',
@@ -240,6 +240,23 @@ describe('by day', () => {
     });
 });
 
+describe('the sheet says when it was PRINTED, not when it was drawn (overtime-ui-7)', () => {
+    test('the paint stamps the time it is handed, and stampPrinted moves it on as the sheet prints', () => {
+        const READ = Date.parse('2026-11-10T08:00:00Z');
+        const DRAWN = Date.parse('2026-11-10T09:00:00Z');
+        const PRINTED = Date.parse('2026-11-10T10:30:00Z');
+        const host = fakeHost();
+        renderWeekDetail(/** @type {any} */ (host), WIN, { participants: PARTICIPANTS, submissions: submissions() },
+            { dates: DATES, now: READ, printedAt: DRAWN });
+        assert.match(host.innerHTML, /ot-print-printed">Printed Tue 10 Nov 2026 · 09:00</, 'the paint\'s own time, not the device clock');
+        assert.match(host.innerHTML, /ot-print-asat">Availability as at Tue 10 Nov · 08:00/, 'and the data keeps its read time');
+        const line = { textContent: '' };
+        stampPrinted(/** @type {any} */ ({ querySelector: (/** @type {string} */ s) => (s === '.ot-print-printed' ? line : null) }), PRINTED);
+        assert.equal(line.textContent, 'Printed Tue 10 Nov 2026 · 10:30');
+        stampPrinted(null, PRINTED);   // no workspace on the page: nothing to stamp, nothing thrown
+    });
+});
+
 describe('the header', () => {
     test('a refresh that failed says so, and gives the age of what is still shown (overtime-ui-11)', () => {
         const NOW = Date.parse('2026-08-19T08:00:00Z');
@@ -446,9 +463,13 @@ describe('the roster beside the answer', () => {
         // The audit's top item. "Available after 15:00" is only actionable next to the duty it was
         // built from — and the member's form HAD that duty, so the app knew the fact and dropped it
         // at the point of decision.
+        // The badge itself, inside the person's roster slot — this matched "07:00–15:00" in an HTML
+        // comment the template used to ship, so it passed whatever the row drew (overtime-ui-17).
         const html = render({ roster: ROSTER });
-        assert.match(html, /07:00–15:00/, 'the Sunday duty');
-        assert.match(html, /Rest/, 'and the Monday rest day, in the app\'s own chip');
+        assert.match(panelFor(html, 'Sun 30 Aug'),
+            /ot-person-roster"><span class="visually-hidden">Rostered: <\/span><span class="shift-badge badge-early" aria-label="Early shift, 07:00 to 15:00">/,
+            'the Sunday duty, as the app\'s shift badge');
+        assert.match(panelFor(html, 'Mon 31 Aug'), /ot-person-roster">.*Rest/, 'and the Monday rest day, in the app\'s own chip');
     });
 
     test('a roster that could not be read SAYS so, rather than showing nothing', () => {

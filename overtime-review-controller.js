@@ -75,7 +75,7 @@ import {
     weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn, putBackWindow, weekDates,
 } from './overtime-format.js';
 import { phaseAt } from './overtime-phase.js';
-import { renderWeekDetail as paintWeekDetail } from './overtime-manager.js';
+import { renderWeekDetail as paintWeekDetail, stampPrinted } from './overtime-manager.js';
 import { confirmDialog } from './overlay.js';
 
 /**
@@ -111,6 +111,11 @@ export function createReviewController({ el, esc, renderLoading, renderError, de
     let detailFetchedAt = 0;
     /** Ticket for the newest week-detail read. Only its holder may paint. */
     let detailGeneration = 0;
+
+    // The sheet's "Printed …" line names the moment it PRINTS, by the corrected clock (overtime-ui-7).
+    if (typeof window !== 'undefined') {
+        window.addEventListener('beforeprint', () => stampPrinted(el('otWeekContent'), OTD.correctedNow()));
+    }
 
 // ── Upcoming weeks (the planning horizon) ───────────────────────────────────────────────────
 
@@ -614,7 +619,7 @@ function paintShown(host, { weekEnding, win, data, dates, now }, refreshFailed) 
     // The overview's rows carry no `phase`, and the workspace keys the closed-week panels and the
     // reminder audit on it — so it is derived from the clock here, never read off the row.
     paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
-        dates, now, refreshFailed,
+        dates, now, refreshFailed, printedAt: OTD.correctedNow(),
         grade: reviewGrade, onGrade: (g) => { reviewGrade = g; paintWeekChip(data, g); },
         day: reviewDay, onDay: (d) => { reviewDay = d; },
         // The horizon too: its row for this week says the same counts (overtime-ui-3).
