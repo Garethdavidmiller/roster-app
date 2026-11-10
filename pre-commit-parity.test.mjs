@@ -150,13 +150,75 @@ describe('a step the hook cannot RUN is not a step that passed', () => {
         // is a line that reads as advice ("run: npm install") when it is in fact a report that this
         // commit was never checked. The wording is pinned because softening it is a one-word edit
         // and the whole value of the branch is that a person reads it and believes it.
-        const elseBranch = code.slice(code.lastIndexOf('ESLINT_BIN'));
+        // To the `fi` that closes the ESLint step, not to the end of the file: the node steps after
+        // it say "DID NOT RUN" too, and would otherwise pass this for an ESLint branch gone quiet.
+        const tail = code.slice(code.lastIndexOf('ESLINT_BIN'));
+        const elseBranch = tail.slice(0, tail.search(/^fi$/m));
         assert.match(elseBranch, /DID NOT RUN/,
             'the ESLint fallback no longer states that the check DID NOT RUN. A missing tool has to '
             + 'read as an unchecked commit, not as a suggestion to install something.');
         assert.match(elseBranch, /NOT linted/,
             'the ESLint fallback no longer says the staged JS was not linted — which is the only '
             + 'fact a reader of that line needs.');
+    });
+});
+
+// ── WHAT IS BEING COMMITTED, NOT WHAT IS ON DISK (whole-app check, 10 November 2026) ────────────
+//
+// Run in a scratch clone against staged scenarios, the hook passed: a module whose documentation
+// lines were written but not staged (it grepped the documents ON DISK); a new `picker.js` with no
+// entry at all (`grep -q picker.js` matched `date-picker.js`); any `.mjs`, Cloud Function or renamed
+// file with an undefined name (each step kept its own `.js`-only, ACM-only filter); a worker with a
+// top-level `import` on a bare clone (`node --check` parses it as a module here); an unreadable
+// APP_VERSION (the stamp check exited 0); and a stale roster-members.json once the CI test's title
+// was reworded (it ran that test by a title substring). Without `node` on the PATH every node step
+// vanished without a word. These pin the mechanisms that close each one; the scenarios themselves
+// need a clone and a staged tree each, which is why they are not run here.
+describe('the hook checks the commit, and says when it could not', () => {
+    test('one staged list, read once — renames and .mjs included — that every step uses', () => {
+        assert.equal((code.match(/git diff --cached --name/g) || []).length, 1,
+            'more than one step lists the staged files for itself — that is how lint and export drift '
+            + 'came to disagree with the module check about which files a commit holds');
+        assert.match(code, /git diff --cached --name-status -M --diff-filter=ACMR -z/,
+            'the staged list must keep renames (R) and survive a name with a space');
+        assert.match(code, /case "\$_f" in \*\.js\|\*\.mjs\) ;;/,
+            'the ESLint selection must take .mjs as well as .js (tests, scripts and runner configs)');
+        assert.doesNotMatch(code, /grep -v '[^']*functions\//,
+            'the ESLint selection filters out functions/ again — the Cloud Functions are linted by npm run lint');
+        assert.match(code, /renamedFrom\.get\(f\)/, 'export drift must compare a renamed module with its OLD path');
+    });
+
+    test('the documents are read AS STAGED, and a module name is matched whole', () => {
+        assert.match(code, /git show ":\$DOC_AI_MAP"/);
+        assert.match(code, /git show ":\$DOC_FILE_INDEX"/);
+        assert.doesNotMatch(code, /grep -q "\$f" "\$DOC_/, 'the module check greps the documents on disk again');
+        // The hook's own pattern, run here: `${2//./\\.}` is bash for "the name, dots escaped".
+        const tpl = /grep -Eq -- "([^"]+)"/.exec(code)?.[1];
+        assert.ok(tpl && tpl.includes('${2//./\\\\.}'), 'could not read the module-name pattern out of the hook');
+        const re = (/** @type {string} */ name) => new RegExp(tpl.replace('${2//./\\\\.}', name.replace(/\./g, '\\.')).replace(/\\\\/g, '\\'), 'm');
+        assert.ok(!re('picker.js').test('- `date-picker.js` — the date picker'), 'picker.js still matches date-picker.js');
+        assert.ok(!re('ls.js').test('tools.js and ls.json'), 'ls.js matches inside another name');
+        for (const line of ['### ls.js', '- `ls.js` — storage', '├── ls.js ← wrappers', 'see ./ls.js.']) {
+            assert.ok(re('ls.js').test(line), `a genuine mention was missed: ${line}`);
+        }
+    });
+
+    test('the worker is parsed as the classic script it is', () => {
+        assert.doesNotMatch(code, /node --check service-worker\.js/,
+            '`node --check` parses the worker as a MODULE in this "type": "module" package');
+        assert.match(code, /require\('vm'\)\.Script/);
+    });
+
+    test('a node step that cannot run says so, and none passes by matching no test', () => {
+        const guarded = (code.match(/if \[\[ -n "\$HAVE_NODE" \]\]; then/g) || []).length;
+        const announced = (code.match(/not_checked "/g) || []).length;
+        assert.ok(guarded >= 5 && announced === guarded,
+            `${guarded} node steps but ${announced} announce that they did not run — a skipped step must say so`);
+        assert.match(code, /not_checked\(\) \{\n\s*echo "[^"]*DID NOT RUN/);
+        assert.doesNotMatch(code, /--test-name-pattern/,
+            'a test selected by title passes when the title no longer matches anything');
+        assert.doesNotMatch(code, /if \(!app\) process\.exit\(0\)/, 'an unreadable APP_VERSION must fail the stamp check');
+        assert.doesNotMatch(code, /clientVer|fnVer/, 'the dead SDK comparison is back');
     });
 });
 
