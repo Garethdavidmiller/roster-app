@@ -137,7 +137,7 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
 
         const duration = endMins - startMins;
         if (duration > MAX_SHIFT_MINS) {
-            fail(date, `${formatDate(date)}: shift is ${fmtHours(duration)} — max is 12h`);
+            fail(date, `${formatDate(date)}: shift is ${fmtHours(duration)} — max is ${fmtHours(MAX_SHIFT_MINS)}`);
             return;                                   // an over-long shift is the finding; stop here
         }
 
@@ -150,13 +150,13 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
                 const prevEnd = effectiveEndMins(adjStart, adjEnd);
                 const gap = startMins + 24 * 60 - prevEnd;
                 if (gap < MIN_REST_MINS) {
-                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest after ${formatDate(adjISO)} shift — need 12h`);
+                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest after ${formatDate(adjISO)} shift — need ${fmtHours(MIN_REST_MINS)}`);
                 }
             } else {
                 const nextStart = parseMinutes(adjStart);
                 const gap = nextStart + 24 * 60 - endMins;
                 if (gap < MIN_REST_MINS) {
-                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest before ${formatDate(adjISO)} shift — need 12h`);
+                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest before ${formatDate(adjISO)} shift — need ${fmtHours(MIN_REST_MINS)}`);
                 }
             }
         });

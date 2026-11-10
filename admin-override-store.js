@@ -122,7 +122,7 @@ export function whenOverridesReady() { return _overridesReady; }
 let _coverage = emptyCoverage();
 
 /** @returns {boolean} True once the override cache has been authoritatively populated at least once.
- *  Kept as the page-wide "has anything loaded" signal; a WRITE must ask `hasOverrideAuthorityFor`. */
+ *  A TEST SEAM: nothing in the app asks it any more; a WRITE must ask `hasOverrideAuthorityFor`. */
 export function isOverrideCacheLoaded() { return _coverage.all || _coverage.members.length > 0; }
 
 /** @param {string|null|undefined} member @returns {boolean} May a decision about this member be
@@ -167,11 +167,9 @@ export function isTruncated() { return _overridesTruncated; }
 /** @param {any[]} arr */
 export function setAllOverrides(arr) {
     _allOverrides = arr;
-    // Explicitly setting the cache to a known state is itself a "ready" signal: the caller is
-    // asserting `_allOverrides` is now authoritative. In production this only runs post-load (the
-    // delete-path cache mutations in admin-app), so readiness is already resolved; it also lets the
-    // write-path unit tests, which seed the cache via setAllOverrides() rather than loadOverrides(),
-    // satisfy the whenOverridesReady() gate. (v16.85)
+    // A TEST SEAM: nothing in the app calls it — the delete paths drop rows through `removeFromCache`
+    // (v21.38). Setting the cache to a known state is itself a "ready" signal, which is what lets the
+    // write-path unit tests seed the cache this way and still pass the whenOverridesReady() gate. (v16.85)
     // AN ASSERTION OF COMPLETENESS, so it grants FULL coverage (Finding #2). Use it only when the
     // array genuinely is the whole cache — seeding a test, or replacing everything. To DROP rows,
     // use `removeFromCache`: a delete learns nothing and must not widen what the cache claims.

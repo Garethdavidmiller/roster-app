@@ -1,17 +1,15 @@
 // @ts-check
 /**
- * admin-app.js — Coordinator and primary feature file for admin.html.
+ * admin-app.js — the coordinator for admin.html.
  *
- * Owns: login/session, AL booking, absence recording, Change a Shift wiring,
- *   page coordinator wiring (initialises modules on load).
- * Does NOT own: override entry/week-grid/bulk-bar (admin-overrides.js),
- *   roster PDF upload/review (admin-roster-upload.js), huddle upload/notifications
- *   (huddle.js), staff Firebase Auth setup (admin-auth.js),
- *   Notifications card (settings-app.js),
- *   pay maths (paycalc-calc.js), calendar display (calendar-app.js), roster data (roster-data.js).
- * Edit here for: login, AL/absence forms, Change a Shift wiring.
- * Do not edit here for: shift override grid or forms, roster PDF pipeline,
- *   notifications, pay calculator, roster data structure, shared CSS.
+ * Owns: sign-in and the session, the member bar and week navigation, the unsaved-changes guard, the
+ *   Change a Shift Save collector and its over-limit bar, the AL banner and recorded-dates wiring, the
+ *   kept week draft, and initialising every card's module on load.
+ * Does NOT own: the week grid and bulk bar (admin-week-editor.js), what a save writes
+ *   (admin-overrides.js), the AL and Absence cards (admin-al.js, admin-sick.js, admin-range-booking.js),
+ *   the roster PDF review (admin-roster-upload.js), staff Firebase Auth set-up (admin-auth.js), pay
+ *   maths, calendar display or roster data.
+ * Edit here for: login, page wiring, the Save collector. Not here: the grid, a save's write, shared CSS.
  */
 
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
@@ -655,12 +653,6 @@ export function init() {
     }
 
     // ============================================
-    // WEEK GRID
-    // ============================================
-    // updateWeekNavLabel, renderWeekGrid, activateRow,
-    // deactivateRow, updateSaveBtn, updateBulkSelCount — imported from admin-overrides.js
-
-    // ============================================
     // SAVE
     // ============================================
     saveBtn.addEventListener('click', async () => {
@@ -1075,7 +1067,6 @@ export function init() {
 
     /** @type {any} */ let _toastTimer = null;
     /** @type {any} */ let _feedbackTimer = null;
-    /** Shows a success message in the week editor feedback area.  @param {string} msg */
     /**
      * @param {string} msg
      * @param {string[]} [lines] one per changed DAY — rendered as an expandable receipt (v21.38).
@@ -1504,9 +1495,6 @@ export function init() {
     // Calendar to print your shifts" notice (admin.css @media print). The old
     // beforeprint week-grid header stamp was removed with it.
 
-    // ---- One-time work email check (shown once per device after login) ----
-
-    /** ~3-monthly work-email re-confirmation cadence (v14.77). */
     // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 6).
     // Admin's policy is "any named user" (role null) — staff get self-service; the admin/manager split
     // gates ACTIONS (applyPermissions below), NOT page access, so there is no 'forbidden' path here.
