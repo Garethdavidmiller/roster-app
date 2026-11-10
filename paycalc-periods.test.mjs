@@ -51,7 +51,6 @@ mock.module('./session.js', {
         ensureFirebaseSession: async () => {},
         sessionReady:         Promise.resolve(),
         resolveSession:       () => {},
-        getSurname:           () => '',
     },
 });
 
