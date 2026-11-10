@@ -634,6 +634,27 @@ describe('unsaved-draft.js', () => {
             assert.equal(ls.has(KEY), false);
         });
 
+        // A DAY, THEN GONE — FOR EVERY DRAFT ON THE DEVICE (whole-app check, Nov 2026). A draft was read,
+        // and so deleted when stale, only through the slot that owns its key: a colleague's staged week
+        // left on the station PC by somebody who never opened that page there again stayed for good.
+        test('creating any slot sweeps every draft on the device that nobody can be offered — and leaves a live one (rule 4)', () => {
+            const colleague = 'myb_draft_admin_B.%20Colleague', unreadable = 'myb_draft_admin_D.%20Fourth';
+            const live = 'myb_draft_links_C.%20Third', ahead = 'myb_draft_links_E.%20Fifth';
+            ls.set(colleague, ud.encodeDraft({ page: 'admin', by: 'B. Colleague', scope: { member: 'B. Colleague', date: '2026-12-07' },
+                data: { rows: [{ date: '2026-12-08', type: 'sick' }] }, savedAt: NOW - ud.DRAFT_MAX_AGE_MS - HOUR }));
+            ls.set(unreadable, '{not json');
+            ls.set(live, ud.encodeDraft({ page: 'links', by: 'C. Third', scope: {}, data: { patterns: { 1: {} } }, savedAt: NOW - HOUR }));
+            ls.set(ahead, ud.encodeDraft({ page: 'links', by: 'E. Fifth', scope: {}, data: { patterns: { 1: {} } }, savedAt: NOW + 2 * HOUR }));
+            ls.set('myb_pc_a_member_settings', 'kept');
+            slotFor('A. Member');
+            assert.equal(ls.has(colleague), false, 'a colleague\'s day-old staged week stayed on the shared PC');
+            assert.equal(ls.has(unreadable), false, 'unreadable: no page can ever offer it');
+            assert.equal(ls.has(ahead), false, 'dated ahead of the clock: its age cannot be judged, so it is never offered');
+            assert.ok(ls.has(live), 'inside its day: still its own member\'s to be offered (rule 2)');
+            assert.equal(ls.get('myb_pc_a_member_settings'), 'kept', 'only drafts are swept');
+            ls.delete(live); ls.delete('myb_pc_a_member_settings');
+        });
+
         test('nobody signed in keeps nothing', () => {
             slotFor('').keep({}, { rows: [] });
             assert.equal(ls.size, 0);

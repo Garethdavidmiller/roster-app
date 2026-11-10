@@ -32,7 +32,10 @@
  *      a clean hide may NOT delete is a draft an EARLIER page life left that has not been answered
  *      yet — the page can be hidden while it is still loading the data its offer waits for.
  *   4. A DAY, THEN GONE. A draft older than `DRAFT_MAX_AGE_MS` — or dated in the future, whose age
- *      cannot be judged — is not offered, and is deleted when it is read.
+ *      cannot be judged — is not offered, and is deleted when it is read. Every page that keeps
+ *      drafts also sweeps such drafts away for EVERY member when it opens, because one is otherwise
+ *      read only by its own member on its own page: a colleague's staged week, left on a shared PC by
+ *      somebody who never opened that page there again, stayed in storage for good.
  *   5. A DRAFT IS WORK, NOT A DECISION. What it puts back is unsaved again, and saving it asks the
  *      page's own questions. Links restores the concurrency baseline the edits were made against
  *      (`draftBaseline`), so a colleague's save since still meets "Someone else saved"; Admin puts
@@ -50,7 +53,7 @@
  * imports nothing); unit-tested in page-session.test.mjs, beside the trigger that writes it.
  */
 
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
 import { formatClock } from './date-format.js';
 
 /** Every draft key starts here; the rest is `<page>_<encoded member name>` (`draftKey`). Only `myb_pc_`
@@ -164,6 +167,23 @@ export function weekRestoredLine(put, left) {
 }
 
 /**
+ * Delete every draft on this device that no reader will ever be offered — past its day, dated beyond
+ * the clock skew, or unreadable — whosever it is (rule 4). One still inside its day is left alone: it
+ * is its own member's to be offered (rule 2). The age is all that is read, so a draft in a shape a
+ * newer page writes is judged by the same day as every other.
+ * @param {number} now
+ */
+function sweepStaleDrafts(now) {
+    for (const key of lsKeys()) {
+        if (!key.startsWith(DRAFT_PREFIX)) continue;
+        /** @type {any} */ let d = null;
+        try { d = JSON.parse(lsGet(key) ?? ''); } catch { /* unreadable: no page can offer it */ }
+        const age = typeof d?.savedAt === 'number' && Number.isFinite(d.savedAt) ? now - d.savedAt : NaN;
+        if (!(age <= DRAFT_MAX_AGE_MS && age >= -CLOCK_SKEW_MS)) lsDel(key);
+    }
+}
+
+/**
  * One page's draft slot for the signed-in member.
  *
  * `peek` reads what may be offered. `keep` writes this page's unsaved work; `forget` deletes it,
@@ -180,6 +200,7 @@ export function weekRestoredLine(put, left) {
  * @param {{ page: string, by: string, now?: () => number, usable?: (data: Record<string, any>) => boolean }} opts
  */
 export function createDraftSlot({ page, by, now = Date.now, usable = () => true }) {
+    sweepStaleDrafts(now());
     const key = draftKey(page, by);
     /** @returns {Draft|null} */
     const peek = () => {
