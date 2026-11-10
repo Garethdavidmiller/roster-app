@@ -294,6 +294,23 @@ describe('a subscription waiting for a session cannot attach late', () => {
 const docx = (/** @type {string} */ n, extra = '') => ({ storageUrl: `https://firebasestorage.googleapis.com/v0/b/x/o/${n}.docx`, storagePath: `huddles/${n}.docx`, fileType: 'docx', htmlContent: `<p>HUDDLE-${n}</p>${extra}` });
 /** Real time passing, measured without setTimeout — the viewer's deadline runs on the mocked clock. */
 const settle = async (ms = 60) => { const end = performance.now() + ms; while (performance.now() < end) await new Promise(r => setImmediate(r)); };
+/**
+ * Wait until the sanitiser has been called `n` times in this test, then let the render that follows
+ * it finish. The gap before that call is a REAL dynamic import of DOMPurify (mocked, but imported
+ * through the loader all the same), and its length is the machine's: a fixed 60 ms was enough for
+ * this file alone and not beside the rest of `npm test` — four inline cases failed there on
+ * 10 Nov 2026. Waiting for the EVENT rather than a time also gives the "nothing was drawn" checks
+ * after it their meaning: they run once the render they are about has had its chance.
+ * @param {number} n
+ */
+const sanitised = async (n) => {
+    const end = performance.now() + 10_000;
+    while (sanitizeOptions.length < n) {
+        if (performance.now() > end) throw new Error(`the sanitiser was called ${sanitizeOptions.length} time(s), not ${n}`);
+        await new Promise(r => setImmediate(r));
+    }
+    await settle(20);
+};
 const HELD = 'myb_held_huddle_tap';
 const closeTap = () => closeBtn._listeners.click.forEach((/** @type {Function} */ fn) => fn());
 
@@ -306,7 +323,7 @@ describe('cal-docs-2 · a render that waited for the sanitiser draws only if it 
         await settle();
         listeners[0].onData(docx('YESTERDAY'), true);            // the local cache answers first…
         listeners[0].onData(docx('TODAY'), false);               // …and the server while that render waits
-        await settle();
+        await sanitised(2);
         assert.match(body.innerHTML, /HUDDLE-TODAY/, 'the OLDER Huddle was drawn as the latest');
         assert.ok(viewer.classList.contains('visible'));
         assert.equal(opens.length, 1, 'one tap, one open counted');
@@ -321,13 +338,13 @@ describe('cal-docs-2 · a render that waited for the sanitiser draws only if it 
         await settle();
         listeners[0].onData(docx('CACHED'), true);               // the render starts and waits
         gate.set(false);                                         // access lost meanwhile
-        await settle();
+        await sanitised(1);
         assert.doesNotMatch(shown(), /HUDDLE-CACHED/, 'the Huddle was drawn on a locked Calendar');
         assert.ok(body.innerHTML.includes(LOCKED), 'the member waiting on it is told what unlocks it');
         gate.set(true);
         await settle();
         listeners[1].onData(docx('CACHED'), false);
-        await settle();
+        await sanitised(2);
         assert.match(body.innerHTML, /HUDDLE-CACHED/, 'the PIN the message asked for must bring the Huddle back');
     });
 
@@ -342,7 +359,7 @@ describe('cal-docs-2 · a render that waited for the sanitiser draws only if it 
         assert.ok(viewer.classList.contains('visible'), 'guard: the tap is answered with "Couldn\'t load"');
         listeners[0].onData(docx('LATE'), false);                // the Huddle arrives: its render waits
         closeTap();                                              // the member closes the viewer meanwhile
-        await settle();
+        await sanitised(1);
         assert.equal(viewer.classList.contains('visible'), false, 'the render re-opened a viewer the member had closed');
         assert.doesNotMatch(body.innerHTML, /HUDDLE-LATE/);
     });
@@ -547,7 +564,7 @@ describe('cal-docs-13 · a picture the in-app view leaves out is named, with the
         await settle();
         listeners[0].onData(docx('PICS', '<p><img src="data:image/png;base64,AAAA"></p>'), false);
         tapHuddle();
-        await settle();
+        await sanitised(1);
         const note = body._prepended.find((/** @type {any} */ n) => /pictures/.test(textOf(n)));
         assert.ok(note, `nothing said a picture had been left out: ${shown()}`);
         const btn = note._kids.find((/** @type {any} */ k) => k.id === 'huddleOpenOriginalBtn');
@@ -563,7 +580,7 @@ describe('cal-docs-13 · a picture the in-app view leaves out is named, with the
         await settle();
         listeners[0].onData(docx('PLAIN'), false);
         tapHuddle();
-        await settle();
+        await sanitised(1);
         assert.match(body.innerHTML, /HUDDLE-PLAIN/);
         assert.doesNotMatch(shown(), /pictures/);
     });
@@ -585,7 +602,7 @@ describe('cal-docs-14 · a Huddle this device could not check is labelled a save
             await settle();
             listeners[0].onData(make('SAVED'), true);
             tapHuddle();
-            await settle();
+            await (make === docx ? sanitised(1) : settle());     // only the inline Huddle is sanitised
             assert.match(shown(), SAVED, 'a Huddle this device could not check was shown as if it were current');
         });
     }
@@ -626,7 +643,7 @@ describe('cal-docs-7 · the keyboard can scroll the Huddle', () => {
         await settle();
         listeners[0].onData(docx('TABLES'), false);
         tapHuddle();
-        await settle();
+        await sanitised(1);
         assert.equal(wide.tabIndex, 0, 'a wide table the keyboard cannot reach cannot be scrolled');
         assert.equal(wide._attrs.role, 'group');
         assert.equal(fits.tabIndex, -1, 'a table that fits needs no stop of its own');
@@ -651,7 +668,7 @@ describe('cal-docs-17 · the sanitiser passes only the two table attributes, as 
         await settle();
         listeners[0].onData(docx('ATTRS'), false);
         tapHuddle();
-        await settle();
+        await sanitised(1);
         assert.equal(sanitizeOptions.length, 1);
         assert.deepEqual(sanitizeOptions[0].ALLOWED_ATTR, ['colspan', 'rowspan']);
         assert.equal(sanitizeOptions[0].ALLOW_DATA_ATTR, false, 'data-* attributes would pass the sanitiser');
