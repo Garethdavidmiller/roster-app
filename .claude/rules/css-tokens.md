@@ -117,11 +117,14 @@ One easing/duration vocabulary in `shared.css :root`:
 - `--dur-fast` (0.12s) / `--dur-med` (0.15s) / `--dur-base` (0.2s) / `--dur-slow` (0.25s) /
   `--dur-slower` (0.3s — content reveals)
 
-Use these tokens, not inline `cubic-bezier(...)` or a bare `ease`.
+Use these tokens, not inline `cubic-bezier(...)` or a bare `ease`. Leaving the curve out (the CSS
+default) is the app's common form and is allowed; `index.css` is held to the rule by
+`calendar-controls-parity.test.mjs` 7.
 
-**Two overlay corner families, both named:** compact white DIALOGS (month-jump, team info, login,
-Tips, confirm/prompt) use `--radius-xl` (20px); full navy GLASS SHEETS (About, notices, day detail, AL)
-use `--radius-panel` (24px). The Pay Calculator's `?` help sheet is a see-through glass sheet at the
+**Two overlay corner families, both named:** compact DIALOGS use `--radius-xl` (20px) — the white
+ones (month-jump, login, Tips, confirm/prompt, the Calendar's Circular/Newsletter viewer) and the
+Calendar's team info, a compact see-through one; full navy GLASS SHEETS (About, notices, day detail,
+AL) use `--radius-panel` (24px). The Pay Calculator's `?` help sheet is a see-through glass sheet at the
 Tips' `--modal-standard` width — one width at every size (desktop audit, 7 Nov 2026; it was 620px).
 
 **Within the glass family, four are SOLID:** the one-time notices, the About panel and the drawer's
@@ -136,7 +139,8 @@ measured 3.0–3.4:1.
 **An overlay never wears the card radius.** `--radius-lg` is the radius `.card` uses on every page,
 and sharing a silhouette with the card underneath flattens the layering an overlay depends on — a
 token hides that in a way a literal would not, because `--radius-lg` reads like it belongs to a large
-panel. When adding an overlay, pick a family — never `--radius-lg`.
+panel. When adding an overlay, pick a family — never `--radius-lg`. The Calendar's own panels are held
+to it by `calendar-controls-parity.test.mjs` 8.
 
 ## Focus indicators — four tokens, one invisible system
 
@@ -201,7 +205,7 @@ would change meaning, not tidy it.
 
 | Token | Value | Use |
 |-------|-------|-----|
-| `--radius-button` | 12px | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`); the Calendar's controls; Admin's week navigation |
+| `--radius-button` | 12px | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`, Trains' `.tr-tab`); the Calendar's controls and Team View's arrows; Admin's week navigation |
 | `--radius-field` | `= --radius-button` | every text field, select and picker trigger that sits on a card |
 | `--radius-xs` | 6px | dense inputs that sit in a ROW or a grid — the Links generator, the Operations email table, the navy member bar's picker |
 | `--field-border` | `2px solid var(--border-mid)` | the field's edge |
@@ -211,8 +215,9 @@ as assembled rather than designed — the thing a member types into must not loo
 of control. A field that is the second half of another (Settings' `@chilternrailways.co.uk` suffix)
 wears the same edge, or the join it exists to hide shows.
 
-**Use the tokens, never a literal**, for a new field or button. Nothing tests this; a parity test (the
-`--type-*` remedy) is available if it drifts.
+**Use the tokens, never a literal**, for a new field or button. Nothing tests this app-wide. Where it
+drifted it is now pinned: the Calendar's two pairs of arrows (`calendar-controls-parity.test.mjs` 9)
+and every Trains tab (`e2e/trains.spec.js`).
 
 ## Overlay sizing — three sizes, one cap, one idiom
 
@@ -230,8 +235,8 @@ or a second idiom (`max-width: Npx; width: 100%`) — variation in overlay width
 nothing on the surface where a clipped message would matter most.
 
 **Out of scope, deliberately:** the nav drawer (`min(260px, 72vw)` — a side panel, not a centred
-modal) and the calendar's page-local glass sheets in `index.css` (day detail, AL, team info, doc
-viewer), which are the separate glass family above.
+modal) and the Calendar's page-local overlays in `index.css` — the glass day detail, AL and team info,
+and the white Circular/Newsletter viewer (`min(420px, 88vw)`) — which size themselves.
 
 ## Spacing — `--space-*` is a card rhythm, NOT a general scale
 
@@ -316,6 +321,10 @@ with no third-party request. One variable woff2 (latin, wght 100–900) covers e
 `@font-face` lives in `shared.css`; the `--font-sans` token in `:root` is the single place the stack is
 defined; every page's `body` uses `var(--font-sans)`. Do not re-add a Google Fonts `<link>`.
 
+**And every form control inherits it** — `button, input, select, textarea { font-family: inherit }` in
+`shared.css` and `guide-shell.css` — because a control does not inherit the page's font: the browser
+gives it its own (Arial on Windows). A class naming a face of its own still wins.
+
 **Inter is the only typeface** (owner decision). A display face (Barlow Semi Condensed, for the hero £
 and the month heading) was tried and reverted: the character gain was modest, and Inter (a
 neo-grotesque, the same family as the real Rail Alphabet) already fits the brand. Do not re-add a
@@ -350,8 +359,8 @@ cannot carry white text at WCAG AA (2.15:1), so darker variants exist for those 
 | Token | L | Duty |
 |-------|---|------|
 | `--orange` (bright) | 77% | Ambient/identity colour only, never under white text: **Operations page identity** (nav pill, `#opsBadge`, ops notice badge), the paycalc Saturday pay badge's border, the admin correction pills |
-| `--orange-deep` | 54% | Fill carrying **white text**: the admin `.pill-correction.active` and the overwrite badge's "⚠ Removing" state |
-| `--orange-text` | 44% | Darkened orange **text on white / `--orange-light`**: `.badge-sat` text, `.pill-correction` idle text — the orange-family analogue of `--rdw-text`/`--other-text`/`--absence-text` |
+| `--orange-deep` | 54% | Fill carrying **white text**: the admin `.pill-correction.active`, the overwrite badge's "⚠ Removing" state, and Pay's OT day chip (`--chip-ot-bg`) |
+| `--orange-text` | 44% | Darkened orange **text on white / `--orange-light`**: `.badge-sat` text, `.pill-correction` idle text, and Pay's "From your calendar" warnings (the base-only badge, a differing row's total and arrow, the `.conf-possible` chips) — the orange-family analogue of `--rdw-text`/`--other-text`/`--absence-text` |
 | `--early-cell` / `--early-cell-border` | = `--orange-light` / `--orange` | **Early-shift CALENDAR surfaces only** (month-grid cell tint + border, legend swatch, Team-View cell + key dot, print rule) — the original bright amber. The cell has no white-text rule (dark date number), so it can be the full bright orange. Kept as named tokens so it stays a one-line lever. |
 | `--early-badge` | 57% | **☀️ Early BADGE fill only** (`.badge-early`, screen + print; white text). The BRIGHTEST true orange that still clears WCAG AA under white text — L57% at the original hue = **4.64:1** (owner: "closest to original"). This is the accessible ceiling; above ~L57% white text fails (a brighter badge would need dark text). |
 
@@ -468,7 +477,9 @@ more specific one or a hover.
 fill as `Canvas`, and every chosen state above is a fill, so without help a chosen tab, chip or date
 paints exactly like the one beside it. ONE rule in shared.css draws a 2px `Highlight` outline on
 anything pressable whose aria state (pressed, selected, checked, current) or chosen class says so; an
-outline is no element's layout, so it cannot fight a page's borders. Do not add a page-level copy:
+outline is no element's layout, so it cannot fight a page's borders. Focused, the same control draws
+`6px double Highlight` at −2px: the chosen ring inside, the focus ring outside (`e2e/forced-colors.spec.js`
+→ "Pay: a chosen tab that takes keyboard focus shows it"). Do not add a page-level copy:
 `native-surface-parity.test.mjs` contract 14 refuses one and refuses a brand token in any
 forced-colours block, and `e2e/forced-colors.spec.js` proves the painting on real controls by taking the
 outline away and counting what changed (the emulated `Highlight` is the engine's own colour, so
@@ -613,6 +624,18 @@ a different x, so the eye has to re-find each one. Overlay body copy (`.notice-b
 the badge/title/date **masthead stays centred**, which is the arrangement the About panel uses.
 (`.lightbox-privacy` stays centred: its one use is a one-line note on the Pay Calculator.) The
 `new-notice` skill template carries the same rule so future notices inherit it.
+
+**A link in prose** — an explainer or a Tips panel — is navy at 600 with a 2px underline offset
+(`#tipsLightboxContent a, .card-explainer a`, in `shared.css`), as the guides' links are. Before it,
+nothing styled one, so a link there was the browser's own blue, and purple once followed.
+
+## Screen-reader-only text is one utility, `!important` throughout
+
+`.visually-hidden` is the shared "read out, never seen" rule, and `.sr-only` is the same rule under a
+second name (new markup takes `.visually-hidden`). Every declaration in it is `!important`, because an
+element rule outranks a class: Admin's `input[type="text"] { width: 100% … }` once gave the sign-in
+card's hidden username a full-width box, and the sign-in sheet scrolled sideways. Do not drop the
+`!important`s to tidy the rule; the reasoning is beside it in `shared.css`.
 
 ## The 16px focusable-field rule is MEASURED, not assumed
 
