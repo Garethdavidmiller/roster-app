@@ -561,6 +561,26 @@ Native, native platform development and the then-current alternatives if the tri
 reached** — a 2026 implementation preference must not become a 2028 architectural requirement.
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
+### Split the three largest page controllers — each when it is next changed
+**Status:** Conditional · **Trigger:** the next change to that page · **Owner:** the developer · **Review:** at that change, not before
+
+**Why:** an external review (10 Nov 2026) named `links-app.js`, `admin-app.js` and `paycalc-app.js`
+(2,657, 1,729 and 1,597 lines when it measured them) as the files where one edit is hardest to
+review. Each mixes the page's wiring, its drawing and its rules, so a change to one part is read
+beside all the rest, and a rule can only be tested by standing the whole page up.
+
+**Why not now:** moving working code with no change behind it puts risk on staff for nothing they
+would see, and the browser suite proves what a page does, not how its code is arranged. A split is
+safest made inside a change that needs it, and tested by it. The reviewer advised the same.
+
+**How:** the pattern is already in the repo. The rules move to a pure module tested in Node, and the
+page keeps the wiring (`pdf-viewer-core.js`, `calendar-access-core.js`, `paycalc-calc.js`). One
+seam per change, not a rewrite; `FILE_INDEX.md` and `AI_MAP.md` change in the same commit (the
+pre-commit hook enforces both).
+
+**Success:** the touched file is smaller, what moved has Node tests of its own, and no browser test
+had to change.
+
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**
 
