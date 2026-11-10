@@ -294,13 +294,18 @@ export const getDocFromCache = (ref) => {
 // the opposite state: a member who set their password on ANOTHER device, which the server knows
 // about and this device does not. There is no other route to that state, because it is defined
 // entirely by what the server says.
+// window.__E2E.docsFromCache marks THIS snapshot too (settings-ops-1, Nov 2026), so a single-document
+// reader that refuses a cache-served answer can be tested; seed getDocData for the realistic case, a
+// document the cache holds. (Offline, the real SDK REJECTS one it does not hold; this stub still
+// resolves that as not existing, as every spec written before this expects.)
 export const getDoc = () => {
   const e2e = globalThis.__E2E || {};
   if (e2e.failGetDoc) return Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }));
   const seeded = e2e.getDocData;
+  const metadata = { fromCache: !!e2e.docsFromCache };
   return Promise.resolve(seeded
-    ? { exists: () => true, data: () => seeded }
-    : { exists: () => false, data: () => ({}) });
+    ? { exists: () => true, data: () => seeded, metadata }
+    : { exists: () => false, data: () => ({}), metadata });
 };
 // addDoc RECORDS its payload too (v20.97), and for the same reason setDoc does — but it had been
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.

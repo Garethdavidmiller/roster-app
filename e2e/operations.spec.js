@@ -2314,6 +2314,96 @@ test('operations: a strip link keeps keyboard focus when the strip updates under
     await expect(updated, 'the re-report destroyed the focused link').toBeFocused();
 });
 
+// ── OFFLINE: A READ THE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1, Nov 2026) ──────────────
+// Offline, Firestore does not fail a read: it answers from this device's cache, as of whenever it last
+// heard, an empty queue included, and every card painted that as the server's answer. So the admin met
+// "✓ No outstanding requests" beside a member who was locked out, with nothing on the strip, and
+// Account status said "0/51" on a device that had never held the table. `docsFromCache` is that cache
+// answer. The readers now refuse it, so each card's own "Couldn't load … Try again" answers instead.
+
+/**
+ * A refusal is its card's to answer, so none reaches the Error Log as a bug: no uncaught error or
+ * rejection (what error-reporter.js listens for), and no `clientErrors` record written.
+ * @param {import('@playwright/test').Page} page @param {string[]} pageErrors from collectFatalErrors
+ */
+async function expectNothingForTheErrorLog(page, pageErrors) {
+    expect(pageErrors, 'an escaped error is what the Error Log records').toEqual([]);
+    const logged = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .filter((/** @type {any} */ w) => w.path === 'clientErrors').map((/** @type {any} */ w) => w.data?.message));
+    expect(logged, 'nothing written to the Error Log').toEqual([]);
+}
+
+test('operations offline: an empty reset queue from the cache says it could not load, not "No outstanding requests"', async ({ page }) => {
+    const pageErrors = collectFatalErrors(page);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { docs: [], docsFromCache: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const queue = page.locator('#resetRequestsContent');
+    await expect(queue).toContainText('Couldn’t load the password reset requests — check your connection.');
+    await expect(queue, 'a cache that never heard of a request is not "nothing outstanding"').not.toContainText('No outstanding requests');
+    await expect(queue.locator('.card-retry-btn'), 'the card offers its retry (the card itself stays collapsed)').toHaveText('↻ Try again');
+    await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
+    await expectNothingForTheErrorLog(page, pageErrors);
+});
+
+test('operations offline: Account status from the cache says it could not load, not "0/51"', async ({ page }) => {
+    const pageErrors = collectFatalErrors(page);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { docs: [], docsFromCache: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const accounts = page.locator('#accountStatusContent');
+    await expect(accounts).toContainText('Couldn’t load the account status — check your connection.');
+    await expect(accounts.locator('.acct-summary'), 'no "0/51" from a table the device may never have held').toHaveCount(0);
+    await expectNothingForTheErrorLog(page, pageErrors);
+});
+
+test('operations offline: a re-read the cache answers takes the request off the strip, rather than vouching for it', async ({ page }) => {
+    const pageErrors = collectFatalErrors(page);
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { docsByPath: { resetRequests: [
+            { id: 'A. Hared', requestedAt: Date.now() - 60_000, count: 1, provisioned: true },
+        ] } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip.getByRole('link', { name: 'Password resets: 1 waiting' }), 'premise: the server\'s answer is on the strip').toBeVisible();
+
+    // The phone wakes with no signal: the page re-reads on its return, and the cache answers with the
+    // copy it holds — which could be hours old, and says nothing of a request made since.
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__E2E.docsFromCache = true;
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(page.locator('#resetRequestsContent')).toContainText('Couldn’t load the password reset requests');
+    await expect(page.locator('.rr-row')).toHaveCount(0);
+    await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
+    await expect(strip.locator('a[href="#reset-requests"]'), 'an unknown count is withdrawn, not restated').toHaveCount(0);
+    await expectNothingForTheErrorLog(page, pageErrors);
+});
+
+test('operations offline: App speed, Usage and the Error Log refuse a cached answer too', async ({ page }) => {
+    const pageErrors = collectFatalErrors(page);
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { docsFromCache: true,
+            // A cached copy for every card, so one that ignored where its answer came from would paint
+            // it: speed samples and page views (every single-document read gets this one object) and
+            // an unresolved error.
+            getDocData: { samples: { '25_64|calendar|ready|lt500ms|standalone|4g': 300 }, counts: { calendar: 1284 } },
+            docsByPath: { resetRequests: [], staffContact: [], passwordStatus: [] },
+            docs: [{ id: 'err1', memberName: 'G. Miller', page: 'admin.html', message: 'boom', stack: '', appVersion: 'x', userAgent: 'ua', timestamp: Date.now(), resolved: false }],
+        };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedContent')).toContainText('Couldn\'t load app speed — check your connection.');
+    await expect(page.locator('#usageContent')).toContainText('Couldn\'t load usage — check your connection.');
+    await expect(page.locator('#errorLogContent')).toContainText('Couldn\'t load error log — check your connection.');
+    await expect(page.locator('#errorLogCountChip')).toHaveText('');
+    await expect(page.locator('#attentionStrip a[href="#error-log"]')).toHaveCount(0);
+    await expectNothingForTheErrorLog(page, pageErrors);
+});
+
 test('operations: no account-status name is truncated at phone width', async ({ page }) => {
     /*
      * The NAME is what identifies a row on a 51-row list, and at 375px it was the element being

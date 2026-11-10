@@ -357,6 +357,16 @@ export async function withClaimRetry(fn) {
  *  write no new one starts until reload. @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
 export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
 
+/** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1), for the admin reads below: offline,
+ *  `getDocs` resolves from this device's cache, empty included, and Operations painted it as the server's
+ *  answer ("✓ No outstanding requests", "0/51"). `unavailable` is the SDK's own offline code, so each card's
+ *  catch says "Couldn't load" and withClaimRetry re-throws it untouched. analytics-client.js keeps the same
+ *  guard. Online the SDK waits for the server, and nothing changes. @template T @param {T} snap @returns {T} */
+function refuseCachedRead(snap) {
+    if (/** @type {any} */ (snap)?.metadata?.fromCache) throw Object.assign(new Error('Read was served from the offline cache'), { code: 'unavailable' });
+    return snap;
+}
+
 /**
  * Run a Storage `uploadBytes`, self-healing a stale-claim `storage/unauthorized` once — the
  * Storage-side mirror of {@link writeWithClaimRetry}. Document uploads (huddle/circular/newsletter)
@@ -561,7 +571,7 @@ export async function deleteStaffContact(memberName) {
  * @returns {Promise<Array<{memberName: string, workEmail: string}>>}
  */
 export async function getAllStaffContacts() {
-    const snap = await getDocs(collection(db, COLLECTIONS.staffContact));
+    const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.staffContact)));
     return snap.docs.map(/** @param {any} d */ d => d.data());
 }
 
@@ -635,7 +645,7 @@ export async function savePasswordSetAt(memberName) {
  * @returns {Promise<Array<{ memberName: string, resetAt?: any, passwordSetAt?: any }>>}
  */
 export async function getAllPasswordStatus() {
-    const snap = await getDocs(collection(db, COLLECTIONS.passwordStatus));
+    const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.passwordStatus)));
     // The id AFTER the spread, as in getResetRequests (v18.94): what the rules bind must win.
     return snap.docs.map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }));
 }
@@ -845,7 +855,7 @@ export async function requestPasswordReset(memberName) {
  * @returns {Promise<Array<{memberName: string, requestedAt?: any, count?: number, provisioned?: boolean}>>}
  */
 export async function getResetRequests() {
-    const snap = await getDocs(collection(db, COLLECTIONS.resetRequests));
+    const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.resetRequests)));
     return snap.docs
         // memberName AFTER the spread (v18.94): the doc ID is the thing the rules and the endpoint
         // actually bound, so it must win over a field that could in principle differ. With the old

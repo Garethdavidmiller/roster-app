@@ -563,3 +563,79 @@ describe('the Usage read', () => {
         assert.deepEqual(u.origins, []);
     });
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1, Nov 2026). Offline, the SDK does
+// not fail these reads: it answers from this device's cache, as of whenever it last heard — an empty
+// reset queue included. Operations painted that as the server's answer: "✓ No outstanding requests"
+// beside a member who was locked out, and "0/51" on a device that had never held the table. Each read
+// now rejects with `unavailable`, the SDK's own offline code, so every card's "Couldn't load … Try
+// again" path answers instead. The cards themselves are driven in e2e/operations.spec.js.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The SDK's own code for "the client is offline" — what an uncached read already rejects with. */
+const offline = (/** @type {any} */ e) => e?.code === 'unavailable';
+
+describe('a read the offline cache answered is a failed load (settings-ops-1)', () => {
+    const REQUEST = { requestedAt: fakeTimestamp(5), count: 1, provisioned: true };
+    const EMAIL = 'a@chilternrailways.co.uk';
+
+    test('an EMPTY reset queue from the cache is not "no outstanding requests"', async () => {
+        // The case the card is worst at: a request that arrived after this device last heard.
+        state.fromCache = true;
+        await assert.rejects(fc.getResetRequests(), offline);
+    });
+
+    test('nor is a request the cache still holds presented as current', async () => {
+        state.docs.set(`resetRequests/${MEMBER}`, REQUEST);
+        state.fromCache = true;
+        await assert.rejects(fc.getResetRequests(), offline);
+    });
+
+    test('Account status refuses both of its reads — the work emails and the password stamps', async () => {
+        state.docs.set(`staffContact/${MEMBER}`, { memberName: MEMBER, workEmail: EMAIL });
+        state.docs.set(`passwordStatus/${MEMBER}`, { passwordSetAt: fakeTimestamp(5) });
+        state.fromCache = true;
+        await assert.rejects(fc.getAllStaffContacts(), offline);
+        await assert.rejects(fc.getAllPasswordStatus(), offline);
+    });
+
+    test('online, the same three reads answer exactly as before', async () => {
+        state.docs.set(`resetRequests/${MEMBER}`, REQUEST);
+        state.docs.set(`staffContact/${MEMBER}`, { memberName: MEMBER, workEmail: EMAIL });
+        state.docs.set(`passwordStatus/${MEMBER}`, { passwordSetAt: fakeTimestamp(5) });
+        assert.deepEqual((await fc.getResetRequests()).map((r) => r.memberName), [MEMBER]);
+        assert.deepEqual((await fc.getAllStaffContacts()).map((c) => c.workEmail), [EMAIL]);
+        assert.deepEqual((await fc.getAllPasswordStatus()).map((s) => s.memberName), [MEMBER]);
+    });
+
+    test('the claim-retry passes it straight through — not retried as a stale claim, not reworded', async () => {
+        // Operations reads through withClaimRetry. A retry would spend a forced token refresh on a
+        // device that is offline, and a changed code would cost the card its failed-load path.
+        signIn();
+        state.fromCache = true;
+        await assert.rejects(fc.withClaimRetry(fc.getResetRequests), (e) => offline(e) && /offline cache/.test(e.message));
+        assert.equal(state.reads.filter((r) => r.col === 'resetRequests').length, 1, 'read once');
+        assert.deepEqual(state.authOps.filter((o) => o.op === 'getIdToken'), [], 'no token refresh');
+    });
+
+    test('the Error Log, App Speed and Usage refuse it through the real wiring, and prune nothing from it', async () => {
+        // Every document is SEEDED: offline, a document the cache lacks already rejects, so only a
+        // cached one can show whether the reader looks at where its answer came from.
+        const now = new Date();
+        seedError('open', { ageMs: DAY });
+        seedError('expired-fixed', { resolved: true, ageMs: 200 * DAY, resolvedAgoMs: 91 * DAY });
+        for (const m of [monthKey(now), prevMonthKey(now)]) {
+            state.docs.set(`analytics/perf_${m}`, { samples: {} });
+            state.docs.set(`analytics/pv_${m}`, { counts: { calendar: 4 } });
+        }
+        state.docs.set('analytics/activeAccounts', { months: {}, daily: { '2020-01-01': 3 } });
+        state.docs.set('analytics/origins', { daily: { '2020-01-01|web': 1 } });
+        state.fromCache = true;
+        await assert.rejects(fc.getClientErrors(), offline);
+        await assert.rejects(fc.getPerfStats(), offline);
+        await assert.rejects(fc.getUsageStats(), offline);
+        await settle();
+        assert.deepEqual(state.ops, [], 'no delete and no prune decided on the cache\'s copy');
+    });
+});
