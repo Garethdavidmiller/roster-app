@@ -51,7 +51,7 @@ import { setStatus } from './status-text.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _canPickMember = false;   // admin or manager: the member field is theirs to change
-/** @type {(msg: string) => void} */   let _showSuccess  = () => {};
+/** @type {(msg: string, lines?: string[], o?: { toast?: boolean }) => void} */   let _showSuccess  = () => {};
 /** @type {() => void} */              let _markChanged  = () => {};
 /** @type {(m: string) => Map<string, any>} */ let buildMemberDateMap = () => new Map();
 
@@ -62,7 +62,7 @@ let _wired = false;
 /**
  * @param {object} deps
  * @param {boolean} deps.canPickMember  admin or manager
- * @param {(msg: string) => void} deps.showSuccess
+ * @param {(msg: string, lines?: string[], o?: { toast?: boolean }) => void} deps.showSuccess
  * @param {() => void} deps.markChanged
  * @param {(m: string) => Map<string, any>} deps.memberDateMap
  * @returns {void}
@@ -189,9 +189,7 @@ export function buildWeekGridInto(container, dateStr) {
     header.innerHTML = `
         <div class="hdr-check"></div>
         <div class="hdr-day">Day</div>
-        <div class="hdr-base">Base roster</div>
-        <div class="hdr-pills">Record as</div>
-        <div class="hdr-time">Shift time</div>`;
+        <div class="hdr-base">Base roster</div>`;
     container.appendChild(header);
 
     // Compute once for the whole 7-row loop instead of allocating a Date per row.
@@ -821,6 +819,6 @@ function _initBulkBar() {
         updateSaveBtn();   // …and with it the bulk bar's count and Apply
         // Name the ticked days left alone, so "All 7 → 4 applied" isn't a surprise.
         const said = bulkSkippedLine(applied, skipped, formatDisplay);
-        if (said) _showSuccess(said);
+        if (said) _showSuccess(said, undefined, { toast: false });   // staged, not saved: never the save's toast
     });
 }

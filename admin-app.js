@@ -236,7 +236,7 @@ export function init() {
                         { icon: '🪑', html: 'You never say why. Only the dates are saved; the reason is not recorded anywhere in the app.' },
                     ]},
                     { heading: 'Good to know', items: [
-                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically.' },
+                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically — though a Sunday rostered as work is set as a rest day, so its shift no longer shows.' },
                         { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and everybody can see it, the same as annual leave. What they cannot see is why.' },
                     ]},
                 ],
@@ -370,8 +370,7 @@ export function init() {
     // This preserves the month the staff member was viewing when they tapped Admin.
     const _urlDate = new URLSearchParams(location.search).get('date');
     fieldDate.value = linkableDate(_urlDate) ? /** @type {string} */ (_urlDate) : formatISO(new Date());
-    // The configured years bound the date picker too (it greys out a day past min/max) — admin-shift-rules.js.
-    fieldDate.min = `${CONFIG.MIN_YEAR}-01-01`; fieldDate.max = `${CONFIG.MAX_YEAR}-12-31`;
+    fieldDate.min = `${CONFIG.MIN_YEAR}-01-01`; fieldDate.max = `${CONFIG.MAX_YEAR}-12-31`;   // the configured years; the date picker greys out past them
     // Delegate to updateWeekNavLabel (admin-overrides.js) rather than rebuilding the same string
     // here (v18.90). The two copies had to agree on the format and didn't after the same-month
     // collapse landed — the init one changed, the one that actually runs on every week change did
@@ -517,14 +516,8 @@ export function init() {
     });
 
     // ============================================
-    // WEEK GRID — SWIPE GESTURE
-    // Lazy-capture: pointerdown only records the start position. Horizontal
-    // intent is confirmed in pointermove (dx > dy), at which point
-    // setPointerCapture is called and the carousel starts. This makes the
-    // entire grid surface swipeable — including overridden rows where
-    // .col-pills and .col-time expand to full width — while still letting
-    // taps on checkboxes, pills, and time inputs fire their click handlers.
-    // Safety guards: blocks if unsaved changes exist, blocks if no member/week loaded.
+    // WEEK GRID — SWIPE GESTURE. The gesture itself — lazy capture, the carousel, the cooldown — is
+    // admin-week-swipe.js; what a week change MEANS stays here. No swipe with unsaved changes or no member/week.
     // ============================================
     initAdminWeekSwipe({
         weekGrid: /** @type {HTMLElement} */ (weekGrid),
@@ -1075,8 +1068,9 @@ export function init() {
      * @param {string[]} [lines] one per changed DAY — rendered as an expandable receipt (v21.38).
      *   Built with DOM nodes rather than markup: the lines carry member-entered times and notes, and
      *   textContent cannot be made to mean anything but text.
+     * @param {{ toast?: boolean }} [o] `toast: false` for STAGED days (Apply): the toast confirms a SAVE, and it covered the Unsaved bar.
      */
-    function showSuccess(msg, lines) {
+    function showSuccess(msg, lines, { toast = true } = {}) {
         clearTimeout(_feedbackTimer);
         formFeedback.className = 'feedback success';
         setStatus(formFeedback, '✓ ' + msg);
@@ -1099,7 +1093,7 @@ export function init() {
         if (!lines?.length) _feedbackTimer = setTimeout(hideFeedback, 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
-        showToast('✓ ' + msg);
+        if (toast) showToast('✓ ' + msg);
     }
 
     /**
@@ -1136,6 +1130,7 @@ export function init() {
     /** @type {any[]} */ let _alPendingDelete = [];
     /** @type {string[]} */ let _alPendingSkipped = [];   // staged days the projection leaves alone
     /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
+    /** @type {HTMLElement|null} */ let _alOpener = null;
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -1158,6 +1153,8 @@ export function init() {
         alConfirmMsg.textContent = msg;
         alConfirmSub.textContent = sub;
         alConfirmSaveBtn.disabled = false;   // re-arm (the click handler disables to block a double-tap)
+        const asker = document.activeElement;   // the Save that asked, which Cancel goes back to — on Safari, which focuses no button on a tap, this path's Save
+        _alOpener = asker && asker !== document.body ? /** @type {HTMLElement} */ (asker) : pendingSave ? saveBtn : document.getElementById('alSaveBtn');
         alConfirmBar.classList.add('visible');
         alConfirmSaveBtn.focus();
     }
@@ -1203,6 +1200,8 @@ export function init() {
         // is shared by the AL-BOOKING card too — force-enabling here on that path left a primary
         // action enabled with ZERO staged rows (clicking only yielded "No changes to save").
         updateSaveBtn();
+        // …and focus back to the Save that asked (whole-app check, Nov 2026): left here, it sat on a hidden button.
+        if (_alOpener?.isConnected && !(/** @type {any} */ (_alOpener)).disabled) _alOpener.focus();
     });
 
     // ============================================
@@ -1303,6 +1302,7 @@ export function init() {
             updateALBanner();
             updateALBookedBox();
             updateSickBookedBox();
+            _refreshAlPreview?.(); _refreshSickPreview?.();   // a range already picked was drawn over the deleted days (admin-2-2)
             // Preserve unsaved staged week-grid edits across an AL/absence range delete (v16.82).
             if (fieldMember.value && fieldDate.value && !_hasStagedEdits()) renderWeekGrid();
             const noun = type === 'annual_leave' ? 'AL day' : 'absence day';

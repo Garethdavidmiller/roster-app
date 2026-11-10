@@ -985,6 +985,36 @@ test('admin: a leave preview drawn before the member\'s records arrive is redraw
     await expect(preview).not.toContainText('rest day to answer');
 });
 
+// …AND ONE DRAWN BEFORE A RECORDED PERIOD IS DELETED IS REDRAWN AFTER IT (whole-app check, Nov 2026; admin-2-2).
+// Every other path that changes the records redraws both previews; the ✕ in the recorded dates did not, so a
+// swapped-in day whose leave was just deleted — a bare rest day now — was saved over without its question.
+test('admin: a leave preview is redrawn when a recorded period under it is deleted', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');   // a real user, so the delete is not refused
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {   // Mon 7 Sep: RD on his line, a declared swap
+            docs: [{ id: 'm_2026-09-07_G.%20Miller', memberName: 'G. Miller', date: '2026-09-07', type: 'annual_leave', value: 'AL',
+                note: '', source: 'manual', replacedType: 'shift' }] });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpNext').click();
+    const cell = page.locator('#alRpGrid .rp-day[data-iso="2026-09-07"]');
+    await cell.click();
+    await cell.click();
+    const preview = page.locator('#alPreview');
+    await expect(preview).toBeVisible();
+    await expect(preview, 'premise: its record settles the question').not.toContainText('rest day to answer');
+    await page.locator('#alBookedToggle').click();
+    const del = page.locator('#alBookedBody .btn-period-delete[aria-label*="7 Sep"]');
+    await del.click();
+    await del.click();
+    await expect(page.locator('#saveToast')).toHaveText(/Deleted 1 AL day for G\. Miller/);
+    await expect(preview, 'a bare rest day now: asked about again').toContainText('rest day to answer');
+});
+
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 };
@@ -1396,6 +1426,9 @@ test('admin: All 7 → Absent → Apply stages only the working days, and names 
         '2027-01-14': '', '2027-01-15': 'sick', '2027-01-16': 'sick' });
     await expect(page.locator('#formFeedback')).toContainText('Set 4 days — Sunday skipped (not a contracted day); '
         + '13 Jan 2027 and 14 Jan 2027 skipped: rest days on the base roster, so nothing is recorded.');
+    // STAGED, NOT SAVED (whole-app check, Nov 2026): never the save's own toast, which covered the Unsaved bar.
+    expect(await page.locator('#saveToast').getAttribute('class') ?? '', 'read at once: a toast fades by itself').not.toMatch(/\bvisible\b/);
+    await expect(page.locator('#stagedBar')).toBeVisible();
     await page.locator('#saveBtn').click();
     await expect(page.locator('#formFeedback')).toContainText('4 changes saved for G. Miller', { timeout: 10000 });
     const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
@@ -2182,6 +2215,25 @@ test('admin: an armed Saved Changes delete says so in its accessible name, and s
     await expect(btn, 'idle again: the name comes back with the glyph').toHaveAttribute('aria-label', 'Delete G. Miller 2026-09-01', { timeout: 7000 });
     await expect(btn).toHaveText('✕');
     await expect(btn).not.toHaveClass(/confirming/);
+});
+
+// NEWEST FIRST ON LOAD, NOT ONLY AFTER A SAVE (whole-app check, Nov 2026; admin-2-3). The member read has no
+// orderBy, so the list came in document-id order — a roster import's random id among the manual `m_<date>` ones.
+test('admin: a member\'s Saved Changes are listed newest first as they load', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {   // as Firestore answers: by id
+            docs: [['m_2026-09-01_G.%20Miller', '2026-09-01'], ['Zx81', '2026-09-20'], ['m_2026-09-10_G.%20Miller', '2026-09-10'], ['aB3', '2026-09-03']]
+                .map(([id, date]) => ({ id, memberName: 'G. Miller', date, type: 'shift', value: '09:00-17:00', note: '' })),
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#overridesToggleHeader').click();
+    await expect(page.locator('.override-card')).toHaveCount(4);
+    expect(await page.locator('.override-card .btn-edit').evaluateAll(bs => bs.map(b => b.getAttribute('data-date'))))
+        .toEqual(['2026-09-20', '2026-09-10', '2026-09-03', '2026-09-01']);
 });
 
 test('admin: a Saved Changes row is one row — controls side by side, under 64px', async ({ page }) => {
@@ -3764,6 +3816,22 @@ test('admin: leave over a worked Boxing Day names the day in lieu it takes back,
     const bar = page.locator('#alConfirmBar');
     await expect(bar, 'one day left, and the save takes the day in lieu back: it ends one over').toHaveClass(/visible/);
     await expect(bar).toContainText('1 day over their 2026 AL entitlement');
+    // CANCEL PUTS FOCUS BACK ON THE SAVE THAT ASKED (whole-app check, Nov 2026): it was left on a hidden button.
+    await page.locator('#alConfirmCancelBtn').click();
+    await expect(bar).not.toHaveClass(/visible/);
+    await expect(page.locator('#alSaveBtn')).toBeFocused();
+});
+
+// THE ABSENCE TIP SAYS WHAT A SUNDAY IN THE RANGE BECOMES (whole-app check, Nov 2026; admin-2-4). "Skipped"
+// alone was half of it: a Sunday rostered as work inside the range is written as a rest day, so its shift goes.
+test('admin: the Record Absence tips say a Sunday rostered as work is set as a rest day', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('.btn-card-tips[data-card="sick-days"]').click();
+    const tips = page.locator('#tipsLbBody');
+    await expect(tips).toContainText('Rest days and Sundays inside the range are skipped automatically');
+    await expect(tips).toContainText('a Sunday rostered as work is set as a rest day, so its shift no longer shows');
 });
 
 // ── THE DESKTOP AUDIT (Nov 2026) ─────────────────────────────────────────────────────────────────

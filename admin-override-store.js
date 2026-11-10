@@ -79,12 +79,12 @@ export function initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits,
 //     over-entitlement check — which a cold cache would make wrong (a real <12h gap missed, or a valid
 //     save wrongly blocked). It disables Save BEFORE the await (the v16.23 "disable before the first
 //     await" invariant) so no double-tap window opens.
-// The ONE deliberately-ungated read is the AL RANGE-booking over-entitlement WARNING
-// (admin-al.js checkEntitlement, via admin-range-booking's preSave): gating it safely is
-// disproportionately risky (its confirm bar re-triggers the same Save button via
-// triggerConfirmedALSave → click, so disabling it there would break the confirm→save flow), and a
-// cold miss only SKIPS a warning — the write itself is still correct (recordRangeOverrides self-gates)
-// and by the time an admin has built a range booking the cache is long warm.
+// The AL RANGE card's pre-save reads — the over-entitlement warning (admin-al.js checkEntitlement, via
+// admin-range-booking's preSave), the swap answers and the "left alone" receipt lines — were left
+// ungated on two premises that no longer hold (whole-app check, Nov 2026; admin-2-1): that the cache is
+// long warm by then (since v21.38 every member switch starts a fresh, staged load), and that a cold miss
+// only SKIPS a warning (since v23.75 the swap answers are decided from it too). The write itself still
+// self-gates (recordRangeOverrides). Whether that card waits for the member is admin-range-booking.js's to say.
 // Resolving on FAILURE too is deliberate — if the first read errored Firestore is unreachable and the
 // write will fail its own commit anyway, better than hanging the Save button forever. loadOverrides()
 // is called unconditionally in the AUTHORISED admin-init branch (not the not-signed-in/login branch,
@@ -477,6 +477,9 @@ async function _loadOverridesInner(opts) {
             _coverage = withMember(_coverage, member);
             _loadFailedFor.delete(member);
         }
+        // NEWEST FIRST, WHICHEVER READ FILLED IT (whole-app check, Nov 2026; admin-2-3). The member read has no
+        // `orderBy`, so the list came in document-id order — no date order at all — until a save sorted it.
+        _allOverrides.sort((a, b) => String(b.date).localeCompare(String(a.date)));
         _renderTable();
         const fieldDate = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
         // Do NOT re-render over staged edits: on a slow first load the admin can already have

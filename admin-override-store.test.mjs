@@ -362,6 +362,18 @@ describe('2 · the cache claims to know what it never read', () => {
 });
 
 
+describe('2b · the cache is newest first, whichever read filled it (whole-app check, Nov 2026)', () => {
+    test('a member read, which Firestore answers in document-id order, is held newest first', async () => {
+        // No `orderBy` on the member query (it needs no index), so ids decide the order: a roster import's
+        // random id among the `m_<date>_…` manual ones. The Saved Changes list draws the cache as it stands.
+        const { store } = await freshStore();
+        _handler = async () => [row('m_2026-09-01_A', 'A. One', '2026-09-01'), row('Zx81', 'A. One', '2026-09-20'),
+            row('m_2026-09-10_A', 'A. One', '2026-09-10'), row('aB3', 'A. One', '2026-08-30')];
+        await store.loadOverrides({ member: 'A. One' });
+        assert.deepEqual(store.getAllOverrides().map(o => o.date), ['2026-09-20', '2026-09-10', '2026-09-01', '2026-08-30']);
+    });
+});
+
 describe('3 · the cache keeps what has been deleted', () => {
     test('a member read REPLACES that member’s slice', async () => {
         const { store } = await freshStore();
