@@ -101,9 +101,10 @@ maps it to an **UNREADABLE** review row.
 
 ## Day drift — a week written onto the wrong days
 
-**Day-drift defence — three layers; a one-day shift must never be silently written.** The only entry
-point for a shifted row is the AI's visual ROW read (date assignment is deterministic: day-name keys
-→ server dates).
+**Day-drift defence — four layers; a week must never be silently written onto the wrong days.** The
+only entry point for a ONE-day shift is the AI's visual ROW read (date assignment is deterministic:
+day-name keys → server dates), and layers 1–3 guard it. A WHOLE week out enters through the week
+chosen on the form instead, and only layer 4 can see it.
 
 1. **`applySundayScanCorrections`** (`functions/roster-sunday-repair.js`) — the Sunday-anchored Case
    A/B repair. Its clean right-shift needs an EMPTY Saturday slot, and **only the blank-Saturday
@@ -132,13 +133,24 @@ point for a shifted row is the AI's visual ROW read (date assignment is determin
 3. **`detectShiftedRow`** (`roster-alignment.js`, client) — the AI-independent signal: the parsed
    week is correlated against the member's OWN base roster at offsets −1/0/+1; if a ±1 alignment beats
    offset 0 by ≥3 matches (and scores ≥5/7), the row is suspect.
+4. **`checkSheetWeek`** (`functions/roster-week-heading.js`) — the sheet's OWN week, and **it does
+   not depend on the model**: it reads the PDF's text layer, never a reply. Layers 1–3 compare a day
+   with its neighbours, so a sheet for a different week, read perfectly, passes all three. The
+   roster prints its week (`Week Ending: DD/MM/YYYY`, on page 1 above the grid; the footer's Print
+   Date is never read). The grid read collects every such heading, and `parseRosterPDF` refuses the
+   WHOLE read with a 409 when one names a week other than the one chosen, with a message naming both
+   weeks that the admin sees as written: before the model is called, or, when the early wait on the
+   grid read gave up, once it settles (as `settledGeometry` re-asks for the witness, below), and
+   either way before anything is written. **It never guesses**: no heading read (no text layer, a
+   layout without one, a date that is not a Saturday) fails open and is logged, as the geometry
+   witness does (owner, 10 Nov 2026).
 
-**THE THREE "LAYERS" ARE NOT THREE WITNESSES.** Layers 1 and 2 both come from ONE model call looking
-at ONE PDF — so when it visually collapses the blank Sunday cell and repeats that positional mistake
-across the row read, `sundayScan` AND `columnScan`, every server-side check agrees with the wrong
-answer and a whole week is written onto the wrong days. Nothing errors. Pinned by the "consistently
-shifted read" block in `roster-parse-helpers.test.mjs`. Layer 3 is the only genuinely independent
-evidence, so it must never be warn-only above a fully-ticked list:
+**THE FIRST THREE "LAYERS" ARE NOT THREE WITNESSES.** Layers 1 and 2 both come from ONE model call
+looking at ONE PDF — so when it visually collapses the blank Sunday cell and repeats that positional
+mistake across the row read, `sundayScan` AND `columnScan`, every server-side check agrees with the
+wrong answer and a whole week is written onto the wrong days. Nothing errors. Pinned by the
+"consistently shifted read" block in `roster-parse-helpers.test.mjs`. Of the three, layer 3 is the
+only genuinely independent evidence, so it must never be warn-only above a fully-ticked list:
 
 - **A suspect member's rows start UNTICKED** (`computeCellStates` owns the decision, so the save path
   inherits it).
