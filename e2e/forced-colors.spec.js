@@ -316,3 +316,82 @@ test.describe('Windows High Contrast — a chosen control shows its choice', () 
         }
     });
 });
+
+// A FILLED BUTTON KEEPS ITS SHAPE (v25.71). A button drawn by its fill alone has no shape of its own under forced
+// colours: the theme repaints the fill as ButtonFace, the same as the panel around it, and the button reads as bold
+// words. Measured on the PDF viewer's two Try again buttons, the page's and the file's, which were exactly that; each
+// now carries a border in the theme's ButtonText (newlink.css). What is counted is the button's own outer band against
+// the colour just outside it — its edge, as the eye finds it — at one image pixel per CSS pixel, so the band is
+// measured in the units it is drawn in.
+
+/**
+ * Pixels of a control's outer 2px band that stand apart from the colour just outside it.
+ * @param {import('@playwright/test').Page} page @param {import('@playwright/test').Locator} loc
+ */
+async function edgePixels(page, loc) {
+    // On a desktop a failed page is taller than the window, and its button sits below it: a picture takes only what is in view.
+    await loc.scrollIntoViewIfNeeded();
+    const b = /** @type {{ x: number, y: number, width: number, height: number }} */ (await loc.boundingBox());
+    const pad = 4;
+    const clip = { x: Math.floor(b.x) - pad, y: Math.floor(b.y) - pad, width: Math.ceil(b.width) + pad * 2, height: Math.ceil(b.height) + pad * 2 };
+    const img = decodePNG(await page.screenshot({ clip, scale: 'css' }));
+    const at = (/** @type {number} */ x, /** @type {number} */ y) => {
+        const i = (y * img.w + x) * img.bpp;
+        return [img.px[i], img.px[i + 1], img.px[i + 2]];
+    };
+    const outside = at(1, Math.floor(img.h / 2));
+    let n = 0;
+    for (let y = pad; y < img.h - pad; y++) {
+        for (let x = pad; x < img.w - pad; x++) {
+            const band = x < pad + 2 || x >= img.w - pad - 2 || y < pad + 2 || y >= img.h - pad - 2;
+            if (band && at(x, y).some((c, k) => Math.abs(c - outside[k]) > 40)) n++;
+        }
+    }
+    return n;
+}
+
+test.describe('Windows High Contrast — a filled button keeps its shape', () => {
+    test.skip(({ browserName }) => browserName !== 'chromium',
+        'forced-colors emulation is Chromium-only');
+
+    test('the PDF viewer: a page\'s Try again, and the file\'s', async ({ page }) => {
+        let offline = false;
+        await page.route('https://garethdavidmiller.github.io/roster-app/docs/links-26/**', (route) => offline
+            ? route.abort('internetdisconnected')
+            : route.fulfill({ path: decodeURIComponent(new URL(route.request().url()).pathname.replace('/roster-app/', '')),
+                contentType: 'application/pdf', headers: { 'access-control-allow-origin': '*' } }));
+        // The first page drawn is refused, the way PDF.js refuses a page it cannot draw; the rest draw.
+        await page.addInitScript(() => {
+            const save = CanvasRenderingContext2D.prototype.save;
+            let drawn = 0;
+            CanvasRenderingContext2D.prototype.save = function () {
+                if (drawn++ === 0) throw new Error('test: the drawing was refused');
+                return save.call(this);
+            };
+        });
+        await page.emulateMedia({ forcedColors: 'active' });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches),
+            'the emulation did not take — this test would pass by not testing').toBe(true);
+
+        await page.locator('#nlPackList a.nl-file').last().click();
+        const pageRetry = page.locator('.pdf-viewer-page-retry').first();
+        await expect(pageRetry).toBeVisible({ timeout: 20_000 });
+        await stillPage(page);
+        const onPage = await edgePixels(page, pageRetry);
+        expect(onPage, `a page's Try again has ${onPage} px of edge under forced colours — it reads as two bold words`)
+            .toBeGreaterThan(100);
+
+        await page.locator('#pdfViewerClose').click();
+        await expect(page.locator('#pdfViewer')).not.toHaveClass(/\bvisible\b/);
+        offline = true;
+        await page.locator('#nlPackList a.nl-file').first().click();
+        const fileRetry = page.locator('#pdfViewerRetry');
+        await expect(fileRetry).toBeVisible({ timeout: 20_000 });
+        await stillPage(page);
+        const onFile = await edgePixels(page, fileRetry);
+        expect(onFile, `the file's Try again has ${onFile} px of edge under forced colours — it reads as two bold words`)
+            .toBeGreaterThan(100);
+    });
+});

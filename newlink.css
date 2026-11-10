@@ -596,9 +596,14 @@ body {
 
 /* A FORCED-COLOURS theme (Windows high contrast) repaints every fill and shadow. A chosen tile or tab is stated by
    shared.css's one rule for every chosen control (v25.21; this block carried its own until then); the best figure's
-   box is this page's alone. A `var(--…)` here would be forced away too. */
+   box is this page's alone. A `var(--…)` here would be forced away too.
+   The PDF viewer's two Try again buttons are drawn by their fill alone, and the theme repaints a button's fill as
+   ButtonFace, the same as the panel around it: each read as two bold words with no button about them (v25.71,
+   measured). The zoom buttons carry a border, so they kept their shape; these two now carry one in the theme's own
+   ButtonText. */
 @media (forced-colors: active) {
     .nl-fig .nl-best b { border: 1px solid CanvasText; }
+    .pdf-viewer-retry, .pdf-viewer-page-retry { border: 1px solid ButtonText; }
 }
 
 @media print {
