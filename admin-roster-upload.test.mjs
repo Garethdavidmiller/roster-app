@@ -985,6 +985,85 @@ describe('collectRosterWrites — what one Save writes', () => {
     });
 });
 
+// ── LEAVE OR AN ABSENCE ON A BASE REST DAY IS NOT A "REST" BUTTON (whole-app fix, Nov 2026) ──────
+// Two readings "Absent or 06:00-14:00" on a base rest day were offered as "Rest" and the time: the
+// rest-day guard had rewritten the absence, so the row never said Absent and never asked the swapped-
+// day question every other route asks. And picking "Rest" — or entering Rest Day — wrote a correction
+// over a day the base already rests, the redundant record REMOVE_IMPORT exists to avoid.
+describe('an unreadable cell on a base rest day', async () => {
+    const ec = await import('./roster-entry-control.js');
+    const rs = await import('./roster-review-states.js');
+    const WEEK = ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'];
+    /** @type {any} */ let who = null; let day = '';
+    for (const x of teamMembers) {
+        if (x.hidden || x.managerOnly || x.startDate) continue;
+        const d = WEEK.find(w => getBaseShift(x, new Date(w + 'T12:00:00')) === 'RD');
+        if (d) { who = x; day = d; break; }
+    }
+    const key = () => `${who.name}|${day}`;
+    const read = (/** @type {string[]} */ choices, /** @type {any[]} */ existing = []) => computeCellStates({
+        parsed: [{ memberName: who.name, shifts: { [day]: `UNKNOWN|${choices.join(' or ')}? (PDF unclear)` } }],
+        dates: [day], choices: { [key()]: choices } }, existing);
+    const record = (/** @type {any} */ ex) => [{ id: 'r1', memberName: who.name, date: day, ...ex }];
+
+    test('a reading the rest-day guard would rewrite offers no picks — the row shows what was read', () => {
+        assert.ok(who, 'a member resting on a weekday of the fixture week');
+        for (const absence of ['SICK', 'AL']) {
+            const s = read([absence, '06:00-14:00']).get(key());
+            assert.equal(s.state, 'UNREADABLE');
+            assert.equal(s.options, null, `${absence}: never a "Rest" button`);
+            assert.match(s.parsedShift, /06:00-14:00/, 'the readings stay on the row');
+        }
+    });
+
+    test('…and entering that absence asks the swapped-day question, as everywhere else', () => {
+        const st = read(['SICK', '06:00-14:00']);
+        const s = st.get(key());
+        s.draft = { type: 'sick', from: '', to: '', open: true };
+        ec.commitEntry(s);
+        assert.equal(s.entered, null, 'unanswered writes nothing');
+        assert.match(ec.entryControlHtml(key(), s, day), /Was it a swapped working day\?/);
+    });
+
+    test('a rest day picked or entered over a base rest day writes nothing new — and clears what was there', () => {
+        const pickRest = (/** @type {any[]} */ existing) => {
+            const st = read(['RD', '06:00-14:00'], existing);
+            const s = st.get(key());
+            s.chosen = s.options.findIndex((/** @type {any} */ o) => o.display === 'RD');
+            return collectRosterWrites(st).map(w => [w.value, w.replaceId ?? null, !!w.deleteOnly]);
+        };
+        assert.deepEqual(pickRest([]), [], 'nothing saved there: nothing to write');
+        assert.deepEqual(pickRest(record({ type: 'shift', value: '06:00-14:00', source: 'roster_import' })), [[null, 'r1', true]],
+            'an earlier import there is cleared, not covered by a correction');
+        const enterRest = (/** @type {any[]} */ existing) => {
+            const st = computeCellStates({ parsed: [{ memberName: who.name, shifts: { [day]: 'UNKNOWN|SEE CEM' } }], dates: [day] }, existing);
+            const s = st.get(key());
+            s.draft = { type: 'correction', from: '', to: '', open: true };
+            ec.commitEntry(s);
+            return { s, writes: collectRosterWrites(st) };
+        };
+        const { s, writes } = enterRest([]);
+        assert.deepEqual(writes, []);
+        assert.match(ec.entryControlHtml(key(), s, day), /nothing new is recorded/, 'and the hint does not say "will be saved"');
+        assert.equal(rs.reviewOutcome(new Map([[key(), s]])).unreadable, 0, 'an answer, not a cell nobody read');
+        assert.deepEqual(enterRest(record({ type: 'shift', value: '06:00-14:00', source: 'manual' })).writes.map(w => [w.deleteOnly, w.replaceId]),
+            [[true, 'r1']], 'over a hand-recorded entry the day goes back to its rest day');
+    });
+
+    test('on a WORKED base day nothing changes: the readings are offered, and Rest Day is a correction', () => {
+        const worked = WEEK.find(d => /^\d{2}:/.test(getBaseShift(who, new Date(d + 'T12:00:00'))));
+        assert.ok(worked, 'the fixture member works a day that week');
+        const k = `${who.name}|${worked}`;
+        const st = computeCellStates({ parsed: [{ memberName: who.name, shifts: { [worked]: 'UNKNOWN|Absent or 06:00-14:00? (PDF unclear)' } }],
+            dates: [worked], choices: { [k]: ['SICK', '06:00-14:00'] } }, []);
+        const s = st.get(k);
+        assert.deepEqual(s.options.map((/** @type {any} */ o) => o.display), ['SICK', '06:00-14:00']);
+        s.chosen = null; s.draft = { type: 'correction', from: '', to: '', open: true };
+        ec.commitEntry(s);
+        assert.deepEqual(collectRosterWrites(st).map(w => w.value), ['RD']);
+    });
+});
+
 // ── A ROW NOBODY READ (decided default, whole-app fix, Nov 2026) ─────────────────────────────────
 // A blank weekday is a question and a blank Sunday a rest day — so for a member printed on a second
 // sheet who works most of the week elsewhere, every weekday was asked about while the Sunday was taken

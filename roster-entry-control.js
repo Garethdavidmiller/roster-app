@@ -51,7 +51,7 @@ import { escapeHtml as esc, isSunday } from './roster-data.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { manualCellValue, isForbiddenOnSunday, composeOtherValue, isRestShift, OTHER_FLAVOURS } from './override-utils.js';
 import { normaliseCellValue, isZeroLengthRange } from './roster-cell-rules.js';
-import { unreadableTagClass } from './roster-review-states.js';
+import { unreadableTagClass, restOverRest } from './roster-review-states.js';
 
 /** What the hint under the time boxes says, in both of its states. */
 const HINT_DONE = '\u2713 this day will be saved';
@@ -79,6 +79,8 @@ const HINT_SWAP_NO  = 'A rest day \u2014 nothing will be recorded for this day.'
 /** Leave or an absence entered on 25 or 26 December from 2026 is never asked about and never
  *  recorded: the app's Christmas leave decides those days (owner, 10 Nov 2026). */
 const HINT_CHRISTMAS = 'The app\u2019s Christmas leave decides 25 and 26 December \u2014 nothing is recorded for this day.';
+/** A rest day entered where the base roster already rests is no record at all (`restOverRest`). */
+const HINT_REST_AS_BASE = '\u2713 A rest day on the base roster too \u2014 nothing new is recorded for this day.';
 
 /**
  * The in-place "enter it myself" control for an unreadable cell (v22.17).
@@ -352,6 +354,7 @@ function entryHint(d, st) {
     const { value, error } = draftValue(d, st);
     if (value && st?.christmas && draftRestGuarded(d, st)) return HINT_CHRISTMAS;
     if (value && draftAsksSwap(d, st)) return d.swap === 'yes' ? HINT_SWAP_YES : d.swap === 'no' ? HINT_SWAP_NO : HINT_SWAP_ASK;
+    if (value && restOverRest(value, st?.baseShift)) return HINT_REST_AS_BASE;
     if (value) return HINT_DONE;
     // `composeOtherValue`'s own "no flavour yet" message names Spare, because the week editor
     // offers it. This control does not, so it says its own sentence rather than promising a chip

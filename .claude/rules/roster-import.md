@@ -97,6 +97,10 @@ maps it to an **UNREADABLE** review row.
   Sunday's `MEET 10:00-14:00` beside `10:00-14:00`). A lone rest day is not offered — written on a
   rostered Sunday it takes the shift away — and a Sunday training or meeting reading is never offered.
 - Unpicked is the default and writes nothing.
+- A reading of leave or an absence on a base REST day is not offered at all (the guard would show it
+  as "Rest"): the row shows what was read, and the entry below asks the swapped-day question. A rest
+  day picked or entered over a base rest day writes nothing new, only clearing what the day held
+  (`restOverRest`; whole-app fix, Nov 2026).
 - An EMPTY cell is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row
   Monday to Saturday (below).
 

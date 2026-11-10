@@ -191,7 +191,14 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     ? cand.map(v => (v === 'RDW' ? (pairedTime ? `${RDW_PREFIX}${pairedTime}` : null) : v))
                           .filter(v => v != null)
                     : [];
-                const opts = readings.map(v => normaliseCellValue(v, baseShift, date))
+                const normalised = readings.map(v => normaliseCellValue(v, baseShift, date));
+                // LEAVE OR AN ABSENCE ON A BASE REST DAY IS NOT A "REST" BUTTON (whole-app fix, Nov 2026).
+                // The rest-day guard rewrites it to RD, so a pick offered it as plain "Rest", named the
+                // absence nowhere, and never asked the swapped-day question every other route asks. Such
+                // a cell offers no readings: the row shows both as the server wrote them ("Absent or
+                // 06:00-14:00?"), and the entry below asks the question if the answer is the absence.
+                const restGuarded = normalised.some(o => o.guarded === 'rest-day');
+                const opts = normalised
                     // A Sunday training or meeting day is not a reading anything may write (owner,
                     // 7 Nov 2026) — offered, it would have been a "Rest" button over a Sunday.
                     .filter(o => o.guarded !== 'sunday-other')
@@ -204,7 +211,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // review). A Sunday's "MEET 10:00-14:00" and "10:00-14:00" both write Sunday work at
                 // those hours, and collapsing them left a row with nothing to pick. A lone rest day is
                 // still not offered: written on a rostered Sunday it would take the shift away.
-                const offered = opts.length > 1 || (readings.length > 1 && opts.length === 1 && opts[0].value !== 'RD');
+                const offered = !restGuarded && (opts.length > 1 || (readings.length > 1 && opts.length === 1 && opts[0].value !== 'RD'));
                 states.set(key, {
                     state: 'UNREADABLE',
                     // The DATE is carried on the state (v22.17). The in-place entry has to apply the
@@ -508,6 +515,16 @@ export function guardedWrites(s, memberName, date) {
 }
 
 /**
+ * Is this answer a rest day on a day the base roster already rests? Then it is no record at all —
+ * the collector writes nothing new there, and the entry control says so (whole-app fix, Nov 2026).
+ * @param {any} value the value an answer would write @param {any} baseShift
+ * @returns {boolean}
+ */
+export function restOverRest(value, baseShift) {
+    return (value === 'RD' || value === 'OFF') && (baseShift === 'RD' || baseShift === 'OFF');
+}
+
+/**
  * Everything one Save of the roster review writes (test audit, 7 Nov 2026 — it was inline in the
  * coordinator's click handler, which imports Firebase from a CDN, so the only way to pin it was to
  * read its source). The coordinator hands it the cell-state map and saves what comes back.
@@ -517,7 +534,9 @@ export function guardedWrites(s, memberName, date) {
  * approved is what lands, and a raw SICK on a base rest day cannot slip past the rest-day guard as
  * the absence the review had shown as "RD". A ticked REMOVE_IMPORT deletes the stale import and
  * writes nothing. An UNREADABLE row writes only once answered in place or one of its two readings
- * is picked; untouched, `chosen` stays null. A GUARDED row writes what `guardedWrites` says.
+ * is picked; untouched, `chosen` stays null — and an answer of a rest day over a base rest day writes
+ * nothing new, only clearing what the day held (`restOverRest`). A GUARDED row writes what
+ * `guardedWrites` says.
  *
  * THE HARD GATE (v22.16) comes first: a cell from a read the circuit breaker refused writes
  * nothing, whatever `chosen` says. The tick handler already refuses to set `chosen` there, so from
@@ -541,12 +560,17 @@ export function collectRosterWrites(cellStates) {
         if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
             toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
         }
-        if (state.state === 'UNREADABLE' && state.chosen === 'entered' && state.entered) {
+        const answer = state.state !== 'UNREADABLE' ? null
+            : (state.chosen === 'entered' && state.entered) ? state.entered
+            : (typeof state.chosen === 'number' && state.options?.[state.chosen]) || null;
+        if (answer && restOverRest(answer.display, state.baseShift)) {
+            // A REST DAY OVER A BASE REST DAY IS NO RECORD (whole-app fix, Nov 2026). Written, it was a
+            // redundant correction that would mask a later change to the base roster — what
+            // REMOVE_IMPORT exists to avoid — so what the day held before is cleared instead, if anything.
+            if (state.manualId) toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
+        } else if (answer) {
             // `swapped`: leave or an absence on a base rest day, answered "Swapped" in the entry control.
-            toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, swapped: !!state.entered.swapped, replacedFrom: replacedFromState(state) });
-        }
-        if (state.state === 'UNREADABLE' && typeof state.chosen === 'number' && state.options?.[state.chosen]) {
-            toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
+            toWrite.push({ memberName, date, value: answer.display, baseShift: state.baseShift, replaceId: state.manualId, swapped: !!answer.swapped, replacedFrom: replacedFromState(state) });
         }
         toWrite.push(...guardedWrites(state, memberName, date));
         if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
