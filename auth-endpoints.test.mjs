@@ -214,6 +214,9 @@ function build({
     usersPerPage = Infinity,
     releaseFail = null,
     stampFail = null,
+    // The reset request's answer floor (functions-core-4). 0 keeps this suite fast; `null` builds the
+    // endpoint exactly as index.js does, with production's floor.
+    answerFloorMs = 0,
 } = {}) {
     const sends = [];
     /** Every `releasePushForOwner` call — the leaver's push records leaving with the account (H4). */
@@ -353,6 +356,7 @@ function build({
         VAPID_PUBLIC_KEY: 'public',
         STAFF_SITE_URL: 'https://myb-roster.web.app',
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
+        ...(answerFloorMs === null ? {} : { resetRequestAnswerFloorMs: answerFloorMs }),
     });
     return { eps, sends, db, authOps, users, released, stamps, acceptPush: (n) => acceptDeferred(n) };
 }
@@ -443,6 +447,36 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         assert.equal(throttled.sends.length, 0, 'fixture check: the repeat really was throttled');
 
         assert.deepEqual(repeat, first, 'the two answers must not differ in anything a caller can read');
+    });
+
+    // …NOR IN WHEN THEY ARRIVE (functions-core-4, 10 Nov 2026). The bodies were identical, but a
+    // throttled repeat answered after two round trips and a recorded request after four to six, so
+    // timing the public endpoint told the same story the body was written to hide.
+    test('a recorded request and a throttled repeat are both answered no sooner than the floor', async () => {
+        const FLOOR = 120;
+        const timed = async (world) => {
+            const t0 = Date.now();
+            const out = await call(world.eps.requestPasswordReset, reqFor(MEMBER));
+            return { out, ms: Date.now() - t0 };
+        };
+        const recorded = build({ answerFloorMs: FLOOR });
+        const throttled = build({ answerFloorMs: FLOOR, seed: { resetRequests: { [MEMBER]: { requestedAt: { toMillis: () => NOW } } } } });
+        const a = await timed(recorded);
+        const b = await timed(throttled);
+        assert.equal(recorded.sends.length, 1, 'fixture check: recorded');
+        assert.equal(throttled.sends.length, 0, 'fixture check: throttled');
+        for (const [what, r] of [['recorded', a], ['throttled', b]]) {
+            assert.equal(r.out.code, 200);
+            assert.ok(r.ms >= FLOOR - 2, `a ${what} answer arrived after ${r.ms} ms, inside the ${FLOOR} ms floor`);
+        }
+    });
+
+    test('production holds the answer for its own floor — the seam is not left at zero', async () => {
+        const { eps } = build({ answerFloorMs: null, seed: { resetRequests: { [MEMBER]: { requestedAt: { toMillis: () => NOW } } } } });
+        const t0 = Date.now();
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(out.code, 200);
+        assert.ok(Date.now() - t0 >= 1_900, `a throttled repeat was answered after ${Date.now() - t0} ms`);
     });
 
     // THE ADMIN'S PUSH IS A COURTESY ON TOP OF THE ROW, and two protections keep it one (test audit,

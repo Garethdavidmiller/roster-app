@@ -84,8 +84,11 @@ const rosterMembers = require('./roster-members.json');
  * @param {string}   deps.VAPID_PUBLIC_KEY
  * @param {string}   deps.STAFF_SITE_URL
  * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS
+ * @param {number}   [deps.resetRequestAnswerFloorMs]  the test seam for RESET_REQUEST_ANSWER_FLOOR_MS;
+ *                                                   index.js passes nothing, so production keeps it
  */
-function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, ADMIN_FUNCTION_ORIGINS }) {
+function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, ADMIN_FUNCTION_ORIGINS,
+    resetRequestAnswerFloorMs }) {
 
 
 /**
@@ -588,10 +591,20 @@ const resetMemberPassword = onRequest(
  *  · **maxInstances** caps the cost of a flood. (The eventual real control is App Check — Track D.)
  *  · **No enumeration**: it answers the same way for any roster name whether or not an account exists,
  *    and the roster names are already public in the login dropdown, so nothing new is revealed.
+ *  · **No "who is locked out" oracle**: a recorded request and a throttled repeat get the same body,
+ *    and neither is answered before RESET_REQUEST_ANSWER_FLOOR_MS, so their timing matches too.
  *
  * Body: { member: string }. Always 200 for a valid roster name.
  */
 const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
+// No answer to a valid name before this long after the request began (functions-core-4). The body
+// is identical for a recorded request and a throttled repeat, but the repeat used to answer after two
+// round trips and a recorded request after four to six (plus a push), so the TIMING said which names
+// were locked out right now — the exact list the identical body exists to hide. Sized above the
+// recorded path's ordinary time; a push service slow enough to pass it still shows, and that residue
+// is the price of not making a locked-out member wait longer. Their screen reads "Sending…" meanwhile.
+const RESET_REQUEST_ANSWER_FLOOR_MS = 2_000;
+const answerFloorMs = Number.isFinite(resetRequestAnswerFloorMs) ? resetRequestAnswerFloorMs : RESET_REQUEST_ANSWER_FLOOR_MS;
 // How long the admin notification may take before the endpoint gives up on it and answers the member
 // anyway. Well inside the function's 30s timeout, leaving room for the record itself — the request is
 // the product, the push is a courtesy, and the courtesy must never cost the product.
@@ -719,6 +732,8 @@ const requestPasswordReset = onRequest(
         secrets: [VAPID_PRIVATE_KEY],
     },
     async (req, res) => {
+        // Measured from the top, so the floor covers every round trip either path makes.
+        const answerNotBefore = Date.now() + answerFloorMs;
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
         // The kill switch, server-side (v18.97). 503 rather than 404: it is honest about the endpoint
         // existing but being closed, and it does not change what an outsider can learn about the
@@ -828,7 +843,11 @@ const requestPasswordReset = onRequest(
             // the comment beside it warned against: anyone could poll the 50 public names and learn who
             // is locked out RIGHT NOW — a ready-made pretext for a "hi, it's IT about your password
             // reset" call, aimed at the people most likely to fall for it. The distinction stays in the
-            // log line, where only the admin can see it.
+            // log line, where only the admin can see it. AND NO SOONER than the floor: a throttled
+            // repeat does two round trips where a recorded request does four to six, so an early
+            // answer would have said the same thing by its timing (functions-core-4).
+            const holdMs = answerNotBefore - Date.now();
+            if (holdMs > 0) await new Promise((resolve) => setTimeout(resolve, holdMs));
             return res.json({ ok: true });
         } catch (e) {
             console.error('[requestPasswordReset] failed for', member, e && e.code, e);
