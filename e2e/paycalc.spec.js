@@ -2696,6 +2696,25 @@ test('paycalc: a primary button and the secondary under it are drawn by one reci
     expect(download, '"Download backup" against "Copy as text"').toBe(copy);
 });
 
+test('paycalc guide: the two bulleted lists keep their bullets on paper', async ({ page }) => {
+    // Each bullet is a 5px gold dot drawn as a BACKGROUND (the list is `list-style: none`), and a
+    // browser printing with background graphics off — the default — drops backgrounds unless
+    // `print-color-adjust: exact` keeps them. "Entering Your Hours" and "Year to Date Figures" printed
+    // as indented lines with no markers (seen in a PDF printed that way; page.pdf() cannot show it
+    // here, because it is called with backgrounds ON).
+    await page.goto('/paycalc-guide.html');
+    await expect(page.locator('.guide-disc-list')).toHaveCount(2);
+    await page.emulateMedia({ media: 'print' });
+    const dots = await page.locator('.guide-disc-list li').evaluateAll(lis => lis.map(li => {
+        const cs = getComputedStyle(li, '::before');
+        return { shown: cs.display !== 'none' && cs.backgroundColor !== 'rgba(0, 0, 0, 0)',
+                 onPaper: cs.getPropertyValue('print-color-adjust') || cs.getPropertyValue('-webkit-print-color-adjust') };
+    }));
+    await page.emulateMedia({ media: null });
+    expect(dots.length, 'the premise: list items to look at').toBeGreaterThan(0);
+    for (const [i, dot] of dots.entries()) expect(dot, `bullet ${i + 1}`).toEqual({ shown: true, onPaper: 'exact' });
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 
