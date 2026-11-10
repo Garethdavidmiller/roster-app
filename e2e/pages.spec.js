@@ -92,9 +92,11 @@ for (const [label, url, appJs] of [
     ['links', '/links.html', 'links'],
 ]) {
     test(`${label}: a boot placeholder stands in for the blank page, and goes when the page is ready`, async ({ page }) => {
-        // These three hide `.container` until `body.auth-ready`, and their HEADER is inside it — so
+        // These three hide `.container` until `body.auth-ready`, and their HEADER with it — so
         // until the module graph has loaded and run there is nothing on the page at all, not even a
         // burger. Measured at 622ms locally on a fast disk with no network; on a phone it is seconds.
+        // The header is <main>'s sibling since the whole-app check (Nov 2026, the banner landmark),
+        // so its hide is a rule of its own now, and asserted on its own.
         //
         // Aborting the coordinator is how the window is held open: the placeholder's whole contract
         // is that it survives a page whose JS never arrives, which is exactly the case that has no
@@ -104,6 +106,7 @@ for (const [label, url, appJs] of [
         await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
         await expect(page.locator('#bootPlaceholder')).toBeVisible();
         await expect(page.locator('.container')).toBeHidden();
+        await expect(page.locator('.app-header'), 'the header waits for sign-in with the page').toBeHidden();
     });
 
     test(`${label}: the placeholder is gone once the page is signed in`, async ({ page }) => {
@@ -113,6 +116,28 @@ for (const [label, url, appJs] of [
         await page.goto(url);
         await expect(page.locator('.container')).toBeVisible({ timeout: 15000 });
         await expect(page.locator('#bootPlaceholder')).toBeHidden();
+        await expect(page.locator('.app-header'), 'the header arrives with the page').toBeVisible();
+    });
+
+    test(`${label}: the header spans the page's band at every width, as it did inside it`, async ({ page }) => {
+        // Inside `.container` the header WAS a grid item, so it could not leave the band; as <main>'s
+        // sibling only its own max-width and auto margins keep it there (settings.spec.js asks the same
+        // of Settings). Either side of every breakpoint, and past the 1100px cap.
+        await seedSession(page);
+        await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
+        await page.goto(url);
+        await expect(page.locator('.container')).toBeVisible({ timeout: 15000 });
+        for (const width of [375, 767, 768, 1023, 1024, 1280, 1920]) {
+            await page.setViewportSize({ width, height: 800 });
+            const m = await page.evaluate(() => {
+                const edges = (/** @type {string} */ sel) => {
+                    const r = /** @type {HTMLElement} */ (document.querySelector(sel)).getBoundingClientRect();
+                    return [Math.round(r.left), Math.round(r.right)];
+                };
+                return { header: edges('.app-header'), band: edges('main.container') };
+            });
+            expect(m.header, `at ${width}px the header spans ${m.header}, the page ${m.band}`).toEqual(m.band);
+        }
     });
 }
 

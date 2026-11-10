@@ -42,6 +42,11 @@ body {
    which of the two binds depends on the content, and the content changes. Below 1024px the column
    wrappers are `display: contents`, so the cards are the grid's items and are named here too. */
 .container > *, .ops-left-column > *, .ops-right-column > * { min-width: 0; }
+/* The header is <main>'s sibling (inside it, it was not the banner landmark), so it takes here what
+   the grid gave it: the page's band, 4px above the first card at every width as on Settings, and
+   the hide until sign-in. e2e/pages.spec.js holds all three. */
+.app-header { max-width: var(--content-max-width); margin: 0 auto 4px; }
+body:not(.auth-ready) .app-header { display: none; }
 body.auth-ready .container { display: grid; }
 /* ── Needs attention strip (v22.03; group-label redesign same release) ──────────────────────
    The page organises itself with group labels on the navy canvas (PUBLISH · ROSTER & ACCOUNTS ·
@@ -90,9 +95,6 @@ body.auth-ready .container { display: grid; }
 /* Gold ring, not navy — these pills sit on the navy canvas where the default ring vanishes. */
 .attn-item:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
 .attn-count { flex-shrink: 0; }
-
-/* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
-.app-header { margin-bottom: -8px; }
 
 /* .btn-card-tips, tips lightbox — consolidated into shared.css */
 
@@ -920,9 +922,6 @@ body.auth-ready .container { display: grid; }
 /* ── Tablet: 768px ── */
 @media (min-width: 768px) {
     .container { gap: 14px; }
-    /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
-       Nov 2026; it was 0 — the first card 10px lower than on Pay or Settings). */
-    .app-header { margin-bottom: -10px; }
 }
 
 /* ── Desktop: 1024px — wrapper-column layout (mirrors admin.html's col-main/col-side) ──
@@ -989,8 +988,6 @@ body.auth-ready .container { display: grid; }
     /* The Usage card's figure boxes too (v25.00): they ran to the card's edge, 64px past the bars
        beneath them — the two-right-edges fault the App Speed pass fixed on its own card. */
     .usage-stats { max-width: 540px; }
-    /* Header spans both columns */
-    .app-header { grid-column: 1 / -1; }
 
     /* Wrappers become independent flex stacks placed in the two grid columns. */
     .ops-left-column,
