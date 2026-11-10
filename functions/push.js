@@ -137,12 +137,14 @@ function setupWebPush(vapidPrivate, vapidPublic) {
  * @param {object} payload            JSON-stringified for the push body — title, body, url, tag
  * @param {string[]} ownerUids        Firebase Auth uids allowed to receive this
  * @param {string} logTag             Short string for console log lines
+ * @param {{ timeoutMs?: number }} [opts]  a per-send bound SHORTER than SEND_TIMEOUT_MS, for a caller
+ *                                    whose own answer waits on this send and must end inside its budget
  * @returns {Promise<number>}         How many subscriptions ACCEPTED the push. Zero is the reliable
  *                                    direction: it means nobody was reached, and a caller may act on
  *                                    that. A non-zero count means the push service took the message,
  *                                    not that a phone displayed it.
  */
-async function sendTargetedPush(payload, ownerUids, logTag) {
+async function sendTargetedPush(payload, ownerUids, logTag, opts = {}) {
     const uids = Array.from(new Set((ownerUids || []).filter(u => typeof u === 'string' && u)));
     if (uids.length === 0) {
         console.warn(`${logTag} No target uids — sending nothing (never fans out)`);
@@ -176,7 +178,10 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
 
     const payloadStr = JSON.stringify(payload);
     // Timeout AND how long the push service may hold it (pushSendOptions — never the 4-week default).
-    const sendOptions = pushSendOptions(payload, SEND_TIMEOUT_MS);
+    // A caller's own bound may only be SHORTER: anything else falls back to the transport's.
+    const asked = opts && opts.timeoutMs;
+    const timeoutMs = Number.isFinite(asked) && asked > 0 && asked < SEND_TIMEOUT_MS ? asked : SEND_TIMEOUT_MS;
+    const sendOptions = pushSendOptions(payload, timeoutMs);
     // ACCEPTED, not attempted (v21.85, external review). A caller that records "the admin has been
     // told" needs to know a push actually left, and `docs.length` says only that we tried: a
     // transient 500 from the push service, or an endpoint whose keys have rotated, counted exactly

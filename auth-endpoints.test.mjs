@@ -143,7 +143,13 @@ function makeDb(seed = {}) {
     const db = {
         collection(name) {
             return {
-                doc: (id) => ({ id, _col: name, set: async (data) => merge(name, id, data) }),
+                doc: (id) => ({ id, _col: name, set: async (data) => merge(name, id, data),
+                    // Firestore's update() refuses a document that is not there (NOT_FOUND) — the
+                    // property a late write relies on to not re-create a row somebody cleared.
+                    update: async (data) => {
+                        if (!col(name).has(id)) { const e = new Error('NOT_FOUND'); e.code = 5; throw e; }
+                        merge(name, id, data);
+                    } }),
                 select: () => ({ get: async () => ({
                     size: col(name).size,
                     docs: [...col(name).keys()].map((id) => snapOf(name, id)),
@@ -157,6 +163,8 @@ function makeDb(seed = {}) {
             });
         },
         _dump: (name) => Object.fromEntries(col(name)),
+        /** What the admin's Operations card does when a reset is done: the row goes. */
+        _delete: (name, id) => { col(name).delete(id); },
     };
     return db;
 }
@@ -196,6 +204,7 @@ function build({
     pushAccepts = 1,
     pushFail = null,
     pushHangs = false,
+    pushDeferred = false,
     seed = {},
     authFail = {},
     token = { admin: true, name: ADMIN },
@@ -306,15 +315,18 @@ function build({
     const stub = (p, exports) => { require.cache[p] = { id: p, filename: p, loaded: true, exports }; };
     stub(authPath, { getAuth: () => auth });
     stub(firePath, { getFirestore: () => db, FieldValue: firestore.FieldValue });
+    /** Settles a `pushDeferred` send: the push service answers only when the test says so. */
+    let acceptDeferred = (_n) => {};
     require.cache[pushPath]  = { id: pushPath, filename: pushPath, loaded: true, exports: {
         setupWebPush: () => {},
-        sendTargetedPush: async (payload, uids, tag) => {
-            sends.push({ payload, uids, tag });
+        sendTargetedPush: async (payload, uids, tag, opts) => {
+            sends.push({ payload, uids, tag, opts });
             // Injectable failure, the same seam `authFail` gives the Auth calls. The reset endpoint
             // treats a push failure as a reportable stage rather than a failed reset, and that
             // branch is unreachable from a fake that can only succeed.
             if (pushFail) throw new Error(pushFail);
             if (pushHangs) return new Promise(() => {});
+            if (pushDeferred) return new Promise((resolve) => { acceptDeferred = resolve; });
             // The REAL sendTargetedPush returns how many subscriptions accepted the message, and
             // the reset endpoint acts on that number. A fake returning undefined would make every
             // "did it record that the admin was reached?" assertion vacuous.
@@ -342,7 +354,7 @@ function build({
         STAFF_SITE_URL: 'https://myb-roster.web.app',
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
     });
-    return { eps, sends, db, authOps, users, released, stamps };
+    return { eps, sends, db, authOps, users, released, stamps, acceptPush: (n) => acceptDeferred(n) };
 }
 
 function makeRes() {
@@ -465,6 +477,34 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         assert.equal(out.code, 200);
         assert.deepEqual(out.body, { ok: true });
         assert.ok(db._dump('resetRequests')[MEMBER], 'the row was written before the push was tried');
+    });
+
+    // WORK THAT OUTLIVES THE ANSWER (functions-core-6, 10 Nov 2026). The 10-second race stops the
+    // WAITING, not the work: a notify still running when the member is answered finishes whenever
+    // the instance next runs. By then the admin may have reset the member and cleared the row — and
+    // the old merge-write of `notifiedAt` brought it back, holding that one field, as a request
+    // nobody made (and started the five-minute quiet window at the wrong moment).
+    test('a notify that finishes after the admin cleared the row does not bring the row back', async () => {
+        const w = build({ pushDeferred: true });
+        const pending = call(w.eps.requestPasswordReset, reqFor(MEMBER));
+        for (let i = 0; i < 100 && w.sends.length === 0; i++) await new Promise(r => setImmediate(r));
+        assert.equal(w.sends.length, 1, 'fixture check: the admin push is in flight');
+        assert.ok(w.db._dump('resetRequests')[MEMBER], 'fixture check: the request was recorded');
+        w.db._delete('resetRequests', MEMBER);   // the admin resets the member and clears the row
+        w.acceptPush(1);                          // ...and only now does the push service accept
+        const out = await pending;
+        assert.equal(out.code, 200);
+        assert.equal(w.db._dump('resetRequests')[MEMBER], undefined,
+            'the cleared request came back as a row holding only notifiedAt');
+    });
+
+    test('the admin push is bounded well inside the endpoint\'s 10-second answer budget', async () => {
+        // With the transport's default 10 s per send and the lookups in front of it, a stalled push
+        // service always outlasted the budget — the case in which the work above outlives the answer.
+        const { eps, sends } = build();
+        await call(eps.requestPasswordReset, reqFor(MEMBER));
+        const t = sends[0].opts && sends[0].opts.timeoutMs;
+        assert.ok(Number.isFinite(t) && t > 0 && t <= 5_000, `the admin push went out bounded by ${t} ms`);
     });
 });
 

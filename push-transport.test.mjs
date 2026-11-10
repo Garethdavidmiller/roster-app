@@ -308,6 +308,17 @@ test('both senders skip an endpoint that is not a push service, and keep the rec
 // `sendNotification` has no timeout of its own, so one endpoint whose push service stalls holds the
 // whole `allSettled` — and with it the function — until the platform kills the request. Both
 // senders pass web-push's own `timeout`, so a stalled endpoint is a failed send, not a hung one.
+test('a targeted send takes a caller\'s SHORTER bound, and nothing longer than the transport\'s', async () => {
+    // The reset request waits on its admin push inside a 10 s answer budget; the transport's own
+    // 10 s per send could never end inside it (functions-core-6). A caller may shorten the bound —
+    // never lengthen it, and junk falls back to the default.
+    const { mod, sent } = build([sub('a', 'uid_admin')]);
+    for (const opts of [{ timeoutMs: 5000 }, { timeoutMs: 60_000 }, { timeoutMs: -1 }, { timeoutMs: 'x' }, undefined]) {
+        await mod.sendTargetedPush(PAYLOAD, ['uid_admin'], '[t]', opts);
+    }
+    assert.deepEqual(sent.map((s) => s.options.timeout), [5000, 10000, 10000, 10000, 10000]);
+});
+
 test('both senders bound every send with a timeout', async () => {
     const { mod, sent } = build([sub('a', 'uid_admin'), sub('b', 'uid_other')]);
     await mod.sendTargetedPush(PAYLOAD, ['uid_admin'], '[t]');

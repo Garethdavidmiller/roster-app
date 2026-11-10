@@ -596,6 +596,10 @@ const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
 // anyway. Well inside the function's 30s timeout, leaving room for the record itself — the request is
 // the product, the push is a courtesy, and the courtesy must never cost the product.
 const ADMIN_NOTIFY_BUDGET_MS = 10_000;
+// The admin push's own bound on each send, well inside that budget (functions-core-6). The two
+// lookups run first, so with the transport's default 10 s a stalled push service ALWAYS outlasted
+// the budget, and the notify ran on after the member had been answered.
+const ADMIN_NOTIFY_SEND_TIMEOUT_MS = 5_000;
 // One admin push per this window, however many DIFFERENT members file a request inside it. The
 // per-member throttle above cannot bound a walk of the public roster; this can. Chosen to be long
 // enough to absorb a scripted burst and short enough that a genuine second request later in a shift
@@ -683,18 +687,22 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
         }),
         uids,
         '[reset-request]',
+        { timeoutMs: ADMIN_NOTIFY_SEND_TIMEOUT_MS },
     );
 
     // Record that the admin was REACHED, which is what the next request's coalescing decision needs
     // to know. Nothing is stamped when no subscription accepted the message, so the next member in
     // the window rings the phone instead of inheriting a silence. Wrapped: failing to write the
     // stamp only costs a duplicate notification later, and the push has already gone.
+    //
+    // update(), never a merge-set (functions-core-6). This can run AFTER the member was answered (the
+    // budget stops the waiting, not the work), by which time the admin may have reset them and
+    // cleared the row. A merge brought the row back holding only `notifiedAt` — a request nobody
+    // made. update() refuses a row that has gone, and that refusal is the right answer.
     if (accepted > 0) {
         try {
-            await getFirestore().collection('resetRequests').doc(member).set(
-                { notifiedAt: FieldValue.serverTimestamp() },
-                { merge: true },
-            );
+            await getFirestore().collection('resetRequests').doc(member).update(
+                { notifiedAt: FieldValue.serverTimestamp() });
         } catch (e) {
             console.warn('[requestPasswordReset] could not stamp notifiedAt for', member, e && e.code);
         }
@@ -796,6 +804,9 @@ const requestPasswordReset = onRequest(
             // returning an error to a member whose request WAS successfully recorded, telling them
             // nobody heard them when the doorbell had already rung. Exactly the never-settles-is-
             // not-a-rejection class v18.94 fixed in the forced overlay; it must not come back here.
+            // The race stops the WAITING, not the work: a notify still running finishes later. So
+            // each send is bounded well inside the budget (ADMIN_NOTIFY_SEND_TIMEOUT_MS), and the
+            // stamp it ends with cannot re-create a row the admin has cleared (functions-core-6).
             if (recorded) {
                 /** @type {ReturnType<typeof setTimeout>|undefined} */ let notifyTimer;
                 try {
