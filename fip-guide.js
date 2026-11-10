@@ -240,9 +240,43 @@ if (chipBar) {
     });
 }
 
-// Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every jump
-// target (section headings + country cards) so a jump isn't hidden under header + chip-bar. Runs
-// after fonts load so the header height is measured accurately (mirrors railcard-guide.js).
+// ── Deep-link landing (mirrors railcard-guide.js, which has the reasoning) ────────────────────
+// The browser lands a #fragment with the stylesheet's FALLBACK scroll-margin and stops re-applying
+// it once the page has loaded, which on a cached phone is usually before adjustFipOffsets has
+// measured the real stack: a heading arrived 21px under the chip bar (40px at 320px). Each
+// measurement re-lands the fragment while the page is still landing — until it has loaded and
+// measured with its fonts, or the reader touches, clicks, scrolls with a wheel or types. A reload or
+// Back/Forward restores the reader's own position and is left alone.
+var landingId = '';
+(function () {
+    var nav = /** @type {PerformanceNavigationTiming|undefined} */ (
+        window.performance && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : undefined);
+    if (nav && nav.type !== 'navigate') return;
+    landingId = safeDecode(location.hash.slice(1));
+})();
+function endLanding() { landingId = ''; }
+['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (type) {
+    window.addEventListener(type, endLanding, { capture: true, passive: true });
+});
+window.addEventListener('hashchange', endLanding);
+
+/**
+ * While the page is still landing on a deep link, move the target back out from under the sticky
+ * stack. Only a target that STARTS under the stack is moved: one the page cannot scroll to the top
+ * (near its end) sits lower and is left there, and so is one the reader has scrolled past.
+ * @param {number} stickyH the measured header + chip bar, which a landed target must clear
+ */
+function keepLandingClear(stickyH) {
+    if (!landingId) return;
+    var target = document.getElementById(landingId);
+    if (!target) { landingId = ''; return; }
+    var top = target.getBoundingClientRect().top;
+    if (top >= 0 && top < stickyH - 1) target.scrollIntoView({ block: 'start' });
+}
+
+// Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every id
+// in the page body so a jump isn't hidden under header + chip-bar. Runs after fonts load so the
+// header height is measured accurately (mirrors railcard-guide.js).
 function adjustFipOffsets() {
     if (!chipBar) return;
     var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
@@ -250,14 +284,26 @@ function adjustFipOffsets() {
     var hdrH = hdr.offsetHeight;
     chipBar.style.top = hdrH + 'px';
     var stickyH = hdrH + chipBar.offsetHeight + 8;
-    document.querySelectorAll('.section-label[id], [id^="country-"]').forEach(function (el) {
+    // EVERY id, not the section labels and country cards: the booking table, the multi-country
+    // card and the three ferry cards are search results too, and they kept the stylesheet's 100px
+    // against a 121px stack (whole-app review, Nov 2026).
+    document.querySelectorAll('main [id]').forEach(function (el) {
         /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
     });
+    keepLandingClear(stickyH);
     measureThreshold();   // keep the cached scrollspy threshold in step with the real header height
     updateSpy();          // re-evaluate with the accurate header height
 }
 if (document.fonts && document.fonts.ready) { document.fonts.ready.then(adjustFipOffsets); }
 else { requestAnimationFrame(adjustFipOffsets); }
+// The landing ends with one last measurement once the page has loaded AND its fonts are ready.
+Promise.all([
+    document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
+    document.readyState === 'complete' ? Promise.resolve()
+        : new Promise(function (resolve) { window.addEventListener('load', resolve, { once: true }); }),
+]).then(function () {
+    requestAnimationFrame(function () { adjustFipOffsets(); endLanding(); });
+});
 // The header's HEIGHT can change after that one-shot measurement (late font swap re-wrapping the
 // subtitle, a device font-scale change, rotation) — leaving the chip-bar's sticky `top` stale, so a
 // slit of page content scrolled through the gap between header and bar (staff screenshot, v18.82).

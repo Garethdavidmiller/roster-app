@@ -21,6 +21,126 @@ test('fip: a country jump-link opens that country section (C1)', async ({ page }
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+// ── A DEEP LINK LANDS CLEAR OF THE STICKY STACK (whole-app review, 10 Nov 2026) ────────────────
+// Every drawer search result is a deep link into a guide. The browser scrolls to the fragment as
+// soon as the target is laid out, with the stylesheets' fallback scroll-margin — shorter than the
+// real header + chip bar on a phone, whose subtitle wraps — and stops re-applying it once the page
+// has loaded. The scripts measure the real stack only on `document.fonts.ready` and the header's
+// ResizeObserver, and on a phone serving everything from its cache the load finishes first: a
+// result opened with its own heading under the chip bar (Rangers 48px, Railcard 28px, the FIP
+// booking table and ferry cards 21px, at 375px).
+//
+// On a fast local server that order is a RACE, which the old code won most of the time — so these
+// tests FORCE the phone's order. An init script holds both measurement triggers until the test
+// releases them, after `load`. The page's own code is untouched; only WHEN the platform answers it
+// changes.
+/** @param {import('@playwright/test').Page} page */
+async function holdGuideMeasurement(page) {
+    await page.addInitScript(() => {
+        /** @type {() => void} */
+        let release = () => {};
+        const released = new Promise(resolve => { release = () => resolve(undefined); });
+        /** @type {any} */ (window).__releaseGuideMeasurement = () => release();
+        const RealObserver = window.ResizeObserver;
+        window.ResizeObserver = class extends RealObserver {
+            /** @param {ResizeObserverCallback} callback */
+            constructor(callback) {
+                super((entries, observer) => { released.then(() => callback(entries, observer)); });
+            }
+        };
+        // `ready` is an accessor on the FontFaceSet prototype, an interface Chromium does not expose
+        // by name — so walk to it from the instance rather than naming it.
+        /** @type {PropertyDescriptor|undefined} */
+        let ready;
+        for (let proto = Object.getPrototypeOf(document.fonts); proto && !ready; proto = Object.getPrototypeOf(proto)) {
+            ready = Object.getOwnPropertyDescriptor(proto, 'ready');
+        }
+        const realReady = /** @type {PropertyDescriptor} */ (ready);
+        Object.defineProperty(document.fonts, 'ready', {
+            configurable: true,
+            get() { return released.then(() => realReady.get?.call(document.fonts)); },
+        });
+    });
+}
+/** Two frames and a beat: let a measurement, and any scroll it starts, finish. @param {import('@playwright/test').Page} page */
+async function settleFrames(page) {
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200)))));
+}
+/** Open a guide at a fragment with its measurement held, and wait for the browser's own landing. */
+async function landHeld(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ url) {
+    await page.goto(url);   // resolves on `load` — after which the browser no longer re-lands the fragment
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+}
+/** @param {import('@playwright/test').Page} page @param {string} id */
+function landing(page, id) {
+    return page.evaluate((target) => ({
+        top: Math.round(document.getElementById(target)?.getBoundingClientRect().top ?? -1),
+        barBottom: Math.round(document.querySelector('.chip-bar')?.getBoundingClientRect().bottom ?? -1),
+    }), id);
+}
+
+for (const [guide, id] of /** @type {Array<[string, string]>} */ ([
+    ['rangers-guide', 'rr-thames'],
+    ['railcard-guide', 'rc-senior'],
+    ['fip-guide', 'booking-table'],           // not a section label or a country card
+    ['fip-guide', 'ferry-stena-irish-sea'],   // nor this
+])) {
+    test(`guides: a deep link to ${guide}#${id} lands below the header and chip bar`, async ({ page }) => {
+        await page.setViewportSize({ width: 375, height: 740 });
+        await holdGuideMeasurement(page);
+        await landHeld(page, `/${guide}.html#${id}`);
+        await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+        await settleFrames(page);
+        const geo = await landing(page, id);
+        expect(geo.barBottom, 'the chip bar is where this test looks for it').toBeGreaterThan(0);
+        expect(geo.top, `#${id} starts under the sticky stack (top ${geo.top}px, chip bar ends ${geo.barBottom}px)`)
+            .toBeGreaterThanOrEqual(geo.barBottom);
+    });
+}
+
+// The other half: the re-landing is for a page still LANDING. A reader who has already moved the
+// page is left where they put it, and so is a reload, which restores the reader's own position
+// rather than the fragment. The nudge is small on purpose — the target stays inside the band where
+// a re-land would act, so only the two guards stand between the reader and a jump.
+test('guides: a deep link does not pull back a reader who has moved, or a reload', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/railcard-guide.html#rc-senior');
+    await page.mouse.move(180, 500);
+    await page.mouse.wheel(0, 30);
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    const { top, barBottom } = await landing(page, 'rc-senior');
+    expect(top, 'the nudge leaves the card inside the band a re-land would act on').toBeLessThan(barBottom);
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reader who had scrolled').toBe(moved);
+
+    await page.reload();
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const restored = await page.evaluate(() => Math.round(window.scrollY));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reloaded page off its restored position').toBe(restored);
+});
+
+// A scroll that comes with no touch, click, wheel or key — a screen reader moving through the page,
+// a drag on the scrollbar — ends nothing, so what leaves it alone is that the target is no longer
+// under the sticky stack.
+test('guides: a deep link leaves alone a page scrolled away without a touch or a key', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/rangers-guide.html#rr-thames');
+    await page.evaluate(() => window.scrollBy(0, 400));
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement pulled the page back to the fragment').toBe(moved);
+});
+
 test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // A lone "%" is an invalid percent-escape — decodeURIComponent would throw uncaught without the guard.

@@ -4,7 +4,8 @@
 // A near-copy of railcard-guide.js, deliberately: the two pages share the sticky header + chip-bar
 // stack, and that stack has already produced one real bug (v18.82 — a stale sticky `top` after a
 // late font swap let page content show through the gap). Re-deriving it here would re-open that.
-// The ONLY differences are the selectors this page's cards use.
+// The ONLY differences are the example ids in the comments: both pages give every id in <main> the
+// measured margin, so neither keeps a list of its card classes to fall behind.
 // The Print / Save as PDF button is wired by the shared guide-print.js (a module since v24.61 — it
 // is where the iOS home-screen print guard lives, so no guide may keep a private copy).
 
@@ -26,8 +27,45 @@ document.querySelector('.chip-bar')?.addEventListener('click', function (e) {
     chip.setAttribute('aria-current', 'true');
 });
 
+// ── Deep-link landing ─────────────────────────────────────────────────────────────────────────
+// A guide-search result IS a deep link (rangers-guide.html#rr-thames). The browser scrolls to the
+// #fragment as soon as the target is laid out, using the stylesheet's FALLBACK scroll-margin,
+// because the real sticky stack is known only once adjustScrollOffsets has measured it — and
+// Chromium stops re-applying a fragment once the page has loaded. On a phone serving the page from
+// its cache the load usually finishes first, so a card arrived with its name under the chip bar
+// (whole-app review, Nov 2026: 48px short at 375px). So each measurement re-lands the fragment
+// itself while the page is still LANDING: until it has loaded and measured with its fonts, or the
+// reader touches, clicks, scrolls with a wheel or types — whichever comes first. A reload or
+// Back/Forward restores the reader's own position, not the fragment, so it is left alone.
+var landingId = '';
+(function () {
+    var nav = /** @type {PerformanceNavigationTiming|undefined} */ (
+        window.performance && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : undefined);
+    if (nav && nav.type !== 'navigate') return;
+    try { landingId = decodeURIComponent(location.hash.slice(1)); } catch { landingId = ''; }
+})();
+function endLanding() { landingId = ''; }
+['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (type) {
+    window.addEventListener(type, endLanding, { capture: true, passive: true });
+});
+window.addEventListener('hashchange', endLanding);
+
+/**
+ * While the page is still landing on a deep link, move the target back out from under the sticky
+ * stack. Only a target that STARTS under the stack is moved: one the page cannot scroll to the top
+ * (near its end) sits lower and is left there, and so is one the reader has scrolled past.
+ * @param {number} stickyH the measured header + chip bar, which a landed target must clear
+ */
+function keepLandingClear(stickyH) {
+    if (!landingId) return;
+    var target = document.getElementById(landingId);
+    if (!target) { landingId = ''; return; }
+    var top = target.getBoundingClientRect().top;
+    if (top >= 0 && top < stickyH - 1) target.scrollIntoView({ block: 'start' });
+}
+
 // Adjust sticky chip-bar top offset to sit directly below the sticky page header,
-// then set scroll-margin-top on every card and section so they aren't hidden
+// then set scroll-margin-top on every id in the page body so a jump to it isn't hidden
 // under the combined sticky header + chip-bar height when scrolled into view.
 // Runs after fonts are loaded so the header height measurement is accurate —
 // measuring at rAF can give the wrong height if Inter hasn't applied yet and
@@ -38,15 +76,27 @@ function adjustScrollOffsets() {
     var hdrH = hdr.offsetHeight;
     bar.style.top = hdrH + 'px';
     var stickyH = hdrH + bar.offsetHeight + 8;
-    document.querySelectorAll('.rr-card, .rr-no-item, .section').forEach(function (el) {
+    // EVERY id, not a list of card classes: anything with an id can be linked to, and one a list
+    // missed kept the stylesheet's fallback margin (the FIP guide's ferry cards did, Nov 2026).
+    document.querySelectorAll('main [id]').forEach(function (el) {
         /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
     });
+    keepLandingClear(stickyH);
 }
 if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(adjustScrollOffsets);
 } else {
     requestAnimationFrame(adjustScrollOffsets);
 }
+// The landing ends with one last measurement once the page has loaded AND its fonts are ready —
+// the last point at which the sticky stack is still settling.
+Promise.all([
+    document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
+    document.readyState === 'complete' ? Promise.resolve()
+        : new Promise(function (resolve) { window.addEventListener('load', resolve, { once: true }); }),
+]).then(function () {
+    requestAnimationFrame(function () { adjustScrollOffsets(); endLanding(); });
+});
 // Re-sync the sticky stack whenever the header's box changes after the one-shot measurement (late
 // font swap, font-scale change, rotation) — else the chip-bar's sticky `top` goes stale and page
 // content shows through the gap (v18.82; mirrors fip-guide.js).
