@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, isTouchProject, scaleText, seedMemberSession } from './helpers.js';
+import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
@@ -546,6 +547,33 @@ test('fip: a link that shows a phone number dials it, and the website is its own
     const site = page.locator('#sec-apply ~ a[href^="https://www.trainseurope.co.uk"]');
     await expect(site).toHaveCount(1);
     await expect(site).toContainText('website');
+});
+
+// Owner decision, 10 Nov 2026: every phone number a guide SHOWS can be tapped to call. The FIP guide had
+// one call button and six numbers you could only copy — Trainseurope three times, the SNCF line and two
+// Stena numbers — and on a phone, at a ticket office abroad, the tap is the point. Read off the rendered
+// text, so a number added later in any guide is held to the same rule without anybody listing it here.
+test('guides: every phone number a guide shows is a link that dials it', async ({ page }) => {
+    for (const { url } of GUIDE_PAGES) {
+        await page.goto(url);
+        const found = await page.evaluate(() => {
+            const re = /(\+\d{1,3}(?:[\s\u00a0]\d{1,4}){2,6}|\b0\d{2,4}(?:[\s\u00a0]\d{3,8}){1,2}\b)/g;
+            /** @type {Array<{shown: string, href: string}>} */ const out = [];
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+                for (const m of (n.nodeValue || '').matchAll(re)) {
+                    out.push({ shown: m[0], href: n.parentElement?.closest('a')?.getAttribute('href') || '' });
+                }
+            }
+            return out;
+        });
+        for (const { shown, href } of found) {
+            const digits = shown.replace(/[\s\u00a0]/g, '');
+            const dial = 'tel:' + (digits.startsWith('+') ? digits : `+44${digits.slice(1)}`);
+            expect(href, `${url}: "${shown}" is shown as a number you cannot tap, or that dials another`).toBe(dial);
+        }
+        if (url === '/fip-guide.html') expect(found.length, 'the sweep no longer finds the FIP guide\'s seven numbers').toBe(7);
+    }
 });
 
 // Whole-app review, Nov 2026 (a lead from the PWA reader): every app page names its tab icon, and the

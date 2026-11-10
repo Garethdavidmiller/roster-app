@@ -44,6 +44,9 @@ body {
    Element-level selector so every classed control (.btn-*, .cf-popular a, .country-jump a)
    still wins with its own colour/decoration rules. */
 a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: rgba(0, 30, 60, 0.35); }
+/* A number in the text that you can tap to call stays on one line: split at a space, it reads as two
+   numbers (10 Nov 2026). Inline links only — the classed call button wraps its words as a button must. */
+a[href^="tel:"]:not([class]) { white-space: nowrap; }
 @media (hover: hover) and (pointer: fine) {
     a:hover { text-decoration-color: var(--gold); }
 }
