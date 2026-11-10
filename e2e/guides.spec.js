@@ -72,6 +72,23 @@ async function landHeld(/** @type {import('@playwright/test').Page} */ page, /**
     await page.waitForFunction(() => document.fonts.status === 'loaded');
     await settleFrames(page);
 }
+/**
+ * Move the page 30px as its reader would, with a gesture the landing ends on: a wheel at a desk, a touch on a
+ * phone, where a reader has no wheel (and mobile WebKit has no `mouse.wheel` at all). The touch lands on the
+ * header's title, which has nothing to activate; the scroll that follows is the distance it moved the page.
+ * @param {import('@playwright/test').Page} page @param {import('@playwright/test').TestInfo} info
+ */
+async function nudgeAsReader(page, info) {
+    if (isTouchProject(info)) {
+        const title = /** @type {{ x: number, y: number, width: number, height: number }} */ (
+            await page.locator('.page-header h1').boundingBox());
+        await page.touchscreen.tap(title.x + title.width / 2, title.y + title.height / 2);
+        await page.evaluate(() => window.scrollBy(0, 30));
+    } else {
+        await page.mouse.move(180, 500);
+        await page.mouse.wheel(0, 30);
+    }
+}
 /** @param {import('@playwright/test').Page} page @param {string} id */
 function landing(page, id) {
     return page.evaluate((target) => ({
@@ -103,12 +120,11 @@ for (const [guide, id] of /** @type {Array<[string, string]>} */ ([
 // page is left where they put it, and so is a reload, which restores the reader's own position
 // rather than the fragment. The nudge is small on purpose — the target stays inside the band where
 // a re-land would act, so only the two guards stand between the reader and a jump.
-test('guides: a deep link does not pull back a reader who has moved, or a reload', async ({ page }) => {
+test('guides: a deep link does not pull back a reader who has moved, or a reload', async ({ page }, info) => {
     await page.setViewportSize({ width: 375, height: 740 });
     await holdGuideMeasurement(page);
     await landHeld(page, '/railcard-guide.html#rc-senior');
-    await page.mouse.move(180, 500);
-    await page.mouse.wheel(0, 30);
+    await nudgeAsReader(page, info);
     await settleFrames(page);
     const moved = await page.evaluate(() => Math.round(window.scrollY));
     const { top, barBottom } = await landing(page, 'rc-senior');
@@ -164,13 +180,19 @@ function underHeader(page, id) {
     }, id);
 }
 
-for (const [guide, id, k] of /** @type {Array<[string, string, number]>} */ ([
-    ['staff-guide', 'sg-change-a-shift', 1.15],
-    ['paycalc-guide', 'pg-holiday-pay-premium-hpp', 1.15],
-    ['staff-guide', 'sg-sundays', 1.3],
+// THE WIDTH IS PART OF THE PREMISE. A deep link that lands under the header needs a header taller than the
+// stylesheet's 90px, and at one text step up that is the title wrapping — which "📘 Staff & Admin Guide" does at
+// 375px by 5px, a margin the machine's own emoji font decides: on CI's runner it stayed on one line, the header
+// was 85px, and the test had nothing to test (10 Nov 2026). At 360px, a real Android width still on the 90px
+// fallback, it wraps by 20px here; the Pay Calculator Guide's title wraps at 375px by 13px, and did on CI.
+const STAFF_GUIDE_ONE_STEP_UP = 360;
+for (const [guide, id, k, width] of /** @type {Array<[string, string, number, number]>} */ ([
+    ['staff-guide', 'sg-change-a-shift', 1.15, STAFF_GUIDE_ONE_STEP_UP],
+    ['paycalc-guide', 'pg-holiday-pay-premium-hpp', 1.15, 375],
+    ['staff-guide', 'sg-sundays', 1.3, 375],
 ])) {
     test(`guides: a deep link to ${guide}#${id} lands below the header with the text at ${k}×`, async ({ page }) => {
-        await page.setViewportSize({ width: 375, height: 740 });
+        await page.setViewportSize({ width, height: 740 });
         await holdGuideMeasurement(page);
         await scaleTextBeforeLanding(page, k);
         await landHeld(page, `/${guide}.html#${id}`);
@@ -190,13 +212,14 @@ for (const [guide, id, k] of /** @type {Array<[string, string, number]>} */ ([
 }
 
 // The two guards, on the document guides too: a reader who has moved, and a reload, are left where they are.
-test('guides: on a document guide a deep link does not pull back a reader who has moved, or a reload', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 740 });
+test('guides: on a document guide a deep link does not pull back a reader who has moved, or a reload', async ({ page }, info) => {
+    // At the width where the title wraps by more than a font's difference (STAFF_GUIDE_ONE_STEP_UP): WebKit's
+    // reload lands on the fragment again, inside the band only while the header is taller than the 90px fallback.
+    await page.setViewportSize({ width: STAFF_GUIDE_ONE_STEP_UP, height: 740 });
     await holdGuideMeasurement(page);
     await scaleTextBeforeLanding(page, 1.15);
     await landHeld(page, '/staff-guide.html#sg-change-a-shift');
-    await page.mouse.move(180, 500);
-    await page.mouse.wheel(0, 30);
+    await nudgeAsReader(page, info);
     await settleFrames(page);
     const moved = await page.evaluate(() => Math.round(window.scrollY));
     const { top, hdr } = await underHeader(page, 'sg-change-a-shift');
@@ -529,12 +552,23 @@ test('fip: a link that shows a phone number dials it, and the website is its own
 // guides named none, so a browser fell back to the ORIGIN's /favicon.ico — which neither origin has,
 // and which on the Pages mirror is a different site altogether. Each guide now asks for the app's
 // own icon. (paycalc-guide.html belongs to another area and is reported there.)
+//
+// The icon is LOADED here, not waited for. Whether a browser fetches a tab icon at all is its own affair: CI's
+// headless Chromium and WebKit never do, so a wait for the request timed out on the three guides with no <img>
+// of the same file — the Staff and Pay Calculator guides passed only because their header logo is one
+// (10 Nov 2026). What a browser falls back from is a page that names no icon, or names one that is not there.
 for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'fip-guide', 'rangers-guide']) {
     test(`${guide}: names the app's own tab icon, so the browser never falls back to /favicon.ico`, async ({ page }) => {
-        const asked = page.waitForRequest(r => new URL(r.url()).pathname.endsWith('/icon-192.png'), { timeout: 5000 });
         await page.goto(`/${guide}.html`);
-        await asked;
-        await expect(page.locator('link[rel="icon"][href$="icon-192.png"]')).toHaveCount(1);
+        const icon = page.locator('link[rel="icon"][href$="icon-192.png"]');
+        await expect(icon).toHaveCount(1);
+        const width = await icon.evaluate((link) => new Promise((done) => {
+            const img = new Image();
+            img.onload = () => done(img.naturalWidth);
+            img.onerror = () => done(0);
+            img.src = /** @type {HTMLLinkElement} */ (link).href;
+        }));
+        expect(width, 'the icon the page names is there, and is the 192px app icon').toBe(192);
     });
 }
 

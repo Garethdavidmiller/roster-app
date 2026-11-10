@@ -295,12 +295,15 @@ test.describe('Windows High Contrast — a chosen control shows its choice', () 
             await settled();
             const b = /** @type {{ x: number, y: number, width: number, height: number }} */ (await loc.boundingBox());
             const clip = { x: b.x - 8, y: b.y - 8, width: b.width + 16, height: b.height + 16 };
-            const rest = decodePNG(await page.screenshot({ clip }));
+            // `scale: 'css'`: one image pixel per CSS pixel, so the band below is measured in the units it is
+            // written in. A device picture is 2.75× on the phone project, which put the whole ring inside
+            // the "box" and counted 0 px of it, whatever the CSS drew.
+            const rest = decodePNG(await page.screenshot({ clip, scale: 'css' }));
             await page.keyboard.press('Shift');   // keyboard modality, so a scripted focus matches :focus-visible
             await loc.focus();
             expect(await loc.evaluate(el => el.matches(':focus-visible')), `${name}: premise — the focus is a keyboard's`).toBe(true);
             await settled();
-            const focused = decodePNG(await page.screenshot({ clip }));
+            const focused = decodePNG(await page.screenshot({ clip, scale: 'css' }));
             // The clip puts the control's box at 8px in from each edge; a pixel ≥1px outside that box is the ring's band.
             const outside = (/** @type {number} */ x, /** @type {number} */ y) => x < 7 || y < 7 || x > rest.w - 8 || y > rest.h - 8;
             let changed = 0;

@@ -260,14 +260,20 @@ test('promptDialog: a text selection dragged out onto the backdrop does not clos
     const card = /** @type {{ x: number, y: number, width: number, height: number }} */ (
         await page.locator('.dialog-overlay.open .dialog-lb-content').boundingBox());
     const y = field.y + field.height / 2;
+    // Halfway from the screen's edge to the card's: on the backdrop at every width. A fixed 24px out was
+    // off the screen on a phone, where the card is 90vw and leaves 20px a side — the drag then ended on
+    // nothing and passed without testing anything, and the tap closed nothing.
+    const x = card.x / 2;
+    expect(await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.matches('.dialog-overlay.open') ?? false, [x, y]),
+        'premise: the point the drag ends on, and the tap lands on, is the backdrop').toBe(true);
     await page.mouse.move(field.x + field.width - 6, y);
     await page.mouse.down();
-    await page.mouse.move(card.x - 24, y, { steps: 6 });   // out past the card's edge, onto the backdrop
+    await page.mouse.move(x, y, { steps: 6 });               // out past the card's edge, onto the backdrop
     await page.mouse.up();
     await page.waitForTimeout(400);
     await expect(input, 'the prompt closed under a text selection').toBeVisible();
 
-    await page.mouse.click(card.x - 24, y);                  // a real tap on the backdrop
+    await page.mouse.click(x, y);                            // a real tap on the backdrop
     await expect(page.locator('.dialog-overlay.open')).toHaveCount(0);
     expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'a backdrop tap is still a Cancel').toBe(null);
 });
@@ -466,6 +472,10 @@ test('drawer: the guide search box looks the same on every card page while it is
 // overflow is inside a fixed overlay, so no document-width check could see it.
 test('the sign-in and set-password screens never scroll sideways, on any page', async ({ page }) => {
     test.setTimeout(90_000);
+    // BEFORE the first page, as forcePasswordSet's contract says: WebKit serves a later page the roster-data.js
+    // it already holds, past the route that turns the setting on, so a call after the first loop never reached
+    // the set-password half there (10 Nov 2026). Nothing in the first loop signs in, so it changes nothing there.
+    await forcePasswordSet(page);
     await page.setViewportSize({ width: 375, height: 800 });
     const sideways = (/** @type {string} */ id) => page.locator(id).evaluate(el => el.scrollWidth - el.clientWidth);
     for (const p of APP_PAGES_LIST.filter(x => x.cards && (x.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true))) {
@@ -473,7 +483,6 @@ test('the sign-in and set-password screens never scroll sideways, on any page', 
         await page.locator('#loginOverlay.visible').waitFor();
         expect(await sideways('#loginOverlay'), `${p.file}: the sign-in screen scrolls sideways`).toBeLessThanOrEqual(0);
     }
-    await forcePasswordSet(page);
     for (const url of ['/admin.html', '/operations.html']) {
         await page.goto(url);
         await page.evaluate(() => localStorage.clear());   // the first page's sign-in must not carry over

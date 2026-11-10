@@ -1417,9 +1417,24 @@ test('admin: a change tapped while a save is still sending is refused, not taken
     await expect(page.locator('#saveBtn')).toContainText('Saving');
 
     // While the commit waits: Monday re-typed as Absent, Tuesday ticked, and the bulk bar's All 7.
-    await pill('2027-01-11', 'sick').click({ force: true });
-    await box('2027-01-12').click({ force: true });
-    await page.locator('#bulkSelAll').click({ force: true });
+    // A finger taps what it can SEE. `force` is a click at the target's centre without Playwright's
+    // "receives events" check — it has to be, because a held week receives none — and WebKit scrolls a
+    // target to the nearest EDGE, which at phone width is under the sticky member bar: there the tap
+    // opened the member sheet (mobile-safari, CI run 42838201900), and "nor by the bulk bar" passed
+    // only because the bulk bar was never reached. So each tap is centred first, and the point it will
+    // land on is checked to be the week's own card.
+    const tapHeld = async (/** @type {import('@playwright/test').Locator} */ target) => {
+        await target.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        expect(await target.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return !!hit && !!document.getElementById('change-shift')?.contains(hit);
+        }), 'premise: the tap lands on the held week, not on whatever sits over it').toBe(true);
+        await target.click({ force: true });
+    };
+    await tapHeld(pill('2027-01-11', 'sick'));
+    await tapHeld(box('2027-01-12'));
+    await tapHeld(page.locator('#bulkSelAll'));
     await expect(pill('2027-01-11', 'annual_leave'), 'the row being saved keeps the type it is being saved as').toHaveAttribute('aria-pressed', 'true');
     await expect(pill('2027-01-11', 'sick')).toHaveAttribute('aria-pressed', 'false');
     await expect(box('2027-01-12'), 'nothing new is staged while the save is sending').not.toBeChecked();
@@ -4527,7 +4542,10 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
 // towards its line, so the wrapped chip sat directly under "Today" — measured 0.17px apart at 390px
 // and the owner's ~1.11× text, 1.09px at 412px / 1.3×. The date line is now a wrapping flex row with
 // a row gap. Asserted as GEOMETRY because both chips are present and correct either way: nothing
-// but their boxes can tell a clear gap from two chips touching.
+// but their boxes can tell a clear gap from two chips touching. Run at 1.3×, not 1.11×: at 390px the
+// 1.11× line wraps by 1.2px of text width, which CI's Chromium drew narrower, so the chips sat on one
+// line and there was no gap to measure (10 Nov 2026). At 1.3× they need 21px more than the line has,
+// and the old `display: block` line still puts them 0.4px apart.
 test('admin: a row that is today AND saved keeps a clear gap between its two chips when they wrap', async ({ page }, testInfo) => {
     test.skip(!isTouchProject(testInfo), 'the stacked date line is the touch layout');
     await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
@@ -4541,7 +4559,7 @@ test('admin: a row that is today AND saved keeps a clear gap between its two chi
     await page.locator('#fieldMember').selectOption('G. Miller');
     const row = page.locator('.week-panel .day-row.today');
     await expect(row.locator('.overwrite-badge')).toBeVisible();
-    await scaleText(page, 1.11);
+    await scaleText(page, 1.3);
     const g = await row.evaluate((r) => {
         const t = /** @type {Element} */ (r.querySelector('.day-today-tag')).getBoundingClientRect();
         const b = /** @type {Element} */ (r.querySelector('.overwrite-badge')).getBoundingClientRect();

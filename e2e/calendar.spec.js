@@ -2186,6 +2186,9 @@ for (const [width, scale] of [[320, 1.0], [360, 1.0], [412, 1.0], [320, 1.3], [3
         await page.addInitScript((sc) => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: sc }); }, scale);
         await page.setViewportSize({ width, height: 800 });
         await page.goto('/');
+        // A tap is answered once the splash has gone, a frame after the first render — which WebKit, busy, can
+        // hold back past the grid's appearance: every tap below then landed on the splash (10 Nov 2026, CI).
+        await expect(page.locator('#splash')).toHaveCount(0);
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         // Every used font size × k, read before any is written so none compounds — what the OS does.
         if (scale !== 1) await scaleText(page, scale);
@@ -3535,7 +3538,9 @@ test('calendar: Team View opens on the month you were browsing, not the current 
 // ── LESS MOTION MEANS THE HUDDLE APPEARS, NOT SLIDES (whole-app review, 10 Nov 2026) ─────────────
 // Every lightbox on this page opens without movement for a member who has asked for reduced motion;
 // the Huddle viewer, its own full-screen panel, still slid up the screen's whole height. Sampled every
-// frame from the tap, one-shot: its top edge must never leave the top of the screen.
+// frame from the tap, one-shot: its top edge must never leave the top of the screen. The first EIGHT frames
+// it is visible in, not a fixed 400ms: WebKit delivers no frame for 250–400ms as the panel opens, so 400ms held
+// one or two there (10 Nov 2026). Its first visible frame is where a slide shows: 720px down without the rule.
 test('huddle: with reduced motion the viewer appears in place, and still closes', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
@@ -3548,7 +3553,7 @@ test('huddle: with reduced motion the viewer appears in place, and still closes'
         const t0 = performance.now();
         const tick = () => {
             if (v.classList.contains('visible')) seen.push(Math.round(v.getBoundingClientRect().top));
-            if (performance.now() - t0 < 400) requestAnimationFrame(tick); else resolve(seen);
+            if (seen.length < 8 && performance.now() - t0 < 2000) requestAnimationFrame(tick); else resolve(seen);
         };
         location.hash = '#huddle';
         requestAnimationFrame(tick);

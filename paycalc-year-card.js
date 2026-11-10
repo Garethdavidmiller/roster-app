@@ -101,7 +101,7 @@ export function renderYearCard({ ty, plan, pgLoan, slPaidOffFromP, bpLump }) {
         ? `<div class="yearso-receipt" role="status" tabindex="-1">${_receipt.lines.map(l => `<div>${l}</div>`).join('')}</div>`
         : '';
     const plural = (/** @type {number} */ n) => (n > 1 ? 's' : '');
-    const hadFocus = _focusInside(el);
+    const hadFocus = _focusHeld(el);
 
     // FROM-ZERO: nothing READABLE entered — but paid periods are waiting. The old early-return hid
     // the block (right as a quiet default, wrong once it hides the one control that fixes the
@@ -152,6 +152,17 @@ function _focusInside(el) {
 }
 
 /**
+ * Which of the block's controls a rebuild is about to take focus from: the receipt, or another
+ * (the button) — or null when focus is outside the block. @param {any} el
+ * @returns {'receipt'|'other'|null}
+ */
+function _focusHeld(el) {
+    if (!_focusInside(el)) return null;
+    return typeof el.querySelector === 'function' && el.querySelector('.yearso-receipt') === document.activeElement
+        ? 'receipt' : 'other';
+}
+
+/**
  * May the end of a fill move focus to its receipt? Only when focus has nowhere else to be: on the
  * page body (the button it started on was disabled, or rebuilt away) or still in this block. A member
  * who went on to another field while the fill ran keeps their place.
@@ -169,13 +180,16 @@ function _focusIsFree() {
  * the button; at the end of a fill, to the receipt instead — its words are then read out, where a
  * status region inserted already filled is often not announced at all. Not only after a keyboard
  * start: Safari does not focus a tapped button, so a screen reader on an iPhone would be missed.
- * @param {any} el @param {boolean} hadFocus
+ * And a receipt that has focus KEEPS it through the rebuilds after the first: a fill is followed
+ * by more than one (re-pricing the back-pay lump recalculates, then the coordinator recalculates
+ * again), and handing the second one's focus to the button moved it off what was being read.
+ * @param {any} el @param {'receipt'|'other'|null} hadFocus  what `_focusHeld` saw before the rebuild
  */
 function _restoreFocus(el, hadFocus) {
-    const afterFill = _focusReceiptNext;
+    const toReceipt = _focusReceiptNext || hadFocus === 'receipt';
     _focusReceiptNext = false;
-    if ((!hadFocus && !afterFill) || typeof el.querySelector !== 'function') return;
-    const target = (afterFill && el.querySelector('.yearso-receipt')) || el.querySelector('#fillYearBtn');
+    if ((!hadFocus && !toReceipt) || typeof el.querySelector !== 'function') return;
+    const target = (toReceipt && el.querySelector('.yearso-receipt')) || el.querySelector('#fillYearBtn');
     target?.focus?.();
 }
 

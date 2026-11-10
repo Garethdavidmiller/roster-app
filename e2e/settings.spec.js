@@ -901,14 +901,16 @@ test('settings: the header spans the cards\' column at every width, a phone on i
 // Settings, the page that relies on the shared rule, so losing that rule cannot pass unseen.
 test('settings: the page keeps its gutter, from the shared rule', async ({ page }) => {
     await seedSession(page);
-    for (const [width, side] of [[375, '10px'], [768, '10px'], [1280, '38.4px']]) {
-        await page.setViewportSize({ width: Number(width), height: 800 });
+    for (const [width, side] of [[375, 10], [768, 10], [1280, 38.4]]) {
+        await page.setViewportSize({ width, height: 800 });
         await page.goto('/settings.html');
         const gutter = await page.evaluate(() => {
             const s = getComputedStyle(document.body);
-            return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(' ');
+            return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map(parseFloat);
         });
-        expect(gutter, `the gutter at ${width}px`).toBe(`20px ${side} 10px ${side}`);
+        // As numbers, to the hundredth: WebKit writes 3vw at 1280px as "38.400002px", Chromium as "38.4px".
+        ['top', 'right', 'bottom', 'left'].forEach((edge, i) =>
+            expect(gutter[i], `the ${edge} gutter at ${width}px`).toBeCloseTo([20, side, 10, side][i], 2));
     }
 });
 
