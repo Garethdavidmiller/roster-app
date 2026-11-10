@@ -835,6 +835,97 @@ describe('retry', () => {
         assert.equal(visibleChips.length, 0, 'no visible error chip should appear after belated original rejection');
     });
 
+    // A TIME LIMIT ON "Retrying…" (owner, 10 Nov 2026). The read was never bounded, so one that never
+    // answered left the chip disabled on "Retrying…" for the rest of the visit, with no way to ask again.
+    test('a retry that never answers hands the control back after 10s, as a failed one does', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        t.mock.timers.tick(800);
+        t.mock.timers.tick(9200);
+        const chip = getSyncChip();
+        assert.ok(chip?._classes.has('sync-chip-error'), 'premise: the first load failed and offers the retry');
+
+        let reads = 0;
+        _fetchImpl = () => { reads++; return new Promise(() => {}); };   // the retry hangs too
+        chip._fire('click');
+        await flushAsync(5);
+        assert.equal(chip.textContent, '↻ Retrying…');
+        assert.equal(chip.disabled, true);
+        const releasedBefore = _clearMonthsHistory.length;
+        const owedBefore = _owedHistory.length;
+
+        t.mock.timers.tick(9999);
+        assert.equal(chip.textContent, '↻ Retrying…', 'the limit fired early');
+        t.mock.timers.tick(1);
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again", 'still "Retrying…" after the limit');
+        assert.equal(chip.disabled, false, 'the control did not come back');
+        assert.ok(chip._classes.has('sync-chip-error'));
+        assert.equal(_clearMonthsHistory.length - releasedBefore, 3, 'the re-claimed months were not released');
+        assert.equal(_owedHistory.length - owedBefore, 1, 'the months are not owed a re-check');
+
+        // …and pressing it again asks again.
+        chip._fire('click');
+        await flushAsync(5);
+        assert.equal(reads, 2, 'the returned control does not issue a read');
+    });
+
+    test('a retry answered after its limit still lands, and clears the chip', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});
+        let rendered = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { rendered++; } });
+        await flushAsync();
+        t.mock.timers.tick(10000);
+        const chip = getSyncChip();
+        /** @type {(v?: any) => void} */ let answer = () => {};
+        _fetchImpl = () => new Promise(r => { answer = r; });
+        chip._fire('click');
+        await flushAsync(5);
+        t.mock.timers.tick(10000);
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again", 'premise: the limit has passed');
+        const before = rendered;
+        answer();
+        await flushAsync(5);
+        assert.equal(chip._removed, true, 'a late answer is still an answer: the chip goes');
+        assert.ok(rendered > before, 'and the month is drawn from it');
+    });
+
+    test('a retry answered in time leaves no limit behind to say it failed', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        t.mock.timers.tick(10000);
+        const chip = getSyncChip();
+        _fetchImpl = () => Promise.resolve();
+        chip._fire('click');
+        await flushAsync(5);
+        assert.equal(chip._removed, true, 'premise: the retry succeeded');
+        t.mock.timers.tick(20000);
+        assert.equal(_header._children.filter(c => c._classes.has('sync-chip') && !c._removed).length, 0,
+            'the limit fired after a success and put "Couldn\'t update" back');
+    });
+
+    test('a retry that FAILS in time is reported once — the limit does not report it a second time', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        t.mock.timers.tick(10000);
+        const chip = getSyncChip();
+        _fetchImpl = () => Promise.reject(new Error('the retry fails at once'));
+        chip._fire('click');
+        await flushAsync(5);
+        assert.equal(chip.textContent, "⚠ Couldn't update — try again", 'premise: the failure was reported');
+        const released = _clearMonthsHistory.length;
+        const owed = _owedHistory.length;
+        t.mock.timers.tick(20000);
+        assert.equal(_clearMonthsHistory.length, released, 'the limit released the months a second time');
+        assert.equal(_owedHistory.length, owed, 'the limit owed the months a second re-check');
+    });
+
     test('a RETRY whose answer outlived its grant stands down too — no chip left saying it failed', async (t) => {
         // The first load fails (chip), the chip is pressed, and access goes while the retry is out.
         t.mock.timers.enable({ apis: ['setTimeout'] });

@@ -11,15 +11,16 @@
      the CSP is mirrored into a <meta> on every page. The Firebase 301 stays: it is faster, it is a
      real redirect rather than a rendered page, and it keeps the canonical origin clean.
 
-     There is nothing to maintain here. It has no script, no stylesheet and no module graph; the
+     There is next to nothing to maintain here: one shared script, no stylesheet, no module graph; the
      refresh URL is relative, so it works under the Pages sub-path unchanged. When the mirror is
      finally retired (ARCHITECTURE.md → EXC-006) this file and its Firebase redirect can go together.
 
-     WHAT IT CANNOT CARRY: the #fragment and the ?query. A meta refresh goes to the fixed URL below,
-     so on the mirror an old bookmark to a section (guide.html#sg-sundays) opens the guide at the
-     top, and ?from= no longer points its back arrow; the Firebase 301 keeps both. Known and accepted
-     (whole-app review, Nov 2026), not overlooked: carrying them needs a script, and this file has
-     none by decision — .claude/rules/guide-pages.md, and LEGACY_REDIRECTS in
+     THE #FRAGMENT AND THE ?QUERY. A meta refresh goes to a fixed URL, so on the mirror an old
+     bookmark to guide.html#sg-sundays used to open the guide at the top, and ?from= no longer
+     pointed its back arrow. Since 10 Nov 2026 (owner decision, whole-app check) the stub carries ONE script,
+     legacy-redirect.js, which goes to the canonical link below with both kept and the history
+     entry replaced. The refresh stays for a browser running no script. That script is the only
+     one a stub may hold: .claude/rules/guide-pages.md, and LEGACY_REDIRECTS in
      page-contract-parity.test.mjs.
 -->
 <html lang="en-GB">
@@ -35,6 +36,7 @@
     <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="refresh" content="0; url=./staff-guide.html">
   <link rel="canonical" href="./staff-guide.html">
+  <script src="./legacy-redirect.js"></script>
   <title>Staff &amp; Admin Guide — moved</title>
   <style>
     body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

@@ -121,7 +121,7 @@ describe('scoreOrder', () => {
         assert.equal(s.gentleWorst, 14 * 60);
     });
 
-    test('every figure, counted by hand on four lines — and renumbering moves none but the partition', () => {
+    test('every figure, counted by hand on four lines — and renumbering moves none of them', () => {
         // The search chooses an order by these figures and the status line reports them, through one
         // shared walk, so a miscount here is a wrong design AND a wrong report of it.
         //   1 → 2  Fri, Sat | Sun, Mon off      a four-day break, three contracted days given
@@ -147,7 +147,7 @@ describe('scoreOrder', () => {
         assert.equal(s.shortBoundary, 1, 'the 8-hour Saturday-into-Sunday turnaround');
         assert.equal(scoreOrder(p, order, { minRestMinutes: 8 * 60 }).shortBoundary, 0, 'short means UNDER the minimum');
         assert.equal(scoreOrder(p, order, { minRestMinutes: 8 * 60 + 1 }).shortBoundary, 1);
-        assert.deepEqual(s.blocks, [1, 3]);
+        assert.deepEqual(s.blocks, [3, 1], 'longest first: 09:50, 08:24, 09:00 — then 13:00 alone');
         assert.equal(s.longestBlock, 3, '09:50 → 08:24 → 09:00');
         assert.equal(s.longestRun, 11, "line 4's Monday to Saturday, then line 1's Sunday to Thursday");
         assert.equal(scoreOrder(p, order, { maxRunTarget: 6 }).runExcess, 5 + 4 + 3 + 2 + 1,
@@ -158,11 +158,10 @@ describe('scoreOrder', () => {
         assert.equal(scoreOrder(pair('08:00-16:00'), ['1', '2']).gentleOver, 0);
         assert.equal(scoreOrder(pair('08:01-16:01'), ['1', '2']).gentleOver, 2);
 
-        // Every figure but `blocks` is a property of the CIRCLE. `blocks` is the optimiser's partition,
-        // walked from the first step over two hours in the order given (see `blockRuns`).
-        const circle = (/** @type {Record<string, any>} */ x) => { const c = { ...x }; delete c.blocks; return c; };
+        // Every figure is a property of the CIRCLE — the optimiser's partition included, since the owner's
+        // decision of 10 Nov 2026 (see `blockRuns`); it used to be walked from the first big step.
         for (const r of [['2', '3', '4', '1'], ['3', '4', '1', '2'], ['4', '1', '2', '3']]) {
-            assert.deepEqual(circle(scoreOrder(p, r)), circle(s), `renumbered from line ${r[0]}`);
+            assert.deepEqual(scoreOrder(p, r), s, `renumbered from line ${r[0]}`);
         }
     });
 });
@@ -181,10 +180,8 @@ describe('blockRuns — how many weeks in a row on much the same shift', () => {
     test('counts consecutive lines within the 2h band, lapping the rotation', () => {
         // Four mornings and two afternoons. The mornings are only contiguous BECAUSE the walk laps
         // (lines 5, 6, 1, 2) — without the lap this would read as two blocks of two.
-        // The partition starts at the first real boundary, so the afternoons are listed first;
-        // sorted here because the claim is about the lengths, not where the walk began.
         assert.deepEqual(runs(['06:00-14:00', '07:00-15:00', '15:00-23:00', '16:00-23:30',
-            '06:30-14:30', '07:30-15:30']).sort((a, b) => b - a), [4, 2]);
+            '06:30-14:30', '07:30-15:30']), [4, 2]);
     });
 
     test('a SPARE line is TRANSPARENT — it neither breaks a block nor counts towards one', () => {
@@ -237,16 +234,51 @@ describe('blockRuns — how many weeks in a row on much the same shift', () => {
         assert.equal(scoreOrder(p, Object.keys(p)).longestBlock, 4);
     });
 
-    test('the figure counts a block the optimiser\'s partition cut in two', () => {
-        // A stretch can start at a line that follows its predecessor by less than two hours, so the
-        // partition never starts a block there: 15:20, 15:25, then 13:50, 13:10, 13:30, 15:15 — the
-        // last four are within 2h of 13:50, the first three of 15:20. Generated designs do this
-        // (the default, every switch on, at attempt 1).
+    test('the optimiser charges the block the figure names — a block that starts mid-wave included', () => {
+        // A stretch can start at a line that follows its predecessor by less than two hours: 15:20,
+        // 15:25, then 13:50, 13:10, 13:30, 15:15 — the last four are within 2h of 13:50. The old
+        // partition began at the first big step, cut that block in two and never charged it, while the
+        // status line reported it (the default, every switch on, at attempt 1).
         const p = rota(['15:20-23:50', '15:25-23:55', '13:50-22:20', '13:10-21:40', '13:30-22:00',
             '15:15-23:45', '06:20-14:20', '06:30-14:30']);
         const k = Object.keys(p);
-        assert.ok(Math.max(...blockRuns(p, k)) < 4, 'premise: the partition does not see four in a row');
+        assert.equal(Math.max(...blockRuns(p, k)), 4, 'the partition the optimiser charges sees four in a row');
         assert.equal(scoreOrder(p, k).longestBlock, 4);
+    });
+
+    // ── THE OPTIMISER'S PARTITION IS A PROPERTY OF THE CIRCLE TOO (owner, 10 Nov 2026) ─────────────
+    // It was walked from the first step over two hours in the order given, so `variety` charged one
+    // rotation two ways depending on which line was numbered 1, and a gradual drift as one long block.
+    test('renumbering the rotation cannot move the partition, and its longest block is the reported one', () => {
+        let seed = 10;
+        const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+        const T = ['06:20-14:20', '07:15-15:45', '08:30-17:00', '09:30-18:00', '11:00-19:30', '13:30-22:00', '15:25-23:55', 'SP'];
+        let differedBefore = 0;
+        for (let i = 0; i < 80; i++) {
+            const base = Array.from({ length: 12 }, () => T[Math.floor(rnd() * T.length)]);
+            const seen = new Set();
+            for (let s = 0; s < base.length; s++) {
+                const p = rota([...base.slice(s), ...base.slice(0, s)]);
+                const k = Object.keys(p);
+                const b = blockRuns(p, k);
+                seen.add(b.join(','));
+                if (b.length) assert.equal(b[0], longestBlockOf(p, k), `${base.join(' ')}: the charged and the reported block differ`);
+                assert.deepEqual(b, [...b].sort((x, y) => y - x), `${base.join(' ')}: the partition is not longest first`);
+            }
+            assert.equal(seen.size, 1, `${base.join(' ')} partitions ${[...seen].join(' or ')}`);
+            if (base.some((t, j) => t !== base[(j + 1) % base.length])) differedBefore++;
+        }
+        assert.ok(differedBefore > 40, 'premise: the rotations tried are not all one shift');
+    });
+
+    test('a gradual drift is charged as the stretches it holds, not as one long block', () => {
+        // 06:00 → 12:00 → 06:00 in 90-minute steps: no step over two hours, so the old walk had nowhere
+        // to start and charged all eight weeks as one block.
+        const p = rota(['06:00-14:00', '07:30-15:30', '09:00-17:00', '10:30-18:30', '12:00-20:00',
+            '10:30-18:30', '09:00-17:00', '07:30-15:30']);
+        const b = blockRuns(p, Object.keys(p));
+        assert.equal(b[0], 4, 'the four round the peak');
+        assert.equal(b.reduce((x, y) => x + y, 0), 8, 'every week in exactly one block');
     });
 
     test('the excess is summed over every over-long block, not just the worst', () => {

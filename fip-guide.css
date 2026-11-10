@@ -44,6 +44,9 @@ body {
    Element-level selector so every classed control (.btn-*, .cf-popular a, .country-jump a)
    still wins with its own colour/decoration rules. */
 a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: rgba(0, 30, 60, 0.35); }
+/* A number in the text that you can tap to call stays on one line: split at a space, it reads as two
+   numbers (10 Nov 2026). Inline links only — the classed call button wraps its words as a button must. */
+a[href^="tel:"]:not([class]) { white-space: nowrap; }
 @media (hover: hover) and (pointer: fine) {
     a:hover { text-decoration-color: var(--gold); }
 }
@@ -166,6 +169,26 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
    display:block on ALL of them fractured sentences onto their own lines ("You generally qualify
    after / 12 months' service / with…"), the worst readability defect on the page (v18.79). */
 .box strong:first-child { display: block; font-size: 13px; margin-bottom: 4px; }
+
+/* ── Source conflict (owner, 10 Nov 2026) ─────
+   A claim whose source gives two answers (the register's Conflict class) wears a red EDGE and a red
+   label, not a red box: a red box on this page means "FIP is not valid here", which is an answer, and
+   this is the one place the page cannot give one. Same idea as the Rangers guide's .rr-unresolved.
+   guide-sources.test.mjs requires the class on every block citing a Conflict row. */
+.fip-unresolved { background: var(--red-bg); border: 1px solid var(--red-bdr); border-left: 4px solid var(--red-text); }
+.fip-unresolved strong:first-child { color: var(--red-text); }
+
+/* The banner a page with a provisional claim carries above its chip bar (the Rangers and Railcard
+   shape, in this page's tokens). Amber, not red: nothing on the page is wrong. 728 = the 760px column
+   less its 16px sides, so its words start where the header's ← and the chips do. */
+.source-banner {
+    background: var(--yellow-bg);
+    border-bottom: 2px solid var(--yellow-bdr);
+    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+}
+.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
+.source-banner .draft-title { font-weight: 800; color: var(--warn-text); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
+.source-banner p { font-size: 13px; color: var(--text); margin-top: 0; margin-bottom: 0; }   /* never `margin: 0` — it undoes the centring above */
 
 /* ── Eurostar pricing (v18.83) ───────────────
    Compact fare table: one row per route, price right-aligned, the shared standard-class
@@ -640,7 +663,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
     /* Keep tag/box colours — they carry semantic meaning in a reference doc */
     .tag-yes, .tag-no, .tag-warn, .tag-note,
-    .box-yellow, .box-red, .box-blue {
+    .box-yellow, .box-red, .box-blue, .fip-unresolved, .source-banner {
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }
 

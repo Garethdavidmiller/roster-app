@@ -2376,15 +2376,15 @@ button.lightbox-bug-link {
     line-height: 1;
     color: white;
     touch-action: manipulation;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-flex; align-items: center; justify-content: center;
+    position: relative;   /* for the tap area below */
     flex-shrink: 0;
     border-radius: 6px;
-    -webkit-user-select: none;
-    user-select: none;
+    -webkit-user-select: none; user-select: none;
     transition: background-color var(--dur-fast) var(--ease-standard);
 }
+/* A 44px TAP AREA round the same glyph (owner, 10 Nov 2026): the button draws about 34×30px. */
+.btn-burger::before { content: ''; position: absolute; inset: 50% auto auto 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
 
 /* A quiet hover — the drawer's own raised rung (desktop audit, Nov 2026); it had only a press. */
 @media (hover: hover) and (pointer: fine) {

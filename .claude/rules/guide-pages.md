@@ -54,8 +54,10 @@ paths:
 - **The two OLD guide URLs are still served, as redirect stubs.** `guide.html` → `staff-guide.html`
   and `fip.html` → `fip-guide.html`: `firebase.json` 301s both, but that covers only the canonical
   origin. The GitHub Pages mirror serves no redirect rules and is where most staff open the app, so
-  the redirect is also written into the HTML, which both origins carry. The stubs hold no content, no
-  script and no stylesheet, and they are NOT guides: they are declared as `REDIRECT_PAGES` in
+  the redirect is also written into the HTML, which both origins carry. The stubs hold no content and
+  no stylesheet, and ONE script, the shared `legacy-redirect.js` (owner, 10 Nov 2026): a meta refresh
+  goes to a fixed URL, so it dropped a bookmark's `#country` and `?from=`, and the script carries both,
+  with the refresh kept as the no-script fallback. They are NOT guides: they are declared as `REDIRECT_PAGES` in
   `scripts/app-pages.mjs`, and `page-contract-parity.test.mjs` gives them a contract of their own
   (`LEGACY_REDIRECTS`). **A future guide rename needs the same pair of things** — the Firebase
   redirect and the stub — or it breaks old links for the larger half of the staff.
@@ -349,6 +351,17 @@ country page):
   supplement to a *leisure* coupon only.
 - **Record a stated absence as an absence.** RST publishes no child-fare ages for Lithuania and no
   Swedish/Finnish undertaking exists; a blank reads as "no restriction".
+- **A source that gives two answers is a `Conflict`, on the claim.** The page's first is the
+  Vilnius–Riga train (owner, 10 Nov 2026): RST's Lithuania page lists it as a reservation route and
+  excludes the Vilnius–Tallinn line it starts. It has its own row, `fip-vilnius-riga`, and on the
+  Lithuania and Latvia cards a `.fip-unresolved` callout (a red EDGE and label — a red box here means
+  "not valid", which is an answer), so the cards' settled lines keep their own state. A page with a
+  Conflict also carries the amber `.source-banner` above the chip bar, naming it; both are required by
+  `guide-sources.test.mjs`, and both go when the row is settled.
+- **Name the operators the source names as outside FIP.** Where a country page lists "Non FIP
+  operators", the card's "⚠ Other operators — FIP not valid" box gives that list as the page gives it,
+  with its own register row, so a member planning a trip learns which trains in that country their
+  coupon will not cover. A list the page calls not exhaustive is said to be not exhaustive.
 
 **The booking-reach table** (`#booking-table`) is the page's only table. It stacks below 560px via
 `data-label` generated content, and carries explicit `role="table"/"row"/"cell"` because

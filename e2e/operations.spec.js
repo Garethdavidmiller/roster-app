@@ -2343,6 +2343,10 @@ test('operations offline: an empty reset queue from the cache says it could not 
     await expect(queue, 'a cache that never heard of a request is not "nothing outstanding"').not.toContainText('No outstanding requests');
     await expect(queue.locator('.card-retry-btn'), 'the card offers its retry (the card itself stays collapsed)').toHaveText('↻ Try again');
     await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
+    // …and the strip says so too (owner, 10 Nov 2026): the card stays closed, so a strip with no
+    // reset item read exactly like "nothing outstanding".
+    await expect(page.locator('#attentionStrip').getByRole('link', { name: 'Password resets: couldn’t check' }),
+        'a queue that could not be read is not absent from the strip, like a clean one').toBeVisible();
     await expectNothingForTheErrorLog(page, pageErrors);
 });
 
@@ -2357,7 +2361,7 @@ test('operations offline: Account status from the cache says it could not load, 
     await expectNothingForTheErrorLog(page, pageErrors);
 });
 
-test('operations offline: a re-read the cache answers takes the request off the strip, rather than vouching for it', async ({ page }) => {
+test('operations offline: a re-read the cache answers says "couldn’t check" on the strip, rather than vouching for it', async ({ page }) => {
     const pageErrors = collectFatalErrors(page);
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = { docsByPath: { resetRequests: [
@@ -2378,7 +2382,24 @@ test('operations offline: a re-read the cache answers takes the request off the 
     await expect(page.locator('#resetRequestsContent')).toContainText('Couldn’t load the password reset requests');
     await expect(page.locator('.rr-row')).toHaveCount(0);
     await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
-    await expect(strip.locator('a[href="#reset-requests"]'), 'an unknown count is withdrawn, not restated').toHaveCount(0);
+    // The old count is not restated, and the item is not withdrawn either — withdrawn read as clean
+    // from outside the closed card (owner, 10 Nov 2026).
+    const item = strip.locator('a[href="#reset-requests"]');
+    await expect(item, 'an unknown count says it could not check').toHaveAccessibleName('Password resets: couldn’t check');
+    await expect(item.locator('.attn-count')).toHaveText('couldn’t check');
+    await expect(item.locator('.attn-count'), 'not the count\'s alarm red').toHaveClass(/attn-count--unchecked/);
+    // …and the class does what it says: the PAINTED colour is not a count's red. (The class alone
+    // proves nothing if the rule that recolours it loses to .errorlog-count-chip.)
+    const painted = await item.locator('.attn-count').evaluate((el) => getComputedStyle(el).color);
+    const alarm = await page.evaluate(() => {
+        const s = document.createElement('span');
+        s.className = 'card-year-chip errorlog-count-chip attn-count';
+        document.body.append(s);
+        const c = getComputedStyle(s).color;
+        s.remove();
+        return c;
+    });
+    expect(painted, 'a failed check is painted in the count\'s alarm red').not.toBe(alarm);
     await expectNothingForTheErrorLog(page, pageErrors);
 });
 

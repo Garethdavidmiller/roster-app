@@ -65,14 +65,17 @@
  * CONSTRAINT (excess × 400): the optimiser alternates, but by the smallest step available — early →
  * middles → late rather than early → late. `blockRuns` treats a SPARE line as TRANSPARENT: a cover
  * week interrupts but does not change what you go back to, and counting it as a break would let four
- * spare weeks hide a 20-week block behind a reported maximum of 4.
+ * spare weeks hide a 20-week block behind a reported maximum of 4. And it reads the rotation as a
+ * CIRCLE, from every line, so what `variety` charges cannot depend on which line is numbered 1.
  *
  * `runExcess` is a GRADIENT, never a statistic — it sums excess over every start (a 14-day run also
  * shows as a 13, a 12…) because a maximum is a plateau the 2-opt cannot climb: measured, it stalled
  * at 8 where a random search found 6.
  *
- * Deterministic PER ATTEMPT: attempt 0 is the greedy start, byte-identical to the pre-v20.07
- * behaviour, so every measured figure in the docs still describes the first press; attempt N ≥ 1 is
+ * Deterministic PER ATTEMPT: attempt 0 is the greedy start, so the first press is the canonical
+ * design. Reading blocks round the circle (10 Nov 2026) left the roster seed's first six presses as
+ * they were — the seed every figure in the docs is measured on — and moved the default target set's,
+ * measured and the owner's call (`blockRuns`); attempt N ≥ 1 is
  * best-of-three seeded shuffles (mulberry32 on the attempt number — **never `Math.random`, never the
  * clock**), so "design 3" is the same design on every device. The spare spread is a FILTER on
  * candidates as well as a weight: a local search can only pay a price it can find a path away from,
@@ -196,21 +199,19 @@ export function boundaryRest(a, b) {
  * as a break would let four spare weeks hide a 20-week block behind a reported maximum of 4. That is
  * the flattering reading, and it is the one this workspace keeps having to refuse.
  *
- * THIS IS THE OPTIMISER'S PARTITION, NOT THE REPORTED FIGURE (whole-app review, Nov 2026). An
- * anchored walk round a circle partitions it differently depending on where it starts, and this one
- * starts at the first step over `span` in the order it is given: weeks starting 06:20, 08:30, 07:15,
- * 09:30 read as blocks of 1 and 3 in that order and 1, 1 and 2 from the 09:30 line. With no step over
- * `span` at all there is nowhere to start, and the whole rotation comes back as one block — so a
- * gradual drift is charged as one long block here, although it is not one (the paragraph above). It
- * is kept as it is because `variety` charges its excess and the first press of Generate is canonical:
- * taking the worst partition over every starting line instead was measured (Nov 2026) to change the
- * shipped default design at attempt 0, and changing that is the owner's decision, not a tidy-up. The
- * figure a designer is TOLD is `longestBlockOf`, which asks from every line, so renumbering the
- * rotation cannot move it.
+ * A PROPERTY OF THE CIRCLE (owner, 10 Nov 2026). An anchored walk round a circle partitions it
+ * differently depending on where it starts: weeks starting 06:20, 08:30, 07:15, 09:30 read as blocks
+ * of 1 and 3 from the first line and 1, 1 and 2 from the 09:30 line. The walk used to start at the
+ * first step over `span` in the order it was given, so `variety` charged one rotation two ways
+ * depending on which line happened to be numbered 1 — and with no step over `span` at all it charged a
+ * gradual drift as one long block. Now it walks from EVERY line and keeps the reading that shows the
+ * most weeks stuck on one shift (the longest block first, then the next): the same rotation is charged
+ * the same however it is numbered, and its longest block is `longestBlockOf`, the figure a designer
+ * is told. It changed the default generated design at attempt 0 — the owner's decision, made knowing.
  * @param {Record<string, any>} patterns
  * @param {string[]} order
  * @param {number} [span]
- * @returns {number[]} block lengths, in order from the first boundary
+ * @returns {number[]} block lengths, longest first
  */
 export function blockRuns(patterns, order, span = GENTLE_THRESHOLD_MINUTES) {
     return _blockRunsOf(order.map(k => lineStartProfile(patterns[k])), span);
@@ -218,30 +219,32 @@ export function blockRuns(patterns, order, span = GENTLE_THRESHOLD_MINUTES) {
 
 /** `blockRuns`' walk over start profiles already read — the reorder reads each line's once. */
 function _blockRunsOf(/** @type {Array<number|null>} */ prof, /** @type {number} */ span) {
-    const idx = prof.map((v, i) => (v === null ? -1 : i)).filter(i => i >= 0);
-    if (idx.length < 2) return idx.length ? [1] : [];
-
-    // The walk starts at the first step over `span` in this order; with none, the whole rotation is
-    // one block (see the header for why that is kept, and what reports the real figure).
-    const n = idx.length;
-    let start = -1;
-    for (let k = 0; k < n; k++) {
-        const prev = /** @type {number} */ (prof[idx[(k - 1 + n) % n]]);
-        const here = /** @type {number} */ (prof[idx[k]]);
-        if (Math.abs(here - prev) > span) { start = k; break; }
+    const vals = /** @type {number[]} */ (prof.filter(v => v !== null));   // spare lines are transparent
+    const n = vals.length;
+    if (n < 2) return n ? [1] : [];
+    /** @type {number[]} */ let worst = [];
+    for (let start = 0; start < n; start++) {
+        const runs = [];
+        let anchor = vals[start], len = 1;
+        for (let k = 1; k < n; k++) {
+            const v = vals[(start + k) % n];
+            if (Math.abs(v - anchor) <= span) { len++; continue; }
+            runs.push(len); anchor = v; len = 1;
+        }
+        runs.push(len);
+        runs.sort((a, b) => b - a);
+        if (_longerFirst(runs, worst) > 0) worst = runs;
     }
-    if (start < 0) return [n];
+    return worst;
+}
 
-    const runs = [];
-    let anchor = null, len = 0;
-    for (let k = 0; k < n; k++) {
-        const v = /** @type {number} */ (prof[idx[(start + k) % n]]);
-        if (anchor === null) { anchor = v; len = 1; continue; }
-        if (Math.abs(v - anchor) <= span) { len++; continue; }
-        runs.push(len); anchor = v; len = 1;
+/** Compare two partitions sorted longest first: positive when `a` holds the longer blocks. */
+function _longerFirst(/** @type {number[]} */ a, /** @type {number[]} */ b) {
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        const d = (a[i] ?? 0) - (b[i] ?? 0);
+        if (d) return d;
     }
-    runs.push(len);
-    return runs;
+    return 0;
 }
 
 /**
@@ -378,9 +381,9 @@ export function scoreOrder(patterns, order, opts = {}) {
     const w = _orderFigures(patterns, order, k => lineStartProfile(patterns[k]),
         opts.minRestMinutes ?? MIN_REST_MINUTES, opts.maxRunTarget ?? DEFAULT_MAX_RUN);
     return {
-        // `blocks` is the optimiser's partition (`variety` charges its excess); `longestBlock` is the
-        // reported figure, asked from every line so that renumbering cannot move it. They can differ:
-        // see `blockRuns`. How long you stay on much the same shift — the live roster's longest is 3.
+        // `blocks` is the optimiser's partition (`variety` charges its excess), longest first, so its
+        // first entry IS `longestBlock`, the reported figure; both are read round the circle, so
+        // renumbering moves neither. How long you stay on much the same shift — the live roster's is 3.
         blocks: w.blocks,
         longestBlock: longestBlockOf(patterns, order, GENTLE_THRESHOLD_MINUTES),
         // Gentle: mean absolute move, and how many weeks move more than the threshold.

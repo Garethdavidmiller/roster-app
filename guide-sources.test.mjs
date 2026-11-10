@@ -54,11 +54,12 @@ const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact', 'Draft',
 // Markers that make a provisional claim VISIBLE, per class. The list is per-class rather than
 // per-guide because the two guides express the same idea in their own idiom — the Rangers page
 // tints a whole card (`rr-card--draft`) or a single callout (`rr-unresolved`); the Railcard page
-// has only ever needed the claim-level form (`rc-unsourced`). What must not drift is the RULE:
+// has only ever needed the claim-level form (`rc-unsourced`), and the FIP page's first Conflict (Vilnius–Riga,
+// owner, 10 Nov 2026) is a claim-level callout too (`fip-unresolved`). What must not drift is the RULE:
 // a Draft and a Conflict may never share a marker, in either dialect.
 const PROVISIONAL = {
     Draft:    ['rr-card--draft', 'rc-unsourced'],
-    Conflict: ['rr-card--conflict', 'rr-unresolved'],
+    Conflict: ['rr-card--conflict', 'rr-unresolved', 'fip-unresolved'],
 };
 const COLS = ['ID', 'Guide', 'Section', 'Class', 'Reviewed', 'Next', 'Source'];
 
@@ -1037,4 +1038,34 @@ test('railcard: the checking sequence starts with the ticket, not the Railcard',
         'quietly assumes the ticket is fine — most of what is wrong at this gateline is the ticket.');
     assert.doesNotMatch(RC_TEXT, /Same checks whether/i,
         'selling and gateline are different jobs — before travel it can still be fixed, after it cannot');
+});
+
+// THE OPERATORS RAIL STAFF TRAVEL NAMES AS OUTSIDE FIP ARE ON THE CARDS (owner, 10 Nov 2026). Four country
+// pages publish a "Non FIP operators" list, and the cards carried none of it: a member planning a trip
+// to Rome, Vienna, Nice or the Flåm line had no way to learn from the guide that the train in front of
+// them takes no coupon. Each list now sits in its own box, inside its own country's card, certified by
+// its own row. The names are the pages' own; a box that loses one, or moves to another card, fails here.
+test('fip: the operators Rail Staff Travel names as outside FIP are on their country cards', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    const text = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+    /** @type {Record<string, string[]>} card id → the names its box must carry */
+    const NAMED = {
+        'country-it': ['Italo', 'Circumflegrea', 'Circumvesuviana', 'Cumana', 'Naples–Aversa', 'Trenord', 'Ferrovie Sud Est',
+            'ARST', 'Frecciarossa between Paris and Italy', 'Leonardo Express', 'Trinacria Express', 'Treni Turistici'],
+        'country-at': ['WESTbahn', 'CAT', 'Wiener Lokalbahn', 'NÖVOG', 'Graz–Köflacher Bahn', 'Steiermärkische Landesbahnen',
+            'Salzburger Lokalbahn', 'Pinzgauer Lokalbahn', 'Zillertalbahn', 'Achenseebahn', 'Montafonerbahn', 'not complete'],
+        'country-fr': ['OUIGO', 'Train Classique', 'TGV OUIGO Spain', 'ZOU', 'Transdev', 'Corsica'],
+        'country-no': ['Flåmsbana', 'Ofoten Line', 'Fløibanen', "Vy's buses", 'Vy Tåg Sverige', 'SJ Sverige'],
+    };
+    for (const [cardId, names] of Object.entries(NAMED)) {
+        const card = html.match(new RegExp(`<details id="${cardId}"[\\s\\S]*?</details>`));
+        assert.ok(card, `#${cardId} is missing`);
+        const row = `fip-${cardId.slice(-2)}-nonfip`;
+        const box = card[0].match(new RegExp(`<div[^>]*data-guide-source="${row}"[^>]*>[\\s\\S]*?</div>`));
+        assert.ok(box, `#${cardId} has no box certified by ${row} — the operators its page names are not on the card`);
+        assert.match(text(box[0]), /Other operators — FIP not valid/, `${row}'s box lost its heading`);
+        for (const name of names) {
+            assert.ok(text(box[0]).includes(name), `#${cardId}: "${name}" is named by Rail Staff Travel as outside FIP, and the box no longer says so`);
+        }
+    }
 });

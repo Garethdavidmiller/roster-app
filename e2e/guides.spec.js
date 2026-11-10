@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, isTouchProject, scaleText, seedMemberSession } from './helpers.js';
+import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
@@ -548,6 +549,33 @@ test('fip: a link that shows a phone number dials it, and the website is its own
     await expect(site).toContainText('website');
 });
 
+// Owner decision, 10 Nov 2026: every phone number a guide SHOWS can be tapped to call. The FIP guide had
+// one call button and six numbers you could only copy — Trainseurope three times, the SNCF line and two
+// Stena numbers — and on a phone, at a ticket office abroad, the tap is the point. Read off the rendered
+// text, so a number added later in any guide is held to the same rule without anybody listing it here.
+test('guides: every phone number a guide shows is a link that dials it', async ({ page }) => {
+    for (const { url } of GUIDE_PAGES) {
+        await page.goto(url);
+        const found = await page.evaluate(() => {
+            const re = /(\+\d{1,3}(?:[\s\u00a0]\d{1,4}){2,6}|\b0\d{2,4}(?:[\s\u00a0]\d{3,8}){1,2}\b)/g;
+            /** @type {Array<{shown: string, href: string}>} */ const out = [];
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+                for (const m of (n.nodeValue || '').matchAll(re)) {
+                    out.push({ shown: m[0], href: n.parentElement?.closest('a')?.getAttribute('href') || '' });
+                }
+            }
+            return out;
+        });
+        for (const { shown, href } of found) {
+            const digits = shown.replace(/[\s\u00a0]/g, '');
+            const dial = 'tel:' + (digits.startsWith('+') ? digits : `+44${digits.slice(1)}`);
+            expect(href, `${url}: "${shown}" is shown as a number you cannot tap, or that dials another`).toBe(dial);
+        }
+        if (url === '/fip-guide.html') expect(found.length, 'the sweep no longer finds the FIP guide\'s seven numbers').toBe(7);
+    }
+});
+
 // Whole-app review, Nov 2026 (a lead from the PWA reader): every app page names its tab icon, and the
 // guides named none, so a browser fell back to the ORIGIN's /favicon.ico — which neither origin has,
 // and which on the Pages mirror is a different site altogether. Each guide now asks for the app's
@@ -575,8 +603,10 @@ for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'fip-guid
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
-    // reveal France, and open it.
-    await page.locator('#countrySearch').fill('spain');
+    // reveal France, and open it. Not "spain": the finder reads each card's whole text, and since
+    // Nov 2026 France's card names TGV OUIGO Spain among the trains FIP does not cover, which is
+    // exactly what somebody searching "spain" should see. Only Portugal's card says "Portugal".
+    await page.locator('#countrySearch').fill('portugal');
     await expect(page.locator('#country-fr')).toBeHidden();
     await page.locator('.cf-popular a[href="#country-fr"]').click();
     await expect(page.locator('#country-fr')).toBeVisible();
@@ -622,9 +652,11 @@ test('fip: the booking-reach table answers per country, and the finder leaves it
     // difference between "you cannot go" and "buy it when you arrive".
     await expect(table).toContainText('buy it at a ticket office when you get there');
 
-    // The finder must not touch it: filter to one country and the table stays put.
-    await page.locator('#countrySearch').fill('spain');
+    // The finder must not touch it: filter to one country and the table stays put. ("portugal", not
+    // "spain", for the reason in the shortcut test above: "spain" also shows France's card.)
+    await page.locator('#countrySearch').fill('portugal');
     await expect(page.locator('#country-fr')).toBeHidden();
+    await expect(page.locator('#country-pt')).toBeVisible();
     await expect(table).toBeVisible();
 });
 
@@ -704,18 +736,23 @@ test('guides: from 800px the header\'s ← and ⤓ PDF sit on the content column
                 const back = /** @type {HTMLElement} */ (document.querySelector('.page-header .btn-back')).getBoundingClientRect();
                 const pdf = /** @type {HTMLElement} */ (document.querySelector('.page-header .btn-pdf')).getBoundingClientRect();
                 const band = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect();
-                // The amber source banner between the header and the chips (railcard, rangers) too.
-                const banner = document.querySelector('.source-banner > *')?.getBoundingClientRect();
+                // The amber source banner between the header and the chips (railcard, rangers, fip) too —
+                // EVERY line of it: the FIP banner's title sat on the column while its paragraph, whose own
+                // `margin: 0` undid the centring, started 260px to the left (10 Nov 2026), and reading the
+                // first child alone passed it.
+                const banner = [...document.querySelectorAll('.source-banner > *')].map(el => {
+                    const b = el.getBoundingClientRect();
+                    return [b.left, b.right];
+                });
                 return { textLeft: r.left + parseFloat(cs.paddingLeft), textRight: r.right - parseFloat(cs.paddingRight),
-                         back: back.left, pdf: pdf.right, bandLeft: band.left, bandRight: band.right,
-                         banner: banner ? [banner.left, banner.right] : null };
+                         back: back.left, pdf: pdf.right, bandLeft: band.left, bandRight: band.right, banner };
             }, column);
             expect(Math.abs(m.back - m.textLeft), `${guide} at ${width}px: ← at ${m.back}, the text at ${m.textLeft}`).toBeLessThanOrEqual(1);
             expect(Math.abs(m.pdf - m.textRight), `${guide} at ${width}px: ⤓ PDF ends at ${m.pdf}, the text at ${m.textRight}`).toBeLessThanOrEqual(1);
             expect([m.bandLeft, m.bandRight], `${guide} at ${width}px: the navy band stays full-bleed`).toEqual([0, width]);
-            if (m.banner) {
-                expect(Math.abs(m.banner[0] - m.textLeft) + Math.abs(m.banner[1] - m.textRight),
-                    `${guide} at ${width}px: the source banner's words span ${m.banner}, the text ${m.textLeft}–${m.textRight}`).toBeLessThanOrEqual(2);
+            for (const [i, line] of m.banner.entries()) {
+                expect(Math.abs(line[0] - m.textLeft) + Math.abs(line[1] - m.textRight),
+                    `${guide} at ${width}px: the source banner's line ${i + 1} spans ${line}, the text ${m.textLeft}–${m.textRight}`).toBeLessThanOrEqual(2);
             }
         }
     }
@@ -1186,6 +1223,37 @@ test.describe('guides with JavaScript off', () => {
             }
         }
     });
+
+    // The no-script half of the old addresses' redirect (below): the meta refresh still lands, at the top
+    // of the guide, because a fixed URL is all it can carry. That is the floor the script raises.
+    test('an old guide address still reaches its guide, at the top', async ({ page }) => {
+        await page.goto('/fip.html?from=paycalc.html#country-de');
+        await page.waitForURL(/\/fip-guide\.html$/);
+        await page.goto('/guide.html#sg-getting-around');
+        await page.waitForURL(/\/staff-guide\.html$/);
+    });
+});
+
+// ── THE OLD ADDRESSES KEEP THE COUNTRY (owner, 10 Nov 2026) ────────────────────────────────────────
+// guide.html and fip.html are stubs. Firebase's 301 keeps a bookmark's #fragment and ?query; the Pages
+// mirror serves no redirects, so there the stub IS the redirect, and its meta refresh dropped both — an
+// old fip.html#country-de opened the guide at the top with Germany shut. legacy-redirect.js carries them.
+// The dev server serves no redirects either, so this is the mirror's path.
+test('guides: an old address keeps its country, its query and the back arrow, and leaves no stub in history', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const script = page.waitForResponse(r => r.url().endsWith('/legacy-redirect.js'));
+    await page.goto('/fip.html?from=paycalc.html#country-de');
+    expect((await script).status(), 'the stub fetched its script').toBe(200);
+    await page.waitForURL(/\/fip-guide\.html\?from=paycalc\.html#country-de$/);
+    await expect(page.locator('#country-de'), 'the bookmarked country is opened').toHaveAttribute('open', '');
+    await expect(page.locator('.btn-back'), '?from= still points the back arrow').toHaveAttribute('href', './paycalc.html');
+    // Replaced, not pushed: Back must not land on the stub, which would send the reader forward again.
+    expect(await page.evaluate(() => history.length), 'the stub left an entry of its own in the history').toBe(2);
+
+    await page.goto('/guide.html?from=trains.html#sg-getting-around');
+    await page.waitForURL(/\/staff-guide\.html\?from=trains\.html#sg-getting-around$/);
+    await expect(page.locator('.btn-back')).toHaveAttribute('href', './trains.html');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
 test('fip: a focused country row shows its whole ring, inside the card that clips it', async ({ page }) => {

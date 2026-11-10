@@ -30,6 +30,13 @@ const SYNC_TIMEOUT_MS = 10000;
  *  budget before an unresponsive control reads as broken. The READ itself is never bounded here. */
 const RETRY_AUTH_WAIT_MS = 2000;
 
+/** How long a user-initiated RETRY may say "Retrying…" before it hands the control back (owner,
+ *  10 Nov 2026). The read itself was never bounded, so one that never answered left the chip on
+ *  "Retrying…" — disabled, with no way to ask again. The first load's 10s, because a person is
+ *  watching and the first load already called failure at that mark. The read is NOT cancelled: a late
+ *  answer still lands, and its success clears the chip as an on-time one does. */
+const RETRY_TIMEOUT_MS = SYNC_TIMEOUT_MS;
+
 
 /**
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.
@@ -250,6 +257,26 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     // the user the sync had failed while it was in fact still running (v19.11).
     setChipState({ text: '↻ Retrying…', className: 'sync-chip', announce: 'Retrying', disabled: true });
 
+    // A TIME LIMIT ON "Retrying…" (owner, 10 Nov 2026). Past it the retry is reported as failed and
+    // the control comes back, exactly as a failed read leaves it: the months released and owed a
+    // re-check, and "Couldn't update — try again" to press. Not if a later retry or a load has
+    // overtaken it, or the Calendar's access has changed since — those own the chip now. Focus goes
+    // back to the chip only if nothing else has it: ten seconds on, the member may have moved on.
+    const retryLimit = setTimeout(() => {
+      if (_retryGen !== _fetchGen || _dataLoaded || _grant !== accessGeneration()) return;
+      _initialMonthKeys.forEach(clearFetchedMonth);
+      noteKnowledge(_initialMonthKeys, 'error');
+      oweRecheck(_initialMonthKeys);
+      setChipState({
+        text: '⚠ Couldn\'t update — try again',
+        className: 'sync-chip sync-chip-error',
+        announce: 'Still couldn\'t update your shifts. Activate to retry.',
+      });
+      const chip = currentChip();
+      const focused = document.activeElement;
+      if (chip && chip.isConnected && (!focused || focused === document.body || focused === chip)) chip.focus();
+    }, RETRY_TIMEOUT_MS);
+
     addFetchedMonths(_initialMonthKeys);
 
     const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
@@ -331,6 +358,8 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // because the timeout or the original catch already ran, and both of those recorded `error`
       // and repainted — so the screen is already in its failed state and a render would change
       // nothing except to rebuild `.calendar-header` and throw away the focus just set.
+    } finally {
+      clearTimeout(retryLimit);   // settled either way: the read has answered, so the limit has nothing to say
     }
   }
 

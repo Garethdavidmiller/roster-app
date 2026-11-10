@@ -170,6 +170,16 @@ the rates and contractual terms are not on record. **A session name the roster d
 the same way**: a leaver or a renamed member keeps a valid local session, and pricing them would fall
 back to CEA rates in the bare shared `myb_pc_` namespace.
 
+**A roster grade that differs from the saved one is ASKED about, never applied** (owner, 10 Nov
+2026). Grade is an editable setting and a saved grade outranks the roster role, so a member the roster
+moved from CEA to CES kept CEA rates with nothing saying so — and applying the roster silently would
+overwrite a deliberate choice (acting up, a roster row not yet corrected). So on load the page shows one
+line at the top offering the roster grade's rates (`gradeToOffer` / `renderGradePrompt`,
+`paycalc-settings.js`); "Keep" is remembered in `SK.gradeKept` against the grade it declined, so it is
+asked again only if the roster later names a different grade. "Use" goes through the Grade box's own
+change handler, so the rate, the pension default and back pay re-price exactly as a hand-picked grade does
+(and back pay's no-record box is blanked by `blobFitsGrade`, `paycalc-backpay-state.js`).
+
 **The card's words are written for its reader** (`paycalc-role-card.js`, owner, 7 Nov 2026): a
 Dispatcher is told their pay is not covered *yet* and will be added once Dispatcher rates are
 confirmed — never a date; a manager is told who it is for, with nothing promised; each says what the

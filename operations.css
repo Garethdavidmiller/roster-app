@@ -95,6 +95,10 @@ body.auth-ready .container { display: grid; }
 /* Gold ring, not navy — these pills sit on the navy canvas where the default ring vanishes. */
 .attn-item:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
 .attn-count { flex-shrink: 0; }
+/* A reset queue that could not be read (owner, 10 Nov 2026): "couldn't check" in place of a count.
+   Neutral, not the count's red — it is a gap in what the page knows, not a backlog. Two classes, so
+   it beats .errorlog-count-chip's red wherever that rule sits in the file. */
+.attn-count.attn-count--unchecked { color: var(--text-mid); }
 
 /* .btn-card-tips, tips lightbox — consolidated into shared.css */
 

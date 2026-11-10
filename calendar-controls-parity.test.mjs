@@ -30,7 +30,8 @@
 //   9. Team View's arrows wear the month view's button corner;
 //  10. no literal z-index reaches the overlay bands — those are the --z-* scale;
 //  11. every screen breakpoint that restates the body's padding keeps the safe-area insets;
-//  12. the Huddle's pinned column is the viewer's own white.
+//  12. the Huddle's pinned column is the viewer's own white;
+//  13. Team View's grade tabs and the leave panel's two links wear the button corner, not a pill's.
 //
 // Comments are stripped before matching, so a rule can't hide inside one — or be invented by one.
 
@@ -192,6 +193,16 @@ test('9. Team View\'s arrows wear the month view\'s button corner', () => {
         .map(r => declared(r.body, 'border-radius')).filter(Boolean).pop();
     assert.equal(corner('.controls button'), 'var(--radius-button)', 'premise: the month view\'s arrows');
     assert.equal(corner('.tv-week-nav'), corner('.controls button'));
+});
+
+// "A TAB is a button" (css-tokens.md → Corners), and the owner's decision (10 Nov 2026) for the two the
+// review found as pills: Team View's grade tabs and the leave panel's two links. At about 30px tall a
+// pill reads as a tag; every other tab in the app, and the month view's controls, wear the 12px button.
+test('13. Team View\'s grade tabs and the leave panel\'s two links wear the button corner', () => {
+    const corner = (/** @type {string} */ sel) => NESTED.filter(r => r.selector.split(',').map(s => s.trim()).includes(sel))
+        .map(r => declared(r.body, 'border-radius')).filter(Boolean).pop();
+    assert.equal(corner('.grade-tab'), 'var(--radius-button)', 'a grade tab is a tab, and a tab is a button');
+    assert.equal(corner('.al-lb-link'), 'var(--radius-button)', 'the leave panel\'s links are its two actions');
 });
 
 // The overlay bands are `--z-*` tokens in shared.css. A literal there is a guess about everybody else's

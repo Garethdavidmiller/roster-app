@@ -96,6 +96,23 @@ test('items keep catalogue order regardless of report order', () => {
     assert.deepEqual(buildAttentionItems(reports).map(i => i.id), ids);
 });
 
+// A RESET QUEUE THAT COULD NOT BE READ SAYS SO (owner, 10 Nov 2026). Withdrawing it left the strip
+// exactly as a clean queue leaves it, over a card that stays closed — and a member waiting on a reset
+// is the one backlog the admin has no other way to learn of. So an `unchecked` report renders, with
+// no count to show, and its name still begins with what its pill shows.
+test('an unchecked report renders "couldn’t check" — not a count, and not absent like a clean queue', () => {
+    const [item, ...rest] = buildAttentionItems({ resets: { count: 0, unchecked: true } });
+    assert.deepEqual(rest, []);
+    assert.equal(item.id, 'resets');
+    assert.equal(item.badge, 'couldn’t check');
+    assert.equal(item.text, 'Password resets: couldn’t check');
+    assert.equal(item.unchecked, true);
+    assert.ok(item.text.startsWith(`${item.short}: ${item.badge}`), 'Label in Name holds for the unchecked voice too');
+    // …and an ordinary count says it is one, so the page can tell the two apart
+    const [counted] = buildAttentionItems({ resets: { count: 2 } });
+    assert.equal(counted.unchecked, false);
+});
+
 test('every catalogue entry carries what a row needs — a half-declared id cannot half-render', () => {
     for (const [id, entry] of Object.entries(ATTENTION_CATALOGUE)) {
         assert.ok(entry.emoji && entry.hash.startsWith('#'), id);
@@ -125,6 +142,11 @@ function fakeDocument() {
         get nextSibling() { const s = this.parent?.children; return s ? (s[s.indexOf(this) + 1] ?? null) : null; },
         remove() { const s = this.parent?.children; if (s) s.splice(s.indexOf(this), 1); this.parent = null; },
         addEventListener() {},
+        classList: {
+            set: new Set(),
+            toggle(c, on) { if (on) this.set.add(c); else this.set.delete(c); },
+            contains(c) { return this.set.has(c); },
+        },
     });
     return { createElement: el, _el: el };
 }
@@ -188,4 +210,34 @@ test('withdraw(): a card whose reload failed takes its count back, to unknown ra
     assert.equal(container.hidden, false);
     strip.withdraw('resets');
     assert.equal(container.hidden, true, 'the stale 3 must not outlive the failed reload');
+});
+
+// The reset queue's failed load (owner, 10 Nov 2026): the item STAYS, says it couldn't check, and
+// drops the count's red; the next good read puts the number back in the same link.
+test('unchecked(): the item stays and says "couldn’t check" in neutral; a good read restores the count', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('./operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    strip.report('resets', 3);
+    const [link] = linksOf(container);
+    const count = () => link.children.find((c) => typeof c === 'object' && c.tag === 'span' && c.className.includes('attn-count'));
+    assert.equal(count().classList.contains('attn-count--unchecked'), false, 'premise: a real count wears the red');
+
+    strip.unchecked('resets');
+    assert.equal(container.hidden, false, 'a failed check must not look like a clean queue');
+    assert.equal(linksOf(container)[0], link, 'the same link — a focused one is not destroyed');
+    assert.equal(link.attrs['aria-label'], 'Password resets: couldn’t check');
+    assert.equal(count().textContent, 'couldn’t check', 'the stale 3 is gone from the pill');
+    assert.equal(count().classList.contains('attn-count--unchecked'), true, 'a gap in what the page knows is not dressed as a backlog');
+
+    strip.report('resets', 2);
+    assert.equal(link.attrs['aria-label'], 'Password resets: 2 waiting');
+    assert.equal(count().classList.contains('attn-count--unchecked'), false, 'the count is back, and its colour with it');
+    strip.unchecked('resets');
+    strip.report('resets', 0);
+    assert.equal(container.hidden, true, 'a good read of an empty queue is clean again');
+    assert.throws(() => strip.unchecked('reset'), /unknown id/, 'a typo cannot report into the void here either');
 });

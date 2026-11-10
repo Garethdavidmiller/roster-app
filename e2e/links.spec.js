@@ -3295,7 +3295,9 @@ test('links: a generated design that repeats an earlier one says which design it
         });
     };
 
-    // The default table, every switch on: today the third press falls back to design 1.
+    // The default table, every switch on. Its third press fell back to design 1 until blocks were
+    // read round the circle (10 Nov 2026); now its first six are six designs. Either way, each press
+    // must say what it is.
     const onRuns = [];
     for (let i = 0; i < 4; i++) onRuns.push(await press());
     checkPresses(onRuns);

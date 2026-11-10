@@ -899,6 +899,9 @@ finish runs into Sunday's start.
   alternates by the smallest step available (early → middles → late) towards `DEFAULT_BLOCK_TARGET`,
   the live roster's own longest run on much the same shift. `blockRuns` treats a SPARE line as
   transparent, because counting a cover week as a break would let four spare weeks hide a 20-week block.
+  **It reads the rotation as a circle** (owner, 10 Nov 2026): walked from every line, keeping the
+  reading with the longest blocks, so the same rotation is charged the same however it is numbered.
+  Walked from one place, it charged one design two ways and a gradual drift as a single long block.
 - **Most shifts in a row (`maxRun`)** aims at `DEFAULT_MAX_RUN`, the same number the "Longest run" row
   reads. `longestRunFor` counts a spare week as four worked days by delegating to `worstCaseWorkedRun`;
   counting seven is the mistake anything measuring runs repeats first.

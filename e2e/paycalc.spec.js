@@ -2475,6 +2475,8 @@ for (const [name, role, grade, otherGrade] of [
 
         // The auto-detected grade, straight off `loadSettings` → `gradeForRole(member.role)`.
         await expect(page.locator('#gradeSelect')).toHaveValue(grade);
+        // …so the roster and the page agree, and there is nothing to ask (owner, 10 Nov 2026).
+        await expect(page.locator('#gradePrompt')).toBeHidden();
 
         // And the money that follows from it. `#hourlyRate` is written by `updateRateForPeriod`
         // from the grade's own award row, so this is the first point in the chain where a wrong
@@ -2490,6 +2492,67 @@ for (const [name, role, grade, otherGrade] of [
         expect(errors, `Uncaught JS exceptions for ${role}`).toHaveLength(0);
     });
 }
+
+// ── THE ROSTER NAMES A DIFFERENT GRADE (owner, 10 Nov 2026) ──────────────────────────────────────
+// A saved grade outranks the roster role, so a member the roster moved from CEA to CES kept CEA rates
+// with nothing on the page saying so. Now the page ASKS — one line at the top — and both answers stick.
+/** A CES on the roster whose device still has CEA saved — the member the roster moved. */
+async function rosterMovedToCes(/** @type {import('@playwright/test').Page} */ page) {
+    await seedSession(page, 'F. Mohamed');   // the CES row of the grade test above
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_fmohamed_setup', '1');
+        if (!sessionStorage.getItem('seeded')) {
+            localStorage.setItem('myb_pc_fmohamed_grade', 'cea');
+            sessionStorage.setItem('seeded', '1');
+        }
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+}
+
+test('paycalc: a member the roster moved to CES is asked, and "Use CES rates" re-prices the page', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await rosterMovedToCes(page);
+    const prompt = page.locator('#gradePrompt');
+    await expect(prompt).toBeVisible();
+    await expect(prompt).toContainText('The roster lists you as CES (Customer Experience Supervisor), but this calculator is using CEA rates.');
+    await expect(page.locator('#gradeSelect'), 'premise: the saved grade outranked the roster').toHaveValue('cea');
+    expect(rateSetFor('cea').has(await page.locator('#hourlyRate').inputValue()), 'premise: priced as a CEA').toBe(true);
+
+    await prompt.getByRole('button', { name: 'Use CES rates' }).click();
+    await expect(page.locator('#gradeSelect')).toHaveValue('ces');
+    // The page's own grade-change path ran: the rate the take-home is built from is a CES rate now.
+    await expect.poll(async () => rateSetFor('ces').has(await page.locator('#hourlyRate').inputValue()),
+        'the grade box changed but the page was not re-priced').toBe(true);
+    const done = page.locator('#gradePromptDone');
+    await expect(done).toHaveText('✓ Now using CES rates.');
+    await expect(done, 'the button pressed is gone, so focus goes to what happened').toBeFocused();
+    await expect(page.locator('#gradePromptActions')).toBeHidden();
+
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('#gradeSelect')).toHaveValue('ces');
+    await expect(prompt, 'answered — the roster and the page agree now').toBeHidden();
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: "Keep CEA" keeps the member\'s own grade, and is not asked again', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await rosterMovedToCes(page);
+    const prompt = page.locator('#gradePrompt');
+    await prompt.getByRole('button', { name: 'Keep CEA' }).click();
+    await expect(page.locator('#gradePromptDone')).toHaveText('✓ Keeping CEA rates. You can change your grade in Your Settings.');
+    await expect(page.locator('#gradeSelect')).toHaveValue('cea');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_fmohamed_grade_kept'))).toBe('ces');
+
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(prompt, 'a member who chose to keep their grade is asked once, not on every visit').toBeHidden();
+    await expect(page.locator('#gradeSelect')).toHaveValue('cea');
+    expect(errors).toHaveLength(0);
+});
 
 // Before the 24 Oct 2025 award a CES was paid at a rate that is not on record (AWARD_RATES
 // `pre: null`), so the estimate prices those periods at the later one — and must SAY so, never call

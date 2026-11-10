@@ -745,6 +745,11 @@
     /* A second paragraph in the banner — the Restore line (#setupRestore) — takes a gap, or the two
        run together and read as one block. */
     .setup-banner p + p { margin-top: 8px; }
+    /* The grade prompt's two answers (paycalc-settings.js → renderGradePrompt): side by side, and
+       stacked once a 320px screen or larger text leaves no room for both. */
+    .grade-prompt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    /* Answered: the row goes. A `display` of its own outranks the browser's [hidden] rule. */
+    .grade-prompt-actions[hidden] { display: none; }
     .setup-restore-link, .setup-settings-link {
       color: var(--primary-blue); font-weight: 700;
       text-decoration: underline; text-underline-offset: 2px;

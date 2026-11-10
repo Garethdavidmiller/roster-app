@@ -105,9 +105,9 @@ export function pcPrefix() { return `myb_pc_${_nsSeg}`; }
 
 /** Per-member storage keys. Rebuilt in place (object mutated, binding kept) whenever
  *  the namespace changes, so every module that imported SK sees the new key names. */
-/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, pensionOptOut:string, pensionTimeline:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
+/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, pensionOptOut:string, pensionTimeline:string, setup:string, ytdPay:string, ytdTax:string, grade:string, gradeKept:string }} */
 export const SK = {
-    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', pensionOptOut: '', pensionTimeline: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
+    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', pensionOptOut: '', pensionTimeline: '', setup: '', ytdPay: '', ytdTax: '', grade: '', gradeKept: '',
 };
 
 /** Recompute the SK key strings from the active namespace. */
@@ -147,6 +147,9 @@ function _rebuildSK() {
     SK.ytdPay  = `${p}ytd_pay`;
     SK.ytdTax  = `${p}ytd_tax`;
     SK.grade   = `${p}grade`;
+    // The roster grade the member chose NOT to switch to when the grade prompt asked ('cea'|'ces',
+    // absent = never declined) — paycalc-settings.js → gradeToOffer. Member-level, like the grade.
+    SK.gradeKept = `${p}grade_kept`;
 }
 _rebuildSK(); // initialise to the unnamespaced (legacy) key names at module load
 

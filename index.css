@@ -1434,7 +1434,9 @@
             position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
-            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
+            /* A TAB IS A BUTTON (owner, 10 Nov 2026; css-tokens.md → Corners): the 12px every other tab in
+               the app wears. It was a pill, which at this height reads as a tag, not a control. */
+            border-radius: var(--radius-button);
             font-size: var(--type-label);
             font-weight: 600;
             cursor: pointer;
@@ -2024,9 +2026,15 @@
                 border-color: var(--border-mid) !important;
             }
 
-            /* Early, Late, Spare and RDW have no print rule of their own: their screen fills print as they
-               are (the `*` rule above), on the 1px grey edge every cell gets here. Rules restating only the
-               fill were removed — they changed nothing. */
+            /* Early, Late, Spare and RDW wear their own edge on paper too (owner, 10 Nov 2026), so every
+               printed cell matches its swatch in the printed key. Their fills need no rule — the screen's
+               prints as it is (the `*` rule above) — but the edge does: the shorthand above repaints every
+               cell's edge grey, and these four had nothing putting theirs back. */
+            .calendar-day.early-shift { border-color: var(--early-cell-border) !important; }
+            .calendar-day.late-shift  { border-color: var(--blue-sky) !important; }
+            .calendar-day.spare-day   { border-color: var(--purple) !important; }
+            .calendar-day.rdw-day     { border-color: var(--rdw) !important; }
+
             .calendar-day.night-shift {
                 background: var(--night-cell-bg) !important;
                 border-color: var(--night-cell-border) !important;
@@ -2739,7 +2747,8 @@
             text-decoration: none;
             padding: 8px 16px;
             border: 1px solid rgba(255,255,255,0.5);
-            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
+            /* Two actions, so two buttons (owner, 10 Nov 2026): the 12px button corner, not a pill's. */
+            border-radius: var(--radius-button);
             transition: color var(--dur-med), border-color var(--dur-med), background var(--dur-med);
             cursor: pointer;
         }

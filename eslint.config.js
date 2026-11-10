@@ -11,7 +11,8 @@ const NOT_A_PAGE = ['functions/**', 'scripts/**', 'test-fixtures/**/*.mjs', 'gen
 
 // The page scripts loaded by a plain `<script src … defer>` — classic SCRIPTS, where an `import` or
 // `export` is a fatal SyntaxError. lint-scope.test.mjs reads the pages and fails on one not listed.
-const CLASSIC_SCRIPTS = ['fip-guide.js', 'guide-back.js', 'railcard-guide.js', 'rangers-guide.js', 'splash-watchdog.js'];
+const CLASSIC_SCRIPTS = ['fip-guide.js', 'guide-back.js', 'legacy-redirect.js', 'railcard-guide.js', 'rangers-guide.js',
+    'splash-watchdog.js'];
 
 export default [
     // Global ignores — applies to all subsequent config entries.
