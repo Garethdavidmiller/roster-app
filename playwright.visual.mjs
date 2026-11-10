@@ -4,15 +4,16 @@
 // asserts BEHAVIOUR and must stay fast and environment-agnostic. Pixel screenshots are
 // environment-sensitive (font rasteriser, GPU), so they live here as an OPT-IN tool
 // (`npm run test:visual`) and are excluded from the smoke run (testIgnore in the main config).
-// The baselines committed under e2e/visual-baselines/ were generated in the dev container's
-// headless Chromium; regenerate with `npm run test:visual -- --update-snapshots=all` if the
-// rendering environment (browser/OS/font stack) changes. See CLAUDE.md → "Visual baselines".
+// The baselines committed under e2e/visual-baselines/ are CI's render: a container's differs even on
+// the same browser build (KNOWN_LIMITATIONS.md → "The Playwright upgrade"). Take a changed one from the
+// pull request's `visual-diffs` artifact — `node scripts/refresh-visual-baselines.mjs <the unzipped
+// artifact>` copies each failed screenshot's CI render over its baseline (README.md, test lanes).
 //
-// **`=all` matters.** A bare `--update-snapshots` defaults to `changed`, which rewrites a baseline
-// only when the comparison FAILED. So a baseline that drifted but stayed inside the tolerance below
-// could never be refreshed by the documented command — the re-baseline silently no-opped and the
-// stale image stayed committed (found v18.95, three files deep). `=all` rewrites unconditionally;
-// always `git diff` the result and confirm each changed region is one you meant to change.
+// **`=all` is for a deliberate sweep, not the everyday refresh.** A bare `--update-snapshots`
+// rewrites a baseline only when its comparison FAILED, so one that drifted but stayed inside the
+// tolerance below can never be refreshed that way (found v18.95, three files deep). `=all` rewrites
+// unconditionally — 21 baselines for one real change on 14 Sep 2026 — so `git diff` the result and
+// keep only the regions you meant to change.
 //
 // Determinism levers (in the spec): the page clock is pinned to a fixed instant so the
 // calendar/pay period are stable; Firebase is stubbed (fixtures.js) so every read is empty;

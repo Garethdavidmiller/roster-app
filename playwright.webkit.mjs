@@ -4,8 +4,8 @@
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
- * Staff are on Android and the suite has always run Chromium, which is the right primary target.
- * But iOS is explicitly SUPPORTED — the codebase carries a dozen documented Safari workarounds
+ * The suite has always run Chromium, the deploy gate's engine. But iOS is served as fully as Android
+ * (CLAUDE.md, "Mobile is primary") — the codebase carries a dozen documented Safari workarounds
  * (`transitionend` suppressed on a backgrounded tab, `localStorage` throwing in private mode, the
  * 16px focus-zoom rule, `setPointerCapture` deferred to pointermove, ITP evicting IndexedDB after
  * ~7 days) — and until v21.28 not one of them was exercised by any browser that behaves that way.
@@ -21,8 +21,9 @@
  * Playwright's WebKit is not Safari, and it is certainly not an iPhone. It shares the engine, so it
  * catches ENGINE differences — CSS, layout, JS semantics, API availability. It does NOT reproduce
  * iOS-specific PWA behaviour: standalone mode, ITP's eviction schedule, the home-screen install, or
- * Safari's own UI. Those still need a real device, and the two experiments under `experiments/`
- * exist because some properties can only be measured in a browser that genuinely exits.
+ * Safari's own UI. Those still need a real device, and `experiments/firestore-offline-proof/` and
+ * `experiments/viewer-persistence-proof/` exist because some properties can only be measured in a
+ * browser that genuinely exits.
  *
  * ── AND IT IS DELIBERATELY NOT IN THE DEPLOY GATE ───────────────────────────────────────────────
  *
@@ -59,9 +60,10 @@
  * produces this, and the fix is to poll rather than to lengthen the sleep. CI-only, because locally a first-attempt failure is something you are
  * actively looking at and a silent retry would hide it mid-diagnosis.
  *
- * The DEPLOY gate keeps its single-shot rule unchanged — that reasoning (an automatic retry hands a
- * genuinely intermittent product bug a second chance to reach staff) is about a gate that ships to
- * production, which this is not.
+ * The DEPLOY gate retries once on CI too (`playwright.config.mjs`, since v23.45, after the local
+ * static server dropped a socket mid-run and held a release back). It was single-shot before, on the
+ * reasoning that an automatic retry hands a genuinely intermittent product bug a second chance to
+ * reach staff — the base config says why that trade was taken, and what would reopen it.
  *
  * ── RUNNING IT LOCALLY: THE BROWSER IS NOT THERE UNTIL YOU PUT IT THERE (v21.85) ────────────────
  *
@@ -173,8 +175,8 @@ export default {
      * six runs out of six, already visible BEFORE the event under test was dispatched. A real
      * failure does not move between tests and vanish when the machine is idle.
      *
-     * Chromium keeps the 5s default. It is the deploy gate, it is not contended the same way, and a
-     * regression that only Chromium can see should still be caught by the tighter budget.
+     * Chromium keeps the base config's 10s. It is the deploy gate, it is not contended the same way,
+     * and a regression that only Chromium can see should still be caught by the tighter budget.
      *
      * **15s IS THE CEILING. DO NOT RAISE IT AGAIN** (v22.38, external review — a fair point about
      * the direction rather than the number). A generous assertion budget buys quiet at the cost of
@@ -192,7 +194,7 @@ export default {
     fullyParallel: true,
     projects: [
         { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-        // Mobile Safari — the shape most staff would actually hold, if they hold an iPhone at all.
+        // Mobile Safari — the iPhone shape (viewport: the note above IPHONE_PRO_VIEWPORT).
         { name: 'mobile-safari', use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT } },
     ],
 };
