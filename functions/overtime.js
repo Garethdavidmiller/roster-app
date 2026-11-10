@@ -57,6 +57,7 @@ const { storedMilestones, toMillis, publicHead } = OT;
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
+const { isViewerAccount } = require('./calendar-viewer-auth');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
 const WINDOWS = 'overtimeWindows';
@@ -98,9 +99,14 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return sendTargetedPush(payload, uids, tag);
         }
         : async (_payload, _uids, tag) => { console.warn(`${tag} push not configured — nothing sent`); return 0; });
+    // The shared Calendar PIN account is refused even when a roster email has been linked to it:
+    // the devices it owns are the station's shared PCs, not the member's phone — as `uidForMember`
+    // (pay-reminder.js) refuses it for the pay reminder.
     const uidForName = (notify && notify.uidForName) || (async (name) => {
-        try { return (await getAuth().getUserByEmail(nameToEmail(name))).uid; }
-        catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
+        try {
+            const u = await getAuth().getUserByEmail(nameToEmail(name));
+            return u && u.uid && !isViewerAccount(u) ? u.uid : null;
+        } catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
     });
 
     /**

@@ -2433,11 +2433,21 @@ describe('push notices — targeted, accumulated, and never able to fail a write
      * @param {{ sendPush?: Function, uidForName?: Function, submitted?: boolean }} o
      */
     async function reminderMorning({ sendPush = async (/** @type {any} */ _p, /** @type {string[]} */ uids) => uids.length,
-        uidForName = async () => 'uid-gm', submitted = false } = {}) {
+        uidForName = /** @type {Function|null} */ (async () => 'uid-gm'), submitted = false,
+        users = /** @type {Record<string, any>|null} */ (null) } = {}) {
         freeze(M.initialDeadlineAt - 5 * 3600_000);
         const { db, eps } = build(seededWindow(submitted ? {
             [`overtimeWindows/${WEEK}/submissions/G. Miller`]: { currentRevision: 1, days: noDays() },
         } : {}), { notify: { sendPush, uidForName } });
+        // `uidForName: null` runs the PRODUCTION resolver, against these accounts by email.
+        if (users) {
+            const { getAuth } = require(require.resolve('firebase-admin/auth',
+                { paths: [new URL('./functions/', import.meta.url).pathname] }));
+            getAuth().getUserByEmail = async (/** @type {string} */ email) => {
+                if (users[email]) return users[email];
+                throw Object.assign(new Error('no user'), { code: 'auth/user-not-found' });
+            };
+        }
         await eps.autoCreateOvertimeWindows.run({});
         const overview = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
         unfreeze();
@@ -2451,6 +2461,25 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         assert.equal(w.reminderOutstanding, 1);
         assert.equal(w.reminderAccepted, 1);
         assert.deepEqual([row.reminderOutstanding, row.reminderAccepted], [1, 1]);
+    });
+
+    test('the shared staff-PIN account is never a member\'s target (routed from functions-core)', async () => {
+        // A roster email linked to the PIN account would send that member's Overtime notices to
+        // every station PC on the PIN. The real resolver refuses it, as `uidForMember` does for pay.
+        const { nameToEmail } = require('./functions/roster-parse-helpers.js');
+        const email = nameToEmail('G. Miller');
+        /** @type {Array<{ payload: any, uids: string[] }>} */ const sent = [];
+        const sendPush = async (/** @type {any} */ payload, /** @type {string[]} */ uids) => { sent.push({ payload, uids }); return uids.length; };
+        for (const viewer of [{ uid: 'calendar-viewer' }, { uid: 'pin-account-x', customClaims: { calendarViewer: true } }]) {
+            const { w } = await reminderMorning({ sendPush, uidForName: null, users: { [email]: viewer } });
+            assert.deepEqual(sent, [], `neither notice goes to ${viewer.uid}`);
+            assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0], 'and the record says nobody was reached');
+        }
+        // Guard the guard: the member's own account is reached through the same production resolver —
+        // the asked notice and the reminder alike, and nobody else.
+        await reminderMorning({ sendPush, uidForName: null, users: { [email]: { uid: 'uid-gm' } } });
+        assert.deepEqual([askedSends(sent).length, reminderSends(sent).length], [1, 1]);
+        assert.deepEqual(sent.map((s) => s.uids), [['uid-gm'], ['uid-gm']]);
     });
 
     test('a silent member with no account was NOT reached, and the record says so', async () => {
