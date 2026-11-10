@@ -832,7 +832,8 @@ export function init() {
         if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net, { taxCode: taxCodeUsed, recognised: taxCodeKnown, pension: Math.min(pension, Math.max(0, grossWithBp)),
           ytdFrom: usingCumulative && _srcP ? fdShort(_srcP.payday) : '' });
         // The other payslip lines, compared with the SAME figures the summary rows display; the
-        // comparison never guesses a cause (buildActualComparison).
+        // comparison never guesses a cause (buildActualComparison). The payslip's pay figure is its
+        // Taxable Pay, after the pension, so it is set against "Pay after pension deduction".
         const _cmpEl = document.getElementById('actualCompare');
         if (_cmpEl) {
           const _av = /** @param {string} id */ (id) => {
@@ -843,7 +844,7 @@ export function init() {
             actual: { gross: _av('actualGrossInput'), pension: _av('actualPensionInput'),
                       tax: _av('actualTaxInput'), ni: _av('actualNiInput'),
                       net: _caActual > 0 ? _caActual : null },
-            estimate: { gross: grossWithBp, pension, tax, ni, net },
+            estimate: { gross: _shownAfterPension, pension, tax, ni, net },
           }) : '';
         }
       }

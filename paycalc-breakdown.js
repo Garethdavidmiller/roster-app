@@ -360,14 +360,21 @@ export function buildActualCheck(actual, estimated, used = {}) {
  * place causes are (carefully) discussed stays the net verdict line, which has owned that wording
  * since v18.42.
  *
+ * LIKE WITH LIKE. `gross` is the payslip's pay figure, its "Taxable Pay" line, and that comes AFTER
+ * the pension (paycalc.md → payslip line names; the breakdown's own note says the payslip's figure is
+ * lower than the Total pay row by the pension). So the estimate's `gross` is its pay after the
+ * pension — the summary's "Pay after pension deduction" — and the row carries the payslip's name for
+ * it. Set against the Total pay row, a perfect estimate showed the whole pension as a difference.
+ *
  * @param {{ actual: {gross: number|null, pension: number|null, tax: number|null,
  *   ni: number|null, net: number|null},
  *   estimate: {gross: number, pension: number, tax: number, ni: number, net: number} }} d
+ *   `gross` on both sides is Taxable Pay — the pay after the pension
  * @returns {string} '' when no line beyond net is entered
  */
 export function buildActualComparison({ actual, estimate }) {
     const LINES = /** @type {const} */ ([
-        ['gross',   'Total pay'],
+        ['gross',   'Taxable Pay'],
         ['pension', 'Pension contribution'],
         ['tax',     'Income Tax'],
         ['ni',      'National Insurance'],

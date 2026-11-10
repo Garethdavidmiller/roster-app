@@ -479,23 +479,31 @@ test('paycalc.css never lets a summary figure wrap or shrink', () => {
 
 // ── buildActualComparison (v22.07) — the estimate-vs-payslip table ─────────────────────────────
 describe('buildActualComparison', () => {
-    const EST = { gross: 3808.87, pension: 151.86, tax: 538.80, ni: 215.48, net: 2907.23 };
+    // `gross` is Taxable Pay — the pay AFTER the pension, as the payslip prints it: 3808.87 − 151.86.
+    const EST = { gross: 3657.01, pension: 151.86, tax: 538.80, ni: 215.48, net: 2902.73 };
 
     test('net alone renders NOTHING — the verdict line owns that case, and a one-row echo of it is noise', () => {
-        assert.equal(buildActualComparison({ actual: { gross: null, pension: null, tax: null, ni: null, net: 2907.23 }, estimate: EST }), '');
+        assert.equal(buildActualComparison({ actual: { gross: null, pension: null, tax: null, ni: null, net: 2902.73 }, estimate: EST }), '');
     });
 
     test('only the lines the member typed render — an absent figure is not a £0 claim', () => {
-        const html = buildActualComparison({ actual: { gross: 3808.87, pension: null, tax: 540.20, ni: null, net: null }, estimate: EST });
-        assert.match(html, /Total pay/);
+        const html = buildActualComparison({ actual: { gross: 3657.01, pension: null, tax: 540.20, ni: null, net: null }, estimate: EST });
         assert.match(html, /Income Tax/);
         assert.ok(!/Pension contribution/.test(html));
         assert.ok(!/National Insurance/.test(html));
         assert.ok(!/Take-home/.test(html));
     });
 
+    test('the pay row carries the payslip\'s own name, Taxable Pay — not the summary\'s Total pay', () => {
+        // The estimate's Total pay row is BEFORE the pension and the payslip's figure is after it, so a
+        // row named "Total pay" invited the one figure the comparison does not hold.
+        const html = buildActualComparison({ actual: { gross: 3657.01, pension: null, tax: null, ni: null, net: null }, estimate: EST });
+        assert.match(html, /<th scope="row">Taxable Pay<\/th>/);
+        assert.doesNotMatch(html, /Total pay/);
+    });
+
     test('the difference is signed actual-minus-estimate, and an exact match reads as a dash', () => {
-        const html = buildActualComparison({ actual: { gross: 3808.87, pension: null, tax: 540.20, ni: 210.48, net: null }, estimate: EST });
+        const html = buildActualComparison({ actual: { gross: 3657.01, pension: null, tax: 540.20, ni: 210.48, net: null }, estimate: EST });
         assert.match(html, /cmp-same">—</);                       // gross matches → dash, muted
         assert.match(html, /cmp-diff">\+£1\.40</);               // payslip tax is MORE
         assert.match(html, /cmp-diff">−£5\.00</);                 // payslip NI is LESS

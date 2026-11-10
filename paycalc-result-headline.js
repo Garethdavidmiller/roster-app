@@ -101,10 +101,11 @@ export function headlineLabels({ hasActual, payday, bpThisPeriod = 0, hppForPeri
 }
 
 /** The summary rows shown ONLY when a confirmed payslip is on screen — actual figures, with the
- *  calculator's own estimate beneath as the comparison the overlay exists to make. */
+ *  calculator's own estimate beneath as the comparison the overlay exists to make. `actual.gross` is
+ *  the payslip's Taxable Pay line, after the pension, so the row carries that name. */
 function actualSummaryHtml(/** @type {any} */ actual, /** @type {number} */ estimateNet) {
     return `
-          <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(actual.gross)}</span></div>
+          <div class="sum-row sum-gross"><span class="lbl">Taxable Pay</span><span class="val">${fmt(actual.gross)}</span></div>
           <div class="sum-row sum-ded"><span class="lbl">Income Tax</span><span class="val">−${fmt(actual.tax)}</span></div>
           <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(actual.ni)}</span></div>
           ${actual.sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(actual.sl)}</span></div>` : ''}

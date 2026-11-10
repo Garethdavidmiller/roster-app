@@ -405,7 +405,7 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     await page.locator('#actualTaxInput').fill('540.20');
     const table = page.locator('#actualCompare table.actual-cmp');
     await expect(table).toBeVisible();
-    await expect(table).toContainText('Total pay');
+    await expect(table).toContainText('Taxable Pay');
     await expect(table).toContainText('Income Tax');
     await expect(table).toContainText('£3,808.87');
     // Only the typed lines render — an absent figure is not a £0 claim.
@@ -418,6 +418,35 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     await expect(page.locator('#actualMoreWrap')).toBeVisible();
     await expect(page.locator('#actualGrossInput')).toHaveValue('3808.87');
     await expect(page.locator('#actualCompare table.actual-cmp')).toBeVisible();
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── LIKE WITH LIKE (whole-app check, 10 Nov 2026) ──────────────────────────────────────────────
+// The payslip's pay figure is its Taxable Pay, AFTER the pension, and the comparison set it against
+// the estimate's Total pay, BEFORE it — so a perfect estimate showed the whole pension as a gap. The
+// figure typed here is the estimate's own "Pay after pension deduction", read off the summary, so the
+// row must read as a match.
+test('paycalc: the comparison sets the payslip\'s Taxable Pay against the pay after the pension', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await page.locator('#periodSelect').selectOption({ index: 1 });
+    await expect(page.locator('#checkActualWrap')).toBeVisible();
+
+    const afterPension = page.locator('#summary .sum-row', { hasText: 'Pay after pension deduction' }).locator('.val');
+    await expect(afterPension).toBeVisible();
+    const figure = (await afterPension.textContent() ?? '').replace(/[£,]/g, '').trim();
+    expect(Number(figure)).toBeGreaterThan(0);
+
+    await clickInView(page.locator('#actualMoreBtn'));
+    await page.locator('#actualGrossInput').fill(figure);
+    const row = page.locator('#actualCompare table.actual-cmp tbody tr', { hasText: 'Taxable Pay' });
+    await expect(row).toBeVisible();
+    await expect(row.locator('td').last()).toHaveText('—');
+    await expect(row.locator('td').last()).toHaveClass(/cmp-same/);
 
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
