@@ -979,6 +979,27 @@ describe('8 · the final-week timetable notice: due on 6 December, gone on the 1
         assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
     });
 
+    test('every day it is offered, its words are true: they name the date, never "Sunday" or "this weekend" alone (whole-app review, 10 Nov 2026)', () => {
+        // Its first day is Sunday 6 December. "The new timetable starts on Sunday" read, that day, as
+        // TODAY, and "This weekend Chiltern’s trains move…" named the wrong weekend; "Sunday 13 December"
+        // is true on all seven days it runs. Read from the page and the module, so the dialog's name,
+        // the title on screen and the App Notices record are held together.
+        const HTML = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const at = HTML.indexOf(`id="${SOON.overlay}"`);
+        const block = HTML.slice(at, HTML.indexOf('<!-- One-time notice', at));
+        const text = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+        const label = block.match(/aria-label="([^"]+)"/)?.[1] ?? '';
+        const title = text(block.match(/class="lightbox-app-name">([\s\S]*?)<\/div>/)?.[1] ?? '');
+        const archived = IIFE.match(/title: '([^']+)'/)?.[1] ?? '';
+        assert.ok(block.length > 200, 'guard: the notice markup was found');
+        for (const [where, words] of [['the dialog name', label], ['the title', title], ['the App Notices record', archived]]) {
+            assert.match(words, /Sunday 13 December/, `${where} must name the date: "${words}"`);
+        }
+        assert.equal(archived, title, 'the App Notices record keeps the title the member was shown');
+        assert.doesNotMatch(text(block), /this weekend/i, 'on Sunday 6 December "this weekend" is the wrong one');
+        assert.doesNotMatch(text(block), /\b(?:on|this|next) Sunday\b(?! 13 December)/i, 'a Sunday with no date reads as today on the 6th');
+    });
+
     test('on a member\'s device in its week it opens, and nothing is flagged', async () => {
         mock.timers.setTime(DEC_6);
         await wire({ accessType: 'named' });

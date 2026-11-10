@@ -255,13 +255,14 @@ export function initCalendarNotices({ after } = {}) {
     // the first to ask for the screen takes it (openNoticeIfClear refuses a second, leaving it unflagged
     // for the next load). The time-critical reminder goes first; the install notice, which keeps for
     // 90 days, comes back the load after.
-    // ── The new timetable starts on Sunday: the final week's reminder (v24.94; owner, 23 Oct 2026) ──
+    // ── The new timetable starts on Sunday 13 December: the final week's reminder (v24.94; owner, 23 Oct 2026) ──
     //
     // The first timetable notice ended with October (OCTOBER_LAST_DAY), six weeks before the change,
     // and from then nothing in the app said the day was coming. This is offered from Sunday 6 December
     // to the end of Saturday the 12th, members only, a ONE-OFF on the same rule as the first — every
-    // dismissal marks it done. Its words name the weekend rather than "13 December" so it does not
-    // read as the October notice coming round again. A push goes out on the Saturday evening too
+    // dismissal marks it done. Its words NAME THE DATE, on every line (whole-app review, 10 Nov 2026):
+    // they named the weekend ("starts on Sunday", "This weekend"), and on Sunday the 6th — its first
+    // day — both meant the wrong one. A push goes out on the Saturday evening too
     // (functions/documents.js, sendTimetableReminder) — to the phones that have notifications on;
     // this reaches the Calendar, which everyone opens.
     //
@@ -290,7 +291,7 @@ export function initCalendarNotices({ after } = {}) {
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeClose')),
             onOpen() {
                 archiveNotice({
-                    id: NOTICE_ID, title: 'The new timetable starts on Sunday', section: 'Trains',
+                    id: NOTICE_ID, title: 'The new timetable starts on Sunday 13 December', section: 'Trains',
                     date: NOTICE_DATE,
                     body: 'Chiltern’s new timetable starts on Sunday 13 December. The Trains page shows what '
                         + 'changes at every station, and the last trains — open it from the menu: ☰ then 🚆 Trains.',
