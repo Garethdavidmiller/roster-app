@@ -290,7 +290,10 @@
            shared.css — the app's uppercase micro-label convention, and what `.week-grid-header`
            a few hundred pixels down this same page already uses. Two micro-labels that close
            together should not be set differently; the difference here was drift, not intent. */
-        .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; }
+        /* `text-align: center` since the entitlement label carries its year ("2026 entitlement", Nov 2026):
+           it wraps at a phone's width, and the stat's `align-items: center` centres the BOX, not the lines
+           inside it, so "2026" sat at the left of a column whose figure is centred. */
+        .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
         /* WRAPS, as the Calendar's twin does (Nov 2026): `nowrap` made it as wide as the Boxing Day sentence
            and the card cut the banner off. Quieter by size and colour, never a fade (3.47:1 at 0.75). */
         .al-banner-stat .stat-breakdown { font-size: 9px; line-height: 1.25; text-align: center; color: var(--text-mid); }

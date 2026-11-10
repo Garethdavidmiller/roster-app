@@ -72,7 +72,10 @@ export function leadWords(change, started) {
  */
 export function renderFurtherChanges(change, until) {
     const holidays = holidaysWithin(change, until);
-    const when = `between ${dateWords(change)} and ${dateWords(until)}`;
+    // Each date stays on one line, as the typed copy kept it with `&nbsp;`: generated with plain
+    // spaces, "13 December" broke after the 13 on a 390px phone (whole-app check, Nov 2026).
+    const together = (/** @type {string} */ words) => words.replace(/ /g, '&nbsp;');
+    const when = `between ${together(dateWords(change))} and ${together(dateWords(until))}`;
     return holidays
         ? `<strong>${esc(holidays)} ${holidays.includes(' and ') ? 'are' : 'is'} not on this page.</strong> Chiltern is changing times again ${when}, with big changes over the holidays.`
         : `<strong>Chiltern’s further changes are not on this page.</strong> It is changing times again ${when}.`;

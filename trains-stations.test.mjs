@@ -999,12 +999,14 @@ describe('the whole-app fix (Nov 2026): the overview\'s words by date, and the s
     // It was typed into trains.html: "Christmas and New Year are not on this page. Chiltern is changing
     // times again between 13 December and 10 January" — with only its switch generated.
     test('the further-changes note is worded from its two dates, and names only the holidays inside them', () => {
+        // `&nbsp;` inside each date, as the typed copy had it: a date breaking after its day number
+        // ("13" at a line's end, "December" on the next) is what the generated sentence did at 390px.
         assert.equal(renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL),
-            '<strong>Christmas and New Year are not on this page.</strong> Chiltern is changing times again between 13 December and 10 January, with big changes over the holidays.');
+            '<strong>Christmas and New Year are not on this page.</strong> Chiltern is changing times again between 13&nbsp;December and 10&nbsp;January, with big changes over the holidays.');
         assert.equal(renderFurtherChanges('2026-12-13', '2026-12-28'),
-            '<strong>Christmas is not on this page.</strong> Chiltern is changing times again between 13 December and 28 December, with big changes over the holidays.');
+            '<strong>Christmas is not on this page.</strong> Chiltern is changing times again between 13&nbsp;December and 28&nbsp;December, with big changes over the holidays.');
         assert.equal(renderFurtherChanges('2027-05-16', '2027-06-13'),
-            '<strong>Chiltern’s further changes are not on this page.</strong> It is changing times again between 16 May and 13 June.');
+            '<strong>Chiltern’s further changes are not on this page.</strong> It is changing times again between 16&nbsp;May and 13&nbsp;June.');
         // And the page carries no copy of it to go stale: the paragraph is written by the script alone.
         const page = readFileSync(new URL('./trains.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
         assert.match(page, /<p class="card-explainer tr-festive" id="trFestive" hidden><\/p>/);
