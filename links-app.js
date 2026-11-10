@@ -734,7 +734,11 @@ export function init() {
     /** Decide a typed design name — length AND the ambiguous-duplicate rule (links-design-naming.js).
      *  Returns true (and shows why) when the name may not be used. @param {string} name @param {string|null} [exceptId] */
     function _designNameRejected(name, exceptId = null) {
-        const v = checkName(name, { existing: designs, exceptId, noun: 'design' });
+        // …and not a SHORTLISTED PROPOSAL's name either (links-design-6): the proposals sit in the same
+        // picker and the same Compare chips, where two of one name cannot be told apart. The import
+        // refused one (links-design-library.js); New, Save as…, Save a copy as… and Rename decide here.
+        const asDesign = checkName(name, { existing: designs, exceptId, noun: 'design' });
+        const v = asDesign.ok ? checkName(name, { existing: [...PROPOSALS], noun: 'shortlisted proposal' }) : asDesign;
         if (!v.ok) _designActionStatus(v.message || 'That name cannot be used.');
         return !v.ok;
     }

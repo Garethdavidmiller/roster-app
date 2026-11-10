@@ -291,6 +291,30 @@ test('links: duplicating a design with unsaved changes says where they will end 
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
 });
 
+// A SHORTLISTED PROPOSAL'S NAME is not a design's (links-design-6). The proposals sit in the same picker
+// and the same Compare chips, where two of one name cannot be told apart. The import refused one; New,
+// Save as…, Save a copy as… and Rename decide through one check, which now asks as well — in any case.
+test('links: a design cannot take a shortlisted proposal\'s name, new or renamed', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    const open = await activeDesignName(page).textContent();
+    const taken = PROPOSALS[0].name.toUpperCase();
+    const status = page.locator('#linksSaveStatus');
+    const refusal = `There is already a shortlisted proposal called “${PROPOSALS[0].name}”`;
+
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill(taken);
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toContainText(refusal);
+    await expect(designOptions(page), 'no design was made').toHaveCount(2);
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length)).toBe(0);
+
+    await sheetAction(page, 'designRenameMenuBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill(taken);
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toContainText(refusal);
+    await expect(activeDesignName(page), 'and the open design keeps its name').toHaveText(String(open));
+});
+
 test('links: a saved-set list that failed to load never says the account is empty', async ({ page }) => {
     // THE RULE IS UNIT-TESTED; THIS IS THE WIRING (v22.57, external review). `describeSetList` is
     // pinned in links-target-sets.test.mjs, and a perfect rule still renders nothing if the
