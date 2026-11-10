@@ -469,6 +469,13 @@ test('paycalc: the January premium pointer waits for the payslip, then points at
     await expect(page.locator('#priorHppActualInput'), 'premise: the confirm box is locked').toBeDisabled();
     await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', true);
 
+    // From its cut-off (9 Jan) the payslip may be in hand, which is when the box opens (paycalc-2-3).
+    await page.clock.setFixedTime(new Date('2027-01-12T09:00:00Z'));
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', false);
+
     // Once the payslip is paid the box opens, and the pointer to it shows.
     await page.clock.setFixedTime(JAN_2027_PAID_DAY);
     await page.reload();

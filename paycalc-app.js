@@ -725,10 +725,11 @@ export function init() {
       // Premium card") shows ONLY on that January payslip — on every other it read wrong (owner) — and
       // only where that card's confirm box can take the figure: a member employed in the premium's year
       // (updatePriorHpp hides the whole last-year section from a joiner) and a box that is open, which
-      // it is from the payslip's payday or while it holds a confirmed figure (paycalc-hpp.js).
+      // it is once the payslip may be in hand — from its cut-off, the rule paycalc-2-3 gives the box in
+      // paycalc-hpp.js — or while it holds a confirmed figure.
       const _janHint = document.getElementById('ytdJanHppHint');
       if (_janHint) _janHint.hidden = !(_hppTy && isTaxYearVisible(_hppTy)
-          && (_hppRes.hasActual || (!!_curP && _curP.payday < new Date())));
+          && (_hppRes.hasActual || payslipMayBeInHand(_curP)));
       const _hppAmount     = _hppRes.amount;      // the HPP figure landing on this January payslip
       const _hppIsEstimate = _hppRes.isEstimate;
       // OPT-IN, like back pay: the premium JOINS the take-home only once the member ticks it in (off
