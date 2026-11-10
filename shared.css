@@ -805,6 +805,19 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
         outline: 2px solid Highlight;
         outline-offset: -2px;
     }
+    /* …AND A CHOSEN CONTROL STILL SHOWS FOCUS (whole-app review, Nov 2026). The ring above is (0,2,0) and the
+       app's focus fallback (0,1,0), and the theme removes every box-shadow, so on a chosen control the ring won
+       whether it was focused or not: Tab onto Pay's chosen tax year, a pressed leave-year answer or Links' armed
+       brush, and nothing changed on screen while its unchosen neighbours lit up. Focused, a chosen control draws
+       a DOUBLE line — the inner one where the chosen ring is, the outer one where a focus ring goes — so both
+       states show at once, and the weight here outranks any page's own `:focus-visible` rule. */
+    :is(button, a, [role="button"], [role="tab"], [role="radio"], [role="option"]):is(
+        [aria-pressed="true"], [aria-selected="true"], [aria-checked="true"], [aria-current="true"],
+        .active, .is-active, .is-on, .is-chosen, .is-current):focus-visible,
+    [aria-current="page"]:focus-visible {
+        outline: 6px double Highlight;
+        outline-offset: -2px;
+    }
 }
 
 /* ============================================================

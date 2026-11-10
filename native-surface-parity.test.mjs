@@ -298,6 +298,15 @@ test('every forced-colours block uses the theme\'s colours, and shared.css rings
     }
     // Only pressable things — a day row marked `.active` is not a choice.
     assert.match(ring[1], /:is\(button,\s*a,\s*\[role="button"\]/, 'the ring is for things a reader can press');
+
+    // …and a chosen control that takes keyboard focus still SHOWS it (whole-app review, Nov 2026). The ring above
+    // out-ranks the app's focus fallback and the theme removes every box-shadow, so focus needs a rule of its own,
+    // in the theme's colours, covering the same states. That it paints is e2e/forced-colors.spec.js's to prove.
+    const focus = /([^{}]*:focus-visible[^{}]*)\{[^{}]*outline:[^;}]*\bHighlight\b[^{}]*\}/.exec(shared);
+    assert.ok(focus, 'under forced colours a chosen control that takes keyboard focus must still show it — the chosen ring hides the fallback');
+    for (const state of ['aria-pressed="true"', 'aria-selected="true"', 'aria-checked="true"', 'aria-current="true"', 'aria-current="page"']) {
+        assert.ok(focus[1].includes(state), `the focus rule for a chosen control must cover [${state}], as the ring does`);
+    }
 });
 
 // ── 5. no resize grip ───────────────────────────────────────────────────────────────────────────
