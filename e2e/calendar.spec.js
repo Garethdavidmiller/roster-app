@@ -1107,6 +1107,25 @@ test('calendar: a first visit does not use up the swipe hint over the choose-you
     await expect(page.locator('#swipeHint'), 'shown once there is a month to swipe').toBeVisible();
 });
 
+// Retired, the hint fades and is then hidden, and the wait before hiding it is the fade's own length, read off the
+// stylesheet: calendar-app.js kept a second copy of the number (400ms, against --dur-slower's 0.3s), and two homes for
+// one figure drift apart. A fade made longer here must run to its end before the line goes.
+test('calendar: the swipe hint is hidden when its fade has run, however long the stylesheet makes it', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only');
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const hint = page.locator('#swipeHint');
+    await expect(hint, 'premise: a first visit shows the hint').toBeVisible();
+    await page.addStyleTag({ content: '.swipe-hint { transition: opacity 2s linear !important; }' });
+    await page.locator('#nextMonth').click();
+    await expect(hint).toHaveClass(/fade-out/);
+    await page.waitForTimeout(1000);
+    expect(await hint.evaluate(el => /** @type {HTMLElement} */ (el).style.display), 'hidden halfway through its fade').not.toBe('none');
+    await expect(hint, 'and hidden once it has run').toBeHidden({ timeout: 5000 });
+    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBe('1');
+});
+
 test('calendar: a removed saved member falls back to the calendar + stale banner, NOT the first-run prompt', async ({ page }) => {
     // Saved member that no longer exists in the roster (e.g. a leaver who was removed).
     await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent'));
@@ -3555,6 +3574,29 @@ test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+});
+
+// The day plan is a Tab stop, so a keyboard can scroll it, and it is the box that clips, so its ring is drawn
+// inside it. One home for that: index.css (#huddleViewerBody:focus-visible) — the markup carried the same value as
+// an inline style as well, which is two places to change and a style the page applied when nothing was focused.
+test('huddle: the day plan\'s keyboard ring is drawn inside its box, from the stylesheet alone', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    const body = page.locator('#huddleViewerBody');
+    await expect(body).toContainText('No Daily Huddle has been uploaded yet');
+    expect(await body.getAttribute('style'), 'the markup styles the box itself').toBeNull();
+    await page.locator('#huddleViewerClose').focus();
+    await page.keyboard.press('Tab');   // a keyboard arrival, so :focus-visible draws the ring
+    const m = await body.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { focused: el === document.activeElement && el.matches(':focus-visible'), style: cs.outlineStyle, offset: cs.outlineOffset };
+    });
+    expect(m.focused, 'premise: Tab from the ✕ lands on the day plan').toBe(true);
+    expect(m.style, 'a ring is drawn').not.toBe('none');
+    expect(m.offset, 'inside the box that clips it').toBe('-2px');
 });
 
 // THE DRAWER TAKES ITS HISTORY ENTRY WITH IT (shared-ui-3; cal-docs-8, the drawer half). The Daily Huddle

@@ -385,7 +385,7 @@
             /* On the navy body canvas — on-navy (light) text, not the card greys. */
             text-align: center; font-size: var(--type-badge); color: rgba(255, 255, 255, 0.7);
             padding: 2px 12px 8px; opacity: 1;
-            transition: opacity var(--dur-slower) var(--ease-standard);   /* inside calendar-app.js's 400ms wait before it hides the line */
+            transition: opacity var(--dur-slower) var(--ease-standard);   /* calendar-app.js reads this back, and hides the line once it has run */
             pointer-events: none; -webkit-user-select: none; user-select: none;
         }
         .swipe-hint.fade-out { opacity: 0; pointer-events: none; }

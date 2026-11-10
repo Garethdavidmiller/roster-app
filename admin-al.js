@@ -6,7 +6,8 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initALSection(deps) to avoid circular imports.
 
-import { escapeHtml } from './roster-data.js';
+import { escapeHtml, parseISODate } from './roster-data.js';
+import { isBeforeMemberStart } from './override-utils.js';
 import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
@@ -136,8 +137,13 @@ export function initALSection({
             // Christmas Day and Boxing Day are named as themselves (v25.37): never counted, and for a
             // member due at work already shown as leave, so "rest day" would be the wrong word. A
             // worked Sunday is not skipped either: the save sets it as a rest day (whole-app check).
-            const rest = c.skipped - (c.christmas ?? 0) - sundays.length;
+            // Nor is a day before the member's start date a rest day: they had not started (whole-app
+            // fix, 10 Nov 2026). The range writer never writes one, so it is skipped all the same.
+            const beforeStart = /** @type {string[]} */ (projection.skipped ?? []).filter(d =>
+                isBeforeMemberStart(memberObj, parseISODate(d)) && !projection.christmas.includes(d) && !sundays.includes(d)).length;
+            const rest = c.skipped - (c.christmas ?? 0) - sundays.length - beforeStart;
             if (rest > 0)          parts.push(`${rest} rest day${rest > 1 ? 's' : ''} skipped`);
+            if (beforeStart > 0)   parts.push(`${beforeStart} day${beforeStart > 1 ? 's' : ''} skipped before the start date`);
             if (sundayNote)        parts.push(sundayNote);
             if (c.christmas > 0) {
                 const names = [.../** @type {Set<string>} */ (new Set(projection.christmas.map(/** @param {string} d */ d =>

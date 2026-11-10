@@ -886,13 +886,19 @@ export function endpointUse(page, name) {
 // ── LAYOUT PROBES SHARED BY THE PAGE SPECS (moved from pages.spec.js, 3 Nov 2026) ─────────────
 // Why text is scaled rather than the viewport narrowed: the comment above the "large text does
 // not shave the page" tests in pages.spec.js.
-/** @param {import('@playwright/test').Page} page @param {number} k */
+/**
+ * Multiply every element's used font size by `k`, as Android's font size does. Every size is READ
+ * before any is written (whole-app fix, 10 Nov 2026): reading each one after its parent had been
+ * enlarged multiplied inherited text again at every level of nesting — the Staff Guide's reached
+ * 48px at "1.3×", New link's 49px at "1.15×". Each element then carries its own size, so a second
+ * call (after a re-render, say) multiplies everything already scaled once more.
+ * @param {import('@playwright/test').Page} page @param {number} k
+ */
 export async function scaleText(page, k) {
     await page.evaluate((mult) => {
-        document.querySelectorAll('*').forEach((el) => {
-            const px = parseFloat(getComputedStyle(el).fontSize);
-            if (px) /** @type {HTMLElement} */ (el).style.fontSize = (px * mult) + 'px';
-        });
+        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (sizes[i]) el.style.fontSize = (sizes[i] * mult) + 'px'; });
     }, k);
 }
 /** Container items + cards whose right edge is past the viewport. Content INSIDE a card may

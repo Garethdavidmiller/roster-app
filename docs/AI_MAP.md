@@ -72,7 +72,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
 | Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
-| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
+| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-overrides.js` (save logic) |
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` (`parseRosterPDF`) + `functions/roster-parse-helpers.js` + `functions/roster-prompt.js` |
@@ -101,6 +101,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
+| A deep link or in-page jump on the Staff and Pay Calculator guides landing below the sticky header | `guide-back.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (every guide) | `guide-shell.css` |
 | Page-specific styles for staff-guide.html | `staff-guide.css` |
 | Page-specific styles for paycalc-guide.html | `paycalc-guide.css` |
@@ -187,10 +188,12 @@ The Calendar's display month and year, and the arithmetic that moves them. No DO
 - `changeDisplay(delta)` — clamped to `CONFIG.MIN_YEAR`–`MAX_YEAR`.
 - `addMonths(month, year, delta)` → `{ month, year }` — the one clamped month arithmetic, shared with the
   swipe carousel's adjacent panels so the two cannot disagree.
-- `persistViewedMonth()` — stores the position after each navigation.
+- `persistViewedMonth()` — stores the position after each render; the CURRENT month is cleared
+  rather than stored, so a month that has ended is never restored as though it had been browsed to.
 - `watchLocalDate(onChange, env?)` → a stop function — fires when the device's local date turns (on
   resume, and at local midnight while open), so a PWA resumed next morning stops highlighting
-  yesterday. Tested by `calendar-state.test.mjs`.
+  yesterday. A display on the month the old date fell in is moved to the new date's month first, so
+  a page open over a month end shows the new month. Tested by `calendar-state.test.mjs`.
 - At load, `restoreViewedMonth` honours a `?date=` link once (then strips it), else the stored month
   unless it is in the future.
 
@@ -212,8 +215,10 @@ day is. The reasoning sits beside each step, in `index.css` (layout) and in `ind
 - **Leave panel.** Reads the member's own `annual_leave` overrides (one member, to the end of next
   January) and counts them with `countedAlDates`, `entitlementFor` and `entitlementNote`
   (`al-entitlement.js`), adding the carry line (`leave-year.js`) and the Christmas line
-  (`christmas-leave.js`). A last-known-good memo per member and year paints at once; a refresh that fails,
-  or that the offline cache answered, keeps it. A `null` entitlement shows the em-dash state. The panel
+  (`christmas-leave.js`). A last-known-good memo per member and year paints at once, labelled as the
+  saved copy until a read confirms it; a refresh that fails, or that the offline cache answered, keeps it
+  under "Saved copy — couldn't check for changes". On a first run (no name chosen) it shows nobody's
+  figures and asks for a name. A `null` entitlement shows the em-dash state. The panel
   has its own year (‹ ›), opening on the Calendar's, and names whose leave it is (`#alLbWho`, and the
   dialog's own name) from the same member its figures are counted for — on every open, because the
   member picker moves under a page that is never reloaded.
@@ -221,6 +226,7 @@ day is. The reasoning sits beside each step, in `index.css` (layout) and in `ind
   the date and roster week, the shift with its kind glyph, the change as two badges built from
   `shiftBadgeParts` with `textContent` (never markup from an attribute), who last saved it, "As rostered"
   only where the renderer earned it, the day markers as chips, and the leave-year and Christmas lines.
+  Closing it after the grid was rebuilt behind it returns focus to the same day.
 - **Its two actions are personal.** "Pay estimate" and "Leave dates" show only when
   `personalActionsAllowed` says the calendar on screen is the signed-in member's own; the leave link
   carries the tapped day's year (`admin.html?alYear=…#alBookedBox`). The action row must vanish when
@@ -242,13 +248,15 @@ Firebase Auth initialises — `CALENDAR_DATA.md` 10); phase 2 waits for `authRea
   per-month read competes, and on success repaints whichever surface is live. `onAccessLost` hands a
   `permission-denied` to the access layer instead of looping on Retry. `cacheSettled` lets the boot wait
   a moment for the cache paint; `dismissSyncError()` withdraws a recorded failure (never a running
-  "Updating…") when the month panel's Try again takes over.
+  "Updating…") when the month panel's Try again takes over; the chip also withdraws a failure itself
+  once the month on screen has been confirmed since.
 - Chip: hidden → "↻ Updating your shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
   timeout. The owed state is `_chipState`, not the DOM, and a `MutationObserver` puts the chip back
   whenever a header rebuild takes it away (beside `setChipState`).
-- Coming back into view, or a bfcache restore, releases months older than `STALE_MONTH_MS` so they are
-  re-read behind the grid (`releaseStaleMonths`, `CALENDAR_DATA.md` 18); Team View re-reads through
-  `refetchTeamView`.
+- Coming back into view, a bfcache restore and — while the page stays visible and holds access — every
+  `STALE_MONTH_MS` release months older than that so they are re-read behind the grid
+  (`releaseStaleMonths`, `CALENDAR_DATA.md` 18); a first load that failed over a saved copy owes those
+  months a re-check on return (`oweRecheck`). Team View re-reads through `refetchTeamView`.
 
 ### `calendar-keyboard.js`
 Keyboard navigation and the hover tooltip for the month grid.
@@ -283,8 +291,10 @@ viewer's session. The header carries the design; `CALENDAR_DATA.md` 3, 4, 11 and
   and `calendar-overrides.js` refuses reads on its own, because the local cache never consults the
   rules; sign the old identity out BEFORE changing persistence, and check the claim BEFORE granting; the
   boot's waits share one budget, `ACCESS_DECISION_BUDGET_MS` (`session.js`); a member is never sent to
-  the PIN — a late-identity watcher keeps listening, and a held session tries a silent sign-in behind the
-  skeleton for up to `SILENT_BEFORE_CARD_MS` before its card goes up; whichever recovery route grants
+  the PIN — a late-identity watcher keeps listening, and grants a staff-PIN session that restores late
+  as the viewer, once its token carries the claim and never while the PIN card's own exchange runs; a
+  held session tries a silent sign-in behind the skeleton for up to `SILENT_BEFORE_CARD_MS` before its
+  card goes up; whichever recovery route grants
   second stands down; `#staff-pin` is consumed at boot whatever the decision.
 - The cards are `calendar-lock-cards.js`, in the one slot `calendar-lock-slot.js` owns. Why `overrides`
   stopped being world-readable, and running the PIN: OPERATIONS_REFERENCE.md → "Staff PIN access for the
@@ -360,13 +370,15 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
 - `rosterOverridesCache` — a `Map` keyed `"memberName|YYYY-MM-DD"`.
 - `fetchOverridesForRange(startStr, endStr)` — the authoritative server read. It reconciles each month
   slice only where no NEWER read has written it (`_monthSlices`, a test seam). A snapshot the offline
-  cache answered is merged additively and thrown as `SERVED_FROM_CACHE` (carrying `painted`), so the
-  month is recorded `cached` or `error` and released. An answer that lands after the access it was
+  cache answered is merged additively and thrown as `SERVED_FROM_CACHE` (carrying `painted`, true only
+  for a month this device once read whole — the `myb_cal_whole_months` record), so the month is recorded
+  `cached` or `error` and released. An answer that lands after the access it was
   issued under has gone, or been replaced, commits NOTHING and is thrown as `READ_SUPERSEDED` — a
   caller stands down on it, and never records a success or reports a failure.
 - `fetchOverridesForRangeFromCache(startStr, endStr, monthsWithRows?)` — phase 1: the local cache only,
-  additive (never evicts), skipping months a server read owns; never throws, and paints nothing if
-  access went while it was out.
+  additive (never evicts), skipping months a server read owns; it names a month in `monthsWithRows`
+  only where it held rows and this device once read it whole (a device with no record yet keeps the old
+  rule); never throws, and paints nothing if access went while it was out.
 - `ensureOverridesCached(year, month, renderFn)` — a no-op once the month is claimed; otherwise reads it,
   records what is now known, and calls back EVERY waiter when it settles (a caller arriving mid-read
   joins). A failure repaints once per claim, or it would be a fetch↔render loop. A failed RE-check of a
@@ -397,7 +409,7 @@ what an edit can break.
   five row-2 keys, their row, nights, Christmas and Easter (a computed month, never April).
 - `onDispatcherRosterIn(member, year, month, resolve)` — the Night key, decided per DAY, so a scheduled
   move onto or off Dispatch moves it.
-- `legendShown(display, isTeamViewMode, firstRun)` → `'render'|'hide'|'stand-down'`. A withheld month
+- `legendShown(display, isTeamViewMode, firstRun?)` → `'render'|'hide'|'stand-down'`. A withheld month
   hides it, and so does a first run (the prompt has no key); `'stale'` shows it, and `'stand-down'` is
   not `'hide'`: Team View owns the element, so write nothing.
 - `createLegend(deps)` → `{ update }`. The shown/hidden answer belongs to the UPDATE, not to a render,
@@ -639,7 +651,8 @@ five things it protects. Feature design: `OVERTIME_AVAILABILITY.md`.
   creation, and stored) · `storedMilestones` (how every reader gets them back) · `toMillis` ·
   `phaseFor` / `isOpenPhase` (half-open: 12:00:00 belongs to the later phase) ·
   `validateWeekEnding` · `planningWeekEndings` · `weeksNeedingWindows` (the same filter as the Create
-  button) · `windowRowState` (a missed week stays visible until its Saturday) · `lastSchedulerRun`.
+  button) · `windowRowState` (a missed week stays visible until its Saturday; a week past the
+  roster's last year has its own state, `not-created-beyond-roster`) · `lastSchedulerRun`.
 - **Who was asked:** `isEligibleForWeek` · `selectParticipants` (narrows the generated list, never widens
   it; a `restricted` audience with no names selects nobody) · `canChangeParticipation` ·
   `canRestoreParticipant` · `isWithdrawn` · `isSafeDocId`.
@@ -671,9 +684,11 @@ notice HTML stays in `index.html`; which notices are wired and live: the new-not
 
 ### `calendar-member.js`
 Which member the Calendar shows, and the member picker.
-- `getSelectedMemberIndex()` — the saved name, else this page's pick, else the signed-in member, else the
-  default. A saved name no longer on the roster sets the stale flag and prefers the signed-in member over
-  the default, so the picker and the grid name the same person.
+- `getSelectedMemberIndex()` — this page's selection: read once — the saved name, else the signed-in
+  member, else the default (held only where it is not a first run) — and after that changed only by a
+  pick on this page, so a key rewritten by Admin or another tab never moves the grid off the picker. A
+  saved name no longer on the roster sets the stale flag and prefers the signed-in member over the
+  default.
 - `takeStaleMemberName()` — one-shot; `renderCalendar` (or the Team View boot) shows the banner.
 - `getCurrentMember()` · `getDefaultMemberIndex()` (`CONFIG.DEFAULT_MEMBER_NAME`).
 - `saveSelectedMember(index)` — stores the name and keeps an in-memory copy, so a pick survives an iOS
@@ -951,7 +966,8 @@ does nothing.
 - It watches the PAGE, not the splash. After `TIMEOUT_MS`, if the splash is still up — or has gone with
   nothing usable in its place (a lock card, a visible error banner, or a filled `#calendarDisplay`; the
   boot skeleton does not count) — it reloads once per launch (a `sessionStorage` guard), then shows its
-  own panel with Reload and "Reset the app" (unregister every worker, delete every cache).
+  own panel — an alertdialog named by its title, focus on Reload — with Reload and "Reset the app"
+  (unregisters THIS app's worker, matched by its script URL, and deletes only its `myb-roster*` caches).
 - Both halves of each check matter: the banner and the container are on every page load, so testing for
   their mere existence would disable the watchdog. Tested by `splash-watchdog.test.mjs`; precached like
   any app asset (`service-worker.js`).
@@ -1065,13 +1081,14 @@ Coordinator for `links.html`, the link-design workspace (designers only). It own
 - Every path that would lose unsaved work asks first. Duplicate's wording is deliberately not "will be lost", because the copy carries the live patterns (comment beside `duplicateDesign`).
 - A proposal opens with `activeDesignId` null and `activeProposalId` set, so no write path can send a proposal id to Firestore (`links-proposals.js`).
 - The orientation lightbox (`#linksWelcomeLb`) opens once per device under `myb_links_welcome_seen`, never expires, and `#linksHowBtn` in the About panel reopens it. Printing opens every `<details>` first (`_preparePrint`), because CSS cannot.
-- At its coordinator-ratchet cap: the next Links rule goes in a domain module.
+- Capped by `coordinator-ratchet.test.mjs`, whose latest raise of this cap is argued beside it; the next
+  Links rule still goes in a domain module.
 
 ### `links-analysis.js`
 The read-only analysis on `links.html`: the Coverage heat map with its demand rows, the Design checks card, and the sticky summary strip in the grid card's save row. Render only — every figure comes from the pure modules (`links-design`, `links-fatigue`, `links-limits`, `links-window`, `links-demand`), and none of the coordinator's save, concurrency or dirty state is touched.
 - `initLinksAnalysis({ getDesign, getBaseline?, isComparing? })` → `{ renderCoverageChart, renderDesignChecks, renderSummary }`. `getDesign` is a thunk for the live design or null; `getBaseline` gives today's link's fatigue profile, so a proposal's findings read against what the roster already scores; `isComparing` makes the strip name its design in compare mode. `links-app.js`'s `renderCoverageCard()` calls the chart, the window editor and the strip together.
 - Design checks open with a triage block ("Needs fixing before review", "Worth discussing") that restates the red and amber rows below and computes nothing of its own; a clean design gets no tick. The sections stay grouped by SOURCE, because a section claiming a limit must name whose requirement it is (`.claude/rules/links-design.md` invariant 10).
-- The strip shows lines undesigned, staffed hours with nobody on, fatigue factors present (never `standing`) and hours a week. It is not a score, and it recomputes rather than reading the other renderers' results, so render order cannot make it wrong.
+- The strip shows lines undesigned, staffed hours with trains and nobody on, fatigue factors present (never `standing`) and hours a week. It is not a score, and it recomputes rather than reading the other renderers' results, so render order cannot make it wrong.
 - `NIGHT_FAMILY` must equal the `family` string `links-fatigue.js` stamps, or the night rollup stops matching.
 - **Every class this module emits must exist in `links.css`**: `links-analysis.test.mjs` scans a prefix set and fails on an emitted family outside it. Tested by `links-analysis.test.mjs` (fake DOM).
 
@@ -1190,7 +1207,7 @@ What a design or a staffing setup may be CALLED: one rule for new, import, dupli
 - It refuses a duplicate rather than renaming one silently, case- and space-insensitively. What it guarantees is narrower than "no duplicates exist" — the header says why. Tested by `links-design-naming.test.mjs`.
 
 ### `rangers-guide.js` / `rangers-guide.css`
-The Rangers & Rovers guide's script and stylesheet: the ranger and rover area passes staff accept or refuse at the gateline. A static page with no app modules and no Firebase. `rangers-guide.js` is deliberately a near-copy of `railcard-guide.js` — chip-bar scrolling and the sticky-header offsets, measured after the font loads — because that stack has already produced a real bug; only the card selectors differ. Print is `guide-print.js`, shared by every guide.
+The Rangers & Rovers guide's script and stylesheet: the ranger and rover area passes staff accept or refuse at the gateline. A static page with no app modules and no Firebase. `rangers-guide.js` is deliberately a near-copy of `railcard-guide.js` — the chip bar and scrollspy, the sticky-header offsets measured after the font loads, and the deep-link landing — because that stack has already produced a real bug; the two files differ only in comments. Print is `guide-print.js`, shared by every guide.
 - The page's rules live in `.claude/rules/guide-pages.md` → "Rangers & Rovers guide": the Marylebone question first, evidence per product and per claim (a Conflict is not a stronger Draft), "usually no" with the near-misses as the point of the page, and no prices. Each product's evidence is a `GUIDE_SOURCES.md` row, held to the page by `guide-sources.test.mjs`.
 
 ### `links-seed.js`
@@ -1226,7 +1243,8 @@ The HARD limits: the ones a design meets or cannot be run. A separate module fro
 
 ### `links-fatigue.js`
 The ORR good-practice fatigue factors (December 2021 guide: twenty-five rows in six families, read at source) assessed against a link design. Pure. **It reports factors PRESENT and never passes or fails a design**: the ORR says these are not prescriptive limits, and the dominant risk is false assurance. The header and the comment beside each row carry the reasoning.
-- `assessFatigue(patterns, lines)` → `{ results, present, standing, confirmNeeded, hoursAreFloor }`; each result is `{ code, family, title, status, value?, threshold?, detail?, confirm? }`, `status` being `present` / `clear` / `standing` / `n/a`.
+- `assessFatigue(patterns, lines)` → `{ results, present, standing, confirmNeeded, hoursAreFloor }`
+  (`hoursAreFloor` is true only when the rotation holds a SPARE day); each result is `{ code, family, title, status, value?, threshold?, detail?, confirm? }`, `status` being `present` / `clear` / `standing` / `n/a`.
 - The rules it is built from: `isRest` / `isWorked` (SPARE is worked; `isRest` is re-exported from `links-design.js`, as is `dutyMinutes`) · `isEarlyStart` · `isVeryEarlyStart` · `coversNightWindow` (exact interval overlap, never sampled) · `toSequence` · `longestRunBetween48hBreaks` (FF11: only two rest days together count as a break, so it can only overstate) · `longestWorkedRun` (delegates to `worstCaseWorkedRun`) · `longestRunOf` · `earlyBlocksWithShortRecovery` · `maxHoursInAny7Days` · `startTimeJumps` · `rotationDirection`.
 - **Never hardcode a status**: a factor that cannot be computed gets no tick, and FF13 reads `runDesignChecks` so the two cannot disagree. NOT-APPLICABLE, CLEAR and STANDING are three different answers, and `standing` (a feature of the operation, such as FF2's 06:20 starts) is counted apart from `present`. Every rule laps the rotation.
 - `family` names a group and never a verdict; `links-analysis.js`'s `NIGHT_FAMILY` must equal the night family's string.
@@ -1278,7 +1296,7 @@ The page bootstraps: each imports `init` from its coordinator and calls it, and 
 
 ### `admin-range-booking.js`
 The shared skeleton of the two date-range booking sections on `admin.html`: Annual Leave and Absence.
-- `createRangeBookingSection(cfg)` → `{ updatePreview, saveBtn }` — wires one section by `cfg.prefix` (`al` / `sick`): the member dropdown (the remembered member set through its options), the preview guard chain (no member, no dates, a bad range), working-day counting through `isWorkingDate`, the date listeners, and the save → receipt → refresh flow, including the signed-out and unconfirmed-write messages. The preview and the Save click read one plan; the click refuses while the member's records are unread, and asks — never skips — a rest day that newly needs the question. Worked Sundays set as rest days are named in the preview and the receipt.
+- `createRangeBookingSection(cfg)` → `{ updatePreview, saveBtn }` — wires one section by `cfg.prefix` (`al` / `sick`): the member dropdown (the remembered member set through its options, so one no longer listed leaves it as it was), the preview guard chain (no member, no dates, a bad range), working-day counting through `isWorkingDate`, the date listeners, and the save → receipt → refresh flow, including the signed-out and unconfirmed-write messages. The preview and the Save click read one plan; the click refuses while the member's records are unread, and asks — never skips — a rest day that newly needs the question. Worked Sundays set as rest days are named in the preview and the receipt.
 - Each section's differences are injected: `validateRange`, `renderReady`, `successFeedback`/`successToast`, `beforePreview`/`afterDateChange`/`afterSave`/`onViewYearChange`, and the AL-only `onClick`, `project`, `swapQuestion` and `preSave`. It owns none of the leave rules: `admin-al.js` brings in the projection (`admin-al-projection.js`), the Spare sentence (`admin-al-spare-note.js`) and the swapped-day question (`al-swapped-days.js`); the Absence card supplies none of them, so its rest days are skipped silently.
 
 ### `admin-al.js`
@@ -1480,10 +1498,10 @@ The Saved Changes list, and un-recording. `initSavedChanges(deps)` takes the ren
 
 ### `admin-override-store.js`
 The Admin override cache, the reads that fill it, and the states they put on screen. The renderers arrive through `initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits, onAfterLoad })`, never imported back. The header names the three things that are silent when wrong: the in-flight guard is keyed by the QUERY, a capped collection read never covers a write, and waiting and stuck are different states.
-- `loadOverrides({ everyone?, member? })` — STAGED: the selected member first (`where('memberName','==',…)`, no cap, no index), the whole collection only when All staff asks, and once it has, later resyncs stay whole. The same query shares a flight; a different one CHAINS behind it. A read served from the offline cache is a FAILED load (`refuseCachedRead`), handled by the failed week grid, Retry (which also fires itself on `online`) and the save refusal. `ensureMemberLoaded(member)` — a no-op, resolved at once, when the member is already covered.
-- `getAllOverrides()` · `setAllOverrides(arr)` (ASSERTS completeness and grants full coverage — only for a whole cache) · `removeFromCache(ids)` (drops rows, grants nothing — every delete) · `mutateCache(fn)` (rearranges rows, learns nothing — the post-write updates).
+- `loadOverrides({ everyone?, member? })` — STAGED: the selected member first (`where('memberName','==',…)`, no cap, no index), the whole collection only when All staff asks, and once it has, later resyncs stay whole. The same query shares a flight; a different one CHAINS behind it. A read served from the offline cache is a FAILED load (`refuseCachedRead`), handled by the failed week grid, Retry (which also fires itself on `online`) and the save refusal. Every read waits for `sessionReady` first. `ensureMemberLoaded(member)` — a no-op, resolved at once, when the member is already covered.
+- `getAllOverrides()` · `setAllOverrides(arr)` (ASSERTS completeness and grants full coverage — only for a whole cache — a TEST SEAM: no app caller) · `removeFromCache(ids)` (drops rows, grants nothing — every delete) · `mutateCache(fn)` (rearranges rows, learns nothing — the post-write updates).
 - `whenOverridesReady()` — a one-shot latch for the BOOT load, resolving on failure too, so Save never hangs. `whenLoadSettled()` — settles behind whatever load runs NOW; both write paths await it after committing, so an earlier read cannot drop the day just saved.
-- `hasOverrideAuthorityFor(member)` — the question every write gate asks (the rules: `admin-override-coverage.js`). `isOverrideCacheLoaded()` — the page-wide "has anything loaded" flag, which no write gate asks. `coversAllStaff()` — the All-staff LIST's question, true for a capped read too. `loadFailedFor(member)` · `isTruncated()` · `OVERRIDES_QUERY_CAP` (the bound on the whole-collection read, fetched `+ 1` so a truncation is detected, never silent).
+- `hasOverrideAuthorityFor(member)` — the question every write gate asks (the rules: `admin-override-coverage.js`). `isOverrideCacheLoaded()` — the page-wide "has anything loaded" flag, which no write gate asks — a TEST SEAM: no app caller. `coversAllStaff()` — the All-staff LIST's question, true for a capped read too. `loadFailedFor(member)` · `isTruncated()` · `OVERRIDES_QUERY_CAP` (the bound on the whole-collection read, fetched `+ 1` so a truncation is detected, never silent).
 - `idsReplacedBy(memberName, date, winnerId)` — what a manual write of a day replaces: the winner and every manual record of the day, never the fixed id it lands on. `withManualDuplicates(ids)` — a delete widened by the manual duplicates each id outranks, so an old duplicate cannot resurface.
 - **A delete re-reads what it removes:** `findChangedSince(rows)` (a server re-read, 20 at a time; an offline answer throws), `staleDeleteVerdict(items)` → null or the line to show, and `assertDeletable(items)`, which throws `DELETE_REFUSED` with that `line` and is called inside every override delete's write. `CHANGED_ELSEWHERE_LINE` / `UNCHECKED_DELETE_LINE` are the two refusals. Saves stay last-writer-wins (the comment above them).
 - **So does moving a January leave day between allowances:** `assertStillLeave(memberName, date, shown)` re-reads the record shown AND the fixed manual id, and refuses with `LEAVE_YEAR_CHANGED_LINE` (changed, cancelled, or an unseen record on the fixed id) or `LEAVE_YEAR_UNCHECKED_LINE` (the server could not be asked), because the save it guards rewrites the day as leave.
@@ -1538,6 +1556,7 @@ The Daily Huddle upload card (Operations, admin only) and the Notifications card
 
 ### `doc-upload.js`
 The shared skeleton of the Operations document upload cards: the Weekly Retail Circular and the Marylebone Newsletter (`operations-app.js`) and the Daily Huddle (`huddle.js`). `initDocUploadCard(cfg)` owns pick → validate (type and size) → an optional pre-upload `transform` → upload → feedback, and the date cap (today, or today plus `maxDateOffsetDays`), recomputed on every submit and whenever the date picker opens, because a tab left open overnight would otherwise upload under yesterday's date and overwrite that day's document. `isPdfFile(f)` / `isDocxFile(f)` are the accept predicates (a `.docx` is matched by its extension, because Android often reports one as a ZIP).
+- One upload at a time per card — the picker is disabled and a stray pick or press is ignored until the answer. The upload runs through `runGatedWrite` and a sign-out is worded by `unconfirmedWriteLine` (optional `whereToCheck`); `successMsg` is handed the date as app copy spells it (`10 Nov 2026`).
 - **`MAX_UPLOAD_BYTES` is one of THREE declarations of the upload size limit**, with `MAX_FILE_BYTES` in `functions/index.js` and the cap in each of `storage.rules`' upload blocks. `upload-cap-parity.test.mjs` derives all three from source and pins the card's "maximum" sentence to them; its header says why a client cap above the rules' is the costly direction.
 
 ### `admin-auth.js`
@@ -1560,7 +1579,7 @@ Answering an UNREADABLE roster cell where the question is asked, so a cell like 
 - `paintUnreadableRow(rowEl, state)` — paints EVERY control of an unreadable row from its state by the render's rules (a reading lit when picked, Skip when nothing is chosen, the enter button when the entry is the answer; a closed editor leaves the row). The entry press, the keystroke, a picked reading, Skip and Skip all all call it, because four partial patches let the lit buttons drift from what Save writes.
 
 ### `roster-alignment.js`
-Is a roster read trustworthy, or is it a day out? The only evidence about the import that does NOT come from the model: the row read, `sundayScan` and `columnScan` are one model call on one PDF and can agree on the same misread, while this compares each parsed week with the member's own base pattern, which the PDF cannot influence (header; `.claude/rules/roster-import.md` → Day drift). It imports no Firebase, so a test can build a shifted week from the real roster.
+Is a roster read trustworthy, or is it a day out? Evidence about the import that does NOT come from the model, and the only such check drawn from the member's own pattern (the PDF's grid and its printed week are the others): the row read, `sundayScan` and `columnScan` are one model call on one PDF and can agree on the same misread, while this compares each parsed week with the member's own base pattern, which the PDF cannot influence (header; `.claude/rules/roster-import.md` → Day drift). It imports no Firebase, so a test can build a shifted week from the real roster.
 - `detectShiftedRow(member, shifts, dates)` → `'left'` | `'right'` | null — correlates the week at offsets −1 / 0 / +1. A ±1 alignment must beat offset 0 by at least 3 days and score at least 5 of 7, so a member whose pattern looks alike on adjacent days stays silent.
 - `assessRosterAlignment(parsedResult)` → `{ byMember, blocked, direction, suspects, geometryRefused }` — the CIRCUIT BREAKER. It folds in the rows `functions/roster-geometry.js` refused (`'geometry'`, counted only for names on the review), counts by DIRECTION, blocks at `ALIGNMENT_BLOCK_THRESHOLD` members (the reasoning is beside it), and gives `direction` null when nothing directional contributed. It fails OPEN on absent evidence.
 - `defaultWeekEnding(now)` → the week ending the upload form offers first, by LONDON date (owner, 10 Nov 2026): from Thursday the following week — the one a Thursday release covers — and Sunday to Wednesday the week in progress, a Saturday keeping the next Saturday; so Thursday to the next Wednesday offer one week. A whole week out is invisible to the ±1 detector, which is why the default is decided here.
@@ -1602,7 +1621,7 @@ Which figure is the headline, and what it is called. Two branches — a confirme
 
 ### `paycalc-money-banner.js`
 The two opt-in money banners on the result card, back pay and Holiday Pay Premium. **A banner may say "Includes" only when the sum is in the figure above it**, and a figure not yet confirmed says so on both paths (header).
-- `backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear })` · `hppBannerCopy({ forPeriod, amount, isEstimate })` → `{ text, note }` — PURE. The tick's own state decides the sentence; availability only decides whether there is anything to offer. The notes differ on purpose: back pay always says how to improve the estimate, while HPP prompts only when opted in to a figure that is still an estimate.
+- `backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, fromPayslip? })` · `hppBannerCopy({ forPeriod, amount, isEstimate })` → `{ text, note }` — PURE. The tick's own state decides the sentence; availability only decides whether there is anything to offer. The notes differ on purpose: back pay says how to improve a lump worked out from hours (never one typed from the payslip, `fromPayslip`), while HPP prompts only when opted in to a figure that is still an estimate.
 - `paintBanner({ rootId, textId, tickId, noteId, available, included, copy, tickYear? })` — hides by `display` and touches nothing else, so a hidden banner cannot come back carrying the previous payslip's number. The arithmetic gate behind the words is guarded by the rendered £ in `e2e/paycalc.spec.js`.
 
 ### `paycalc-lightboxes.js`
@@ -1652,7 +1671,7 @@ The Holiday Pay Premium card, and the period decoders it shares with back pay. T
 - `applyHppMode(mode?)` · `saveHppState(ty)` / `restoreHppState(ty)` — the mode and the exact input, per tax year (`hppModeKey`); the coordinator restores before `calcHPP` reads the DOM. `readHppState(ty)` — that saved choice read TOTALLY: any stored value that is not a plain object is "no choice", flagged `damaged`.
 - `resolveHppForPeriod(actualRaw, estRaw)` — PURE: a stored confirmed actual, even £0, beats the estimate. `updatePriorHpp(ty)` — the prior-year section, stating what last year's figure was built from (that year's saved amount source); its confirm input stays locked until the January payslip carrying the premium can be in hand (`payslipMayBeInHand`, from its cut-off), unless an actual is already stored. `priorHppToStore(raw)` — PURE: what a typed premium is stored as (a clean 2dp figure; blank or garbage clears; 0 is a confirmed figure). `commitPriorHppActual(ty, raw)` — stores it against the viewed year's PRIOR year and repaints; the caller commits on `change`, never per keystroke.
 - `_decodeHours(p, d)` — a saved period's hours as floats (text read as the figure it is). `_varPayForPeriod(p, d, rate)` — the HPP-accruing variable pay: premiums only, never contracted basic, peer pay or London Allowance, and never pro-rated for a joiner. Both are shared with `paycalc-backpay.js`. `savedPeriodPension(p, d, factor)` — the pension a SAVED payslip is priced with, as the result card prices the box (opt-out spell 0, own figure floored at £0, else the pro-rated default); shared with `paycalc-year-summary.js`.
-- `hppFromYtdTaxable(taxablePayYtd, nonPremiumYtd)` — PURE: the premium portion of a Year to Date Taxable Pay figure, × `HPP_FRACTION`. `knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHppAmount })` — PURE: the lumps the app knows exactly (peer-training pay, and last year's premium once its January payslip is covered), removed first; the back-pay lump deliberately is not.
+- `hppFromYtdTaxable(taxablePayYtd, nonPremiumYtd)` — PURE: the premium portion of a Year to Date Taxable Pay figure, × `HPP_FRACTION`. `knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHppAmount, awardCarrier?, awardNonPremium? })` — PURE: the lumps the app knows exactly, removed first — peer-training pay, last year's premium once its January payslip is covered, and the back-pay lump's basic and London arrears once the award payslip is covered (its premium share stays in; owner, 10 Nov 2026).
 - `isDataEmpty(d)` — re-exported from `paycalc-format.js`.
 
 ### `paycalc-fill-year.js` / `paycalc-year-card.js`
@@ -1790,7 +1809,7 @@ The single Firebase initialisation point: every page imports `db`, `auth` and th
 
 ### `fetch-timeout.js`
 The bound on every client call to a Cloud Function. The header holds both rules below and the per-endpoint budget table.
-- `fetchWithTimeout(url, options, timeoutMs)` — `fetch` with a deadline that also covers the body read (`json`, `text` and the rest reject with our code when cut off), honouring a caller's own `signal`.
+- `fetchWithTimeout(url, options, timeoutMs)` — `fetch` with a deadline that also covers the body read (`json`, `text` and the rest reject with our code when cut off), honouring a caller's own `signal` until the body has been read.
 - `FETCH_TIMEOUT_CODE` / `isFetchTimeout(err)` — our bound fired. `FETCH_ABORTED_CODE` / `isFetchAborted(err)` — the caller cancelled, never our bound; when both fire, the timeout wins. `DEFAULT_FETCH_TIMEOUT_MS` — the budget for a caller that names none.
 - `serverRefusal(err)` → `{ status, reason }` for a `Server responded 4xx: …` error (the body's JSON `error` sentence as the reason), else null. A refusal is an answer, so Operations' Reset shows it and offers no Retry.
 - **A budget sits above the endpoint's own `timeoutSeconds`, never below.** **A timeout on a state-changing call does not mean it did not happen**: write callers say "may still have gone through", never "failed"; reads may say "failed".
@@ -1930,7 +1949,7 @@ The App Notices archive's rules: what a seen notice leaves behind, for how long,
 - `readArchivedNotices()` → the archive, newest first; never throws — unreadable storage or a non-list reads as empty.
 - **The documents** (`_openLatestDoc`): refused at once when `canReadDocuments()` says no, before the blank tab opens; otherwise the tab opens on the gesture and is filled through `resolveDocumentOpenUrl`. When no tab comes back (a pop-up blocker, an iOS home-screen app) the tap hands over to the Calendar's in-app viewer through a hidden drawer link, so the unsaved-work question still runs.
 - **The bell** reads `peekNotifState()` on every open (no Firestore write); the push logic is `notif.js`. A labelled full-width row has been tried and reverted twice (CLAUDE.md).
-- **The drawer's two lightboxes** (Coming soon, App Notices) share the drawer's history entry, so they hand-roll `createLightbox`'s promises: a fallback beside `transitionend`, a close that runs ONCE, focus back to the burger, and key handlers that stand down under a higher `.lb-overlay` (`_overlayAbove`). App Notices' Tab cycles TWO stops, the ✕ and `#navNoticesList` (it scrolls under a still heading, so the keyboard must reach it — v25.61). `closePanelForNavigation()` closes the drawer without `history.back()` when a link navigates.
+- **The drawer's two lightboxes** (Coming soon, App Notices) share the drawer's history entry, so they hand-roll `createLightbox`'s promises: a fallback beside `transitionend`, a close that runs ONCE, focus back to the burger, and key handlers that stand down under a higher `.lb-overlay` (`_overlayAbove`). App Notices' Tab cycles TWO stops, the ✕ and `#navNoticesList` (it scrolls under a still heading, so the keyboard must reach it — v25.61). `closePanelForNavigation()` closes the drawer without `history.back()` only when a link takes this page elsewhere, where `location.replace` overwrites the drawer's entry; a `./#…` hash on the Calendar, a new-tab click and the "you are here" pill pop the entry instead (`closePanel`), and a pop that lands on the drawer's own entry — a dialog's above it or above App Notices — is not the drawer's.
 - Adding a guide is one `NAV_GUIDES` entry with an `openId`, plus that id in the `firestore.rules` analytics allowlist and in `OPEN_META` (`firestore-contract-parity.test.mjs` checks all three). Adding a live document is one `links` entry in `NAV_INFORMATION`; `comingSoon: true` renders a button that opens `#navComingSoonLightbox`.
 
 ### `notif.js`
@@ -1968,14 +1987,15 @@ The pure override rules shared by the Calendar, Team Week View, Admin and the pa
 
 ### `railcard-guide.js`
 The Railcard guide's page behaviour — a classic `defer` script, because CSP forbids inline script. The ⤓ PDF button is `guide-print.js`'s, not this file's.
-- Chip-bar navigation: smooth-scrolls to the section, moves focus to it and marks the chip `aria-current`.
-- The sticky offsets: after `document.fonts.ready` (so the header is measured in Inter), the chip bar's `top` matches the header and every `.rc` and `.section` gets a `scrollMarginTop`; a `ResizeObserver` re-syncs when the header's height changes later.
+- Chip bar: jumps to a section (instantly under Reduce Motion), focuses it, and a scrollspy marks the chip for the section on screen — the FIP bar's code.
+- The sticky offsets: after `document.fonts.ready` (so the header is measured in Inter), the chip bar's `top` matches the header and every id in `<main>` gets a `scrollMarginTop`; a `ResizeObserver` re-syncs when the header's height changes later.
+- Deep-link landing: until the page has loaded and measured with its fonts, or the reader touches, clicks, wheels or types, each measurement re-scrolls a `#fragment` target left under the sticky stack (`keepLandingClear`); a reload or Back/Forward keeps its restored position.
 
 ### `fip-guide.js`
 The FIP guide's behaviour — a classic `defer` script, all progressive enhancement: with JS off, every country is visible.
 - **Country finder** (`#countrySearch`): `applyCountryFilter(raw)` filters the country cards and the A–Z jump chips against each card's whole text (a country, an operator or a train). The card set is `[id^="country-"]` and **its size is never written down**; `#booking-table` deliberately does not start `country-`, so a search cannot hide it.
 - **Open on jump:** `openHashTarget()` opens the target `<details>` on load and on every `hashchange`, clearing the search first if it had hidden the target; a `.country-jump` click covers re-tapping the current country.
-- **Sticky chip bar and scrollspy**, measured after `document.fonts.ready`, like the Railcard guide.
+- **Sticky chip bar and scrollspy**, measured after `document.fonts.ready`, and the same deep-link landing as the Railcard guide.
 - **Print:** `expandAllForPrint` / `restoreAfterPrint` open every `<details>` for the print run and put them back (Chromium does not print a closed `<details>`'s body). Both are idempotent, and neither trusts its own event: the prepare also runs in the ⤓ button's capture-phase click and the restore on `visibilitychange`, because iOS sends no `beforeprint` or `afterprint` for AirPrint. It prints what is on screen — a filtered-out card stays hidden — and `describePrintScope(shown)` sets the button's `aria-label` to say which, starting with "PDF", the visible word (WCAG 2.5.3).
 - **Print one country:** each card gets a `⤓ Print <country>` button. Printing one card is a CSS state (`body[data-print-country]` and a marker class), never a DOM edit, so an interrupted print cannot lose a country. A refusal from `guide-print.js` (`guide:print-refused`) puts the page back.
 
@@ -1983,7 +2003,7 @@ The FIP guide's behaviour — a classic `defer` script, all progressive enhancem
 The ⤓ PDF button on every guide, and the FIP guide's per-country buttons — an ES module all five guides load. One delegated bubble-phase `click` listener for `.btn-print` and `.btn-print-country`, routed through `printOrExplain` (`print-guard.js`): it prints, or inserts the `#printUnavailable` notice under the header with an "Open in Safari" button and dispatches `guide:print-refused` so a page that prepared can undo it. It prepares nothing itself; the FIP guide's own handlers run first. No guide may keep a private print handler.
 
 ### `guide-back.js`
-Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>` when it opens a guide, and this rewrites the arrow's `href` and `aria-label` to match. `from` is resolved through the `DESTINATIONS` allowlist of the app's own pages and never used as a url, so a crafted value cannot make an off-site link; an unknown or absent `from` leaves the authored href alone. The allowlist is hand-kept, and `page-contract-parity.test.mjs` fails when a page is missing from it. The header says why the arrow needs retargeting at all.
+Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>` when it opens a guide, and this rewrites the arrow's `href` and `aria-label` to match. `from` is resolved through the `DESTINATIONS` allowlist of the app's own pages and never used as a url, so a crafted value cannot make an off-site link; an unknown or absent `from` leaves the authored href alone. The allowlist is hand-kept, and `page-contract-parity.test.mjs` fails when a page is missing from it. The header says why the arrow needs retargeting at all. A second block, on a guide with no chip bar (the Staff and Pay Calculator guides), measures the sticky header after `document.fonts.ready` and on a `ResizeObserver`, gives every id in `<main>` a `scrollMarginTop` of its height + 12px, and re-lands a deep link the header covers while the page is still landing — railcard-guide.js's rules: until it has loaded with its fonts or the reader touches, clicks, wheels or types, and never on a reload or Back/Forward. A chip-bar guide measures its whole stack in its own script, so the block leaves it alone.
 
 ### `ls.js`
 Safe `localStorage` wrappers — iOS Safari's private mode throws on any access. **Never call `localStorage` directly** in the page coordinators (CLAUDE.md); use these. Tested by `ls-persist.test.mjs`.
@@ -1991,7 +2011,7 @@ Safe `localStorage` wrappers — iOS Safari's private mode throws on any access.
 - `lsKeys()` — a snapshot of every key name (safe to delete while iterating); `[]` when storage is unavailable.
 - `lsAvailable()` — will this browser SAVE? A probe write that reads back, then removed; never cached. A write rather than a read because storage can read and still refuse writes (a full quota), which is when a page renders and keeps nothing. The Pay Calculator asks it before promising "Saved automatically as you type".
 - **The checked writes**, for a caller about to DELETE the source: `lsSetVerified(k, v)` → boolean (writes, then reads the value back) · `lsMove(fromKey, toKey, value?)` → boolean (deletes the source only once the destination is verified) · `lsSetBothVerified(keyA, valueA, keyB, valueB)` → boolean (both keys or neither, and `false` even when the rollback itself fails). **Never delete source data until the destination has been read back** — an audit reproduced permanent loss from migrations that did. They are deliberately not the default: an ordinary preference write does not need the branch.
-- `requestPersistentStorage(keyPrefix)` — asks, once per device and only once a key under `keyPrefix` exists, for this origin's storage to be durable rather than evictable; the Pay Calculator calls it with `pcPrefix()`. WebKit has no `navigator.storage`, so on iOS installing the app remains the only lever.
+- `requestPersistentStorage(keyPrefix)` — once a key under `keyPrefix` exists, asks for this origin's storage to be durable rather than evictable; a grant ends it, and a refusal is asked again once for each lever (running installed, notifications allowed) that has started to hold since — Chrome and Safari never prompt, and Firefox remembers its own answer. The Pay Calculator calls it with `pcPrefix()`. Safari has the API from 17; whether it grants in a tab is unmeasured (KNOWN_LIMITATIONS).
 
 ### `storage-keys.js`
 The one spelling of every storage key read by MORE THAN ONE file, because a one-character typo loses data silently. A key one module uses stays local to it, and the Pay Calculator's namespace is `pcPrefix()` (`paycalc-migrations.js`), never here. `storage-key-parity.test.mjs` holds the shared keys to this file; each key's JSDoc names its writer and its readers.
@@ -2034,7 +2054,7 @@ The reviewer's side of `overtime.html`: the planning horizon, the week selection
 
 ### `links-design-library.js`
 The Links workspace's design LIBRARY — the import panel, the Recently deleted bin and Keep only the shortlist: managing the collection, apart from editing the open design. Every write goes through the design store, and every rule through its own module (`links-import.js`, `links-deletion.js`, `links-design-naming.js`, `links-shortlist.js`). Tested by `links-design-library.test.mjs`.
-- `createDesignLibrary(ctx)` → `{ openImport, renderBinList, keepOnlyShortlist, binList, setBin, addToBin, upsertBin, trackBinMove }`; call once, after the store exists. `ctx` is deliberately small (`store`, `currentUser`, `getDesigns`, `addDesign`, `activate`, `isDirty`, `hasOpenDesign`, `renderPicker`, `refreshLists`, `actionStatus`, `getHeader`, `removeDesigns`, and the optional `activeId`, without which Keep only the shortlist warns about unsaved work whenever there is any): a split that passed the editor's state across would only move the coupling.
+- `createDesignLibrary(ctx)` → `{ openImport, renderBinList, keepOnlyShortlist, binList, setBin, addToBin, upsertBin, trackBinMove }`; call once, after the store exists. `ctx` is deliberately small (`store`, `currentUser`, `getDesigns`, `addDesign`, `activate`, `isDirty`, `hasOpenDesign`, `renderPicker`, `refreshLists`, `actionStatus`, `getHeader`, `removeDesigns`, `markQueued` (an import queued in this browser, for the masthead's pill), and the optional `activeId`, without which Keep only the shortlist warns about unsaved work whenever there is any): a split that passed the editor's state across would only move the coupling.
 - It owns the bin list (read through `binList()`) and the automatic moves in flight (`trackBinMove`): a restore or purge waits for a pending move of the same design.
 - `keepOnlyShortlist()` moves every older design to the bin with the store's `binIfStill`, which asks the rule again inside the transaction; `removeDesigns` then opens the next live design, or the first of the shortlist.
 - Rename, duplicate and delete stay in `links-app.js`: each changes the open design's concurrency baseline or its unsaved state.
@@ -2059,14 +2079,14 @@ The six-month sweep behind Circular and Newsletter uploads — the browser's onl
 ### `analytics-client.js`
 The Firestore I/O behind the admin's two read-outs of the app itself — the client error log and the anonymous usage and speed counters. A factory with every handle injected, so it loads in Node (`analytics-client.test.mjs` runs it against a fake Firestore); `firebase-client.js` builds it once and re-exports each function. It decides nothing: ordering and retention are `client-errors.js`, windows and summaries `usage-stats.js` and `perf-stats.js`, and who counts is `usage-reporter.js`.
 - `buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry, appVersion })` → the nine functions below.
-- `logClientError(data)` · `getClientErrors()` → `{ errors, truncated }` (it fetches one more unresolved record than it shows, so `truncated` is true only when more really exist; it also prunes expired resolved records) · `resolveClientError(id)` (a gated write).
+- `logClientError(data)` · `getClientErrors()` → `{ errors, truncated, resolvedTruncated }` (each list fetches one more than it shows, so a flag is true only when more really exist; expired resolved records are pruned through a read of their own, by `resolvedAt`) · `resolveClientError(id)` (a gated write).
 - `recordPageView(pageId)` · `recordActiveAccount({ month, day, fromDay })` · `recordOriginUse({ day, origin, installed, countVisit, fromDay, fromPwaDay })` — increment-only counters; a rolling count is MOVED off `fromDay` in the same merged write · `getUsageStats()` — this and last month's page views, the account counts and the per-address counts, pruning stale daily buckets on the way.
 - `recordPerfSample({ page, metric, bucket, mode, conn })` — batched into ONE merged write per open (`createPerfBatcher`), flushed a second after the first sample, then at idle, or at once on `pagehide` or hidden · `getPerfStats()` → `{ thisMonth, lastMonth }`, each `{ month, login, fcp, pages, ready, samples }`, for the App Speed card.
 - **Two properties, in the header:** no identity in a counter, and telemetry never affects the app — every writer swallows its rejection, and every prune is wrapped so it cannot reject the read it rides on (the prunes use `FieldPath`, because a dotted `daily.<date>` path throws synchronously).
 
 ### `documents-client.js`
 The three date-keyed document collections — Daily Huddle, Weekly Retail Circular, Marylebone Newsletter — and the upload sequence behind them. A factory with every Firebase handle injected, so it loads in Node and its failure orderings can be forced against fakes (`documents-client.test.mjs`); `firebase-client.js` builds it and re-exports each function. It owns the sequence; the decisions are `upload-commit.js` and `doc-retention.js`.
-- `buildDocumentClient(deps)` → `{ uploadHuddle, uploadCircular, uploadNewsletter, getLatestCircular, getLatestNewsletter, subscribeToLatestHuddle }`. `deps`: `db`, `collections`, the Firestore functions (`fs`), `getStorageSdk`, `uploadBytesWithClaimRetry`, the path and type `utils` (`storage-utils.js`), `resolveUploadCommit`, `pruneOldDocs`, `guardCommit` (`abandonOnSignOut`: a commit abandoned at sign-out throws `upload/unconfirmed`, never a failure and never a rollback) and a test `sleep`.
+- `buildDocumentClient(deps)` → `{ uploadHuddle, uploadCircular, uploadNewsletter, getLatestCircular, getLatestNewsletter, subscribeToLatestHuddle }`. `deps`: `db`, `collections`, the Firestore functions (`fs`), `getStorageSdk`, `uploadBytesWithClaimRetry`, the path and type `utils` (`storage-utils.js`), `resolveUploadCommit`, `pruneOldDocs`, `guardCommit` (`abandonOnSignOut`: a commit abandoned at sign-out keeps `SIGNED_OUT_CODE` — never a failure and never a rollback; a retriable final error is reported `upload/unconfirmed`) and a test `sleep`.
 - `assertFileSignature(file, expectedType)` — the magic-number check; it fails CLOSED on an unreadable or too-short file.
 - **The one invariant: a live document never points at a file that is not there.** So the signature is checked first; the file goes to a VERSIONED path, so the old one stays readable until Firestore commits; the new object is rolled back only on a DEFINITE non-commit; an ambiguous commit is resolved by READING, retried only as a compare-and-set inside `runTransaction`, and left untouched when the read fails. The header argues each step.
 - A Circular or Newsletter upload runs the six-month sweep (`pruneOldDocs`) after it commits. `getLatestCircular()` / `getLatestNewsletter()` treat a row with no `storageUrl` as absent. `subscribeToLatestHuddle(onData, onError)` is a live `onSnapshot`; CLAUDE.md says do not replace it with a one-time fetch.
@@ -2075,10 +2095,10 @@ The three date-keyed document collections — Daily Huddle, Weekly Retail Circul
 The server-side Firestore security rules — the authority on access; what the fields mean is `docs/DATA_MODEL.md`. The header holds the audit table of what each identity gets from each collection: re-read it whenever an identity or capability is added, because every `request.auth != null` silently widens. Deployed by `deploy-rules.yml`. Verify a change with `npm run test:rules` and `firestore-contract-parity.test.mjs`; a field a client starts writing ships rules-first, in its own push (CLAUDE.md → Workflows).
 - **Access needs a CLAIM, never a bare session**: `isMember()` (a password sign-in whose email is the one derived from its `name`, and whose server-set `member` claim matches) · `memberName()` (that `name`, else null) · `isCalendarViewer()` (the PIN's custom-token claim) · `isKnownIdentity()` (any of those, or admin). Anonymous grants nothing — `AUTH_AND_SESSIONS.md` invariant 9.
 - `overrides` — read by a member, the admin or the PIN viewer. Writes are per-member isolation (`memberName()` equals the record's `memberName`, before and after) or an `admin`/`manager` claim, with the field shape and the type ↔ value pairs pinned. The claims are set by `setupRosterAuth` from the server-owned roster, never from a request.
-- `huddles` / `circulars` / `newsletters` — read like `overrides` (closed behind the PIN or a password by owner decision); written by the admin only, shape-checked, and a `storagePath` must sit under its own collection.
+- `huddles` / `circulars` / `newsletters` — read like `overrides` (closed behind the PIN or a password by owner decision); written by the admin only, shape-checked, and a `storagePath` must sit under its own collection, and `uploadedAt` is the server's clock.
 - `linkDesigns` — read by a member or the admin, never the PIN viewer; written with the `linksDesigner` claim or admin, shape-checked, and deleted only once it is in the bin. `linkTargetSets` — the same read; created by a designer and changed only by its creator or the admin.
 - `staffContact` — the owner or the admin. `passwordStatus` — read by the owner or the admin; the owner may write only `passwordSetAt`, at the server's time (`resetAt` is the Function's). `resetRequests` — admin read, server-only writes. `viewerAttempts` — server-only both ways. `overtimeWindows` — reviewer read (`admin`/`manager`), no client writes.
-- `pushSubscriptions` — no client reads; a write needs a known identity and is refused to the PIN viewer (its uid is the same on every office PC); the `owner` must be the writer, and a delete is the owner's. `clientErrors` / `analytics` — written by any known identity (the counters carry no identity), read by the admin; the `analytics` counter ids are an allowlist.
+- `pushSubscriptions` — no client reads; a write needs a known identity and is refused to the PIN viewer (its uid is the same on every office PC); the `owner` must be the writer, and a delete needs a known identity and is the owner's (or a legacy owner-less record's, or a no-op on one already gone). `clientErrors` / `analytics` — written by any known identity (the counters carry no identity), read by the admin; the `analytics` page-view ids are an allowlist (`pvCountIds`) judged against what a write adds or changes, and a `pv_`/`perf_` month must be the present one or one either side.
 
 ### `storage.rules`
 The Firebase Storage rules. `huddles/`, `circulars/` and `newsletters/` are read, written and deleted by the admin only, and a write must be at most 20 MB and a PDF or Word (.docx) file (`MAX_FILE_BYTES` in `functions/index.js` must match); every other path is denied. Nobody opens a file through these rules: the app opens a short-lived signed url (`getDocumentUrl`) or the stored tokenised download url, both of which bypass them, and `ingestHuddle` uses the Admin SDK. Verify with `npm run test:rules`.
@@ -2106,8 +2126,8 @@ The CSS every app page shares; the guides deliberately do not load it. It holds 
 The offline-first service worker. **The caching strategy and the update lifecycle are its header and CLAUDE.md → "Service worker caching"** — read those rather than a copy here. Tested by `sw-asset-check.test.mjs`. **At its line cap** (`coordinator-ratchet.test.mjs`).
 - `APP_VERSION` names the cache and must equal `roster-data.js`'s: change both with `npm run bump`, never by hand. `FIREBASE_SDK_VERSION` must equal the SDK version `firebase-client.js` imports.
 - A new served file goes in `NETWORK_FIRST_FILES` (the set served from this version's cache) AND in a precache list — `CORE_ASSETS`, or `SUPPLEMENTARY_ASSETS` for the guides — or it is never precached; `sw-asset-check.test.mjs` fails on a miss.
-- `SAFE_NOTIFICATION_PAGES` — the pages a notification tap may open; a payload's path is re-based onto this install's own scope and its origin is never trusted. A new notifying feature's landing page joins it (`.claude/rules/notifications.md`).
-- A document cache miss races the network against a cached fallback only when one exists; with nothing cached it waits for the network, and the synthesised offline page links back to its own path.
+- `SAFE_NOTIFICATION_PAGES` — the pages a notification tap may open; a payload's path is re-based onto this install's own scope and its origin is never trusted. A new notifying feature's landing page joins it. It matches `.claude/rules/notifications.md` → Deep link entry for entry; `sw-asset-check.test.mjs` checks both directions.
+- A document cache miss races the network against a cached fallback only when one exists; with nothing cached it waits for the network, and the synthesised offline page names the page asked for and has a Try again button that reloads (keeping a notification's #fragment). Every app page and guide falls back only to itself (the [keyword, page] table); only an unknown page falls back to the Calendar. A held page is served with no network request, and Navigation Preload is turned off on activate. Anything under `docs/` is left to the browser.
 - `pushsubscriptionchange` re-subscribes with the key the old subscription carried, so this file holds no copy of the VAPID key; `notif.js` re-saves the server record.
 
 ### `roster-cycle-data.js`
@@ -2120,7 +2140,7 @@ The roster's PEOPLE and nothing else — `teamMembers`, one entry per member, no
 
 ### `functions/index.js`
 The COMPOSITION ROOT of the Cloud Functions. **Its exports are the deploy surface** — Firebase discovers functions from them — and `functions-surface.test.mjs` pins every deployed name, failing on a drop or an unreviewed addition. It defines the shared infrastructure: the four `defineSecret` params, `VAPID_PUBLIC_KEY` (guarded by `sw-asset-check.test.mjs`; it must match `notif.js`), `STAFF_SITE_URL`, `ADMIN_FUNCTION_ORIGINS`, `readRawBody`, `nowInLondon`, the size caps and the commit-ambiguous code set. It keeps two endpoints and spreads in the rest from `buildDocumentEndpoints`, `buildAuthEndpoints` and `buildOvertimeEndpoints`, passing them that infrastructure so no domain owns a second copy of a guarded literal.
-- `parseRosterPDF` — the admin's roster upload → the parsed week for review; it writes nothing. It stays here because `roster-prompt-parity.test.mjs` reads the PDF prompt from this file. The PDF-grid read (`roster-geometry.js`) is started and awaited, bounded, BEFORE the model call; a usable cell table picks the cell prompt (`roster-prompt.js`); the request settings are `MODEL_REQUEST`; and the geometry witness is applied LAST, after every model-side repair. The response carries `parsed`, `choices`, `missingMembers`, `geometry` and `geometryRefused`. The pipeline's contract is `.claude/rules/roster-import.md`.
+- `parseRosterPDF` — the admin's roster upload → the parsed week for review; it writes nothing. It stays here because `roster-prompt-parity.test.mjs` reads the PDF prompt from this file. The PDF-grid read (`roster-geometry.js`) is started and awaited, bounded, BEFORE the model call; a usable cell table picks the cell prompt (`roster-prompt.js`); a sheet whose printed week is not the week chosen is answered 409 (`roster-week-heading.js`); the request settings are `MODEL_REQUEST`; and the geometry witness is applied LAST, after every model-side repair. The model call carries one deadline, `PARSE_MODEL_DEADLINE_MS` from the request's arrival. A 4xx refusal other than 408/409/429 is reported as a refusal, not an outage. The response carries `parsed`, `choices`, `missingMembers`, `duplicateMembers`, `geometry` and `geometryRefused`. The pipeline's contract is `.claude/rules/roster-import.md`.
 - `unlockCalendarViewer` — the staff Calendar PIN exchange. Its handler source, secret binding and no-log rule are pinned to this file by `calendar-viewer-parity.test.mjs`; the rules it applies are `functions/calendar-viewer-auth.js`.
 - Both handlers are EXECUTED by `index-endpoints.test.mjs`; `functions-surface.test.mjs` proves only that they exist.
 
@@ -2128,10 +2148,10 @@ The COMPOSITION ROOT of the Cloud Functions. **Its exports are the deploy surfac
 Drives the two handlers `functions/index.js` keeps — `parseRosterPDF` and `unlockCalendarViewer` — for real: their rules were exemplary while nothing asked whether the handler calls them, in order, and acts on the answer (CLAUDE.md → "The rule tested, the wiring not"). Organised by what a wrong answer costs: every refusal of the roster parser asserts the MODEL WAS NOT ASKED, and the PIN tests cover the uncounted guess, both throttle ceilings, concurrent guesses, a rebuilt tampered viewer account and the minted token's single claim. It also pins `MODEL_REQUEST` through the real SDK against a local server. The fakes enter `require.cache` before `index.js` is required, and every fake RECORDS. Runs in `npm run test:functions`; its header names the mutations it was checked against.
 
 ### `functions/documents.js`
-The document-and-notification domain. `buildDocumentEndpoints(deps)` — a factory taking the shared infrastructure from `index.js` (secrets, the VAPID public key, `STAFF_SITE_URL`, `readRawBody`, `nowInLondon`, the caps); `index.js` re-exports what it returns under the same names, and a handler not re-exported there does not exist to Firebase.
+The document-and-notification domain. `buildDocumentEndpoints(deps)` — a factory taking the shared infrastructure from `index.js` (secrets, the VAPID public key, `STAFF_SITE_URL`, `readRawBody`, `nowInLondon`, the caps, and `rosterMembers`, the server-owned roster the pay reminder reads its audience from); `index.js` re-exports what it returns under the same names, and a handler not re-exported there does not exist to Firebase.
 - `getDocumentUrl` — POST `{ kind }` with a bearer ID token → `{ url, expiresAt, fileType, storagePath }`, a short-lived signed url for the LATEST document of that kind. The caller names a KIND, never a path (`functions/doc-url-core.js`), and the door mirrors the `firestore.rules` read. A 503 is what a missing `roles/iam.serviceAccountTokenCreator` grant looks like (CLAUDE.md).
-- `ingestHuddle` — Power Automate → Storage and Firestore: timing-safe bearer auth, base64 and file-signature checks, DOCX → HTML through a lazy `mammoth`, and a create-or-notify transaction; it awaits the three-month `pruneOldHuddles` before it responds.
-- `onHuddleCreated` (the push for a manual admin upload; it skips `power-automate`, which `ingestHuddle` already notified) · `onCircularCreated` · `onNewsletterCreated` — `onDocumentCreated` triggers, each pushing its document-arrival notice through `buildPushPayload` and `fanOutPush`.
+- `ingestHuddle` — Power Automate → Storage and Firestore: timing-safe bearer auth, base64 and file-signature checks, DOCX → HTML through a lazy `mammoth`, and the metadata written in a transaction. It declares 512 MiB, refuses a date after London's tomorrow, keeps a .docx over `MAX_DOCX_CONVERT_BYTES` as a file, and announces a first upload or the replacement of a HAND upload — only when it is the latest Huddle. It awaits the three-month `pruneOldHuddles` before it responds.
+- `onHuddleCreated` (the push for a manual admin upload; it skips `power-automate`, which `ingestHuddle` already notified) · `onCircularCreated` · `onNewsletterCreated` — `onDocumentCreated` triggers, each pushing its document-arrival notice through `buildPushPayload` and `fanOutPush`; each announces only when its document is the LATEST of its kind (`isLatestOfKind`; a failed read still announces).
 - `sendPayReminderNotification` (daily at 08:00 London; on pay-cutoff Saturdays it calls `sendPayReminder`, `functions/pay-reminder.js`) · `sendTimetableReminder` (daily at 18:00 London; sends once, the evening before `TIMETABLE_CHANGE`, landing on `trains.html`).
 - `HUDDLE_PUSH_PAUSED`, the Huddle push kill switch, lives here.
 
@@ -2143,9 +2163,9 @@ WHO the pay reminder reaches: CEA and CES members only (owner decision, 10 Nov 2
 
 ### `functions/auth-endpoints.js`
 The account-and-credential domain. `buildAuthEndpoints(deps)` — the same factory pattern; the pure decisions it orchestrates are unit-tested in `roster-parse-helpers.js`. `unlockCalendarViewer` is deliberately NOT here (`index.js`).
-- `setupRosterAuth` — creates the roster's Firebase Auth accounts and sets each tier's claims (`{admin,name,member}`, `{manager,name,member}` or `{name,member}`, plus `linksDesigner`; admin outranks manager). **The member and role lists are SERVER-OWNED** — `roster-members.json`, generated from `roster-data.js` and CI-locked — and never the request body, which carries only action flags. It fails closed on an empty config, unions the role-holders into the processed set so a leaver sweep can never disable one, and previews leavers by default (`removeOrphans`); `confirmOrphanRemoval` disables them, revokes their tokens and releases their push records. Re-run it after adding a manager or designer, so their claim lands.
-- `resetMemberPassword` — the admin break-glass: resets a member to their surname default (`nameToPassword`), optionally revokes their refresh tokens, stamps `passwordStatus.resetAt`, and tells the MEMBER on their own devices (`sendTargetedPush`, to the uid the handler already holds; the payload never carries the password). `revoked`, `stamped` and `notified` are reported separately: the credential has already changed, so a later stage failing never reports the reset as failed.
-- `requestPasswordReset` — one of the two public unauthenticated endpoints (with `unlockCalendarViewer`): records a locked-out member's request (the document id is the member's name, so the collection is bounded by the roster), throttled in a transaction, behind the `RESET_REQUESTS_ENABLED` kill switch, and tells the admin through `sendTargetedPush`.
+- `setupRosterAuth` — creates the roster's Firebase Auth accounts and sets each tier's claims (`{admin,name,member}`, `{manager,name,member}` or `{name,member}`, plus `linksDesigner`; admin outranks manager). **The member and role lists are SERVER-OWNED** — `roster-members.json`, generated from `roster-data.js` and CI-locked — and never the request body, which carries only action flags. It fails closed on an empty config, unions the role-holders into the processed set so a leaver sweep can never disable one, and previews leavers by default (`removeOrphans`); `confirmOrphanRemoval` disables them, revokes their tokens and releases their push records. An account claimed for ANOTHER member is never adopted (reported in `failed`). A DISABLED account is re-enabled only after the reset an admin reset does (stamp, surname default, sessions revoked; the previous holder's push records released, best effort), and is named in `reclaimed`. Re-run it after adding a manager or designer, so their claim lands.
+- `resetMemberPassword` — the admin break-glass: stamps `passwordStatus.resetAt` FIRST (no stamp, no reset: a 503 with nothing changed), resets the member to their surname default (`nameToPassword`), revokes their refresh tokens on every reset, refuses (409) an account claimed for another member or linked to the PIN account, and tells the MEMBER on their own devices (`sendTargetedPush`, to the uid the handler already holds; the payload never carries the password). `revoked` and `notified` are reported separately; `stamped` is always true. The credential has already changed by then, so a later stage failing never reports the reset as failed.
+- `requestPasswordReset` — one of the two public unauthenticated endpoints (with `unlockCalendarViewer`): records a locked-out member's request (the document id is the member's name, so the collection is bounded by the roster), throttled in a transaction, behind the `RESET_REQUESTS_ENABLED` kill switch, and tells the admin through `sendTargetedPush`. Every answer to a valid name waits for `RESET_REQUEST_ANSWER_FLOOR_MS`, so a throttled repeat cannot be told from a recorded request by its timing. The admin push has its own shorter bound (`ADMIN_NOTIFY_SEND_TIMEOUT_MS`), and its `notifiedAt` stamp is an `update()`, which never re-creates a cleared row.
 - `getSignInStats` — admin-only: the exact unique sign-in counts from Firebase Auth's `lastSignInTime`, over the server-owned roster; four integers, no identity.
 - `getAccountSetupGaps` — admin-only READ: who has no account, a disabled one or the wrong claims, and which roster-domain account is still enabled for a leaver. **It returns NAMES**, grouped by remedy (`setUp`, `leavers`); `summariseAccountGaps` makes every judgement, including the refusal when no roster account is visible at all.
 
@@ -2163,7 +2183,7 @@ The web-push TRANSPORT: how a payload reaches a phone, never what it says or whe
 
 ### `functions/roster-geometry.js`
 What the roster PDF's OWN GRID says about where each cell is, and the one refusal that follows: the only check in the import the model cannot influence, because the table's rules are DRAWN. CommonJS; the header holds the measurements, the hazards and the pdfjs brief. Tested by `roster-geometry.test.mjs` through the REAL pdfjs, on a PDF the test writes by hand.
-- `extractRosterGeometry(pdfBytes, {loadPdfjs?})` → `{ available, reason?, rows, pagesRead, pagesRejected, weekEndings }` — the only code that touches pdfjs, dynamically imported; `weekEndings` is the sheet's own printed week, from every page with text (`roster-week-heading.js`). **It never throws**: `pdfjs-unavailable`, `unreadable-pdf`, `no-grid`, `no-text` and `work-budget` (a deadline checked between pages, keeping the pages already read) are each a fail-open reason.
+- `extractRosterGeometry(pdfBytes, {loadPdfjs?})` → `{ available, reason?, rows, pagesRead, pagesRejected, weekEndings }` — the only code that touches pdfjs, dynamically imported; `weekEndings` is the sheet's own printed week, from every page with text (`roster-week-heading.js`). **It never throws**: `pdfjs-unavailable`, `unreadable-pdf`, `no-grid`, `no-text`, `work-budget` (a deadline checked between pages, keeping the pages already read) and `no-rows` (a grid read that placed no member row) are each a fail-open reason.
 - `rulesFromOperatorList(ops, OPS)` → `{ vx, hy }` — the stroked rules, clustered to 2px · `assignRunsToGrid({ items, vx, hy })` → rows of seven cells, or null unless the page has exactly `GRID_COLUMNS` vertical rules; the print footer and header furniture are filtered out.
 - `matchGeometryRow(memberName, rows)` — exactly one row or null; a duplicated name is NO signal (`Vacant` appears three times on a real sheet).
 - `applyGeometryWitness(safeEntries, geometry, dates)` → `{ status, refused, checked, total, unmatched }`. **An AI day the physical cell cannot support is REFUSED, not weighed**: a claim on an empty cell becomes `UNKNOWN|…` and the member's whole row is reported, so the review unticks it. It cannot see a fully occupied week, or an `RD` in an occupied cell.
@@ -2180,7 +2200,7 @@ What a roster cell reads as when it names an Other-family day — Training, Indu
 
 ### `functions/roster-sunday-repair.js`
 Layer 1 of the day-drift defence, the Sunday-anchored repair, and what happens to a Sunday it could not repair. CommonJS; requires `cell-day-rules.js` and `roster-parse-helpers.js`, and only `functions/index.js` requires it. The contract is `.claude/rules/roster-import.md`.
-- `applySundayScanCorrections(entries, sundayScan, hasSundayCol, dates)` → the DISPUTED members. Case A — the blank Sunday dropped and the row one day left — is right-shifted back only when the Saturday slot holds the blank-Saturday question `buildSafeEntries` writes; a Saturday reading `RD` is a printed rest code, so that row is disputed instead. Case B is a stripped RDW marker. A printed `OFF` Sunday is a rest day, never a Case A claim. A disputed row keeps its Sunday claim, because overwriting it with `RD` would erase the one value the geometry witness can refuse.
+- `applySundayScanCorrections(entries, sundayScan, hasSundayCol, dates, choices?)` → the DISPUTED members. Case A — the blank Sunday dropped and the row one day left — is right-shifted back only when the Saturday slot holds the blank-Saturday question `buildSafeEntries` writes, and only on a Sunday claim the row read made (a cross-check question there is judged by its pick, and a shifted row takes its picks with it); a Saturday reading `RD` is a printed rest code, so that row is disputed instead. Case B is a stripped RDW marker. A printed `OFF` Sunday is a rest day, never a Case A claim. A disputed row keeps its Sunday claim, because overwriting it with `RD` would erase the one value the geometry witness can refuse.
 - `settleDisputedSundays(entries, disputed, geoStats, dates, sundayScan)` — AFTER the witness: a Sunday it refused is already a question; one the grid shows as occupied keeps the row read only when the scan saw a literally empty cell; anything the witness could not look at becomes `UNKNOWN|…` for review.
 - The wiring is pinned by `index-endpoints.test.mjs`, the rules by `roster-parse-helpers.test.mjs`.
 

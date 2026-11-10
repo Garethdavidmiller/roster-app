@@ -476,8 +476,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // app's own opinion. Everything below is attributed (company policy, ORR p3, today's link);
         // an assessing manager reading the top of the card could not tell where these came from.
         rows.push(
-            // No modifier class: below the triage block this is not the first child, so it keeps the
-            // ordinary margin and rule (links.css's `:first-child` rule for it matches nothing now).
+            // No modifier class: beneath the triage block, which draws no rule of its own, this heading
+            // keeps every section head's hairline and 18px top margin, and that rule sets the evidence off.
             // `links-analysis.test.mjs` fails on any class this module emits that no stylesheet
             // defines — exactly how ~15 rows once shipped on a `check-info` class nothing styled.
             `<div class="check-section-head"><span>This design ` +

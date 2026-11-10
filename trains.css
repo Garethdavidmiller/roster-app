@@ -18,19 +18,10 @@ body {
     background: var(--primary-blue);
     min-height: 100vh;
     min-height: 100dvh;
-    padding-top:    max(20px, env(safe-area-inset-top));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+    /* The page gutter, with the safe-area insets, is shared.css's: the same on every card page. */
     overflow-x: hidden; overflow-x: clip;
     overscroll-behavior: none;
     color: var(--text-dark);
-}
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
 }
 
 .app { max-width: var(--content-max-width); margin: 0 auto; }
@@ -622,9 +613,8 @@ on the answer: the app's ring, not the browser's orange one. */
     .tr-grid-end { white-space: normal; line-height: 1.15; }
 }
 .tr-grid-swipe { margin: 0 0 6px; color: var(--text-light); font-size: var(--type-small); }
-/* Shown only while the grid scrolls sideways (trains-grid-mirror.js). `.touch-only`'s `display: revert`
-   rolls back past the `hidden` attribute, so without this the line shows anyway. */
-.tr-grid-swipe[hidden] { display: none; }
+/* Shown only while the grid scrolls sideways (trains-grid-mirror.js); shared.css's `.touch-only[hidden]`
+   keeps the `hidden` attribute working against `.touch-only`'s `display: revert`. */
 /* After the base station-column rule, so it wins: the column is set, the trains share the rest. */
 @media (min-width: 1024px) { .tr-grid .tr-grid-st { width: 220px; max-width: none; } }
 .tr-grid-origin th, .tr-grid-origin td { background: var(--surface-sunken); }
