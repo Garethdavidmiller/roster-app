@@ -853,8 +853,11 @@ body.auth-ready .container { display: grid; }
 /* A cover week's figure is a CONVENTION, not a reading of the row — see `_totalCells`. Muted and
    italic so it cannot be mistaken for a measured week; the title says which. */
 .links-grid td.tot-assumed { color: var(--text-light); font-style: italic; }
-/* At least one duty on the line could not be read, so the figure is a floor. */
+/* At least one duty on the line could not be read, so the figure is a floor — and says so with a "+"
+   as well as the orange, whose ink is only 1.56:1 from the ordinary figure's (WCAG 1.4.1). Inter
+   has no "≥". The cell's aria-label already says it, so the mark is silent where `/ ""` is read. */
 .links-grid td.tot-uncertain { color: var(--orange-text); }
+.links-grid td.tot-uncertain::after { content: "+"; content: "+" / ""; }
 /* Same figure as the Mon–Sat column beside it, i.e. no Sunday duty. Muted so the lines that DO
    work a Sunday are the ones the eye lands on. */
 .links-grid td.tot-same { color: var(--text-light); }
@@ -864,6 +867,7 @@ body.auth-ready .container { display: grid; }
 .tot-legend .lg-assumed   { font-style: italic; color: var(--text-light); }
 .tot-legend .lg-same      { color: var(--text-light); }
 .tot-legend .lg-uncertain { color: var(--orange-text); font-weight: 600; }
+.tot-legend .lg-uncertain::after { content: "+"; content: "+" / ""; }   /* the sample shows both cues */
 .links-grid tfoot td.tot-cell { line-height: 1.3; }
 .tot-avg-num {
     display: block;
@@ -1828,9 +1832,12 @@ body.auth-ready .container { display: grid; }
 /* Read-only compare grid — no interactive feedback */
 .links-grid--compare { pointer-events: none; }
 
-/* Diff highlight — a gold outline on cells where the two designs differ */
+/* Diff highlight — a gold outline on cells where the two designs differ. The DARK gold: the brand
+   gold was 1.2-1.4:1 against the cell fills, under the 3:1 a marker needs; --gold-text is 5.4:1 or
+   more on every one (measured on rd, early, late and spare). Not a focus token: these cells take no
+   focus, and a marker borrowed from the focus family reads as one. */
 .cell-diff .shift-cell-btn {
-    outline: var(--focus-outline-gold);
+    outline: 2px solid var(--gold-text);
     outline-offset: -2px;
     position: relative;
     z-index: 1;

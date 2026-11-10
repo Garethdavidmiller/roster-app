@@ -1983,6 +1983,84 @@ test('links: the generator\'s boxes and the Import fields wear the app\'s field 
     }
 });
 
+test('links grid: a total that is only a floor says so with a "+", not by its colour alone', async ({ page }) => {
+    // A line with a duty time nobody could read totals what it CAN read, so its three figures are a
+    // floor. That was carried by an orange ink 1.56:1 from the ordinary figure's, and the legend named
+    // it by the word "Orange" (WCAG 1.4.1). A "TBC" on line 2's Monday makes that line.
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(pats => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000,
+            patterns: { ...pats, 2: { ...pats[2], mon: 'TBC' } } }];
+    }, MIXED_DESIGN);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    const mark = (/** @type {string} */ sel) => page.locator(sel).evaluateAll(els => els.map(el => getComputedStyle(el, '::after').content));
+    const floors = await mark('#linksGridBodyRows td.tot-uncertain');
+    expect(floors, 'the premise: line 2\'s three totals are floors').toHaveLength(3);
+    for (const c of floors) expect(c, 'a floor total carries the +').toMatch(/^"\+"/);
+    const plain = await mark('#linksGridBodyRows tr[data-pos="3"] td.tot-cell');
+    for (const c of plain) expect(c, 'an ordinary total carries no mark').not.toMatch(/\+/);
+    expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
+});
+
+test('links compare: a differing cell\'s outline clears 3:1 against every cell fill', async ({ page }) => {
+    // The diff marker was the brand gold, 1.2-1.4:1 against the cells it outlines — the pairing
+    // css-tokens.md rules out for a focus ring for the same reason. Five differing Mondays cover the
+    // fills a marked cell can have: early, late, spare and rest.
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const a = ['14:00-22:00', 'SPARE', 'RD', '06:20-14:20', '11:00-19:30'];
+        const b = ['06:20-14:20', '14:00-22:00', 'SPARE', 'RD', '07:00-15:00'];
+        const mk = (/** @type {string[]} */ mon) => {
+            /** @type {Record<string, any>} */ const p = {};
+            for (let i = 1; i <= 26; i++) p[String(i)] = { sun: 'RD', mon: mon[(i - 1) % 5], tue: '06:20-14:20', wed: '14:00-22:00', thu: 'SPARE', fri: 'RD', sat: 'RD' };
+            return p;
+        };
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'd1', name: 'Design A', patterns: mk(a), updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+            { id: 'd2', name: 'Design B', patterns: mk(b), updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await sheetAction(page, 'compareBtn');
+    await expect(page.locator('#compareGridBodyRowsA tr').first()).toBeVisible();
+    const marks = await page.locator('.links-grid--compare .cell-diff .shift-cell-btn').evaluateAll(els => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        const rgba = (/** @type {string} */ c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data]; };
+        const lum = (/** @type {number[]} */ c) => c.slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        // The painted fill under the outline: the cell's own translucent tint over what is behind it.
+        const fill = (/** @type {Element} */ el) => {
+            const layers = [];
+            for (let n = /** @type {Element|null} */ (el); n; n = n.parentElement) {
+                const c = rgba(getComputedStyle(n).backgroundColor);
+                if (c[3]) layers.push(c);
+                if (c[3] === 255) break;
+            }
+            let out = [255, 255, 255];
+            for (const c of layers.reverse()) out = out.map((u, i) => c[i] * c[3] / 255 + u * (1 - c[3] / 255));
+            return out;
+        };
+        return els.map(el => {
+            const cs = getComputedStyle(el);
+            const [hi, lo] = [lum(rgba(cs.outlineColor)), lum(fill(el))].sort((x, y) => y - x);
+            return { type: [...el.classList].find(c => c.startsWith('type-')), style: cs.outlineStyle, ratio: (hi + 0.05) / (lo + 0.05) };
+        });
+    });
+    expect(new Set(marks.map(m => m.type)), 'the premise: every kind of fill is marked somewhere')
+        .toEqual(new Set(['type-early', 'type-late', 'type-spare', 'type-rd']));
+    for (const m of marks) {
+        expect(m.style, `${m.type}: an outline`).toBe('solid');
+        expect(m.ratio, `${m.type}: the outline against the cell`).toBeGreaterThanOrEqual(3);
+    }
+});
+
 test('links grid: a mouse stroke paints every cell it crosses, and a touch does not stroke', async ({ page }) => {
     // Press and drag painted NOTHING — the grid listened for `click` alone, and a click whose press
     // and release land on different cells goes to the row — while two comments said a drag-paint
