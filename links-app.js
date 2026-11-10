@@ -1730,8 +1730,18 @@ export function init() {
                 variety: _chk('objVariety'), maxRun: _chk('objMaxRun'), gentle: _chk('objGentle'),
                 weekends: _chk('objWeekends'), longWeekends: _chk('objLongWeekends'),
             };
-            const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => Math.max(min, parseInt(
-                /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? String(dflt), 10) || dflt);
+            // A box's own figure, never a falsy one swapped for the default (links-app-8): "Long weekends —
+            // at least 0" is a real answer, and `parseInt(…) || dflt` read it as 4 — with that 4 in the
+            // fingerprint, changing the box did not even restart the explore loop. Only a box holding no
+            // number falls back; a figure under the box's minimum is raised to it. Either way the box is
+            // written back, so it never shows a figure the build did not use.
+            const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => {
+                const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+                const typed = parseInt(el?.value ?? '', 10);
+                const n = Number.isFinite(typed) ? Math.max(min, typed) : dflt;
+                if (el && el.value !== String(n)) el.value = String(n);
+                return n;
+            };
             const _target = _num('objLongTarget', 4);
             const _blockTarget = _num('objBlockTarget', DEFAULT_BLOCK_TARGET, 1);
             const _maxRunTarget = _num('objMaxRunTarget', DEFAULT_MAX_RUN, 1);

@@ -2652,6 +2652,35 @@ test('links: a generated design that repeats an earlier one says which design it
     expect(offRuns[2].said).toContain('Same arrangement as design 1 —');
 });
 
+// "Long weekends — at least 0" is a real answer (links-app-8). `parseInt(…) || 4` read it as 4, and
+// with the same 4 in the fingerprint a changed box did not even restart the explore loop: the next
+// press was "Design 2" of the OLD inputs. A figure under a box's minimum is raised to it, in the box too.
+test('links: a zero in a line-order box is the figure used, not the default', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await linksOpened(page);
+    const status = page.locator('#linksSaveStatus');
+    const build = async () => {
+        await page.locator('#genApplyBtn').click();
+        await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    };
+    await build();
+    await expect(status).toContainText('Generate again');
+    await page.locator('#objLongTarget').fill('0');
+    await page.locator('#objBlockTarget').fill('0');   // under its minimum of 1
+    await build();
+    await expect(status, 'new inputs start a new exploration, at design 1').toContainText('Generate again for a different line order');
+    await expect(status).not.toContainText('Design 2');
+    await expect(page.locator('#objLongTarget')).toHaveValue('0');
+    await expect(page.locator('#objBlockTarget'), 'raised to the minimum it was built with').toHaveValue('1');
+});
+
 // ── The families that carry a 30px COMMITMENT keep it (v22.65) ─────────────────────────────────
 // The sweep above is the app's enforced floor: 24px, WCAG 2.2 SC 2.5.8 AA, applied everywhere.
 // This is narrower and stricter, and it exists because 24 is a floor rather than a target.
