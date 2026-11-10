@@ -136,9 +136,9 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
         expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);
 
-        // "Save settings" matches the fields it sits under (polish round 2). The tablet-up 280px
-        // cap on `.btn-primary` is about buttons with nothing above them; this one ended 368px short
-        // of the Tax code field above it at 1280, which read as a leftover rather than a hierarchy.
+        // "Save settings" matches the fields it sits under (polish round 2). Under a tablet-up 280px
+        // cap on `.btn-primary` (removed since: nothing it reached was meant to be capped) it ended
+        // 368px short of the Tax code field above it at 1280, which read as a leftover, not a hierarchy.
         const saveFit = await page.evaluate(() => {
             const b = document.getElementById('saveSettingsBtn').getBoundingClientRect();
             const f = document.getElementById('taxCode').getBoundingClientRect();
@@ -2626,6 +2626,44 @@ test('paycalc: at large text an open card is never cut short — Save settings s
     await expect(page.locator('.boxing-banner.visible')).toBeVisible();
     await scale();
     expect(await clip('.boxing-banner'), 'the Boxing Day banner hidden below its cap').toBeLessThanOrEqual(1);
+});
+
+test('paycalc: a notice sheet\'s two answers are one width, from tablet up', async ({ page }, info) => {
+    // From 768px every `.btn-primary` stopped at 280px — a cap written for the cards, whose two
+    // buttons were then exempted by name. What it still reached was the first answer in each notice
+    // sheet: "Yes, it's mine" 280px wide over a 290px "No — start fresh", the mismatched pair the
+    // cap's own comment called a fault.
+    test.skip(isTouchProject(info), 'tablet and desktop widths');
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);   // G. Miller, whose device also offers the developer's actuals sheet
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_rate', '20.74');   // unclaimed legacy pay data: the ownership question
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    const settle = () => page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))));
+    const boxes = (/** @type {string[]} */ ids) => page.evaluate(list => list.map(id => {
+        const r = /** @type {Element} */ (document.getElementById(id)).getBoundingClientRect();
+        return { left: Math.round(r.left), width: Math.round(r.width) };
+    }), ids);
+    for (const width of [800, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+        await settle();
+        const [mine, fresh] = await boxes(['dataOwnerMine', 'dataOwnerFresh']);
+        expect(mine, `${width}px: "Yes, it's mine" against "No — start fresh" under it`).toEqual(fresh);
+
+        await page.locator('#dataOwnerClose').click();   // decide later
+        await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
+        if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#settingsToggle .card-toggle-arrow').click();
+        }
+        await page.locator('#actualsImportBtn').click();
+        await expect(page.locator('#actualsLightbox.visible')).toBeVisible();
+        await settle();
+        const [load, clear] = await boxes(['actualsImport', 'actualsClear']);
+        expect(load, `${width}px: "Import" against "Clear stored data" under it`).toEqual(clear);
+    }
 });
 
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────

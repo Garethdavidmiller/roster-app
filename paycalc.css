@@ -1044,13 +1044,6 @@
       .save-row       { grid-area: save; }
       .period-hint    { margin-top: 0; }
       #rosterViewLink { grid-column: 1 / -1; } /* span both cols of the period-controls subgrid */
-
-      /* Buttons stop at 280px — no need to span a 720px card — except in the ~400px sidebar, where
-         the backup card's primary sat 280px wide over a full-width secondary (a mismatched pair
-         reads as a fault), and under the Settings fields: a button under a field matches the field
-         (css-tokens.md), as on mobile. */
-      .btn-primary { max-width: 280px; }
-      #payTransferBody .btn-primary, #saveSettingsBtn { max-width: none; }
     }
 
     /* ── Desktop: 1024px — a three-column WORKSPACE in ONE shared grid row: .pc-work (period band,
