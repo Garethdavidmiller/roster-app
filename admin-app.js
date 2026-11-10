@@ -326,8 +326,8 @@ export function init() {
 
     populateMemberDropdown(fieldMember);
 
-    // iOS Safari silently fails when setting .value on a <select> with <optgroup>s.
-    // Iterate options and set .selected directly instead.
+    // Selects `val` and returns true — or leaves the select as it was and returns false when no option carries it, where `.value` would empty it.
+    // (Written believing iOS Safari ignores `.value` with <optgroup>s; WebKit does not — measured 10 Nov 2026, see select-sheet.js.)
     /**
      * @param {any} sel
      * @param {any} val
