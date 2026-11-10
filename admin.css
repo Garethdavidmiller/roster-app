@@ -2109,8 +2109,8 @@
             touch-action: manipulation;
         }
 
-        /* Larger tap targets and slightly bigger text on touch screens */
-        @media (hover: none) and (pointer: coarse) {
+        /* Larger tap targets on touch — the pointer alone: some Android phones report `hover: hover`. */
+        @media (pointer: coarse) {
             .type-pill-btn {
                 padding: 8px 12px;
                 font-size: var(--type-small);
