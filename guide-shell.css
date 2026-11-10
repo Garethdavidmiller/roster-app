@@ -168,7 +168,10 @@ button, input, select, textarea { font-family: inherit; }
     cursor: pointer;
     touch-action: manipulation;
 }
-.print-unavailable-open:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* Navy, as the shell's other light-surface rings are (`.chip`, `.guide-back-link`): the strip is a pale blue,
+   and gold on it measured 1.45:1, under the 3:1 a focus ring needs (whole-app review, Nov 2026). It sits 2px
+   off the navy button, so the strip's own blue is what separates the two. */
+.print-unavailable-open:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 
 /* ── Footer back link (shared, polish round 2) ──────────────────────────────────────────────────
    The last thing on the railcard, rangers and FIP guides: "← Back to calendar", pointing at `./`
