@@ -105,6 +105,65 @@ test('day detail: names the roster it was changed from, and opens at full size',
         .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
 });
 
+// THE CHANGE'S CAPTION READS ON THE GLASS (whole-app review, 10 Nov 2026). "Changed from base roster" is
+// 10px white on the panel's see-through glass, and at 55% it measured 4.3–4.4:1 over the light calendar
+// card: under the 4.5:1 its size needs, the one caption the Oct 2026 contrast pass left behind. axe rates
+// text on a see-through sheet as incomplete, so this reads the ground the browser painted BESIDE the
+// caption and composites the caption's own colour on it, as the browser does.
+test('day detail: the "Changed from base roster" caption clears 4.5:1 on the glass over the calendar', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [3, 4].map(d => ({ id: 'ov' + d, memberName: 'G. Miller',
+            date: `2026-09-0${d}`, type: 'shift', value: '07:00-16:00', note: '' }));
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const idx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => /** @type {HTMLElement} */ (c).dataset.detailBase));
+    expect(idx, 'premise: a changed day').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(idx).click();
+    await expect(page.locator('#dayDetailContent')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await expect(page.locator('#dayDetailLightbox')).toHaveCSS('opacity', '1');
+    const caption = page.locator('#dayDetailChange .ddc-eyebrow');
+    const box = /** @type {{x: number, y: number, width: number, height: number}} */ (await caption.boundingBox());
+    const shot = (await page.screenshot({ clip: { x: box.x - 16, y: box.y, width: box.width + 32, height: box.height } })).toString('base64');
+    const colour = await caption.evaluate(el => getComputedStyle(el).color);
+    const lab = await page.context().newPage();
+    const ratio = await lab.evaluate(async ([png, css]) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${png}`;
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, c.width, c.height).data;
+        // The ground: the outer 13px of the 16px margin each side of the caption, every row — glass, no glyph.
+        /** @type {number[]} */ const xs = [];
+        for (let k = 0; k < 13; k++) xs.push(k, c.width - 1 - k);
+        let n = 0; const sum = [0, 0, 0];
+        for (let y = 0; y < c.height; y++) for (const x of xs) {
+            const k = 4 * (y * c.width + x);
+            for (let i = 0; i < 3; i++) sum[i] += d[k + i];
+            n++;
+        }
+        const ground = sum.map(v => v / n);
+        const [r, gr, b, a = 1] = (css.match(/[\d.]+/g) || []).map(Number);
+        const text = [r, gr, b].map((v, i) => v * a + ground[i] * (1 - a));
+        const lum = (/** @type {number[]} */ rgb) => {
+            const [R, G, B] = rgb.map(v => { const s = v / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+            return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+        };
+        const [hi, lo] = [lum(text), lum(ground)].sort((p, q) => q - p);
+        return (hi + 0.05) / (lo + 0.05);
+    }, [shot, colour]);
+    await lab.close();
+    expect(ratio, `the caption measured ${ratio.toFixed(2)}:1 on its glass`).toBeGreaterThanOrEqual(4.5);
+});
+
 // A change WITHIN one shift kind — a time tweak, and probably the commonest change there is. The
 // badge carries the kind, so both sides classify as Early and the pair drew `☀️ EARLY → ☀️ EARLY`:
 // two identical pills either side of an arrow, reading as "nothing changed" directly under a

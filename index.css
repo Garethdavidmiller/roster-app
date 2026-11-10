@@ -2418,7 +2418,7 @@
             font-weight: 700;
             letter-spacing: 0.6px;
             text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.55);
+            color: rgba(255, 255, 255, 0.65);   /* as .day-detail-week: 0.55 measured 4.3–4.4:1 over a light page (Nov 2026) */
         }
         .ddc-pair {
             display: flex;
