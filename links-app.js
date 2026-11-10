@@ -570,14 +570,8 @@ export function init() {
     function initDesignPicker() {
         const $ = (/** @type {string} */ id) => document.getElementById(id);
         const onRename = () => { if (activeDesignId) renameDesign(activeDesignId); };
-        // ONE ACTION PER OPENING OF ··· MORE (links-app-11). A row stays tappable through the sheet's
-        // fade, and each tap closes the sheet and runs its action after the fade — so a double tap ran
-        // it twice: two Delete confirms stacked (and, both answered, the design filed in the bin
-        // twice), two New prompts, Compare on and straight back off. select-sheet.js met the same
-        // hazard and answers it the same way. Re-armed each time the sheet opens.
-        let sheetSpent = false;
-        $('designMoreBtn')?.addEventListener('click', () => { sheetSpent = false; });
-        const once = (/** @type {() => any} */ run) => () => { if (sheetSpent) return; sheetSpent = true; run(); };
+        // One action per opening of either sheet, however fast the double tap, is the masthead's rule
+        // (links-design-header.js `closeThen`; links-app-11) — not repeated here.
         header = createDesignHeader({
             pickList: $('designPickList'), pickerSub: $('designPickerSub'), pickerButton: /** @type {HTMLButtonElement|null} */ ($('designPickerBtn')),
             faceName: $('designFaceName'), eyebrow: $('designEyebrow'), count: $('designCount'),
@@ -604,8 +598,8 @@ export function init() {
                           .find(b => !b.disabled && b.offsetParent !== null) ?? null) },
             picker: { overlay: $('designPickerLb'), content: $('designPickerContent'), closeBtn: $('designPickerClose'), create: createLightbox },
             sheetActions: [
-                [$('dupDesignBtn'), once(duplicateDesign)], [$('designRenameMenuBtn'), once(onRename)], [$('compareBtn'), once(compare.toggleCompareMode)],
-                [$('newDesignBtn'), once(createDesign)], [$('importDesignBtn'), once(() => library?.openImport())], [$('designDeleteBtn'), once(() => { if (activeDesignId) deleteDesign(activeDesignId); })],
+                [$('dupDesignBtn'), duplicateDesign], [$('designRenameMenuBtn'), onRename], [$('compareBtn'), compare.toggleCompareMode],
+                [$('newDesignBtn'), createDesign], [$('importDesignBtn'), () => library?.openImport()], [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
             ],
         });
         $('compareChips')?.addEventListener('click', e => {
@@ -1016,23 +1010,16 @@ export function init() {
         }
     }
 
-    /** A switch is asking whether to drop unsaved work. A picker row stays tappable through the sheet's
-     *  fade, so a double tap asked twice, the second question stacked on the first (links-app-11). */
-    let switching = false;
     /**
-     * Switch the active design. Warns if dirty.
+     * Switch the active design. Warns if dirty. A double tap on a picker row asks once: the masthead runs
+     * one action per opening (links-design-header.js `closeThen`; links-app-11).
      * @param {any} id
      */
     async function selectDesign(id) {
-        if (switching || id === activeDesignId || (id === activeProposalId && !activeDesignId)) return;
+        if (id === activeDesignId || (id === activeProposalId && !activeDesignId)) return;
         // A switch that does NOT happen must put the picker back — `change` has already moved the
         // select. Argued in links-design-header.js's render (v23.33).
-        if (dirty) {
-            switching = true;
-            const ok = await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })
-                .finally(() => { switching = false; });
-            if (!ok) { renderDesignPicker(); return; }
-        }
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
         const d = designs.find(x => x.id === id) ?? PROPOSAL_ENTRIES.find(x => x.id === id);
         if (!d) { renderDesignPicker(); return; }
         // If selecting the current compare target, exit compare mode first

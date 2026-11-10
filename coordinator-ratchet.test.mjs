@@ -140,10 +140,10 @@ const CAPS = {
     // size, so the next addition is a raise too.
     // 2371 → 2399 on 7 Nov 2026 (iPhone audit), a RAISE: the unsaved-work draft's wiring — keep the open design and its baseline on a hide, offer and restore them; the rules went to unsaved-draft.js.
     // 2399 → 2380 the same day (desktop audit), brought DOWN with the code that left: the grid's input — its clicks, the keyboard's one Tab stop and a mouse's paint stroke — went to links-grid-input.js.
-    // 2380 → 2750 in the whole-app fix (Nov 2026), a RAISE, said so: measured at 2667, plus 50, to the next 50. What it
+    // 2380 → 2750 in the whole-app fix (Nov 2026), a RAISE, said so: measured at 2654, plus 50, to the next 50. What it
     // bought is COORDINATION the page alone can do, because only it holds the working copy: a create, copy or delete that
     // lands late re-checks whether the page has moved on before it opens anything; nothing makes a design until the list
-    // is in; a sheet row or a picker row runs once per opening; the Build press says it is building; and the wiring the
+    // is in; the Build press says it is building; and the wiring the
     // store, the header and the library asked for (the cache's own read, `activeId`, the queued pill, the gone design's
     // bin row). About half is the argument beside each. The rules went out: the wording of a delete or rename that found
     // the design gone to links-deletion.js, a create's bound to links-design-store.js, the pill's words to

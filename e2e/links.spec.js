@@ -4119,6 +4119,28 @@ test('links: Save a copy as… says it is saving, makes one copy per press, and 
     expect(await added()).toBe(2);
 });
 
+// A DELETE THAT LANDS AFTER AN EDIT KEEPS THE EDIT (links-design's lead on deleteDesign). The soft delete
+// is a transaction now (links-design-2's delete half), so the e2e can hold it with `txHold`, as a slow
+// server does. The design goes to the bin as it was last SAVED, and what was changed while the delete was
+// in flight stays on screen as an unsaved new design: the landing used to open the next design over it.
+test('links: a delete that lands after an edit keeps the edit, as a new unsaved design', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_links_active_design', 'd1'));
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: {}, updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = true; });   // the server is slow to answer
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Deleting “Morning heavy”…');
+    await page.locator('#winMonSatEnd').fill('14:20');   // the designer carries on
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());
+    await expect(status).toContainText('“Morning heavy” is in Recently deleted. What you changed while it was being deleted is still here, not saved');
+    await expect(activeDesignName(page), 'not the next design, opened over the edit').toHaveText('Untitled design');
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('14:20');
+    await expect(page.locator('#linksSaveBtn'), 'still unsaved work').toBeEnabled();
+});
+
 // A NEW DESIGN THE SERVER DOES NOT ANSWER (links-design-2's create half). Online — the browser says so —
 // with a server that never replies, New blank design said "Creating …" until the signal came back,
 // while the designer went on working. The store now names the document first and gives the create as
