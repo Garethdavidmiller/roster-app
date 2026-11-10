@@ -48,7 +48,7 @@ test.describe('new link', () => {
     // a browser can show is that the page hands it the real date — before this it had no date logic at all, and once the
     // link's start had come it would still have said the link "starts on" it.
     for (const [day, says, never] of /** @type {[string, RegExp|null, RegExp][]} */ ([
-        ['2026-12-20T09:00:00Z', /The new link starts in January\s2027\. The new timetable started in December, and today’s link carries on until then\./, /comes first/],
+        ['2026-12-20T09:00:00Z', /The new link starts in January\s2027, and today’s link carries on until then\. The new timetable started in December\./, /comes first/],
         ['2027-01-04T09:00:00Z', null, /starts (on|in)|carries on until then/],
     ])) {
         test(`the status line on ${day.slice(0, 10)} speaks of the dates as they then are`, async ({ page }) => {
@@ -74,7 +74,7 @@ test.describe('new link', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
         const status = page.locator('#nlStatus');
-        await expect(status).toContainText('The new timetable started in December, and today’s link carries on until then.');
+        await expect(status).toContainText('today’s link carries on until then. The new timetable started in December.');
 
         // The same day: nothing is redrawn, so the tile with focus still has it.
         await status.locator('.nl-name').first().focus();
@@ -193,6 +193,86 @@ test.describe('new link', () => {
             expect(icons.length, 'the seven ways of working').toBe(7);
             expect(new Set(icons).size, `at ${width}px the seven icons share one line: ${icons}`).toBe(1);
         }
+    });
+
+    // A FIGURE NEVER RUNS INTO THE NEXT COLUMN (bug check, 9 Nov 2026). "£140 more" is held together by a no-break space, so
+    // at 320px — or on a phone with its text made larger, which multiplies every size and leaves the width alone — it could
+    // not wrap, and ran 7px into "£130 more". Since figureText (newlink-render.js) each held run is one inline-block that
+    // takes a line of its own, whole, and wraps inside itself only when even that line is too narrow.
+    // NOR DOES ANYTHING ELSE (the large-text check, 9 Nov 2026; owner: "OK"). At 1.3 times the text a figure heading
+    // ("BALANCED") was wider than its column, and a time in the 26 weeks wider than its day, both running into the next; at
+    // 320px the pack's rows were cut off at the card's edge. The headings now break at soft hyphens, the 26 weeks scroll
+    // sideways inside their frame — and only there: the page itself never does — and the pack's rows give way.
+    // Each half is pinned: nothing leaves its cell, its card or the screen at 320px, or at 1.3 times the text from 320px to
+    // 375px; at 375px at the normal size, where everything fits, no held run is split and the 26 weeks do not scroll.
+    // The text is enlarged ONCE per element, as Android does: helpers.js's scaleText reads each size after its parent has
+    // been enlarged, so inherited text is multiplied again at every level (14px became 49px at 1.15 on this page).
+    test('a phone\'s larger text runs nothing into its neighbour or off the screen, and the 26 weeks scroll rather than overlap', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        const open = async (/** @type {number} */ width) => {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto('/newlink.html');
+            await expect(page.locator('.nl-name-title')).toHaveCount(3);
+            await page.locator('[data-persona="all"]').click();
+            await expect(page.locator('#nlPersonaPanel .nl-persona')).toHaveCount(6);
+            await expect(page.locator('#nlWeeksPanel .is-chosen .nl-weeks tbody tr')).toHaveCount(26);
+        };
+        const scaleOnce = (/** @type {number} */ k) => page.evaluate(m => {
+            const els = [...document.querySelectorAll('*')], px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+            els.forEach((e, i) => { if (px[i]) /** @type {HTMLElement} */ (e).style.fontSize = `${px[i] * m}px`; });
+        }, k);
+        // every table cell on the page: the figures and their headings, and the chosen proposal's 26 weeks
+        const CELLS = '#nlPersonaPanel .nl-fig td, #nlPersonaPanel .nl-fig th, #nlWeeksPanel .is-chosen .nl-weeks td, #nlWeeksPanel .is-chosen .nl-weeks th';
+        const spills = () => page.locator(CELLS).evaluateAll(cells => cells.flatMap(cell => {
+            const rects = [], walk = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+            for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+                if (!n.textContent?.trim() || n.parentElement?.closest('.visually-hidden')) continue;
+                const r = document.createRange(); r.selectNodeContents(n); rects.push(...r.getClientRects());
+            }
+            const box = cell.getBoundingClientRect();
+            const out = Math.max(0, ...rects.map(r => Math.max(box.left - r.left, r.right - box.right)));
+            return out > 1 ? [`"${cell.textContent?.trim()}" leaves its cell by ${out.toFixed(1)}px`] : [];
+        }));
+        // anything wider than its card is cut off by the card's clip, silently; the 26 weeks are the one thing allowed to
+        // be wider, inside their own scrolling frame
+        const offCard = () => page.evaluate(() => [...document.querySelectorAll('main .card')].flatMap(card => {
+            const c = card.getBoundingClientRect();
+            const out = [...card.querySelectorAll('*')].filter(e => e.getClientRects().length && !e.closest('.visually-hidden')
+                && !(e.closest('.nl-weeks-wrap') && !e.matches('.nl-weeks-wrap'))
+                && (e.getBoundingClientRect().right - c.right > 0.5 || c.left - e.getBoundingClientRect().left > 0.5));
+            return out.slice(0, 1).map(e => `#${card.id}: "${e.textContent?.trim().slice(0, 40)}" runs off the card`);
+        }));
+        const pageScroll = () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+        const weeksScroll = () => page.locator('#nlWeeksPanel .is-chosen .nl-weeks-wrap').evaluate(w => w.scrollWidth - w.clientWidth);
+        for (const [width, k] of [[320, 1], [320, 1.3], [360, 1.3], [375, 1.3]]) {
+            await open(width);
+            if (k !== 1) await scaleOnce(k);
+            const at = `at ${width}px${k === 1 ? '' : ` with the text ${k} times larger`}`;
+            expect(await spills(), `${at}: nothing leaves its cell`).toEqual([]);
+            expect(await offCard(), `${at}: nothing is cut off at a card's edge`).toEqual([]);
+            expect(await pageScroll(), `${at}: the page itself never scrolls sideways`).toBe(0);
+        }
+        expect(await weeksScroll(), 'premise: at 375px and 1.3 times the text, the 26 weeks are wider than the screen').toBeGreaterThan(0);
+        // …and their frame truly scrolls: a frame that merely overflowed would be cut off at the card, Saturday out of reach
+        expect(await page.locator('#nlWeeksPanel .is-chosen .nl-weeks-wrap').evaluate(w => { w.scrollLeft = 1e6; return w.scrollLeft; }),
+            'the frame scrolls to its last day').toBeGreaterThan(0);
+        await open(375);
+        expect(await weeksScroll(), 'at 375px at the normal size the 26 weeks fit, so nothing moved').toBe(0);
+        const runs = page.locator('#nlPersonaPanel .nl-nb');
+        expect(await runs.count(), 'premise: the figures hold runs of words together').toBeGreaterThan(10);
+        expect(await runs.evaluateAll(els => els.filter(e => e.getClientRects().length > 1).map(e => e.textContent)),
+            'at 375px every held run fits on one line, so none is split').toEqual([]);
+    });
+
+    // A SCROLLING FRAME A KEYBOARD CAN REACH (axe scrollable-region-focusable, as Team View's week table): when the 26 weeks
+    // are too wide for the screen, Tab reaches the frame and the arrow keys scroll it. It is named for its proposal.
+    test('the 26 weeks\' frame is a named tab stop, so a keyboard can scroll it', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const frame = page.locator('#nlWeeksPanel .is-chosen .nl-weeks-wrap');
+        await expect(frame).toHaveAttribute('tabindex', '0');
+        await expect(frame).toHaveAttribute('role', 'group');
+        await expect(frame).toHaveAttribute('aria-label', /^Balanced V6’s 26 weeks$/);
     });
 
     test('the pack opens each PDF in a new tab from where docs/ is served', async ({ page }) => {

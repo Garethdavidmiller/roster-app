@@ -71,9 +71,49 @@ test('six ways of working, each a sentence and rows of four figures, and only a 
     }
 });
 
+test('a way of working with no green mark says why in the notes (the bug check, 9 Nov 2026)', () => {
+    // The Sunday rows carried no mark and the notes named only the swap and no-overtime rows, so a reader could not tell a
+    // deliberate "not ranked" from a missing figure. Each unmarked band names itself in the notes, in the notes' own words
+    const SAID = { swap: /The swap rows are not marked:/, 'no-overtime': /Nor are the no-overtime rows:/, sundays: /Nor are the Sunday rows:/ };
+    const notes = NOTES.join(' ').replace(/\u00a0/g, ' ');
+    const unmarked = PERSONAS.filter(p => p.rows.every(r => r.cells.every(c => !c.best)));
+    assert.ok(unmarked.length > 0, 'premise: some ways of working are left unranked');
+    for (const p of unmarked) {
+        const said = SAID[/** @type {keyof typeof SAID} */ (p.id)];
+        assert.ok(said, `${p.chip} carries no mark, and nothing here says how the notes explain it — add it to SAID and to the notes`);
+        assert.match(notes, said, `${p.chip} carries no mark, and the notes do not say why`);
+    }
+});
+
 test('what all three share comes as gains AND costs, never one without the other', () => {
     assert.ok(GAINS.length >= 3 && COSTS.length >= 3);
     assert.ok(CHANGES.length >= 3, 'the drafted "what has changed" lines');
+});
+
+test('a figure counted cover weeks aside says so wherever a sentence quotes it (the bug check, 9 Nov 2026)', () => {
+    // The set shifts' figures — days in a row, the rest between shifts, fatigue warnings, runs of earlies or of lates — leave
+    // the cover weeks out, because where a cover week's shifts fall is the roster clerk's to decide. A sentence quoting one
+    // bare reads as the whole year's: "At least 14h 20m between shifts" did, one line beneath "cover weeks aside". And a
+    // bare figure is kindest to whichever design a badly placed cover week hurts most — Balanced V6's 5 days in a row can be
+    // 10, one more than today's worst, which the pack's sheet said and the page did not
+    const QUOTES = /days in a row|between shifts|fatigue warning|weeks of earlies|runs of earlies/;
+    const SAYS = /cover weeks? aside|set shifts|cover week falls badly/;
+    const lines = [...CHANGES, ...GAINS, ...COSTS].map(s => s.replace(/\u00a0/g, ' ')).filter(s => QUOTES.test(s));
+    assert.ok(lines.length >= 4, `premise: the page's sentences quote the set shifts' figures (found ${lines.length})`);
+    for (const s of lines) assert.match(s, SAYS, `"${s}" quotes a figure counted cover weeks aside, and does not say so`);
+});
+
+test('the key promises no margin the marks do not keep (the bug check, 9 Nov 2026)', () => {
+    // isBest (what-it-means-data.mjs) marks the best of the three however small its lead. The premise finds a mark a minute
+    // or two ahead of a proposal left unmarked — 8h 06m beside 8h 07m — so "the clear best", as the key said, promised a
+    // gap the marks do not keep. If the marks ever gain a margin, the premise fails and says the word can come back
+    const mins = (/** @type {string} */ s) => (m => m ? +m[1] * 60 + +m[2] : NaN)(/^(\d+)h\s(\d+)m$/.exec(s.replace(/\u00a0/g, ' ')));
+    const close = PERSONAS.flatMap(p => p.rows).filter(r => {
+        const props = r.cells.slice(1), marked = props.filter(c => c.best), plain = props.filter(c => !c.best);
+        return marked.some(b => plain.some(o => Math.abs(mins(b.text) - mins(o.text)) <= 2));
+    });
+    assert.ok(close.length > 0, 'premise: a mark leads an unmarked proposal by two minutes or less (if not, "clear" may be true now)');
+    assert.doesNotMatch(NOTES.join(' '), /\bclear(ly)? best\b/, `the key promises a clear lead; ${close.map(r => r.label).join(', ')} say otherwise`);
 });
 
 test('nothing in it names a recommendation (owner, 2 Nov 2026: "No, three evenly")', () => {
