@@ -101,15 +101,15 @@ export function initPaycalcStickyTotal() {
   const stickyBar  = document.getElementById('stickyTotal');
   const resultCard = document.querySelector('.result-card');
   if (!stickyBar || !resultCard || !('IntersectionObserver' in window)) return;
-  // v16.12: no desktop skip — the bar runs at every width now. On desktop it backstops
-  // the footer rows below the sticky col-3 result rail (v16.14): the rail keeps the live
-  // figure visible across the work area, the bar covers the scroll past it.
+  // v16.12: no desktop skip — the bar runs at every width. It is the ONLY thing that keeps the
+  // take-home £ in view while scrolling: the result card itself is a static column, not sticky
+  // (.claude/rules/paycalc.md → Layout decisions), on desktop as on a phone.
   // Defensive single-init guard. init() runs exactly once (paycalc-boot.js), and a bfcache
-  // restore THAWS the frozen document rather than re-executing module code — so this IIFE
+  // restore THAWS the frozen document rather than re-executing module code — so this function
   // does NOT re-run on a Back/Forward restore. The guard only matters if init() is ever
   // wired to run twice. An IntersectionObserver survives the bfcache freeze/thaw intact,
   // so there is deliberately NO pagehide-disconnect: a prior version disconnected the
-  // observer on navigate-away and, because the IIFE never re-runs, nothing reconnected it —
+  // observer on navigate-away and, because this never re-runs, nothing reconnected it —
   // after any Back/Forward restore the sticky bar froze over the footer for the rest of
   // the session (v16.19).
   if (stickyBar.dataset.obsInit) return;

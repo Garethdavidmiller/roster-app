@@ -255,11 +255,12 @@ describe('the reviewer\'s state has one owner', () => {
         });
     }
 
-    test('the coordinator reaches the reviewer through its four entry points only', () => {
+    test('the coordinator reaches the reviewer through its published entry points only', () => {
         // A coordinator poking at the workspace directly would be the same coupling by another
-        // route: it would need one of the eight fields to know what to poke.
+        // route: it would need one of the eight fields to know what to poke. `standDown` is how the
+        // page says the reviewer's side has left the screen — a tab switch, a lost session.
         const calls = [...app.matchAll(/review\.(\w+)/g)].map(m => m[1]);
-        const allowed = new Set(['loadHorizon', 'selectWeek', 'wireConfirmBar', 'refreshSelectedIfStale']);
+        const allowed = new Set(['loadHorizon', 'selectWeek', 'wireConfirmBar', 'refreshIfStale', 'standDown']);
         const unexpected = [...new Set(calls)].filter(c => !allowed.has(c));
         assert.deepEqual(unexpected, [],
             'overtime-app.js uses a review-controller member outside its published surface');

@@ -8,19 +8,10 @@ body {
     background: var(--primary-blue);
     min-height: 100vh;
     min-height: 100dvh;
-    padding-top:    max(20px, env(safe-area-inset-top));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+    /* The page gutter, with the safe-area insets, is shared.css's: the same on every card page. */
     overflow-x: hidden; overflow-x: clip;
     overscroll-behavior: none;
     color: var(--text-dark);
-}
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
 }
 
 .container {
@@ -48,8 +39,9 @@ body {
 .container { grid-template-columns: minmax(0, 1fr); }
 /* The items get it too — a grid item's own `min-width: auto` is min-content, so a track allowed
    to shrink can still be held open by its item. Kept as a pair for the reason admin.css gives:
-   which of the two binds depends on the content, and the content changes. */
-.container > * { min-width: 0; }
+   which of the two binds depends on the content, and the content changes. Below 1024px the column
+   wrappers are `display: contents`, so the cards are the grid's items and are named here too. */
+.container > *, .ops-left-column > *, .ops-right-column > * { min-width: 0; }
 body.auth-ready .container { display: grid; }
 /* ── Needs attention strip (v22.03; group-label redesign same release) ──────────────────────
    The page organises itself with group labels on the navy canvas (PUBLISH · ROSTER & ACCOUNTS ·
@@ -93,7 +85,7 @@ body.auth-ready .container { display: grid; }
     text-decoration: none;
     transition: transform 0.1s;
 }
-.attn-item:hover { transform: translateY(-1px); }
+@media (hover: hover) and (pointer: fine) { .attn-item:hover { transform: translateY(-1px); } }
 .attn-item:active { transform: scale(var(--press-scale)); }
 /* Gold ring, not navy — these pills sit on the navy canvas where the default ring vanishes. */
 .attn-item:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
@@ -111,7 +103,6 @@ body.auth-ready .container { display: grid; }
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-2);
     overflow: hidden;
-    container-type: inline-size;
 }
 
 /* ---- Save button ---- */
@@ -187,6 +178,9 @@ body.auth-ready .container { display: grid; }
 .huddle-upload-btn {
     display: block;
     width: 100%;
+    /* `font-family: inherit` on every button and the email field here (Nov 2026): a control does not
+       inherit the page font, and these nine were Arial on the station PC, Roboto on Android. */
+    font-family: inherit;
     padding: 11px 16px;
     min-height: 44px;
     background: var(--primary-blue);
@@ -239,10 +233,6 @@ body.auth-ready .container { display: grid; }
     cursor: pointer;
     box-sizing: border-box;
 }
-.roster-type-select:focus-visible {
-    outline: var(--focus-outline);
-    outline-offset: 1px;
-}
 .roster-review-label { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0 0 10px; }
 #rosterChangeList { margin-bottom: 14px; }
 
@@ -287,11 +277,11 @@ body.auth-ready .container { display: grid; }
     border-radius: var(--radius-pill); padding: 2px 7px;
 }
 .roster-skip-all-btn {
-    font-size: var(--type-badge); font-weight: 600;
+    font-family: inherit; font-size: var(--type-badge); font-weight: 600;
     color: var(--text-mid);
     background: none;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl); padding: 3px 10px;
+    border-radius: var(--radius-pill); padding: 3px 10px;
     cursor: pointer; white-space: nowrap;
     /* `border-color` ONLY, and the missing `color` is the point (v24.01, caught by WebKit in CI).
        `.section-skipped` below flips this button to white-on-navy, and `background` is not
@@ -316,7 +306,7 @@ body.auth-ready .container { display: grid; }
     color: var(--warning-amber);
     background: color-mix(in oklch, var(--warning-amber) 12%, white);
     border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 8px 10px;
     margin-bottom: 10px;
 }
@@ -328,7 +318,7 @@ body.auth-ready .container { display: grid; }
     color: var(--error-red);
     background: color-mix(in oklch, var(--error-red) 8%, white);
     border: 1px solid color-mix(in oklch, var(--error-red) 40%, white);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 8px 10px;
     margin: 6px 0 2px;
     line-height: 1.4;
@@ -525,12 +515,12 @@ body.auth-ready .container { display: grid; }
     color: var(--primary-blue);
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 8px 10px;
     margin: 0 0 10px;
     cursor: pointer;
 }
-.roster-download-pdf:hover { background: var(--bg-faint); }
+@media (hover: hover) and (pointer: fine) { .roster-download-pdf:hover { background: var(--bg-faint); } }
 .roster-download-pdf:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* THE CIRCUIT BREAKER (v22.16). Louder than the per-row warning on purpose — it is not a caution
@@ -578,7 +568,6 @@ body.auth-ready .container { display: grid; }
    at the delegate, and an inactive component is the one thing WCAG's contrast rule exempts. */
 .roster-blocked .roster-act,
 .roster-blocked .roster-skip-all-btn { visibility: hidden; }
-.roster-blocked .roster-tick { cursor: not-allowed; }
 /* A conflict row's choice pair keeps SHOWING both values — that is the evidence — but the chosen
    one loses its fill. A solid green "Keep saved" on a read that will not be saved reads as a live
    decision, and it is the one control on this page that looks pressed rather than available. */
@@ -654,9 +643,9 @@ body.auth-ready .container { display: grid; }
 /* Tick control — "this row will save". Ticked = green box; tap to skip (empties it + dims the row). */
 .roster-tick {
     flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
-    border-radius: 6px; border: 2px solid var(--success-green);
+    border-radius: var(--radius-xs); border: 2px solid var(--success-green);
     background: var(--success-green); color: white;
-    font-size: var(--type-body); font-weight: 900; line-height: 1;
+    font-family: inherit; font-size: var(--type-body); font-weight: 900; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; transition: background var(--dur-med), border-color var(--dur-med);
 }
@@ -666,7 +655,7 @@ body.auth-ready .container { display: grid; }
 /* Per-row action tag: Update · Clear old · Your choice · Not saved */
 .roster-act {
     flex: 0 0 auto; font-size: 9.5px; font-weight: 800; letter-spacing: 0.03em;
-    text-transform: uppercase; padding: 3px 7px; border-radius: 6px; white-space: nowrap;
+    text-transform: uppercase; padding: 3px 7px; border-radius: var(--radius-xs); white-space: nowrap;
 }
 .act-update { background: var(--success-green-bg); color: var(--success-green); }
 .act-clear  { background: var(--bg-faint); color: var(--text-mid); }
@@ -724,8 +713,8 @@ body.auth-ready .container { display: grid; }
 }
 .roster-choice-btn {
     flex: 1 1 auto;
-    font-size: var(--type-badge); font-weight: 700;
-    padding: 7px 11px; border-radius: 8px;
+    font-family: inherit; font-size: var(--type-badge); font-weight: 700;
+    padding: 7px 11px; border-radius: var(--radius-sm);
     border: 1.5px solid var(--border-light);
     background: white; color: var(--text-mid);
     cursor: pointer; white-space: nowrap;
@@ -831,9 +820,11 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-small); line-height: 1.4; color: var(--text-mid);
 }
 /* No tick, so no action: a flat label rather than the tappable-looking pills the other rows use —
-   "Will clear" included, which says what the answer does, not a control. */
+   "Will clear" included, which says what the answer does, not a control. "Not recorded" is this
+   label on every row that says it, an unreadable one answered "rest day" too (Nov 2026: scoped to
+   the guarded row, the same words were 9.5px dark there and 11px light here). */
 .roster-change-guarded .act-clear,
-.roster-change-guarded .act-none {
+.act-none {
     font-size: var(--type-badge); color: var(--text-light); white-space: nowrap;
 }
 
@@ -879,8 +870,12 @@ body.auth-ready .container { display: grid; }
     border-color: var(--primary-blue);
     font-weight: 700;
 }
+/* …and order does not reach the HOVER rule, which outweighs the variant (0,2,0 to 0,1,0): it turned
+   the primary's words navy on its navy fill (Nov 2026). The primary darkens under a mouse, as the
+   page's other navy buttons do. */
 @media (hover: hover) and (pointer: fine) {
-    .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+    .roster-cancel-btn:not(.roster-cancel-btn--primary):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+    .roster-cancel-btn--primary:hover { background: var(--primary-blue-dark); border-color: var(--primary-blue-dark); }
 }
 
 /* ---- Form inputs ---- */
@@ -889,8 +884,10 @@ body.auth-ready .container { display: grid; }
    `<button>` that inherits only the select's CLASSES. Without it the two enhanced selects here
    would lose the border, the fill, the 16px type and the chevron — the page's field design would
    simply stop applying to two of its fields, with nothing to throw. Same edit index.css and
-   paycalc.css needed at v23.36. */
-select, .fieldpick, input[type="text"], input[type="date"] {
+   paycalc.css needed at v23.36. THE PAGE'S OWN FIELDS ONLY (Nov 2026), as admin.css's copy says:
+   bare, these turned the drawer's search white under its white text and scrolled the sign-in screen
+   sideways. `:where()` adds no weight, so nothing on this page that overrides them changes. */
+:where(.container) select, :where(.container) .fieldpick, :where(.container) input[type="text"], :where(.container) input[type="date"] {
     width: 100%;
     padding: 8px 10px;
     border: var(--field-border);
@@ -901,16 +898,16 @@ select, .fieldpick, input[type="text"], input[type="date"] {
     -webkit-appearance: none;
     appearance: none;
     font-family: inherit;
-    transition: border-color 0.12s, background-color 0.12s;
+    transition: border-color var(--dur-fast), background-color var(--dur-fast);
 }
-input[type="date"] { min-height: 44px; }
-select, .fieldpick {
+:where(.container) input[type="date"] { min-height: 44px; }
+:where(.container) select, :where(.container) .fieldpick {
     background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
     background-position: right 10px center;
     padding-right: 30px;
 }
-select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not([type="radio"]):focus-visible {
+:where(.container) select:focus-visible, :where(.container) .fieldpick:focus-visible, :where(.container) input:not([type="checkbox"]):not([type="radio"]):focus-visible {
     border-color: var(--primary-blue);
     outline: var(--focus-outline);
     outline-offset: 2px;
@@ -1045,6 +1042,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     font-weight: 600;
 }
 .email-set-btn {
+    font-family: inherit;
     font-size: var(--type-badge);
     padding: 3px 10px;
     border: 1px solid var(--border-mid);
@@ -1086,12 +1084,13 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     padding: 8px 10px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     margin: 2px 0 4px;
 }
 .email-set-input {
     flex: 1;
     min-width: 200px;
+    font-family: inherit;
     font-size: var(--type-medium);
     padding: 6px 10px;
     border: 2px solid var(--border-mid);
@@ -1108,6 +1107,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     background-color: white;
 }
 .email-set-save {
+    font-family: inherit;
     font-size: var(--type-small);
     font-weight: 600;
     padding: 6px 14px;
@@ -1146,7 +1146,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     padding: 4px 11px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     font-size: var(--type-small);
     color: var(--text-mid);
     white-space: nowrap;
@@ -1236,6 +1236,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 .acct-email--none { font-style: italic; color: var(--text-faint); }
 .btn-acct-reset {
     flex-shrink: 0;
+    font-family: inherit;
     font-size: var(--type-badge);
     padding: 3px 10px;
     border: 1px solid var(--border-mid);
@@ -1299,26 +1300,27 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 .auth-gaps[hidden] { display: none !important; }
 .auth-gap-line {
     margin: 0;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 8px 10px;
     color: var(--warning-amber);
     background: color-mix(in oklch, var(--warning-amber) 12%, white);
     border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
 }
 /* A leaver who can still sign in is an open door, not a to-do — the one state on this card that
-   is a live access problem rather than somebody unable to work. */
+   is a live access problem rather than somebody unable to work. `--error-text`, not `--error-red`:
+   the bright red on its own tint was 4.36:1 (Nov 2026). */
 .auth-gap-line--leaver {
-    color: var(--error-red);
+    color: var(--error-text);
     background: color-mix(in oklch, var(--error-red) 10%, white);
     border-color: color-mix(in oklch, var(--error-red) 40%, white);
 }
-/* The remedy, on its own line: the count and names say what, this says which button. */
+/* The remedy, on its own line: the count and names say what, this says which button. A step down in
+   size, never a fade — at `opacity: 0.85` the leaver's remedy was 3.62:1 (css-tokens.md → opacity). */
 .auth-gap-fix {
     display: block;
     margin-top: 4px;
     font-size: var(--type-small);
     font-weight: 600;
-    opacity: 0.85;
 }
 .auth-gap-ok      { margin: 0; color: var(--success-green); font-weight: 600; }
 .auth-gap-unknown { margin: 0; color: var(--text-mid); }
@@ -1334,7 +1336,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     padding: 0;
     cursor: pointer;
 }
-.auth-gap-retry:hover:not(:disabled) { color: var(--primary-blue-dark); }
+@media (hover: hover) and (pointer: fine) { .auth-gap-retry:hover:not(:disabled) { color: var(--primary-blue-dark); } }
 .auth-gap-retry:disabled { opacity: 0.5; cursor: default; }
 .auth-orphans-label {
     display: flex;
@@ -1356,14 +1358,13 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     padding: 12px 14px;
     background: var(--error-bg);
     border-left: 4px solid var(--error-banner);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     font-size: var(--type-body);
     color: var(--text-dark);
 }
 
 /* ---- Roster review ---- */
-.save-hint { font-size: var(--type-small); color: var(--text-light); margin: 6px 0 0; }
-/* Review section and conflict banner start hidden; JS adds .visible to show them */
+/* The review section starts hidden; JS adds .visible to show it */
 #rosterReviewSection           { display: none; }
 #rosterReviewSection.visible   { display: block; }
 
@@ -1402,7 +1403,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     color: var(--warning-amber);
     background: color-mix(in oklch, var(--warning-amber) 12%, white);
     border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 8px 10px;
     margin-bottom: 10px;
 }
@@ -1493,7 +1494,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     font-size: var(--type-badge);
     font-family: monospace;
     background-color: var(--surface-sunken);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     padding: 8px 10px;
     overflow-x: auto;
     overflow-y: auto;
@@ -1968,11 +1969,18 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     border: none;
     background: transparent;
     padding: 6px 14px;
+    font-family: inherit;
     font-size: var(--type-small);
     font-weight: 700;
     color: var(--text-mid);
     cursor: pointer;
 }
+/* The ring goes INSIDE a segment (Nov 2026): the toggle clips to its pill and the buttons fill it
+   edge to edge, so the shared ring, drawn 2px outside, was cut away but for the seam. The end
+   segments take the pill's corners, so the inset ring follows the curve. */
+.speed-toggle-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
+.speed-toggle-btn:first-child { border-radius: var(--radius-pill) 0 0 var(--radius-pill); }
+.speed-toggle-btn:last-child  { border-radius: 0 var(--radius-pill) var(--radius-pill) 0; }
 /* The month it shows is a CHOICE, so it wears the page's colour (v25.20 — it was navy, the colour of a
    button that does something, beside this page's orange chosen pills; the v25.16 sweep missed it because
    its state is spelled `--on`, which page-identity-parity's walk did not read until then). */

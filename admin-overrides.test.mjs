@@ -38,6 +38,13 @@ let _cachedNextGetDocs = 0;
 // leave-year move makes before it writes.
 let _getDocReads = 0;
 
+// Every MEMBER read's member — `where('memberName', '==', …)` — in order. A collection read records nothing.
+/** @type {string[]} */ const _memberReads = [];
+
+// When a number: that many commits land, and every commit after it is refused — a long range whose
+// first batch saved and a later one did not (a PARTIAL commit). null leaves every commit alone.
+/** @type {number|null} */ let _commitsThatLand = null;
+
 // Lets a test HOLD a getDocs in flight (a load that has started and not yet resolved) and choose the
 // rows it eventually returns. That is the only way to exercise the ordering between a save and a
 // load, which is a property of WHEN each one writes the cache, not of what either computes.
@@ -96,7 +103,7 @@ mock.module('./firebase-client.js', {
         db:              null,
         collection:      () => null,
         query:           () => null,
-        where:           () => null,
+        where:           (/** @type {string} */ _f, /** @type {string} */ _op, /** @type {string} */ v) => { _memberReads.push(v); return null; },
         orderBy:         () => null,
         limit:           () => null,
         getDocs:         async () => {
@@ -131,6 +138,9 @@ mock.module('./firebase-client.js', {
                         const e = /** @type {any} */ (new Error('Maximum 500 writes allowed per request'));
                         e.code = 'invalid-argument';
                         throw e;
+                    }
+                    if (_commitsThatLand !== null && _commitsThatLand-- <= 0) {
+                        throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' });
                     }
                     _commitSizes.push(ops.length);
                     if (_failNextCommits > 0) {
@@ -207,6 +217,17 @@ describe('cache-load-failure guard (Finding #2)', () => {
             'a range booking must not write against a never-loaded cache',
         );
         auth.currentUser = null;
+    });
+
+    // admin-2-11 (whole-app check, 10 Nov 2026): the leave-year save refuses here too, and says WHY —
+    // as a bare message, `saveFailureMessage` read it as "check your connection".
+    test('…and the leave-year save refuses as well, in words that say why', async () => {
+        const { saveFailureMessage } = await import('./claim-retry.js');
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        const err = await setLeaveYear({ memberName: 'G. Miller', date: '2027-01-05', leaveYear: 2026, changedBy: 'G. Miller' }).catch(e => e);
+        auth.currentUser = null;
+        assert.match(String(err?.message), /cache\/load-failed/);
+        assert.equal(saveFailureMessage(err), "This member's saved changes couldn't be loaded, so nothing was saved. Reload the page, then try again.");
     });
 
     // A READ THE SERVER DID NOT ANSWER IS NOT A LOAD (v24.48, external review). Offline, `getDocs`
@@ -539,6 +560,69 @@ describe('the leave-year choice — what is written', () => {
         assert.ok(written, 'the shift was not written');
         assert.equal(written.type, 'shift');
         assert.ok(!('leaveYear' in written));
+    });
+
+    // admin-2-11 (whole-app check, 10 Nov 2026): the save's own refusals carry the words, so the panel
+    // does not tell somebody who has been signed out to check their connection.
+    test('its own refusals say why, through saveFailureMessage — never "check your connection"', async () => {
+        const { saveFailureMessage } = await import('./claim-retry.js');
+        seed([leave()]);
+        const invalid = await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2025, changedBy: MEMBER }).catch(e => e);
+        assert.equal(saveFailureMessage(invalid), "That year can't be chosen for this day, so nothing was saved.");
+        mockAuth.currentUser = null;
+        const signedOut = await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }).catch(e => e);
+        assert.equal(saveFailureMessage(signedOut), "You've been signed out, so nothing was saved — please sign in again.");
+        assert.equal(_batchWrites.length, 0, 'nothing was written');
+    });
+});
+
+// admin-2-4 (whole-app check, 10 Nov 2026): the range cards NAME the Sundays a booking sets as rest
+// days, from `rangeSundayCorrections` (admin-al-projection.js), before the write. That is only true
+// while the writer below sets exactly those, so the two rules are run side by side on real members'
+// worked and rested Sundays — leave and absence, with nothing, a rest day, worked overtime, a worked
+// shift or leave already on the Sunday, and a day either side — until the writer reads the shared
+// rule itself.
+describe('recordRangeOverrides sets as rest days exactly the Sundays the range cards name', () => {
+    test('every kind of record already on the day, leave and absence alike', async () => {
+        const { rangeSundayCorrections } = await import('./admin-al-projection.js');
+        const { formatISO, getBaseShift, parseISODate } = await import('./roster-data.js');
+        mockAuth.currentUser = { uid: 'x', getIdToken: async () => {} };
+        const already = [null, { type: 'correction', value: 'RD' }, { type: 'rdw', value: '08:00-16:00' },
+            { type: 'shift', value: '08:00-16:00' }, { type: 'annual_leave', value: 'AL' }];
+        /** Two worked and one rested Sunday for each of the first members who have both. */
+        const cases = [];
+        for (const m of teamMembers.filter(x => !x.hidden)) {
+            const worked = [], rested = [];
+            for (let d = new Date(2026, 5, 7); d.getFullYear() < 2028 && (worked.length < 2 || !rested.length); d.setDate(d.getDate() + 7)) {
+                (isRestShift(getBaseShift(m, d)) ? rested : worked).push(formatISO(d));
+            }
+            if (worked.length >= 2 && rested.length) cases.push({ m, sundays: [...worked.slice(0, 2), rested[0]] });
+            if (cases.length >= 4) break;
+        }
+        assert.ok(cases.length >= 2, 'premise: members with worked and rested Sundays');
+        /** @type {Record<string, number>} which kinds met a WORKED Sunday — each must, or its half of the rule went unread */
+        const met = {};
+        for (const { m, sundays } of cases) {
+            for (const sun of sundays) {
+                const day = (/** @type {number} */ n) => { const t = parseISODate(sun); t.setDate(t.getDate() + n); return formatISO(t); };
+                const dates = [day(-1), sun, day(1)];
+                for (const kind of already) {
+                    for (const type of ['annual_leave', 'sick']) {
+                        setAllOverrides(kind ? [{ id: `pre-${sun}`, memberName: m.name, date: sun, source: 'manual', createdAt: new Date(2026, 0, 1), ...kind }] : []);
+                        const expected = rangeSundayCorrections({ dates, memberObj: m, ovByDate: buildMemberDateMap(m.name) });
+                        _batchWrites.length = 0;
+                        const res = await recordRangeOverrides({ type, value: type === 'sick' ? 'SICK' : 'AL', memberName: m.name, dates, changedBy: 'A. Admin' });
+                        const written = _batchWrites.filter(w => w.type === 'correction').map(w => w.date);
+                        assert.deepEqual(written, res.workingCount ? expected : [], `${m.name}, ${type}, ${kind?.type ?? 'nothing'} on ${sun}`);
+                        assert.equal(res.sundayCount, written.length, 'the count the card checks its receipt against');
+                        if (res.workingCount && !isRestShift(getBaseShift(m, parseISODate(sun)))) met[kind?.type ?? 'nothing'] = (met[kind?.type ?? 'nothing'] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+        assert.deepEqual(Object.keys(met).sort(), ['annual_leave', 'correction', 'nothing', 'rdw', 'shift'],
+            'premise: every kind of record was met on a worked Sunday, beside a booking that wrote');
+        mockAuth.currentUser = null;
     });
 });
 
@@ -1122,6 +1206,28 @@ describe('recordRangeOverrides — batches sized by WRITES (Firestore refuses mo
         assert.equal(_commitSizes.reduce((a, b) => a + b, 0), days.length * 3, 'every day: two deletes and its new record');
         assert.equal(new Set(_batchWrites.filter(w => w.type === 'sick').map(w => w.date)).size, days.length, 'every day was written');
     });
+
+    // A PARTIAL COMMIT RESYNCS THE BOOKED MEMBER (whole-app check, Nov 2026). Left to the store's default, a
+    // session that had read "All staff" re-read the collection — capped past 5,000 records, which never
+    // covers the member — so the list stayed untruthful and the member's next save was refused.
+    test('a range whose later batch fails re-reads the booked member, not the collection', async () => {
+        const days = [];
+        for (let d = new Date(Date.UTC(2026, 1, 2)); days.length < 230; d.setUTCDate(d.getUTCDate() + 1)) {
+            const dow = d.getUTCDay();
+            if (dow !== 0 && dow !== 6) days.push(d.toISOString().slice(0, 10));
+        }
+        const dup = (/** @type {string} */ date, /** @type {string} */ tag, /** @type {number} */ secs) =>
+            ({ id: `${tag}-${date}`, memberName: 'C. Reen', date, type: 'shift', value: '12:00-19:00', source: 'manual', createdAt: { seconds: secs } });
+        setAllOverrides(days.flatMap(date => [dup(date, 'dupA', 100), dup(date, 'dupB', 200)]));   // the cache claims everybody
+        _memberReads.length = 0; _failNextCommits = 0; _commitsThatLand = 1;
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin', getIdToken: async () => {} });
+        /** @type {any} */ let err;
+        try {
+            await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: 'C. Reen', dates: days, changedBy: 'G. Miller' });
+        } catch (e) { err = e; } finally { auth.currentUser = null; _commitsThatLand = null; }
+        assert.equal(err?.partialCommit, true, 'premise: the first batch landed and a later one did not');
+        assert.deepEqual(_memberReads, ['C. Reen'], 'the resync reads the booked member');
+    });
 });
 
 describe('recordRangeOverrides — the Sunday correction is provably the booking\'s', () => {
@@ -1249,6 +1355,46 @@ describe('a save is not undone by a load that started before it', () => {
         const dates = getAllOverrides().map(o => o.date);
         assert.ok(dates.includes('2026-09-01'),
             `the just-saved day vanished from the list — cache holds ${JSON.stringify(dates)}`);
+    });
+});
+
+// ── …AND A WEEK THE READER MOVED TO IN THAT WAIT IS NOT REDRAWN BY THE SAVE (A9) ────────────────────
+//
+// "Only the view this save came from" was decided once, BEFORE the wait above, so a navigation that
+// landed inside the wait was redrawn by the save anyway — over whatever was staged there. The week is
+// held still while its own save is sending, so nothing can be staged there now; this is the second lock.
+// The store's renderers are not wired in this file, so every redraw seen here is the save's own.
+describe('a save redraws only the view it came from (A9)', () => {
+    test('a week the reader moved to while the save waited on a running load is left alone', async () => {
+        setAllOverrides([]);
+        mockAuth.currentUser = { getIdToken: async () => 'tok' };
+        const member = { value: 'G. Miller' }, date = { value: '2026-09-07' };
+        const label = { textContent: '', setAttribute() {}, classList: { toggle() {} } };
+        const el = () => ({ innerHTML: '', dataset: {}, style: {}, className: '',
+            classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+            appendChild: (/** @type {any} */ c) => c, insertAdjacentHTML() {}, querySelector: () => null,
+            querySelectorAll: () => [], setAttribute() {}, addEventListener() {} });
+        const { getElementById, createElement } = global.document;
+        global.document.getElementById = (/** @type {string} */ id) =>
+            id === 'fieldMember' ? member : id === 'fieldDate' ? date : id === 'weekNavLabel' ? label : null;
+        global.document.createElement = el;
+        try {
+            const gate = openGetDocsGate();
+            const loading = loadOverrides({ everyone: true });
+            await Promise.resolve();
+            const saving = executeSave([{ memberName: 'G. Miller', date: '2026-09-08', type: 'rdw', value: '06:20-14:00' }], []);
+            for (let i = 0; i < 20; i++) await Promise.resolve();
+            assert.match(label.textContent, /Sep 2026/, 'premise: the save drew its own week as it was committed');
+            date.value = '2026-10-12';        // the reader moves to another week while the save waits
+            label.textContent = 'moved';      // …which that navigation drew
+            gate.resolve([]);
+            await loading;
+            await saving;
+            assert.equal(label.textContent, 'moved', 'the save redrew a week it did not come from');
+        } finally {
+            global.document.getElementById = getElementById;
+            global.document.createElement = createElement;
+        }
     });
 });
 

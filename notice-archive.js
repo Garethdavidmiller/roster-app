@@ -58,7 +58,7 @@ export function archiveNotice({ id, title, section, date, body }) {
         try { parsed = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch { parsed = []; }
         const records = Array.isArray(parsed) ? parsed : [];
 
-        const existing = records
+        const kept = records
             // Drop non-object members first: a null/garbage element would otherwise become
             // `{ ...null, archivedAt }` = a content-less record that survives the expiry filter
             // and later renders as a blank App Notices card (v16.19).
@@ -72,6 +72,13 @@ export function archiveNotice({ id, title, section, date, body }) {
                 return Number.isFinite(t) && (now - t) < expiryMs;
             });
 
+        // A RE-POST REPLACES ITS OLD RECORD (whole-app review, 10 Nov 2026). The same id with a
+        // DIFFERENT posting date is the notice run again — the Pay Calculator's Year to Date notice
+        // ran from 6 Apr and again from 28 Aug under one id — and keeping the first record left App
+        // Notices showing the first run's date and words, aged out 180 days from the FIRST dismissal.
+        // The same id and date stays idempotent: a notice may archive on every showing, and that must
+        // not refresh its age or move it to the top.
+        const existing = kept.filter(n => n.id !== id || n.date === date);
         if (!existing.some(n => n.id === id)) {
             existing.unshift({ id, title, section, date, body, archivedAt: nowIso });
         }

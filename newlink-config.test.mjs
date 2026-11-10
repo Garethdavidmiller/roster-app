@@ -5,7 +5,7 @@
  *
  * `PHASE` is the page's lifecycle switch: 'preview' until v25.59 (the admin and the named previewers, CONFIG.NEWLINK_PREVIEW,
  * S. Silva since v25.33), 'open' since v25.60 (owner, 9 Nov 2026: "send the new links section live for everyone with a cea
- * contract and the managers"). Two failures are possible and both are silent in the app — the policy widened ahead of the
+ * contract and the managers"), and 'decided' once CHOSEN names the design chosen (owner, 10 Nov 2026). Two failures are possible and both are silent in the app — the policy widened ahead of the
  * switch, or the switch flipped to a phase whose gate does not exist, so the page tells colleagues it is open while nobody
  * but the admin can reach it. And since the gate's audience is written in auth-policy.js (which may not import this file),
  * a third: the two copies of who the page is for drifting apart. This file holds the switch, the policy, the pill and the
@@ -15,16 +15,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as config from './newlink-config.js';
-import { PHASE, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
+import { PHASE, CHOSEN, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { CHANGE_DATE } from './trains-data.js';
-import { closesWords, startsWords } from './newlink-render.js';
+import { closesWords, startsWords, designName } from './newlink-render.js';
+import { PROPOSALS } from './links-proposals.js';
 import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink, rolesFor } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
 
 test('the page is open — the switch, the policy and the pill agree', () => {
-    // 'open' exactly while the policy admits the audience: the switch and its gate move together or this fails
-    assert.equal(PHASE, 'open', 'open since v25.60 (owner, 9 Nov 2026)');
-    assert.equal(PAGE_POLICIES.newlink.role.includes('newlinkAudience'), PHASE === 'open', 'the switch and the gate have parted');
+    // Past 'preview' exactly while the policy admits the audience: the switch and its gate move together or this fails.
+    // 'decided' (owner, 10 Nov 2026) is open to the same people: it changes what the page says, never who may read it.
+    assert.equal(PHASE, CHOSEN === null ? 'open' : 'decided', 'open since v25.60 (owner, 9 Nov 2026), decided once CHOSEN names the design');
+    assert.equal(PAGE_POLICIES.newlink.role.includes('newlinkAudience'), PHASE !== 'preview', 'the switch and the gate have parted');
     assert.deepEqual(PAGE_POLICIES.newlink.role, ['admin', 'newlinkPreview', 'newlinkAudience']);
     assert.equal(admitsStaffPin('newlink'), false, 'never the station PIN (owner, 2 Nov 2026: "No, signed-in only")');
     const nav = readFileSync(new URL('./nav-panel.js', import.meta.url), 'utf8');
@@ -72,6 +74,16 @@ test('the pill is offered to exactly the people the page admits — every name o
     for (const n of CONFIG.NEWLINK_PREVIEW) {
         assert.ok(teamMembers.some(m => m.name === n && !m.hidden), `${n} is not an active name on the roster — spell it as teamMembers does`);
     }
+});
+
+// THE DECIDED STATE IS ONE LINE (owner, 10 Nov 2026: "Add a 'decided' state"), and the line can be mistyped. The page refuses a
+// name that is not on the shortlist — it goes on as though nothing were chosen (newlink-render.test.mjs) — so a typo would
+// ship silently as "no decision"; this is where it fails instead, before it ships.
+test('the chosen design is one of the shortlist by its name on the page, or null — and the phase follows it', () => {
+    const names = PROPOSALS.map(designName);
+    assert.deepEqual([...names].sort(), ['Balanced V6', 'Level Crossing', 'Middle Ground'], 'premise: the shortlist the setting names from');
+    assert.ok(CHOSEN === null || names.includes(CHOSEN), `CHOSEN is "${CHOSEN}", which is not one of the shortlist — spell it as the page does: ${names.join(', ')}`);
+    assert.equal(PHASE === 'decided', CHOSEN !== null, 'PHASE follows CHOSEN, so the two cannot disagree');
 });
 
 test('the closing date is a real day, or null — "a date to be agreed"', () => {

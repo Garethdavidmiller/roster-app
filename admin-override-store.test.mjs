@@ -101,6 +101,14 @@ mock.module('./firebase-client.js', {
 let _serverCached = false;
 let _serverFails = false;
 
+// THE SESSION (Nov 2026). Every read waits for `sessionReady`. It is a one-shot promise in the app, so the
+// mock hands out a THENABLE that defers to whichever promise a test set: settled for everybody, held for
+// the one test that is about the wait — and no test depends on the order the others ran in.
+/** @type {Promise<boolean>} */ let _session = Promise.resolve(true);
+mock.module('./session.js', {
+    namedExports: { sessionReady: { then: (/** @type {any} */ ok, /** @type {any} */ no) => _session.then(ok, no) } },
+});
+
 /** A read held open until the test releases it. The only way to express "a second load arrived
  *  while the first was still out", which is where every defect in block 1 lives. */
 function gate() {
@@ -128,6 +136,7 @@ beforeEach(() => {
     _els = {};
     _reads = [];
     _handler = async () => [];
+    _session = Promise.resolve(true);
 });
 
 const row = (/** @type {string} */ id, /** @type {string} */ member, /** @type {string} */ date) =>
@@ -199,6 +208,24 @@ describe('1 · the load never happens', () => {
         await store.loadOverrides({ member: 'A. One' });
         assert.equal(_reads.length, 2);
         assert.equal(store.getAllOverrides().length, 1);
+    });
+
+    // The boot read went out before the silent sign-in had landed — with no credential, which the rules
+    // refuse — and nothing read again once it had. See loadOverrides' own comment.
+    test('no read goes out until the session is there, and the first load reads once it is', async () => {
+        const { store } = await freshStore();
+        /** @type {(v: boolean) => void} */ let signedIn = () => {};
+        _session = new Promise(res => { signedIn = res; });
+        _handler = async () => [row('a1', 'A. One', '2026-09-01')];
+
+        const boot = store.loadOverrides({ member: 'A. One' });
+        await tick(); await tick();
+        assert.equal(_reads.length, 0, 'no read while the sign-in is still out');
+
+        signedIn(true);
+        await boot;
+        assert.deepEqual(_reads.map(r => r.member), ['A. One'], 'the held read runs, once, when the session lands');
+        assert.equal(store.hasOverrideAuthorityFor('A. One'), true);
     });
 });
 
@@ -272,6 +299,47 @@ describe('2 · the cache claims to know what it never read', () => {
         assert.equal(store.loadFailedFor('A. One'), false, 'a success clears the failure');
     });
 
+    // RETRY AFTER A CAPPED "ALL STAFF" READ (whole-app check, Nov 2026). Left to its default, a Retry asked
+    // for everybody again — the capped collection, which never covers the member — so it redrew the same
+    // failure for ever. Only switching away and back, or a reload, got out.
+    test('Retry after a capped All-staff read fetches the member whose own read failed', async () => {
+        const { store } = await freshStore();
+        const cap = store.OVERRIDES_QUERY_CAP;
+        el('overrideTableBody'); el('retryLoadLink');
+        _handler = async () => Array.from({ length: cap + 1 }, (_, i) => row(`x${i}`, 'B. Two', '2026-09-01'));
+        await store.loadOverrides({ everyone: true });
+        el('fieldMember').value = 'A. One';   // then the manager picks somebody, and their read is dropped
+        _handler = async q => { if (q.member) throw new Error('dropped'); return []; };
+        await store.ensureMemberLoaded('A. One');
+        assert.equal(store.loadFailedFor('A. One'), true, 'premise: the member read failed');
+
+        _reads = [];
+        _handler = async q => (q.member ? [row('a1', 'A. One', '2026-09-01')] : Array.from({ length: cap + 1 }, (_, i) => row(`x${i}`, 'B. Two', '2026-09-01')));
+        fire('retryLoadLink', 'click');
+        await store.whenLoadSettled();
+        assert.deepEqual(_reads, [{ member: 'A. One', cap: null }], 'Retry reads the member, not the capped collection');
+        assert.equal(store.hasOverrideAuthorityFor('A. One'), true);
+        assert.equal(store.loadFailedFor('A. One'), false);
+    });
+
+    // …and its cousin: a member on screen whom only an earlier COMPLETE read covered loses cover when a later
+    // refresh comes back capped. Nothing was failing, so nothing offered a Retry: "Loading…" for ever.
+    test('a refresh that comes back capped reads the member on screen it no longer covers', async () => {
+        const { store } = await freshStore();
+        const cap = store.OVERRIDES_QUERY_CAP;
+        el('fieldMember').value = 'B. Two'; el('fieldDate').value = '2026-09-07';
+        _handler = async () => [row('a1', 'A. One', '2026-09-01')];
+        await store.loadOverrides({ everyone: true });
+        assert.equal(store.hasOverrideAuthorityFor('B. Two'), true, 'premise: a complete read covers everybody');
+
+        _reads = [];
+        _handler = async q => (q.member ? [row('b1', 'B. Two', '2026-09-03')] : Array.from({ length: cap + 1 }, (_, i) => row(`x${i}`, 'A. One', '2026-09-01')));
+        await store.loadOverrides();   // the return-to-page refresh: everybody, as the cache claims
+        await store.whenLoadSettled();
+        assert.deepEqual(_reads, [{ member: null, cap: cap + 1 }, { member: 'B. Two', cap: null }]);
+        assert.equal(store.hasOverrideAuthorityFor('B. Two'), true);
+    });
+
     test('a delete drops rows without widening what the cache claims', async () => {
         const { store } = await freshStore();
         _handler = async () => [row('a1', 'A. One', '2026-09-01'), row('a2', 'A. One', '2026-09-02')];
@@ -293,6 +361,18 @@ describe('2 · the cache claims to know what it never read', () => {
     });
 });
 
+
+describe('2b · the cache is newest first, whichever read filled it (whole-app check, Nov 2026)', () => {
+    test('a member read, which Firestore answers in document-id order, is held newest first', async () => {
+        // No `orderBy` on the member query (it needs no index), so ids decide the order: a roster import's
+        // random id among the `m_<date>_…` manual ones. The Saved Changes list draws the cache as it stands.
+        const { store } = await freshStore();
+        _handler = async () => [row('m_2026-09-01_A', 'A. One', '2026-09-01'), row('Zx81', 'A. One', '2026-09-20'),
+            row('m_2026-09-10_A', 'A. One', '2026-09-10'), row('aB3', 'A. One', '2026-08-30')];
+        await store.loadOverrides({ member: 'A. One' });
+        assert.deepEqual(store.getAllOverrides().map(o => o.date), ['2026-09-20', '2026-09-10', '2026-09-01', '2026-08-30']);
+    });
+});
 
 describe('3 · the cache keeps what has been deleted', () => {
     test('a member read REPLACES that member’s slice', async () => {

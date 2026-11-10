@@ -52,7 +52,7 @@
 
 import { isSunday, getBaseShift, parseISODate } from './roster-data.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
-import { isRestShift, isContractedWorkOverride, contractEvidence, nextReplacedType } from './override-utils.js';
+import { isRestShift, isContractedWorkOverride, contractEvidence, nextReplacedType, isBeforeMemberStart } from './override-utils.js';
 import { isWorkingDate } from './al-entitlement.js';
 
 /**
@@ -71,13 +71,19 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
     if (!memberObj || !Array.isArray(dates)) return [];
     return [...new Set(dates)].sort().filter(date => {
         if (isSunday(date)) return false;                     // never holds AL at all
+        // Nor a day before the member's start date (whole-app check, 10 Nov 2026): the base roster reads
+        // as rest there, but nothing is ever written before the start (`rangeWriteDates`, admin-1-11's
+        // week-grid refusal), so the question could only invite leave the Calendar never shows.
+        if (isBeforeMemberStart(memberObj, parseISODate(date))) return false;
         // Christmas Day and Boxing Day are never asked about (v25.37): leave there costs nothing
         // whatever the answer (al-entitlement.js), so the question could not change anything —
         // and a member due at work already HAS the leave, shown from the roster (christmas-leave.js).
         if (isChristmasClosureDate(date)) return false;
         const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
         // An override that answers the contract question — either way — settles the day. Read THROUGH
-        // leave and an absence to what they replaced (review A2), as `consumesEntitlement` does.
+        // leave and an absence to what they replaced (review A2), as `consumesEntitlement` does. (It
+        // also passes the base, which can only turn a yes into a no — so a rest-day Other day or Spare
+        // turn is settled here either way, and never asked: free, like RDW, 10 Nov 2026.)
         if (isContractedWorkOverride(contractEvidence(ov)) !== null) return false;
         // Nothing informative on the day: the base roster decides, and only a REST answer is a question.
         return isRestShift(getBaseShift(memberObj, parseISODate(date)));
@@ -93,8 +99,10 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
  * the type a swapped-in day would have had if anybody had recorded the swap.
  *
  * An existing chain that already names contracted work is kept rather than overwritten: it is a
- * stronger record than our reconstruction, and it may name `spare_shift` or `other`, which this must
- * not flatten.
+ * stronger record than our reconstruction (a retired `swap` or `allocated` stays itself). Kept only
+ * if it is contracted work ON A REST DAY, though, because a declared swap always is one — only a rest
+ * day is asked about. An Other day or a Spare turn is not, there (owner, 10 Nov 2026: leave over one
+ * is free, like RDW), so carrying `other` or `spare_shift` would leave the declared swap free.
  *
  * @param {any} existing the override currently on the date, if any
  * @param {string} newType the type being written (`annual_leave`)
@@ -102,7 +110,7 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
  */
 export function replacedTypeForSwap(existing, newType) {
     const carried = nextReplacedType(existing, newType);
-    if (carried && isContractedWorkOverride({ type: carried }) === true) return carried;
+    if (carried && isContractedWorkOverride({ type: carried }, 'RD') === true) return carried;
     return 'shift';
 }
 
@@ -114,7 +122,8 @@ export function replacedTypeForSwap(existing, newType) {
  * not a rest value, so it passed, and leave was written over the absence on a day the admin had
  * just answered "Rest day — free" — which means NOTHING IS WRITTEN, on both surfaces (CLAUDE.md).
  * Every other date is `isWorkingDate`'s, as before (Sundays never). Absence is never asked about,
- * so an absence range is unchanged.
+ * so an absence range is unchanged. A date before the member's start date is never written, for
+ * either type — the Calendar shows nothing there (whole-app check, 10 Nov 2026; admin-1-11).
  *
  * @param {object} args
  * @param {string} args.type `'annual_leave'` | `'sick'`
@@ -128,5 +137,6 @@ export function rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates
     if (!memberObj || !Array.isArray(dates)) return [];
     const swapped = new Set(swappedDates.filter(d => !isSunday(d)));
     const asked = new Set(type === 'annual_leave' ? swapDecisionDates({ dates, memberObj, ovByDate }) : []);
-    return dates.filter(d => asked.has(d) ? swapped.has(d) : isWorkingDate(memberObj, d, ovByDate) || swapped.has(d));
+    return dates.filter(d => !isBeforeMemberStart(memberObj, parseISODate(d))
+        && (asked.has(d) ? swapped.has(d) : isWorkingDate(memberObj, d, ovByDate) || swapped.has(d)));
 }

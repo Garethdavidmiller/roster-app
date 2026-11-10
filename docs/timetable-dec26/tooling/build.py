@@ -144,7 +144,7 @@ if unknown:
 
 
 def table(rows):
-    # Six rows a line: a timetable is long, and one row a line put this file over the repo's
+    # Three rows a line: a timetable is long, and one row a line put this file over the repo's
     # module-size ratchet with nothing in it but data.
     cells = [f"['{t}', '{c}', '{v}', '{d}', '{p}']" for t, c, v, d, p in rows]
     lines = [', '.join(cells[i:i + 3]) for i in range(0, len(cells), 3)]
@@ -207,12 +207,6 @@ export const LEAF_FALL = Object.freeze({
     until: '2027-01-10',
     minutes: 3,
     stations: Object.freeze(['AVP', 'AYS', 'SKM', 'WND', 'GMN', 'AMR', 'CFO', 'CLW']),
-});
-
-/** Where each side of the comparison came from. The page's ? panel says the same in words. */
-export const SOURCES = Object.freeze({
-    now: 'Chiltern Railways public timetables, valid until 12 December 2026',
-    dec: '""" + ("Chiltern Railways public timetables, valid from 13 December 2026 until 15 May 2027" if DEC_BOOKS else "Chiltern Railways December 2026 Marylebone timetable plan — weekend plans final, the weekday plan still a draft") + """',
 });
 
 /** @type {Readonly<Record<string, string>>} */

@@ -101,12 +101,13 @@ two reasons:
 
 ## Updating when a new issue arrives
 
-Re-run every step, then update `SOURCES` in `build.py` to the new issue's validity, and
-`CHANGE_DATE` if the timetable change moves. `CHANGE_DATE` is the first day of the new timetable.
+Re-run every step, then update `CHANGE_DATE` in `build.py` if the timetable change moves.
+`CHANGE_DATE` is the first day of the new timetable.
 `FURTHER_CHANGES_UNTIL` is the last day of any changes Chiltern says it will still make after that
 (its timetable page said 10 January 2027 for this issue, with "significant changes over the Christmas
-and New Year period"); until then the page says Christmas and New Year are not on it. Read it off
-Chiltern's timetable page for each issue — the books do not carry it.
+and New Year period"); until then the page says those changes are not on it, naming Christmas and New
+Year only when the weeks hold them. Read it off Chiltern's timetable page for each issue — the books
+do not carry it.
 `DEC_VALID_UNTIL` is the last day of the new books ("until Saturday 15 May 2027"); after it the page
 says both timetables have ended. `LEAF_FALL` is Chiltern's autumn timetable — its end date, how many
 minutes early London-bound trains run, and on which stations (all from its timetable page) — because

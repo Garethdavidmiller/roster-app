@@ -107,8 +107,10 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 - **Sign-out.** The drawer's Sign out — once the page has committed to it (a `beforeSignOut` cancel
   keeps the record) — and the Calendar's "Use the staff PIN instead" hand-over call
   `releaseDevicePush` (`notif.js`), which deletes this device's record, so a targeted notice never
-  follows a member onto a shared device they have left. The next load re-saves the record as whoever
-  is signed in then. **Where the delete cannot run as the owner** (the Calendar's member card is shown
+  follows a member onto a shared device they have left. The next signed-in CALENDAR load re-saves the
+  record as whoever is signed in then (`getNotifState`'s only caller). Until then, a member who signs
+  in on another page sees notifications as on, because the bell and Settings read the browser's own
+  subscription (`peekNotifState`), with no record behind it. **Where the delete cannot run as the owner** (the Calendar's member card is shown
   precisely when the member's Firebase identity has gone), the browser subscription is dropped
   instead, and the next send's 410 makes the server delete the record.
 - **A hold that ends without a sign-out.** `reconcileExpiredIdentity` releases the record before
@@ -261,7 +263,7 @@ scope-relative URL.
    deep-link list above.
 4. Build the payload with `buildPushPayload` — never a raw literal — and pick the right sender:
    **`fanOutPush`** if every member should see it, **`sendTargetedPush`** if it names or concerns one
-   person. Ask "would I be happy for all 50 staff to read this?" — if not, it is targeted.
+   person, or applies only to some members (the pay reminder: CEA and CES). Ask "would I be happy for all 50 staff to read this?" — if not, it is targeted.
 5. Add its tag to `PUSH_TTL_BY_TAG` (above).
 6. Confirm against the length budgets and the no-exclamation tone rule. `sw-asset-check.test.mjs`
    checks the deep link's page is allowlisted, for both `hashPath` features and `url:`-at-call-time

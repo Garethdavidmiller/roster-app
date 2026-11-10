@@ -4,21 +4,19 @@
  * importer pulls varies; grep the import rather than trusting a list here.
  *
  * Owns: session constants, localStorage session read/write/clear, the Firebase Auth sign-in
- *   lifecycle (ensureNamedSession → ensureFirebaseSession), the expired-identity teardown, the
- *   staff-PIN checks for pages that admit the PIN, and password derivation (getSurname).
+ *   lifecycle (ensureNamedSession → ensureFirebaseSession), the expired-identity teardown, and the
+ *   staff-PIN checks for pages that admit the PIN.
  * Does NOT own: the sign-in UI (login-overlay.js), what a page does when its session fails
- *   (page-session.js), page access (auth-policy.js), or Firestore writes.
- * Edit here for: session expiry, password derivation rule changes, Firebase Auth strategy.
- *
- * ⚠️ WARNING: changing getSurname will lock out every staff member. Any change
- *   must be accompanied by a password reset for all affected users.
+ *   (page-session.js), page access (auth-policy.js), Firestore writes, or how an account's email
+ *   and surname default are derived (auth-identity.js — its header carries the lock-out warning).
+ * Edit here for: session expiry, Firebase Auth strategy.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, probeResetAtMs } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, probeResetAtMs } from './firebase-client.js';
 // PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
 // PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
-// second place a bypass could be introduced. calendar-access-core.js imports nothing, so this adds
-// no cycle (asserted by import-graph.test.mjs).
+// second place a bypass could be introduced. calendar-access-core.js imports only the pure
+// auth-identity.js, so this adds no cycle (asserted by import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -40,10 +38,11 @@ import { dispatchAuth } from './auth-state.js';
 /**
  * Feed the auth STORE (AUTH_ARCHITECTURE.md Phase 2). This is a pure side-effect, wrapped so
  * a store error can NEVER break the auth path; `sessionReady` and every existing flow are
- * untouched (session.js still owns the Firebase lifecycle). The store IS now consumed: the 5
- * write coordinators read it at init via `getAuthSnapshot()` + `requirePage()` (auth-policy.js).
- * The full single-owner auth shell (live
- * subscriptions, `sessionReady` re-routed onto the store) is still future work.
+ * untouched (session.js still owns the Firebase lifecycle). The store IS consumed, once per page:
+ * every named page's `guardNamedSession` (page-session.js) and the Pay Calculator read it through
+ * `getAuthSnapshot()` + `requirePage()` (auth-policy.js), and the forced password overlay reads its
+ * status. The full single-owner auth shell (live subscriptions, `sessionReady` re-routed onto the
+ * store) is still future work.
  * @param {{ type: string, member?: string|null, error?: string|null }} event
  */
 function _feedAuth(event) {
@@ -119,19 +118,6 @@ export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 // Removed rather than left at a longer value: a dormant policy with no effect is the kind of thing
 // that gets "restored" later by someone who assumes it was load-bearing.
 
-/**
- * Derive the login password from a staff member's display name.
- * Delegates to `normaliseSurname` (auth-identity.js) — the SINGLE source for the derivation
- * rules (surname extraction, multi-word join, lowercase, non-alpha strip). Do not re-document
- * or re-implement those rules here; a mismatch would lock members out. surname-parity.test.mjs
- * enforces this stays in sync with the functions-side duplicate.
- * @param {string} fullName - Display name exactly as stored in teamMembers, e.g. "G. Miller"
- * @returns {string} Lowercase password with all non-alpha characters removed
- */
-export function getSurname(fullName) {
-    return normaliseSurname(fullName);
-}
-
 /** @type {(value: any) => void} */
 let _sessionResolve;
 /**
@@ -175,14 +161,14 @@ let _fbIdentity = 'none';
 /** @type {string | undefined} The auth error code behind the last non-'named' outcome, for diagnostics. */
 let _fbAuthError;
 
+/** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
+export const AUTH_READY_TIMEOUT_MS = 20000;
 /** Monotonic auth-attempt generation (stale-completion guard, SECURITY_RELEASE_PLAN.md prep for B1/B3).
  *  `runNamedSignIn` time-boxes the auth promise but cannot CANCEL the underlying Firebase work, so a
  *  timed-out attempt can resolve LATE — after the user retried and a newer attempt already won. A
  *  superseded attempt (its captured gen ≠ this counter) must drop ALL its terminal writes so it can't
  *  clobber the shared `_fbIdentity`/auth-store to a stale value (which under B1 could cause a spurious
  *  re-login). Each `ensureNamedSession` bumps it; `ensureFirebaseSession` inherits or (direct call) bumps. */
-/** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
-export const AUTH_READY_TIMEOUT_MS = 20000;
 let _authGen = 0;
 /** The generation an explicit clearSession() took — see the late-landing check in ensureFirebaseSession. */
 let _clearedGen = -1;
@@ -320,7 +306,8 @@ const _noDefaultKey = (name) => _NO_DEFAULT_PREFIX + name;
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
- * Firestore Security Rules require `request.auth != null` for every write.
+ * Firestore Security Rules refuse every write that carries no claim — a member's own needs their
+ * bound name (AUTH_AND_SESSIONS.md 4, 9, 19), which only their own signed-in account has.
  * The login click handler signs in to Firebase — but a returning user with a
  * valid 60-day localStorage session skips that handler, so on a normal app open
  * the Firebase Auth session was never (re-)established.
@@ -387,8 +374,8 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // `shedCalendarViewer` THROWS when it cannot confirm the viewer is gone (v20.35 — it used to
     // warn and carry on, which migrated the shared viewer into long-lived persistence on exactly
     // the path that must not). Convert that to a clean failed sign-in rather than letting it reject:
-    // four coordinators hand this promise straight to `resolveSession()` with no catch, so a
-    // rejection here would reject `sessionReady` app-wide and surface as unhandled. Returning
+    // every write page's coordinator hands this promise straight to `resolveSession()` with no catch,
+    // so a rejection here would reject `sessionReady` app-wide and surface as unhandled. Returning
     // 'none' keeps the security property (persistence untouched, no viewer promoted) AND keeps the
     // failure inside the sign-in flow, where the login overlay already reports it and offers a retry.
     try {
@@ -436,7 +423,20 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
     if (existing) {
-        await firebaseSignOut(auth);
+        // A sign-out the browser cannot complete ENDS this attempt; it must never reject it
+        // (sessions-4, Nov 2026) — every write page hands this promise to resolveSession() with no
+        // catch, so a rejection left sessionReady rejected and no sign-in offered. Nothing is signed
+        // in past it, as with the viewer above. The code is TRANSIENT: a stored account the browser
+        // could not delete (the SDK's auth/internal-error) says nothing about the member, and the SDK
+        // has already dropped it from memory, so ensureNamedSession's retry finds nobody to sign out.
+        try {
+            await firebaseSignOut(auth);
+        } catch (err) {
+            console.warn('[Auth] could not sign out the account restored here — sign-in attempt ended:',
+                /** @type {any} */ (err)?.code ?? /** @type {any} */ (err)?.message);
+            recordError('auth/previous-user-shed-failed');
+            return commit('none', false);
+        }
         // Re-check the generation AFTER the sign-out await (v16.69 review fix): an attempt
         // superseded DURING firebaseSignOut would otherwise resume and run the sign-in calls
         // below, replacing the WINNING attempt's freshly-established session on the shared
@@ -557,6 +557,9 @@ const _TRANSIENT_AUTH_CODES = new Set([
     // exactly as a blip on the sign-in itself always was; and NAMED, so a probe that has stopped
     // working in production shows in every place a sign-in error already surfaces.
     'auth/reset-check-unavailable',
+    // The account restored here could not be signed out before a member's sign-in (sessions-4) — the
+    // same storage failure the SDK itself reports as auth/internal-error, above; named for what happened.
+    'auth/previous-user-shed-failed',
 ]);
 
 /** @param {string|undefined} code @returns {boolean} */
@@ -592,7 +595,7 @@ function _worthRetrying() {
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300, password } = {}) {
     const gen = ++_authGen;   // generation guard — a superseded attempt must not publish a stale terminal state
     _genName = name;
-    _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
+    _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving
     _authStartStalled = false;
     let ok = await ensureFirebaseSession(name, gen, password);
     let attempt = 0;
@@ -755,7 +758,7 @@ export function clearSession() {
     // deleted (v24.59, calendar-snapshot.js). A shared device must not keep it past the session.
     lsDel(CALENDAR_SNAPSHOT);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
-    _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut (observing only — Phase 2)
+    _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut
 }
 
 /**
@@ -906,6 +909,10 @@ async function releasePushForEndingHold() {
     }
 }
 
+/** The whole access decision's deadline, in ms — the Calendar's (resolveAccess) and the PIN check's
+ *  (holdsStaffPin) alike. ONE constant since v24.96: calendar-access.js imports it from here. */
+export const ACCESS_DECISION_BUDGET_MS = 6500;
+
 /**
  * Does this browser hold the shared staff PIN — and KEEP it? (v24.84)
  *
@@ -926,10 +933,6 @@ async function releasePushForEndingHold() {
  * @param {number} [budgetMs]  the whole decision's deadline — the Calendar's, by default
  * @returns {Promise<boolean>}
  */
-/** The whole access decision's deadline, in ms — the Calendar's (resolveAccess) and the PIN check's
- *  (holdsStaffPin) alike. ONE constant since v24.96: calendar-access.js imports it from here. */
-export const ACCESS_DECISION_BUDGET_MS = 6500;
-
 export async function holdsStaffPin(budgetMs = ACCESS_DECISION_BUDGET_MS) {
     const started = Date.now();
     const remaining = () => Math.max(0, budgetMs - (Date.now() - started));

@@ -33,7 +33,7 @@
 
   <!--
     Module preload (v14.94 load-speed pass). paycalc's static import graph is the deepest
-    in the app — paycalc-boot → paycalc-app → 32 modules, several levels down to
+    in the app — paycalc-boot → paycalc-app → every module listed below, several levels down to
     session → firebase-client → the gstatic Firebase SDK. Without these hints the browser
     discovers modules in a WATERFALL (parse a file, THEN fetch its imports), so the heavy
     cross-origin Firebase SDK doesn't even start downloading until the chain reaches
@@ -88,6 +88,7 @@
   <link rel="modulepreload" href="./paycalc-role-card.js">
   <link rel="modulepreload" href="./paycalc-backpay.js">
     <link rel="modulepreload" href="./paycalc-backpay-state.js">
+  <link rel="modulepreload" href="./paycalc-backpay-accrual.js">
     <link rel="modulepreload" href="./paycalc-pension.js">
   <link rel="modulepreload" href="./paycalc-breakdown.js">
   <link rel="modulepreload" href="./paycalc-calc.js">
@@ -221,7 +222,8 @@
           <option value="cea">CEA</option>
           <option value="ces">CES</option>
         </select>
-        <!-- Rates filled by paycalc-app.js from GRADES — one-place update at the April pay award -->
+        <!-- Static copy that names the two grades; nothing writes it. The rate itself is the read-only
+             field below, derived from the grade (paycalc-settings.js → updateRateForPeriod). -->
         <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. Your grade sets the hourly rate below.</div>
       </div>
 
@@ -247,7 +249,9 @@
         <label for="pensionAmt">Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
-          <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+          <!-- No figure in the markup: the payslip on screen paints its own (paycalc-settings.js and
+               loadPeriodData), and a hard-coded one here was a past default by the next award. -->
+          <input type="text" id="pensionAmt" value="" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — the <strong>Railways Pension Scheme</strong>. <strong>Saved per payslip</strong> — change it here and past payslips keep their own amount.</div>
         <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> Pension exceeds gross pay — check the amount</div>
@@ -312,7 +316,7 @@
         <div class="field-hint">If your payslip <strong>stopped</strong> showing a student loan deduction — repaid in full, or moved to direct debit — pick the <strong>first payslip that had no deduction</strong>. Earlier payslips keep theirs, so they still match. This is one-way: if deductions later <strong>restart</strong>, leave this as No and instead tick "not deducted this period" on each payslip in the gap.</div>
       </div>
 
-      <button type="button" class="btn-primary" id="saveSettingsBtn">Save settings</button>
+      <button type="button" class="btn-action btn-primary" id="saveSettingsBtn">Save settings</button>
       <div id="settingsSaveFeedback" class="settings-save-feedback" role="status" aria-live="polite"></div>
 
       <!-- Owner-only: device-local payslip actuals import. Hidden by default; revealed by
@@ -378,6 +382,10 @@
         </div>
         <div class="roster-rows" id="rosterRows"></div>
         <p class="roster-card-note" id="rosterHintText">Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.</p>
+        <!-- What a fill did, for a screen reader (paycalc-3-14): the receipt above is a plain paragraph,
+             rewritten on every refresh, so it cannot be the live region without talking over the
+             member. paycalc-roster-hint.js writes the same words here, and clears them with it. -->
+        <p class="visually-hidden" id="rosterFillStatus" role="status" aria-live="polite"></p>
         <div class="roster-card-actions">
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from calendar</button>
           <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
@@ -563,21 +571,25 @@
       </div>
 
       <!-- No section heading here (v21.70). "PEER TRAINING" was an uppercase divider announcing
-           ONE row whose own title already reads "Training Days" — a heading that says nothing the
-           thing beneath it does not, while claiming the visual rank of the two real groups above.
-           A divider earns its keep by separating things; with a single member it only adds a line
-           to scroll past. Restore it if a second peer-training row is ever added. -->
+           ONE row whose own title says the same — a heading that says nothing the thing beneath it
+           does not, while claiming the visual rank of the two real groups above. A divider earns
+           its keep by separating things; with a single member it only adds a line to scroll past.
+           Restore it if a second peer-training row is ever added.
+           THE TITLE IS "PEER TRAINING", NOT "TRAINING DAYS" (paycalc-3-18): the Calendar calls a day
+           a member ATTENDS training a Training day, and a trainee meeting "Training Days" with a +
+           button could count their own. No payslip line is called either — peer training shows as
+           extra basic pay (paycalc.md) — so the row says what it is. -->
 
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title"><span aria-hidden="true">🎓</span> Training Days</div>
+          <div class="h-title"><span aria-hidden="true">🎓</span> Peer Training</div>
           <span class="rate-badge badge-peer">+2 hrs pay</span>
           <div class="h-sub">Each day you trained a colleague adds 2 hours' pay at your basic rate. <span class="h-payslip">Shows as extra basic pay on your payslip.</span></div>
         </div>
         <div class="stepper">
-          <button type="button" id="peerMinus" aria-label="Decrease peer-training sessions">−</button>
-          <div class="stepper-val" id="peerVal" role="status" aria-live="polite" aria-label="Peer-training sessions">0</div>
-          <button type="button" id="peerPlus"  aria-label="Increase peer-training sessions">+</button>
+          <button type="button" id="peerMinus" aria-label="Decrease peer-training days">−</button>
+          <div class="stepper-val" id="peerVal" role="status" aria-live="polite" aria-label="Peer-training days">0</div>
+          <button type="button" id="peerPlus"  aria-label="Increase peer-training days">+</button>
         </div>
       </div>
 
@@ -669,16 +681,19 @@
       </div>
       <div class="check-actual-verdict" id="actualVerdict" aria-live="polite"></div>
       <!-- The other payslip lines (v22.07): optional, behind a disclosure — the net check stays
-           the one-field quick path. Labels are the payslip's own line names; each figure autosaves
-           into this period's blob like actualNet (null when blank — never a phantom £0). The
-           comparison table renders only when a line beyond the net is entered. -->
+           the one-field quick path. Labels are the result card's own row names, not the payslip's line
+           names (the payslip prints the pension as "Smart RPS CR Scheme") — except the pay line, which
+           is the payslip's own Taxable Pay, after the pension, set against the summary's Pay after
+           pension deduction (buildActualComparison). Each figure autosaves into this period's blob
+           like actualNet (null when blank — never a phantom £0). The comparison table renders only
+           when a line beyond the net is entered. -->
       <button type="button" class="check-more-btn" id="actualMoreBtn" aria-expanded="false" aria-controls="actualMoreWrap">
         Compare more payslip lines <span class="bd-arrow" aria-hidden="true">▼</span>
       </button>
       <div class="check-more" id="actualMoreWrap" hidden>
         <div class="check-more-grid">
-          <label class="check-more-field">Total pay
-            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualGrossInput" inputmode="decimal" autocomplete="off" placeholder="Gross"></span>
+          <label class="check-more-field">Taxable Pay
+            <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualGrossInput" inputmode="decimal" autocomplete="off" placeholder="Taxable Pay"></span>
           </label>
           <label class="check-more-field">Pension contribution
             <span class="pfx"><span class="pfx-sym">£</span><input type="text" id="actualPensionInput" inputmode="decimal" autocomplete="off" placeholder="Pension"></span>
@@ -1105,7 +1120,7 @@
   </div>
 </div>
 
-<!-- About lightbox: opened by tapping the header icon -->
+<!-- About lightbox: opened from the drawer (the header icon goes back to the calendar — wireHeaderLogo) -->
 <div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Pay Calculator" aria-modal="true">
   <div id="iconLightboxContent" class="lb-content">
   <button id="iconLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>

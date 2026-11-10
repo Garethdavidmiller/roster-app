@@ -35,6 +35,15 @@
 
 /* ── Shift-badge reference grid ──────────────────────── */
 .badge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+/* On screen, two columns only while two badges fit side by side, else one. Two fixed `1fr` tracks
+   could not shrink below their widest badge, so under a larger text size the grid widened the
+   whole column past the screen's edge (19px at 1.5× on a 375px phone). A track is at least half the
+   grid — never a third column — and at least 12.5em, which grows with the text: a 360px phone keeps
+   the pair at the default size and stacks it from about 1.15×. Print keeps the pair: its two
+   sheets have ~7px to spare (see the print block below). */
+@media screen {
+    .badge-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(12.5em, (100% - 7px) / 2)), 1fr)); }
+}
 .badge-item {
     display: flex;
     align-items: center;

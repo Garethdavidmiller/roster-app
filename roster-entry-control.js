@@ -4,7 +4,7 @@
  *
  * Owns: the little type-pill + times editor that appears under an UNREADABLE review row, and the
  *   one rule about when a half-finished entry becomes a value.
- * Does NOT own: what an unreadable cell IS (admin-roster-upload.js), the value grammar
+ * Does NOT own: what an unreadable cell IS (roster-review-states.js), the value grammar
  *   (`manualCellValue`, override-utils.js) or the guards (`normaliseCellValue`, roster-cell-rules.js).
  * Edit here for: the control's markup, or what it says while incomplete.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
@@ -51,15 +51,14 @@ import { escapeHtml as esc, isSunday } from './roster-data.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { manualCellValue, isForbiddenOnSunday, composeOtherValue, isRestShift, OTHER_FLAVOURS } from './override-utils.js';
 import { normaliseCellValue, isZeroLengthRange } from './roster-cell-rules.js';
-import { unreadableTagClass } from './roster-review-states.js';
+import { unreadableTagClass, restOverRest } from './roster-review-states.js';
 
 /** What the hint under the time boxes says, in both of its states. */
 const HINT_DONE = '\u2713 this day will be saved';
 const HINT_TODO = 'Enter both times in 24-hour form, e.g. 06:20';
-/** Other days take their hours from the day underneath unless a time is given, so both boxes may
- *  stay blank — the hint has to say so, or an admin fills them in to make the tick appear. */
+/** An Other day with no flavour yet. (Its times are optional: once a flavour is chosen the draft
+ *  composes with both boxes blank, and the hint already says "this day will be saved".) */
 const HINT_FLAVOUR = 'Choose the kind of Other day above.';
-const HINT_OTHER = 'Times are optional — leave both blank to use the usual hours for that day.';
 /** The two questions, STATED (v22.51). The control carried an `aria-label` and nothing on screen,
  *  so a sighted admin met six unlabelled buttons in a grey box — and, once Other was picked, six
  *  more of them. Naming each question is what makes the second group read as a narrowing of the
@@ -76,39 +75,20 @@ const Q_SWAP = 'A rest day on the base roster. Was it a swapped working day?';
 const HINT_SWAP_ASK = 'Answer the question above \u2014 nothing is saved for this day until you do.';
 const HINT_SWAP_YES = '\u2713 this day will be saved, as a swapped working day';
 const HINT_SWAP_NO  = 'A rest day \u2014 nothing will be recorded for this day.';
+/** Leave or an absence entered on 25 or 26 December from 2026 is never asked about and never
+ *  recorded: the app's Christmas leave decides those days (owner, 10 Nov 2026). */
+const HINT_CHRISTMAS = 'The app\u2019s Christmas leave decides 25 and 26 December \u2014 nothing is recorded for this day.';
+/** A rest day entered where the base roster already rests is no record at all (`restOverRest`). */
+const HINT_REST_AS_BASE = '\u2713 A rest day on the base roster too \u2014 nothing new is recorded for this day.';
 
 /**
- * The in-place "enter it myself" control for an unreadable cell (v22.17).
- *
- * WHY IT EXISTS. An unreadable cell with no candidate readings was a dead end: the row said
- * "check the paper roster" and the only way to act was to finish the review, leave for the
- * Admin page, and remember the person and the day. The real Supervisor roster carries cells like
- * `SEE NATHAN` and `See CEM`, which no parser will read as a shift, so this is not a rare corner.
- * Answering the question where it is asked is the fix.
- *
- * The pills are generated from `PILL_TYPES` — the ONE declaration of which pills exist and in
- * what order — so this row and Change a Shift cannot drift apart. Sunday exclusions come from
- * `isForbiddenOnSunday`, consulted rather than restated: that list has six numbered enforcement
- * layers and a seventh copy is how one of them goes stale — which is why the note naming what a
- * Sunday DOES allow is derived from that same call rather than written out.
+ * The in-place "enter it myself" control for an unreadable cell (v22.17). Why it exists, the three
+ * rules it keeps and why the times are text boxes are the module header's; it is not repeated here.
  *
  * Both groups state their question on screen (v22.51). They had an `aria-label` and nothing else,
  * so a sighted admin met six unlabelled buttons in a grey box, then six more; and the two reasons a
  * control is locked — a Sunday, a rest day — lived in `title` attributes, which a phone never shows.
- *
- * ── WHY THE TIMES ARE TEXT AND NOT `<input type="time">` ───────────────────────────────────
- *
- * `type="time"` was written first — it validates by construction and needs no formatter, which
- * is a real argument. It was replaced on a MEASUREMENT. Chromium renders that control from the
- * OS/browser format settings, not from the page, so it showed `06:00 AM` / `02:00 PM` even with
- * `navigator.language` forced to `en-GB` (checked, because the obvious explanation — an en-US
- * test browser — turned out to be the wrong one). Every other time on this page is 24-hour, and
- * the shift badges beside this control read `13:30-21:00`, so a 12-hour box in the one place the
- * admin TYPES is both inconsistent and genuinely ambiguous.
- *
- * Text does not weaken the guard: `manualCellValue` requires `HH:MM` on both boxes, so a
- * half-typed or malformed time simply produces no entry and writes nothing. What it needs
- * instead is to SAY so, which is what the hint under the boxes is for.
+ * The note naming what a Sunday DOES allow is derived from `isForbiddenOnSunday` (rule 2).
  *
  * @param {string} key @param {any} s @param {string} date
  */
@@ -205,14 +185,25 @@ export function isoFromKey(key) {
  */
 export function redrawEntry(rowEl, key, st) {
     const el = rowEl?.querySelector('.roster-entry');
-    if (el) el.outerHTML = entryControlHtml(key, st, isoFromKey(key));
+    if (!el) return;
+    // FOCUS SURVIVES THE REDRAW (whole-app fix, Nov 2026). The pressed control is one of the elements
+    // replaced, so a keyboard or switch user's focus fell to the page body on every pill, chip, tick
+    // and answer. The same control is found again by what it IS — its type, flavour or answer.
+    const active = /** @type {HTMLElement|null} */ (el.ownerDocument?.activeElement ?? null);
+    const was = active && el.contains(active) ? active : null;
+    const same = !was ? '' : ['data-entry-type', 'data-entry-flavour', 'data-entry-swap']
+        .filter(a => was.hasAttribute(a)).map(a => `[${a}="${was.getAttribute(a)}"]`).join('')
+        || (was.classList.contains('roster-entry-rdw-cb') ? '.roster-entry-rdw-cb' : '');
+    el.outerHTML = entryControlHtml(key, st, isoFromKey(key));
+    if (was) /** @type {HTMLElement|null} */ ((same && rowEl.querySelector(`.roster-entry ${same}`))
+        || rowEl.querySelector('.roster-choice-btn--enter'))?.focus();
 }
 
 /**
  * Open or close a row's entry control, in place.
  *
  * Where it goes differs by row and this is the only place that knows: after the whole pick GROUP
- * on a CONFLICT row that offers readings, and after the button itself on an UNREADABLE row that
+ * on an UNREADABLE row that offers readings, and after the button itself on one that
  * does not — matching where the review's own render puts it.
  *
  * @param {any} rowEl the `.roster-change-row` @param {any} btn the pressed button
@@ -282,6 +273,36 @@ export function patchEntryRow(rowEl, done, st) {
 }
 
 /**
+ * Paint an UNREADABLE row's controls from its state — every one of them, by the render's own rules
+ * (whole-app fix, Nov 2026).
+ *
+ * Since v22.50 the row is patched in place, and the four paths that change it — a press inside the
+ * editor, a keystroke, a picked reading, Skip — each patched a different subset. So the lit buttons
+ * fell out of step with what Save writes: Skip stayed lit beside a finished entry, a picked reading
+ * stayed lit while Save wrote the entry typed after it, and Skip left the editor open saying "this
+ * day will be saved". One function now paints the lot, and every path calls it.
+ *
+ * The rules: a reading is lit when it is the answer; Skip when nothing is; the enter button when the
+ * entry is, and marked open while its editor is. A closed editor leaves the row.
+ * @param {Element|null|undefined} rowEl the `.roster-change-row` @param {any} st its cell state
+ */
+export function paintUnreadableRow(rowEl, st) {
+    if (!rowEl || !st) return;
+    const picked = typeof st.chosen === 'number' && !!st.options?.[st.chosen];
+    const entered = st.chosen === 'entered' && !!st.entered;
+    rowEl.querySelectorAll('.roster-pick .roster-choice-btn[data-opt]').forEach(b => {
+        const opt = /** @type {HTMLElement} */ (b).dataset.opt;
+        if (opt === 'enter') return;   // patchEntryRow's, below
+        const on = opt === 'skip' ? !picked && !entered : picked && Number(opt) === st.chosen;
+        b.classList.toggle('is-chosen', on);
+        b.setAttribute('aria-pressed', String(on));
+    });
+    if (!st.draft?.open) rowEl.querySelector('.roster-entry')?.remove();
+    rowEl.querySelector('.roster-choice-btn--enter')?.classList.toggle('is-open', !!st.draft?.open);
+    patchEntryRow(rowEl, entered, st);
+}
+
+/**
  * Compose what a draft AMOUNTS TO — the parsed-roster value, or null with the reason it is not one.
  *
  * Both kinds route through code that already exists: an ordinary type through `manualCellValue`,
@@ -306,14 +327,16 @@ function draftValue(d, st) {
  *  @param {any} d @param {any} st @returns {string} */
 function entryHint(d, st) {
     const { value, error } = draftValue(d, st);
+    if (value && st?.christmas && draftRestGuarded(d, st)) return HINT_CHRISTMAS;
     if (value && draftAsksSwap(d, st)) return d.swap === 'yes' ? HINT_SWAP_YES : d.swap === 'no' ? HINT_SWAP_NO : HINT_SWAP_ASK;
+    if (value && restOverRest(value, st?.baseShift)) return HINT_REST_AS_BASE;
     if (value) return HINT_DONE;
     // `composeOtherValue`'s own "no flavour yet" message names Spare, because the week editor
     // offers it. This control does not, so it says its own sentence rather than promising a chip
     // that is not on screen — every other error it raises is about times and reads correctly here.
     if (!d.flavour && d.type === 'other') return HINT_FLAVOUR;
     if (error) return esc(error.charAt(0).toUpperCase() + error.slice(1));
-    return d.type === 'other' ? HINT_OTHER : HINT_TODO;
+    return HINT_TODO;   // an Other day always composes or names its error (composeOtherValue), so it never gets here
 }
 
 /**
@@ -356,9 +379,10 @@ export function commitEntry(s) {
     const n = normaliseCellValue(raw, s.baseShift, s.date);
     // Leave or an absence on a base rest day: written only when answered "swapped", and then as what
     // the admin entered, marked as covering a swapped-in working day (`swapped` → replacedType at the
-    // save, exactly as a GUARDED row's answer is). Unanswered or "rest day" writes nothing at all.
+    // save, exactly as a GUARDED row's answer is). Unanswered or "rest day" writes nothing at all —
+    // and neither does Christmas Day or Boxing Day, where nothing is asked (owner, 10 Nov 2026).
     if (n.guarded === 'rest-day') {
-        if (d.swap === 'yes') { s.entered = { value: raw, display: raw, guarded: null, swapped: true }; s.chosen = 'entered'; }
+        if (d.swap === 'yes' && !s.christmas) { s.entered = { value: raw, display: raw, guarded: null, swapped: true }; s.chosen = 'entered'; }
         else { s.entered = null; if (s.chosen === 'entered') s.chosen = null; }
         return;
     }
@@ -368,16 +392,23 @@ export function commitEntry(s) {
 
 /** Would the rest-day guard rewrite this draft's value — leave or an absence on a base rest day?
  *  @param {any} d the draft @param {any} st the cell state @returns {boolean} */
-function draftAsksSwap(d, st) {
+function draftRestGuarded(d, st) {
     const { value } = draftValue(d, st);
     return !!value && normaliseCellValue(value, st.baseShift, st.date).guarded === 'rest-day';
 }
 
+/** …and is the swapped-day question asked about it? Never on Christmas Day or Boxing Day.
+ *  @param {any} d the draft @param {any} st the cell state @returns {boolean} */
+function draftAsksSwap(d, st) {
+    return draftRestGuarded(d, st) && !st.christmas;
+}
+
 /**
- * Has the admin answered "Rest day — leave it" for this cell's entry? The row then says "Not
+ * Has the admin answered "Rest day — leave it" for this cell's entry — or entered leave or an
+ * absence on Christmas Day or Boxing Day, which records nothing either? The row then says "Not
  * recorded" — an answer, not a cell nobody could read — and the summary stops counting it as one.
  * @param {any} st an UNREADABLE cell state @returns {boolean}
  */
 export function entryLeftAsRest(st) {
-    return !!st?.draft && st.draft.swap === 'no' && draftAsksSwap(st.draft, st);
+    return !!st?.draft && draftRestGuarded(st.draft, st) && (!!st.christmas || st.draft.swap === 'no');
 }

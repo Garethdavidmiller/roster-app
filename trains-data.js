@@ -56,12 +56,6 @@ export const LEAF_FALL = Object.freeze({
     stations: Object.freeze(['AVP', 'AYS', 'SKM', 'WND', 'GMN', 'AMR', 'CFO', 'CLW']),
 });
 
-/** Where each side of the comparison came from. The page's ? panel says the same in words. */
-export const SOURCES = Object.freeze({
-    now: 'Chiltern Railways public timetables, valid until 12 December 2026',
-    dec: 'Chiltern Railways public timetables, valid from 13 December 2026 until 15 May 2027',
-});
-
 /** @type {Readonly<Record<string, string>>} */
 export const STATIONS = Object.freeze({
     AMR: 'Amersham',

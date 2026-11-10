@@ -17,7 +17,7 @@
 //                             emulator is STOPPED, which fails the network call the same way the
 //                             transport does, without touching the token. (Named honestly below.)
 //   control (online)        : the measured baseline from run.mjs, re-checked here.
-import { chromium } from '/home/user/roster-app/node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';   // the repository's install, from any checkout
 import { rmSync } from 'node:fs';
 
 const BASE = 'http://127.0.0.1:8098';

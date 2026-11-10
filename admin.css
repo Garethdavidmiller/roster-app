@@ -6,19 +6,10 @@
             background: var(--primary-blue);
             min-height: 100vh;  /* Fallback for browsers without dvh support */
             min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
-            padding-top:    max(20px, env(safe-area-inset-top));
-            padding-bottom: max(10px, env(safe-area-inset-bottom));
-            padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-            padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+            /* The page gutter, with the safe-area insets, is shared.css's: the same on every card page. */
             overflow-x: hidden; overflow-x: clip; /* hidden = iOS ≤15 fallback; clip avoids scroll container that breaks sticky */
             overscroll-behavior: none;
             color: var(--text-dark);
-        }
-        @media (max-width: 768px) {
-            body {
-                padding-left:  max(10px, env(safe-area-inset-left));
-                padding-right: max(10px, env(safe-area-inset-right));
-            }
         }
 
         /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
@@ -89,7 +80,7 @@
         .member-context-bar label {
             font-size: var(--type-small);
             font-weight: 700;
-            color: rgba(255,255,255,0.65);
+            color: var(--on-navy-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             white-space: nowrap;
@@ -194,14 +185,6 @@
             }
         }
 
-        /* Read-only member display shown inside AL form once member is chosen */
-        .member-readonly-display {
-            font-size: var(--type-label);
-            font-weight: 600;
-            color: var(--text-mid);
-            padding: 7px 0;
-        }
-
         /* ---- Selectors row (week nav only) ---- */
         .selectors {
             display: grid;
@@ -278,7 +261,7 @@
             gap: 10px;
             background: var(--al-light);
             border: 1.5px solid var(--al);
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             padding: 9px 14px;
             margin-bottom: 12px;
             font-size: var(--type-label);
@@ -297,9 +280,7 @@
             font-size: 20px;
             font-weight: 800;
             line-height: 1;
-            /* --al-text: the same 4.16:1 pair as the paycalc BH badge. Unscanned rather than
-               passing — the axe gate reaches admin with this banner EMPTY, so the figure it
-               colours is not in the accessibility tree at scan time. */
+            /* --al-text on --al-light: the AA pair the paycalc BH badge was fixed with (A11Y_BASELINE.md). */
             color: var(--al-text);
         }
         /* Weight 600→700 and letter-spacing 0.4→0.5px (v18.86) to match `.field-eyebrow` in
@@ -307,7 +288,9 @@
            a few hundred pixels down this same page already uses. Two micro-labels that close
            together should not be set differently; the difference here was drift, not intent. */
         .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; }
-        .al-banner-stat .stat-breakdown { font-size: 9px; color: var(--text-mid); opacity: 0.75; white-space: nowrap; }
+        /* WRAPS, as the Calendar's twin does (Nov 2026): `nowrap` made it as wide as the Boxing Day sentence
+           and the card cut the banner off. Quieter by size and colour, never a fade (3.47:1 at 0.75). */
+        .al-banner-stat .stat-breakdown { font-size: 9px; line-height: 1.25; text-align: center; color: var(--text-mid); }
         /* FOUR STATS ON ONE ROW STOP FITTING BELOW 360px, AND THE CARD CLIPS THEM (v23.45).
            `.al-banner-stat` is `flex: 1`, whose default `min-width: auto` will not shrink a box
            below its content — and "ENTITLEMENT" is one unbreakable word, the widest label of the
@@ -342,20 +325,12 @@
             text-align: center;
         }
 
-        .field-group label {
-            display: block;
-            font-size: var(--type-small);
-            font-weight: 700;
-            color: var(--text-mid);
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            margin-bottom: 5px;
-        }
-
-        /* `.fieldpick` is select-sheet.js's trigger button. A class cannot inherit an element
-           selector, so every rule a <select> relies on has to name it too, or an enhanced control
-           renders as a bare button. */
-        select, .fieldpick, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
+        /* `.fieldpick` is select-sheet.js's trigger button: a class cannot inherit an element selector,
+           so every rule a <select> relies on names it too. THE PAGE'S OWN FIELDS ONLY (Nov 2026): bare,
+           these five rules out-ranked fields the page hosts but does not own — the drawer's search went
+           white under its white text, the sign-in card's hidden username scrolled the screen sideways.
+           `:where()` adds no weight; one per selector, because `:is()` takes its heaviest argument's. */
+        :where(.container) select, :where(.container) .fieldpick, :where(.container) input[type="text"], :where(.container) input[type="date"] {
             width: 100%;
             padding: 8px 10px;
             border: var(--field-border);
@@ -367,16 +342,16 @@
             -webkit-appearance: none;
             appearance: none;
             font-family: inherit;
-            transition: border-color 0.12s, background-color 0.12s;
+            transition: border-color var(--dur-fast), background-color var(--dur-fast);
         }
 
         /* iOS Safari collapses date inputs when -webkit-appearance:none removes native chrome */
-        input[type="date"] {
+        :where(.container) input[type="date"] {
             min-height: 44px;
         }
 
         /* Restore dropdown arrow removed by appearance: none */
-        select, .fieldpick {
+        :where(.container) select, :where(.container) .fieldpick {
             background-image: var(--caret-chevron-small);
             background-repeat: no-repeat;
             background-position: right 10px center;
@@ -385,7 +360,7 @@
             text-align-last: center;
         }
 
-        select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not([type="radio"]):focus-visible {
+        :where(.container) select:focus-visible, :where(.container) .fieldpick:focus-visible, :where(.container) input:not([type="checkbox"]):not([type="radio"]):focus-visible {
             border-color: var(--primary-blue);
             outline: var(--focus-outline);
             outline-offset: 2px;
@@ -394,7 +369,7 @@
             background-color: white;
         }
 
-        select:disabled, .fieldpick:disabled, input:not([type="checkbox"]):not([type="radio"]):disabled {
+        :where(.container) select:disabled, :where(.container) .fieldpick:disabled, :where(.container) input:not([type="checkbox"]):not([type="radio"]):disabled {
             /* Flatter, darker neutral grey — distinct from the cool enabled
                tint so a disabled control still reads as inert. */
             background-color: var(--field-bg-disabled);
@@ -446,6 +421,7 @@
             background: var(--primary-blue);
             color: white;
             border: none;
+            font-family: inherit;   /* a <button> does not inherit the page font: it was Arial on the station PC */
             font-size: var(--type-medium);
             font-weight: 700;
             min-width: 44px;
@@ -456,7 +432,7 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            transition: background 0.12s;
+            transition: background var(--dur-fast);
         }
 
         @media (hover: hover) and (pointer: fine) { .week-nav-btn:hover { background: var(--primary-blue-dark); } }
@@ -642,13 +618,14 @@
             background: white;
             border: 1.5px solid var(--border-light);
             color: var(--text-mid);
+            font-family: inherit;
             font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
             border-radius: var(--radius-xs);
             cursor: pointer;
             white-space: nowrap;
-            transition: all 0.12s;
+            transition: border-color var(--dur-fast), color var(--dur-fast);
         }
 
         @media (hover: hover) and (pointer: fine) { .btn-bulk-select:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
@@ -663,18 +640,18 @@
            centred on phones: that is a separate, documented decision (see `.col-pills`). */
         .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
 
-        /* Type pills — outline when idle, filled when active */
+        /* Type pills — outline when idle, filled when active. Their heights are a pointer's: 34px
+           for a mouse (the `pointer: fine` rule and `.col-pills`), 36–38px on touch (the touch block). */
         .type-pill-btn {
             border: 1.5px solid currentColor;
             background: transparent;
             font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
-            min-height: 44px;
             border-radius: var(--radius-pill);
             cursor: pointer;
             white-space: nowrap;
-            transition: all 0.12s;
+            transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
             font-family: inherit;
         }
 
@@ -688,8 +665,8 @@
         .type-pill-btn.active { color: white; }
 
         /* Disabled pill (e.g. AL / Absent on a Sunday — uncontracted day). Visibly
-           inert so the rule is taught before the tap, not punished after Save.
-           Touch can't see the title tooltip, so the styling has to carry it. */
+           inert so the rule is taught before the tap, not punished after Save; the
+           row's `.sunday-note` says why in words (the app has no tooltips). */
         .type-pill-btn:disabled {
             opacity: 0.35;
             cursor: not-allowed;
@@ -741,7 +718,7 @@
             margin-top: 2px;
             cursor: pointer;
             white-space: nowrap;
-            transition: background 0.12s;
+            transition: background var(--dur-fast);
             font-family: inherit;
         }
 
@@ -825,9 +802,18 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* ONE STACKED TEMPLATE AT EVERY WIDTH (Nov 2026): checkbox | day | base on row 1, the type pills
+           on row 2, the times on row 3. A five-column row (pills and time beside the day) was wrong at
+           every width above a phone — its time track reserved ~190px even on an untouched row and six
+           pills wrapped onto three lines — yet it lingered as the base rule while a ≤680px and a ≥681px
+           block each restated this template over it, so it still applied BETWEEN 680 and 681px, which
+           a zoomed browser can reach. The header heads only the three columns of row 1.
+           `var(--wg-base-col)`, never `auto` (v22.22): the header and the rows are SEPARATE grids, so an
+           `auto` last column sizes to each one's own content — "Base roster" is 76.5px and a badge is
+           110px, so the header's column sat 34px out of step with the column it labels. */
         .week-grid-header {
             display: grid;
-            grid-template-columns: 32px 100px 92px 1fr auto;
+            grid-template-columns: 32px 1fr var(--wg-base-col);
             gap: 8px;
             padding: 2px 13px 5px;
             background: transparent;
@@ -838,29 +824,16 @@
             letter-spacing: 0.5px;
         }
 
-        /* On narrow screens keep the header but collapse to 3 columns (checkbox/day/base) */
-        @media (max-width: 680px) {
-            /* `var(--wg-base-col)`, never `auto` (v22.22). The header and the rows are SEPARATE
-               grids, so an `auto` last column sizes to each one's own content — "Base roster" is
-               76.5px and a badge is 110px, so the column the header labels was 34px out of step
-               with the column it labels. They shared only a right edge, and only because both are
-               right-aligned; nothing made them agree. */
-            .week-grid-header {
-                grid-template-columns: 32px 1fr var(--wg-base-col);
-            }
-            .week-grid-header .hdr-pills,
-            .week-grid-header .hdr-time { display: none; }
-        }
-
-        /* day-row: checkbox | day | base | type pills | time inputs.
-           Each row is a discrete rounded card (v15.58) — gaps come from the flex .week-panel.
+        /* Each row is a discrete rounded card (v15.58) — gaps come from the flex .week-panel.
            A row's STATE is a 4px bar down its left edge: the 1px border recoloured plus a 3px inset
            shadow (`--row-bar`), never a wider border, which moved the row 3px right when a day was
-           ticked (desktop audit, Nov 2026). */
+           ticked (desktop audit, Nov 2026). NO `grid-template-rows` (polish pass, Sep 2026): an
+           explicit track keeps its GAP while empty, so an untouched row paid 2 × 8px of blank under
+           its content. The pills and the time name their rows, which exist only while occupied. */
         .day-row {
             --row-bar: transparent;
             display: grid;
-            grid-template-columns: 32px 100px 92px 1fr auto;
+            grid-template-columns: 32px 1fr var(--wg-base-col);
             gap: 8px;
             align-items: center;
             padding: 10px 12px;
@@ -872,6 +845,17 @@
                         border-color var(--dur-fast) var(--ease-standard),
                         box-shadow var(--dur-fast) var(--ease-standard);
         }
+        .day-row .col-check { grid-column: 1; grid-row: 1; }
+        .day-row .col-day   { grid-column: 2; grid-row: 1; }
+        .day-row .col-base  { grid-column: 3; grid-row: 1; justify-self: end; }
+        .day-row .col-pills { grid-column: 1 / -1; grid-row: 2; display: flex; }
+        .day-row .col-time  { grid-column: 1 / -1; grid-row: 3; }
+        /* Pills appear as soon as a row is ticked (you have to be able to choose a type). TIME DOES
+           NOT — that asymmetry is the whole rule (v21.40): a time row merely `visibility: hidden` on a
+           ticked row reserved 34px of blank cream on every ticked-but-untyped day, 170px on the
+           Mon–Fri selection the bulk bar exists to encourage. */
+        .day-row:not(.active):not(.selected) .col-pills { display: none; }
+        .day-row:not(.active) .col-time  { display: none; }
 
         /* Ticked, no type yet: the gold bar on a faint wash. READY TO SAVE: the bar on a clear gold wash —
            not Today's ivory, which it wore with no bar until the desktop audit (Nov 2026). Gold, not
@@ -885,38 +869,13 @@
         /* Active (prefilled) override: a touch deeper warm cream so it reads a step stronger. */
         .day-row.has-override.active { background: color-mix(in srgb, var(--al-confirm-accent) 12%, white); }
 
-        /* More breathing room when a row is expanded */
+        /* An expanded row is already made tall by its pills and times, so it keeps 10px top and bottom
+           rather than a resting row's 18px (a phone, below) or 15px (a mouse, near the file's end). */
         .day-row.active, .day-row.selected { padding-top: 10px; padding-bottom: 10px; }
 
-        /* Narrow: stack */
+        /* Narrow: a resting row keeps the 69px it has always measured, its content centred in it. */
         @media (max-width: 680px) {
-            /* NO `grid-template-rows` (polish pass, Sep 2026). It declared three explicit tracks,
-               and an explicit track keeps its GAP even when nothing is in it — so on an untouched
-               row, whose pills and time are `display: none`, two empty tracks still cost 2 × 8px,
-               all of it BELOW the content: measured 11px above "Sun / 12 Jul" and 27px under it.
-               The pills and time name their rows (2 and 3), so those tracks now exist only while
-               something occupies them. The padding below keeps the untouched row at the 69px it
-               has always been — the fix centres the content, it does not change the density. */
-            .day-row {
-                grid-template-columns: 32px 1fr var(--wg-base-col);
-                gap: 8px;
-                padding-top: 18px;
-                padding-bottom: 18px;
-            }
-            .day-row .col-check  { grid-column: 1; grid-row: 1; }
-            .day-row .col-day    { grid-column: 2; grid-row: 1; }
-            .day-row .col-base   { grid-column: 3; grid-row: 1; justify-self: end; }
-            .day-row .col-pills  { grid-column: 1 / -1; grid-row: 2; display: flex; }
-            .day-row .col-time   { grid-column: 1 / -1; grid-row: 3; }
-            /* Pills appear as soon as a row is ticked (you have to be able to choose a type).
-               TIME DOES NOT — and that asymmetry is the whole rule (v21.40). The time row used to
-               be `display`-ed on a ticked row and merely `visibility: hidden` (the base rule below
-               the media queries), so every ticked-but-untyped day reserved 34px of blank cream —
-               170px on the Mon–Fri bulk selection the bulk bar exists to encourage, and invisible
-               to any test because nothing was wrong with the markup. It did not even buy stability:
-               choosing a type SHRINKS the row to 14px ("No time needed") on a fixed type. */
-            .day-row:not(.active):not(.selected) .col-pills { display: none; }
-            .day-row:not(.active) .col-time  { display: none; }
+            .day-row { padding-top: 18px; padding-bottom: 18px; }
 
             /* Inline column labels on mobile so users know what they're looking at */
             /* Shared label style for inline col labels injected via ::before */
@@ -942,19 +901,7 @@
                 padding-top: 6px;
                 border-top: 1px solid rgba(0,0,0,0.08);
             }
-
-            /* Fixed-type rows: switch visibility:hidden → display:none so hidden inputs
-               don't consume layout space, preventing the time-note text from overflowing
-               into the note button column */
-            .day-row.active.fixed-type .col-time .time-input,
-            .day-row.active.fixed-type .col-time .time-sep { display: none; }
         }
-
-        /* NO FIVE-COLUMN LAYOUT ANY MORE (polish round 2). A `min-width: 681px` block here gave the
-           tablet band (681–1023px) `32px 130px base 1fr time`: the time track reserved ~194px even on
-           an untouched row, so six pills wrapped onto three lines, showed on EVERY row, and each row
-           measured 132px at 800px against 69px on a phone. The stacked layout below now starts at
-           681px, so the only templates are the two stacked ones — and they are the same template. */
 
         .col-check {
             display: flex;
@@ -1039,8 +986,8 @@
         }
         .day-row.active:not(.fixed-type) .time-hint { display: block; }
 
-        /* Selector includes element type (specificity 0,2,1) to beat the global
-           input[type="text"]{width:100%} rule which scores (0,1,1) */
+        /* Selector includes element type (specificity 0,2,1) to beat the page's
+           input[type="text"]{width:100%} rule, which scores (0,1,1) */
         .col-time input.time-input {
             flex: 0 0 90px;
             width: 90px;
@@ -1069,13 +1016,10 @@
         .time-input.input-error ~ .time-error-msg,
         .col-time:has(.time-input.input-error) .time-error-msg { display: block; }
 
-        /* Hide time area when row is not active */
-        .day-row:not(.active) .col-time { visibility: hidden; }
         /* Fixed types (AL, Set as Rest Day): hide inputs, show note instead.
            `display: none`, not `visibility: hidden` (polish pass). Hidden-but-present inputs kept
-           their ~190px, so from 681px up "No time needed" sat AFTER two invisible boxes — centred
-           in the row at 1280px while every real time input on the card starts at its left edge.
-           The ≤680px block already made this switch for the same reason. */
+           their ~190px, so "No time needed" sat AFTER two invisible boxes — centred in the row at
+           1280px while every real time input on the card starts at its left edge. */
         .day-row.active.fixed-type .col-time .time-input,
         .day-row.active.fixed-type .col-time .time-sep { display: none; }
         .time-note { display: none; font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
@@ -1147,12 +1091,14 @@
 
 
 
-        /* "Has override" badge — shown when a day already has a saved override.
-           Turns blue-teal when the row is active (about to replace that override). */
+        /* "Has override" badge — shown when a day already has a saved override. Its own colours are
+           the "⚠ Removing" state (a saved day unticked): `--orange-deep`, because white text on the
+           bright `--orange` was 2.16:1 (css-tokens.md → "The orange family"). Blue while the row is
+           active (about to replace that override), green while untouched (below). */
         .overwrite-badge {
             font-size: var(--type-micro);
             font-weight: 700;
-            background: var(--orange);
+            background: var(--orange-deep);
             color: white;
             border: none;
             padding: 2px 7px;
@@ -1186,7 +1132,7 @@
             display: inline-block;
             margin-left: 6px;
             padding: 1px 6px;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             background: var(--primary-blue);
             color: var(--surface);
             font-size: var(--type-micro);
@@ -1238,7 +1184,7 @@
         .feedback {
             display: none;
             padding: 10px 14px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             font-size: var(--type-label);
             font-weight: 600;
             margin-top: 12px;
@@ -1247,7 +1193,7 @@
 
         .feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
         /* The member's name in a range card's receipt stays on one line (polish round 2): "…for R." /
-           "Forrester-Blackstock" broke at 390px. Same rule as `.grid-preview strong` below. */
+           "Forrester-Blackstock" broke at 390px. Same rule as `.grid-preview strong` above. */
         .feedback-name { white-space: nowrap; }
         .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-text); }
 
@@ -1273,13 +1219,13 @@
             box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
             visibility: hidden;
             transform: translateY(100%);
-            transition: transform 0.25s var(--ease-standard),
-                        visibility 0s linear 0.25s;
+            transition: transform var(--dur-slow) var(--ease-standard),
+                        visibility 0s linear var(--dur-slow);
         }
         .al-confirm-bar.visible {
             visibility: visible;
             transform: translateY(0);
-            transition: transform 0.25s var(--ease-standard);
+            transition: transform var(--dur-slow) var(--ease-standard);
         }
         .al-confirm-bar .al-confirm-icon { font-size: 20px; flex-shrink: 0; }
         .al-confirm-bar .al-confirm-body { flex: 1; }
@@ -1289,13 +1235,13 @@
         .al-confirm-bar .btn-confirm-save {
             background: var(--al-confirm-accent); color: var(--primary-blue);
             border: none; border-radius: var(--radius-button);
-            padding: 7px 14px; font-size: var(--type-label); font-weight: 700;
+            padding: 7px 14px; font-family: inherit; font-size: var(--type-label); font-weight: 700;
             cursor: pointer; touch-action: manipulation;
         }
         .al-confirm-bar .btn-confirm-cancel {
             background: white; color: var(--text-mid);
             border: 1.5px solid var(--border-light); border-radius: var(--radius-button);
-            padding: 7px 14px; font-size: var(--type-label); font-weight: 600;
+            padding: 7px 14px; font-family: inherit; font-size: var(--type-label); font-weight: 600;
             cursor: pointer; touch-action: manipulation;
         }
         .al-confirm-bar .btn-confirm-save:focus-visible,
@@ -1328,6 +1274,11 @@
         #saveToast.visible {
             opacity: 1;
             transform: translateX(-50%) translateY(0);
+        }
+        /* Reduce motion: the two surfaces that slide up from the foot of the page appear in place, as the
+           drawer and every lightbox do (Nov 2026). Neither waits on `transitionend`. */
+        @media (prefers-reduced-motion: reduce) {
+            .al-confirm-bar, .al-confirm-bar.visible, #saveToast { transition: none; }
         }
 
         /* .card-collapsible-header/.card-collapsible-body/.collapse-chevron — consolidated into shared.css */
@@ -1369,7 +1320,7 @@
             min-height: 36px;
             padding: 5px 12px;
             border: none;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             background: var(--error-banner);
             color: white;
             font-size: var(--type-small);
@@ -1398,7 +1349,7 @@
             min-width: 150px;
             max-width: 240px;
             border: 2px solid var(--border-mid);
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             font-size: var(--type-medium); /* 16px minimum — iOS Safari zooms viewport on focus below this */
             font-family: inherit;
             color: var(--text-dark);
@@ -1455,7 +1406,7 @@
            stand in for — replaces the bare "Loading…" text. Reduced-motion: static tint. */
         .skeleton-row {
             height: 60px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             background: linear-gradient(90deg,
                 var(--surface-sunken) 30%,
                 color-mix(in oklch, var(--surface-sunken) 55%, white) 45%,
@@ -1496,7 +1447,7 @@
             font-size: 9px;
             font-weight: 700;
             padding: 1px 5px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             background: var(--blue-light);
             color: var(--blue-sky);
             margin-left: 5px;
@@ -1541,7 +1492,7 @@
             font-size: var(--type-badge);
             font-weight: 700;
             padding: 0 12px;
-            animation: pulse-confirm 0.35s ease-out;
+            animation: pulse-confirm 0.35s var(--ease-standard);
         }
         @keyframes pulse-confirm {
             0%   { transform: scale(1); }
@@ -1552,7 +1503,10 @@
             .btn-delete.confirming { animation: none; }
         }
 
-        .override-state .reload-link {
+        /* Both Retries: Saved Changes' and the week grid's, which a failed read shows together. Scoped
+           to `.override-state` until Nov 2026, so the week grid's — on the card the admin is looking
+           at — was plain grey text with no cursor, a control that did not look like one. */
+        .reload-link {
             display: inline-block;
             margin-top: 8px;
             font-size: var(--type-small);
@@ -1572,12 +1526,6 @@
             margin-bottom: 12px;
         }
 
-        /* Staff member display is already shown in the member context bar at the top —
-           hide it here so the date inputs span the full card width */
-        .al-member-field { display: none; }
-
-        /* @media (max-width: 540px) for .al-form merged into the block near line 228 */
-
         /* ---- Inline date-range picker (AL and Absence cards) ---- */
         .rp-chips {
             display: flex;
@@ -1589,7 +1537,7 @@
             flex: 1;
             padding: 8px 10px;
             border: 2px solid var(--border-mid);
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             font-size: var(--type-label);
             color: var(--text-light);
             background: var(--bg-faint);
@@ -1609,7 +1557,7 @@
         .rp-clear {
             display: none; flex-shrink: 0;
             background: none; border: none; padding: 4px 6px;
-            font-size: var(--type-medium); color: var(--text-light); cursor: pointer;
+            font-family: inherit; font-size: var(--type-medium); color: var(--text-light); cursor: pointer;
             touch-action: manipulation; line-height: 1;
             border-radius: 50%; transition: color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
             min-width: 44px;
@@ -1629,6 +1577,7 @@
             background: none;
             border: none;
             color: var(--primary-blue);
+            font-family: inherit;
             font-size: 22px;
             line-height: 1;
             cursor: pointer;
@@ -1640,7 +1589,10 @@
             border-radius: 50%;
             -webkit-tap-highlight-color: transparent;
         }
-        @media (hover: hover) and (pointer: fine) { .rp-nav-btn:hover { background: var(--bg-light); } }
+        @media (hover: hover) and (pointer: fine) { .rp-nav-btn:hover:not([aria-disabled="true"]) { background: var(--bg-light); } }
+        /* An arrow at a bound is `aria-disabled` and faded (admin-rangepicker.js), never `disabled`, which
+           would drop a keyboard user's focus. It does nothing there, so it offers a mouse no hand and no fill. */
+        .rp-nav-btn[aria-disabled="true"] { cursor: default; }
         .rp-label { font-size: var(--type-body); font-weight: 700; color: var(--text-dark); }
         .rp-clip {
             position: relative;
@@ -1722,7 +1674,7 @@
         .al-booked-box {
             margin-top: 10px;
             border: 1px solid var(--border-light);
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             overflow: hidden;
         }
         .al-booked-header {
@@ -1734,10 +1686,6 @@
             user-select: none;
             -webkit-user-select: none;
             gap: 8px;
-        }
-        .al-booked-header:focus-visible {
-            outline: var(--focus-outline);
-            outline-offset: -2px;
         }
         .al-booked-title {
             font-weight: 600;
@@ -1968,7 +1916,7 @@
            already inert (one line of 13px text plus 16px of padding clears 28px on its own). */
         .al-preview {
             padding: 8px 12px;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
             font-size: var(--type-label);
             font-weight: 600;
             margin-bottom: 10px;
@@ -2031,7 +1979,7 @@
             margin-top: 10px;
             padding: 10px 14px 12px;
             border: 1px solid var(--border-light);
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
         }
         .al-leaveyear[hidden] { display: none !important; }
         .al-leaveyear-title { font-weight: 600; font-size: var(--type-label); }
@@ -2105,8 +2053,8 @@
             touch-action: manipulation;
         }
 
-        /* Larger tap targets and slightly bigger text on touch screens */
-        @media (hover: none) and (pointer: coarse) {
+        /* Larger tap targets on touch — the pointer alone: some Android phones report `hover: hover`. */
+        @media (pointer: coarse) {
             .type-pill-btn {
                 padding: 8px 12px;
                 font-size: var(--type-small);
@@ -2206,12 +2154,12 @@
         .unsaved-discard-btn {
             background: white; color: var(--warning-amber);
             border: none; border-radius: var(--radius-button);
-            padding: 10px 16px; min-height: 36px; font-size: var(--type-label); font-weight: 600; cursor: pointer;
+            padding: 10px 16px; min-height: 36px; font-family: inherit; font-size: var(--type-label); font-weight: 600; cursor: pointer;
         }
         .unsaved-keep-btn {
             background: transparent; color: white;
             border: 1.5px solid rgba(255,255,255,0.6); border-radius: var(--radius-button);
-            padding: 10px 16px; min-height: 36px; font-size: var(--type-label); cursor: pointer;
+            padding: 10px 16px; min-height: 36px; font-family: inherit; font-size: var(--type-label); cursor: pointer;
         }
         .unsaved-discard-btn:focus-visible,
         .unsaved-keep-btn:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
@@ -2241,6 +2189,10 @@
         }
         .list-feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
         .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-text); }
+        /* A keyboard delete that removes the control holding focus hands it to the line saying what happened
+           (admin-booked-periods.js, admin-saved-changes.js — tabindex="-1", never a Tab stop). That line wears
+           the app's ring, not the browser's own; inset, because the cards clip and this one runs edge to edge. */
+        .feedback:focus-visible, .list-feedback:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 
         /* ═════════════════════════════════════════════════════════════
            TABLET & DESKTOP  —  min-width only; mobile (< 768px) untouched
@@ -2260,7 +2212,7 @@
 
         /* ── Desktop: 1024px — two-column grid ──
            Change a Shift is the main work area and gets the wide left column.
-           AL booking, sick, notifications, and admin tools sit on the right.
+           Record Annual Leave, Record Absence and Saved Changes sit on the right.
            Column minimums (580+340+24=944px) fit in a 1024px viewport minus body padding
            (~61px at 3vw) = ~963px available — with headroom (the old 600px min was 964px
            total, ~1px over, silently swallowed by overflow-x:clip). */
@@ -2335,31 +2287,16 @@
                 color: var(--text-dark);
             }
             .container > .member-context-bar select option { color: var(--text-dark); }
+            /* Focused, the navy edge every field takes: the rule above outranked both focus edges. */
+            .container > .member-context-bar select:focus-visible,
+            .container > .member-context-bar .fieldpick:focus-visible { border-color: var(--primary-blue); }
 
-            /* THE CARD HAS ONE LEFT EDGE (v22.22). Both rules below were right about their own
-               element and wrong together: the nav was capped AND centred, the save button capped and
-               left-aligned, and everything else — bulk bar, column header, day rows, save hint —
-               starts at the content edge. Four alignments in one card is what "assembled rather than
-               designed" looks like, and it is the same finding `links-design.md` records for the
-               generator card ("anything added to this card must join the one column").
-
-               The nav spans the column with the rest of it. Capping it and merely un-centring it
-               was tried first and is the worst of the three: it fixes the left edge and creates a
-               145px gutter on the RIGHT, so the row is the only block on the card that stops short.
-               A gutter on both sides reads as deliberate; a gutter on one side reads as unfinished.
-               The original "looks loose" worry was about the date field, and the fix for that is a
-               cap on the FIELD, not on the row that positions it. */
-            .week-nav { max-width: none; margin: 0; }
+            /* THE CARD HAS ONE LEFT EDGE (v22.22): every block on it starts at the content edge and spans
+               the column — the week nav and the Save button with its hint included. A capped nav made a
+               145px gutter on its right, and a gutter on one side reads as unfinished (css-tokens.md →
+               "A card has ONE left edge"). The "looks loose" worry was about the date FIELD, so the
+               field is capped, not the row that positions it. */
             .week-date-wrap { max-width: 480px; }
-
-            /* The save button spans the column, like it does on mobile and like Settings' own
-               `.btn-action` since v20.72 — whose 280px cap left "every card ending with a 256px
-               gutter" (css-tokens.md). Here the cap was worse than a gutter: `.save-hint` was NOT
-               capped with it, so the button sat 320px wide on the left while the sentence explaining
-               it was centred across all 624px — the two centres 152px apart, reading as unrelated
-               things. Capping the hint to match would fix the alignment and keep the gutter; this
-               fixes both. */
-
         }
         /* Desktop row density (v18.89). The day row is identical at 390px and 1280px — 69px tall,
            because the day label stacks ("Sun" over "19 Jul") and the padding is sized for a thumb.
@@ -2372,70 +2309,21 @@
            time inputs appear on rows 2 and 3.) */
         @media (min-width: 1024px) and (pointer: fine) {
             /* 15px, not the 7px this said until the polish pass: 7px was paired with two phantom
-               8px grid gaps (removed — see the ≥1024px block below), so the row was 52px with its
+               8px grid gaps (empty explicit row tracks, since removed), so the row was 52px with its
                content pinned to the top. 15px keeps the 52px and centres what is in it. */
             .day-row { padding-top: 15px; padding-bottom: 15px; }
             .day-row.active, .day-row.selected { padding-top: 8px; padding-bottom: 8px; }
             .col-day .day-date { display: inline; margin-left: 6px; }
         }
 
-        /* The left column is too narrow for the 5-col template at EVERY width above a phone, so this
-           stacked layout applies from 681px up with no upper bound (v22.11 from 1024px; from 681px
-           since polish round 2 — the tablet band had the same wrapped-pills defect, see above).
-           Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
-           Pills and time are visible on selected/active rows (hidden on inactive rows).
-
-           IT USED TO STOP AT 1399px, and the cap was aimed at a width that cannot occur. Measured:
-           `.col-main` is 656px at 1399 AND at 1400 AND at 1920 — `--content-max-width: 1100px` caps
-           the page, so the column stops growing long before this breakpoint and the 5-col template
-           never gets the room the cap assumed it would. What actually happened above 1399 was the
-           fallback `681px` template, where `.col-time` is only `visibility: hidden` (the base rule)
-           and still reserves its `auto` track — 190px — squeezing `.col-pills` to 168px so six pills
-           wrapped onto three lines. The day row went 52px → 126px and the Change a Shift card
-           518px taller, on the widest screens, for no benefit. Same reserved-blank-time defect as
-           v21.40, which was fixed only for the narrow layout. */
+        /* From 681px the six pills fit one line, so they join the row's left edge with the times below
+           them (v22.22); a phone keeps them centred where they wrap (`.col-pills`). */
         @media (min-width: 681px) {
-            .week-grid-header {
-                grid-template-columns: 32px 1fr var(--wg-base-col);   /* one template, see v22.22 */
-            }
-            .week-grid-header .hdr-pills,
-            .week-grid-header .hdr-time { display: none; }
-            /* No `grid-template-rows` — see the ≤680px block: explicit empty tracks keep their gaps,
-               which put 16px of blank under every untouched row's content (8px above, 24px below). */
-            .day-row {
-                grid-template-columns: 32px 1fr var(--wg-base-col);
-            }
-            .day-row .col-check { grid-column: 1; grid-row: 1; }
-            .day-row .col-day   { grid-column: 2; grid-row: 1; }
-            .day-row .col-base  { grid-column: 3; grid-row: 1; justify-self: end; }
-            .day-row .col-pills { grid-column: 1 / -1; grid-row: 2; display: flex; }
-            .day-row .col-time  { grid-column: 1 / -1; grid-row: 3; }
-            /* Hide pills and time on inactive rows — same pattern as ≤680px, including the
-               ticked-but-untyped case: this layout stacks too, so a reserved time row is the same
-               band of blank cream here. */
-            .day-row:not(.active):not(.selected) .col-pills { display: none; }
-            .day-row:not(.active) .col-time  { display: none; }
-            /* On one line, so they join the row's left edge with the times below them (v22.22). */
             .col-pills { justify-content: flex-start; }
         }
-        /* ≥1400px viewport: spacing only. The container is capped at --content-max-width (1100), so
-           the left column is ~656px here as at 1280, and the day row keeps the stacked template
-           above (see the note inside). */
+        /* ≥1400px: spacing only — the container is capped at --content-max-width, so the columns are
+           the width they are at 1280. */
         @media (min-width: 1400px) {
-            /* NO COLUMN TEMPLATE HERE ANY MORE (polish pass). This block restated a FIVE-column
-               template (28px 80px base 1fr time) after the ≥1024px block above had made the row a
-               stacked THREE-column one "with no upper bound" — so from 1400px the stacked items kept
-               their 3-column placement inside five tracks. Measured at 1440: the base-roster badge
-               at x=137 of a 630px row instead of against its right edge, a 480px dead band beside
-               it, the header's "Base roster" moved with it, and "Today" wrapping under the date in
-               an 80px day column. The v22.11 note above is the intent; this was its leftover. */
-
-            /* Tighten week grid spacing */
-            .day-row { gap: 8px; }
-
-            /* Bulk bar: slightly more spacious */
-            .bulk-bar { gap: 14px; }
-
             .list-toolbar { gap: 12px; }
         }
 
@@ -2501,9 +2389,9 @@
         }
 
         /* AL balance shown in the collapsed card header */
-        /* AL-remaining header chip — base look comes from the shared .card-year-chip (v18.16);
-           these modifiers only recolour the low/none balance states. */
-        .al-left-chip.balance-low  { color: var(--accent-gold-dark); }
+        /* AL-remaining header chip — base look from the shared .card-year-chip (v18.16); these recolour
+           the low/none states. Low is the banner's own `--al-low` (Nov 2026): brand gold was 1.69:1. */
+        .al-left-chip.balance-low  { color: var(--al-low); }
         .al-left-chip.balance-none { color: var(--error-red); }
 
         /* ---- Staged changes bar (fixed bottom, shown when pending saves exist) ---- */
@@ -2528,12 +2416,19 @@
            view — a message, a focused control — clear of it. `--staged-bar-h` is measured (admin-app.js). */
         html:has(#stagedBar:not([hidden])) { scroll-padding-bottom: calc(var(--staged-bar-h) + 12px); }
         body:has(#stagedBar:not([hidden])) { padding-bottom: calc(var(--staged-bar-h) + 12px); }
+        /* …and the save toast rises clear of it (Nov 2026): the two share the foot of the screen, and an
+           Apply that stages days AND raises a toast drew it over the bar's label and buttons for 4s. */
+        body:has(#stagedBar:not([hidden])) #saveToast { bottom: calc(var(--staged-bar-h) + 12px); }
+        /* It WRAPS (Nov 2026): `nowrap` held "Unsaved: 2 days, 1 to remove" at its full width, so at 360px
+           "Save changes" ran 22px off the screen. Balanced, it breaks after the comma; its longest word is
+           its floor, so with large text the buttons wrap their own words too. `--staged-bar-h` is
+           measured, so the page follows the taller bar. */
         .staged-bar-label {
             flex: 1;
             font-size: var(--type-label);
             font-weight: 600;
             color: rgba(255,255,255,0.85);
-            white-space: nowrap;
+            text-wrap: balance;
         }
         .staged-bar-label strong { color: white; }
         .staged-bar-btns { display: flex; gap: 8px; }
@@ -2600,7 +2495,7 @@
             cursor: pointer;
             white-space: nowrap;
             font-family: inherit;
-            transition: all 0.12s;
+            transition: border-color var(--dur-fast), color var(--dur-fast);
         }
         @media (hover: hover) and (pointer: fine) {
             .btn-show-all-overrides:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
@@ -2609,8 +2504,8 @@
 
         /* Checkbox column in the override table */
 
-/* ── Training sub-controls (OTHER_DAYS.md) — flavour + RDW tick, shown while the
-   Training pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
+/* ── Other sub-controls (OTHER_DAYS.md) — flavour + RDW tick, shown while the
+   Other pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
 .other-opts {
     grid-column: 1 / -1;
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -2624,8 +2519,8 @@
    min-content is one chip, never the sum — prevents the touch-layout blowout at 360px. */
 .other-flavour-group { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .other-flavour-btn {
-    font-size: var(--type-badge); font-weight: 700;
-    padding: 3px 10px; border-radius: var(--radius-xl);
+    font-family: inherit; font-size: var(--type-badge); font-weight: 700;
+    padding: 3px 10px; border-radius: var(--radius-pill);
     border: 1.5px solid var(--other);
     background: white; color: var(--other);
     cursor: pointer;
@@ -2657,7 +2552,9 @@
 .sunday-note,
 /* Christmas leave (v25.37): the same quiet line, for the same reason — the row's own explanation of a
    day the Base roster column cannot describe (it shows the rest day both Christmas days are). */
-.christmas-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
+.christmas-note,
+/* …and a day before the member's start date (admin-1-11): no change can be recorded there. */
+.start-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
 .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
@@ -2689,8 +2586,3 @@
     font-weight: 400;                       /* the LIST is data; the headline above carries the weight */
 }
 .save-receipt li { padding: 1px 0; }
-
-@media print {
-    .lpill-other { background: var(--other-light) !important; color: var(--other) !important; }
-    .other-opts { display: none !important; }
-}

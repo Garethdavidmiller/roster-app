@@ -16,8 +16,13 @@
  */
 
 import { escapeHtml as esc } from './roster-data.js';
-import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes } from './trains-change.js';
+import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin } from './trains-change.js';
 import { pairColumns, lineOf, minutesWords, hourNote, hourWords, orderStations, stopChanges, aRealDay, parseStops } from './trains-stations.js';
+import { CHANGE_DATE } from './trains-data.js';
+import { PIN_FIRST_HASH } from './calendar-access-core.js';
+
+/** The three kinds of day in words, as the day tabs name them — one copy for every sentence that names one. */
+export const DAY_NAMES = /** @type {Readonly<Record<'SX'|'SO'|'SU', string>>} */ (Object.freeze({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' }));
 
 /** The short names the grid's column heads use. Anything not listed shows its full name. */
 const SHORT = /** @type {Record<string, string>} */ ({
@@ -29,8 +34,63 @@ const SHORT = /** @type {Record<string, string>} */ ({
 /** The daytime window in words — "10:00 to 16:00" — from the constant, never typed. */
 export const DAYTIME = `${String(PATTERN_HOURS.from).padStart(2, '0')}:00 to ${String(PATTERN_HOURS.to).padStart(2, '0')}:00`;
 
-/** The two columns' names, from `timetablePhase`: "Now" until the change, "Until 12 Dec" after it. */
-const DEFAULT_LABELS = Object.freeze({ old: 'Now', new: 'From 13 Dec' });
+/** The two columns' names before the change, as `timetablePhase` gives them; the page always passes its own.
+ *  Derived from the date, as every date on the page is: "From 13 Dec" was typed here. */
+const DEFAULT_LABELS = Object.freeze({ old: 'Now', new: `From ${dateWords(CHANGE_DATE, 0, { short: true })}` });
+
+/**
+ * The changes view's name, in the tense of the change as the chips are (`changeLabel`): what is
+ * coming, then what came. The tab, the card's title, the section, its `?` panel and its chevron all
+ * go by it — only the tab and the title turned, so from 13 December a screen reader and the panel
+ * went on saying "What’s changing" under a tab that said "What changed" (whole-app fix, Nov 2026).
+ * @param {boolean} started
+ * @returns {string}
+ */
+export const changesTitle = (started) => started ? 'What changed' : 'What’s changing';
+
+/**
+ * The overview's opening line, in the tense of the change: "Today’s timetable beside the new one…"
+ * before it, "The timetable that ran until…" from it.
+ * @param {string} change  'YYYY-MM-DD'
+ * @param {boolean} started
+ * @returns {string}
+ */
+export function leadWords(change, started) {
+    const on = (/** @type {number} */ offset) => dateWords(change, offset, { weekday: true });
+    return `${started ? `The timetable that ran until ${on(-1)} beside the new one, which started on` : 'Today’s timetable beside the new one that starts on'} ${on(0)}. `
+        + 'Both are Chiltern’s published timetables, not live running information.';
+}
+
+/**
+ * The note for the weeks after the change in which Chiltern says it will change times again
+ * (`#trFestive`, shown until `FURTHER_CHANGES_UNTIL`). Its dates, and the holidays it names, come from
+ * the two dates (`holidaysWithin`): it was typed into trains.html, so moving the dates for the next
+ * books would have left it saying "13 December and 10 January" and "Christmas" in May.
+ * @param {string} change  'YYYY-MM-DD'
+ * @param {string} until   'YYYY-MM-DD', the last day of the further changes
+ * @returns {string} HTML
+ */
+export function renderFurtherChanges(change, until) {
+    const holidays = holidaysWithin(change, until);
+    const when = `between ${dateWords(change)} and ${dateWords(until)}`;
+    return holidays
+        ? `<strong>${esc(holidays)} ${holidays.includes(' and ') ? 'are' : 'is'} not on this page.</strong> Chiltern is changing times again ${when}, with big changes over the holidays.`
+        : `<strong>Chiltern’s further changes are not on this page.</strong> It is changing times again ${when}.`;
+}
+
+/**
+ * What the Trains sign-in card says to a station computer (login-overlay.js → `about`). The staff PIN
+ * opens this page too (AUTH_AND_SESSIONS 24), and a station computer can reach it locked — the PIN's
+ * session ends with the browser and belongs to the tab that unlocked the Calendar (8) — while the card
+ * asked only for a member's grade, name and password. The PIN is entered where it always is, on the
+ * Calendar's PIN card: the exchange, and the order it switches persistence in, are calendar-access.js's
+ * alone, and a second copy of a security boundary is the copy that drifts. The way back is the menu's
+ * Trains, which the PIN keeps. Worded as a way to OPEN the page, never as signing in (18).
+ */
+export const SIGN_IN_ABOUT = Object.freeze({
+    lines: Object.freeze(['Visiting or agency staff, or at a station computer? The staff PIN opens this page too: enter it on the roster, then choose Trains from its menu.']),
+    link: Object.freeze({ href: `./${PIN_FIRST_HASH}`, label: 'Use the staff PIN instead →' }),
+});
 
 const none = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">none</span></span>';
 /** A December figure that cannot be known yet — a dash too, but never read aloud as "none". */
@@ -79,8 +139,8 @@ export function renderHeadlines(items, { showAll, partial }) {
 
 /**
  * Where one train goes beyond (or comes from before) the station on screen, as few words as a phone
- * row can hold. On a line that runs on (`LINES`), the onward stop's short name — "on to Parkway" —
- * because "to Aylesbury Vale Parkway" wrapped onto three lines on every train that runs on.
+ * row can hold. On a line that runs on (`LINES`), the onward stop's short name — "on to Aylesbury
+ * Vale" — because "to Aylesbury Vale Parkway" wrapped onto three lines on every train that runs on.
  * @param {string|undefined} to       the train's end
  * @param {string} crs                the station on screen
  * @param {Readonly<Record<string, string>>} stations
@@ -106,7 +166,8 @@ export function endWords(to, crs, stations, leaving) {
  * @param {{ stations: Readonly<Record<string, string>>, dir: 'dep'|'arr', showTrains: boolean, allTrains?: boolean,
  *   labels?: { old: string, new: string }, started?: boolean, leafFall?: { minutes: number, until: string }|null }} ctx
  *   showTrains: the list starts open · allTrains: the unchanged trains are shown too · labels: the two
- *   columns' names (`timetablePhase`) · started: the change has happened, for the tense of a new end ·
+ *   columns' names (`timetablePhase`) · started: the change has happened, for the tense of the chips and
+ *   of the list's own words ("5 change" → "5 changed") ·
  *   leafFall: coming back on a line whose trains run early for leaf fall until `until`, the note to give
  * @returns {string}
  */
@@ -194,16 +255,19 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
             + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(s, stations, dir, { started, withTime: false }) + (quiet ? ' · may be leaf fall' : ''))}</span></td></tr>`;
     }).join('');
     // Never "0 stay the same": Amersham coming back read "38 change, 0 stay the same" (v24.83).
-    const tally = (changed.length && !same ? (changed.length === 1 ? 'Its one train changes' : `All ${changed.length} change`)
-        : changed.length ? `${changed.length} change${changed.length === 1 ? 's' : ''}, ${same} stay${same === 1 ? 's' : ''} the same`
-        : same === 1 ? 'Its one train stays the same' : `All ${same} stay the same`)
+    // THE TENSE FOLLOWS THE CHANGE, as the chips beside it do (`changeLabel`): "5 change" until
+    // 13 December read as a prediction for months after it had happened (whole-app fix, Nov 2026).
+    const was = (/** @type {string} */ before, /** @type {string} */ after) => started ? after : before;
+    const tally = (changed.length && !same ? (changed.length === 1 ? was('Its one train changes', 'Its one train changed') : `All ${changed.length} ${was('change', 'changed')}`)
+        : changed.length ? `${changed.length} ${was(changed.length === 1 ? 'changes' : 'change', 'changed')}, ${same} ${was(same === 1 ? 'stays' : 'stay', 'stayed')} the same`
+        : same === 1 ? was('Its one train stays the same', 'Its one train stayed the same') : `All ${same} ${was('stay', 'stayed')} the same`)
         + (leafFall && leafy ? ` · ${leafy} of them by ${leafFall.minutes} minute${leafFall.minutes === 1 ? '' : 's'} or less, which may be leaf fall` : '');
     const list = shown.length
-        ? `<table class="tr-trains"><thead><tr><th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th><th scope="col">What changes</th></tr></thead>`
+        ? `<table class="tr-trains"><thead><tr><th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th><th scope="col">${was('What changes', 'What changed')}</th></tr></thead>`
             + `<tbody>${rowsHtml}</tbody></table>`
-        : '<p class="card-explainer tr-lead">Every train keeps its time.</p>';
+        : `<p class="card-explainer tr-lead">${was('Every train keeps its time.', 'Every train kept its time.')}</p>`;
     const more = !allTrains && same
-        ? `<button type="button" class="tr-more" id="trAllTrains">Show the ${same} that stay${same === 1 ? 's' : ''} the same</button>` : '';
+        ? `<button type="button" class="tr-more" id="trAllTrains">Show the ${same} that ${was(same === 1 ? 'stays' : 'stay', 'stayed')} the same</button>` : '';
     return label + verdict + table + minutesNote + leafNote + throughNote
         + `<details class="tr-route"${showTrains || allTrains ? ' open' : ''}><summary class="tr-route-sum"><span class="tr-route-name">Train by train</span>`
         + `<span class="tr-route-what">${esc(tally)} · leaving ${esc(leaving ? 'Marylebone' : name)}</span></summary>`
@@ -268,7 +332,7 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
     const body = rowsOrder.map((crs) => {
         const b = bandOf(crs);
         const band = banded && b >= 0 && b !== lastBand
-            ? `<tr class="tr-grid-band"><td colspan="${grid.columns.length + 1}">${esc(bands[b].label)}</td></tr>` : '';
+            ? `<tr class="tr-grid-band"><td colspan="${grid.columns.length + 1}"><span class="tr-grid-band-label">${esc(bands[b].label)}</span></td></tr>` : '';
         if (b >= 0) lastBand = b;
         return band + `<tr><th scope="row" class="tr-grid-st">${esc(stations[crs] ?? crs)}</th>`
         + grid.columns.map((c, i) => {
@@ -319,11 +383,10 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
  * @returns {string}
  */
 export function renderTotals(timetables) {
-    const words = /** @type {Record<string, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
-    const cells = ['SX', 'SO', 'SU'].map((d) => {
+    const cells = /** @type {const} */ (['SX', 'SO', 'SU']).map((d) => {
         const now = aRealDay(timetables.now[d].dep).length, dec = aRealDay(timetables.dec[d].dep).length;
         const delta = dec === now ? '' : ` <span class="tr-delta tr-delta--${dec > now ? 'up' : 'down'}">${dec > now ? '+' : '−'}${Math.abs(dec - now)}</span>`;
-        return `<li class="tr-total"><span class="tr-total-day">${words[d]}</span> <span class="tr-total-n">${now} → <strong>${dec}</strong></span>${delta}</li>`;
+        return `<li class="tr-total"><span class="tr-total-day">${DAY_NAMES[d]}</span> <span class="tr-total-n">${now} → <strong>${dec}</strong></span>${delta}</li>`;
     }).join('');
     return `<p class="field-eyebrow tr-totals-h">Trains a day leaving Marylebone</p><ul class="tr-totals-days">${cells}</ul>`;
 }
@@ -444,8 +507,7 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
                 + `${daysLabel(days) ? ` <span class="tr-days">${esc(daysLabel(days))}</span>` : ''}`
                 + `${mark ? '<span class="sr-only"> — only in this timetable</span>' : ''}</li>`; }).join('')}</ul>`
         : '<p class="card-explainer tr-lead">No trains.</p>';
-    const dayName = /** @type {Record<string, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' })[day];
-    const within = `${esc(dayName)}, leaving within ${NEAR_WINDOW_MIN} minutes of ${esc(at)}`;
+    const within = `${esc(DAY_NAMES[day])}, leaving within ${NEAR_WINDOW_MIN} minutes of ${esc(at)}`;
     const lc = (/** @type {string} */ s) => s.charAt(0).toLowerCase() + s.slice(1);
     if (same) {
         return answer + noExact
@@ -466,10 +528,11 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
  * station whose last train keeps its time is a quiet row, so the changes are what stand out.
  * @param {ReturnType<typeof import('./trains-stations.js').lastTrains>} rows
  * @param {{ stations: Readonly<Record<string, string>>, labels: { old: string, new: string },
- *   bands?: { label: string, stations: string[] }[] }} o
+ *   bands?: { label: string, stations: string[] }[], started?: boolean }} o
+ *   started — the change has happened, for the tense of the chips' column heading
  * @returns {string}
  */
-export function renderLastTrains(rows, { stations, labels, bands = [] }) {
+export function renderLastTrains(rows, { stations, labels, bands = [], started = false }) {
     if (!rows.length) return '<p class="card-explainer tr-lead">No trains.</p>';
     const mins = (/** @type {number} */ m) => `${Math.abs(m)} min${Math.abs(m) === 1 ? '' : 's'}`;
     const what = (/** @type {typeof rows[number]} */ r) => r.kind === 'new' ? '<span class="tr-chip tr-chip--new">New</span>'
@@ -487,5 +550,5 @@ export function renderLastTrains(rows, { stations, labels, bands = [] }) {
         return `${head}<tr><th scope="row">${esc(stations[r.crs] ?? r.crs)}</th><td>${r.now ? esc(r.now) : dash}</td><td>${dec}</td><td>${what(r)}</td></tr>`;
     }).join('');
     return `<table class="tr-last"><thead><tr><th scope="col">Station</th><th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th>`
-        + '<th scope="col"><span class="sr-only">What changes</span></th></tr></thead>' + `<tbody>${body}</tbody></table>`;
+        + `<th scope="col"><span class="sr-only">${started ? 'What changed' : 'What changes'}</span></th></tr></thead><tbody>${body}</tbody></table>`;
 }

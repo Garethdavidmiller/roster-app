@@ -188,7 +188,7 @@
                 <div class="bulk-step">
                     <span class="bulk-step-label"><span class="bulk-step-num">2</span>Choose type</span>
                     <div class="bulk-type-group" id="bulkTypePills">
-                        <!-- Populated at runtime from PILL_TYPES in admin-overrides.js -->
+                        <!-- Populated at runtime by admin-app.js from PILL_TYPES in admin-shift-types.js (minus Other) -->
                     </div>
                     <!-- Time inputs shown for time-based types -->
                     <div class="bulk-time-group" id="bulkTimeGroup" style="display:none">
@@ -283,17 +283,14 @@
                 <select id="alMember" hidden>
                     <option value="">— Select member —</option>
                 </select>
-                <div class="field-group al-member-field">
-                    <label>Staff member</label>
-                    <div class="member-readonly-display" id="alMemberDisplay">Select a staff member above</div>
-                </div>
                 <div id="alRangePicker"></div>
                 <input type="date" id="alFrom" hidden>
                 <input type="date" id="alTo" hidden>
             </div>
             <div class="al-preview" id="alPreview" role="status" aria-live="polite"></div>
             <button type="button" class="btn-save" id="alSaveBtn" disabled>Record annual leave</button>
-            <div class="feedback" id="alFeedback" role="status" aria-live="polite"></div>
+            <!-- tabindex="-1": where focus goes when a delete empties the list below (admin-booked-periods.js). -->
+            <div class="feedback" id="alFeedback" role="status" aria-live="polite" tabindex="-1"></div>
 
             <!-- WHICH YEAR'S ALLOWANCE (v25.18). January leave comes out of that year's allowance
                  unless it is moved to the year before (owner, 3 Nov 2026 — leave-year.js). Drawn by
@@ -344,17 +341,13 @@
                 <select id="sickMember" hidden>
                     <option value="">— Select member —</option>
                 </select>
-                <div class="field-group al-member-field">
-                    <label>Staff member</label>
-                    <div class="member-readonly-display" id="sickMemberDisplay">Select a staff member above</div>
-                </div>
                 <div id="sickRangePicker"></div>
                 <input type="date" id="sickFrom" hidden>
                 <input type="date" id="sickTo" hidden>
             </div>
             <div class="al-preview sick-preview" id="sickPreview" role="status" aria-live="polite"></div>
             <button type="button" class="btn-save" id="sickSaveBtn" disabled>Record absence</button>
-            <div class="feedback" id="sickFeedback" role="status" aria-live="polite"></div>
+            <div class="feedback" id="sickFeedback" role="status" aria-live="polite" tabindex="-1"></div>
 
             <!-- Collapsible: all recorded absence days for the selected member -->
             <div class="al-booked-box" id="sickBookedBox" hidden>
@@ -405,7 +398,8 @@
             <div class="skeleton-row" aria-hidden="true"></div>
             <div class="skeleton-row" aria-hidden="true"></div>
         </div>
-        <div class="list-feedback" id="listFeedback" role="status" aria-live="polite"></div>
+        <!-- tabindex="-1": where focus goes when a delete removes the control that held it (admin-saved-changes.js). -->
+        <div class="list-feedback" id="listFeedback" role="status" aria-live="polite" tabindex="-1"></div>
         </div><!-- /.card-collapsible-body -->
     </div>
 

@@ -1,6 +1,7 @@
 // @ts-check
 /**
- * admin-shift-rules.js — the two rules a shift change must not break, decided without a DOM.
+ * admin-shift-rules.js — the two rules a shift change must not break, and the days that take no change
+ * at all, decided without a DOM.
  *
  * ── WHY IT LEFT THE COORDINATOR (v21.38, external review) ───────────────────────────────────────
  *
@@ -34,10 +35,22 @@
  * Collapsing those was a real defect: a naive `split('-')` on `TRG 09:00-17:00` shreds into NaN and
  * silently skips every check on that day, which reads as "no problem found".
  *
+ * ── AND TWO DAYS THAT TAKE NO CHANGE AT ALL (`checkDayRules`) ───────────────────────────────────
+ *
+ * A day before the member's start date (whole-app check, Nov 2026): the Calendar, its legend and
+ * Team Week never show a change there (`isBeforeMemberStart`), so one saved was receipted and then
+ * invisible for ever. And an Other day on Boxing Day — "Sundays and Boxing Day can never be
+ * training/Other days" (owner, Jul 2026). Both are refused at the grid's pills as a Sunday's are;
+ * this is the backstop at Save, for a row that reaches it another way.
+ *
+ * And the weeks the grid may be moved to at all — the configured years (`weekStepAllowed`,
+ * `linkableDate`), below.
+ *
  * Pure — no DOM, no Firebase. Tested by admin-shift-rules.test.mjs.
  */
 
-import { parseOtherValue, isRestShift } from './override-utils.js';
+import { parseOtherValue, isRestShift, isBeforeMemberStart } from './override-utils.js';
+import { CONFIG, formatISO, parseISODate } from './roster-data.js';
 
 /** Maximum length of a single shift. */
 export const MAX_SHIFT_MINS = 12 * 60;
@@ -127,7 +140,7 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
 
         const duration = endMins - startMins;
         if (duration > MAX_SHIFT_MINS) {
-            fail(date, `${formatDate(date)}: shift is ${fmtHours(duration)} — max is 12h`);
+            fail(date, `${formatDate(date)}: shift is ${fmtHours(duration)} — max is ${fmtHours(MAX_SHIFT_MINS)}`);
             return;                                   // an over-long shift is the finding; stop here
         }
 
@@ -140,17 +153,61 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
                 const prevEnd = effectiveEndMins(adjStart, adjEnd);
                 const gap = startMins + 24 * 60 - prevEnd;
                 if (gap < MIN_REST_MINS) {
-                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest after ${formatDate(adjISO)} shift — need 12h`);
+                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest after ${formatDate(adjISO)} shift — need ${fmtHours(MIN_REST_MINS)}`);
                 }
             } else {
                 const nextStart = parseMinutes(adjStart);
                 const gap = nextStart + 24 * 60 - endMins;
                 if (gap < MIN_REST_MINS) {
-                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest before ${formatDate(adjISO)} shift — need 12h`);
+                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest before ${formatDate(adjISO)} shift — need ${fmtHours(MIN_REST_MINS)}`);
                 }
             }
         });
     });
 
+    return { errors, failedDates };
+}
+
+/** Is the ISO date Boxing Day, 26 December, in any year? @param {string} iso @returns {boolean} */
+export function isBoxingDay(iso) { return /^\d{4}-12-26$/.test(iso); }
+
+// ── THE CONFIGURED YEARS ARE THE EDGE OF THE WEEK GRID (whole-app check, Nov 2026) ─────────────────
+// The Calendar and Team Week stop at CONFIG.MIN_YEAR–MAX_YEAR, and so do the bank-holiday tables. Admin's
+// arrows, swipe, date picker and `?date=` did not, so they walked on into weeks with no bank holidays
+// marked, where anything saved could never be opened on the Calendar — and without any sign.
+
+/** May the week grid move `days` from `iso`? Never further outside the configured years; always back
+ *  towards them, so a week reached some other way (an old record's ✎ Edit) is not a dead end.
+ *  @param {string} iso @param {number} days @returns {boolean} */
+export function weekStepAllowed(iso, days) {
+    const d = parseISODate(iso);
+    d.setDate(d.getDate() + days);
+    return days < 0 ? d.getFullYear() >= CONFIG.MIN_YEAR : d.getFullYear() <= CONFIG.MAX_YEAR;
+}
+
+/** A `?date=` Admin may open on: a REAL day (not 30 February, which the date field empties and the
+ *  arrows then turn into NaN), inside the configured years. @param {string|null} s @returns {boolean} */
+export function linkableDate(s) {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s) || formatISO(parseISODate(s)) !== s) return false;
+    const y = Number(s.slice(0, 4));
+    return y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR;
+}
+
+/**
+ * The staged changes that may not be saved on their day at all — see the header. Same shape as
+ * `checkShiftRules`, so the caller paints exactly the rows it is told failed.
+ * @param {{ toSave: Array<{ date: string, type: string }>, member: any, formatDate: (iso: string) => string }} args
+ * @returns {{ errors: string[], failedDates: string[] }}
+ */
+export function checkDayRules({ toSave, member, formatDate }) {
+    /** @type {string[]} */ const errors = [];
+    /** @type {string[]} */ const failedDates = [];
+    for (const { date, type } of toSave) {
+        const why = member && isBeforeMemberStart(member, parseISODate(date)) ? 'before the start date, so a change here would never show on the Calendar'
+            : type === 'other' && isBoxingDay(date) ? 'an "Other" day cannot be recorded on Boxing Day' : '';
+        if (!why) continue;
+        if (!failedDates.includes(date)) failedDates.push(date);
+        errors.push(`${formatDate(date)}: ${why}`);
+    }
     return { errors, failedDates };
 }

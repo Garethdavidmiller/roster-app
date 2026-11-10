@@ -24,19 +24,10 @@ body {
     background: var(--primary-blue);
     min-height: 100vh;
     min-height: 100dvh;
-    padding-top:    max(20px, env(safe-area-inset-top));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+    /* The page gutter, with the safe-area insets, is shared.css's: the same on every card page. */
     overflow-x: hidden; overflow-x: clip;
     overscroll-behavior: none;
     color: var(--text-dark);
-}
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
 }
 
 .app { max-width: var(--content-max-width); margin: 0 auto; }
@@ -478,6 +469,10 @@ body {
 
 @media print {
     body { background: white; padding: 0; color: black; }
+    /* The title and the page badge's words are white for the navy canvas, which paper does not have,
+       and both printed white on white: the title turns navy, the badge keeps its fill. */
+    .app-header h1 { color: var(--primary-blue); }
+    .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .btn-burger, .nl-tiles, .nl-tabs, .nl-back-row { display: none !important; }
     /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
     .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
@@ -485,8 +480,10 @@ body {
     .nl-weeks-wrap { overflow: visible; }
     .nl-inline { color: inherit; text-decoration: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); break-inside: avoid; }
-    .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    .nl-fig .nl-best b { color: black; }
+    /* The best figure keeps its green pill on paper, as the key beneath it promises ("Green is the best…"):
+       forced black, with its pill dropped by the default print, it differed from its neighbours by weight alone. */
+    .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side,
+    .nl-fig .nl-best b, .nl-best-key { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .nl-file-meta { color: black; }
     .nl-file, .nl-name { box-shadow: none; }
 }

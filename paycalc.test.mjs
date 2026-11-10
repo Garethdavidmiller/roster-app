@@ -4,11 +4,13 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { fmt } from './paycalc-format.js';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod, capHours,
   awardFromForYear, isPreAwardPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod, PENSION_STEPS,
+  takeHomePay,
 } from './paycalc-calc.js';
 // ── THE REAL PAYSLIP FIXTURE IS OPTIONAL, AND ITS ABSENCE IS LOUD (v23.71) ──────────────────────
 //
@@ -347,6 +349,23 @@ describe('computeNI', () => {
     const expected = (ni.uel - ni.pt) * 0.08 + (sacGross - ni.uel) * 0.02;
     approx(computeNI(sacGross, ni), expected, 'above UEL NI');
   });
+
+  // ── TO THE PENNY, BY THE REGULATION (whole-app review, Nov 2026) ──────────────────────────────
+  // Reg 12(1)(b): "any amount of a halfpenny or less shall be disregarded" — applied, in HMRC's
+  // specification for payroll software, by the third decimal place alone: 5 or less down, 6 or more up.
+  test('NI is whole pennies: a third decimal of 5 rounds DOWN, 6 rounds up — not ordinary rounding', () => {
+    assert.equal(computeNI(ni.pt + 1251.5625, ni), 100.12, '100.125 → 100.12 (a halfpenny is disregarded)');
+    assert.equal(computeNI(ni.pt + 1251.575, ni), 100.13, '100.126 → 100.13');
+    assert.equal(computeNI(ni.pt + 1251.5, ni), 100.12, 'already whole pennies → unchanged');
+    assert.equal(computeNI(3178.6566, ni), 176.85, 'the review\'s payslip: 176.8525 → 176.85');
+  });
+
+  test('NI above the UEL rounds each band on its own, then adds them', () => {
+    // 8% band: (3868 − 968) × 8% = 232.00 exactly. 2% band: 2% of 26.75 = 0.535 → 0.53, and 2% of
+    // 26.8125 = 0.53625 → 0.54 — so the upper band is rounded by the same rule, on its own.
+    assert.equal(computeNI(ni.uel + 26.75, ni), 232.53);
+    assert.equal(computeNI(ni.uel + 26.8125, ni), 232.54);
+  });
 });
 
 // ── computeSL ─────────────────────────────────────────────────────────────────
@@ -522,7 +541,8 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
   function runAppLines(/** @type {string} */ first, /** @type {string} */ last,
                        /** @type {Record<string, any>} */ inputs, /** @type {string[]} */ results) {
     const decl = (/** @type {string} */ name, /** @type {number} */ after) => {
-      const re = new RegExp(`const ${name}\\s*=`, 'g');
+      // `const name =`, or a destructuring that declares it: `const { …, name } =`.
+      const re = new RegExp(`const (?:${name}|\\{[^}]*\\b${name}\\b[^}]*\\})\\s*=`, 'g');
       re.lastIndex = after;
       return re.exec(APP_SRC)?.index ?? -1;
     };
@@ -539,10 +559,15 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
   //   Postgrad: £21,000 ÷ 13 = £1,615.38 (penny-floored) → (3,000 − 1,615.38) × 6% = £83.08 → £83
   // Tax and NI are inputs to these lines, not computed by them; round figures keep the sum readable.
   const SAC = 3000, TAX = 400, NI = 160;
-  const loans = (/** @type {Record<string, any>} */ over) => runAppLines('slUnder', 'net', {
-    computeSL, sacGross: SAC, thresholds: getThresholds('2026/27'), tax: TAX, ni: NI,
-    plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false, ...over,
-  }, ['slUnder', 'slPost', 'sl', 'net']);
+  // The loan lines, then the take-home line on what they made: since the tax was moved after the
+  // loans (it is bounded by what they leave), the two are no longer one run of statements.
+  const loans = (/** @type {Record<string, any>} */ over) => {
+    const r = runAppLines('slUnder', 'sl', {
+      computeSL, sacGross: SAC, thresholds: getThresholds('2026/27'),
+      plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false, ...over,
+    }, ['slUnder', 'slPost', 'sl']);
+    return { ...r, net: runAppLines('net', 'net', { takeHomePay, grossWithBp: SAC, pension: 0, tax: TAX, ni: NI, sl: r.sl }, ['net']).net };
+  };
 
   test('a plan AND a Postgraduate Loan: both come off take-home', () => {
     const r = loans({ plan: 'plan2', pgLoan: true });
@@ -573,6 +598,50 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
       runAppLines('sacGross', 'sacGross', { grossWithBp, pension }, ['sacGross']).sacGross;
     assert.equal(base(100, 200), 0, 'pension over pay');
     approx(base(3203.76, 151.86), 3051.90, 'an ordinary payslip is untouched');
+  });
+
+  // THE ROWS A MEMBER ADDS UP COME TO THE FIGURE UNDER THEM (whole-app review, Nov 2026). Nothing was
+  // rounded until shown, so "£3,178.66 − £442.20 − £176.85" sat over a take-home of £2,559.60 — on a
+  // quarter of ordinary payslips. NI and tax are now whole pennies by their statutory rules, and the
+  // take-home is the shown rows subtracted (`takeHomePay`, at calculate()'s own line).
+  test('the summary\'s rows add up to the take-home, to the penny, across a year of shapes', () => {
+    const pounds = (/** @type {string} */ s) => Number(s.replace(/[£,−]/g, ''));
+    let checked = 0;
+    for (const rate of [21.49, 20.74, 22.60]) for (let ot = 0; ot <= 24 * 60; ot += 7) for (const sat of [0, 440, 940]) {
+      const { gross } = computeGross({ effContr: 140, rate, satHrs: sat / 60, bhHrs: 0, bhOtHrs: 0, oHrs: ot / 60,
+        rHrs: 0, sHrs: (ot % 37) / 60, bHrs: 0, peerDays: 0, otherAdj: 0, london: 286.10 });
+      const pension = 151.86, sacGross = Math.max(0, gross - pension);
+      const tax = computeTax(sacGross, '1257L', T26).tax, ni = computeNI(sacGross, T26.ni), sl = computeSL(sacGross, 'plan2', T26.sl);
+      // calculate()'s own line, run as written: what it shows as pay after pension, and the take-home.
+      const { _shownAfterPension: afterPension, net } = runAppLines('net', 'net',
+        { takeHomePay, grossWithBp: gross, pension, tax, ni, sl }, ['net', '_shownAfterPension']);
+      const at = `rate ${rate}, overtime ${ot}m, Saturday ${sat}m`;
+      // In whole pennies, absolute (strict equality tells −0 from 0, which is no difference here).
+      assert.equal(Math.abs(Math.round((pounds(fmt(gross)) - pounds(fmt(pension)) - pounds(fmt(afterPension))) * 100)), 0, `total − pension, ${at}`);
+      assert.equal(Math.abs(Math.round((pounds(fmt(afterPension)) - pounds(fmt(tax)) - pounds(fmt(ni)) - pounds(fmt(sl)) - pounds(fmt(net))) * 100)), 0,
+        `pay after pension − deductions, ${at}`);
+      checked++;
+    }
+    assert.ok(checked > 600, `premise: a broad grid (${checked})`);
+  });
+
+  // THE STOP MUST OUTLIVE ITS PAYSLIP'S PLACE IN THE LIST (whole-app review, Nov 2026). A select set
+  // to a value no option carries reads ''. If the payslip list ever stops offering the stored stop —
+  // the rollover note in paycalc-periods.js says why a year may leave it — calculate() read "still
+  // deducted" and priced the loan back onto every payslip, with nothing on screen to say so.
+  test('the student-loan stop is read from storage when the select cannot show it', () => {
+    const stop = (/** @type {string} */ shown, /** @type {string|null} */ stored, /** @type {number} */ _pNum) =>
+      runAppLines('_slPaidOffFromP', 'slPaidOff', {
+        _slPaidOffSel: { value: shown }, lsGet: (/** @type {string} */ k) => (k === 'sl-stop' ? stored : null),
+        SK: { slPaidOff: 'sl-stop' }, _pNum,
+      }, ['_slPaidOffFromP', 'slPaidOff']);
+    assert.deepEqual(stop('57', '57', 58), { _slPaidOffFromP: 57, slPaidOff: true }, 'the ordinary case');
+    assert.deepEqual(stop('', '47', 58), { _slPaidOffFromP: 47, slPaidOff: true },
+      'a stop the list no longer offers is still in force');
+    assert.deepEqual(stop('', '', 58), { _slPaidOffFromP: 0, slPaidOff: false }, '"No — still deducted"');
+    assert.deepEqual(stop('57', null, 58), { _slPaidOffFromP: 57, slPaidOff: true },
+      'a browser that cannot store still follows the select');
+    assert.equal(stop('57', '57', 56).slPaidOff, false, 'earlier payslips keep their deduction');
   });
 });
 
@@ -879,6 +948,56 @@ describe('computeTax', () => {
     assert.equal(computeTax(1200, '1257L', T25).refund, 0, 'the standard method knows nothing of the year');
     assert.equal(computeTax(3000, '1257LW1', T25, { ytdPay: 9000, ytdTax: 1800, periodN: 4 }).refund, 0,
       'a week-1/month-1 code is non-cumulative and never refunds the year');
+  });
+
+  // ── NEVER MORE THAN THE PAY LEAVES (whole-app review, Nov 2026) ──────────────────────────────
+  // Bounded by the pay alone, a Tax Paid typed as 348 for 3,480 took all of the pay and NI came off on
+  // top: a take-home of −£173.99 (−£252.99 with Plan 2). The bound is now what NI and loans leave, and
+  // `payLimited` says so, so the summary can say the figures look wrong.
+  const T2627 = getThresholds('2026/27');
+  const MISTYPED = { ytdPay: 8 * 3142.84, ytdTax: 348, periodN: 9 };
+  test('cumulative PAYE: the deductions together never exceed the pay — a mistyped Tax Paid', () => {
+    const ni = computeNI(3142.84, T2627.ni), sl = computeSL(3142.84, 'plan2', T2627.sl);
+    for (const other of [ni, ni + sl]) {
+      const r = computeTax(3142.84, '1257L', T2627, { ...MISTYPED, otherDeductions: other });
+      approx(r.tax, 3142.84 - other, 'the tax takes what is left, no more');
+      assert.equal(r.payLimited, true, 'and says the pay, not the year, set it');
+      assert.ok(3142.84 - r.tax - other >= -0.005, 'so the take-home is never below £0');
+    }
+  });
+
+  // ── TAX ROUNDED DOWN TO THE PENNY (whole-app review, Nov 2026) ─────────────────────────────────
+  // HMRC's PAYE tax-table routines: "to 4 decimal places … then finally round down the result if
+  // necessary to the nearest multiple of 1p below" — the overriding limit too.
+  test('income tax is whole pennies, rounded down — on every path', () => {
+    const pennies = (/** @type {number} */ x) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-6;
+    for (const code of ['S1257L', 'SD0', 'K500', '1257L', 'BR', 'D1']) {
+      for (const pay of [3142.85, 3333.33, 2717.77, 4999.99]) {
+        const one = computeTax(pay, code, T26);
+        assert.ok(pennies(one.tax), `${code} on £${pay}: ${one.tax}`);
+        const cum = computeTax(pay, code, T26, { ytdPay: 8 * pay, ytdTax: 8 * one.tax, periodN: 9 });
+        assert.ok(pennies(cum.tax), `${code} on £${pay}, cumulative: ${cum.tax}`);
+      }
+    }
+    // Scottish bands have fractional per-period tops, so the tax has fractions of a penny: DOWN.
+    const sc = T26.scottishTax;
+    const raw = calcBandedTax(Math.floor(3333.33 - sc.pa), sc.bands);
+    assert.ok(!pennies(raw), `premise: the banded figure has a fraction of a penny (${raw})`);
+    assert.equal(computeTax(3333.33, 'S1257L', T26).tax, Math.floor(raw * 100) / 100);
+    approx(computeTax(3142.85, 'K500', T26, { ytdPay: 25000, ytdTax: 100, periodN: 9 }).tax, 1571.42,
+      'the K-code 50% limit, £1,571.425, to the penny below', 0.0001);
+  });
+
+  test('cumulative PAYE: an ordinary year, or a K code at its 50% limit, is not pay-limited', () => {
+    const ok = computeTax(3142.84, '1257L', T2627, { ytdPay: 8 * 3142.84, ytdTax: 8 * 435.4, periodN: 9, otherDeductions: 173.99 });
+    assert.equal(ok.payLimited, false);
+    approx(ok.tax, computeTax(3142.84, '1257L', T2627, { ytdPay: 8 * 3142.84, ytdTax: 8 * 435.4, periodN: 9 }).tax,
+      'the bound changes no ordinary figure', 0.005);
+    // HMRC's own 50% limit binds a K code first — that is the rule, not a mistyped figure.
+    const k = computeTax(3142.84, 'K500', T2627, { ...MISTYPED, otherDeductions: 173.99 });
+    approx(k.tax, 3142.84 * 0.5, 'the K-code overriding limit');
+    assert.equal(k.payLimited, false);
+    assert.equal(computeTax(3142.84, '1257L', T2627).payLimited, false, 'the standard method is never pay-limited');
   });
 
   // ── THE HALF-FILLED YEAR TO DATE PAIR ────────────────────────────────────────────────────────
@@ -1370,9 +1489,9 @@ describe('calcProRateFactor', () => {
     assert.equal(calcProRateFactor(new Date(2026, 4, 5), p51start, p51cut), 0); // May 5
   });
 
-  test('startDate = cutoff day midnight → 1/28 (last day only)', () => {
-    // May 2 midnight → raw 0.5 → Math.round=1 → days=2 → 2/28 by the formula
-    // This edge case is noted: formula gives 2 days for a cutoff-day joiner.
+  test('startDate = cutoff day midnight → 2/28 by the formula (one calendar day, counted two)', () => {
+    // May 2 midnight → raw 0.5 → Math.round=1 → days=2 → 2/28 by the formula: the count is one more
+    // than the calendar days, as for every in-period start (the docstring; paycalc-3-7 is on hold).
     // In practice Chiltern would never start someone on the last day of a period.
     const factor = calcProRateFactor(new Date(2026, 4, 2), p51start, p51cut);
     assert.equal(factor, 2 / 28);

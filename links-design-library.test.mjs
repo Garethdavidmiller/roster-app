@@ -34,40 +34,51 @@ global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ i
 
 // ── MOCKS: the CDN-loading Firebase client, and the overlay (DOM lifecycle) ─────────────────────
 /** @type {boolean} */ let _confirmAnswer = true;
+/** Every confirm's message, in order. @type {string[]} */ let _confirmed = [];
 mock.module('./firebase-client.js', { namedExports: { serverTimestamp: () => 'SERVER_TS' } });
 mock.module('./overlay.js', {
     namedExports: {
-        createLightbox: () => ({ open() {}, close() {} }),
-        confirmDialog: async () => _confirmAnswer,
+        // Runs the lifecycle callbacks a real lightbox runs, so a panel's open/closed state is real.
+        createLightbox: (/** @type {any} */ o) => ({ open() { o.onOpen?.(); }, close() { o.onClose?.(); } }),
+        confirmDialog: async (/** @type {any} */ o) => { _confirmed.push(o?.message ?? ''); return _confirmAnswer; },
     },
 });
 
 const { createDesignLibrary } = await import('./links-design-library.js');
+const { PROPOSALS } = await import('./links-proposals.js');
 
-/** A recording store and context. @param {{ restore?: Function, create?: Function }} [over] */
+/** A recording store and context.
+ *  @param {{ restore?: Function, create?: Function, purge?: Function, binIfStill?: Function, activeId?: () => any }} [over] */
 function setup(over = {}) {
     _els = {};
     _confirmAnswer = true;
-    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [] });
+    _confirmed = [];
+    // `seq` is the ORDER of the calls that matter to the masthead: whether a design is recorded as
+    // queued before or after the open (or the picker repaint) that draws it.
+    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [], tone: [], removed: [], queued: [], seq: [] });
     /** @type {any[]} */ const designs = [];
     let open = false;
     let dirty = false;
     const store = {
         restore: over.restore ?? (async (/** @type {string} */ id) => { calls.restore.push(id); return { status: 'ok', updatedAt: null, revision: 2 }; }),
-        purge: async (/** @type {string} */ id) => { calls.purge.push(id); return 'removed'; },
+        purge: over.purge ?? (async (/** @type {string} */ id) => { calls.purge.push(id); return 'removed'; }),
         create: over.create ?? (async (/** @type {any} */ payload) => { calls.create.push(payload); return { id: 'new1', updatedAt: null, baseline: { loadedRevision: 1 } }; }),
+        binIfStill: over.binIfStill ?? (async () => 'moved'),
     };
     const lib = createDesignLibrary({
         store, currentUser: 'G. Miller',
         getDesigns: () => designs,
         addDesign: (d) => { designs.push(d); calls.add.push(d.id); },
-        activate: (d) => { calls.activate.push(d.id); open = true; },
+        activate: (d) => { calls.activate.push(d.id); calls.seq.push(`activate:${d.id}`); open = true; },
         isDirty: () => dirty,
         hasOpenDesign: () => open,
-        renderPicker: () => { calls.picker.push(1); },
+        renderPicker: () => { calls.picker.push(1); calls.seq.push('picker'); },
         refreshLists: async () => {},
-        actionStatus: (msg) => { calls.status.push(msg); },
+        actionStatus: (msg, tone) => { calls.status.push(msg); calls.tone.push(tone); },
         getHeader: () => null,
+        removeDesigns: (ids) => { calls.removed.push([...ids]); },
+        markQueued: (id) => { calls.queued.push(id); calls.seq.push(`queued:${id}`); },
+        ...(over.activeId ? { activeId: over.activeId } : {}),
     });
     return { lib, calls, designs, setOpen: (/** @type {boolean} */ v) => { open = v; }, setDirty: (/** @type {boolean} */ v) => { dirty = v; } };
 }
@@ -214,5 +225,178 @@ describe('import: check first, then save as a NEW design', () => {
         el('linksImportText').value = 'left over';
         await lib.openImport();
         assert.equal(el('linksImportText').value, 'left over', 'the panel was not reset or opened');
+    });
+});
+
+// ── WHOLE-APP FIX, NOV 2026 ─────────────────────────────────────────────────────────────────────
+const GOOD_IMPORT = JSON.stringify({ name: 'Option A', patterns: { 1: { sun: 'RD', mon: '06:20-14:20', tue: 'SP', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } } });
+/** Paste, check, and press Save; returns the Save's promise. */
+const importIt = async (/** @type {any} */ lib, name = '') => {
+    await lib.openImport();
+    el('linksImportText').value = GOOD_IMPORT;
+    await fire('linksImportCheck', 'click');
+    if (name) el('linksImportName').value = name;
+    return fire('linksImportSave', 'click');
+};
+
+describe('import: what a create that had to WAIT is called, and where it lands', () => {
+    test('one QUEUED in this browser is not announced as a success (links-design-8)', async () => {
+        // The ordinary Save in that state says it is in this browser, without the success colour;
+        // the import said "Imported …" in green, with nothing to say it existed only here.
+        const { lib, calls } = setup({ create: async () => ({ id: 'q1', updatedAt: null, queued: true, baseline: { loadedRevision: 1 } }) });
+        await importIt(lib);
+        assert.match(calls.status.at(-1), /Saved in this browser — it uploads the next time Links is open here with a connection/);
+        assert.notEqual(calls.tone.at(-1), 'ok', 'not in the success colour');
+        assert.notEqual(calls.tone.at(-1), 'err', 'and not as an error either');
+    });
+
+    test('…while one the server confirmed is, in the success colour', async () => {
+        const { lib, calls } = setup();
+        await importIt(lib);
+        assert.doesNotMatch(calls.status.at(-1), /in this browser/);
+        assert.equal(calls.tone.at(-1), 'ok');
+    });
+
+    // THE PILL AS WELL AS THE LINE (whole-app fix, Nov 2026). The coordinator keeps the designs whose
+    // last write is only in this browser's queue, and the masthead's pill reads them when it is drawn.
+    // Nothing told it about a queued import, so the pill said "Saved" under a line saying the opposite.
+    test('one QUEUED is recorded as queued, and before the open that draws the pill', async () => {
+        const { lib, calls } = setup({ create: async () => ({ id: 'q1', updatedAt: null, queued: true, baseline: { loadedRevision: 1 } }) });
+        await importIt(lib);
+        assert.deepEqual(calls.queued, ['q1']);
+        assert.deepEqual(calls.seq, ['queued:q1', 'activate:q1'], 'recorded after the open, the pill is drawn as "Saved"');
+    });
+
+    test('…one the server confirmed is not recorded as queued', async () => {
+        const { lib, calls } = setup();
+        await importIt(lib);
+        assert.deepEqual(calls.queued, [], 'a confirmed import would read "Saved in this browser" when everybody has it');
+        assert.deepEqual(calls.activate, ['new1']);
+    });
+
+    test('one queued that lands after the panel was closed is recorded too, for when it is opened', async () => {
+        /** @type {() => void} */ let land = () => {};
+        const { lib, calls } = setup({ create: () => new Promise(r => { land = () => r({ id: 'late1', updatedAt: null, queued: true, baseline: { loadedRevision: 1 } }); }) });
+        const saving = importIt(lib);
+        await settle();
+        await fire('linksImportCancel', 'click');
+        land();
+        await saving;
+        assert.deepEqual(calls.activate, [], 'premise: not opened over the work in front');
+        assert.deepEqual(calls.seq, ['queued:late1', 'picker']);
+    });
+
+    test('one that lands after the panel was CLOSED is listed, never opened over the work in front (links-design-2)', async () => {
+        // An online create resolves on the server's answer, so on a weak connection the designer
+        // can close the panel and go back to their design while it waits. Opening the import when
+        // it landed replaced whatever they had edited since.
+        /** @type {() => void} */ let land = () => {};
+        const { lib, calls } = setup({ create: () => new Promise(r => { land = () => r({ id: 'late1', updatedAt: null, baseline: { loadedRevision: 1 } }); }) });
+        const saving = importIt(lib);
+        await settle();
+        await fire('linksImportCancel', 'click');
+        land();
+        await saving;
+        assert.deepEqual(calls.add, ['late1'], 'the design exists, so it is in the list');
+        assert.deepEqual(calls.activate, [], 'and it is NOT opened over the design the designer went back to');
+        assert.match(calls.status.at(-1), /not opened/);
+    });
+});
+
+describe('a saved design may not take a shortlisted proposal\'s name (links-design-6)', () => {
+    // The proposals sit in the same picker and the same Compare chips as the saved designs, so a
+    // design called "Balanced V6 — Dec 2026" beside the proposal of that name is the "cannot be told
+    // apart in the list" case the naming rule exists to refuse. The rule was asked of saved designs only.
+    test('an import refuses it, naming the proposal — whatever its case', async () => {
+        const { lib, calls } = setup();
+        await importIt(lib, PROPOSALS[0].name.toLowerCase());
+        assert.deepEqual(calls.create, []);
+        assert.match(el('linksImportStatus').textContent, /already a shortlisted proposal called/);
+    });
+
+    test('a binned design that has one comes back all the same — refusing would strand it — and is told to rename', async () => {
+        // A proposal cannot be renamed, so "rename that one first" has no answer here: the restore
+        // goes ahead, and the line says what to do about the clash.
+        const name = PROPOSALS[0].name;
+        const { lib, calls } = setup({ restore: async () => ({ status: 'ok', updatedAt: null, revision: 3, data: { name, patterns: {}, window: null } }) });
+        lib.setBin([BINNED('b', name)]);
+        await clickBin('.bin-restore', 'b');
+        assert.equal(calls.add.length, 1);
+        assert.match(el('designBinStatus').textContent, /shortlisted proposal has the same name — rename/);
+    });
+});
+
+describe('the bin: one action at a time on a row (links-design-9)', () => {
+    test('a second tap on Restore before the first answers runs nothing, and the bin says "restored"', async () => {
+        // It ran a second restore, which found the design already live and reported, in the error
+        // style and over the success line, that "someone else" had restored it.
+        let asked = 0;
+        /** @type {(v: any) => void} */ let answer = () => {};
+        const { lib } = setup({ restore: () => { asked++; return new Promise(r => { answer = r; }); } });
+        lib.setBin([BINNED('a', 'Alpha')]);
+        await clickBin('.bin-restore', 'a');
+        await clickBin('.bin-restore', 'a');
+        answer({ status: 'ok', updatedAt: null, revision: 2 });
+        await settle();
+        assert.equal(asked, 1);
+        assert.equal(el('designBinStatus').textContent, '“Alpha” restored.');
+    });
+
+    test('…and Remove for good on that row asks nothing until the restore has answered', async () => {
+        /** @type {(v: any) => void} */ let answer = () => {};
+        let purged = 0;
+        const { lib } = setup({ restore: () => new Promise(r => { answer = r; }), purge: async () => { purged++; return 'restored-elsewhere'; } });
+        lib.setBin([BINNED('a', 'Alpha')]);
+        await clickBin('.bin-restore', 'a');
+        await clickBin('.bin-purge', 'a');
+        assert.deepEqual(_confirmed, [], 'no confirm while the row is busy');
+        answer({ status: 'ok', updatedAt: null, revision: 2 });
+        await settle();
+        assert.equal(purged, 0);
+    });
+
+    test('a double tap on Remove for good asks once', async () => {
+        const { lib } = setup();
+        lib.setBin([BINNED('a', 'Alpha')]);
+        const ev = { target: { closest: (/** @type {string} */ sel) => sel === '.bin-purge' ? { dataset: { id: 'a' } } : null } };
+        fire('designBinList', 'click', ev);
+        fire('designBinList', 'click', ev);   // before the first has answered
+        await settle();
+        assert.equal(_confirmed.length, 1, 'two confirms stacked, and two removals behind them');
+    });
+
+    test('a Restore button says WHICH design it restores, as Remove for good does', () => {
+        const { lib } = setup();
+        lib.setBin([BINNED('a', 'Alpha')]);
+        lib.renderBinList();
+        assert.match(el('designBinList').innerHTML, /class="bin-restore[^"]*"[^>]*aria-label="Restore Alpha"/);
+    });
+});
+
+describe('Keep only the shortlist warns about unsaved work only when the open design moves (links-design-10)', () => {
+    // `removeDesigns` replaces the working copy only when the open design is one of those moving, so
+    // "Your unsaved changes to the open design will be lost" was false for every other open design.
+    const OLD = { id: 'old1', name: 'Old', updatedBy: 'S. Silva', updatedAt: { toMillis: () => Date.UTC(2026, 8, 1) } };
+    const RECENT = { id: 'new1', name: 'Recent', updatedBy: 'G. Miller', updatedAt: { toMillis: () => Date.UTC(2026, 10, 9) } };
+    const press = async (/** @type {any} */ activeId) => {
+        const s = setup({ activeId });
+        s.designs.push(OLD, RECENT);
+        s.setDirty(true);
+        _confirmAnswer = false;   // read the dialog, then decline it
+        await fire('keepShortlistBtn', 'click');
+        await settle();
+        return _confirmed.at(-1) ?? '';
+    };
+    test('the open design is a recent one, so nothing of it is lost', async () => {
+        assert.doesNotMatch(await press(() => 'new1'), /will be lost/);
+    });
+    test('the open design is one of those moving: the warning stands', async () => {
+        assert.match(await press(() => 'old1'), /will be lost/);
+    });
+    test('an unsaved copy of a proposal has no saved id, and is not moving either', async () => {
+        assert.doesNotMatch(await press(() => null), /will be lost/);
+    });
+    test('with no way to tell which design is open, it still warns — the safe direction', async () => {
+        assert.match(await press(undefined), /will be lost/);
     });
 });

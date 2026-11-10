@@ -77,8 +77,8 @@ globalThis.document = {
 globalThis.requestAnimationFrame = fn => fn();
 
 const { teamMembers, TEAM_GRADES } = await import('./roster-data.js');
-const { initTeamView }  = await import('./calendar-team-view.js');
-const { noteKnowledge } = await import('./calendar-data-state.js');
+const { initTeamView, weekStartForMonth } = await import('./calendar-team-view.js');
+const { noteKnowledge, forget: forgetKnowledge } = await import('./calendar-data-state.js');
 
 const HIDDEN  = teamMembers.filter(m => m.hidden);
 const VISIBLE = teamMembers.filter(m => !m.hidden);
@@ -115,7 +115,8 @@ describe('preconditions', () => {
  * `getSelectedMemberIndex` the index of a current member of it — the module's own route, not a
  * reach into its internals. `monthKey` is injected, so the test supplies its own spelling and seeds
  * `calendar-data-state` with the same one: the grid is WITHHELD unless the week's months are known,
- * which is a separate rule with its own suite (calendar-data-state.test.mjs).
+ * which is a separate rule — the states in calendar-data-state.test.mjs, Team View's use of them in
+ * the block after the next one.
  */
 function renderTeamGrid(grade) {
     const idx = teamMembers.findIndex(m => !m.hidden && m.role === grade);
@@ -182,6 +183,85 @@ describe('the Team Week View never draws somebody who has left', () => {
             assert.ok(!TEAM_GRADES.includes(role),
                 `${role} has no current staff but has a grade tab — it would render a grid of leavers`);
         }
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// …AND A WEEK IT DOES NOT KNOW DRAWS NOBODY AT ALL — CALENDAR_DATA.md invariant 1, on this surface
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+//
+// The harness above seeds every month `authoritative` and asserts the grid IS drawn. This is the other
+// direction (10 Nov 2026, contracts-a-2): a week whose overrides have not loaded, or failed to, must
+// draw no member row, because a row drawn from the base roster shows a colleague on leave as working.
+// Forcing Team View's `_withheld` to false left every suite in every lane green. The week is opened
+// through `getDisplayedMonth` on a month that is not this one, so it is the week holding that month's
+// 1st — two months, which is what lets the worse-known-month rule be asserted at all.
+
+describe('the Team Week View draws no row for a week it does not know (CALENDAR_DATA.md 1)', () => {
+    const monthKey = (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`;
+    // The first month after next whose 1st is not a Sunday, so its opening week straddles two months.
+    const shown = (() => {
+        const now = new Date();
+        for (let i = 2; ; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+            if (d.getDay() !== 0) return { month: d.getMonth(), year: d.getFullYear() };
+        }
+    })();
+    const start = weekStartForMonth(shown, new Date());
+    const end = new Date(start); end.setDate(end.getDate() + 6);
+    const [EARLIER, LATER] = [start, end].map(d => monthKey(d.getFullYear(), d.getMonth()));
+
+    /** Open Team View on that week with the two months known as given; return what it drew. */
+    function openWith(earlier, later) {
+        forgetKnowledge();
+        if (earlier !== 'unknown') noteKnowledge([EARLIER], earlier);
+        if (later !== 'unknown') noteKnowledge([LATER], later);
+        _display.innerHTML = '';
+        const idx = teamMembers.findIndex(m => !m.hidden && m.role === 'CEA');
+        const tv = initTeamView({
+            rosterOverridesCache: new Map(), ensureOverridesCached() {}, monthKey, clearFetchedMonth() {},
+            getSelectedMemberIndex: () => idx, isFirstRun: () => false, renderCalendar() {},
+            getDisplayedMonth: () => shown, _pushOverlayState() {}, _clearOverlayHistory() {},
+        });
+        tv.toggleTeamView();
+        return { html: _display.innerHTML, shown: tv.isGridShown() };
+    }
+
+    test('premise: the week straddles two months, and known months draw the whole grade', () => {
+        assert.notEqual(EARLIER, LATER, 'the week must span two months for the half-known cases to mean anything');
+        const { html, shown: drawn } = openWith('authoritative', 'authoritative');
+        assert.equal(drawn, true);
+        assert.ok(rowNames(html).length > 0, 'a known week must draw its rows, or the cases below prove nothing');
+    });
+
+    test('a week not read yet draws no row — it waits, and says so', () => {
+        const { html, shown: drawn } = openWith('unknown', 'unknown');
+        assert.equal(drawn, false, 'isGridShown must not report a roster on screen');
+        assert.deepEqual(rowNames(html), [], 'a row here is the base roster drawn as though it were known');
+        assert.match(html, /Checking this week/);
+        assert.match(html, /role="status"/);
+    });
+
+    test('a week whose read FAILED draws no row either, and offers Try again', () => {
+        const { html, shown: drawn } = openWith('error', 'error');
+        assert.equal(drawn, false);
+        assert.deepEqual(rowNames(html), []);
+        assert.match(html, /Couldn't check this week/);
+        assert.match(html, /id="tvRetry"/);
+    });
+
+    test('a week is only as known as its WORSE month — one known month does not draw it', () => {
+        for (const [earlier, later] of [['authoritative', 'unknown'], ['unknown', 'authoritative'], ['authoritative', 'error']]) {
+            const { html } = openWith(earlier, later);
+            assert.deepEqual(rowNames(html), [], `${EARLIER} ${earlier}, ${LATER} ${later}: no row may be drawn`);
+        }
+    });
+
+    test('a CACHED week is still a grid: a saved copy is drawn, not withheld', () => {
+        // The careless fix in the other direction — hiding good data behind a wait that never clears.
+        const { html, shown: drawn } = openWith('cached', 'authoritative');
+        assert.equal(drawn, true);
+        assert.ok(rowNames(html).length > 0);
     });
 });
 

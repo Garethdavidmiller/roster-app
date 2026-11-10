@@ -108,13 +108,13 @@
                 <span class="collapse-chevron open" id="trOverviewChevron">▾</span>
             </div>
         </div>
-        <!-- Chiltern's books say nothing about Christmas, and its timetable page says more changes come
-             between 13 December and 10 January. Shown until then (FURTHER_CHANGES_UNTIL), and OUTSIDE the
-             fold (v25.20): it was inside it, so from the second visit — when the card opens folded — nobody
-             saw it, and from v25.13 nothing else on the page said it either. -->
-        <p class="card-explainer tr-festive" id="trFestive" hidden><strong>Christmas and New Year are not on
-            this page.</strong> Chiltern is changing times again between 13&nbsp;December and 10&nbsp;January, with big
-            changes over the holidays.</p>
+        <!-- Chiltern's books say nothing about the further changes its timetable page announces for the
+             weeks after the change (until FURTHER_CHANGES_UNTIL). Shown until then, and OUTSIDE the fold
+             (v25.20): it was inside it, so from the second visit — when the card opens folded — nobody saw
+             it, and from v25.13 nothing else on the page said it either. Worded by trains-app.js from the
+             two dates (trains-render.js, renderFurtherChanges): typed here, its dates and its "Christmas"
+             would have outlived the next books. -->
+        <p class="card-explainer tr-festive" id="trFestive" hidden></p>
         <div class="card-collapsible-body open" id="trOverviewBody">
             <!-- Three short lines, then the trains. A paragraph about the page, a totals table and two rows
                  of controls once stood between a reader and the first answer (v24.72–v24.77). -->
@@ -127,7 +127,7 @@
                 <p class="card-explainer" id="trLead">Today’s timetable beside the new one that starts on Sunday 13 December. Both
                     are Chiltern’s published timetables, not live running information.</p>
                 <!-- After December's books expire (DEC_VALID_UNTIL) neither column is running any more. -->
-                <p class="card-explainer tr-caveat" id="trEnded" hidden><strong>Both timetables on this page have
+                <p class="card-explainer" id="trEnded" hidden><strong>Both timetables on this page have
                     ended.</strong> Check the journey planner for today’s trains.</p>
                 </div>
                 <div class="tr-ov-side">
@@ -225,7 +225,7 @@
                         <span class="hint" id="trChangesHint">Trains leaving Marylebone — biggest change first</span>
                     </div>
                     <div class="card-header-actions">
-                        <button type="button" class="btn-card-tips" data-card="changes"
+                        <button type="button" class="btn-card-tips" data-card="changes" id="trChangesTips"
                                 aria-label="Tips for what’s changing">?</button>
                         <span class="collapse-chevron open" id="trChangesChevron">▾</span>
                     </div>

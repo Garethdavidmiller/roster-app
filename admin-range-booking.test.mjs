@@ -135,6 +135,9 @@ let _record = async () => ({ workingCount: 1 });
 
 /** Dates the section treats as non-working (rest days), by ISO string. */
 /** @type {Set<string>} */ let _restDays = new Set();
+/** Whether `isWorkingDate` is the real rule rather than `_restDays` (block H). */
+let _realWorkingDate = false;
+const { isWorkingDate: realIsWorkingDate } = await import('./al-entitlement.js');
 /** The member's overrides as `buildMemberDateMap` returns them — empty unless a test seeds one. */
 /** @type {Map<string, any>} */ let _ovMap = new Map();
 
@@ -143,19 +146,32 @@ mock.module('./admin-overrides.js', {
         recordRangeOverrides: async (/** @type {any} */ payload) => { _writes.push(payload); return _record(); },
         formatDisplay: (/** @type {string} */ iso) => iso,
         buildMemberDateMap: () => _ovMap,
-        isWorkingDate: (/** @type {any} */ _m, /** @type {string} */ iso) => !_restDays.has(iso),
+        // Rest days come from `_restDays` — unless a block asks for the REAL rule (block H), which
+        // knows a Sunday is never worked; the stand-in would count every Sunday as a working day.
+        isWorkingDate: (/** @type {any} */ m, /** @type {string} */ iso, /** @type {any} */ map) =>
+            _realWorkingDate ? realIsWorkingDate(m, iso, map) : !_restDays.has(iso),
         isSaveInFlight: () => _otherSaveInFlight,
         setSaveInFlight: (/** @type {boolean} */ on) => { _lockCalls.push(on); },
+        hasOverrideAuthorityFor: () => _authority,
+        // admin-al.js reads every override for its allowance check; block H wires the real card.
+        getAllOverrides: () => [],
     },
 });
 /** v24.38: the page-wide write lock the range cards share with Change a Shift. */
 let _otherSaveInFlight = false;
 /** @type {boolean[]} */ let _lockCalls = [];
+/** Whether the member's records have been READ, and whether their last read failed (block F). The
+ *  store itself pulls the gstatic SDK, so its one answer this module asks is stood in for. */
+let _authority = true;
+let _loadFailed = false;
+mock.module('./admin-override-store.js', { namedExports: { loadFailedFor: () => _loadFailed } });
 
 // The RULE that decides which dates are written stays real; only the widget is stubbed.
 const { getDateRange: realGetDateRange } = await import('./admin-rangepicker.js?real');
 /** Set by a test that needs to observe the picker being reset after a successful save. */
 let _pickerResets = 0;
+/** What each `reset` was asked to keep — a save keeps the month on screen (block K). @type {any[]} */
+let _resetArgs = [];
 mock.module('./admin-rangepicker.js', {
     namedExports: {
         getDateRange: (/** @type {string} */ a, /** @type {string} */ b) => realGetDateRange(a, b),
@@ -165,7 +181,7 @@ mock.module('./admin-rangepicker.js', {
         // is now empty, so a stub which kept the dates would report the button as live and hide
         // the very state this file asserts.
         buildRangePicker: () => ({
-            reset: () => { _pickerResets++; el('alFrom').value = ''; el('alTo').value = ''; },
+            reset: (/** @type {any} */ o) => { _pickerResets++; _resetArgs.push(o); el('alFrom').value = ''; el('alTo').value = ''; },
         }),
     },
 });
@@ -235,9 +251,13 @@ beforeEach(() => {
     _restDays = new Set();
     _ovMap = new Map();
     _pickerResets = 0;
+    _resetArgs = [];
     _record = async () => ({ workingCount: 1 });
     _otherSaveInFlight = false;
     _lockCalls = [];
+    _authority = true;
+    _loadFailed = false;
+    _realWorkingDate = false;
     // A successful save fades its receipt after 7 s on a REAL timer, and nothing here waits for it
     // — so it held the process open after the last test, 7.3 s of wall for ~250 ms of tests (test
     // audit, 7 Nov 2026). Mocked, it is a fake timer the reset below throws away. Not
@@ -732,5 +752,223 @@ describe("the receipt keeps the member's name on one line", () => {
         const name = fb._kids.find((/** @type {any} */ k) => k.className === 'feedback-name');
         assert.ok(name, 'the member name must be wrapped so CSS can keep it on one line');
         assert.equal(name.textContent, MEMBER);
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// THE WHOLE-APP CHECK (10 Nov 2026). Each case below fails on the code before the fix.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+const iso10 = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** Whether `m` works `date` on the base roster. @param {any} m @param {string} date */
+const works = (m, date) => !isRestShift(getBaseShift(m, parseISODate(date)));
+
+// F. ONE PICTURE OF THE MEMBER: a save decides nothing from records that have not been read. The
+// preview, the allowance check, the answers and the receipt were all decided from the cache as it
+// stood at the click while the write waited for the read and decided again — so the click refuses,
+// as the week grid's does, in its words.
+describe('F. a save on a member whose records have not been read is refused, not half-decided', () => {
+    test('still loading: nothing is checked, nothing is written, and it says so', async () => {
+        const { section, calls } = wire();
+        setRange(section, '2026-10-05', '2026-10-07');
+        _authority = false;
+        await save();
+        assert.equal(_writes.length, 0, 'the write must not run on two pictures of the member');
+        assert.equal(calls.preSave.length, 0, 'the allowance check must not run on records that have not arrived');
+        assert.match(el('alFeedback').textContent, /Still loading this member's saved changes — try again in a moment/);
+        assert.equal(el('alFeedback').className, 'feedback error');
+    });
+
+    test('a read that failed says to reload, not to wait', async () => {
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-07');
+        _authority = false; _loadFailed = true;
+        await save();
+        assert.equal(_writes.length, 0);
+        assert.match(el('alFeedback').textContent, /Couldn't load this member's saved changes — reload the page/);
+    });
+
+    test('once the read has landed, the same press books', async () => {
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-07');
+        _authority = false;
+        await save();
+        _authority = true;
+        await save();
+        assert.equal(_writes.length, 1);
+    });
+});
+
+// G. THE CLICK ACTS ON THE RECORD AS IT STANDS NOW. A period deleted from the list under a drawn
+// preview turns a settled rest day into an unasked one; the old click wrote the other days and left
+// it out without a word. It is asked, by redrawing the question, and the save refuses until answered.
+describe('G. a rest day that needs the question at the click is asked, never silently left out', () => {
+    const MEMBER_OBJ = /** @type {any} */ (teamMembers.find(m => m.name === MEMBER));
+    const pair = (() => {
+        for (let i = 0; i < 200; i++) {
+            const a = new Date(2026, 9, 1 + i), b = new Date(2026, 9, 2 + i);
+            if (a.getDay() === 0 || b.getDay() === 0) continue;
+            if (works(MEMBER_OBJ, iso10(a)) && !works(MEMBER_OBJ, iso10(b))) return { work: iso10(a), rest: iso10(b) };
+        }
+        return null;
+    })();
+    const realAlCfg = { cfg: {
+        swapQuestion: (/** @type {any} */ a) => swapDecisionDates(a),
+        project: (/** @type {any} */ { dates, memberObj, ovByDate, swapAnswers }) =>
+            projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers }),
+    } };
+    const answer = (/** @type {string} */ date, /** @type {'yes'|'no'} */ a) => {
+        const target = { closest: () => ({ dataset: { date, answer: a } }) };
+        for (const fn of el('alPreview')._on.click ?? []) fn({ target });
+    };
+
+    test('the record under the drawn preview goes, and the save asks instead of writing', async () => {
+        assert.ok(pair, 'premise: a working day followed by a rest day');
+        const { work, rest } = /** @type {any} */ (pair);
+        // The rest day holds a recorded swap, so nothing is asked and the preview counts it.
+        _ovMap = new Map([[rest, { id: 'old', date: rest, type: 'annual_leave', value: 'AL', replacedType: 'shift' }]]);
+        const { section } = wire(realAlCfg);
+        setRange(section, work, rest);
+        assert.equal(el('alSaveBtn').disabled, false, 'premise: nothing to answer, so Save is live');
+        assert.doesNotMatch(el('alPreview').innerHTML, /swapday-ask/, 'premise: no question on screen');
+        _ovMap = new Map();          // the period is deleted from the list below; the preview is not redrawn
+        await save();
+        assert.equal(_writes.length, 0, 'four days written and the fifth dropped without a word');
+        assert.match(el('alFeedback').textContent, new RegExp(`${rest}: say whether this rest day was a swapped working day`));
+        assert.match(el('alPreview').innerHTML, new RegExp(`swapday-ask[\\s\\S]*data-date="${rest}"`), 'the question is on screen now');
+        assert.equal(el('alSaveBtn').disabled, true, 'and Save waits for it');
+        answer(rest, 'yes');
+        await save();
+        assert.deepEqual(_writes[0]?.swappedDates, [rest], 'answered, it books');
+    });
+});
+
+// H. A WORKED SUNDAY IS SET AS A REST DAY, AND THE CARDS SAY SO. The writer puts a `correction`/RD on
+// every worked Sunday in a leave or absence range (admin.md); the preview called it "rest day skipped"
+// and the receipt said nothing, so a "Set as Rest Day" row nobody asked for appeared in Saved Changes.
+// The REAL cards, wired as the page wires them.
+const { initALSection } = await import('./admin-al.js');
+const { initSickSection } = await import('./admin-sick.js');
+describe('H. the Sunday a range sets as a rest day is named in the preview and the receipt', () => {
+    beforeEach(() => { _realWorkingDate = true; });   // the cards' own rest-day count, Sundays included
+    /** A Saturday and Monday worked either side of a worked Sunday, found from the roster. */
+    const weekend = (() => {
+        for (const m of teamMembers.filter(x => !x.hidden && !x.managerOnly)) {
+            for (let i = 0; i < 365; i++) {
+                const sun = new Date(2026, 9, 4 + i);
+                if (sun.getDay() !== 0) continue;
+                const sat = new Date(sun.getFullYear(), sun.getMonth(), sun.getDate() - 1);
+                const mon = new Date(sun.getFullYear(), sun.getMonth(), sun.getDate() + 1);
+                if ([sat, sun, mon].every(d => works(m, iso10(d)))) return { m, dates: [sat, sun, mon].map(iso10) };
+            }
+        }
+        return null;
+    })();
+    /** The page's own deps for both cards, inert where a test does not read them. */
+    const deps = (/** @type {string} */ name) => ({
+        alMember: memberSelect(name), sickMember: memberSelect(name),
+        syncMemberDisplay() {}, syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {},
+        getCurrentUser: () => 'A. Admin', showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {},
+    });
+    const open = (/** @type {string} */ prefix, /** @type {string} */ from, /** @type {string} */ to) => {
+        el(prefix + 'From').value = from; el(prefix + 'To').value = to;
+        for (const fn of el(prefix + 'To')._on.change ?? []) fn();
+    };
+
+    test('premise: some member works a Saturday, the Sunday after it and the Monday', () => {
+        assert.ok(weekend, 'no worked Sunday between two worked days on the roster — the cases below prove nothing');
+    });
+
+    test('Annual Leave: the preview names it, and does not count it as a rest day skipped', () => {
+        const { m, dates } = /** @type {any} */ (weekend);
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ (deps(m.name)));
+        open('al', dates[0], dates[2]);
+        assert.match(el('alPreview').innerHTML, /1 Sunday set as a rest day/);
+        assert.doesNotMatch(el('alPreview').innerHTML, /rest day skipped/);
+    });
+
+    test('Absence: the same', () => {
+        const { m, dates } = /** @type {any} */ (weekend);
+        for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
+        initSickSection(/** @type {any} */ (deps(m.name)));
+        open('sick', dates[0], dates[2]);
+        assert.match(el('sickPreview').innerHTML, /1 Sunday set as a rest day/);
+        assert.doesNotMatch(el('sickPreview').innerHTML, /rest day skipped/);
+    });
+
+    test('the receipt names the Sunday the writer set — and only when the writer says it did', async () => {
+        const { m, dates } = /** @type {any} */ (weekend);
+        const run = async (/** @type {number} */ sundayCount) => {
+            _els = {}; _writes = [];
+            _record = async () => ({ workingCount: 2, sundayCount });
+            const { section } = wire({ member: m.name });
+            setRange(section, dates[0], dates[2]);
+            await save();
+            return el('alFeedback').textContent;
+        };
+        assert.match(await run(1), new RegExp(`${dates[1]} — Sunday, set as a rest day`));
+        assert.doesNotMatch(await run(0), /Sunday/, 'a correction the writer did not make is not reported');
+    });
+});
+
+// I. ONE FADE PER FEEDBACK LINE. The success fade was the card's own timer, and the line is shared
+// with the list below that reports its deletes; a later message could be taken down by an earlier
+// message's fade — including an error, or a receipt that is meant never to time out.
+describe('I. a message on the feedback line is never taken down by an earlier one\'s fade', () => {
+    test('premise: a plain success fades after seven seconds', async () => {
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-06');
+        await save();
+        assert.equal(el('alFeedback').className, 'feedback success');
+        mock.timers.tick(7000);
+        assert.equal(el('alFeedback').className, 'feedback');
+    });
+
+    test('a refusal three seconds after a success is still up when the success\'s fade comes due', async () => {
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-06');
+        await save();                                     // t=0: success, its fade due at 7s
+        mock.timers.tick(3000);
+        setRange(section, '2026-10-05', '2026-10-06');
+        _otherSaveInFlight = true;
+        await save();                                     // t=3s: refused — another save is sending
+        mock.timers.tick(4500);                           // t=7.5s
+        assert.equal(el('alFeedback').className, 'feedback error');
+        assert.match(el('alFeedback').textContent, /Another change is still saving/);
+    });
+
+    test('a fade started elsewhere on the same line does not hide a receipt that names days', async () => {
+        const { fadeFeedback } = await import('./admin-booked-periods.js');
+        const { section } = wire({ cfg: { swapQuestion: () => [], project: () => ({ counts: { writing: 1 }, answeredFree: ['2026-10-06'] }) } });
+        fadeFeedback(el('alFeedback'), 'feedback', 6000);    // the list below reported a delete
+        setRange(section, '2026-10-05', '2026-10-06');
+        await save();                                         // a receipt with a named day: no fade
+        mock.timers.tick(10_000);
+        assert.equal(el('alFeedback').className, 'feedback success');
+    });
+});
+
+// J. A REFUSED WRITE IS A SIGN-IN PROBLEM, NOT THE CONNECTION — the week grid's own wording.
+describe('J. a refused write is worded as the week grid words it', () => {
+    test('permission-denied', async () => {
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-06');
+        _record = async () => { throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }); };
+        await save();
+        assert.match(el('alFeedback').textContent, /Couldn't save — you may have been signed out\. Please sign in again\./);
+        assert.doesNotMatch(el('alFeedback').textContent, /connection/);
+    });
+});
+
+// K. A SAVE CLEARS THE RANGE AND KEEPS THE MONTH (owner's decided default, 10 Nov 2026), so the
+// banner above stays on the year just booked rather than switching under "✓ Recorded".
+describe('K. a save keeps the picker on the month it was showing', () => {
+    test('the reset after a save keeps the view', async () => {
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-06');
+        await save();
+        assert.deepEqual(_resetArgs, [{ keepView: true }]);
     });
 });

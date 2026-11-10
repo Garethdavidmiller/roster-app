@@ -17,7 +17,7 @@
 // real devices serve the SDK from the service worker's own cache, which is closer to this than to a
 // cold CDN. If the split is not worth doing on these numbers, adding network would only be an
 // argument for the bytes half, which nobody disputes.
-import { chromium } from '/home/user/roster-app/node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';   // the repository's install, from any checkout
 import { rmSync } from 'node:fs';
 
 const BASE = 'http://127.0.0.1:8098';

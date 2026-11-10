@@ -2,15 +2,17 @@
 /**
  * links-import.js — turning somebody ELSE's roster proposal into a design this app can hold.
  *
- * Pure: no DOM, no Firebase, no imports beyond `links-design.js`'s own pure helpers. The UI half is
- * in `links-design-library.js`. Tested by links-import.test.mjs.
+ * Pure: no DOM, no Firebase, no imports beyond `links-design.js`'s own pure helpers and the name
+ * limit in `links-design-naming.js`. The UI half is in `links-design-library.js`. Tested by
+ * links-import.test.mjs.
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
  * Every design in the workspace so far was either auto-generated or painted cell by cell. Proposals
  * do not arrive that way. They arrive as a photograph of a handwritten sheet, a Word table, or a
- * column out of one of the Dec 2026 simplifier spreadsheets — and the only route in was 168 taps,
- * which is enough friction that a colleague's idea simply never gets compared against anything.
+ * column out of one of the Dec 2026 simplifier spreadsheets — and the only route in was a tap for
+ * every cell of the rotation, which is enough friction that a colleague's idea simply never gets
+ * compared against anything.
  * That is the failure this removes: not typing effort, but proposals that are never assessed.
  *
  * ── IT IS A TRUST BOUNDARY, AND THAT IS THE WHOLE JOB ───────────────────────────────────────────
@@ -46,9 +48,10 @@
  */
 
 import { DAYS, canonicaliseShift, ROTATING_LINES, normaliseCustomShift } from './links-design.js';
+import { MAX_DESIGN_NAME } from './links-design-naming.js';
 
-/** How long a pasted design name may be — matches the picker's own limit. */
-export const MAX_IMPORT_NAME = 100;
+/** How long a pasted design name may be — the picker's own limit, read from where it is set. */
+export const MAX_IMPORT_NAME = MAX_DESIGN_NAME;
 
 /**
  * Tokens that mean "this person is not working that day", mapped to the app's one non-worked value.
@@ -154,23 +157,48 @@ export function parseGrid(text, { lines = ROTATING_LINES } = {}) {
     // trailing tabs — and a week whose Friday and Saturday are rest days exports from a spreadsheet
     // as exactly that: two empty trailing cells. Losing them turned a valid seven-day row into a
     // five-column one and refused it with a message about separators.
-    const rows = String(text ?? '').split(/\r?\n/)
-        .filter(l => l.trim() !== '')
-        .map(splitRow)
-        .map((/** @type {string[]} */ cells) => cells.map((/** @type {string} */ c) => String(c).trim()))
-        .filter(cells => !isHeaderRow(cells));
-    if (!rows.length) return { ok: false, error: 'There is nothing to import.' };
+    //
+    // A line with NO CELLS AT ALL — empty, or nothing but spaces — carries nothing and goes. A line of
+    // nothing but SEPARATORS is not that: it is how a spreadsheet copies a row whose every cell is
+    // empty, a week nobody has drawn yet. It was dropped as a blank line, so in an unnumbered paste
+    // every later week landed one line early and the design saved was not the one on the sheet (whole-
+    // app fix, Nov 2026). Only a separator can say so: an aligned-columns paste has none to carry.
+    const all = String(text ?? '').split(/\r?\n/)
+        .filter(l => l.trim() !== '' || /[\t,]/.test(l))
+        .map(l => splitRow(l).map((/** @type {string} */ c) => String(c).trim()))
+        .map(cells => ({ cells, blank: cells.every(c => c === ''), header: isHeaderRow(cells) }));
+    // …but an empty row is a WEEK only where the weeks around it pin its place. One that comes after
+    // the last week (a selection run past the end) moves nothing — those lines are empty either way,
+    // and the short-rotation warning below still counts them — and one that only leads up to a row of
+    // day names is a spacer above the table. Both go, with the day names themselves.
+    /** @type {Array<{cells: string[], blank: boolean}>} */
+    const table = [];
+    for (let i = 0; i < all.length; i++) {
+        if (all[i].header) continue;
+        if (all[i].blank) {
+            let next = i + 1;
+            while (next < all.length && all[next].blank) next++;
+            if (next === all.length || all[next].header) continue;
+        }
+        table.push(all[i]);
+    }
+    if (!table.length) return { ok: false, error: 'There is nothing to import.' };
 
     // Numbering is decided over the WHOLE paste before a single cell is read. It used to be counted
     // as the rows were built, which let a duplicate-week refusal fire first and report "Week 1
     // appears twice" about a paste whose actual fault was that only some rows were numbered — an
-    // accurate sentence pointing at the wrong problem.
+    // accurate sentence pointing at the wrong problem. An empty row carries no number, so it is not
+    // counted either way.
     const looksNumbered = (/** @type {string[]} */ cells) => cells.length > 7 && /^\d{1,3}$/.test(cells[0]);
-    const numbered = rows.filter(looksNumbered).length;
-    if (numbered && numbered !== rows.length) {
-        return { ok: false, error: `${numbered} of ${rows.length} rows are numbered. `
+    const content = table.filter(r => !r.blank);
+    const numbered = content.filter(r => looksNumbered(r.cells)).length;
+    if (numbered && numbered !== content.length) {
+        return { ok: false, error: `${numbered} of ${content.length} rows are numbered. `
             + 'Either number every row or none of them — otherwise the unnumbered ones have no place in the rotation.' };
     }
+    // A numbered row places itself, so an empty one between them says nothing at all. Unnumbered, the
+    // ORDER is the rotation, and the empty row keeps its place in it.
+    const rows = numbered ? content : table;
 
     /** @type {Record<string, Record<string, string>>} */
     const patterns = {};
@@ -178,9 +206,15 @@ export function parseGrid(text, { lines = ROTATING_LINES } = {}) {
     const warnings = [];
     /** @type {Set<string>} */
     const assumptions = new Set();
+    /** Lines that arrived as a row of empty cells — named before the save, so a stray empty row in
+     *  the selection is seen while it can still be taken out. @type {number[]} */
+    const emptyLines = [];
 
     for (let i = 0; i < rows.length; i++) {
-        let cells = rows[i];
+        // Seven empty cells, whatever its width: with every cell empty, a lost or extra separator
+        // cannot have moved a duty, which is all the width check below protects.
+        let cells = rows[i].blank ? Array(7).fill('') : rows[i].cells;
+        if (rows[i].blank) emptyLines.push(i + 1);
         const at = `Row ${i + 1}`;
         // A leading integer is a week number; a trailing one is an hours total. Both are stripped
         // before the width check, so the seven-day rule below is about DAYS and nothing else.
@@ -220,6 +254,12 @@ export function parseGrid(text, { lines = ROTATING_LINES } = {}) {
     if (count < lines) {
         warnings.push(`Only ${count} of ${lines} lines are filled — the rest stay empty, and the `
             + 'design checks will flag them.');
+    }
+    if (emptyLines.length === 1) {
+        warnings.push(`Line ${emptyLines[0]} is empty in the paste, so it stays empty — the design checks will flag it.`);
+    } else if (emptyLines.length > 1) {
+        const list = `${emptyLines.slice(0, -1).join(', ')} and ${emptyLines.at(-1)}`;
+        warnings.push(`Lines ${list} are empty in the paste, so they stay empty — the design checks will flag them.`);
     }
     for (const a of assumptions) warnings.push(a);
     const night = nightDutyWarning(patterns);

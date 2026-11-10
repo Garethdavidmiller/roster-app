@@ -35,8 +35,8 @@
             min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
             display: flex;
             flex-direction: column;
-            /* Safe area insets baked in with max() — survives any breakpoint shorthand override.
-               env() returns 0 on non-notched devices so this is always safe to apply. */
+            /* Safe area insets through max(), so a notch or home bar never covers content; env() is 0 on
+               other devices. Every screen breakpoint below that restates `padding` restates the max() too. */
             padding-top:    max(20px, env(safe-area-inset-top));
             padding-bottom: max(20px, env(safe-area-inset-bottom));
             padding-left:   max(20px, env(safe-area-inset-left));
@@ -56,7 +56,8 @@
         }
 
         .header {
-            padding: 16px 20px;
+            --hdr-pad-x: 20px;   /* the title's cap reads it: every breakpoint sets the two together */
+            padding: 16px var(--hdr-pad-x);
             margin-bottom: 8px;
             position: relative;
             display: flex;
@@ -70,7 +71,17 @@
             top: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
-            white-space: nowrap;
+            /* NEVER OVER THE BURGER (whole-app review, Nov 2026). Centred on the page and as wide as its
+               words, but never wider than the room the burger leaves on BOTH sides: Android's text size
+               grows the words and leaves the viewport alone, so at 360px and 1.5× the logo covered half
+               the ☰ and a tap there opened About. Where the cap binds, the words take a second line;
+               at the default size it binds nowhere from 320px up. The reach is the header's side
+               padding, the burger's 12px of padding and 4px of air, and its 22px glyph in this 18px
+               title's em, with room. `max-content`, because `left: 50%` leaves an auto width only half
+               the header to wrap in. */
+            width: max-content;
+            max-width: calc(100% - 2 * (var(--hdr-pad-x) + 16px + 1.25em));
+            text-align: center;
             color: white;
             font-size: 20px;
             margin: 0;
@@ -126,10 +137,11 @@
 
         .calendar-day.today.today-pulse {
             animation: todayPulse 0.5s ease-out forwards;
-            /* Fallback box-shadow for browsers without @property */
-            box-shadow: 0 3px 10px var(--gold-glow), 0 0 0 1px var(--primary-blue);
-            /* Animated variant: --accent-gold oklch with a VARIABLE alpha (@property-driven) — cannot
-               route through a static token; documented exception to the no-literal rule. */
+            /* --accent-gold's own oklch with a VARIABLE alpha (@property-driven): a restated copy, because
+               forwarding the token takes `color-mix()` with a calc() percentage, not verified on the oldest
+               Safari the app supports. calendar-controls-parity.test.mjs fails the day the two differ. No
+               "fallback" declaration before it: where the var() fails this computes to `none`, never to
+               an earlier line. */
             box-shadow: 0 3px 10px oklch(84.7% 0.1734 92.3deg / var(--today-glow-alpha)), 0 0 0 1px var(--primary-blue);
         }
 
@@ -137,6 +149,11 @@
             .calendar-day.today.today-pulse {
                 animation: none;
             }
+            /* The logo's grow is decoration that exists to move, so it goes rather than snapping — as the
+               sub-pages' logo does (shared.css .app-icon). The press is already neutral through --press-scale.
+               After the hover rule above, which it must out-order at equal specificity. */
+            .title-icon { transition: none; }
+            .title-icon:hover { transform: none; }
         }
 
         .controls {
@@ -302,7 +319,10 @@
         /* text-align on <option> is not supported cross-browser — omitted */
 
         @media (hover: hover) and (pointer: fine) {
-            .controls button:not(.fieldpick):hover {
+            /* `:where()` lets an arrow at a bound (below) out of the lift at NO cost in specificity: a plain
+               second `:not()` would raise this rule to (0,4,1) and beat the Today, Pay and AL hover colours
+               that follow it, which win today on order at (0,3,1). */
+            .controls button:not(.fieldpick):where(:not([aria-disabled="true"])):hover {
                 background: var(--primary-blue-dark);
                 border-color: var(--primary-blue-dark);
                 transform: translateY(-1px);
@@ -326,11 +346,16 @@
             }
         }
 
-        .controls button:not(.fieldpick):active {
+        .controls button:not(.fieldpick):where(:not([aria-disabled="true"])):active {
             transform: scale(var(--press-scale));
             opacity: 0.8;
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
         }
+        /* A month arrow at the first or last month is `aria-disabled` and faded (calendar-app.js,
+           updateNavButtonState) — never `disabled`, which would drop a keyboard user's focus. It does
+           nothing there, so it offers no hand, no hover lift and no press: Admin's picker arrows
+           (.rp-nav-btn) answer the same way. */
+        .controls button[aria-disabled="true"] { cursor: default; }
 
         .controls button.today-btn {
             background: var(--accent-gold);
@@ -360,7 +385,7 @@
             /* On the navy body canvas — on-navy (light) text, not the card greys. */
             text-align: center; font-size: var(--type-badge); color: rgba(255, 255, 255, 0.7);
             padding: 2px 12px 8px; opacity: 1;
-            transition: opacity 0.4s ease;
+            transition: opacity var(--dur-slower) var(--ease-standard);   /* calendar-app.js reads this back, and hides the line once it has run */
             pointer-events: none; -webkit-user-select: none; user-select: none;
         }
         .swipe-hint.fade-out { opacity: 0; pointer-events: none; }
@@ -559,7 +584,7 @@
             border-radius: var(--radius-md);
             padding: 12px;
             background: white;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
             position: relative;
             box-shadow: none;
             display: flex;
@@ -767,7 +792,7 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
             min-width: 80%;
-            transition: transform 0.12s var(--ease-spring),
+            transition: transform var(--dur-fast) var(--ease-spring),
                         background-color var(--dur-fast) var(--ease-standard),
                         color var(--dur-fast) var(--ease-standard);
         }
@@ -857,7 +882,8 @@
             body {
                 overflow-x: hidden;
                 /* No gradient: the flat navy of every other page (a ramp here alone changed colour on a hop). */
-                padding: 16px;
+                padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+                         max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
             }
 
             .container {
@@ -1050,7 +1076,8 @@
             }
 
             .header {
-                padding: 14px 18px;
+                --hdr-pad-x: 18px;
+                padding: 14px var(--hdr-pad-x);
             }
 
             .calendar-container {
@@ -1128,7 +1155,7 @@
            its compact header for the month's sake. `screen`: a printed sheet is this wide too. */
         @media screen and (min-width: 768px) and (min-height: 501px), screen and (min-width: 1024px) {
             body { padding-top: max(20px, env(safe-area-inset-top)); }
-            .header { min-height: 72px; padding: 16px 20px; }
+            .header { min-height: 72px; --hdr-pad-x: 20px; padding: 16px var(--hdr-pad-x); }
             .header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; gap: 14px; }
             .title-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); }
         }
@@ -1143,7 +1170,8 @@
             }
 
             .header {
-                padding: 10px 12px;
+                --hdr-pad-x: 12px;
+                padding: 10px var(--hdr-pad-x);
             }
 
             .controls {
@@ -1208,7 +1236,7 @@
                 padding-left:   max(12px, env(safe-area-inset-left));
                 padding-right:  max(12px, env(safe-area-inset-right));
             }
-            .header { padding: 8px 14px; margin-bottom: 8px; }
+            .header { --hdr-pad-x: 14px; padding: 8px var(--hdr-pad-x); margin-bottom: 8px; }
             .header h1 { font-size: var(--type-medium); }
             .title-icon { width: 26px; height: 26px; }
             .controls {
@@ -1406,7 +1434,7 @@
             position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
-            border-radius: var(--radius-xl);
+            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
             font-size: var(--type-label);
             font-weight: 600;
             cursor: pointer;
@@ -1517,7 +1545,7 @@
             background: var(--primary-blue);
             color: white;
             border: 2px solid var(--primary-blue);
-            border-radius: 10px;
+            border-radius: var(--radius-button);   /* the month view's Prev/Next corner; a literal 10px since v25.12 */
             font-size: var(--type-label);
             font-weight: 600;
             cursor: pointer;
@@ -1594,7 +1622,6 @@
             border-collapse: collapse;
             width: 100%;
             min-width: 500px;
-            font-size: var(--type-small);
         }
         .team-table thead th {
             background: var(--primary-blue);
@@ -1608,8 +1635,7 @@
             top: 0;
             z-index: 2;
         }
-        .team-table th.tv-name-col,
-        .team-table td.tv-name-col {
+        .team-table th.tv-name-col {
             position: sticky;
             left: 0;
             z-index: 2;
@@ -1677,8 +1703,7 @@
             .team-table tbody th.tv-name-col,
             .tv-cell { font-size: var(--type-small); }
             .tv-day-num { font-size: var(--type-body); }
-            .team-table th.tv-name-col,
-            .team-table td.tv-name-col { max-width: none; }
+            .team-table th.tv-name-col { max-width: none; }
         }
         /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
         /* #teamInfoLightbox uses .lb-overlay — no unique properties */
@@ -1865,7 +1890,7 @@
             }
 
             .header {
-                display: block !important; /* grid would misplace ::before/::after print annotations */
+                display: block !important; /* as a flex row its ::before/::after annotations sat beside the title, not above and below */
                 background: white !important;
                 box-shadow: none !important;
                 border: 1px solid var(--primary-blue) !important;
@@ -1999,25 +2024,12 @@
                 border-color: var(--border-mid) !important;
             }
 
-            .calendar-day.early-shift {
-                background: var(--early-cell) !important;
-            }
-
-            .calendar-day.late-shift {
-                background: var(--blue-light) !important;
-            }
-
+            /* Early, Late, Spare and RDW have no print rule of their own: their screen fills print as they
+               are (the `*` rule above), on the 1px grey edge every cell gets here. Rules restating only the
+               fill were removed — they changed nothing. */
             .calendar-day.night-shift {
                 background: var(--night-cell-bg) !important;
                 border-color: var(--night-cell-border) !important;
-            }
-
-            .calendar-day.spare-day {
-                background: var(--purple-light) !important;
-            }
-
-            .calendar-day.rdw-day {
-                background: var(--rdw-light) !important;
             }
 
             .calendar-day.al-day {
@@ -2085,7 +2097,6 @@
             }
 
             .legend-item {
-                font-size: 8px !important;
                 margin: 0 !important;
             }
 
@@ -2139,15 +2150,14 @@
             /* No cap on paper: an A4 sheet is under 1024px wide, so the phone cap above would apply
                and print the first screenful of names with the rest cut off, silently. */
             .team-table-wrap { overflow: visible; max-height: none; }
-            .team-table { min-width: 0; width: 100%; font-size: 9px; }
+            .team-table { min-width: 0; width: 100%; }
             .team-table thead th {
                 background: var(--primary-blue) !important;
                 position: static;
             }
             .team-table thead .tv-today-col { background: var(--accent-gold) !important; }
             .tv-cell { white-space: normal; }
-            .team-table th.tv-name-col,
-            .team-table td.tv-name-col { position: static; }
+            .team-table th.tv-name-col { position: static; }
             /* A NAME IS NEVER ELLIPSISED ON PAPER. On screen the narrow name column ellipsises, and a
                member who needs the full name can scroll or tap; paper has neither, so "R.
                Forrester-Black…" would be unrecoverable. A DOM check cannot see it — with `overflow:
@@ -2405,7 +2415,7 @@
             font-weight: 700;
             letter-spacing: 0.6px;
             text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.55);
+            color: rgba(255, 255, 255, 0.65);   /* as .day-detail-week: 0.55 measured 4.3–4.4:1 over a light page (Nov 2026) */
         }
         .ddc-pair {
             display: flex;
@@ -2699,19 +2709,20 @@
         /* '…' while loading and '—' when there is nothing: muted, so they cannot pass for figures. */
         .al-lb-stats.is-pending .al-lb-val,
         .al-lb-stats.is-pending #alLbRemaining { color: rgba(255,255,255,0.35); }   /* the id rule above outranks a class */
-        /* 320px: four min-content cells at 10px labels overran the card by the width of "ENTITLEMENT"
-           (measured on a Dispatcher's breakdown). Tighter cell padding and no tracking buys it back. */
-        @media (max-width: 359px) {
-            .al-lb-stat { padding-inline: 3px; }
-            .al-lb-lbl  { letter-spacing: 0; }
-            #alLightboxContent { padding-inline: 14px; }
-        }
         .al-lb-lbl {
             font-size: var(--type-micro);
             font-weight: 600;
             color: rgba(255,255,255,0.6);
             text-transform: uppercase;
             letter-spacing: 0.3px;
+        }
+        /* 320px: four min-content cells at 10px labels overran the card by the width of "ENTITLEMENT"
+           (measured on a Dispatcher's breakdown). Tighter cell padding and no tracking buys it back.
+           AFTER `.al-lb-lbl`: placed above it, the tracking half lost on source order and never applied. */
+        @media (max-width: 359px) {
+            .al-lb-stat { padding-inline: 3px; }
+            .al-lb-lbl  { letter-spacing: 0; }
+            #alLightboxContent { padding-inline: 14px; }
         }
         /* Wraps (v24.46 polish): nowrap clipped "22 base + 5 BH lieu" at the card edge at 320px. */
         .al-lb-breakdown {
@@ -2726,13 +2737,16 @@
             text-decoration: none;
             padding: 8px 16px;
             border: 1px solid rgba(255,255,255,0.5);
-            border-radius: var(--radius-xl);
+            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
             transition: color var(--dur-med), border-color var(--dur-med), background var(--dur-med);
             cursor: pointer;
         }
         @media (hover: hover) and (pointer: fine) {
             .al-lb-link:hover { color: white; border-color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.1); }
         }
+        /* Gold, as the year arrows and the ✕ above them wear: with no rule here the links took the navy
+           fallback, drawn 2px out on the navy glass, where it measured 1.0–1.8:1 — no indicator at all. */
+        .al-lb-link:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
         .al-lb-error {
             margin-top: 8px;
             font-size: var(--type-small);
@@ -2761,10 +2775,13 @@
             flex-direction: column;
             opacity: 0;
             transform: translateY(100%);
-            transition: opacity 0.22s ease, transform 0.25s var(--ease-emphasized);
+            transition: opacity var(--dur-base) var(--ease-standard), transform var(--dur-slow) var(--ease-emphasized);
         }
         #huddleViewer.visible { display: flex; }
         #huddleViewer.open    { opacity: 1; transform: translateY(0); }
+        /* Less motion asked for: the panel appears, as every lightbox here does, rather than sliding the
+           screen's height. Closing needs no transitionend in this setting (overlay.js dismissOverlay). */
+        @media (prefers-reduced-motion: reduce) { #huddleViewer { transform: none; transition: none; } }
         #huddleViewerHeader {
             display: flex;
             align-items: center;
@@ -2808,6 +2825,9 @@
             line-height: 1.55;
             color: var(--text-dark);
         }
+        /* A Tab stop, so a keyboard can scroll the day plan (cal-docs-7). It is the box that clips,
+           so its ring is drawn inside it, as Team View's scroller's is. */
+        #huddleViewerBody:focus-visible { outline-offset: -2px; }
         /* Style the HTML that mammoth.js generates from the DOCX */
         #huddleViewerBody h1, #huddleViewerBody h2, #huddleViewerBody h3 {
             color: var(--primary-blue);
@@ -2872,8 +2892,9 @@
             left: 0;
             z-index: 1;
             /* MUST be opaque: the scrolled column passes underneath, and a transparent sticky cell
-               shows it through — which reads as a rendering fault, not a feature. */
-            background: var(--surface, #fff);
+               shows it through — which reads as a rendering fault, not a feature. White, the viewer's
+               own ground: the card's off-white here is the pale band the covers above were cured of. */
+            background: white;
         }
         #huddleViewerBody th.huddle-shift-col { background: var(--primary-blue); }
         #huddleViewerBody th { background: var(--primary-blue); color: white; }
@@ -2917,7 +2938,7 @@
             padding: 14px 28px;
             cursor: pointer;
             touch-action: manipulation;
-            transition: background var(--dur-med) ease, opacity var(--dur-med) ease;
+            transition: background var(--dur-med) var(--ease-standard), opacity var(--dur-med) var(--ease-standard);
         }
         .huddle-open-btn:active { opacity: 0.8; }
         @media (hover: hover) and (pointer: fine) {
@@ -2926,15 +2947,16 @@
 
         /* ---- Circular / Newsletter viewer (#docViewer) ---- */
         /* .lb-content is structural only — the card theme (background/padding/width)
-           lives here in the ID, per the lightbox convention. Reached ONLY from a
-           #circular/#newsletter notification tap (the nav-drawer links open the PDF
-           directly); always-PDF, so it shows an Open button. */
+           lives here in the ID, per the lightbox convention. Reached from a
+           #circular/#newsletter notification tap, the drawer's hand-over when no tab came
+           back, or a tap carried across a sign-in; it shows an Open button for the
+           document, PDF or Word. */
         #docViewerContent {
             background: white;
             width: min(420px, 88vw);
             margin: auto;
             padding: 26px 24px max(24px, env(safe-area-inset-bottom));
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-xl);   /* a white dialog's corner; --radius-lg is the card's, which no overlay wears */
             box-shadow: var(--shadow-3);
             text-align: center;
         }
@@ -2988,8 +3010,9 @@
         }
 
         /* ---- Month/year jump picker overlay ---- */
-        /* #monthJumpOverlay uses .lb-overlay; unique: lower z-index, slightly faster fade */
-        #monthJumpOverlay { z-index: 7000; transition: opacity 0.18s ease; }
+        /* #monthJumpOverlay uses .lb-overlay, in the lightbox band like every dialog (a literal 7000 put it
+           under the drawer, whose band is below every dialog); unique only in its slightly faster fade. */
+        #monthJumpOverlay { transition: opacity var(--dur-med) var(--ease-standard); }
         #monthJumpCard {
             background: white;
             border-radius: var(--radius-xl);
@@ -3063,7 +3086,7 @@
             font-family: inherit;
             cursor: pointer;
             border: none;
-            transition: background var(--dur-med), transform 0.1s;
+            transition: background var(--dur-med) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
         }
         .month-jump-actions button:active { transform: scale(var(--press-scale)); }
         .month-jump-actions button:focus-visible {
@@ -3078,7 +3101,7 @@
         #monthJumpCancel {
             background: var(--bg-faint);
             color: var(--text-mid);
-            border: 1.5px solid var(--border-light) !important;
+            border: 1.5px solid var(--border-light);   /* the id outranks `.month-jump-actions button`'s `border: none` */
         }
         @media (hover: hover) and (pointer: fine) {
             #monthJumpConfirm:hover { background: var(--primary-blue-dark); }
@@ -3185,7 +3208,8 @@
             border-radius: var(--radius-pill);
             padding: 3px 9px;
         }
-        @media print { .calendar-snapshot-note { display: none; } }
+        /* It PRINTS, like the stale note below: a sheet printed from the copy is the copy, and the label
+           is what stops it being read as the live roster (CALENDAR_DATA.md 17). */
 
         /* ---- A month drawn from this device's cache, outside the first load (whole-app review) ----
            calendar-renderer.js. `stale` is the grid "labelled as possibly out of date, with a retry"
@@ -3225,7 +3249,10 @@
             outline-offset: 2px;
         }
         .calendar-container:has(.sync-chip) .calendar-stale-note { display: none; }
-        @media print { .calendar-stale-note { display: none; } }
+        /* ON PAPER THE WORDS STAY AND ONLY THE BUTTON GOES. Hiding the whole note printed a month from
+           this device's saved copy with nothing on the sheet to say it may be out of date
+           (CALENDAR_DATA.md 18); a sheet cannot be tapped, so Try again is all that paper drops. */
+        @media print { .calendar-stale-retry { display: none; } }
 
         /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */
         @keyframes shimmer {
@@ -3237,6 +3264,7 @@
             content: '';
             position: absolute;
             inset: 0;
+            transform: none;   /* the 25th's ::after is also the 🎄, whose translateX(-50%) left half the cell unswept */
             background: linear-gradient(
                 90deg,
                 rgba(255,255,255,0) 0%,
@@ -3355,19 +3383,24 @@
         /* ONE field, not four PIN cells. Four cells look sharper and cost real robustness: per-cell
            focus juggling, they fight paste and autofill, and screen readers announce four unlabelled
            boxes. A single field styled AS a PIN reads the same and behaves like the input it is.
-           Everything not listed here comes from `.login-field input`. */
-        .cal-lock-pin {
+           Everything not listed here comes from the shared login field.
+           THE ID, NOT THE CLASS: that shared skin is `.login-field input:not([type="checkbox"])
+           :not([type="radio"])`, (0,3,1), and it beat `.cal-lock-pin` (0,1,0) on size, padding and
+           colour — so until the whole-app review (Nov 2026) the field drew at the login's 16px in its
+           grey, and only the weight, tracking and centring below ever applied. */
+        #calLockPin {
             /* --type-xl (24px) against the shared 16px. A PIN is four characters read at a glance,
                and it is comfortably over the iOS focus-zoom floor either way (css-tokens.md → the
                16px rule). Through the token, not a literal: a repeated raw size is how the scale
                stopped meaning anything (type-scale-parity.test.mjs). */
             font-size: var(--type-xl);
             font-weight: 700;
-            /* Tracking wide enough that four masked dots read as four separate characters. The extra
-               padding-left compensates for the trailing letter-space, which would otherwise push the
-               visual centre left of the box's centre. */
+            /* Tracking wide enough that four masked dots read as four separate characters. The run
+               ends in one letter-space nobody sees, which pulls the dots half of it left of centre;
+               the extra 0.5em on the left puts them back, in the field's own em so it stays exact
+               when a phone scales the text. */
             letter-spacing: 0.5em;
-            padding: 10px 10px 10px 20px;
+            padding: 10px 10px 10px calc(10px + 0.5em);
             text-align: center;
             color: var(--primary-blue);
         }
@@ -3388,7 +3421,7 @@
            the browser may turn out to have no access at all.
 
            The measurements below are the REAL grid's, read off a rendered calendar at 390px (2px
-           gap, 70px rows, `--radius-md` cells) rather than picked to look right. That is the point:
+           gap, 70px rows, 6px corners) rather than picked to look right. That is the point:
            when the real grid replaces this, nothing on the page moves. */
         .cal-boot {
             padding: 8px 0 24px;
@@ -3417,7 +3450,7 @@
         }
         .cal-boot-grid { grid-auto-rows: 70px; }
         .cal-boot-cell {
-            border-radius: var(--radius-md);   /* the real `.calendar-day` radius */
+            border-radius: var(--radius-md);   /* the real `.calendar-day` radius from 481px; a phone's is below */
             background: var(--boot-ghost);
             animation: cal-boot-pulse 1.4s var(--ease-standard) infinite;
         }
@@ -3439,6 +3472,8 @@
             .cal-boot-days, .cal-boot-grid { gap: 6px; }
             .cal-boot-grid { grid-auto-rows: minmax(48px, 1fr); }
         }
+        /* …and a phone's: there the real cells and day heads have 6px corners (the ≤480px block). */
+        @media (max-width: 480px) { .cal-boot-cell, .cal-boot-days span { border-radius: 6px; } }
         /* A pulse is decoration; a resting shape still says "working" beside the live region. */
         @media (prefers-reduced-motion: reduce) {
             .cal-boot-cell { animation: none; opacity: 0.5; }
@@ -3499,10 +3534,12 @@
            `hidden` is a UA `display: none`, and any author `display` rule beats it — `.controls`
            is `display: flex`, so `nav.controls[hidden]` rendered in full. This is the same trap
            `.win-editor[hidden]` hit on the links page, and here it is load-bearing: these six are the
-           Calendar workspace, hidden by `calendar-access.js` before the access decision resolves.
-           They are empty while locked, so this is the second layer — but a gate that works only
-           because the thing behind it is empty is one refactor away from not being a gate.
-           `!important`: two of them (#notifPrompt, #swipeHint) carry an inline `display`. */
+           Calendar workspace, hidden by `calendar-access.js` before the access decision resolves and
+           again on a re-lock. Before the decision they are empty, so this is a second layer; after a
+           re-lock they are not — the grid is built and a strip may be up — so it is the only one
+           (e2e/calendar-pin.spec.js → "a re-lock takes the offer strips…").
+           `!important`: three of them (#installPrompt, #notifPrompt, #swipeHint) carry an inline
+           `display`, which beats any rule without it. */
         #calendarControls[hidden],
         #installPrompt[hidden],
         #notifPrompt[hidden],
