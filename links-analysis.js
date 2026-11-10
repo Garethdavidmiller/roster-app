@@ -75,6 +75,16 @@ const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
 const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
 
 /**
+ * The rest between two duties in words. A negative rest is an OVERLAP — a duty past midnight into a
+ * next-day start before its own finish, which imported data can carry — and is said as one: as a
+ * signed figure it printed "-2h -30m rest" for a 1h 30m overlap, wrong in sign and in size.
+ * @param {number} m - minutes
+ */
+const restWords = (m) => (m < 0
+    ? `overlapping by ${Math.floor(-m / 60)}h ${-m % 60}m`
+    : `${Math.floor(m / 60)}h ${m % 60}m rest`);
+
+/**
  * @param {object} deps
  * @param {() => ({ name?: string, patterns: Record<string, any>, window?: any } | null)} deps.getDesign - the live active design, or null
  * @param {() => ({ summary: string, detail: string } | null)} [deps.getBaseline] - the current link's profile
@@ -269,13 +279,18 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // Split before/after: an early start and a late finish are different business decisions,
         // and the pre-opening set is three times bigger AND permanent, so one combined list ordered
         // by time puts every unmovable movement ahead of the five Sunday ones this exists to show.
-        const clause = (/** @type {any[]} */ entries, /** @type {string} */ phrase, cap = 5) => (entries.length
-            ? `${entries.length} ${phrase} (${escapeHtml(describeMovements(entries, cap))}). `
-            : '');
+        //
+        // Each clause carries its own noun unless it follows the other, and "Both" is said only of
+        // two (whole-app review, Nov 2026): with nothing after the finish the note read "12 run
+        // before the day's start … Both are stated", a sentence with no subject and one clause.
+        const nAfter = sum.outsideAfter.length, nBefore = sum.outsideBefore.length;
+        const trains = (/** @type {number} */ n) => `${n} train movement${n === 1 ? ' runs' : 's run'}`;
+        const listed = (/** @type {any[]} */ entries, cap = 5) => ` (${escapeHtml(describeMovements(entries, cap))}). `;
         const outside = sum.outside.length
-            ? clause(sum.outsideAfter, `train movement${sum.outsideAfter.length === 1 ? ' runs' : 's run'} after the day's finish`, 8)
-              + clause(sum.outsideBefore, `run${sum.outsideBefore.length === 1 ? 's' : ''} before the day's start`)
-              + `Both are stated, not scored: where the window sits is a business decision, not a design fault. `
+            ? (nAfter ? `${trains(nAfter)} after the day's finish${listed(sum.outsideAfter, 8)}` : '')
+              + (nBefore ? `${nAfter ? `${nBefore} run${nBefore === 1 ? 's' : ''}` : trains(nBefore)} before the day's start${listed(sum.outsideBefore)}` : '')
+              + `${nAfter && nBefore ? 'Both are' : sum.outside.length === 1 ? 'It is' : 'They are'} stated, not scored: `
+              + `where the window sits is a business decision, not a design fault. `
             : '';
 
         // Movements the table cannot show. The span is the window plus whatever is worked, so
@@ -528,7 +543,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 `<ul class="check-list">${cap.map((/** @type {any} */ t) =>
                     `<li>Line ${t.fromLine} ${t.fromDay} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
                     `Line ${t.toLine} ${t.toDay} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
-                    `${Math.floor(t.restMinutes / 60)}h ${t.restMinutes % 60}m rest</li>`
+                    `${restWords(t.restMinutes)}</li>`
                 ).join('')}${more > 0 ? `<li>…and ${more} more</li>` : ''}</ul>` +
                 `</div></div>`
             );
@@ -633,7 +648,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                         : `<strong>${hm(off)} a week over contract.</strong> The surplus has to be paid as overtime or absorbed by adding lines.`}</div>`) +
                 `<div class="check-sub">Individual weeks vary — the average is what the contract asks for. ` +
                 `Sundays are not contracted, so they are left out of it` +
-                (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday duties, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
+                (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday dut${wh.sundayDuties === 1 ? 'y' : 'ies'}, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
                 `.` +
                 (wh.coverLines
                     ? ` The ${wh.coverLines} cover week${wh.coverLines === 1 ? ' counts' : 's count'} as a full `

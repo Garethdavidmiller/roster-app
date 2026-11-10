@@ -879,6 +879,52 @@ test('a gap inside the hour is named on the card and counted on the strip', () =
         'the strip does not count the hours with trains and nobody on');
 });
 
+// ── SENTENCES THAT READ WRONGLY AT THE EDGES (whole-app review, Nov 2026) ─────────────────────────
+describe('sentences at the edges', () => {
+    const text = (/** @type {string} */ html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    const demandNote = (/** @type {any} */ window) => {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns(), window }) }).renderCoverageChart();
+        return text(els.coverageHeatmap.innerHTML.split('dem-note')[1] ?? '');
+    };
+
+    test('each service-outside clause has a subject, and "Both" is said only of two', () => {
+        const both = demandNote(undefined);
+        assert.match(both, /\d+ train movements run after the day's finish .* \d+ run before the day's start .* Both are stated, not scored/,
+            'the default window has movements on both sides');
+        const noAfter = demandNote({ monSat: { start: '06:20', end: '23:59' }, sun: { start: '07:15', end: '23:59' } });
+        assert.match(noAfter, /\b12 train movements run before the day's start/, 'with nothing after, the clause names its own subject');
+        assert.match(noAfter, /They are stated, not scored/);
+        assert.doesNotMatch(noAfter, /Both are/);
+        const noBefore = demandNote({ monSat: { start: '00:00', end: '23:55' }, sun: { start: '00:00', end: '23:25' } });
+        assert.match(noBefore, /train movements run after the day's finish/);
+        assert.doesNotMatch(noBefore, /before the day's start/);
+        assert.doesNotMatch(noBefore, /Both are/);
+    });
+
+    test('one Sunday duty is one duty', () => {
+        const p = fullPatterns();
+        p['1'].sun = '06:00-14:00';
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: p }) }).renderDesignChecks();
+        assert.match(text(els.checksContent.innerHTML), /— 1 Sunday duty, 8h 00m across the rotation/);
+    });
+
+    test('an overlap is said as an overlap, never as a negative rest', () => {
+        // 18:00–02:30 on Monday into a 01:00 start on Tuesday: the second duty starts 1h 30m before
+        // the first ends. As a signed figure it read "-2h -30m rest" — wrong in sign and in size.
+        const p = fullPatterns();
+        p['1'].mon = '18:00-02:30';
+        p['1'].tue = '01:00-09:00';
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: p }) }).renderDesignChecks();
+        const t = text(els.checksContent.innerHTML);
+        assert.match(t, /Line 1 mon \(ends 02:30\) → Line 1 tue \(starts 01:00\) — overlapping by 1h 30m/);
+        assert.match(t, /Two consecutive duties overlap: the second starts 1h 30m before the first ends\./);
+        assert.doesNotMatch(t, /-\d+h/);
+    });
+});
+
 // ── A STORED CELL IS TEXT, NEVER MARKUP (whole-app review, Nov 2026) ─────────────────────────────
 // The short-turnaround row quotes the two times it measured, cut from the stored cell. The time
 // readers anchor one END of the string each (`^HH:MM-`, `-HH:MM$`), so `15:25-<anything>-23:55` reads
