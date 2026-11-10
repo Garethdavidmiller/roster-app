@@ -1026,6 +1026,14 @@ body.lb-open #stickyTotal { display: none !important; }
         position: static; top: auto; left: auto; right: auto; width: auto; overflow: visible;
     }
     .lb-overlay { display: none !important; }
+    /* …and the card prints ALONE, in the PDF's text too (whole-app check, 10 Nov 2026). The sheet only
+       PAINTS over the page it holds back, so that page was still on the sheet underneath it: invisible,
+       but selectable and searchable in the PDF — a member's name on the Calendar, Pay's figures behind
+       the set-password card. Every other child of the body leaves the paper. A page's own print notice
+       is the body's `::before`, not a child, so it still prints (Overtime's). */
+    body:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible) > :not(#loginOverlay):not(#pwForceOverlay) {
+        display: none !important;
+    }
 }
 
 /* Content panel — structural positioning and open animation.    */

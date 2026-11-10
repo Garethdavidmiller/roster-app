@@ -535,7 +535,11 @@ test('a shift badge keeps its fill on paper even with background graphics off @p
         return found;
     };
     // Settings prints a page of its own and sets no `print-color-adjust` on `*` — a page that trusts the badge.
+    // Signed in: under a sign-in sheet the card prints alone, and the badge would not reach the paper at all.
+    await seedSession(page, 'G. Miller');
     await page.goto('/settings.html');
+    await waitForPageSettled(page);
+    await expect(page.locator('#loginOverlay.visible'), 'premise: no sign-in sheet over the page').toHaveCount(0);
     await page.evaluate(() => {
         const badge = document.createElement('span');
         badge.className = 'shift-badge badge-early';
@@ -562,7 +566,75 @@ test('printing behind the set-password card prints the card, not the page it hol
     await expect(page.locator('#pwForceOverlay')).toBeVisible();
     expect(sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true })), 'one sheet: the card').toBe(1);
     expect(await inPrint(page, () => getComputedStyle(document.body).position), 'the body stays locked on paper').toBe('fixed');
+    await expectCardAlone(page);
 });
+
+// …AND ALONE IN THE TEXT, TOO (whole-app check, 10 Nov 2026). The sheet only painted over the page it holds back, so
+// on paper that page was still laid out beneath it: invisible, but in the PDF — selectable, searchable, copied out
+// with the card. Measured with pdftotext: Trains' sheet carried 88 words of its page, New link's 126, Pay's 65, and
+// the Calendar's a member's name. Read both ways round: under print media no text outside the card has a box (which
+// names the culprit), and the PDF holds exactly the text runs of the card printed with nothing else in the document.
+/** Text-showing operators in a PDF's content streams: how much text the sheet carries. @param {Buffer} pdf */
+function textRuns(pdf) {
+    let runs = 0;
+    for (const m of pdf.toString('latin1').matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+        let body;
+        try { body = zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); } catch { continue; }
+        runs += (body.match(/\bT[jJ]\b/g) || []).length;
+    }
+    return runs;
+}
+/** The sign-in sheet on screen prints alone: nothing outside it on paper, and nothing else in the PDF.
+ *  Ends with the rest of the page REMOVED, so it is the last thing a test does. @param {import('@playwright/test').Page} page */
+async function expectCardAlone(page) {
+    const outside = await inPrint(page, () => {
+        const card = document.querySelector('#loginOverlay.visible, #pwForceOverlay.visible');
+        const found = [];
+        const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+            if (!t.textContent?.trim() || card?.contains(t)) continue;
+            const r = document.createRange();
+            r.selectNodeContents(t);
+            const el = t.parentElement;
+            if (r.getClientRects().length) found.push(`${el?.id ? '#' + el.id : el?.tagName}: ${t.textContent.trim().slice(0, 30)}`);
+        }
+        return { card: !!card?.getClientRects().length, found };
+    });
+    expect(outside.card, 'the card itself prints').toBe(true);
+    expect(outside.found.slice(0, 5), 'page text on the paper under the sign-in card').toEqual([]);
+    await page.evaluate(() => document.fonts.ready);
+    const sheet = textRuns(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
+    await page.evaluate(() => { for (const el of [...document.body.children]) if (!el.matches('#loginOverlay, #pwForceOverlay')) el.remove(); });
+    const cardOnly = textRuns(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
+    expect(cardOnly, 'premise: the card has text of its own').toBeGreaterThan(0);
+    expect(sheet, 'the PDF carries text beyond the card\'s').toBe(cardOnly);
+}
+
+// Pay is the set-password test above: it signs in through its own chain and does not lay a sheet over a lost session.
+for (const [url, ready] of /** @type {Array<[string, string]>} */ ([
+    ['/trains.html', '.btn-card-tips'], ['/newlink.html', 'main h2'], ['/links.html', '#linksGridCard'],
+])) {
+    test(`a session lost on ${url} prints the sign-in card alone, its page in no part of the PDF @print`, async ({ page, browserName }) => {
+        test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            localStorage.setItem('myb_links_welcome_seen', '1');
+            const w = /** @type {any} */ (window);
+            w.__E2E = { ...(w.__E2E || {}), authUser: true };
+        });
+        await page.goto(url);
+        await page.locator(ready).first().waitFor();
+        await waitForPageSettled(page);
+        // The way a session goes mid-visit: a refused token refresh, heard by page-session.js.
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 8000 });
+        expect(await page.locator('#loginOverlay').evaluate(el => el.classList.contains('login-overlay--inline')),
+            'premise: the sheet, not the inline card').toBe(false);
+        await expectCardAlone(page);
+    });
+}
 
 // ── A NAME IS NEVER ELLIPSISED ON PAPER (v23.71) ────────────────────────────────────────────────
 //
@@ -658,6 +730,9 @@ test('a month drawn from this device\'s cache keeps its "Saved copy" label on pa
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'nov', memberName: 'G. Miller', date: '2026-11-11', type: 'annual_leave', value: 'AL', note: '' }];
+        // A device that read November whole on an earlier day — only that makes the cache's November a saved
+        // copy (cal-data-3, 0c03654a: rows another page cached one member at a time are not one).
+        localStorage.setItem('myb_cal_whole_months', JSON.stringify(['2026-11']));
     });
     await page.goto('/index.html');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
