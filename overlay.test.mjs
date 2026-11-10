@@ -696,6 +696,37 @@ describe('trapFocus — hidden controls are not tab stops', () => {
     });
 });
 
+describe('trapFocus — a control with a negative tabindex is not a tab stop', () => {
+    // The date picker's month is ONE Tab stop (a roving tabindex: every other day is `tabindex="-1"`),
+    // and the sign-in card's username field is there only for the password manager. Tab never lands
+    // on either, so counted as the trap's ends the wrap never fired and focus walked out of the dialog.
+    const shown = () => Object.assign(makeBtn(), { offsetParent: {} });
+    const outOfOrder = () => Object.assign(shown(), { getAttribute: (/** @type {string} */ a) => (a === 'tabindex' ? '-1' : null) });
+
+    test('Tab from the day the keyboard is on wraps to the ✕, past the month\'s other days', () => {
+        const close = shown(), day = shown();
+        global.document.activeElement = day;
+        let prevented = false;
+        trapFocus(makeContainer([close, day, outOfOrder(), outOfOrder()]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Tab was let through — out of the dialog');
+        assert.equal(close.wasFocused, true);
+    });
+
+    test('Shift+Tab from the first real control wraps to the last, past the hidden field before it', () => {
+        const username = outOfOrder(), grade = shown(), back = shown();
+        global.document.activeElement = grade;
+        let prevented = false;
+        trapFocus(makeContainer([username, grade, back]), {
+            key: 'Tab', shiftKey: true, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Shift+Tab was let through to the page behind the card');
+        assert.equal(back.wasFocused, true);
+        assert.equal(username.wasFocused, false);
+    });
+});
+
 // ── FOCUS THAT ARRIVES WITHOUT A KEY (iPhone audit, 7 Nov 2026) ─────────────────────────────────────
 // The ‹ › arrows over the iPhone keyboard move focus to the previous or next text field in the
 // DOCUMENT and fire no key event, so `trapFocus` never sees them: typing walked out of a prompt into

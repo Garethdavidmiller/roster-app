@@ -253,9 +253,18 @@ window.addEventListener('popstate', () => {
     try { fn?.(); } finally { _handlingPop = false; }
 });
 
-/** What Tab can reach in `container` (enabled, rendered) — one list for the trap and the focus guard. @param {Element} container */
+/**
+ * What Tab can reach in `container` (enabled, rendered, in the Tab order) — one list for the trap and
+ * the focus guard. A NEGATIVE tabindex takes a control out of the Tab order whatever its tag, and the
+ * trap's two ends must be stops Tab can land on: counted, the date picker's last day, the sign-in
+ * card's hidden username field and the 1px select behind a picker trigger each became an end that
+ * focus never reached, so the trap never wrapped and Tab walked out of the dialog.
+ * @param {Element} container
+ */
 function _tabStops(container) {
-    return /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')]).filter(el => !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null);
+    return /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]')]).filter(el =>
+        !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null
+        && !(Number.parseInt(el.getAttribute('tabindex') ?? '', 10) < 0));
 }
 
 /**

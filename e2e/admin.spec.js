@@ -3720,6 +3720,12 @@ test('admin: each calendar is ONE Tab stop, and the arrow keys move the day — 
     expect(await at()).toBe('2026-07-09');
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => !!document.activeElement?.closest('#dpGrid')), 'one Tab leaves the picker\'s month').toBe(false);
+    // …for the picker's own ✕, not the page behind it (shared-ui-1). The trap took the month's last
+    // day — `tabindex="-1"`, a stop Tab can never land on — as its last stop, so Tab from the day the
+    // keyboard was on was not wrapped and walked out of the dialog.
+    await expect(page.locator('.dp-close'), 'Tab wraps inside the dialog').toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    expect(await at(), 'and Shift+Tab from the ✕ comes back round to the day').toBe('2026-07-09');
 });
 
 test('admin: with a mouse, the bulk bar\'s type pills are the same capsules as a row\'s', async ({ page }, info) => {
