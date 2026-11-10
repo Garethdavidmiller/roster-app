@@ -65,19 +65,7 @@ body {
        the gutter and this one page changes colour with it. Measured before the fix: body
        transparent, html navy; every other page's body opaque navy. */
     background: var(--primary-blue);
-    /* The same page inset as every other card page (desktop audit, Nov 2026). With none of its own the
-       page took shared.css's 16px fallback, so its header sat 4px higher and its burger further out
-       than on the page you had just left. */
-    padding-top:    max(20px, env(safe-area-inset-top));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
-}
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
+    /* The page gutter, with the safe-area insets, is shared.css's: the same on every card page. */
 }
 
 /* The header takes the column's cap at EVERY width (css-tokens.md → Desktop layout: the chrome and
