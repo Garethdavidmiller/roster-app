@@ -447,6 +447,10 @@ test('drawer: the guide search box looks the same on every card page while it is
 // overflow is inside a fixed overlay, so no document-width check could see it.
 test('the sign-in and set-password screens never scroll sideways, on any page', async ({ page }) => {
     test.setTimeout(90_000);
+    // BEFORE the first page, as forcePasswordSet's contract says: WebKit serves a later page the roster-data.js
+    // it already holds, past the route that turns the setting on, so a call after the first loop never reached
+    // the set-password half there (10 Nov 2026). Nothing in the first loop signs in, so it changes nothing there.
+    await forcePasswordSet(page);
     await page.setViewportSize({ width: 375, height: 800 });
     const sideways = (/** @type {string} */ id) => page.locator(id).evaluate(el => el.scrollWidth - el.clientWidth);
     for (const p of APP_PAGES_LIST.filter(x => x.cards && (x.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true))) {
@@ -454,7 +458,6 @@ test('the sign-in and set-password screens never scroll sideways, on any page', 
         await page.locator('#loginOverlay.visible').waitFor();
         expect(await sideways('#loginOverlay'), `${p.file}: the sign-in screen scrolls sideways`).toBeLessThanOrEqual(0);
     }
-    await forcePasswordSet(page);
     for (const url of ['/admin.html', '/operations.html']) {
         await page.goto(url);
         await page.evaluate(() => localStorage.clear());   // the first page's sign-in must not carry over
