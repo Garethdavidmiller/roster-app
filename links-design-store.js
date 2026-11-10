@@ -72,6 +72,8 @@ import { SLOW_SAVE_MS } from './slow-save.js';
  * @property {() => boolean} [isOnline]           overridable for tests
  * @property {number} [ackWaitMs]                 how long an online delete waits for the server
  *                                                before it is answered as queued; overridable for tests
+ * @property {Function} [getDocFromCache]         the CACHE's own answer for one document, for the
+ *                                                offline consult — see `cacheRead`
  */
 
 /** Firestore reports an unreachable backend as `unavailable`; the browser has its own view. */
@@ -107,6 +109,14 @@ export function createDesignStore(deps) {
     const _isOnline = deps.isOnline;
     const offlineNow = _isOnline ? () => !_isOnline() : _offlineByDefault;
     const ackWaitMs = deps.ackWaitMs ?? SLOW_SAVE_MS;
+    /**
+     * WHAT THIS DEVICE HOLDS for one document — the offline consult before a queued write (whole-app
+     * fix, Nov 2026). `getDocFromCache` answers from the cache alone: a deletion the cache recorded
+     * comes back as not existing, and a document it never held REJECTS. Offline, plain `getDoc`
+     * rejects for BOTH (read in the SDK, and run against it with the network off), so a store given
+     * only `getDoc` cannot see a deletion its cache knows of, and queues as if nothing were cached.
+     */
+    const cacheRead = deps.getDocFromCache ?? getDoc;
     const isOffline = (/** @type {any} */ err) => isOfflineFailure(err, offlineNow);
     const refFor = (/** @type {string} */ id) => doc(db, 'linkDesigns', id);
 
@@ -325,8 +335,8 @@ export function createDesignStore(deps) {
                     // offline failure gets here, and the write is queued, never awaited.
                     if (!isOffline(err)) throw err;
                     try {
-                        const cached = await getDoc(ref);
-                        if (!cached.exists()) return { status: 'deleted-elsewhere', deletedData: null };
+                        const cached = await cacheRead(ref);
+                        if (!cached.exists()) return { status: 'deleted-elsewhere', deletedData: null };   // as below
                         const d = throughOwnRename(id, cached.data() || {});
                         if (isDeleted(d)) return { status: 'deleted-elsewhere', deletedData: d };
                         const again = movedOnOf(d);
@@ -341,6 +351,14 @@ export function createDesignStore(deps) {
                 const updatedAt = await readStamp(ref);
                 return { status: 'saved', updatedAt, baseline: baselineAfterCommit(committed) };
             }
+            // THE TRANSACTION IS TRIED FIRST EVEN WHEN THE BROWSER ALREADY SAYS OFFLINE, and that is
+            // deliberate (whole-app fix, Nov 2026). It costs six to ten seconds of "Saving…" on a device
+            // that really is offline — the SDK runs the body five times with back-off before giving up
+            // (measured against the real SDK with the network off) — where create and delete, with no
+            // read to serialise, ask `offlineNow()` first. But `navigator.onLine` is the browser's view,
+            // not Firestore's, and a device that reports itself offline while it can reach the server
+            // must still get the compare-and-set: a wrong "offline" may not buy the path rule 2 keeps for
+            // the absence of a server. `rename` tries first for the same reason.
             try {
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
@@ -375,9 +393,12 @@ export function createDesignStore(deps) {
                 // the one outcome `deleted-elsewhere` exists to prevent. (Preserved from the path
                 // this replaced; dropping it was a regression I introduced and caught in review.)
                 try {
-                    const cached = await getDoc(ref);
-                    // Offline, `getDoc` THROWS for a document the cache has never seen, so a
-                    // non-existent snapshot here is the cache KNOWING it was removed for good.
+                    const cached = await cacheRead(ref);
+                    // NOT EXISTING here is the read KNOWING it was removed for good: through
+                    // `getDocFromCache`, the cache's own record of the deletion; through plain `getDoc`,
+                    // only a server answer, because offline `getDoc` rejects for a document it does not
+                    // hold, a known deletion included (`cacheRead`). A read that cannot tell lands in the
+                    // catch below, and the write is queued with nothing to consult.
                     if (!cached.exists()) return { status: 'deleted-elsewhere', deletedData: null };
                     if (isDeleted(cached.data())) {
                         return { status: 'deleted-elsewhere', deletedData: cached.data() };
@@ -442,7 +463,7 @@ export function createDesignStore(deps) {
                 // And like any unverified rename it does not sign the content as ours (above).
                 baselineFresh = canAdvanceBaseline(null, preBaseline, false);
                 /** @type {any} */ let cached = null;
-                try { cached = (await getDoc(ref)).data() ?? null; }
+                try { cached = (await cacheRead(ref)).data() ?? null; }
                 catch { /* nothing cached — the next offline save consults nothing either */ }
                 // A SECOND offline rename sees through the first — its revision is ours, not a save.
                 const under = throughOwnRename(id, cached)?.revision;

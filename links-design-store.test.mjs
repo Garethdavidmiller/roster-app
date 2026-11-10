@@ -37,16 +37,32 @@ const ts = (ms) => ({ toMillis: () => ms, toDate: () => new Date(ms) });
  * between the read and the commit. The body runs ONCE. This said it "re-runs when the document
  * changed", which it never did (test audit, 7 Nov 2026); a test that needs a retried transaction
  * installs its own `runTransaction` — see "a RETRIED forced save decides afresh".
+ *
+ * `getDoc` answers as the REAL SDK does: offline, a document it does not hold REJECTS, whether the
+ * cache has never seen it or knows it was deleted. This fake used to answer `exists() === false`
+ * there — a question the real one refuses offline — so a test passed on a branch production can
+ * never reach (whole-app fix, Nov 2026). `cache` adds `getDocFromCache`, which CAN tell the two
+ * apart: `'knows-deleted'` is a cache that recorded the deletion, `'unknown'` one that never held it.
  */
-function makeDb({ initial = null, onRead = null, failTx = null } = {}) {
+function makeDb({ initial = null, onRead = null, failTx = null, cache = /** @type {null|'knows-deleted'|'unknown'} */ (null) } = {}) {
     let store = initial ? { ...initial } : null;
     let reads = 0;
     const writes = [];
     const db = {};
+    const offlineMiss = () => Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });
+    /** @type {any} */
     const api = {
         db,
         doc: () => ({ id: ID }),
-        getDoc: async () => ({ exists: () => store !== null, data: () => store }),
+        getDoc: async () => {
+            if (store === null && !api.isOnline()) throw offlineMiss();
+            return { exists: () => store !== null, data: () => store };
+        },
+        ...(cache ? { getDocFromCache: async () => {
+            if (store !== null) return { exists: () => true, data: () => store };
+            if (cache === 'knows-deleted') return { exists: () => false, data: () => undefined };
+            throw offlineMiss();
+        } } : {}),
         setDoc: async (_ref, payload, opts) => {
             writes.push({ kind: opts?.merge ? 'merge' : 'set', payload });
             store = opts?.merge ? { ...(store || {}), ...payload } : { ...payload };
@@ -727,11 +743,35 @@ describe('a design REMOVED FOR GOOD is not recreated by an ordinary save', () =>
         assert.equal(current(), null, 'the design stays gone');
     });
 
-    test('offline: a cache that knows it is gone is believed, and nothing is queued', async () => {
-        const { api, writes } = makeDb({ initial: null, failTx: { code: 'unavailable', message: 'client is offline' } });
-        api.isOnline = () => false;
+    // Offline the question goes to the CACHE, and only `getDocFromCache` can answer it: plain
+    // `getDoc` rejects for a document it does not hold, a deletion the cache recorded included
+    // (whole-app fix, Nov 2026 — this test used to pass on a fake that answered what the SDK refuses).
+    const offlineSave = (/** @type {any} */ cache) => {
+        const db = makeDb({ initial: null, cache, failTx: { code: 'unavailable', message: 'client is offline' } });
+        db.api.isOnline = () => false;
+        return db;
+    };
+    const saveIt = (/** @type {any} */ api) => createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+        baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+
+    test('offline: a cache that KNOWS it is gone is believed, and nothing is queued', async () => {
+        const { api, writes } = offlineSave('knows-deleted');
+        const res = await saveIt(api);
+        assert.equal(res.status, 'deleted-elsewhere', 'queueing here recreates the design on reconnect');
+        assert.deepEqual(writes, []);
+    });
+
+    test('offline: a cache that never held it cannot say, and the write is queued — offline-first', async () => {
+        const { api, writes } = offlineSave('unknown');
+        assert.equal((await saveIt(api)).status, 'queued');
+        assert.equal(writes.length, 1);
+    });
+
+    test('offline, a FORCED save consults the cache the same way', async () => {
+        const { api, writes } = offlineSave('knows-deleted');
         const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
-            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME,
+            forcing: true, forceAgainstRev: 4, forceAgainstRevision: null });
         assert.equal(res.status, 'deleted-elsewhere');
         assert.deepEqual(writes, []);
     });
