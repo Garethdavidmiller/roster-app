@@ -894,6 +894,16 @@ viewer keep their own Tab traps and have no guard, so the arrows can leave the d
 guides* box for a field behind it. Deferred because `nav-panel.js` is at its line cap; the device check
 is in `IPHONE_RELEASE_CHECKLIST.md` → B.
 
+### On an iPhone, reloading a guide opened at a heading goes back to that heading
+A guide opened at a `#heading` (a drawer search result, a card link) lands below the sticky header, and
+the guide scripts never pull back a reader who has since moved (guides-4, Nov 2026). A RELOAD is the
+exception on WebKit: Safari scrolls to the `#fragment` again itself, where Chromium restores the reader's
+place. The app moves nothing afterwards — `e2e/guides.spec.js` → "a deep link does not pull back a
+reader who has moved, or a reload" passes on both engines — so the "or a reload" half holds on Android
+and not on an iPhone. Countering it (taking over `history.scrollRestoration`) would mean the app
+fighting Safari's own reload behaviour on four pages for a rare gesture, so it is recorded rather than
+built (whole-app check, integration-e2e, 10 Nov 2026).
+
 ---
 
 ## PWA / service worker

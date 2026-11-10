@@ -604,6 +604,14 @@ const _configOverrides = new WeakMap();
  * @param {string} value     what to replace it with
  */
 function _setConfigOverride(page, key, pattern, value) {
+    // "Call BEFORE page.goto()" was a contract a test could break SILENTLY, and on WebKit only: WebKit
+    // reuses the roster-data.js it already holds, so the route below never sees the next load and the
+    // setting stays as it was (integration-e2e, 10 Nov 2026 — two tests read a false setting for a true
+    // one). Refused here, so a late call fails at the call rather than as a missing overlay later on.
+    if (page.url() !== 'about:blank') {
+        throw new Error(`${key}: set after the page loaded ${page.url()}. Call it BEFORE page.goto() — `
+            + 'WebKit keeps the roster-data.js it already holds, so a later load would not see it.');
+    }
     const current = _configOverrides.get(page) || {};
     current[key] = [pattern, value];
     _configOverrides.set(page, current);

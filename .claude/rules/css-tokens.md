@@ -161,7 +161,12 @@ the 3:1 focus-indicator floor — never use it there. **Every focusable field ca
 including inputs inside modals, where keyboard users most need it. That is measured, not assumed:
 `e2e/pages.spec.js` → "every focusable field wears the field ring when focused" focuses every field on
 every app page with its cards open and reads the computed shadow; the drawer's guide search is its one
-exemption, by name.
+exemption, by name. **One field cannot wear it on an iPhone, by engine:** WebKit draws no `box-shadow` on
+a `<select>` that keeps the platform's face, and the Links generator's time boxes keep that face on a
+touch screen by decision (`links.css`, "THE CLOSED FACE IS THE APP'S"). There the focus OUTLINE is the
+indicator, which `e2e/links.spec.js` → "the generator's boxes and the Import fields wear the app's field
+recipe" asserts. The sweep cannot meet it: it runs on a fine pointer, where those boxes wear the app's
+face.
 
 **Never leave a Tab stop with no indicator.** `outline: none` in a focus rule is legitimate only when a
 `box-shadow` ring replaces it, or the element genuinely is not tabbable (`#hourlyRate` carries
