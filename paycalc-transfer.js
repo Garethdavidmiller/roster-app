@@ -214,9 +214,14 @@ export function validateBackup(text, { currentSlug }) {
     if (unnamespaced) {
         const owned = keys.find(k => keyOwnerSlug(k) !== null);
         if (owned) {
-            return keyOwnerSlug(owned) === currentSlug
-                ? { ok: false, error: `That backup is inconsistent (${owned}). Nothing was changed.` }
-                : { ok: false, error: 'That backup belongs to someone else. Sign in as them to restore it.' };
+            const ownerSlug = keyOwnerSlug(owned);
+            if (ownerSlug === currentSlug) {
+                return { ok: false, error: `That backup is inconsistent (${owned}). Nothing was changed.` };
+            }
+            // keyOwnerSlug also names a FORMER member's slug (a key whose tail is one of our kinds), and
+            // nobody can sign in as a name the roster no longer holds — so say what is true of it.
+            if (keyOwnerSlug(`myb_pc_${ownerSlug}_`) === null) return { ok: false, error: NOT_ON_ROSTER };
+            return { ok: false, error: 'That backup belongs to someone else. Sign in as them to restore it.' };
         }
         // …NOR AN OWNER THIS ROSTER DOES NOT HOLD (paycalc-2-19). `keyOwnerSlug` knows only the names
         // on the roster, so a file saved under any other, its slug stripped (`myb_pc_formername_p50`),
