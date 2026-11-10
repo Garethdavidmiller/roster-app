@@ -63,6 +63,10 @@
  *   · **Three of six pages can be empty** (no text items at all). Skipped by CONTENT, never by
  *     page number.
  *
+ * One it has not met: the rules are read from the path's RAW coordinates and the text from pdfjs's
+ * TRANSFORMED ones, so a page drawn under a scaling `cm` puts its text beside its grid rather than in
+ * it. The corpus draws none; such a page places no row and fails open as `no-rows`.
+ *
  * pdfjs is PINNED to v4: this file reads `OPS.constructPath`'s argument shape directly, and pdfjs
  * changed that encoding at 5.1.91 (pdf.js PR 19689). MEASURED on 6.4.299 (4 Nov 2026), this code
  * does not throw there: every document reports `no-grid`, so the witness would stop SILENTLY, and
@@ -114,6 +118,11 @@ function rulesFromOperatorList(ops, OPS) {
         const [fns, args] = ops.argsArray[i];
         if (!fns || typeof fns[Symbol.iterator] !== 'function') continue;
         let a = 0, cx = 0, cy = 0, sx = 0, sy = 0;
+        // EVERY operator's operands must be stepped over, or each later point of the path is read
+        // from the wrong numbers: pdfjs v4 sends `v` and `y` (curveTo2/3) here with four, and
+        // skipping them turned one stroked curve into a phantom rule that rejected the page
+        // (import-server-7). A curve's end point is not taken as the current point — the corpus
+        // was measured that way (experiments/roster-pdf-geometry), and the rules are straight.
         for (const fn of fns) {
             if (fn === OPS.moveTo)      { cx = args[a]; cy = args[a + 1]; sx = cx; sy = cy; a += 2; }
             else if (fn === OPS.lineTo) {
@@ -123,6 +132,7 @@ function rulesFromOperatorList(ops, OPS) {
                 cx = nx; cy = ny;
             }
             else if (fn === OPS.curveTo)   { a += 6; }
+            else if (fn === OPS.curveTo2 || fn === OPS.curveTo3) { a += 4; }
             else if (fn === OPS.rectangle) { a += 4; }
             else if (fn === OPS.closePath) { cx = sx; cy = sy; }
         }
@@ -265,7 +275,11 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
         try { if (task) await task.destroy(); } catch { /* nothing left to free */ }
     }
     result.available = result.rows.length > 0;
-    if (!result.available && !result.reason) result.reason = result.pagesRejected ? 'no-grid' : 'no-text';
+    // A page READ is a page with text and the nine-column grid, so when such a page placed no member
+    // row the honest reason is that — not `no-text`, which sent the reader to a scanned sheet.
+    if (!result.available && !result.reason) {
+        result.reason = result.pagesRead ? 'no-rows' : result.pagesRejected ? 'no-grid' : 'no-text';
+    }
     return result;
 }
 
