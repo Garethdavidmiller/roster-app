@@ -659,6 +659,13 @@ payslip (P20)", the pension label "for the 3 Jul payslip", breakdown rows date-f
 `#periodBadge` P-chip beside the date strip stays (the date is adjacent; the badge IS the
 cross-check). Internal `p.num` keys and `payslipPeriodNum()` are unchanged — display order only.
 
+**A month means the payslip PAID in it (owner, 10 Nov 2026).** The Calendar's 💷 Pay button sends
+`?month=`, and `periodPaidInMonth` opens the payslip whose payday is in that month — the 💷 in its
+grid — never the one whose shifts cover it, which is usually paid the month after (in November 2026
+that opened the 18 Dec payslip before the 20 Nov one had paid). In the one two-payday month a year it
+is the first still to be paid, else the later. The drawer's Pay pill, with no month, still opens the
+payslip being earned (the ● one).
+
 **Year to Date:** always spell it out as "Year to Date" (never bare "YTD") and call the two figures
 exactly `Taxable Pay` / `Tax Paid` — NOT "Gross Pay" (the Year to Date figure is taxable pay,
 post-pension, not gross). Do not invent friendlier names for these — the whole point is that they

@@ -272,6 +272,32 @@ export function periodLinkMissNote(askedFor, periods) {
 }
 
 /**
+ * The payslip a MONTH means: the one PAID in it (owner, 10 Nov 2026). The Calendar's 💷 Pay button
+ * sends the month on screen as `?month=`, and staff name a payslip by the day it is paid — the 💷
+ * marker in that month's grid is the payslip it should open.
+ *
+ * It used to open the payslip whose SHIFTS covered the month's 15th. A period's shifts end six days
+ * before its payday, so whenever a month's payday falls before the 21st that is the payslip paid the
+ * month AFTER: from November 2026 the Pay button opened the 18 Dec payslip while the 20 Nov one had
+ * not been paid.
+ *
+ * A 28-day cycle pays thirteen times a year, so one month a year holds two paydays (July 2026: 3 Jul
+ * and 31 Jul). Then it is the first of the two still to be paid, or the later once both are — the
+ * one nearer today. Null when no payslip on offer is paid in that month (before or after the
+ * calculator's range, or before a new starter's join year); the caller says so (`periodLinkMissNote`).
+ * @param {any[]} periods  the payslips on offer, oldest first
+ * @param {number} year
+ * @param {number} month  1-based, as the link writes it
+ * @param {Date} [now]
+ * @returns {any|null}
+ */
+export function periodPaidInMonth(periods, year, month, now = new Date()) {
+  const inMonth = periods.filter((/** @type {any} */ p) => p.payday.getFullYear() === year && p.payday.getMonth() === month - 1);
+  if (!inMonth.length) return null;
+  return inMonth.find((/** @type {any} */ p) => p.payday > now) ?? inMonth[inMonth.length - 1];
+}
+
+/**
  * Populate the period selector, navigate to the appropriate default period, and
  * return the current-earning period number (used by the coordinator as the ● anchor).
  *
@@ -305,12 +331,9 @@ export function buildPeriodSelect() {
     else if (_py && _pm >= 1 && _pm <= 12 && _pd) _askedFor = fdLong(new Date(_py, _pm - 1, _pd));
   } else if (_monthParam) {
     const [_my, _mm] = _monthParam.split('-').map(Number);
-    // NOON, matching the period anchors (v16.23): every p.start/p.cutoff is noon-anchored
-    // (ANCHOR_DATE invariant). A midnight 15th fell in the 12-hour gap whenever a period STARTS
-    // on the 15th (start noon > midnight; prior cutoff Sat 14th noon < midnight) — e.g. Nov 2026
-    // (P59 starts Sun 15 Nov) — so the ?month= deep link silently matched no period at all.
-    const _mid = new Date(_my, _mm - 1, 15, 12);
-    const _matched = periods.find((/** @type {any} */ p) => p.start <= _mid && _mid <= p.cutoff);
+    // The payslip PAID in that month — the 💷 in the Calendar's grid — not the one whose shifts
+    // cover it, which is usually paid the month after (periodPaidInMonth, owner 10 Nov 2026).
+    const _matched = periodPaidInMonth(periods, _my, _mm, today);
     if (_matched) defPNum = _matched.num;
     else if (_my && _mm >= 1 && _mm <= 12) _askedFor = `${MONTH_ABB[_mm - 1]} ${_my}`;
   }
