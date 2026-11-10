@@ -54,7 +54,7 @@ export const teamMembers = [
     // rosterChanges — base stays main wk10 until then, so she only leaves the link from
     // 28 Jun (vacating wk10, the slot after O. Mylla — taken by new starter K. Jedlinski).
     // AL stays the standard CEA 32 (her contract decides it, not the line). To END the move, ADD a
-    // `rosterChanges` entry dated from her return, onto whichever line she takes (wk10 is K.
+    // `rosterChanges` entry dated from the day it ends, onto whichever line she takes (wk10 is K.
     // Jedlinski's now). Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA',
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'fixed', currentWeek: 2 }] },
@@ -173,7 +173,8 @@ export const teamMembers = [
     // than before her start), and the figure below would be the same.
     // ⚠️ `proRatedAL: 5` is PROVISIONAL — a day-count (88 of 365 days × 22 = 5.3), entered on the
     // owner's word ("pro-rata her leave until I get it from the workbook", 8 Nov 2026). REPLACE it
-    // with the workbook's `AL allowance` before the year ends — the January carry-back already caps a
+    // with the workbook's `AL allowance` before the year ends, reading docs/AL_WORKBOOK.md §5 first:
+    // for a joiner that column can hold the full grade figure. The January carry-back already caps a
     // day moved back by 2026's remaining days. Booked as a dated row in docs/MAINTENANCE_CALENDAR.md,
     // because a comment reminds nobody. It replaces only the 22-day BASE: lieu days for bank holidays
     // worked are still added on top by getALEntitlement.
