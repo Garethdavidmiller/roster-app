@@ -802,6 +802,22 @@ test('settings: the header spans the cards\' column at every width, a phone on i
     }
 });
 
+// The page gutter has ONE home now, shared.css (whole-app review, Nov 2026): every card page restated it, and Settings
+// no longer does. The card pages' values — 20px above, 10px below, 10px a side on a phone, 3vw from 769px — read off
+// Settings, the page that relies on the shared rule, so losing that rule cannot pass unseen.
+test('settings: the page keeps its gutter, from the shared rule', async ({ page }) => {
+    await seedSession(page);
+    for (const [width, side] of [[375, '10px'], [768, '10px'], [1280, '38.4px']]) {
+        await page.setViewportSize({ width: Number(width), height: 800 });
+        await page.goto('/settings.html');
+        const gutter = await page.evaluate(() => {
+            const s = getComputedStyle(document.body);
+            return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(' ');
+        });
+        expect(gutter, `the gutter at ${width}px`).toBe(`20px ${side} 10px ${side}`);
+    }
+});
+
 // SET2 — "You'll get: …" was one run joined with " · ", so a line could end "· Pay" and the next start
 // "reminder". Each kind and its separator is unbreakable now; a line breaks only after a "·".
 test('settings: the notification kinds break between themselves, never inside one', async ({ page }) => {
