@@ -1831,6 +1831,16 @@ test('operations: a roster read that looks a day out is refused, and writes noth
     await expect(remedy).toBeVisible();
     await expect(remedy).toHaveText('Read the roster again');
     await expect(remedy).toHaveClass(/roster-cancel-btn--primary/);
+    // …and stays readable under a mouse: the plain button's hover rule outweighed the variant and
+    // turned its words navy on its own navy fill. Read once the colour has finished easing.
+    await remedy.hover();
+    const hovered = await remedy.evaluate(async el => {
+        await Promise.all(el.getAnimations().map(a => a.finished));
+        const c = getComputedStyle(el);
+        return { text: c.color, fill: c.backgroundColor };
+    });
+    expect(hovered.text, 'the remedy\'s words vanish into its fill under the pointer').not.toBe(hovered.fill);
+    expect(hovered.text).toBe('rgb(255, 255, 255)');
 
     // No per-row escape hatch: a tick on a refused read does nothing at all.
     const firstTick = page.locator('.roster-tick').first();

@@ -879,8 +879,12 @@ body.auth-ready .container { display: grid; }
     border-color: var(--primary-blue);
     font-weight: 700;
 }
+/* …and order does not reach the HOVER rule, which outweighs the variant (0,2,0 to 0,1,0): it turned
+   the primary's words navy on its navy fill (Nov 2026). The primary darkens under a mouse, as the
+   page's other navy buttons do. */
 @media (hover: hover) and (pointer: fine) {
-    .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+    .roster-cancel-btn:not(.roster-cancel-btn--primary):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+    .roster-cancel-btn--primary:hover { background: var(--primary-blue-dark); border-color: var(--primary-blue-dark); }
 }
 
 /* ---- Form inputs ---- */
