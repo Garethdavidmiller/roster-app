@@ -18,8 +18,9 @@ import {
     stationView, verdictFor, minutesWords, hourWords, hourNote, rateWords, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
     aRealDay, boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
-import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks } from './trains-render.js';
-import { changeLabel, timetablePhase, JOURNEY_PLANNER_URL } from './trains-change.js';
+import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks,
+    leadWords, changesTitle, renderFurtherChanges } from './trains-render.js';
+import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { lastTrains } from './trains-stations.js';
 import { TIMETABLES, STATIONS, STATION_ORDER, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from './trains-data.js';
@@ -547,6 +548,28 @@ describe('the words on screen', () => {
         assert.doesNotMatch(amr, /0 stay|trAllTrains/);
     });
 
+    // THE LIST'S WORDS TURN WITH ITS CHIPS (whole-app fix, Nov 2026). From 13 December the chips said
+    // "Now stops here" while the list beside them was still headed "What changes" and counted "5 change,
+    // 12 stay the same": a forecast of something that had happened.
+    test('the train list speaks in the tense of the change, as its chips do', () => {
+        const view = stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'AYS', 'dep');
+        const changed = /** @type {any[]} */ (view.trains).filter(t => t.kind !== 'same' || t.farShift).length;
+        const same = /** @type {any[]} */ (view.trains).length - changed;
+        const before = renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: true });
+        const after = renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: true, started: true });
+        assert.match(before, /<th scope="col">What changes<\/th>/);
+        assert.match(after, /<th scope="col">What changed<\/th>/);
+        assert.match(after, new RegExp(`${changed} changed, ${same} stayed the same`));
+        assert.match(after, new RegExp(`id="trAllTrains">Show the ${same} that stayed the same<`));
+        assert.doesNotMatch(after, /What changes|stays? the same|\d change,/, 'nothing left in the forecast tense');
+        const amr = renderStation(stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'AMR', 'arr'), { stations: STATIONS, dir: 'arr', showTrains: false, started: true });
+        assert.match(amr, /All 38 changed · leaving Amersham/);
+        // Every train keeps its time: the list is one sentence, in either tense, and the trains one tap away.
+        const kept = stationView(hourly(6, 'OXF'), hourly(6, 'OXF'), 'OXF', 'dep');
+        assert.match(renderStation(kept, { stations: STATIONS, dir: 'dep', showTrains: true }), /Every train keeps its time\.<\/p>.*Show the 6 that stay the same/);
+        assert.match(renderStation(kept, { stations: STATIONS, dir: 'dep', showTrains: true, started: true }), /All 6 stayed the same.*Every train kept its time\.<\/p>.*Show the 6 that stayed the same/);
+    });
+
     test('a train that runs on names its onward stop in a few words', () => {
         // "Aylesbury Vale", never "Parkway": five stations on the page are Parkways (v24.83).
         assert.equal(endWords('AVP', 'AYS', STATIONS, true), 'on to Aylesbury Vale');
@@ -879,6 +902,10 @@ describe('the eight improvements (v24.94): Last trains, the remembered station, 
         const gone = renderLastTrains([{ crs: 'BCF', now: '23:00', dec: null, shift: null, kind: 'gone' }, { crs: 'HWY', now: null, dec: '23:30', shift: null, kind: 'new' }], { stations: STATIONS, labels });
         assert.match(gone, /No train<\/span>/); assert.match(gone, /tr-chip--new">New<\/span>/);
         assert.doesNotMatch(gone, /tr-last-band/, 'one line alone is not banded');
+        // The chips' column is named for a screen reader in the tense of the change, as the station card's is.
+        assert.match(html, /<span class="sr-only">What changes<\/span>/);
+        assert.match(renderLastTrains(lastTrains(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep), { stations: STATIONS, labels, bands, started: true }),
+            /<span class="sr-only">What changed<\/span>/);
     });
 
     test('renderPicks — the remembered station first as "Last time", once, and never while typing', () => {
@@ -948,10 +975,44 @@ describe('the 72-hour review (v24.96): one train is one train, "Same time" over 
         const now = TIMETABLES.now.SX.dep, dec = TIMETABLES.dec.SX.dep;
         assert.equal(stationView(now, dec, sav, 'dep', { change: CHANGE_DATE }).verdict.text, 'New from 13 December: one direct train, the 09:31.');
         assert.match(stationView(now, dec, sav, 'dep', { change: '2027-05-16' }).verdict.text, /^New from 16 May: /, 'moving the constant moves the sentence');
-        assert.equal(stationView(now, dec, sav, 'dep').verdict.text, 'New from 13 December: one direct train, the 09:31.', 'no date given: the old words, unchanged');
+        assert.equal(stationView(now, dec, sav, 'dep').verdict.text, 'New from 13 December: one direct train, the 09:31.', 'no date given: the data module\'s');
         // A station no Saturday train reaches on either side reads "now or from" before the change and not after.
         const none = STATION_ORDER.find(c => { const v = stationView(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, c, 'dep', { change: CHANGE_DATE }); return /^No direct trains from Marylebone on this day, now or from 13 December\.$/.test(v.verdict.text); });
         assert.ok(none, 'such a station exists in the Saturday books');
         assert.equal(stationView(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, none, 'dep', { change: CHANGE_DATE, started: true }).verdict.text, 'No direct trains from Marylebone on this day.');
+    });
+});
+
+describe('the whole-app fix (Nov 2026): the overview\'s words by date', () => {
+    test('the opening line turns at the change, its days read from the date', () => {
+        assert.equal(leadWords(CHANGE_DATE, false), 'Today’s timetable beside the new one that starts on Sunday 13 December. Both are Chiltern’s published timetables, not live running information.');
+        assert.equal(leadWords(CHANGE_DATE, true), 'The timetable that ran until Saturday 12 December beside the new one, which started on Sunday 13 December. Both are Chiltern’s published timetables, not live running information.');
+        assert.match(leadWords('2027-05-16', false), /starts on Sunday 16 May\./, 'moving the date moves the sentence');
+    });
+
+    test('the changes view is named in the tense of the change', () => {
+        assert.equal(changesTitle(false), 'What’s changing');
+        assert.equal(changesTitle(true), 'What changed');
+    });
+
+    // It was typed into trains.html: "Christmas and New Year are not on this page. Chiltern is changing
+    // times again between 13 December and 10 January" — with only its switch generated.
+    test('the further-changes note is worded from its two dates, and names only the holidays inside them', () => {
+        assert.equal(renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL),
+            '<strong>Christmas and New Year are not on this page.</strong> Chiltern is changing times again between 13 December and 10 January, with big changes over the holidays.');
+        assert.equal(renderFurtherChanges('2026-12-13', '2026-12-28'),
+            '<strong>Christmas is not on this page.</strong> Chiltern is changing times again between 13 December and 28 December, with big changes over the holidays.');
+        assert.equal(renderFurtherChanges('2027-05-16', '2027-06-13'),
+            '<strong>Chiltern’s further changes are not on this page.</strong> It is changing times again between 16 May and 13 June.');
+        // And the page carries no copy of it to go stale: the paragraph is written by the script alone.
+        const page = readFileSync(new URL('./trains.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+        assert.match(page, /<p class="card-explainer tr-festive" id="trFestive" hidden><\/p>/);
+    });
+
+    test('a station card with no labels given names the columns from the change date, never a typed one', () => {
+        const html = renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'HWY', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: false });
+        assert.match(html, new RegExp(`<th scope="col">Now</th><th scope="col">From ${dateWords(CHANGE_DATE, 0, { short: true })}</th>`));
+        assert.equal(timetablePhase(new Date(2026, 9, 1), { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL }).newLabel,
+            `From ${dateWords(CHANGE_DATE, 0, { short: true })}`, 'the same words timetablePhase gives the page');
     });
 });

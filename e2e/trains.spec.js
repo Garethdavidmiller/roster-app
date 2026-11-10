@@ -10,6 +10,8 @@
  */
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject } from './helpers.js';
+import { TIMETABLES, STATIONS } from '../trains-data.js';
+import { busiestStations, matchStations } from '../trains-stations.js';
 
 /**
  * Type into the station box. Under a chosen station the box and the chips have folded away (v24.92),
@@ -934,4 +936,66 @@ test('the trains-a-day box reaches the right-hand edge the blocks around it shar
         column: /** @type {Element} */ (document.querySelector('.tr-ov-side')).getBoundingClientRect().right,
     }));
     expect(Math.abs(edge.box - edge.column), `box ends at ${edge.box}, its column at ${edge.column}`).toBeLessThanOrEqual(1);
+});
+
+// ── THE WHOLE-APP FIX (Nov 2026) ─────────────────────────────────────────────────────────────────────
+// What only the page can show: that the coordinator hands each rule the right timetable, the right phase
+// and the right names. The rules themselves are trains-stations.test.mjs's and trains-change.test.mjs's.
+test.describe('trains — the page turns as a whole', () => {
+    // From 13 December only the tab and the card's title turned: the section, its ? and its chevron, and the
+    // ? panel's own title, went on saying "What’s changing" to a screen reader and under the tab.
+    test('every name the changes view goes by turns with it at the change', async ({ page }) => {
+        for (const [when, words] of [['2026-11-16T10:00:00Z', 'What’s changing'], ['2026-12-20T10:00:00Z', 'What changed']]) {
+            await page.clock.setFixedTime(new Date(when));
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            await expect(page.locator('#trChangesTab')).toHaveText(words);
+            await expect(page.locator('#trViewChanges'), 'the section').toHaveAttribute('aria-label', words);
+            await expect(page.locator('#trChangesTips'), 'its ?').toHaveAttribute('aria-label', `Tips for ${words.toLowerCase()}`);
+            await expect(page.locator('#trChangesChevron'), 'its chevron').toHaveAttribute('aria-label', `Toggle ${words}`);
+            await page.locator('#trChangesTips').click();
+            await expect(page.locator('#tipsLbTitle'), 'the ? panel').toHaveText(`🔔 ${words}`);
+        }
+        // and the Last trains card's chips are headed for a screen reader in the same tense
+        await page.locator('#tipsLightboxClose').click();
+        await page.locator('[data-view="stations"]').click();
+        await expect(page.locator('#trLast .tr-last thead')).toContainText('What changed');
+    });
+
+    // The chips and the order of equal matches were counted on the first timetable for good, so from
+    // 13 December they described the one that had stopped (busiest stations, and "bi" + Enter).
+    test('the busiest stations, and the order of equal matches, are counted on the timetable running', async ({ page }) => {
+        const names = (/** @type {string[]} */ codes) => codes.map(c => STATIONS[c]);
+        const first = (/** @type {'now'|'dec'} */ side) => STATIONS[matchStations(STATIONS, 'bi', 6, busiestStations(TIMETABLES[side].SX.dep, Infinity))[0]];
+        expect(first('now'), 'premise: the two timetables order "bi" differently').not.toBe(first('dec'));
+        expect(busiestStations(TIMETABLES.now.SX.dep), 'premise: and their busiest weekday stations').not.toEqual(busiestStations(TIMETABLES.dec.SX.dep));
+        for (const [when, side] of /** @type {[string, 'now'|'dec'][]} */ ([['2026-11-16T09:00:00Z', 'now'], ['2027-01-11T09:00:00Z', 'dec']])) {
+            await page.clock.setFixedTime(new Date(when));      // two Mondays: before the change, and once it has settled
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            await page.locator('[data-view="stations"]').click();
+            await expect(page.locator('#trStationPicks .tr-pick'), `${side}: the chips`).toHaveText(names(busiestStations(TIMETABLES[side].SX.dep)));
+            await page.locator('#trStationInput').fill('bi');
+            await expect(page.locator('#trStationPicks .tr-pick').first(), `${side}: Enter opens`).toHaveText(first(side));
+            await page.locator('[data-view="changes"]').click();
+            await expect(page.locator('#trJumpPicks .tr-pick'), `${side}: the desktop's jump card`).toHaveText(names(busiestStations(TIMETABLES[side].SX.dep)));
+        }
+    });
+
+    // A press redrew the view and not the overview, so a tab in view across 03:00 showed two dates at once.
+    // Local times, no "Z": the page reads the browser's clock, and the browser and this file share a time zone.
+    test('a press after 03:00 on the day of the change turns the overview with the view, and the day with them', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-12-13T02:30:00'));   // still Saturday's railway day
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trCountdown')).toHaveText('Starts tomorrow');
+        await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        await page.clock.setFixedTime(new Date('2026-12-13T03:30:00'));   // the change has come; the tab never slept
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trCountdown')).toHaveText('Starts today');
+        await expect(page.locator('#trLead')).toContainText('The timetable that ran until Saturday 12 December');
+        await expect(page.locator('#trGridNow'), 'the grid\'s first timetable is named for what it now is').toHaveText('Until 12 Dec');
+        await expect(page.locator('[data-day="SU"]'), 'the day turned too: no day tab was pressed').toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#trPatternHint')).toContainText('Sundays');
+    });
 });

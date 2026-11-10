@@ -72,7 +72,7 @@ import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNT
 import { CARD_TIPS } from './trains-tips.js';
 import { parseTypedTime, daysUntil, timetablePhase, dateWords, railwayToday, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
-import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME } from './trains-render.js';
+import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES, changesTitle, leadWords, renderFurtherChanges } from './trains-render.js';
 import { syncGridMirror } from './trains-grid-mirror.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
@@ -91,7 +91,6 @@ import { syncGridMirror } from './trains-grid-mirror.js';
  * @property {number|null} gridCol   the grid column whose stops alone are shown
  */
 
-const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
 /** Whether every December train carries its stops — true since v24.80, when Chiltern's December books were parsed; false from a stopless source. */
 const DEC_STOPS_KNOWN = Object.values(TIMETABLES.dec).every(d => d.dep.every(stopsKnown) && d.arr.every(stopsKnown));
 /** Where the page is in the timetable's life, read fresh each render (see the header). */
@@ -105,6 +104,9 @@ const todayDay = () => { const dow = railwayToday().getDay(); return dow === 6 ?
 let dayPinned = false;   // set once a day tab is pressed: the chosen day then survives the tab's sleep
 /** The grid's two bands — the books' two lines — found from every row the page holds (trains-stations.js, `stationBands`). */
 const BANDS = stationBands(Object.values(TIMETABLES).flatMap(t => Object.values(t).flatMap(d => [...d.dep, ...d.arr])));
+/** The two whole-network answers, kept by day (whole-app fix, Nov 2026): they depend on nothing else, the tables never
+ *  change while the page is open, and each was 40–75 ms of every press — on Stations, for a card that starts folded. */
+const HEADLINES = new Map(), LAST = new Map();
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -169,7 +171,8 @@ function start(member) {
     openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — Trains', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();
 
-    initTipsLightbox(CARD_TIPS, { getIsAdmin: () => isAdmin });
+    // The changes panel is titled as its view is, which turns at the change (`changesTitle`) — read as it opens.
+    initTipsLightbox({ ...CARD_TIPS, get changes() { return { ...CARD_TIPS.changes, title: `🔔 ${changesTitle(phase().started)}` }; } }, { getIsAdmin: () => isAdmin });
     const cards = Object.fromEntries(['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern', 'trLast', 'trJump'].map(id => [id,
         // Opening the lookup — by its chevron or its header — puts the cursor in the box: that is what
         // a member opened it to do. `setOpen` runs the same callback, but only ever with `false` here.
@@ -200,17 +203,13 @@ function start(member) {
     // The grid opens on TODAY until December's stops exist: a December grid of end stations alone read
     // as a broken page, and it was the first thing the tab showed (owner, 7 Oct 2026).
 
-    renderOverview();
     wire(state);
     render(state);
     markPageReady();
     // A page left open overnight still turns the countdown — and, on the day, every label with it.
     // A tab left open overnight (the station PC's, since the PIN reads this page) comes back on TODAY's
-    // kind of day unless somebody chose one (v24.96); the labels and the phase re-read too.
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
-        if (!dayPinned && state.day !== todayDay()) { state.day = todayDay(); state.gridCol = null; }
-        renderOverview(); render(state); });
+    // kind of day unless somebody chose one (v24.96); the labels and the phase re-read too (`render`).
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(state); });
 
     if (member) {
         sessionReady.then(() => {
@@ -236,20 +235,16 @@ async function lockStaffPin() {
 
 // ── Renders ─────────────────────────────────────────────────────────────────────────────────────
 
-/** The countdown chip, the opening line, the notes that depend on the date, and the three totals. */
-function renderOverview() {
-    const p = phase();
+/** The countdown chip, the opening line, the notes that depend on the date, and the three totals. @param {ReturnType<typeof phase>} p */
+function renderOverview(p) {
     setText('trCountdown', p.countdown);
-    setText('trLead', p.started
-        ? `The timetable that ran until ${dateWords(CHANGE_DATE, -1, { weekday: true })} beside the new one, which started on ${dateWords(CHANGE_DATE, 0, { weekday: true })}. Both are Chiltern’s published timetables, not live running information.`
-        : `Today’s timetable beside the new one that starts on ${dateWords(CHANGE_DATE, 0, { weekday: true })}. Both are Chiltern’s published timetables, not live running information.`);
+    setText('trLead', leadWords(CHANGE_DATE, p.started));
     setHTML(el('trTotals'), renderTotals(TIMETABLES));
     // The one caveat about missing stops, said once, here — and gone the day December's stops arrive.
-    const partial = el('trPartial');
-    if (partial) partial.hidden = DEC_STOPS_KNOWN;
-    // Christmas and New Year are not in Chiltern's books; the note goes once its further changes end.
+    el('trPartial')?.toggleAttribute('hidden', DEC_STOPS_KNOWN);
+    // Chiltern's further changes are not in its books; the note, worded from their dates, goes once they end.
     const festive = el('trFestive');
-    if (festive) festive.hidden = !p.festive;
+    if (festive) { festive.hidden = !p.festive; setHTML(festive, renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)); }
     setText('trOverviewHint', `What change${p.started ? 'd' : 's'} at Marylebone from ${dateWords(CHANGE_DATE)}`);
     const ended = el('trEnded');   // the journey planner as a link (v24.96); the static words named Chiltern's
     if (ended) { ended.hidden = p.phase !== 'ended'; setHTML(ended, `<strong>Both timetables on this page have ended.</strong> Check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> for today’s trains.`); }
@@ -257,8 +252,12 @@ function renderOverview() {
     setText('trGridDec', p.newLabel);
 }
 
-/** Everything that depends on the state: the pressed tabs, the visible view and its contents. @param {PageState} state */
+/** The whole page, read afresh on every press, Back and return: the kind of day first, unless a day was chosen, then the
+ *  overview and the view — so no part is left on yesterday's date while another has turned (whole-app fix, Nov 2026). @param {PageState} state */
 function render(state) {
+    if (!dayPinned && state.day !== todayDay()) { state.day = todayDay(); state.gridCol = null; }
+    const p = phase();
+    renderOverview(p);
     for (const b of /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('[data-day],[data-view],[data-sdir],[data-grid]')])) {
         const on = b.dataset.day ? b.dataset.day === state.day : b.dataset.view ? b.dataset.view === state.view
             : b.dataset.sdir ? b.dataset.sdir === state.sdir : b.dataset.grid === state.grid;
@@ -269,16 +268,17 @@ function render(state) {
         if (section) section.hidden = state.view !== view;
     }
     const day = TIMETABLES.now[state.day], dec = TIMETABLES.dec[state.day];
-    // The first tab's name follows the phase (v24.94): a tab promising what is coming reads wrong the
-    // morning it has come. (The caveat line beneath the tabs went at v25.13 — trains-change.js has why.)
-    const p = phase();
-    for (const id of ['trChangesTab', 'trChangesTitle']) setText(id, p.started ? 'What changed' : 'What’s changing');
+    // The view's name follows the phase (v24.94): a tab promising what is coming reads wrong the morning it has come —
+    // and so did the names a screen reader hears, which stayed put: the section, its ? and its chevron.
+    const words = changesTitle(p.started);
+    for (const id of ['trChangesTab', 'trChangesTitle']) setText(id, words);
+    for (const [id, name] of [['trViewChanges', words], ['trChangesChevron', `Toggle ${words}`], ['trChangesTips', `Tips for ${words.toLowerCase()}`]]) el(id)?.setAttribute('aria-label', name);
     if (state.view === 'changes') {
         setText('trChangesHint', `${DAY_NAMES[state.day]}, trains leaving Marylebone — biggest change first`);
-        setHTML(el('trChanges'), renderHeadlines(headlineChanges(day.dep, dec.dep, STATIONS), { showAll: state.allHeads, partial: !dec.dep.every(stopsKnown) }));
+        setHTML(el('trChanges'), renderHeadlines(HEADLINES.get(state.day) ?? HEADLINES.set(state.day, headlineChanges(day.dep, dec.dep, STATIONS)).get(state.day), { showAll: state.allHeads, partial: !dec.dep.every(stopsKnown) }));
         renderLookup(state);
         // The desktop's jump card (trains.css shows it from 1024px): the busiest stations, as the Stations tab offers them.
-        setHTML(el('trJumpPicks'), renderPicks(busiestStations(day.dep), { typed: false, selected: state.station, stations: STATIONS, last: lsGet(LAST_STATION_KEY) }));
+        setHTML(el('trJumpPicks'), renderPicks(busiestStations((p.started ? dec : day).dep), { typed: false, selected: state.station, stations: STATIONS, last: lsGet(LAST_STATION_KEY) }));
     } else if (state.view === 'stations') {
         renderPicks_(state);
         renderStationCard(state);
@@ -296,9 +296,10 @@ function render(state) {
 /** The station chips alone — what typing in the station box changes. @param {PageState} state */
 function renderPicks_(state) {
     const typed = /** @type {HTMLInputElement|null} */ (el('trStationInput'))?.value.trim() ?? '';
-    // Equal matches go busiest first — on weekdays, so the station Enter opens does not change with the day chosen.
-    const offered = typed ? matchStations(STATIONS, typed, 6, busiestStations(TIMETABLES.now.SX.dep, Infinity))
-        : busiestStations(TIMETABLES.now[state.day].dep);
+    // Equal matches go busiest first — on weekdays, so the station Enter opens does not change with the day chosen. Busiest
+    // on the timetable RUNNING, as the chips are: counted on today's for good, they described a stopped one from 13 December.
+    const run = TIMETABLES[phase().started ? 'dec' : 'now'];
+    const offered = typed ? matchStations(STATIONS, typed, 6, busiestStations(run.SX.dep, Infinity)) : busiestStations(run[state.day].dep);
     setHTML(el('trStationPicks'), renderPicks(offered, { typed: !!typed, selected: state.station, stations: STATIONS, last: lsGet(LAST_STATION_KEY) }));
 }
 
@@ -306,8 +307,8 @@ function renderPicks_(state) {
 function renderLast(state) {
     const p = phase();
     setText('trLastHint', `${DAY_NAMES[state.day]}: the last train from Marylebone to every station`);
-    setHTML(el('trLast'), renderLastTrains(lastTrains(TIMETABLES.now[state.day].dep, TIMETABLES.dec[state.day].dep),
-        { stations: STATIONS, labels: { old: p.oldLabel, new: p.newLabel }, bands: BANDS }));
+    setHTML(el('trLast'), renderLastTrains(LAST.get(state.day) ?? LAST.set(state.day, lastTrains(TIMETABLES.now[state.day].dep, TIMETABLES.dec[state.day].dep)).get(state.day),
+        { stations: STATIONS, labels: { old: p.oldLabel, new: p.newLabel }, bands: BANDS, started: p.started }));
 }
 
 /** The chosen station's card. @param {PageState} state */
@@ -330,7 +331,7 @@ function renderStationCard(state) {
     if (!state.station) { setHTML(el('trStation'), '<p class="card-explainer tr-lead">Pick a station above, or start typing its name.</p>'); return; }
     lsSet(LAST_STATION_KEY, state.station);   // remembered for the chips, and for where the page opens once it opens on Stations
     const p = phase();
-    const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir, { change: CHANGE_DATE, started: phase().started });
+    const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir, { change: CHANGE_DATE, started: p.started });
     const leaf = state.sdir === 'arr' && LEAF_FALL.stations.includes(state.station) && daysUntil(railwayToday(), LEAF_FALL.until) >= 0;
     setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false, allTrains: state.allTrains,
         labels: { old: p.oldLabel, new: p.newLabel }, started: p.started, leafFall: leaf ? { minutes: LEAF_FALL.minutes, until: dateWords(LEAF_FALL.until) } : null }));
