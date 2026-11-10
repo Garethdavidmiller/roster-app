@@ -1348,6 +1348,16 @@ test('install strip: pressing Install fires the browser prompt and does not come
     expect(await page.evaluate(() => /** @type {any} */ (window).__promptFired)).toBe(true);
     await expect(page.locator('#installPrompt')).toBeHidden();
     expect(await page.evaluate(() => localStorage.getItem('myb_install_prompt_done'))).toBe('1');
+    // …and a "Cancel" in Chrome's dialog does not bring it back (whole-app review, 10 Nov 2026):
+    // Chromium fires `beforeinstallprompt` again once the member's choice resolves, and the strip
+    // used to show itself for any offer that arrived.
+    await page.evaluate(() => {
+        const again = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (again).prompt = () => Promise.resolve();
+        window.dispatchEvent(again);
+    });
+    await page.waitForTimeout(100);   // the handler's accessReady hop
+    await expect(page.locator('#installPrompt')).toBeHidden();
 });
 
 // ── AN UNREADABLE `--prompt-available` FAILS CLOSED (v22.32, external review) ───────────────────
@@ -3305,6 +3315,29 @@ test('huddle: offline with nothing cached, a tap says it could not load — neve
     await expect(body).not.toContainText('No Daily Huddle has been uploaded yet');
 });
 
+test('circular: offline with nothing cached, the viewer and the drawer say they could not connect — never "none uploaded"', async ({ page }) => {
+    // The Huddle's rule, which the one-shot Circular/Newsletter read never got (documents-client.js →
+    // `latestIn`, whole-app review 10 Nov 2026): an empty answer from the cache alone is a read that failed.
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true };
+        window.open = /** @type {any} */ (() => ({ opener: null, close() {}, location: {} }));
+    });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });   // offline from here
+    await page.evaluate(() => { location.hash = '#circular'; });
+    const body = page.locator('#docViewerBody');
+    await expect(body).toContainText("Couldn't load this document.", { timeout: 10_000 });
+    await expect(body).not.toContainText('has been uploaded yet');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-link--newsletter').click();
+    await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
+    await expect(page.locator('#navComingSoonLightbox')).not.toContainText('No newsletter has been uploaded yet');
+});
+
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((stored) => {
@@ -3322,6 +3355,133 @@ test('huddle: the Open button works immediately, while the short-lived link is s
     await btn.click();
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
         .toEqual([STORED]);
+});
+
+// ── THE HUDDLE VIEWER IN THE BROWSER (whole-app review, 10 Nov 2026) ──────────────────────────────
+// What only a real browser shows: the history a tap leaves, what is drawn on top of what, the real
+// sanitiser, and the keyboard. calendar-huddle-viewer.test.mjs drives the module's own seams.
+const HUDDLE_PDF = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
+/** A member's Calendar with a Huddle to deliver. @param {import('@playwright/test').Page} page @param {Record<string, any>} [doc] */
+async function calendarWithHuddle(page, doc = {}) {
+    await page.addInitScript((d) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleDoc: d };
+        /** @type {any} */ (window).__opened = [];
+        window.open = /** @type {any} */ ((url) => { /** @type {any} */ (window).__opened.push(String(url)); return null; });
+    }, { date: '2026-09-25', storageUrl: HUDDLE_PDF, fileType: 'pdf', ...doc });
+    await seedMemberSession(page, 'G. Miller');
+}
+
+test('huddle: a tap leaves no dead Back press behind it', async ({ page }) => {
+    // The tap's own history entry was REWRITTEN into a second copy of the page, so after reading the
+    // Huddle it took two Back presses to leave the Calendar (measured). One is right.
+    await calendarWithHuddle(page);
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible({ timeout: 15_000 });
+    const echoed = page.evaluate(() => new Promise(r => addEventListener('popstate', () => r(true), { once: true })));
+    await page.locator('#huddleViewerClose').click();
+    await echoed;                                            // the close's own Back has landed
+    await page.evaluate(() => history.back());
+    await expect(page, 'a Back press after the Huddle did nothing').toHaveURL(/railcard-guide\.html/);
+});
+
+/** Wait for the two viewers' own transitions to end — a viewer still sliding in is not where it will
+ *  be, so what lies under a point is not settled until then. @param {import('@playwright/test').Page} page */
+const viewersSettled = (page) => page.waitForFunction(() => document.getAnimations()
+    .filter(a => /** @type {any} */ (a.effect)?.target?.closest?.('#huddleViewer, #docViewer'))
+    .every(a => a.playState !== 'running'));
+
+test('huddle: a Circular tap while the Huddle is open opens OVER it, takes the keyboard, and closes back to the Huddle', async ({ page }) => {
+    // A tap is not a Back press: the Huddle stays where it was, the document is drawn above it (it is
+    // an ordinary lightbox, in the band below the full-bleed Huddle) and Escape goes to what is seen.
+    // `open`, not `visible`: a close takes `open` away at once and keeps `visible` through its fade.
+    await calendarWithHuddle(page);
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible({ timeout: 15_000 });
+    await viewersSettled(page);
+    await page.evaluate(() => { location.hash = '#circular'; });
+    await expect(page.locator('#docViewer')).toHaveClass(/\bopen\b/);
+    await expect(page.locator('#docViewerBody')).toContainText('No Weekly Retail Circular has been uploaded yet');
+    await viewersSettled(page);
+    await expect(page.locator('#huddleViewer'), 'the tap closed the Huddle it was made over').toHaveClass(/\bopen\b/);
+    expect(await page.evaluate(() => {
+        const at = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+        return at?.closest('#docViewer') ? 'doc' : at?.closest('#huddleViewer') ? 'huddle' : at?.tagName;
+    }), 'the document viewer was drawn underneath the Huddle').toBe('doc');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
+    await expect(page.locator('#huddleViewer'), 'Escape went to the viewer underneath').toHaveClass(/\bopen\b/);
+});
+
+test('huddle: a second Huddle tap while it is open keeps it on screen', async ({ page }) => {
+    // The tap's popstate was read as Back: it closed the viewer, the tap re-opened it inside the
+    // close's fade, and the fade's end hid it — "open", invisible, the page scroll-locked behind it.
+    await calendarWithHuddle(page);
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await page.waitForTimeout(800);                          // past the 500ms fade and its fallback
+    await expect(page.locator('#huddleViewer')).toHaveClass(/visible/);
+    await expect(page.locator('#huddleOpenFileBtn')).toBeVisible();
+});
+
+test('huddle: a tap before the Huddle has answered says "Loading…", and an answer that never comes is told', async ({ page }) => {
+    // No Huddle seeded: the fixture's listener never answers. The tap drew NOTHING, and the 8-second
+    // "safety timeout" tested for a state the Calendar never held by then.
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleViewerBody')).toContainText('Loading…');
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle", { timeout: 12_000 });
+});
+
+test('huddle: drawn through the REAL sanitiser — no data- or aria- attribute, no picture, and the picture is named with the route to the file', async ({ page }) => {
+    await calendarWithHuddle(page, {
+        fileType: 'docx', storagePath: 'huddles/2026-09-25-a.docx',
+        htmlContent: '<p data-action="x" aria-label="y" id="z" class="c">Plan for the day</p>'
+            + '<p><img src="data:image/png;base64,iVBORw0KGgo=" alt="Gate plan"></p>'
+            + '<table><tr><td data-k="1" aria-hidden="true" colspan="2">Gate</td></tr></table>',
+    });
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    const body = page.locator('#huddleViewerBody');
+    await expect(body).toContainText('Plan for the day', { timeout: 15_000 });
+    const attrs = await page.evaluate(() => [...document.querySelectorAll('#huddleViewerBody p, #huddleViewerBody td')]
+        .flatMap(el => [...el.attributes].map(a => a.name)));
+    expect(attrs.filter(n => /^(data-|aria-)|^id$/.test(n)), 'the sanitiser passed attributes its comment says it refuses').toEqual([]);
+    expect(attrs, 'the structural table attribute is kept').toContain('colspan');
+    await expect(body.locator('img')).toHaveCount(0);
+    await expect(body).toContainText('This Huddle has pictures that aren’t shown here.');
+    await page.locator('#huddleOpenOriginalBtn').click();
+    // A Word file opens through the Office Online viewer, which shows its pictures (storage-utils.js).
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
+        .toEqual([expect.stringContaining(encodeURIComponent(HUDDLE_PDF))]);
+});
+
+test('huddle: a long plan scrolls from the keyboard — the body is a Tab stop inside the viewer', async ({ page }) => {
+    await calendarWithHuddle(page, {
+        fileType: 'docx', storagePath: 'huddles/2026-09-25-a.docx',
+        htmlContent: Array.from({ length: 80 }, (_, i) => `<p>Line ${i + 1} of the plan</p>`).join(''),
+    });
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleViewerBody')).toContainText('Line 80 of the plan', { timeout: 15_000 });
+    await expect(page.locator('#huddleViewerClose')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#huddleViewerBody'), 'Tab stayed on ✕, the only stop').toBeFocused();
+    await page.keyboard.press('PageDown');
+    await expect.poll(() => page.locator('#huddleViewerBody').evaluate(el => el.scrollTop), { message: 'the plan did not scroll' })
+        .toBeGreaterThan(0);
 });
 
 // ── A CACHE-SERVED LEAVE BALANCE IS REFUSED (Oct 2026 review) ───────────────────────────────────
