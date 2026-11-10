@@ -125,7 +125,11 @@ export function lineStartProfile(row) {
  * @param {any} b
  */
 export function weekStep(a, b) {
-    const pa = lineStartProfile(a), pb = lineStartProfile(b);
+    return _stepBetween(lineStartProfile(a), lineStartProfile(b));
+}
+
+/** `weekStep` on two start profiles already read — the reorder reads each line's once. */
+function _stepBetween(/** @type {number|null} */ pa, /** @type {number|null} */ pb) {
     if (pa === null || pb === null) return null;
     return pb - pa;
 }
@@ -209,7 +213,11 @@ export function boundaryRest(a, b) {
  * @returns {number[]} block lengths, in order from the first boundary
  */
 export function blockRuns(patterns, order, span = GENTLE_THRESHOLD_MINUTES) {
-    const prof = order.map(k => lineStartProfile(patterns[k]));
+    return _blockRunsOf(order.map(k => lineStartProfile(patterns[k])), span);
+}
+
+/** `blockRuns`' walk over start profiles already read — the reorder reads each line's once. */
+function _blockRunsOf(/** @type {Array<number|null>} */ prof, /** @type {number} */ span) {
     const idx = prof.map((v, i) => (v === null ? -1 : i)).filter(i => i >= 0);
     if (idx.length < 2) return idx.length ? [1] : [];
 
@@ -367,49 +375,80 @@ export function runExcess(patterns, order, target) {
 export function scoreOrder(patterns, order, opts = {}) {
     // The generator's own gate figure, never a copy: a reorder filtering on a different minimum could
     // put back the Saturday-into-Sunday turnaround the gate had just repaired.
-    const minRest = opts.minRestMinutes ?? MIN_REST_MINUTES;
-    const steps = [], breaks = [];
-    let unmeasurable = 0, shortBoundary = 0;
+    const w = _orderFigures(patterns, order, k => lineStartProfile(patterns[k]),
+        opts.minRestMinutes ?? MIN_REST_MINUTES, opts.maxRunTarget ?? DEFAULT_MAX_RUN);
+    return {
+        // `blocks` is the optimiser's partition (`variety` charges its excess); `longestBlock` is the
+        // reported figure, asked from every line so that renumbering cannot move it. They can differ:
+        // see `blockRuns`. How long you stay on much the same shift — the live roster's longest is 3.
+        blocks: w.blocks,
+        longestBlock: longestBlockOf(patterns, order, GENTLE_THRESHOLD_MINUTES),
+        // Gentle: mean absolute move, and how many weeks move more than the threshold.
+        gentleMean: w.gentleMean,
+        gentleOver: w.gentleOver,
+        gentleWorst: w.abs.length ? Math.round(Math.max(...w.abs)) : 0,
+        // Reported, never folded into the mean — see the module header.
+        unmeasurable: w.unmeasurable,
+        weekends: w.weekends,
+        longWeekends: w.longWeekends,
+        fourDayBreaks: w.breaks.filter(n => n.days >= 4).length,
+        // What the design actually GAVE, Sundays excluded — see breakLength.
+        contractedDaysGiven: w.breaks.reduce((a, n) => a + n.given, 0),
+        shortBoundary: w.shortBoundary,
+        // Consecutive worked days across line boundaries — a spare week counts as FOUR (see
+        // longestRunFor). Reported whatever was optimised for, like every other figure here.
+        longestRun: longestRunFor(patterns, order),
+        // The optimiser's gradient for that cap. NOT for display — see runExcess.
+        runExcess: w.runExcess,
+        // How evenly the cover weeks are spread. 0 excess = as even as the rotation allows.
+        spareExcess: w.spareExcess,
+        spareMinGap: w.spare.minGap,
+        spareGaps: w.spare.gaps,
+    };
+}
 
+/**
+ * The one walk round an order that both scorers share: every figure `cost` reads, plus the pieces
+ * `scoreOrder` reports from (`abs`, `breaks`, `unmeasurable`, `spare`).
+ *
+ * WHY THE SEARCH DOES NOT CALL `scoreOrder` (whole-app review, Nov 2026). A press of Generate scores
+ * a few thousand whole orders. Through `scoreOrder`, each one read every line's start profile three
+ * times (twice in `weekStep`, once more in `blockRuns`), built and walked the run sequence twice, and
+ * measured figures the search never reads (`longestRun`, `longestBlock`). The search calls this alone,
+ * with a `profileOf` that reads each line's profile once per reorder. It is ONE copy of the arithmetic,
+ * not a leaner second one, so the figure a designer is shown and the figure the search chose by cannot
+ * drift apart.
+ * @param {Record<string, any>} patterns
+ * @param {string[]} order
+ * @param {(key: string) => number|null} profileOf - a line's `lineStartProfile`
+ * @param {number} minRest - minutes
+ * @param {number} maxRunTarget
+ */
+function _orderFigures(patterns, order, profileOf, minRest, maxRunTarget) {
+    /** @type {number[]} */ const steps = [];
+    /** @type {Array<{days: number, given: number}>} */ const breaks = [];
+    let unmeasurable = 0, shortBoundary = 0;
     for (let i = 0; i < order.length; i++) {
-        const a = patterns[order[i]], b = patterns[order[(i + 1) % order.length]];
-        const step = weekStep(a, b);
+        const ka = order[i], kb = order[(i + 1) % order.length];
+        const a = patterns[ka], b = patterns[kb];
+        const step = _stepBetween(profileOf(ka), profileOf(kb));
         if (step === null) unmeasurable++; else steps.push(step);
         breaks.push(breakLength(a, b));
         const rest = boundaryRest(a, b);
         if (rest !== null && rest < minRest) shortBoundary++;
     }
-
-    const runs = blockRuns(patterns, order, GENTLE_THRESHOLD_MINUTES);
     const abs = steps.map(Math.abs);
     const spare = spareSpread(patterns, order);
     return {
-        // `blocks` is the optimiser's partition (`variety` charges its excess); `longestBlock` is the
-        // reported figure, asked from every line so that renumbering cannot move it. They can differ:
-        // see `blockRuns`. How long you stay on much the same shift — the live roster's longest is 3.
-        blocks: runs,
-        longestBlock: longestBlockOf(patterns, order, GENTLE_THRESHOLD_MINUTES),
-        // Gentle: mean absolute move, and how many weeks move more than the threshold.
-        gentleMean: abs.length ? Math.round(abs.reduce((a, b) => a + b, 0) / abs.length) : 0,
+        blocks: _blockRunsOf(order.map(k => profileOf(k)), GENTLE_THRESHOLD_MINUTES),
+        gentleMean: abs.length ? Math.round(abs.reduce((x, y) => x + y, 0) / abs.length) : 0,
         gentleOver: abs.filter(v => v > GENTLE_THRESHOLD_MINUTES).length,
-        gentleWorst: abs.length ? Math.round(Math.max(...abs)) : 0,
-        // Reported, never folded into the mean — see the module header.
-        unmeasurable,
         weekends: breaks.filter(n => n.days >= 2).length,
         longWeekends: breaks.filter(n => n.days >= 3).length,
-        fourDayBreaks: breaks.filter(n => n.days >= 4).length,
-        // What the design actually GAVE, Sundays excluded — see breakLength.
-        contractedDaysGiven: breaks.reduce((a, n) => a + n.given, 0),
         shortBoundary,
-        // Consecutive worked days across line boundaries — a spare week counts as FOUR (see
-        // longestRunFor). Reported whatever was optimised for, like every other figure here.
-        longestRun: longestRunFor(patterns, order),
-        // The optimiser's gradient for that cap. NOT for display — see runExcess.
-        runExcess: runExcess(patterns, order, opts.maxRunTarget ?? DEFAULT_MAX_RUN),
-        // How evenly the cover weeks are spread. 0 excess = as even as the rotation allows.
+        runExcess: runExcess(patterns, order, maxRunTarget),
         spareExcess: spare.excess,
-        spareMinGap: spare.minGap,
-        spareGaps: spare.gaps,
+        abs, breaks, unmeasurable, spare,
     };
 }
 
@@ -419,7 +458,8 @@ export function scoreOrder(patterns, order, opts = {}) {
  * LOWER IS BETTER. An objective that is off contributes nothing at all — not a small weight — so a
  * switch genuinely means "ignore this", and a designer who turns everything off gets their order
  * back untouched rather than a silent re-sort by whatever was left.
- * @param {ReturnType<typeof scoreOrder>} s
+ * @param {Pick<ReturnType<typeof scoreOrder>, 'spareExcess'|'blocks'|'runExcess'|'gentleMean'|'gentleOver'|'weekends'|'longWeekends'|'shortBoundary'>} s
+ *   a scorecard — `scoreOrder`'s, or the search's `_orderFigures`
  * @param {Record<string, boolean>} on
  * @param {number} [longWeekendTarget]
  * @param {number} [blockTarget] - weeks in a row on much the same shift before it costs
@@ -591,8 +631,12 @@ export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTa
     // different design for no stated reason, which is worse than doing nothing.
     if (!anyOn || keys.length < 3) return { order: keys, before, after: before, changed: false, attempt };
 
+    // Each line's start profile is read ONCE per reorder, not three times per candidate, and a
+    // candidate is scored on what `cost` reads and nothing more (see `_orderFigures`).
+    const profiles = new Map(keys.map(k => [k, lineStartProfile(patterns[k])]));
+    const profileOf = (/** @type {string} */ k) => profiles.get(k) ?? null;
     const scoreOf = (/** @type {string[]} */ ord) =>
-        cost(scoreOrder(patterns, ord, { maxRunTarget }), on, longWeekendTarget, blockTarget);
+        cost(_orderFigures(patterns, ord, profileOf, MIN_REST_MINUTES, maxRunTarget), on, longWeekendTarget, blockTarget);
 
     // Bounded 2-opt from a given start: swap pairs while it helps. Fixed sweep count, so runtime is
     // predictable. Mutates and returns its input — callers hand it a fresh array.

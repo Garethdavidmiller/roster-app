@@ -119,6 +119,51 @@ describe('scoreOrder', () => {
         // 3 → 1 is a −14h step; without wrapping it would be invisible.
         assert.equal(s.gentleWorst, 14 * 60);
     });
+
+    test('every figure, counted by hand on four lines — and renumbering moves none but the partition', () => {
+        // The search chooses an order by these figures and the status line reports them, through one
+        // shared walk, so a miscount here is a wrong design AND a wrong report of it.
+        //   1 → 2  Fri, Sat | Sun, Mon off      a four-day break, three contracted days given
+        //   2 → 3  Sat | Sun, Mon off           three days, two given
+        //   3 → 4  Sat | Sun off                two days, one given
+        //   4 → 1  Sat 14:00-22:00 → Sun 06:00  no weekend, and 8 hours' rest
+        // Start profiles 08:24, 09:00, 13:00 and 09:50, so the steps are 36, 240, 190 and 86 minutes.
+        const late = '13:00-21:00';
+        const p = {
+            1: line({ sun: '06:00-14:00', fri: 'RD' }),
+            2: line({ mon: 'RD' }),
+            3: line({ mon: 'RD', tue: late, wed: late, thu: late, fri: late }),
+            4: line({ sat: '14:00-22:00' }),
+        };
+        const order = ['1', '2', '3', '4'];
+        const s = scoreOrder(p, order);
+        assert.deepEqual(
+            [s.gentleMean, s.gentleOver, s.gentleWorst, s.unmeasurable], [138, 2, 240, 0],
+            'mean, steps over two hours, largest, unmeasurable');
+        assert.deepEqual(
+            [s.weekends, s.longWeekends, s.fourDayBreaks, s.contractedDaysGiven], [3, 2, 1, 3 + 2 + 1],
+            'full weekends, long ones, four-day ones, contracted days given');
+        assert.equal(s.shortBoundary, 1, 'the 8-hour Saturday-into-Sunday turnaround');
+        assert.equal(scoreOrder(p, order, { minRestMinutes: 8 * 60 }).shortBoundary, 0, 'short means UNDER the minimum');
+        assert.equal(scoreOrder(p, order, { minRestMinutes: 8 * 60 + 1 }).shortBoundary, 1);
+        assert.deepEqual(s.blocks, [1, 3]);
+        assert.equal(s.longestBlock, 3, '09:50 → 08:24 → 09:00');
+        assert.equal(s.longestRun, 11, "line 4's Monday to Saturday, then line 1's Sunday to Thursday");
+        assert.equal(scoreOrder(p, order, { maxRunTarget: 6 }).runExcess, 5 + 4 + 3 + 2 + 1,
+            'that run of 11 counted from each of its starts, against 6');
+        assert.deepEqual([s.spareExcess, s.spareMinGap, s.spareGaps], [0, 4, []]);
+        // A step of exactly two hours is not MORE than two hours, ORR's FF19 figure.
+        const pair = (/** @type {string} */ t) => ({ 1: only({ mon: '06:00-14:00' }), 2: only({ mon: t }) });
+        assert.equal(scoreOrder(pair('08:00-16:00'), ['1', '2']).gentleOver, 0);
+        assert.equal(scoreOrder(pair('08:01-16:01'), ['1', '2']).gentleOver, 2);
+
+        // Every figure but `blocks` is a property of the CIRCLE. `blocks` is the optimiser's partition,
+        // walked from the first step over two hours in the order given (see `blockRuns`).
+        const circle = (/** @type {Record<string, any>} */ x) => { const c = { ...x }; delete c.blocks; return c; };
+        for (const r of [['2', '3', '4', '1'], ['3', '4', '1', '2'], ['4', '1', '2', '3']]) {
+            assert.deepEqual(circle(scoreOrder(p, r)), circle(s), `renumbered from line ${r[0]}`);
+        }
+    });
 });
 
 describe('blockRuns — how many weeks in a row on much the same shift', () => {
@@ -599,6 +644,23 @@ describe('maxRun', () => {
         const r = reorderLines(p, { on: { maxRun: true }, maxRunTarget: 6 });
         assert.ok(r.after.longestRun <= before,
             `expected no worse, got ${before} → ${r.after.longestRun}`);
+    });
+
+    test('on its own it aims at the target it is GIVEN, and leaves an order that already meets it', () => {
+        // On the shipped default design. The search scores candidates through its own call, so a
+        // target that reached `scoreOrder` but not the search would still report correctly while
+        // choosing an order for some other number.
+        const t = buildDefaultTargets();
+        const p = generateLink({ slots: t.slots, spareLines: t.spareLines, lines: ROTATING_LINES }).patterns;
+        const keys = Object.keys(p).sort((a, b) => Number(a) - Number(b));
+        const handed = scoreOrder(p, keys).longestRun;
+        assert.ok(handed > 8, `premise: the order as generated has a run the cap can shorten (${handed})`);
+        for (const target of [6, 7, 8]) {
+            const r = reorderLines(p, { on: { maxRun: true }, maxRunTarget: target });
+            assert.ok(r.after.longestRun <= target, `asked for ${target}, reached ${r.after.longestRun}`);
+        }
+        // "No more than N", not "as few as possible": nothing to gain, so nothing moves.
+        assert.equal(reorderLines(p, { on: { maxRun: true }, maxRunTarget: handed }).changed, false);
     });
 });
 
