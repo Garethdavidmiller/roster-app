@@ -70,7 +70,7 @@
 
 import * as OTD from './overtime-data.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn,
+    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn, putBackWindow,
 } from './overtime-format.js';
 import { phaseAt } from './overtime-phase.js';
 import { renderWeekDetail as paintWeekDetail } from './overtime-manager.js';
@@ -624,9 +624,10 @@ async function setAsking(weekEnding, memberName, ask) {
         }
         : {
             title: `Stop asking ${memberName}?`,
+            // Worked out from the restore rule, not "while the form is open" (overtime-ui-2).
             message: `${memberName} comes out of the counts for ${week} and stops appearing `
-                + 'as outstanding. Anything they have already said is kept, and you can put '
-                + 'them back while the form is open.',
+                + 'as outstanding. Anything they have already said is kept, and you can put them back '
+                + `${putBackWindow(Number(horizonByWeek.get(weekEnding)?.initialDeadlineAt), OTD.correctedNow())}.`,
             confirmLabel: 'Stop asking',
             cancelLabel: 'Cancel',
         });

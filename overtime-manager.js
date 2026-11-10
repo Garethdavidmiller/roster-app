@@ -48,7 +48,7 @@ import {
     shortDate, deadlineLabel, printedLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
     declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow, weekAvailabilitySummary, reminderLine,
-    gradeScopeLabel,
+    gradeScopeLabel, putBackWindow,
 } from './overtime-format.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
@@ -322,7 +322,7 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
         ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {},
             { now, frozenAt: frozenAt(active) })).join('')}
         ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(active) })}
-        ${askedPanel(participants, submissions, win.phase === 'CLOSED')}
+        ${askedPanel(participants, submissions, win.phase === 'CLOSED', putBackWindow(Number(win.initialDeadlineAt), now))}
         ${withdrawnPanel(ofGrade(withdrawn, grade), win.phase === 'CLOSED',
             { initialDeadlineAt: win.initialDeadlineAt, finalDeadlineAt: win.finalDeadlineAt, now })}`;
 }
@@ -668,8 +668,9 @@ function awaitingPanel(participants, submissions, meta = {}) {
  * @param {any[]} participants the ACTIVE population, already grade-filtered
  * @param {Map<string, any>} submissions
  * @param {boolean} [closed] the week's final deadline has passed
+ * @param {string} [putBack] until when a stop made now can be undone (`putBackWindow`)
  */
-function askedPanel(participants, submissions, closed = false) {
+function askedPanel(participants, submissions, closed = false, putBack = 'until the first deadline') {
     if (!participants.length) return '';
     return `
         <div class="ot-day-panel ot-day-panel--muted">
@@ -678,7 +679,7 @@ function askedPanel(participants, submissions, closed = false) {
                 ? 'This week has closed, so who was asked can no longer be changed.'
                 : `Everyone counted on this page. Use <strong>Stop asking</strong>
                 when somebody has left or moved role — their answers are kept, they come out of the
-                counts, and you can put them back while the week is open.`}</div>
+                counts, and you can put them back ${esc(putBack)}.`}</div>
             ${participants.map(p => `
                 <div class="ot-person">
                     <span class="ot-person-name">${esc(p.memberName)}</span>

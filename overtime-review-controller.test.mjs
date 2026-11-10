@@ -90,7 +90,9 @@ mock.module('./overtime-manager.js', {
     },
 });
 
-mock.module('./overlay.js', { namedExports: { confirmDialog: async () => true } });
+/** Every confirmation the controller asked for, in order — its words are part of what it promises. */
+let dialogs = /** @type {any[]} */ ([]);
+mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { dialogs.push(o); return true; } } });
 
 const { createReviewController } = await import('./overtime-review-controller.js');
 
@@ -159,6 +161,7 @@ beforeEach(() => {
     painted = [];
     createQueue = [];
     withdrawHold = null;
+    dialogs = [];
     // A success flash arms a REAL 2.5-second auto-hide that no test here waits for, and it held the
     // process open after the last test: 2.7 s of wall for ~60 ms of tests (test audit, 7 Nov 2026).
     // Mocked, it is a fake timer that the reset below throws away.
@@ -582,5 +585,29 @@ describe('a create that fails under ANOTHER week\'s question disarms (48-hour re
         await committing;
         assert.match(dom.otConfirmText.innerHTML, /may still have been created/);
         assert.equal(dom.otConfirmCreate.disabled, true, 'a message about A must not sit over a Create armed for B');
+    });
+});
+
+describe('the Stop-asking confirmation promises only the undo the rule allows (overtime-ui-2)', () => {
+    // It said "you can put them back while the form is open". For a press made before the first
+    // deadline that is false from the deadline on: Ask again is refused (`restore-window-passed`)
+    // though the form stays open six more days — and the reviewer pressed on the strength of it.
+    test('before the first deadline it says until then; after it, while the week is open', async () => {
+        // The mocked clock reads 20 Aug: WEEK_A's first deadline (25 Aug) is ahead, LATE's behind.
+        const LATE = week(B, '2026-09-06', { initialDeadlineAt: Date.parse('2026-08-18T11:00:00Z') });
+        const both = () => ({ ok: true, data: { planningWeeks: [], retained: [WEEK_A, LATE] } });
+        detailFor.set(A, detail(2, 1));
+        detailFor.set(B, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A, LATE]);
+        await c.selectWeek(A);
+        overviewQueue.push(both());   // the re-read after the action keeps both weeks in the map
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dialogs.at(-1).message, /put them back until the first deadline, Tue 25 Aug · 12:00\./);
+        await c.selectWeek(B);
+        overviewQueue.push(both());
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dialogs.at(-1).message, /put them back while the week is open\./);
+        assert.doesNotMatch(dialogs.map(d => d.message).join(' '), /while the form is open/);
     });
 });

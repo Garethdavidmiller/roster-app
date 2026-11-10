@@ -24,7 +24,7 @@ import {
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
     declaredAgo, deriveHistory,
     dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
-    weekAvailabilitySummary, reminderLine,
+    weekAvailabilitySummary, reminderLine, putBackWindow, canRestoreNow,
 } from './overtime-format.js';
 // WHERE THE WEEK STANDS lives in overtime-phase.js since v23.84 (extracted at the ratchet). Imported
 // from where it is defined, not through overtime-format.js's re-export, so the module is named by
@@ -1290,6 +1290,46 @@ describe('weekAvailabilitySummary', () => {
         const text = weekAvailabilitySummary({ ...arg, dates: [sun], participants: [{ memberName: 'B. Jones' }],
             submissions: new Map([['A. Smith', { days: { [sun]: { mode: 'all_day', releaseRequested: true } } }]]) });
         assert.match(text, /Asked to come off this Sunday: nobody/);
+    });
+});
+
+// ── "YOU CAN PUT THEM BACK …" — WHEN A STOP ASKING CAN BE UNDONE (overtime-ui-2) ────────────────
+// The confirmation, the panel note and the help all promised "while the form is open". Somebody
+// stopped before the first deadline can be put back only until it — after it, Ask again is refused
+// (the client hides it and the server answers `restore-window-passed`) although the form is open for
+// six more days. So the sentence is worked out from the same rule the button is.
+describe('putBackWindow — the promise a Stop asking makes', () => {
+    const INITIAL = Date.parse('2026-08-18T11:00:00Z');
+    const FINAL = Date.parse('2026-08-25T11:00:00Z');
+    test('before the first deadline, only until it — and it names the deadline', () => {
+        assert.equal(putBackWindow(INITIAL, INITIAL - 86_400_000), 'until the first deadline, Tue 18 Aug · 12:00');
+        assert.equal(putBackWindow(INITIAL, INITIAL), 'until the first deadline, Tue 18 Aug · 12:00',
+            'a stop AT the deadline is not "after" it, for the restore rule');
+    });
+    test('after it, for as long as the week is open', () => {
+        assert.equal(putBackWindow(INITIAL, INITIAL + 1), 'while the week is open');
+    });
+    test('an unknown deadline under-promises rather than over-promises', () => {
+        assert.equal(putBackWindow(NaN, INITIAL), 'until the first deadline');
+        assert.equal(putBackWindow(0, INITIAL), 'until the first deadline');
+    });
+    test('the help panel makes no unconditional promise either', async () => {
+        const { CARD_TIPS } = await import('./overtime-tips.js');
+        const help = JSON.stringify(CARD_TIPS);
+        assert.doesNotMatch(help, /always be undone|while the (form|week) is open\b(?![^.]*first deadline)/i);
+        assert.match(help, /undone until that deadline/, 'it says what the rule allows');
+    });
+
+    test('it agrees with the rule the Ask again button is drawn from, at every instant', () => {
+        for (const stoppedAt of [INITIAL - 86_400_000, INITIAL - 1, INITIAL, INITIAL + 1, FINAL - 60_000]) {
+            const promise = putBackWindow(INITIAL, stoppedAt);
+            // Just after the first deadline (or the stop, if later) — past the boundary that matters,
+            // and still before the week closes.
+            const laterInTheWeek = Math.max(stoppedAt, INITIAL) + 1;
+            const undoable = canRestoreNow(INITIAL, stoppedAt, laterInTheWeek, FINAL);
+            assert.equal(promise === 'while the week is open', undoable,
+                `stopped at ${new Date(stoppedAt).toISOString()}: "${promise}" but the button says ${undoable}`);
+        }
     });
 });
 

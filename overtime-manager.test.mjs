@@ -850,6 +850,21 @@ describe('withdrawal is reachable for somebody who has already ANSWERED (v21.20)
         assert.ok(/Answered/.test(out) && /No form yet/.test(out),
             'both positions are named in the panel');
     });
+
+    test('its note promises only the undo the rule allows (overtime-ui-2)', () => {
+        // "…you can put them back while the week is open" was false for a press made before the
+        // first deadline: after it, Ask again is gone for that person though the week runs on.
+        const INITIAL = Date.parse('2026-08-18T11:00:00Z');
+        const note = (/** @type {number} */ now) => {
+            const host = fakeHost();
+            renderWeekDetail(/** @type {any} */ (host), { ...WIN, phase: 'INITIAL_OPEN', initialDeadlineAt: INITIAL },
+                { participants: PARTICIPANTS, submissions: submissions() }, { dates: DATES, now });
+            return panelNamed(host.innerHTML, 'Who is being asked');
+        };
+        assert.match(note(INITIAL - 86_400_000), /put them back until the first deadline, Tue 18 Aug · 12:00/);
+        assert.doesNotMatch(note(INITIAL - 86_400_000), /while the week is open/);
+        assert.match(note(INITIAL + 86_400_000), /put them back while the week is open/);
+    });
 });
 
 describe('a row reports how old THIS day\'s answer is (v21.26, external review)', () => {

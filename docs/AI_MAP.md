@@ -455,7 +455,8 @@ they differ on a missing day) · `rosterBadge` · `deriveHistory`. *Reviewer:* `
 `countsCopy` (never drops "no response") · `weekSummary` · `weekAvailabilitySummary` (the clipboard
 text; every section named, an empty one says "nobody"; it states its grade scope and "as at", as the
 sheet does) · `gradeScopeLabel` (that scope line, shared with the printed sheet) · `reminderLine`
-(from what the send reached, where the server recorded it) · `isWithdrawn` / `withdrawnLine`
+(from what the send reached, where the server recorded it) · `putBackWindow` (until when a Stop
+asking pressed now can be undone — the restore rule's promise, in words) · `isWithdrawn` / `withdrawnLine`
 (the server holds a twin of the first; `overtime-parity.test.mjs` checks the copies agree AND are right).
 It re-exports `deadlineLabel`, `phaseCopy`, `phaseChip`, `phaseTone` and `deadlineLines` from
 `overtime-phase.js`, and the six clock exports.

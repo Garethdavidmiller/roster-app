@@ -607,6 +607,20 @@ export function withdrawnLine(participant) {
 }
 
 /**
+ * Until when a Stop asking pressed NOW can be undone — the one promise the confirmation and the
+ * panel note make (overtime-ui-2). Restoring is not the mirror of withdrawing: somebody stopped on or
+ * before the first deadline can be put back only until it, anybody stopped after it while the week
+ * is open (`canRestoreNow`; OVERTIME_AVAILABILITY.md). An unknown deadline under-promises.
+ * @param {number} initialDeadlineAt @param {number} nowMs
+ */
+export function putBackWindow(initialDeadlineAt, nowMs) {
+    if (Number.isFinite(initialDeadlineAt) && initialDeadlineAt > 0 && Number.isFinite(nowMs)) {
+        return nowMs > initialDeadlineAt ? 'while the week is open' : `until the first deadline, ${deadlineLabel(initialDeadlineAt)}`;
+    }
+    return 'until the first deadline';
+}
+
+/**
  * True when a stored answer means the member offered nothing at all that day.
  * @param {any} day
  */
