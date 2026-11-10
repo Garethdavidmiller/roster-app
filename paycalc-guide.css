@@ -11,7 +11,7 @@
 .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 
 /* An odd last item spans both columns — the same rule as the staff guide's grids, stated rather
-   than counted so it survives a pay type being added. Six today, so it is currently inert. */
+   than counted, so it holds whether a pay type is added or removed. Inert while the count is even. */
 .pay-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .pay-item {
     display: flex;
@@ -51,4 +51,8 @@
     .pay-item { padding: 4px 7px; border-radius: 6px; box-shadow: none; }
     .pay-item { break-inside: avoid; page-break-inside: avoid; }
     .guide-disc-list li { font-size: 10px; margin-bottom: 1px; }
+    /* The bullet is a background, and paper drops backgrounds unless told otherwise — the same list
+       guide-doc.css keeps for its own fills (`.steps li::before` among them). 6px centres it on the
+       10px print line, as 8px does on the 12px screen line. */
+    .guide-disc-list li::before { top: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

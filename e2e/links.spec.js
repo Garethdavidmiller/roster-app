@@ -1681,6 +1681,44 @@ async function openLinksWithTargetSets(page) {
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 }
 
+test('links sets: pointing at Delete turns its words red, not only its edge', async ({ page }, info) => {
+    // The danger hover was (0,3,0) and the set buttons' own hover (0,4,0), so the general one won the
+    // colour: Delete gained a red border round dark grey words — half a warning (whole-app check).
+    test.skip(isTouchProject(info), 'hover is a fine pointer\'s');
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSelect').selectOption('ts-robson');
+    const del = page.locator('#genSetDeleteBtn');
+    await expect(del).toBeEnabled();
+    await del.hover();
+    const paint = await del.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const i = document.createElement('i'); i.style.color = 'var(--error-red)'; document.body.append(i);
+        const red = getComputedStyle(i).color; i.remove();
+        const cs = getComputedStyle(el);
+        return { words: cs.color === red, edge: cs.borderTopColor === red };
+    }));
+    expect(paint).toEqual({ words: true, edge: true });
+});
+
+test('links generator: on a phone every first-column label stays put while the counts scroll', async ({ page }, info) => {
+    // Below 768px the target table scrolls inside its card, and the first column is sticky so each row
+    // stays named. The list named the spare and total rows and missed "Hours a week", added later:
+    // scrolled to Sunday, that one label slid away ("urs a week") between two that stayed.
+    test.skip(!isTouchProject(info), 'a phone');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    const lefts = await page.locator('.gen-slot-table-wrap').evaluate(wrap => {
+        wrap.scrollLeft = wrap.scrollWidth;
+        const edge = wrap.getBoundingClientRect().left;
+        return { scrolled: wrap.scrollLeft > 0,
+            labels: ['.gen-th-time', '.gen-spare-row .gen-td-label', '.gen-total-row td:first-child', '.gen-hours-row .gen-td-label']
+                .map(s => Math.round(/** @type {Element} */ (wrap.querySelector(s)).getBoundingClientRect().left - edge)) };
+    });
+    expect(lefts.scrolled, 'the premise: the table scrolls at this width').toBe(true);
+    expect(lefts.labels, 'time head, Spare weeks, Total on duty, Hours a week — each at the left edge').toEqual([0, 0, 0, 0]);
+});
+
 test('links sets: the picker lists every designer\'s sets, and Save follows whose is selected', async ({ page }) => {
     await openLinksWithTargetSets(page);
     // Sorted by name: Set A (Silva) first, Set B (mine) second — attribution rendered with each.
@@ -2142,6 +2180,260 @@ test('links grid: an edit from the keyboard leaves focus on the cell, by either 
     await page.keyboard.press('Escape');
     await page.keyboard.press('Enter');
     await expect(page.locator('.picker-sheet-overlay')).toContainText('Line 1 · Sun');
+});
+
+test('links paint bar: Tab shows which chip has focus, and the ARMED chip still reads differently', async ({ page }, info) => {
+    // The chips are the page's primary control, and Tab crossed them with no ring at all (whole-app
+    // check, 10 Nov 2026): the base rule gave every chip a transparent outline, for the armed marker
+    // to recolour, and that beat the app's focus fallback. The one ringed chip was the ARMED one, so
+    // a keyboard user saw a ring that was not where they were, and pressed Enter blind.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await openMixedDesign(page);
+    const navy = await page.evaluate(() => {
+        const i = document.createElement('i'); i.style.color = 'var(--primary-blue)'; document.body.append(i);
+        const c = getComputedStyle(i).color; i.remove(); return c;
+    });
+    const chips = page.locator('#brushBar .brush-chip');
+    /** @param {number} n */
+    const look = (n) => chips.nth(n).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const cs = getComputedStyle(el);
+        return { focus: el === document.activeElement && el.matches(':focus-visible'),
+            ring: cs.outlineStyle === 'none' ? 'none' : `${cs.outlineWidth} ${cs.outlineColor}`, armed: cs.boxShadow };
+    }));
+    await chips.nth(1).focus();
+    await page.keyboard.press('Enter');                       // arm it
+    await expect(chips.nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Tab');                         // and move on
+    const [armed, focused] = [await look(1), await look(2)];
+    expect(focused.focus, 'Tab moved focus to the next chip').toBe(true);
+    expect(focused.ring, 'the chip with focus wears the navy ring').toBe(`2px ${navy}`);
+    expect(focused.armed, 'and no armed mark').toBe('none');
+    expect(armed.ring, 'the armed chip, no longer focused, wears no focus ring').toMatch(/^none$|rgba\(0, 0, 0, 0\)/);
+    expect(armed.armed, 'it keeps its armed mark — a ring inside the chip').toMatch(/inset/);
+    expect(armed.armed, 'drawn in navy').toContain(navy);
+    // Back onto the armed chip: both marks at once, each still its own.
+    await page.keyboard.press('Shift+Tab');
+    const both = await look(1);
+    expect(both).toMatchObject({ focus: true, ring: `2px ${navy}` });
+    expect(both.armed).toMatch(/inset/);
+});
+
+test('links grid: the three totals columns are set apart from Saturday by a heavier rule', async ({ page }) => {
+    // The stylesheet promised "a heavier rule and a sunken fill" and drew only the fill: the rule's
+    // selector was `:first-of-type`, which counts elements, so it asked for the line number's cell.
+    await openMixedDesign(page);
+    const edges = await page.evaluate(() => {
+        const left = (/** @type {Element|null} */ el) => (el ? getComputedStyle(el).borderLeftWidth : 'missing');
+        const row = (/** @type {string} */ sel) => [...document.querySelectorAll(sel)].map(left);
+        return {
+            head: row('#linksGridTable thead th.col-total'),
+            body: row('#linksGridBodyRows tr:nth-child(3) td.tot-cell'),
+            foot: row('#linksCoverageFoot td.tot-cell'),
+            saturday: left(document.querySelector('#linksGridTable thead th:nth-child(8)')),
+        };
+    });
+    for (const where of ['head', 'body', 'foot']) {
+        expect(edges[where], `${where}: the first totals cell carries the heavier rule, the other two do not`).toEqual(['2px', '1px', '1px']);
+    }
+    expect(edges.saturday, 'the day columns keep the hairline').toBe('1px');
+});
+
+test('links: with reduced motion the "Saving…" dot holds still', async ({ page }) => {
+    // The dot pulses for as long as a save is in flight — for ever, if the write cannot finish — and
+    // it was the one loop on the page that "reduce motion" did not stop (shared.css stops the boot
+    // spinner, the comparable case). Both settings are driven, so the pulse is seen to exist first.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    // The keyframe animation only: the dot's colour TRANSITION also runs as the state changes.
+    const pulses = () => page.locator('#designStatus').evaluate(el => document.getAnimations().filter(a => {
+        const fx = /** @type {KeyframeEffect|null} */ (a.effect);
+        return a instanceof CSSAnimation && fx?.target === el && fx.pseudoElement === '::before' && a.playState === 'running';
+    }).length);
+    for (const motion of /** @type {const} */ (['no-preference', 'reduce'])) {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.goto('/links.html');
+        await page.locator('#linksEmptyProposals').click();
+        await proposalOptions(page).filter({ hasText: 'Balanced V6' }).click();
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
+        await page.locator('#linksSaveBtnTop').click();
+        await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+        await expect(page.locator('#designStatus'), `${motion}: the save is in flight`).toHaveClass(/dm-status--saving/);
+        expect(await pulses(), `${motion}: the dot's pulse`).toBe(motion === 'reduce' ? 0 : 1);
+        await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.addDocHold = false; w.__E2E.releaseAddDoc?.(); });
+    }
+});
+
+test('links: the generator\'s boxes and the Import fields wear the app\'s field recipe', async ({ page }) => {
+    // css-tokens.md: every focusable field carries the 4px --focus-ring, inside a modal included, and
+    // the thing a member types into wears --field-border and --radius-field. The generator's number
+    // boxes and time selects had the outline alone; the Import dialog's two fields had the outline
+    // alone, on a 1px hairline under the 16px PANEL corner.
+    await openMixedDesign(page);
+    const token = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.cssText = 'box-shadow: var(--focus-ring); border: var(--field-border); border-radius: var(--radius-field)';
+        document.body.append(probe);
+        const cs = getComputedStyle(probe);
+        const t = { ring: cs.boxShadow, edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
+        probe.remove();
+        return t;
+    });
+    const look = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const cs = getComputedStyle(el);
+        return { focus: el.matches(':focus-visible'), ring: cs.boxShadow,
+                 edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
+    }));
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    for (const sel of ['.gen-slot-count', '.gen-slot-time']) {
+        await page.locator(sel).first().focus();
+        expect(await look(sel), `${sel} with focus`).toMatchObject({ focus: true, ring: token.ring });
+    }
+    // The setup buttons beside them are pills, and wore the dialog corner (--radius-xl), which looks
+    // the same only while a pill is under 40px tall — chip-radius-parity reads chip NAMES, not this.
+    expect(await page.locator('#genSetLoadBtn').evaluate(el => {
+        const probe = document.createElement('i'); probe.style.borderRadius = 'var(--radius-pill)'; document.body.append(probe);
+        const pill = getComputedStyle(probe).borderTopLeftRadius; probe.remove();
+        return getComputedStyle(el).borderTopLeftRadius === pill;
+    }), 'a set button wears the pill corner').toBe(true);
+    await sheetAction(page, 'importDesignBtn');
+    await expect(page.locator('#linksImportText')).toBeFocused();   // the dialog opens on the paste box
+    await page.locator('#linksImportText').blur();
+    for (const sel of ['#linksImportText', '#linksImportName']) {
+        expect(await look(sel), `${sel} at rest`).toMatchObject({ edge: token.edge, corner: token.corner });
+        await page.locator(sel).focus();
+        expect(await look(sel), `${sel} with focus`).toMatchObject({ focus: true, ring: token.ring, corner: token.corner });
+    }
+});
+
+test('links grid: from 769px the grid stays inside its card, and at 1.3x text nothing is cut off', async ({ page }, info) => {
+    // From 768px the wrapper stops scrolling (for the sticky day header), on the word of a measurement
+    // taken before the three totals columns existed. Since, "Days worked" and its "over 26 working
+    // lines" note held the last column at 96px: the table ran into the card's gutter from 769 to
+    // 782px, and at 1.3x text up to 61px past the card's edge, cut off with no scroll to reach it.
+    test.skip(isTouchProject(info), 'a tablet-width window');
+    await openMixedDesign(page, { width: 769, height: 900 });
+    const fit = () => page.evaluate(() => {
+        const table = /** @type {Element} */ (document.getElementById('linksGridTable')).getBoundingClientRect();
+        const card = /** @type {Element} */ (document.getElementById('linksGridCard'));
+        const body = /** @type {Element} */ (card.querySelector('.card-body'));
+        const content = body.getBoundingClientRect().right - parseFloat(getComputedStyle(body).paddingRight);
+        return { scrolls: getComputedStyle(/** @type {Element} */ (document.getElementById('linksGridWrapper'))).overflowX !== 'visible',
+                 intoGutter: Math.round((table.right - content) * 10) / 10, pastCard: Math.round((table.right - card.getBoundingClientRect().right) * 10) / 10 };
+    });
+    for (const width of [769, 775, 782]) {
+        await page.setViewportSize({ width, height: 900 });
+        const f = await fit();
+        expect(f.scrolls, `the premise at ${width}px: the wrapper does not scroll`).toBe(false);
+        expect(f.intoGutter, `${width}px: the table's right edge against the card's content edge`).toBeLessThanOrEqual(0.5);
+    }
+    // Android's text scaling, which no width query sees: every element's own size × 1.3, read first.
+    await page.evaluate(() => {
+        const all = /** @type {[HTMLElement, number][]} */ ([...document.querySelectorAll('*')].map(el => [el, parseFloat(getComputedStyle(el).fontSize)]));
+        for (const [el, px] of all) if (px) el.style.fontSize = (px * 1.3) + 'px';
+    });
+    for (const width of [769, 800]) {
+        await page.setViewportSize({ width, height: 900 });
+        expect((await fit()).pastCard, `${width}px at 1.3x text: the table against the card's clipping edge`).toBeLessThanOrEqual(0.5);
+    }
+});
+
+test('links grid: a total that is only a floor says so with a "+", not by its colour alone', async ({ page }) => {
+    // A line with a duty time nobody could read totals what it CAN read, so its three figures are a
+    // floor. That was carried by an orange ink 1.56:1 from the ordinary figure's, and the legend named
+    // it by the word "Orange" (WCAG 1.4.1). A "TBC" on line 2's Monday makes that line.
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(pats => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000,
+            patterns: { ...pats, 2: { ...pats[2], mon: 'TBC' } } }];
+    }, MIXED_DESIGN);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    const mark = (/** @type {string} */ sel) => page.locator(sel).evaluateAll(els => els.map(el => getComputedStyle(el, '::after').content));
+    const floors = await mark('#linksGridBodyRows td.tot-uncertain');
+    expect(floors, 'the premise: line 2\'s three totals are floors').toHaveLength(3);
+    for (const c of floors) expect(c, 'a floor total carries the +').toMatch(/^"\+"/);
+    const plain = await mark('#linksGridBodyRows tr[data-pos="3"] td.tot-cell');
+    for (const c of plain) expect(c, 'an ordinary total carries no mark').not.toMatch(/\+/);
+    expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
+});
+
+test('links compare: a "Compare with:" name is a thumb-sized target on a phone', async ({ page }, info) => {
+    // A 12px label with 4px padding, ~22.5px tall — under the app's 24px floor, beside paint chips and
+    // set buttons that carry a 30px one. The tap-target gate loads Links with one design, so compare
+    // mode, and these names, never exist when it measures.
+    test.skip(!isTouchProject(info), 'a thumb');
+    await openMixedDesign(page, { width: 390, height: 844 });
+    await page.locator('#designMoreBtn').click();
+    await page.getByRole('button', { name: /Compare with/ }).click();
+    const names = page.locator('#compareChips .design-chip-name');
+    await expect(names.first()).toBeVisible();
+    // The BOX, not a walk outward from the centre: nothing widens these with a pseudo-element, and the
+    // walk's half-pixel rounding reads the old 23px name as 24 — the reason a 1px probe let it pass.
+    const heights = await names.evaluateAll(els => els.map(el => el.getBoundingClientRect().height));
+    expect(heights.length, 'the premise: names to measure').toBeGreaterThan(0);
+    for (const h of heights) expect(h, 'a name\'s tap target').toBeGreaterThanOrEqual(24);
+});
+
+test('links compare: a differing cell\'s outline clears 3:1 against every cell fill', async ({ page }) => {
+    // The diff marker was the brand gold, 1.2-1.4:1 against the cells it outlines — the pairing
+    // css-tokens.md rules out for a focus ring for the same reason. Five differing Mondays cover the
+    // fills a marked cell can have: early, late, spare and rest.
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const a = ['14:00-22:00', 'SPARE', 'RD', '06:20-14:20', '11:00-19:30'];
+        const b = ['06:20-14:20', '14:00-22:00', 'SPARE', 'RD', '07:00-15:00'];
+        const mk = (/** @type {string[]} */ mon) => {
+            /** @type {Record<string, any>} */ const p = {};
+            for (let i = 1; i <= 26; i++) p[String(i)] = { sun: 'RD', mon: mon[(i - 1) % 5], tue: '06:20-14:20', wed: '14:00-22:00', thu: 'SPARE', fri: 'RD', sat: 'RD' };
+            return p;
+        };
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'd1', name: 'Design A', patterns: mk(a), updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+            { id: 'd2', name: 'Design B', patterns: mk(b), updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await sheetAction(page, 'compareBtn');
+    await expect(page.locator('#compareGridBodyRowsA tr').first()).toBeVisible();
+    const marks = await page.locator('.links-grid--compare .cell-diff .shift-cell-btn').evaluateAll(els => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        const rgba = (/** @type {string} */ c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data]; };
+        const lum = (/** @type {number[]} */ c) => c.slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        // The painted fill under the outline: the cell's own translucent tint over what is behind it.
+        const fill = (/** @type {Element} */ el) => {
+            const layers = [];
+            for (let n = /** @type {Element|null} */ (el); n; n = n.parentElement) {
+                const c = rgba(getComputedStyle(n).backgroundColor);
+                if (c[3]) layers.push(c);
+                if (c[3] === 255) break;
+            }
+            let out = [255, 255, 255];
+            for (const c of layers.reverse()) out = out.map((u, i) => c[i] * c[3] / 255 + u * (1 - c[3] / 255));
+            return out;
+        };
+        return els.map(el => {
+            const cs = getComputedStyle(el);
+            const [hi, lo] = [lum(rgba(cs.outlineColor)), lum(fill(el))].sort((x, y) => y - x);
+            return { type: [...el.classList].find(c => c.startsWith('type-')), style: cs.outlineStyle, ratio: (hi + 0.05) / (lo + 0.05) };
+        });
+    });
+    expect(new Set(marks.map(m => m.type)), 'the premise: every kind of fill is marked somewhere')
+        .toEqual(new Set(['type-early', 'type-late', 'type-spare', 'type-rd']));
+    for (const m of marks) {
+        expect(m.style, `${m.type}: an outline`).toBe('solid');
+        expect(m.ratio, `${m.type}: the outline against the cell`).toBeGreaterThanOrEqual(3);
+    }
 });
 
 test('links grid: a mouse stroke paints every cell it crosses, and a touch does not stroke', async ({ page }) => {

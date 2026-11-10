@@ -136,9 +136,9 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
         expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);
 
-        // "Save settings" matches the fields it sits under (polish round 2). The tablet-up 280px
-        // cap on `.btn-primary` is about buttons with nothing above them; this one ended 368px short
-        // of the Tax code field above it at 1280, which read as a leftover rather than a hierarchy.
+        // "Save settings" matches the fields it sits under (polish round 2). Under a tablet-up 280px
+        // cap on `.btn-primary` (removed since: nothing it reached was meant to be capped) it ended
+        // 368px short of the Tax code field above it at 1280, which read as a leftover, not a hierarchy.
         const saveFit = await page.evaluate(() => {
             const b = document.getElementById('saveSettingsBtn').getBoundingClientRect();
             const f = document.getElementById('taxCode').getBoundingClientRect();
@@ -2801,6 +2801,521 @@ test('paycalc: the "Includes an 8h estimate" chip wraps inside its row instead o
     await expect(chip).toBeInViewport({ ratio: 1 });
     await row.screenshot({ path: testInfo.outputPath('rdw-row.png') });
     expect(errors, 'Uncaught JS exceptions on the estimate chip').toHaveLength(0);
+});
+
+// The same card at 360px with the LONGEST label (the test above uses RDW, the shortest of the seven).
+// A "Bank holiday overtime" row whose hours differ needed ~56px more than the row had: nothing in it
+// could wrap, so the meta column was crushed to 0px and "Calendar: 8h 30m" and its chip painted over
+// the arrow and out of the row. An rdw change on the 31 Aug 2026 bank holiday makes that row.
+// Fitting is not enough on its own: a row that fits by SQUEEZING (the label broken over two lines,
+// the meta a narrow stack) or by letting the arrow wrap to a line of its own is the same defect drawn
+// differently. So the label keeps its one line and the arrow its place at the right edge, centred.
+test('paycalc: the calendar rows fit a 360px phone when the hours differ, longest label included', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'a narrow phone');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-09-02T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'b1', memberName: 'G. Miller', date: '2026-08-31', type: 'rdw', value: '06:00-14:30', source: 'manual' }];
+    });
+    await page.goto('/paycalc.html?payday=2026-09-18');
+    await expect(page.locator('.roster-row[data-cat="bhOt"]')).toBeVisible({ timeout: 10000 });
+    for (const cat of await page.locator('.roster-row').evaluateAll(els => els.map(e => e.getAttribute('data-cat')))) {
+        await page.locator(`#${cat}H`).fill('16');
+        await page.locator(`#${cat}M`).fill('30');
+    }
+    await expect(page.locator('.roster-row:not(.roster-row--differs)')).toHaveCount(0);
+    const rows = await page.locator('.roster-row').evaluateAll(els => els.map(row => {
+        const r = row.getBoundingClientRect();
+        const out = [...row.children].filter(c => c.getClientRects().length && !c.classList.contains('visually-hidden'))
+            .filter(c => { const b = c.getBoundingClientRect(); return b.left < r.left - 0.5 || b.right > r.right + 0.5; })
+            .map(c => c.className);
+        const meta = /** @type {HTMLElement} */ (row.querySelector('.roster-row-meta'));
+        const label = document.createRange();
+        label.selectNodeContents(/** @type {Element} */ (row.querySelector('.roster-row-label')));
+        const arrow = /** @type {Element} */ (row.querySelector('.roster-cat-arrow, .roster-cat-match')).getBoundingClientRect();
+        return { cat: row.getAttribute('data-cat'), overflow: row.scrollWidth - row.clientWidth, out,
+                 metaSqueezed: meta.scrollWidth - meta.clientWidth,
+                 labelLines: new Set([...label.getClientRects()].map(l => Math.round(l.top))).size,
+                 arrowFromRight: r.right - arrow.right,
+                 arrowOffCentre: Math.abs((arrow.top + arrow.bottom) / 2 - (r.top + r.bottom) / 2) };
+    }));
+    expect(rows.map(r => r.cat), 'the premise: the longest label is among them').toContain('bhOt');
+    for (const r of rows) {
+        const { cat, overflow, out, metaSqueezed, labelLines } = r;
+        expect({ cat, overflow, out, metaSqueezed, labelLines }, `the ${cat} row`)
+            .toEqual({ cat, overflow: 0, out: [], metaSqueezed: 0, labelLines: 1 });
+        // 11px = the row's 1px border + the arrow's 10px inset.
+        expect(r.arrowFromRight, `the ${cat} row's arrow sits at its right edge`).toBeCloseTo(11, 0);
+        expect(r.arrowOffCentre, `the ${cat} row's arrow is centred on the row`).toBeLessThanOrEqual(1);
+    }
+});
+
+// ── THE STYLESHEET, READ LINE BY LINE (whole-app check, 10 Nov 2026) ─────────────────────────────
+// paycalc.css findings that only a rendered page shows: each test measures what a member sees.
+
+/** A CSS colour expression as this page computes it, for comparing with a computed colour.
+ *  @param {import('@playwright/test').Page} page @param {string} value */
+const pcColour = (page, value) => page.evaluate((v) => {
+    const i = document.createElement('i'); i.style.color = v; document.body.append(i);
+    const c = getComputedStyle(i).color; i.remove(); return c;
+}, value);
+
+test('paycalc: a Tab stop on a dark surface wears the ring drawn for one', async ({ page }, info) => {
+    // The help sheet's ✕ and the guide link at the foot of the page have no focus rule of their own,
+    // so they took the app's navy fallback ring: 1.17:1 on the dark glass and 1:1 on the navy canvas.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const gold = await pcColour(page, 'var(--accent-gold)');
+    const ring = (/** @type {import('@playwright/test').Locator} */ el) => el.evaluate(e => {
+        const cs = getComputedStyle(e);
+        return { focus: e.matches(':focus-visible'), style: cs.outlineStyle, colour: cs.outlineColor };
+    });
+
+    const link = page.locator('.guide-footer-link a');
+    await link.focus();
+    expect(await ring(link), 'the guide link on the navy canvas').toEqual({ focus: true, style: 'solid', colour: gold });
+
+    await page.locator('.help-btn[data-help="hours"]').click();
+    await expect(page.locator('#helpLightbox.visible')).toBeVisible();
+    const close = page.locator('#helpLightboxClose');
+    for (let i = 0; i < 6 && !(await close.evaluate(e => e === document.activeElement)); i++) await page.keyboard.press('Tab');
+    expect(await ring(close), 'the help sheet\'s ✕ on the dark glass').toEqual({ focus: true, style: 'solid', colour: gold });
+});
+
+test('paycalc: the Training Days stepper draws its focus ring whole', async ({ page }, info) => {
+    // The stepper clips (`overflow: hidden`) and its buttons sit flush against three of its edges, so
+    // a ring drawn 2px OUTSIDE a button lost those three sides: one navy bar beside the number.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    for (const id of ['peerMinus', 'peerPlus']) {
+        const button = page.locator(`#${id}`);
+        await button.focus();
+        const g = await button.evaluate(b => {
+            const cs = getComputedStyle(b), box = b.getBoundingClientRect();
+            const st = /** @type {HTMLElement} */ (b.closest('.stepper'));
+            const sr = st.getBoundingClientRect(), edge = parseFloat(getComputedStyle(st).borderTopWidth);
+            const out = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);   // how far the ring reaches past the button
+            return { focus: b.matches(':focus-visible'), style: cs.outlineStyle,
+                clipped: [box.left - out < sr.left + edge - 0.5, box.right + out > sr.right - edge + 0.5,
+                          box.top - out < sr.top + edge - 0.5, box.bottom + out > sr.bottom - edge + 0.5] };
+        });
+        expect(g.focus && g.style === 'solid', `#${id} shows a ring`).toBe(true);
+        expect(g.clipped, `#${id}'s ring runs past the stepper's clip on [left, right, top, bottom]`).toEqual([false, false, false, false]);
+    }
+});
+
+test('paycalc: a disclosure arrow points down when shut and up when open', async ({ page }) => {
+    // The script swaps these two arrows' glyph (▼ → ▲) AND the stylesheet turned an open one by 180°,
+    // so after a quarter-second spin the ▲ faced down again: shut and open looked the same. What is
+    // asserted is the way the arrow FACES — glyph and rotation together — not either one alone.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const facing = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const t = getComputedStyle(el).transform;
+        const turned = t !== 'none' && new DOMMatrixReadOnly(t).a < 0;   // a half turn
+        return (el.textContent?.trim() === '▲') !== turned ? 'up' : 'down';
+    }));
+    if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    }
+    for (const [button, arrow] of [['#hoursShowMore', '.show-more-arrow'], ['#hppToggleBtn', '.hpp-toggle-arrow']]) {
+        const btn = page.locator(button);
+        await btn.scrollIntoViewIfNeeded();
+        expect(await facing(`${button} ${arrow}`), `${button} shut`).toBe('down');
+        await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'true');
+        expect(await facing(`${button} ${arrow}`), `${button} open`).toBe('up');
+        await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'false');
+        expect(await facing(`${button} ${arrow}`), `${button} shut again`).toBe('down');
+    }
+});
+
+test('paycalc: a back-pay rate locked from the record reads as a fixed value, and does not glow on focus', async ({ page }, info) => {
+    // A CES member on a 2025/26 payslip: that award's OLD rate is not on record, so three of the four
+    // boxes are locked and one stays editable (paycalc-backpay.js). The locked rule was (0,1,1) inside
+    // `.field`, whose own input rule is (0,3,1), so all but the cursor lost: three boxes that looked
+    // editable, padlock and all, and brightened with the 4px glow when Tab reached them.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page, 'F. Mohamed');
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2025-11-21');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    if (!await page.locator('#backPayBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#backPayCardToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#backPayBody')).toHaveCSS('visibility', 'visible');
+    if (await page.locator('#bpModeCompute').isVisible()) await page.locator('#bpModeCompute').check();
+    await expect(page.locator('#newRateInput')).toHaveClass(/bp-rate-locked/);
+    await expect(page.locator('#oldRate'), 'the premise: a figure not on record stays editable').not.toHaveClass(/bp-rate-locked/);
+    const look = (/** @type {string} */ id) => page.locator(`#${id}`).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const cs = getComputedStyle(el);
+        return { fill: cs.backgroundColor, edge: cs.borderTopColor, weight: cs.fontWeight, room: cs.paddingRight, glow: cs.boxShadow };
+    }));
+    const fixedValue = { ...(await look('hourlyRate')), glow: 'none' };   // the read-only Settings rate
+    for (const id of ['newRateInput', 'oldLondon', 'newLondon']) expect(await look(id), `#${id} at rest`).toEqual(fixedValue);
+    expect((await look('oldRate')).fill, 'the editable box keeps the field fill').not.toBe(fixedValue.fill);
+
+    await page.locator('#oldRate').focus();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#newRateInput')).toBeFocused();
+    expect(await look('newRateInput'), 'focused by keyboard: no glow, no brightening').toEqual(fixedValue);
+    expect(await page.locator('#newRateInput').evaluate(el => getComputedStyle(el).outlineStyle), 'and the ring still shows where you are').toBe('solid');
+});
+
+test('paycalc desktop: a hidden setup banner or privacy note leaves no gap behind it', async ({ page }, info) => {
+    // Rows 1 and 2 of the desktop grid belong to the setup banner and the first-visit privacy note,
+    // and an empty grid row still takes its row-gap. Only the note's was taken back, so a RETURNING
+    // member — both hidden, the normal state — had the workspace 20px under the header against the
+    // 4px of every other card page (pages.spec.js measures the first visit only, where both show).
+    test.skip(isTouchProject(info), 'the 1366px desktop grid');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    // [name, seed, which of banner / note the state shows] — all four combinations.
+    const states = /** @type {const} */ ([
+        ['first visit', {}, [true, true]],
+        // A payslip saved, the year's settings never confirmed. (A bare `…_setup` is no good here: a
+        // migration turns it into per-year confirmations, which hide the banner too.)
+        ['settings not yet confirmed', { myb_pc_gmiller_p57: JSON.stringify({ satH: 8 }) }, [true, false]],
+        ['no pay data yet', { myb_pc_gmiller_setup_2026_27: '1' }, [false, true]],
+        ['returning member', { myb_pc_gmiller_setup: '1', myb_pc_gmiller_setup_2026_27: '1' }, [false, false]],
+    ]);
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    for (const [name, seed, shows] of states) {
+        // This member's pay keys cleared, then exactly the state's — and the page loaded on them.
+        await page.evaluate(s => {
+            Object.keys(localStorage).filter(k => k.startsWith('myb_pc_gmiller_')).forEach(k => localStorage.removeItem(k));
+            for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v);
+        }, seed);
+        await page.reload();
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        expect([await page.locator('#setupBanner').isVisible(), await page.locator('#privacyNoteTop').isVisible()],
+            `${name}: the premise — which of the banner and the note it shows`).toEqual(shows);
+        const m = await page.evaluate(() => {
+            const header = /** @type {Element} */ (document.querySelector('.app-header')).getBoundingClientRect().bottom;
+            const shown = ['#setupBanner', '#privacyNoteTop', '.pc-work > :first-child']
+                .map(s => /** @type {HTMLElement} */ (document.querySelector(s)))
+                .filter(el => el.getClientRects().length)
+                .map(el => el.getBoundingClientRect());
+            return { top: Math.round(shown[0].top - header),
+                     steps: shown.slice(1).map((r, i) => Math.round(r.top - shown[i].bottom)) };
+        });
+        expect(m.top, `${name}: the first block sits 4px under the header`).toBe(4);
+        expect(m.steps.every(s => s === 16), `${name}: one 16px gap between the blocks, measured ${JSON.stringify(m.steps)}`).toBe(true);
+    }
+});
+
+test('paycalc: at large text an open card is never cut short — Save settings stays reachable', async ({ page }, info) => {
+    // The open cards were capped at fixed pixel heights (1800px, the HPP note 400px) under
+    // `overflow: hidden`, sized against DEFAULT text. At Android's 1.3x a Settings card with a student
+    // loan and a pension opt-out measured 1916px at 360px wide, so its last 116px — Save settings —
+    // was clipped with no way to scroll to it. A card's height grows faster than its text (more
+    // lines AND taller ones), so the caps are in `em` now.
+    test.skip(!isTouchProject(info), 'a phone with its text scaled');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#settingsToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#settingsBody')).toHaveCSS('visibility', 'visible');
+    await page.evaluate(() => {   // the tallest ordinary Settings: a loan plan and the opt-out's dated question
+        const s = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
+        s.value = 'plan2'; s.dispatchEvent(new Event('change', { bubbles: true }));
+        const c = /** @type {HTMLInputElement} */ (document.getElementById('pensionOptOutCheck'));
+        if (!c.checked) c.click();
+    });
+    await expect(page.locator('#pensionOptOutField')).toBeVisible();
+    if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    }
+    await page.locator('#hppToggleBtn').click();
+    // Android's text scaling: every element's OWN size × 1.6, read first and written after, so an
+    // inherited size is scaled once (`scaleText` in helpers.js compounds them).
+    const scale = () => page.evaluate(() => {
+        const all = /** @type {[HTMLElement, number][]} */ ([...document.querySelectorAll('*')].map(el => [el, parseFloat(getComputedStyle(el).fontSize)]));
+        for (const [el, px] of all) if (px) el.style.fontSize = (px * 1.6) + 'px';
+    });
+    await scale();
+    const clip = (/** @type {string} */ sel) => page.locator(sel).evaluate(el =>
+        Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))).then(() => el.scrollHeight - el.clientHeight));
+    expect(await clip('#settingsBody'), 'Settings content hidden below its cap').toBeLessThanOrEqual(1);
+    expect(await clip('#hppNoteBody'), '"How is this calculated?" hidden below its cap').toBeLessThanOrEqual(1);
+    const inside = await page.evaluate(() => {
+        const save = /** @type {Element} */ (document.getElementById('saveSettingsBtn')).getBoundingClientRect();
+        const body = /** @type {Element} */ (document.getElementById('settingsBody')).getBoundingClientRect();
+        return save.bottom <= body.bottom + 0.5;
+    });
+    expect(inside, 'Save settings sits inside its open card').toBe(true);
+
+    // The Boxing Day banner (a 60px cap) wraps to a second line at this size: 88px of it.
+    await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));
+    await page.goto('/paycalc.html?payday=2027-01-08');
+    await expect(page.locator('.boxing-banner.visible')).toBeVisible();
+    await scale();
+    expect(await clip('.boxing-banner'), 'the Boxing Day banner hidden below its cap').toBeLessThanOrEqual(1);
+});
+
+test('paycalc: a notice sheet\'s two answers are one width, from tablet up', async ({ page }, info) => {
+    // From 768px every `.btn-primary` stopped at 280px — a cap written for the cards, whose two
+    // buttons were then exempted by name. What it still reached was the first answer in each notice
+    // sheet: "Yes, it's mine" 280px wide over a 290px "No — start fresh", the mismatched pair the
+    // cap's own comment called a fault.
+    test.skip(isTouchProject(info), 'tablet and desktop widths');
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);   // G. Miller, whose device also offers the developer's actuals sheet
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_rate', '20.74');   // unclaimed legacy pay data: the ownership question
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    const settle = () => page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))));
+    const boxes = (/** @type {string[]} */ ids) => page.evaluate(list => list.map(id => {
+        const r = /** @type {Element} */ (document.getElementById(id)).getBoundingClientRect();
+        return { left: Math.round(r.left), width: Math.round(r.width) };
+    }), ids);
+    for (const width of [800, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+        await settle();
+        const [mine, fresh] = await boxes(['dataOwnerMine', 'dataOwnerFresh']);
+        expect(mine, `${width}px: "Yes, it's mine" against "No — start fresh" under it`).toEqual(fresh);
+
+        await page.locator('#dataOwnerClose').click();   // decide later
+        await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
+        if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#settingsToggle .card-toggle-arrow').click();
+        }
+        await page.locator('#actualsImportBtn').click();
+        await expect(page.locator('#actualsLightbox.visible')).toBeVisible();
+        await settle();
+        const [load, clear] = await boxes(['actualsImport', 'actualsClear']);
+        expect(load, `${width}px: "Import" against "Clear stored data" under it`).toEqual(clear);
+    }
+});
+
+test('paycalc: a primary button and the secondary under it are drawn by one recipe', async ({ page }) => {
+    // paycalc.css keeps its own `.btn-primary` recipe for Save settings, the one primary that does not
+    // wear `.btn-action` — and it reached the three that do, overriding the shared recipe's display,
+    // edge and timing: two shapes in one pair. Nothing differed by a pixel, which is why it is the
+    // computed SHAPE that is compared — the next change to the shared recipe would have split them.
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_rate', '20.74');   // the ownership question
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    const shape = (/** @type {string[]} */ ids) => page.evaluate(list => list.map(id => {
+        const cs = getComputedStyle(/** @type {Element} */ (document.getElementById(id)));
+        return [cs.display, cs.borderTopWidth, cs.borderTopStyle, cs.padding, cs.borderTopLeftRadius,
+            cs.minHeight, cs.fontSize, cs.fontWeight, cs.transitionProperty, cs.transitionDuration].join(' | ');
+    }), ids);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+    const [mine, fresh] = await shape(['dataOwnerMine', 'dataOwnerFresh']);
+    expect(mine, '"Yes, it\'s mine" against "No — start fresh"').toBe(fresh);
+    await page.locator('#dataOwnerClose').click();
+    await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
+    if (!await page.locator('#payTransferBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#payTransferToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#ptDownload')).toBeVisible();
+    const [download, copy] = await shape(['ptDownload', 'ptCopy']);
+    expect(download, '"Download backup" against "Copy as text"').toBe(copy);
+});
+
+test('paycalc guide: the two bulleted lists keep their bullets on paper', async ({ page }) => {
+    // Each bullet is a 5px gold dot drawn as a BACKGROUND (the list is `list-style: none`), and a
+    // browser printing with background graphics off — the default — drops backgrounds unless
+    // `print-color-adjust: exact` keeps them. "Entering Your Hours" and "Year to Date Figures" printed
+    // as indented lines with no markers (seen in a PDF printed that way; page.pdf() cannot show it
+    // here, because it is called with backgrounds ON).
+    await page.goto('/paycalc-guide.html');
+    await expect(page.locator('.guide-disc-list')).toHaveCount(2);
+    await page.emulateMedia({ media: 'print' });
+    const dots = await page.locator('.guide-disc-list li').evaluateAll(lis => lis.map(li => {
+        const cs = getComputedStyle(li, '::before');
+        return { shown: cs.display !== 'none' && cs.backgroundColor !== 'rgba(0, 0, 0, 0)',
+                 onPaper: cs.getPropertyValue('print-color-adjust') || cs.getPropertyValue('-webkit-print-color-adjust') };
+    }));
+    await page.emulateMedia({ media: null });
+    expect(dots.length, 'the premise: list items to look at').toBeGreaterThan(0);
+    for (const [i, dot] of dots.entries()) expect(dot, `bullet ${i + 1}`).toEqual({ shown: true, onPaper: 'exact' });
+});
+
+test('paycalc: with reduced motion "How is this calculated?" opens without sliding', async ({ page }) => {
+    // Its three sibling reveals (the breakdown, the Boxing Day banner, the cards) are in the page's
+    // reduced-motion list; this one was not, and slid open over 0.35s. Both settings are driven, so
+    // the slide is seen to exist before its absence is believed.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    const slides = () => page.locator('#hppNoteBody').evaluate(el => el.getAnimations().filter(a => a.playState === 'running').length);
+    for (const motion of /** @type {const} */ (['no-preference', 'reduce'])) {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#hppCardToggle .card-toggle-arrow').click();
+        }
+        await expect(page.locator('#hppCardBody')).toHaveCSS('visibility', 'visible');
+        await page.locator('#hppToggleBtn').click();
+        await expect(page.locator('#hppNoteBody')).toHaveClass(/open/);
+        expect(await slides(), `${motion}: the note's slide`).toBe(motion === 'reduce' ? 0 : 1);
+    }
+});
+
+test('paycalc: the period buttons share the corner of the period field above them', async ({ page }) => {
+    // "← Earlier", "Later →" and 📍 wore --radius-md, the 16px PANEL corner, directly under a 12px
+    // field: two corners a few pixels apart in one card, which css-tokens.md → Corners calls
+    // "assembled rather than designed". Every action button takes --radius-button.
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#prevBtn').click();   // off the current payslip, so 📍 is offered
+    await expect(page.locator('#todayPeriodBtn')).toBeVisible();
+    const corners = await page.evaluate(() => Object.fromEntries(['periodSelectTrigger', 'periodSelect', 'prevBtn', 'nextBtn', 'todayPeriodBtn']
+        .map(id => /** @type {HTMLElement|null} */ (document.getElementById(id)))
+        .filter(el => el && el.getClientRects().length)
+        .map(el => [/** @type {HTMLElement} */ (el).id, getComputedStyle(/** @type {HTMLElement} */ (el)).borderTopLeftRadius])));
+    const field = corners.periodSelectTrigger ?? corners.periodSelect;
+    expect(field, 'the premise: the period field is on screen').toBeTruthy();
+    for (const id of ['prevBtn', 'nextBtn', 'todayPeriodBtn']) expect(corners[id], `#${id} against the field above it`).toBe(field);
+});
+
+test('paycalc: every transition on the page takes its timing from the motion tokens', async ({ page }) => {
+    // css-tokens.md → Motion vocabulary: "Use these tokens, not inline cubic-bezier(...) or a bare
+    // ease." paycalc.css hand-wrote nine — the same 0.2s four times over, and two content reveals at
+    // 0.4s and 0.35s with a bare `ease` beside siblings on --dur-slower. Read from the stylesheet the
+    // browser parsed, so a comment cannot count and a rule inside a media query cannot hide.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const found = await page.evaluate(() => {
+        const sheet = [...document.styleSheets].find(s => s.href?.endsWith('/paycalc.css'));
+        if (!sheet) return null;
+        /** @type {string[]} */ const off = [];
+        let read = 0;
+        const walk = (/** @type {CSSRuleList} */ rules) => {
+            for (const rule of /** @type {any[]} */ ([...rules])) {
+                if (rule.cssRules) walk(rule.cssRules);
+                if (!rule.style) continue;
+                // The shorthand as written; a longhand only where no shorthand set it (a shorthand's
+                // `none` reports its longhands' initial `ease`, which nobody wrote).
+                const props = rule.style.getPropertyValue('transition') ? ['transition'] : ['transition-duration', 'transition-timing-function'];
+                for (const prop of props) {
+                    const v = rule.style.getPropertyValue(prop);
+                    if (!v) continue;
+                    read++;
+                    const bare = v.replace(/var\([^)]*\)/g, '').replace(/(^|[\s,])0m?s(?=$|[\s,])/g, '$1');
+                    if (/\d(?:\.\d+)?m?s\b/.test(bare) || /(?<![-\w])ease(?![-\w])/.test(bare) || /cubic-bezier\(/.test(bare)) {
+                        off.push(`${rule.selectorText} { ${prop}: ${v} }`);
+                    }
+                }
+            }
+        };
+        walk(sheet.cssRules);
+        return { read, off };
+    });
+    expect(found, 'the premise: paycalc.css is on the page').not.toBeNull();
+    expect(found?.read, 'the premise: transitions were read').toBeGreaterThan(10);
+    expect(found?.off, 'a timing written out by hand').toEqual([]);
+});
+
+test('paycalc: a card header is the shared header — edge, padding and hint as on Settings', async ({ page }) => {
+    // paycalc.css kept a copy of the header (padding and divider, the same values) and of the hint,
+    // plus a 2px margin no other page has: Pay's hints sat 2px under their titles, every other card
+    // page's at 0 (measured on Settings, Operations, Admin, Trains and Links). A page-local copy is
+    // what keeps the old look when the shared header changes (css-tokens.md).
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    const header = () => page.locator('.card-header:has(.hint)').first().evaluate(h => {
+        const t = /** @type {Element} */ (h.querySelector('h2')).getBoundingClientRect();
+        const hint = /** @type {Element} */ (h.querySelector('.hint'));
+        const cs = getComputedStyle(h), hs = getComputedStyle(hint);
+        return { padding: cs.padding, divider: `${cs.borderBottomWidth} ${cs.borderBottomStyle} ${cs.borderBottomColor}`,
+                 step: Math.round(hint.getBoundingClientRect().top - t.bottom), hint: `${hs.fontSize} ${hs.color}` };
+    });
+    await page.goto('/settings.html');
+    await expect(page.locator('.card-header:has(.hint)').first()).toBeVisible();
+    const shared = await header();
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    expect(await header(), 'the Pay Calculator against Settings').toEqual(shared);
+});
+
+test('paycalc: a banner\'s "view … card" link is a thumb-sized target, and takes no tap meant for the tick', async ({ page }, info) => {
+    // A real button styled as a link, 12px on a line of its own: ~15px tall, under the app's 24px
+    // floor, and the gate never sees it — it loads the page with no banner up. The other small text
+    // controls already had an invisible hit area; this one was left out.
+    test.skip(!isTouchProject(info), 'a thumb');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-08-20T09:00:00Z'));   // the award payslip offers the lump
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    await page.locator('#bpBannerViewLink').evaluate(el => el.scrollIntoView({ block: 'center' }));
+    const m = await page.locator('#bpBannerViewLink').evaluate(el => {
+        const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const reach = (/** @type {number} */ dx, /** @type {number} */ dy) => {
+            let n = 0;
+            for (let i = 1; i <= 30; i++) {
+                const hit = document.elementFromPoint(cx + dx * i, cy + dy * i);
+                if (!hit || (hit !== el && !el.contains(hit))) break;
+                n = i;
+            }
+            return n;
+        };
+        const banner = /** @type {Element} */ (el.parentElement);
+        const label = /** @type {Element} */ (banner.querySelector('.banner-optin')).getBoundingClientRect();
+        const atTick = document.elementFromPoint(label.left + 40, label.bottom - 1);
+        return { drawn: Math.round(r.height), height: reach(0, -1) + reach(0, 1) + 1,
+                 tickKeepsItsEdge: !!atTick?.closest('.banner-optin') };
+    });
+    expect(m.height, `the tap target (drawn ${m.drawn}px)`).toBeGreaterThanOrEqual(24);
+    expect(m.tickKeepsItsEdge, 'the opt-in above keeps its own bottom edge').toBe(true);
+});
+
+test('paycalc: the rate badges print in their own colours, RDW included', async ({ page }) => {
+    // Every fill prints here (the print block's `*` keeps them), so the seven badges need no print
+    // rules of their own — except RDW: the calendar's shift badge shares the name, and shared.css's
+    // print rule for it would paint Pay's pale chip solid navy-teal with white words.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const paint = () => page.locator('.rate-badge').evaluateAll(els => els.map(el => {
+        const cs = getComputedStyle(el); return `${el.className}: ${cs.backgroundColor} / ${cs.color}`;
+    }));
+    const screen = await paint();
+    expect(screen.some(s => s.includes('badge-rdw')), 'the premise: the RDW badge is on the page').toBe(true);
+    await page.emulateMedia({ media: 'print' });
+    const paper = await paint();
+    await page.emulateMedia({ media: null });
+    expect(paper).toEqual(screen);
 });
 
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
