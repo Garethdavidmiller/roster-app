@@ -1319,19 +1319,20 @@ body.auth-ready .container { display: grid; }
     border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
 }
 /* A leaver who can still sign in is an open door, not a to-do — the one state on this card that
-   is a live access problem rather than somebody unable to work. */
+   is a live access problem rather than somebody unable to work. `--error-text`, not `--error-red`:
+   the bright red on its own tint was 4.36:1 (Nov 2026). */
 .auth-gap-line--leaver {
-    color: var(--error-red);
+    color: var(--error-text);
     background: color-mix(in oklch, var(--error-red) 10%, white);
     border-color: color-mix(in oklch, var(--error-red) 40%, white);
 }
-/* The remedy, on its own line: the count and names say what, this says which button. */
+/* The remedy, on its own line: the count and names say what, this says which button. A step down in
+   size, never a fade — at `opacity: 0.85` the leaver's remedy was 3.62:1 (css-tokens.md → opacity). */
 .auth-gap-fix {
     display: block;
     margin-top: 4px;
     font-size: var(--type-small);
     font-weight: 600;
-    opacity: 0.85;
 }
 .auth-gap-ok      { margin: 0; color: var(--success-green); font-weight: 600; }
 .auth-gap-unknown { margin: 0; color: var(--text-mid); }

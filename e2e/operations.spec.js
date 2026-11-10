@@ -2509,6 +2509,40 @@ test('operations: account gaps reach the card BY NAME and the strip by group', a
     await expect(gaps).toContainText('Tick the leavers box below');
 });
 
+// The leaver line is the one live access problem on the card, and it was the least legible text on it:
+// its red on its own tint was 4.36:1, and the remedy under it was faded on top (`opacity: 0.85`,
+// 3.62:1) — the line telling the admin which button closes the door. Nothing here may be faded
+// (css-tokens.md → "opacity on a group"), and every line and remedy clears 4.5:1 on its own ground.
+test('operations: the account-gap lines and their remedies are readable, and none is faded', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [{ name: 'B. Toth', why: 'no-account' }], leavers: ['B. Khalil'] }),
+    }));
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('authSetupBody')?.classList.add('open'));
+    const gaps = page.locator('#authSetupGaps');
+    await expect(gaps.locator('.auth-gap-line--leaver .auth-gap-fix'), 'premise: the leaver line and its remedy').toBeVisible();
+    const m = await gaps.evaluate(root => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const faded = [...root.querySelectorAll('*')].filter(el => parseFloat(getComputedStyle(el).opacity) < 1).map(el => el.className);
+        const ratios = [...root.querySelectorAll('.auth-gap-line, .auth-gap-fix')].map(el => {
+            const line = /** @type {Element} */ (el.closest('.auth-gap-line'));
+            const [hi, lo] = [lum(rgb(getComputedStyle(el).color)), lum(rgb(getComputedStyle(line).backgroundColor))].sort((x, y) => y - x);
+            return [el.className, Math.round((hi + 0.05) / (lo + 0.05) * 100) / 100];
+        });
+        return { faded, ratios };
+    });
+    expect(m.faded, 'text the admin has to read is faded with opacity').toEqual([]);
+    for (const [cls, ratio] of m.ratios) expect(ratio, `${cls} is under the 4.5:1 text floor`).toBeGreaterThanOrEqual(4.5);
+});
+
 test('operations: an audit that could not run reports NOTHING, rather than a clean bill', async ({ page }) => {
     await seedSession(page);
     // `authUser` is LOAD-BEARING here, not boilerplate. The Firebase stub leaves currentUser null by
