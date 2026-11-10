@@ -524,8 +524,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         } else {
             const cap = turnarounds.slice(0, 4);
             const more = turnarounds.length - cap.length;
-            // The times are pieces of the STORED cell, so escaped like all design text here: the time
-            // readers anchor one end each, so `15:25-<anything>-23:55` reads as a duty.
+            // The times are pieces of the STORED cell, so escaped like all design text here. The readers
+            // take only a whole HH:MM-HH:MM now (links-design.js), so no markup arrives this way today;
+            // the escape is a second wall, and links-design.test.mjs pins the first.
             rows.push(
                 `<div class="check-row check-bad">` +
                 `${cross}<div class="check-body">` +

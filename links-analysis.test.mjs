@@ -1008,18 +1008,23 @@ describe('sentences at the edges', () => {
 
 // ── A STORED CELL IS TEXT, NEVER MARKUP (whole-app review, Nov 2026) ─────────────────────────────
 // The short-turnaround row quotes the two times it measured, cut from the stored cell. The time
-// readers anchor one END of the string each (`^HH:MM-`, `-HH:MM$`), so `15:25-<anything>-23:55` reads
-// as a duty, `normalisePatterns` keeps it, and the rules check `patterns` only as a map. Its middle
-// reached `innerHTML` raw: the one place on this card where a design's own text did.
-test('a stored shift string reaches the turnaround row as text, never as markup', () => {
+// readers once anchored one END of the string each (`^HH:MM-`, `-HH:MM$`), so `15:25-<anything>-23:55`
+// read as a duty, `normalisePatterns` kept it, and the rules check `patterns` only as a map. Its middle
+// reached `innerHTML` raw: the one place on this card where a design's own text did. The readers now
+// take only a whole HH:MM-HH:MM (links-design.js `TIME_PAIR`, pinned in links-design.test.mjs), so such
+// a cell is no duty at all, and the card says it could not read it instead of quoting it. The row's
+// own escape is a second wall that no stored cell can reach today, so this pins the end-to-end
+// property — nothing of the cell as markup, and nothing of it read as a time — not the escape.
+test('a stored cell with markup in it is counted as unreadable, and none of it reaches the card as markup', () => {
     resetDom();
     const patterns = fullPatterns();
     patterns['1'].sat = '15:25-<img src=x onerror=alert(1)>-23:55';
-    patterns['2'].sun = '06:20-14:20';   // 6h 25m after that 23:55 finish
+    patterns['2'].sun = '06:20-14:20';   // 6h 25m after a 23:55 finish, were the cell a duty
     initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
     const html = els.checksContent.innerHTML;
-    assert.match(html, /Short turnarounds/, 'premise: the hostile cell reads as a duty and produces a turnaround');
+    const words = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
     assert.doesNotMatch(html, /<img/i, 'a fragment of a stored cell was written into the page as markup');
-    assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/, 'the fragment is still shown, as text');
+    assert.doesNotMatch(html, /Short turnarounds/, 'a cell that is not a whole time was read as a duty');
+    assert.match(words, /1 worked cell could not be read as a time/, 'the unreadable cell is said, never dropped in silence');
 });
 
