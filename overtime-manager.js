@@ -286,13 +286,14 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                 <span class="ot-copy-status" role="status"></span></div>
             ${(() => {
                 // The reminder audit (v22.05): whether the deadline-morning reminder actually went
-                // out, without reading Cloud Function logs. reminderLine owns the four states,
-                // including the deliberate silence on CLOSED weeks (pre-feature windows must not
-                // wear a permanent false alarm).
+                // out, and what it reached (overtime-core-4), without reading Cloud Function logs.
+                // reminderLine owns the states, including the deliberate silence on CLOSED weeks
+                // (pre-feature windows must not wear a permanent false alarm).
                 // A week OPENED after its initial deadline never had a reminder morning, so the
                 // FINAL_OPEN "none recorded" warning would be a false alarm there.
                 const late = frozenAt(data.participants) >= win.initialDeadlineAt;
-                const r = late ? null : reminderLine(win.phase, win.initialDeadlineAt, win.reminderSentAt);
+                const r = late ? null : reminderLine(win.phase, win.initialDeadlineAt, win.reminderSentAt,
+                    win.reminderOutstanding, win.reminderAccepted);
                 return r ? `<div class="ot-reminder-line ot-reminder-line--${r.tone}">${esc(r.text)}</div>` : '';
             })()}
             ${win.audience === 'restricted'

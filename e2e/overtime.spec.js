@@ -607,7 +607,9 @@ test.describe('manager surface', () => {
         await seedSession(page, 'H. Croft');
         const weeks = sixWeeks();
         const created = weeks.find(w => w.exists);
-        created.reminderSentAt = NOW - 3 * 3600e3;
+        // The stamp and what the send reached, as the overview carries them since overtime-core-4 — a
+        // stamp alone now reads "attempted", because it is claimed before the send.
+        Object.assign(created, { reminderSentAt: NOW - 3 * 3600e3, reminderOutstanding: 1, reminderAccepted: 1 });
         await stubOvertime(page, { weeks });
         await page.goto('/overtime.html');
         await expect(page.locator('#otWeekCard')).toBeVisible();

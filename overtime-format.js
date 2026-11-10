@@ -493,7 +493,10 @@ export function offersFullTwelve(ctx) {
 export function submitFailureCopy(code, dayLabel) {
     if (dayLabel) return `Your answer for ${dayLabel} couldn't be accepted — choose that day again and resubmit.`;
     switch (code) {
-        case 'network':    return 'Couldn\'t reach the server. Check your connection and try again.';
+        // Nothing left the phone: its sign-in could not be refreshed for want of a network
+        // (overtime-core-3). Never "reload" here — on a phone that throws the unsent answers away.
+        // (A cut-off `network` never reaches this function: the form reconciles it as unknown.)
+        case 'offline':    return 'Couldn\'t reach the server, so nothing was sent. Check your connection and try again — your answers are still here.';
         case 'no-session': return 'Your sign-in has expired. Reload the page and sign in again.';
         // Server-side refusals: the request ARRIVED, so connection advice would be a false lead.
         case 'write-failed': return 'The server couldn\'t save just now. Try again in a moment.';
@@ -898,18 +901,32 @@ export function weekAvailabilitySummary({ weekEnding, dates, participants, submi
  * horizon row via getOvertimeManagerOverview; until v22.05 nothing displayed it, so "did the
  * reminder fire?" meant reading Cloud Function logs.
  *
- * Three honest states and one deliberate silence:
- *  - sent            → state it, with when.
- *  - due but not yet → say when it is expected (INITIAL_OPEN only — it fires that deadline's morning).
- *  - overdue, unsent → warn, while the week is still live (FINAL_OPEN) and the fact is actionable.
- *  - CLOSED, unsent  → nothing. The week is history, and every window created before the reminder
- *                      feature existed would otherwise wear a permanent false alarm.
+ * The stamp is CLAIMED before the send (two overlapping runs must not both send), so alone it says
+ * only that a send was ATTEMPTED. What the send reached is recorded after it (overtime-core-4):
+ * `outstanding` is how many had said nothing (leaving out anyone that run had just asked), and
+ * `accepted` how many DEVICES took the push. Null = not recorded (every stamp from before Nov
+ * 2026), which is unknown, never zero.
+ *
+ * Once stamped: none outstanding → not needed; accepted → sent, which reaches only devices with
+ * notifications on; nothing accepted → reached nobody (a warning while the week is live); outcome
+ * not recorded → attempted. Unstamped: due (INITIAL_OPEN) → when to expect it; FINAL_OPEN → warn,
+ * while the fact is actionable; CLOSED → nothing, or every window from before the reminder existed
+ * would wear a permanent false alarm.
  *
  * @param {string} phase @param {number} initialDeadlineAt @param {number|null|undefined} reminderSentAt
+ * @param {number|null} [outstanding] @param {number|null} [accepted]
  * @returns {{ text: string, tone: 'ok'|'note'|'warn' }|null}
  */
-export function reminderLine(phase, initialDeadlineAt, reminderSentAt) {
-    if (reminderSentAt) return { text: `Reminder to non-responders sent ${deadlineLabel(reminderSentAt)}.`, tone: 'ok' };
+export function reminderLine(phase, initialDeadlineAt, reminderSentAt, outstanding = null, accepted = null) {
+    if (reminderSentAt) {
+        const when = deadlineLabel(reminderSentAt);
+        if (!Number.isInteger(outstanding) || !Number.isInteger(accepted)) return { text: `Reminder to non-responders attempted ${when}.`, tone: 'note' };
+        if (outstanding === 0) return { text: `No reminder was needed on ${when}.`, tone: 'ok' };
+        if (/** @type {number} */ (accepted) > 0) return { text: `Reminder to non-responders sent ${when}, to those with notifications switched on.`, tone: 'ok' };
+        return phase === 'CLOSED'
+            ? { text: `The reminder on ${when} reached nobody.`, tone: 'note' }
+            : { text: `The reminder on ${when} reached nobody — contact non-responders directly.`, tone: 'warn' };
+    }
     if (phase === 'INITIAL_OPEN') return { text: 'Non-responders are reminded on the morning of the initial deadline.', tone: 'note' };
     if (phase === 'FINAL_OPEN') return { text: 'No non-responder reminder is recorded for this week.', tone: 'warn' };
     return null;

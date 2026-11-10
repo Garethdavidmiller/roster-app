@@ -377,6 +377,19 @@ describe('the reminder audit knows when the week opened', () => {
             participants: at(INITIAL + 3600_000) });
         assert.equal(line(html), false);
     });
+
+    test('what the send REACHED comes off the overview row onto the line (overtime-core-4)', () => {
+        // The words are pinned in overtime-format.test.mjs; this pins the wiring — that the row's two
+        // recorded figures reach `reminderLine` at all. Without them every stamp reads "attempted".
+        const SENT = INITIAL - 7 * 3600_000;
+        const win = (o, a) => ({ phase: 'FINAL_OPEN', initialDeadlineAt: INITIAL, reminderSentAt: SENT,
+            reminderOutstanding: o, reminderAccepted: a });
+        const nobody = render({ win: win(2, 0), participants: at(INITIAL - 86400_000) });
+        assert.match(nobody, /reached nobody/);
+        assert.match(nobody, /ot-reminder-line--warn/);
+        assert.match(render({ win: win(2, 3), participants: at(INITIAL - 86400_000) }), /sent .*notifications switched on/);
+        assert.match(render({ win: win(null, null), participants: at(INITIAL - 86400_000) }), /attempted/);
+    });
 });
 
 describe('the roster beside the answer', () => {

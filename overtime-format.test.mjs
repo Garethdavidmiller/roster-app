@@ -1021,8 +1021,15 @@ describe('what a failed submit says', () => {
         assert.doesNotMatch(copy, /connection/i);
     });
 
-    test('a network failure is the one case that DOES talk about the connection', () => {
-        assert.match(submitFailureCopy('network', null), /connection/i);
+    test('no network before the send is the one case that DOES talk about the connection (overtime-core-3)', () => {
+        // `offline`: the sign-in token could not be refreshed, so nothing left the phone. It was
+        // worded as an expired sign-in, "Reload the page" — and a reload on a phone throws away every
+        // answer not yet submitted, where a second press once the signal is back simply works.
+        const copy = submitFailureCopy('offline', null);
+        assert.match(copy, /connection/i);
+        assert.match(copy, /nothing was sent/i, 'it says what happened to the answers');
+        assert.match(copy, /answers are still here/i, 'and that they are not lost');
+        assert.doesNotMatch(copy, /reload|sign in|offline/i, 'never the advice that loses them, nor the raw code');
     });
 
     test('an unknown server code no longer claims the connection is at fault', () => {
@@ -1282,7 +1289,7 @@ describe('reminderLine', () => {
     const DL = Date.UTC(2026, 8, 1, 11);
     test('sent → stated with when, whatever the phase', () => {
         for (const phase of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
-            const r = reminderLine(phase, DL, DL - 3 * 3600e3);
+            const r = reminderLine(phase, DL, DL - 3 * 3600e3, 1, 1);
             assert.equal(r?.tone, 'ok');
             assert.match(r?.text || '', /sent/);
         }
@@ -1299,6 +1306,45 @@ describe('reminderLine', () => {
     test('unsent on a CLOSED week → silence — pre-feature history must not wear a false alarm', () => {
         assert.equal(reminderLine('CLOSED', DL, null), null);
         assert.equal(reminderLine('CLOSED', DL, undefined), null);
+    });
+
+    // ── WHAT THE REMINDER REACHED (overtime-core-4) ─────────────────────────────────────────────
+    // The stamp is CLAIMED before the send, so on its own it says a send was attempted. The server
+    // now records, after the send, how many had said nothing and how many devices took it — and the
+    // line said "sent", in the ok tone, on mornings that reached nobody.
+    const AT = DL - 7 * 3600e3;   // the 05:00 run
+    test('a send that reached nobody says so, while there is still time to ring round', () => {
+        const r = reminderLine('INITIAL_OPEN', DL, AT, 2, 0);
+        assert.match(r?.text || '', /reached nobody/);
+        assert.match(r?.text || '', /contact/i, 'and says what to do instead');
+        assert.doesNotMatch(r?.text || '', /\bsent\b/, 'a reminder nobody received was not "sent"');
+        assert.equal(r?.tone, 'warn');
+        // On a closed week it is the record, not a call to action.
+        const closed = reminderLine('CLOSED', DL, AT, 2, 0);
+        assert.match(closed?.text || '', /reached nobody/);
+        assert.doesNotMatch(closed?.text || '', /contact/i);
+        assert.equal(closed?.tone, 'note');
+    });
+    test('a morning with nobody to remind says no reminder was needed', () => {
+        const r = reminderLine('FINAL_OPEN', DL, AT, 0, 0);
+        assert.match(r?.text || '', /No reminder was needed/);
+        assert.doesNotMatch(r?.text || '', /reached nobody/, 'nobody waiting is not a failed send');
+        assert.equal(r?.tone, 'ok');
+    });
+    test('a send that reached a device is "sent" — only to people who have notifications on', () => {
+        const r = reminderLine('FINAL_OPEN', DL, AT, 3, 2);
+        assert.match(r?.text || '', /sent/);
+        assert.match(r?.text || '', /notifications/, 'a member with no subscribed device was not reached');
+        assert.equal(r?.tone, 'ok');
+    });
+    test('a stamp with no recorded outcome claims only the attempt — never "sent", never "nobody"', () => {
+        // Every stamp written before the outcome was recorded, and the seconds between the claim and
+        // the send. Unknown is not zero.
+        for (const [o, a] of [[null, null], [undefined, undefined], [2, null], [null, 0]]) {
+            const r = reminderLine('FINAL_OPEN', DL, AT, o, a);
+            assert.match(r?.text || '', /attempted/, `${o}/${a}`);
+            assert.equal(r?.tone, 'note', `${o}/${a}`);
+        }
     });
 });
 
