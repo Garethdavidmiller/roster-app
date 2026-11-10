@@ -450,6 +450,39 @@ test('fip: a fact the page states twice is stated the same way both times', () =
         'the adjoining-carrier box must say the Irish Sea has no coupons, or it reads as though one is used there');
 });
 
+// The same failure across two cards (whole-app review, 10 Nov 2026): Lithuania said FIP is not valid on
+// the international services on the Vilnius–Tallinn line, while Latvia said FIP IS valid on LTG Link's
+// Vilnius–Riga–Valga train — that line's first leg. Rail Staff Travel's Lithuania page both lists
+// Vilnius–Riga as a reservation route and excludes the Tallinn line, so the source does not settle it:
+// neither card may, and both must send the reader to Rail Staff Travel.
+test('fip: the Lithuania and Latvia cards give one answer on the Vilnius–Riga train', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    for (const id of ['country-lt', 'country-lv']) {
+        const card = html.match(new RegExp(`<details id="${id}"[\\s\\S]*?</details>`));
+        assert.ok(card, `#${id} is missing`);
+        const sentences = card[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/);
+        const riga = sentences.filter(s => /Riga|Valga/.test(s));
+        assert.ok(riga.length, `#${id} no longer speaks about the train to Riga — re-check this test`);
+        assert.ok(riga.some(s => /ask Rail Staff Travel/i.test(s)), `#${id} must send the reader to Rail Staff Travel on Vilnius–Riga`);
+        for (const s of riga) assert.doesNotMatch(s, /\bFIP (?:is )?valid\b/i, `#${id} settles the Vilnius–Riga question: "${s}"`);
+    }
+});
+
+// guides-9 (whole-app review, 10 Nov 2026). The Heart of England and Thames cards said a 7-day ticket was
+// "self-validated" and had its box dated. The Rover ticket pages give that rule to the FLEXI Rover —
+// any few days within a longer period — and a ticket for consecutive days runs from the start date
+// printed on it. Staff who learned the card's version would refuse a valid 7-day Rover for an empty box.
+test('rangers: a box to date belongs to the Flexi Rover, never to a ticket for consecutive days', () => {
+    const html = readFileSync(new URL('./rangers-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    const rows = [...html.matchAll(/<div class="rr-row">[\s\S]*?<\/div>/g)].map(m => m[0]);
+    assert.ok(rows.length > 20, `found ${rows.length} card rows — re-anchor this test`);
+    const dating = rows.filter(r => /self-validat|dates? (?:a |the |each )?box/i.test(r));
+    assert.ok(dating.length, 'no card row mentions dating a box — the Heart of England row states its Flexi version');
+    for (const r of dating) {
+        assert.match(r, /Flexi/, `a card row says a box is dated without naming the Flexi Rover:\n  ${r.replace(/\s+/g, ' ')}`);
+    }
+});
+
 // Non-failing diagnostic: surface rows whose manual review is due. Deliberately NOT an assertion —
 // a today-driven failure would break unrelated commits (the same reason the whole file is a
 // structural guard, not a date tripwire). It just prints a reminder so the manual cadence in
