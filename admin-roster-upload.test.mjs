@@ -433,8 +433,9 @@ describe('computeCellStates — review state machine', () => {
     });
 
     // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record the winner outranks still
-    // outranks an import, so "Use new roster" replacing only the winner left it to resurface.
-    test('a CONFLICT carries the older manual copies of its day, and never the import or the winner', () => {
+    // outranks an import, so "Use new roster" replacing only the winner left it to resurface. An
+    // import under it is taken too since Nov 2026 (below) — this test used to pin it as left alone.
+    test('a CONFLICT carries every other record of its day — the older manual copy and the import — never the winner', () => {
         const c = run(differ, [
             { memberName: mname, date: WD, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'newer', createdAt: new Date(2000) },
             { memberName: mname, date: WD, value: '22:00-06:00', type: 'shift', source: 'manual', id: 'older', createdAt: new Date(1000) },
@@ -442,7 +443,25 @@ describe('computeCellStates — review state machine', () => {
         ]);
         assert.equal(c.state, 'CONFLICT');
         assert.equal(c.manualId, 'newer');
-        assert.deepEqual(c.manualDupIds, ['older']);
+        assert.deepEqual(c.otherRecordIds, ['older', 'imp']);
+    });
+
+    // Whole-app fix, Nov 2026: two IMPORT copies of one day — two devices importing the same week, or a
+    // save pressed twice while the first was sending — and a replace or "Clear old" took only the
+    // newer, so the older one came back on the Calendar until the roster was uploaded again.
+    test('two import copies of a day: a replace, and a "Clear old", take BOTH', () => {
+        const held = base === '10:00-18:00' ? '09:00-17:00' : '10:00-18:00';   // never the base itself
+        const copies = [
+            { memberName: mname, date: WD, value: held, type: 'shift', source: 'roster_import', id: 'copyA', createdAt: new Date(1000) },
+            { memberName: mname, date: WD, value: held, type: 'shift', source: 'roster_import', id: 'copyB', createdAt: new Date(2000) },
+        ];
+        const gone = (/** @type {string} */ parsed) => {
+            const states = computeCellStates({ parsed: [{ memberName: mname, shifts: { [WD]: parsed } }], dates: [WD] }, copies);
+            return collectRosterWrites(states).flatMap(w => [w.replaceId, ...w.alsoDelete]).sort();
+        };
+        assert.deepEqual(gone(base), ['copyA', 'copyB'], 'back to the base roster: both cleared');
+        const other = base === '11:00-19:00' ? '12:00-20:00' : '11:00-19:00';
+        assert.deepEqual(gone(other), ['copyA', 'copyB'], 'a new value: both replaced');
     });
 
     test('stale roster_import, PDF now matches base → REMOVE_IMPORT (delete, write nothing)', () => {
@@ -846,7 +865,7 @@ describe('collectRosterWrites — what one Save writes', () => {
     const D = '2026-06-16';
     /** One cell, keyed X|D, carrying the fields every state has. */
     const one = (/** @type {any} */ s) => collectRosterWrites(new Map([[`X|${D}`,
-        { baseShift: '06:00-14:00', manualId: null, manualDupIds: [], ...s }]]));
+        { baseShift: '06:00-14:00', manualId: null, otherRecordIds: [], ...s }]]));
 
     test('a ticked DIFF writes the value the row DISPLAYED, never the parsed one', () => {
         const ws = one({ state: 'DIFF', chosen: true, parsedShift: 'SICK', displayShift: 'RD' });
@@ -917,7 +936,7 @@ describe('collectRosterWrites — what one Save writes', () => {
     });
 
     test('every write takes the day\'s other manual records with it — as a list, never undefined', () => {
-        const ws = one({ state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm2', manualDupIds: ['m1', 'm0'] });
+        const ws = one({ state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm2', otherRecordIds: ['m1', 'm0'] });
         assert.deepEqual(ws[0].alsoDelete, ['m1', 'm0']);
         assert.deepEqual(one({ state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' })[0].alsoDelete, []);
         const bare = collectRosterWrites(new Map([[`X|${D}`, { state: 'DIFF', chosen: true, parsedShift: '07:00-15:00', baseShift: 'RD' }]]));
@@ -960,7 +979,7 @@ describe('collectRosterWrites — what one Save writes', () => {
 describe('reviewOutcome — what the summary and the Save button say', () => {
     const D = '2026-06-16';
     const states = (/** @type {any[]} */ list) => new Map(list.map((s, i) => [`P${i}|${D}`,
-        { baseShift: '06:00-14:00', manualId: null, manualDupIds: [], ...s }]));
+        { baseShift: '06:00-14:00', manualId: null, otherRecordIds: [], ...s }]));
 
     test('every write the collector returns is counted, a delete as a clear — and nothing else is', async () => {
         const { reviewOutcome } = await import('./roster-review-states.js');
@@ -2107,7 +2126,7 @@ describe('leave or an absence ENTERED on a base rest day asks the swap question 
         // still drives the browser path to the payload.
         const { commitEntry, entryClick } = await import('./roster-entry-control.js');
         const { name, date } = restDayFixture();
-        const s = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x', baseShift: 'RD', date, manualId: null, manualDupIds: [],
+        const s = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x', baseShift: 'RD', date, manualId: null, otherRecordIds: [],
                     chosen: null, entered: null, draft: { type: 'annual_leave', from: '', to: '', open: true } };
         commitEntry(s);
         assert.deepEqual(collectRosterWrites(new Map([[`${name}|${date}`, s]])), [], 'unanswered: nothing is written');

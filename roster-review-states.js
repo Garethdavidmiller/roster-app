@@ -110,13 +110,14 @@ export function computeCellStates(parsedResult, existingOverrides) {
             overrideMap.set(key, o);
         }
     }
-    // Every OTHER manual record of a day (whole-app review, Oct 2026). A pre-v24.48 duplicate the
-    // winner outranks still outranks an import, so a write that replaced only the winner left it to
-    // resurface over the new roster: "Use new roster" did not take. The save deletes these too.
+    // Every OTHER record of a day, beside the one the review shows (whole-app review, Oct 2026). A
+    // pre-v24.48 duplicate the winner outranks still outranks an import, so a write that replaced only
+    // the winner left it to resurface over the new roster: "Use new roster" did not take. And an older
+    // IMPORT copy — two devices importing one week, or a save pressed twice — resurfaced the same way
+    // the day the newer one was replaced or cleared (whole-app fix, Nov 2026). The save deletes them all.
     /** @param {string} key @returns {string[]} */
-    const otherManualIds = (key) => existingOverrides
-        .filter(o => `${o.memberName}|${o.date}` === key && (o.source || '') !== 'roster_import'
-            && o.id !== overrideMap.get(key)?.id)
+    const otherRecordIds = (key) => existingOverrides
+        .filter(o => `${o.memberName}|${o.date}` === key && o.id !== overrideMap.get(key)?.id)
         .map(o => o.id);
 
     // The alignment verdict is taken ONCE, here, because `chosen` is decided here — it used to be
@@ -198,7 +199,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
-                    manualDupIds: otherManualIds(key),
+                    otherRecordIds: otherRecordIds(key),
                     manualType:  existing?.type  ?? null,
                     manualReplacedType: existing?.replacedType ?? null,
                     manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState (v25.18)
@@ -356,7 +357,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 manualReplacedType: existing?.replacedType ?? null,
                 manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState (v25.18)
                 manualId:    existing?.id    ?? null,
-                manualDupIds: otherManualIds(key),
+                otherRecordIds: otherRecordIds(key),
                 // FAIL CLOSED ON A SUSPECT ROW (v22.16): a member whose week looks a day out — or
                 // anyone at all once the breaker has tripped — starts UNTICKED, so the default
                 // action on a misread week stops being "save it". So does a Christmas day (above).
@@ -503,8 +504,9 @@ export function guardedWrites(s, memberName, date) {
  * today's UI this line is unreachable, and deleting it leaves the browser suite green; it is the one
  * that survives a future renderer, a "select all", or a Skip-all path that bypasses the tick.
  *
- * Every write also takes the day's OTHER manual records with it (`alsoDelete`, from
- * `manualDupIds`) — a pre-v24.48 duplicate outranks an import, so leaving one hides the write.
+ * Every write also takes the day's OTHER records with it (`alsoDelete`, from `otherRecordIds`) — a
+ * pre-v24.48 manual duplicate outranks an import, so leaving one hides the write, and an older import
+ * copy comes back the day the newer one is replaced or cleared.
  * @param {Map<string, any>} cellStates `computeCellStates` output, keyed "memberName|date"
  * @returns {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, alsoDelete: string[], deleteOnly?: boolean, swapped?: boolean, replacedFrom?: any}>}
  */
@@ -531,7 +533,7 @@ export function collectRosterWrites(cellStates) {
             toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
         }
     }
-    for (const w of toWrite) w.alsoDelete = cellStates.get(`${w.memberName}|${w.date}`)?.manualDupIds ?? [];
+    for (const w of toWrite) w.alsoDelete = cellStates.get(`${w.memberName}|${w.date}`)?.otherRecordIds ?? [];
     return toWrite;
 }
 

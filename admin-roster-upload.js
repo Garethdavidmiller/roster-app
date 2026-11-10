@@ -486,7 +486,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const applied = toWrite.length - refused;
 
             await loadOverrides();   // re-read: the new doc ids are not known here
-            // The older manual copies a written row took with it are SAID, never silent (48-hour review) —
+            // The older copies a written row took with it are SAID, never silent (48-hour review) —
             // as Admin's delete names them. A refused row removed none.
             const dups = toWrite.reduce((n, w) => n + (w.deleteOnly || !(typeof w.value === 'string' && isZeroLengthRange(w.value)) ? (w.alsoDelete?.length ?? 0) : 0), 0);
             applyFeedback.textContent = `Done — ${applied} change${applied !== 1 ? 's' : ''} applied to the roster.`
