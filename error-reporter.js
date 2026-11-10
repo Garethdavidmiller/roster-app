@@ -10,11 +10,11 @@
  * Call initErrorReporter() once per page after the Firebase Auth session is
  * established — the Firestore write requires a member, the admin or the PIN viewer (v24.56).
  *
- * ── THE THREE CANONICAL CALL SITES (v13.78) ─────────────────────────────────────────────────
+ * ── THE FOUR CANONICAL CALL SITES (v13.78; the fourth since v24.84) ──────────────────────────
  *
  * NEVER call this bare. Without an auth context every write is silently rejected by the rules, so
  * the error log looks HEALTHY because it is broken — which is the one failure mode a reporter must
- * not have. There are three shapes, and they differ because the pages establish identity
+ * not have. There are four shapes, and they differ because the pages establish identity
  * differently:
  *
  *   1. `calendar-app.js` — the page that may have no named user at all. It waits on
@@ -29,14 +29,15 @@
  *      decision runs `reconcileExpiredIdentity()` first, so a valid named identity is PRESERVED
  *      rather than raced or replaced.
  *   2. **Authenticated pages that expose `sessionReady`** — `admin-app.js`, `settings-app.js`,
- *      `operations-app.js`, `links-app.js`, `overtime-app.js`, `trains-app.js`, `newlink-app.js`:
- *      `sessionReady.then(() => initErrorReporter())`. Trains has a second, no-member branch since
- *      v24.84 — the station PIN — which calls it directly: `holdsStaffPin` has already read the
- *      viewer as the current user, so there is no session to wait for.
+ *      `operations-app.js`, `links-app.js`, `overtime-app.js`, `trains-app.js` (a member),
+ *      `newlink-app.js`: `sessionReady.then(() => initErrorReporter())`.
  *   3. `paycalc-app.js`, which has no `sessionReady`:
  *      `ensureNamedSession(name).catch(() => {}).finally(afterAuth)`, where `afterAuth` runs this
  *      alongside `recordUsage`/`recordPageLatency`. The no-member `else` branch calls `afterAuth()`
  *      directly.
+ *   4. **Trains' station-PIN branch** (v24.84), the one with no member: it calls this directly,
+ *      because `holdsStaffPin` has already read the viewer as the current user — there is no
+ *      session to wait for.
  *
  * `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
  */
@@ -86,9 +87,15 @@ function _report(err, src = '') {
         // Guard the parse: a corrupted AUTH_KEY blob would throw here, and the reporter's
         // outer catch would then swallow EVERY error for the session — the broken-session
         // case (most likely to be generating errors) is exactly when this must still write.
+        // And a blob that PARSES but names no string ({"name":5}) is broken too: the rule takes
+        // a string of at most 100 and refuses the whole record otherwise, so it reports as
+        // 'unknown'. Every field is capped here at the rule's size (firestore.rules → clientErrors).
         let memberName = 'unknown';
-        try { memberName = JSON.parse(lsGet(AUTH_KEY) ?? 'null')?.name ?? 'unknown'; } catch { /* corrupt blob → 'unknown', still report */ }
-        const page       = location.pathname.replace(/^.*\//, '') || 'index.html';
+        try {
+            const name = JSON.parse(lsGet(AUTH_KEY) ?? 'null')?.name;
+            if (typeof name === 'string' && name) memberName = name.slice(0, 100);
+        } catch { /* corrupt blob → 'unknown', still report */ }
+        const page       = (location.pathname.replace(/^.*\//, '') || 'index.html').slice(0, 100);
 
         // Fire-and-forget — no await; logClientError swallows its own write errors.
         logClientError({ memberName, page, message: message.slice(0, 300), stack, appVersion: APP_VERSION, userAgent: navigator.userAgent.slice(0, 150) });

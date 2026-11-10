@@ -92,8 +92,10 @@ export function shouldReport(message, src, hostname) {
     // Browser extensions inject scripts under their own URL scheme. Matched EXPLICITLY rather than
     // by "not http", because an unhandledrejection passes `location.pathname` (e.g. "/index.html"),
     // which is also not http — a blanket non-http rule would silently swallow every rejection the
-    // app makes, which is most of what this log is for.
-    if (/^(?:chrome|moz|safari|ms-browser)-extension:\/\//.test(src)) return false;
+    // app makes, which is most of what this log is for. Safari names a web extension's script
+    // `safari-web-extension://…`, and since Safari 16 often hides it as `webkit-masked-url://hidden/`
+    // (WebKit bug 246010 — masked so a page cannot tell which extensions are installed).
+    if (/^(?:(?:chrome|moz|safari|safari-web|ms-browser)-extension|webkit-masked-url):\/\//.test(src)) return false;
 
     // Errors whose source URL is a different origin usually belong to extensions or injected
     // scripts — out of scope. But the app's own dependencies load from CDNs, and a crash inside
