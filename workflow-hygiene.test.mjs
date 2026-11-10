@@ -625,6 +625,235 @@ describe('deploy workflows only run from main', () => {
     }
 });
 
+/**
+ * The script of the step called `name`: its `run: |` block scalar, dedented. Refuses to reach past
+ * the step into the next one, so a step that lost its script fails here rather than lending another's.
+ * @param {string} src a workflow's source
+ * @param {string} name the step's `name:`
+ */
+function stepScript(src, name) {
+    const lines = src.split('\n');
+    const at = lines.findIndex(l => l.trim() === `- name: ${name}`);
+    assert.ok(at >= 0, `no step is named "${name}"`);
+    const runAt = lines.findIndex((l, i) => i > at && /^\s*run: \|\s*$/.test(l));
+    assert.ok(runAt > at && !lines.slice(at + 1, runAt).some(l => /^\s*- (name|uses):/.test(l)),
+        `the "${name}" step has no \`run: |\` script of its own`);
+    const indent = lines[runAt + 1].match(/^\s*/)[0].length;
+    const body = [];
+    for (let i = runAt + 1; i < lines.length; i++) {
+        if (lines[i].trim() && lines[i].match(/^\s*/)[0].length < indent) break;
+        body.push(lines[i].slice(indent));
+    }
+    return body.join('\n');
+}
+
+/**
+ * A stand-in for `gh api`, written into `bin`. It answers from the JSON fixture named by $GH_STUB —
+ * workflow runs filtered by the query's branch, event, status and per_page the way the API filters
+ * them, the Pages build type, and how main compares with a commit — applies `--jq` with the real jq,
+ * and appends every path it is asked for to $GH_LOG. Anything else is an error, so a script that
+ * starts asking a new question fails its test instead of being answered by accident.
+ * @param {string} bin
+ */
+function writeGhStub(bin) {
+    writeFileSync(join(bin, 'gh'), `#!/usr/bin/env node
+const { readFileSync, appendFileSync } = require('node:fs');
+const { execFileSync } = require('node:child_process');
+const args = process.argv.slice(2);
+if (args[0] !== 'api') { console.error('stub gh: only "gh api" is stubbed'); process.exit(2); }
+const path = args[1];
+appendFileSync(process.env.GH_LOG, path + '\\n');
+const jq = args.includes('--jq') ? args[args.indexOf('--jq') + 1] : '.';
+const fx = JSON.parse(readFileSync(process.env.GH_STUB, 'utf8'));
+const [p, query = ''] = path.split('?');
+const q = new URLSearchParams(query);
+let body, m;
+if (/^repos\\/[^/]+\\/[^/]+\\/actions\\/workflows\\/[^/]+\\/runs$/.test(p)) {
+    let runs = fx.runs;
+    if (q.has('branch')) runs = runs.filter(r => r.head_branch === q.get('branch'));
+    if (q.has('event')) runs = runs.filter(r => r.event === q.get('event'));
+    if (q.has('status')) runs = runs.filter(r => r.conclusion === q.get('status') || r.status === q.get('status'));
+    if (q.has('per_page')) runs = runs.slice(0, Number(q.get('per_page')));
+    body = { workflow_runs: runs };
+} else if (/^repos\\/[^/]+\\/[^/]+\\/pages$/.test(p)) {
+    body = { build_type: fx.build_type };
+} else if ((m = /^repos\\/[^/]+\\/[^/]+\\/compare\\/(.+)\\.\\.\\.main$/.exec(p)) && m[1] in fx.on_main) {
+    body = { status: fx.on_main[m[1]] };
+} else {
+    console.error('gh: HTTP 404: Not Found (' + path + ')');
+    process.exit(1);
+}
+process.stdout.write(execFileSync('jq', ['-r', jq], { input: JSON.stringify(body) }));
+`, { mode: 0o755 });
+}
+
+// ── THE MIRROR PUBLISHES ONLY A RELEASE THIS REPOSITORY MADE (whole-app review, 10 Nov 2026) ────
+//
+// deploy-mirror.yml used to recognise "a commit Hosting released" by three things a stranger can
+// supply: the triggering workflow's NAME, its branch name and its conclusion. A fork's pull request
+// that renames a one-step workflow "Deploy Firebase Hosting" and calls its branch `main` ends
+// `success`, on `main`, at the fork's commit — and once Pages deploys from the workflow, the mirror
+// most staff open would publish it (a manual run picked it too, being the newest "success on main").
+// Nothing is run on GitHub here, so the plan step's own script is run, with `gh` stubbed and a run
+// list in which the stranger's run is the newest of all.
+describe('the Pages mirror publishes only a release this repository made', () => {
+    const script = stepScript(readFileSync(join(WF_DIR, 'deploy-mirror.yml'), 'utf8'), 'Decide what to publish');
+    const OURS = 1001, THEIRS = 2002;
+    const A = 'a'.repeat(40), B = 'b'.repeat(40), C = 'c'.repeat(40), F = 'f'.repeat(40);
+    const run = (/** @type {object} */ r) => ({ head_branch: 'main', status: 'completed', conclusion: 'success',
+        head_repository: { id: OURS, full_name: 'owner/roster-app' }, ...r });
+    const stranger = { id: THEIRS, full_name: 'stranger/roster-app' };
+    // Newest first, as the API lists them.
+    const RUNS = [
+        run({ run_number: 46, event: 'pull_request', head_sha: F, head_repository: stranger }),
+        run({ run_number: 45, event: 'workflow_dispatch', head_sha: B }),
+        run({ run_number: 44, event: 'push', head_sha: A }),
+        run({ run_number: 43, event: 'push', head_sha: C, conclusion: 'failure' }),
+    ];
+    // How main compares with each commit. `main` itself compares as identical, as it would on GitHub.
+    const ON_MAIN = { [A]: 'ahead', [B]: 'identical', [C]: 'ahead', [F]: 'behind', main: 'identical' };
+
+    /**
+     * Runs the plan step once.
+     * @param {Record<string, string>} env what GitHub would put in the step's env
+     * @param {{ runs?: object[], build_type?: string }} [fixture]
+     */
+    const plan = (env, fixture = {}) => {
+        const dir = mkdtempSync(join(tmpdir(), 'mirror-plan-'));
+        try {
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            writeGhStub(bin);
+            writeFileSync(join(dir, 'plan.sh'), script);
+            writeFileSync(join(dir, 'fixture.json'), JSON.stringify({ runs: RUNS, build_type: 'workflow', on_main: ON_MAIN, ...fixture }));
+            writeFileSync(join(dir, 'out'), '');
+            writeFileSync(join(dir, 'calls'), '');
+            const vars = { PATH: `${bin}:${process.env.PATH}`, GH_STUB: join(dir, 'fixture.json'), GH_LOG: join(dir, 'calls'),
+                GITHUB_OUTPUT: join(dir, 'out'), GITHUB_REPOSITORY: 'owner/roster-app', GH_TOKEN: 'stub', REPO_ID: String(OURS),
+                EVENT: 'workflow_run', ATTEMPT: '1', RUN_CONCLUSION: '', RUN_BRANCH: '', RUN_SHA: '', RUN_EVENT: '',
+                RUN_REPO_ID: '', RUN_REPO: '', ...env };
+            let status = 0, out = '';
+            try {
+                out = execFileSync('bash', ['--noprofile', '--norc', '-e', 'plan.sh'], { cwd: dir, env: vars, encoding: 'utf8', stdio: 'pipe' });
+            } catch (/** @type {any} */ e) {
+                status = e.status;
+                out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+            }
+            const outputs = Object.fromEntries(readFileSync(join(dir, 'out'), 'utf8').split('\n').filter(Boolean)
+                .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+            const calls = readFileSync(join(dir, 'calls'), 'utf8').split('\n').filter(Boolean);
+            return { status, out, outputs, calls };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    /** A finished Hosting run, as the workflow_run event describes it. */
+    const finished = (/** @type {Record<string, string>} */ r) => ({ RUN_CONCLUSION: 'success', RUN_BRANCH: 'main',
+        RUN_EVENT: 'push', RUN_REPO_ID: String(OURS), RUN_REPO: 'owner/roster-app', ...r });
+
+    test('a release from a push to main is published, once main is checked to hold it', () => {
+        const r = plan(finished({ RUN_SHA: A }));
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { sha: A, go: 'true' }, r.out);
+        assert.ok(r.calls.some(c => c.startsWith(`repos/owner/roster-app/compare/${A}...main`)),
+            'the plan must ask how main compares with the commit before publishing it');
+    });
+
+    test('so is a release somebody started by hand', () => {
+        const r = plan(finished({ RUN_SHA: B, RUN_EVENT: 'workflow_dispatch' }));
+        assert.deepEqual(r.outputs, { sha: B, go: 'true' }, r.out);
+    });
+
+    test('a fork\'s pull request named like the deploy, on a branch called main, publishes nothing and asks nothing', () => {
+        // The attack itself. It must stand down before any question is asked, so that a stranger's
+        // run can neither publish nor make the plan FAIL — a failure posts on the owner's deploy-failure
+        // thread, and the stranger could repeat it with every push to the pull request.
+        const r = plan(finished({ RUN_SHA: F, RUN_EVENT: 'pull_request', RUN_REPO_ID: String(THEIRS), RUN_REPO: 'stranger/roster-app' }));
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { go: 'false' }, `the stranger's commit was accepted:\n${r.out}`);
+        assert.match(r.out, /::warning::.*pull_request event in stranger\/roster-app/, 'the stand-down must say whose run it was');
+        assert.deepEqual(r.calls, [], 'nothing may be asked about a run nobody here started');
+    });
+
+    test('the event alone is enough to refuse: a pull-request run is never a release, whatever its repository', () => {
+        const r = plan(finished({ RUN_SHA: A, RUN_EVENT: 'pull_request' }));
+        assert.deepEqual(r.outputs, { go: 'false' }, r.out);
+    });
+
+    test('and so is the repository: a push event whose head is another repository is refused', () => {
+        // GitHub does not produce this today; the check must still hold on its own, so that neither
+        // half of the provenance test leans on the other.
+        const r = plan(finished({ RUN_SHA: A, RUN_REPO_ID: String(THEIRS), RUN_REPO: 'stranger/roster-app' }));
+        assert.deepEqual(r.outputs, { go: 'false' }, r.out);
+    });
+
+    test('a run that failed, or released another branch, still publishes nothing', () => {
+        assert.deepEqual(plan(finished({ RUN_SHA: C, RUN_CONCLUSION: 'failure' })).outputs, { go: 'false' });
+        assert.deepEqual(plan(finished({ RUN_SHA: A, RUN_BRANCH: 'claude/feature' })).outputs, { go: 'false' });
+    });
+
+    test('a commit main does not hold is refused, loudly, even from this repository', () => {
+        const r = plan(finished({ RUN_SHA: F }));
+        assert.equal(r.status, 1, `a commit main does not contain was published:\n${r.out}`);
+        assert.match(r.out, /::error::Commit f{40} is not on this repository's main \(main is 'behind' from it\)/);
+        assert.equal(r.outputs.go, undefined, r.out);
+    });
+
+    test('anything but a full commit SHA is refused, even one main "holds"', () => {
+        // The checkout takes `ref:` as given, so `main` would publish main's tip — the tree the gate
+        // may have refused, which is the one thing this workflow exists to stop.
+        const r = plan(finished({ RUN_SHA: 'main' }));
+        assert.equal(r.status, 1, r.out);
+        assert.equal(r.outputs.go, undefined, r.out);
+    });
+
+    test('a manual run publishes the newest release this repository made, never the stranger\'s newer run', () => {
+        // The newest successful run "on main" is the stranger's (46), and the old query asked for
+        // exactly that. Push (44) and hand (45) are asked for separately; the later of the two wins.
+        const r = plan({ EVENT: 'workflow_dispatch' });
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { sha: B, go: 'true' }, `the manual run published the wrong commit:\n${r.out}`);
+        for (const ev of ['push', 'workflow_dispatch']) {
+            assert.ok(r.calls.some(c => /\/actions\/workflows\/deploy-hosting\.yml\/runs\?/.test(c) && c.includes(`event=${ev}`)),
+                `the manual run must ask for ${ev} runs by event, or pull-request runs can fill the page`);
+        }
+    });
+
+    test('a manual run takes a push release when that is the newer one', () => {
+        const r = plan({ EVENT: 'workflow_dispatch' }, { runs: [run({ run_number: 47, event: 'push', head_sha: C }), ...RUNS] });
+        assert.deepEqual(r.outputs, { sha: C, go: 'true' }, r.out);
+    });
+
+    test('a manual run refuses a newest release from another repository, whatever its event says', () => {
+        // GitHub does not produce this today. If it ever did, quietly taking the older release
+        // beneath it would leave the mirror behind Hosting, so the run stops and says so.
+        const r = plan({ EVENT: 'workflow_dispatch' },
+            { runs: [run({ run_number: 48, event: 'workflow_dispatch', head_sha: F, head_repository: stranger }), ...RUNS] });
+        assert.equal(r.status, 1, `a run from another repository was taken:\n${r.out}`);
+        assert.match(r.out, /did not come from this repository/);
+        assert.equal(r.outputs.go, undefined, r.out);
+    });
+
+    test('a manual run with no release to publish fails rather than publishing something', () => {
+        const r = plan({ EVENT: 'workflow_dispatch' }, { runs: [RUNS[0], RUNS[3]] });
+        assert.equal(r.status, 1, r.out);
+        assert.match(r.out, /There is no successful Hosting release on main to publish/);
+    });
+
+    test('a re-run publishes the newest release, not the older one it was first given', () => {
+        // Re-running replays the event: this run was first given A, and B has been released since.
+        const r = plan({ ...finished({ RUN_SHA: A }), ATTEMPT: '2' });
+        assert.deepEqual(r.outputs, { sha: B, go: 'true' }, `a re-run put the mirror back on an older release:\n${r.out}`);
+    });
+
+    test('while Pages still builds from the branch, nothing is published and main is not asked', () => {
+        const r = plan(finished({ RUN_SHA: A }), { build_type: 'legacy' });
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.outputs, { go: 'false' }, r.out);
+        assert.ok(!r.calls.some(c => c.includes('/compare/')), 'the inert workflow must not gain a new way to fail');
+    });
+});
+
 // ── THE VISUAL LANE IS REPORT-ONLY, AND THEREFORE HAS TO SPEAK (2 Sep 2026) ────────────────────
 //
 // Two halves of one decision, and each is worthless without the other.
@@ -1201,8 +1430,10 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 '  *contents/roster-data.js*) ver "$(pick "$START_V" "$MAIN_AT" "$MAIN_V" "${MAIN2_AT:-}" "${MAIN2_V:-}")" ;;',
                 '  https://myb-roster.web.app/roster-data.js) ver "$(pick "$WEB_V0" "$WEB_AT" "$WEB_V1")" ;;',
                 '  https://garethdavidmiller.github.io/roster-app/roster-data.js) ver "$(pick "$PAGES_V0" "$PAGES_AT" "$PAGES_V1")" ;;',
-                '  */actions/workflows/*/runs*) printf \'{"workflow_runs":[{"status":"%s","html_url":"https://example.invalid/run/1"}]}\\n\' "$RUN_STATUS" ;;',
-                '  */pages) echo \'{"build_type":"legacy"}\' ;;',
+                // One run of whichever workflow is asked about: by default a push here, and
+                // RUN_EVENT / RUN_REPO_ID make it somebody else's (10 Nov 2026 review).
+                '  */actions/workflows/*/runs*) printf \'{"workflow_runs":[{"status":"%s","event":"%s","head_repository":{"id":%s},"html_url":"https://example.invalid/run/1"}]}\\n\' "$RUN_STATUS" "${RUN_EVENT:-push}" "${RUN_REPO_ID:-1001}" ;;',
+                '  */pages) printf \'{"build_type":"%s"}\\n\' "${BUILD_TYPE:-legacy}" ;;',
                 '  *) exit 22 ;;',
                 'esac',
             ].join('\n') + '\n', { mode: 0o755 });
@@ -1213,7 +1444,7 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 writeFileSync(join(dir, 'roster-data.js'), `export const APP_VERSION = '${c.START_V}';\n`);
                 writeFileSync(join(dir, 'out'), '');
                 const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, SIMCLOCK: join(dir, 'clock'),
-                    GITHUB_OUTPUT: join(dir, 'out'), GITHUB_TOKEN: 'stub', GITHUB_REPOSITORY: 'owner/repo',
+                    GITHUB_OUTPUT: join(dir, 'out'), GITHUB_TOKEN: 'stub', GITHUB_REPOSITORY: 'owner/repo', REPO_ID: '1001',
                     HOSTING_WORKFLOW: 'deploy-hosting.yml', PAGES_WORKFLOW: 'deploy-mirror.yml',
                     ...Object.fromEntries(Object.entries(c).map(([k, v]) => [k, String(v)])) };
                 try {
@@ -1252,6 +1483,34 @@ describe('the currency canary stands down for a deploy in flight', () => {
                 RUN_STATUS: 'in_progress' });
             assert.equal(twice.status, 0, `two merges in one wait were reported:\n${twice.out}`);
             assert.match(twice.out, /Standing down/);
+            // A STRANGER'S RUN IS NOT A DEPLOY IN FLIGHT (10 Nov 2026 review). A fork's pull request
+            // can keep a run named like the deploy going, on a branch it called main; asking by
+            // branch alone stood the alarm down for it while web.app really was stale.
+            const fork = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress', RUN_EVENT: 'pull_request', RUN_REPO_ID: '2002' });
+            assert.equal(fork.status, 1, `a stranger's pull-request run stood the stale-production alarm down:\n${fork.out}`);
+            assert.match(fork.out, /web\.app:v25\.39/);
+            // …nor one from this repository that a pull request started.
+            const ownPr = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress', RUN_EVENT: 'pull_request' });
+            assert.equal(ownPr.status, 1, `a pull-request run counted as a deploy in flight:\n${ownPr.out}`);
+            // …nor one whose head is another repository, whatever event it claims: each half of the
+            // test must hold on its own.
+            const foreign = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.39', WEB_V1: '25.39', WEB_AT: NEVER,
+                PAGES_V0: '25.40', PAGES_V1: '25.40', PAGES_AT: NEVER, RUN_STATUS: 'in_progress', RUN_REPO_ID: '2002' });
+            assert.equal(foreign.status, 1, `another repository's run counted as a deploy in flight:\n${foreign.out}`);
+            // The gated mirror's stand-down asks the same question of the same runs.
+            const forkMirror = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.40', WEB_V1: '25.40', WEB_AT: NEVER,
+                PAGES_V0: '25.39', PAGES_V1: '25.39', PAGES_AT: NEVER, BUILD_TYPE: 'workflow', RUN_STATUS: 'in_progress',
+                RUN_EVENT: 'pull_request', RUN_REPO_ID: '2002' });
+            assert.equal(forkMirror.status, 1, `a stranger's run stood the stale-mirror alarm down:\n${forkMirror.out}`);
+            assert.match(forkMirror.out, /pages:v25\.39/);
+            // And the mirror's OWN deploy — a workflow_run event — still is one: a query narrowed to
+            // pushes would have stopped this stand-down working at all.
+            const mirrorDeploying = run({ START_V: '25.40', MAIN_V: '25.40', MAIN_AT: NEVER, WEB_V0: '25.40', WEB_V1: '25.40', WEB_AT: NEVER,
+                PAGES_V0: '25.39', PAGES_V1: '25.39', PAGES_AT: NEVER, BUILD_TYPE: 'workflow', RUN_STATUS: 'in_progress', RUN_EVENT: 'workflow_run' });
+            assert.equal(mirrorDeploying.status, 0, `the mirror's own deploy in flight was reported:\n${mirrorDeploying.out}`);
+            assert.match(mirrorDeploying.out, /the gated mirror follows Hosting\. Standing down/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

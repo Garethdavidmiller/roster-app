@@ -9,7 +9,8 @@ name: Deploy GitHub Pages mirror
 #
 # This publishes the mirror from the commit a SUCCESSFUL "Deploy Firebase Hosting" run released,
 # and from nothing else. A manual run publishes the last commit Hosting released from main — never
-# main's tip, which may be a tree the gate refused.
+# main's tip, which may be a tree the gate refused — and so does a re-run. "Released" is checked by
+# who started the run, not by what it was called: the plan job below says why.
 #
 # IT IS INERT UNTIL THE OWNER SWITCHES Settings → Pages → Source TO "GitHub Actions". The first job
 # reads that setting and stands down while Pages still builds from the branch: a workflow deploy
@@ -50,38 +51,114 @@ jobs:
       sha: ${{ steps.plan.outputs.sha }}
       go: ${{ steps.plan.outputs.go }}
     steps:
+      # ── WHO STARTED THE HOSTING RUN, NOT WHAT IT WAS CALLED (whole-app review, 10 Nov 2026) ───
+      #
+      # `workflow_run` matches the run it waits for by NAME, and a pull request from a fork runs
+      # the fork's own copy of the workflow files. So anybody can fork this public repository,
+      # give a one-step workflow the name "Deploy Firebase Hosting", call their branch `main` and
+      # open a pull request: GitHub runs it here, it ends `success`, its branch reads `main` and
+      # its commit is THEIRS. A name, a branch and a conclusion say nothing about where a commit
+      # came from. Who started the run does: a release is a push to this repository's main or a
+      # run started here by hand, and nobody outside the repository can start either. So the run
+      # must have one of those two events and this repository as its head, a manual run asks the
+      # API for each event separately (pull-request runs cannot then fill its one-run page), and
+      # nothing is published unless main already contains the commit. Repositories are compared
+      # by id, which no fork can share and a rename does not change.
+      #
+      # A RE-RUN PUBLISHES THE NEWEST RELEASE, as a manual run does: re-running a run replays the
+      # release it was first given, which may have been overtaken since, and publishing that would
+      # put the mirror — the origin most staff open — back on an older version.
+      #
+      # workflow-hygiene.test.mjs runs this script against each case, with `gh` stubbed.
       - name: Decide what to publish
         id: plan
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
+          ATTEMPT: ${{ github.run_attempt }}
+          REPO_ID: ${{ github.repository_id }}
           RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
           RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_REPO_ID: ${{ github.event.workflow_run.head_repository.id }}
+          RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = "workflow_run" ]; then
+          stand_down() { echo "go=false" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          # Sets RELEASE to the commit of Hosting's newest successful run on main from each event, the
+          # later of the two, and RELEASE_FROM to the id of the repository it came from — or both to
+          # nothing. Called directly, never inside $( ), so that a failed read stops the script.
+          newest_release() {
+            local ev line n s from best=0
+            RELEASE=""
+            RELEASE_FROM=""
+            for ev in push workflow_dispatch; do
+              line=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-hosting.yml/runs?branch=main&event=$ev&status=success&per_page=1" \
+                --jq '.workflow_runs[0] // empty | "\(.run_number) \(.head_sha) \(.head_repository.id)"')
+              read -r n s from <<< "$line"
+              if [ -n "$s" ] && [ "$n" -gt "$best" ]; then
+                best="$n"
+                RELEASE="$s"
+                RELEASE_FROM="$from"
+              fi
+            done
+          }
+
+          if [ "$EVENT" = "workflow_run" ] && [ "$ATTEMPT" = "1" ]; then
             if [ "$RUN_CONCLUSION" != "success" ] || [ "$RUN_BRANCH" != "main" ]; then
               echo "The Hosting run did not release main ($RUN_CONCLUSION on $RUN_BRANCH), so there is nothing to publish."
-              echo "go=false" >> "$GITHUB_OUTPUT"
-              exit 0
+              stand_down
+            fi
+            if { [ "$RUN_EVENT" != "push" ] && [ "$RUN_EVENT" != "workflow_dispatch" ]; } || [ "$RUN_REPO_ID" != "$REPO_ID" ]; then
+              echo "::warning::A run named \"Deploy Firebase Hosting\" finished on a branch called main, but it was started by a $RUN_EVENT event in $RUN_REPO. Only a push to this repository's main, or a run started here by hand, is a release, so nothing is published."
+              stand_down
             fi
             sha="$RUN_SHA"
           else
-            sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-hosting.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // empty')
+            newest_release
+            sha="$RELEASE"
             if [ -z "$sha" ]; then
               echo "::error::There is no successful Hosting release on main to publish."
               exit 1
             fi
+            # Push and hand-started runs can only come from here, so this never fires while GitHub
+            # behaves as documented. If it ever does, stop: falling back to an older release would
+            # put the mirror behind Hosting without a word.
+            if [ "$RELEASE_FROM" != "$REPO_ID" ]; then
+              echo "::error::Hosting's newest release on main did not come from this repository, so the mirror will not publish it."
+              exit 1
+            fi
           fi
+
+          # A COMMIT, AND ONLY A COMMIT: the checkout below would take a branch name just as happily.
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::The release to publish is not named by a full commit SHA, so the mirror will not publish it."
+            exit 1
+          fi
+
           # An unreadable answer FAILS (and is reported), rather than standing down: a gate that
           # quietly skipped every release would look exactly like one waiting for the switch.
           build_type=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type')
           if [ "$build_type" != "workflow" ]; then
             echo "::notice::Pages still builds from the branch (build_type=$build_type), so the mirror is not behind the Hosting gate yet. Set Settings → Pages → Source to GitHub Actions."
-            echo "go=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            stand_down
           fi
+
+          # AND A COMMIT THIS REPOSITORY'S main ALREADY HOLDS. GitHub's comparison says where main
+          # stands from the commit: `identical` (the commit is main's tip) or `ahead` (main has moved
+          # on past it). `behind` or `diverged` means main does not contain it — a commit from
+          # somewhere else, or a main that has been rewritten.
+          where=$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...main?per_page=1" --jq '.status')
+          case "$where" in
+            identical|ahead) ;;
+            *)
+              echo "::error::Commit $sha is not on this repository's main (main is '$where' from it), so the mirror will not publish it."
+              exit 1
+              ;;
+          esac
+
           echo "Publishing $sha"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "go=true" >> "$GITHUB_OUTPUT"
