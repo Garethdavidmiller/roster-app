@@ -2291,6 +2291,9 @@ export function init() {
         addDesign: (d) => { designs.push(d); _sortDesigns(); },
         activate: _activateDesign,
         isDirty: () => dirty,
+        // Which SAVED design is open (links-design-10): Keep only the shortlist replaces the working copy
+        // only when that design is one of those moving, so it warns about unsaved work only then.
+        activeId: () => activeDesignId,
         hasOpenDesign: () => !!design,
         renderPicker: renderDesignPicker,
         refreshLists: _refreshLists,
