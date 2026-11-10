@@ -246,6 +246,30 @@ test('fip: the section chip-bar jumps to a section and marks it current', async 
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+// A CHOSEN CHIP'S WORDS EASE WITH ITS FILL (whole-app review, Nov 2026). Choosing a section turns its chip navy with
+// white words, and the chip eased only its fill: for part of the 150ms the words were white on a still-white chip (and
+// navy on a still-navy one going back). The axe scan waits out transitions, so it cannot see this — frozen here a
+// tenth of the way into the change, where the words must still be told from the fill they sit on.
+test('guides: a section chip\'s label stays readable while the chip changes colour', async ({ page }) => {
+    await page.goto('/railcard-guide.html');
+    const ratio = await page.locator('.chip-bar .chip').nth(1).evaluate(el => {
+        document.querySelectorAll('.chip[aria-current]').forEach(c => c.removeAttribute('aria-current'));
+        void getComputedStyle(el).color;          // the resting style, settled
+        el.setAttribute('aria-current', 'true');  // what the page's script does on a tap
+        void getComputedStyle(el).color;          // …which starts the transitions
+        for (const a of el.getAnimations()) { a.pause(); a.currentTime = 15; }
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} c */
+        const rgb = (c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} v */
+        const lum = (v) => { const [r, g, b] = v.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const cs = getComputedStyle(el);
+        const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((a, b) => b - a);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, `15ms into being chosen, the chip's label is ${ratio.toFixed(2)}:1 on its fill`).toBeGreaterThanOrEqual(4.5);
+});
+
 test('fip: scrollspy marks the chip for the section scrolled into view', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // No sleep after each scroll (test audit, 7 Nov 2026 — three 350ms waits): each assertion WAITS
@@ -638,6 +662,73 @@ test('staff guide: each button it describes wears the real button\'s colours', a
     }
 });
 
+// NIGHT IS THE OUTLINED BADGE, IN THE KEY AS IN THE APP (whole-app review, Nov 2026). The app draws 🦉 Night white, with
+// its colour as the words and a 2px edge; the Staff Guide's key drew it filled, so a reader learnt a Night badge the
+// Calendar never shows. Read off the app's own badge — built from its classes on an app page — and off the key's.
+test('staff guide: the badge key draws Night as the app does — white, with an outline in its colour', async ({ page }) => {
+    const look = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(el => {
+        const c = getComputedStyle(el);
+        return { fill: c.backgroundColor, edge: `${c.borderTopStyle} ${c.borderTopWidth}`, wordsWearTheEdge: c.color === c.borderTopColor };
+    });
+    await page.goto('/settings.html');
+    await page.evaluate(() => {
+        const badge = document.createElement('span');
+        badge.className = 'shift-badge badge-night';
+        badge.id = 'appNight';
+        badge.textContent = '🦉 Night';
+        document.body.append(badge);
+    });
+    const app = await look('#appNight');
+    expect(app, 'premise: the app\'s Night badge is white, edged in its own colour').toEqual({ fill: 'rgb(255, 255, 255)', edge: 'solid 2px', wordsWearTheEdge: true });
+    await page.goto('/staff-guide.html');
+    expect(await look('.badge-grid .sb-night'), 'the key\'s Night badge').toEqual(app);
+    // …and it stays the size of the filled badges beside it: its padding gives back the edge.
+    const heights = await page.locator('.badge-grid .sb').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(heights).size, `the key's badges are one height: ${heights}`).toBe(1);
+});
+
+// THE BANNER'S TITLE HAS THE MARGIN ITS OWN RULE GIVES IT (whole-app review, Nov 2026). It is an h2 and the first of its
+// own wrapper, so the section headings' `h2:first-of-type { margin-top: 4px }` — the same weight, written later — beat
+// the banner's `margin: 0` on screen, and the Admin Guide banner stood 4px taller than written (paper zeroed both).
+test('staff guide: the on-screen banner\'s title has no top margin, as on paper', async ({ page }) => {
+    for (const width of [375, 900]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/staff-guide.html');
+        const title = page.locator('.guide-header:visible h2');
+        await expect(title, 'premise: one banner is on screen — the Admin Guide\'s').toHaveCount(1);
+        expect(await title.evaluate(h => getComputedStyle(h).marginTop), `the banner title's top margin at ${width}px`).toBe('0px');
+    }
+});
+
+// A GRID TRACK IS ONLY AS NARROW AS ITS WIDEST CHILD ALLOWS (css-tokens.md), on the document guides (whole-app review,
+// Nov 2026). `.cols` had bare `1fr` tracks, so with the text enlarged one child that will not shrink — the Staff Guide's
+// two-column badge key — widened the column past a phone's edge, and every paragraph, heading and table in it ran off
+// the right. The text is scaled ONCE, every size read before any is written (the shared `scaleText` compounds through
+// inherited sizes), because Android's font scale multiplies sizes and leaves the viewport alone.
+test('staff guide: enlarged text does not widen the column past a phone @layout', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/staff-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => {
+        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (sizes[i]) el.style.fontSize = (sizes[i] * 1.5) + 'px'; });
+    });
+    const m = await page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        const cols = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.cols')]);
+        return {
+            tracks: cols.map(c => ({ track: parseFloat(getComputedStyle(c).gridTemplateColumns), box: c.getBoundingClientRect().width })),
+            past: [...document.querySelectorAll('.cols p, .cols h2, .cols table, .cols .info')]
+                .filter(el => el.getBoundingClientRect().right > vw + 1).length,
+        };
+    });
+    for (const { track, box } of m.tracks) {
+        expect(track, `a column's track is ${track}px in its ${box}px box`).toBeLessThanOrEqual(box + 0.5);
+    }
+    expect(m.past, 'paragraphs, headings, tables and notes running past the screen\'s edge').toBe(0);
+});
+
 // The ← had no hover on four guides, and on the Railcard guide that page's `a:hover` (amber, meant for
 // links in the text) reached it — amber on navy, ~3.3:1 (desktop audit, Nov 2026). One hover now, the
 // shell's, read off the rendered arrow under a real mouse.
@@ -730,6 +821,30 @@ test('guides: the footer back link is one control with one wording on every guid
         seen.push(m.style);
     }
     expect(new Set(seen).size, `one recipe, got: ${seen.join(' | ')}`).toBe(1);
+});
+
+// ONE UNDER A MOUSE TOO (whole-app review, Nov 2026). The recipe above was one at rest and three when
+// hovered, because each page's own `a:hover` reached the link: amber words on Railcard, a gold underline
+// on FIP, nothing at all on Rangers. Read off the rendered link, at rest and under a real mouse.
+test('guides: the footer back link answers a mouse the same way on every guide', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
+    const seen = [];
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        const link = page.locator('main a.guide-back-link');
+        await link.scrollIntoViewIfNeeded();
+        const look = () => link.evaluate(a => {
+            const s = getComputedStyle(a);
+            return `words ${s.color}, underline ${s.textDecorationColor}`;
+        });
+        await page.mouse.move(0, 0);
+        const rest = await look();
+        await link.hover();
+        const hovered = await look();
+        expect(hovered, `${guide}: the link answers a mouse`).not.toBe(rest);
+        seen.push(`${rest} → ${hovered}`);
+    }
+    expect(new Set(seen).size, `one hover, got: ${seen.join(' | ')}`).toBe(1);
 });
 
 // ADDED TO THE HOME SCREEN, A GUIDE IS THE APP (iPhone audit, 7 Nov 2026). Each guide asked iOS to run

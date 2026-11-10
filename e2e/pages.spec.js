@@ -623,6 +623,27 @@ test('header: the burger and the sub-page logo answer a mouse', async ({ page },
         .toBe('matrix(1.12, 0, 0, 1.12, 0, 0)');
 });
 
+// …AND UNDER REDUCED MOTION NOTHING IN THE SHARED CHROME SWINGS OR GROWS (whole-app review, Nov 2026). shared.css says
+// motion is neutralised everywhere, and three still moved: the logo's hover grow, every card's chevron and the drawer's
+// Reference arrow, each turning through 180° on its way to saying open or shut. The arrows still turn — that is the
+// state — they just do not swing there; the grow, being only movement, goes.
+test('header and cards: with reduced motion on, the logo does not grow and the arrows do not swing', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
+    await seedSession(page, 'G. Miller');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/settings.html');
+    const logo = page.locator('#appIcon');
+    await logo.hover();
+    expect(await logo.evaluate(el => getComputedStyle(el).transform), 'the logo under a mouse').toBe('none');
+    await page.locator('#navMenuBtn').click();
+    const moving = await page.evaluate(() => [...document.querySelectorAll('.app-icon, .collapse-chevron, .nav-panel-guides-arrow')]
+        .filter(el => getComputedStyle(el).transitionDuration.split(',').some(d => parseFloat(d) > 0))
+        .map(el => el.id || el.className));
+    expect(moving, 'still easing under reduced motion').toEqual([]);
+    expect(await page.locator('.collapse-chevron').count(), 'premise: the page has card chevrons to check').toBeGreaterThan(0);
+});
+
 // ── KEYBOARD FOCUS ON THE NAVY SURFACES THE SHARED CODE DRAWS (desktop audit, Nov 2026) ──────────
 // A ring is drawn only while a keyboard user is on the element, so no screenshot and no axe rule sees
 // one. These had no focus rule of their own, so each fell to the app-wide fallback — the NAVY ring —
@@ -749,6 +770,128 @@ test('App Notices: a long archive is reached and scrolled from the keyboard, wit
     await expect(page.locator('#navNoticesClose'), 'and Tab goes round to the ✕ — the panel keeps focus').toBeFocused();
     await page.keyboard.press('Shift+Tab');
     await expect(list, 'Shift+Tab comes back to the list').toBeFocused();
+});
+
+// AN EMPTY ARCHIVE IS ITS MESSAGE AND NOTHING ELSE (whole-app review, Nov 2026). nav-panel.js hides the list when
+// there is nothing archived, and `display: flex` beat the `hidden` attribute, so the list stayed: a 0px box that took
+// the column's gap a second time and was still read out as an empty "Notices you've read" group. Playwright's own
+// `toBeHidden()` cannot see this — a box 0px tall already counts as hidden — so the box and the role are asked.
+test('App Notices: an empty archive shows its message, with no empty list left in the panel', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.removeItem('myb_app_notices'));
+    await page.goto('/settings.html');
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await expect(page.locator('#navNoticesEmpty'), 'the empty archive says so').toBeVisible();
+    // Layout offsets, not client rects: the panel is still scaling in from 0.88, and a rect would read the gap short.
+    const m = await page.evaluate(() => {
+        const list = /** @type {HTMLElement} */ (document.getElementById('navNoticesList'));
+        const panel = /** @type {HTMLElement} */ (document.getElementById('navNoticesContent'));
+        const heading = /** @type {HTMLElement} */ (panel.querySelector(':scope > .nav-cs-title'));
+        const message = /** @type {HTMLElement} */ (document.getElementById('navNoticesEmpty'));
+        return { hidden: list.hidden, boxes: list.getClientRects().length, gap: parseFloat(getComputedStyle(panel).rowGap),
+                 under: message.offsetTop - (heading.offsetTop + heading.offsetHeight) };
+    });
+    expect(m.hidden, 'premise: nav-panel.js hides the list of an empty archive').toBe(true);
+    expect(m.boxes, 'the hidden list is still laid out').toBe(0);
+    expect(Math.round(m.under), 'the message sits one gap under the heading, not two').toBe(m.gap);
+    await expect(page.getByRole('group', { name: /Notices you.ve read on this device/ }),
+        'an empty group is still offered to a screen reader').toHaveCount(0);
+});
+
+// …and the other half of the same rule: a list that is NOT hidden is still drawn, so the companion above can only ever
+// take an empty archive's list away.
+test('App Notices: an archive with a notice in it lists it', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([{
+        id: 'e2e-filled', title: 'A notice you have read', section: 'Calendar', date: '2026-11-01',
+        body: 'Its words.', archivedAt: new Date().toISOString(),
+    }])));
+    await page.goto('/settings.html');
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await expect(page.locator('#navNoticesList .notices-item'), 'the read notice is listed').toHaveCount(1);
+    await expect(page.locator('#navNoticesList .notices-item-title')).toHaveText('A notice you have read');
+    await expect(page.locator('#navNoticesList'), 'the list is drawn').toBeVisible();
+    await expect(page.locator('#navNoticesEmpty'), 'no "nothing here" beside a notice').toBeHidden();
+});
+
+// A TIPS TITLE STAYS CLEAR OF ITS ✕ (whole-app review, Nov 2026). The picker sheet's head reserves room for its ✕ and
+// the Tips panel's title did not: "🙋 Password Reset Requests" ran 8px under the glyph at 360px. Every line of the
+// title is measured, because the ✕ sits beside the first and a wrapped second line still reaches its target.
+test('Tips: a long panel title stays clear of the panel\'s ✕ on a small phone', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await seedSession(page, 'G. Miller');   // admin — Operations lets them in
+    await page.goto('/operations.html');
+    await page.locator('.btn-card-tips[data-card="reset-requests"]').click();
+    await expect(page.locator('#tipsLbTitle')).toHaveText(/Password Reset Requests/);
+    const m = await page.evaluate(() => {
+        const range = document.createRange();
+        range.selectNodeContents(/** @type {HTMLElement} */ (document.getElementById('tipsLbTitle')));
+        const lines = [...range.getClientRects()];
+        return { textRight: Math.max(...lines.map(r => r.right)), closeLeft: /** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose')).getBoundingClientRect().left };
+    });
+    expect(m.textRight, `the title's text ends at ${m.textRight}, the ✕'s target starts at ${m.closeLeft}`).toBeLessThanOrEqual(m.closeLeft);
+});
+
+// A HIDDEN TOUCH-ONLY LINE STAYS HIDDEN ON A TOUCH SCREEN (whole-app review, Nov 2026). `.touch-only` shows itself on a
+// coarse pointer with `display: revert`, which rolls back past the `hidden` attribute, so the Calendar's and Trains'
+// swipe hints each needed a rule in their own page to stay hidden. The shared utility honours `hidden` itself now.
+test.describe('touch-only on a touch screen', () => {
+    test.use({ hasTouch: true });
+    test('a touch-only line the code has hidden stays hidden, and one it has not shows', async ({ page }) => {
+        await page.goto('/settings.html');
+        expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'premise: a coarse pointer').toBe(true);
+        const shown = await page.evaluate(() => [true, false].map(hidden => {
+            const line = document.createElement('p');
+            line.className = 'touch-only';
+            line.hidden = hidden;
+            line.textContent = 'Swipe the table sideways';
+            document.body.append(line);
+            return getComputedStyle(line).display;
+        }));
+        expect(shown, 'the hidden line, then the shown one').toEqual(['none', 'block']);
+    });
+});
+
+// A LINK IN PROSE IS THE APP'S LINK (whole-app review, Nov 2026). Nothing styled a link in a Tips panel or in a
+// card's explainer, so Trains' two journey-planner links were the browser's own blue, and purple once followed:
+// the one in its Tips today, and the one in the line that says both timetables have ended, from 16 May 2027. Each
+// is read in its own state, so each has its own clock.
+test.describe('a link in a Tips panel or a card explainer', () => {
+    const navy = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+        const probe = document.body.appendChild(document.createElement('span'));
+        probe.style.color = 'var(--primary-blue)';
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+    });
+    const look = (/** @type {import('@playwright/test').Locator} */ link) => link.evaluate(a => {
+        const s = getComputedStyle(a);
+        return { colour: s.color, weight: s.fontWeight };
+    });
+    for (const { when, at, open, link } of [
+        { when: 'in Trains\' Tips', at: '2026-11-10T09:00:00Z', open: '.btn-card-tips[data-card="overview"]', link: '#tipsLightboxContent a' },
+        { when: 'once both timetables have ended', at: '2027-05-20T09:00:00Z', open: null, link: '#trEnded a' },
+    ]) {
+        test(`wears the app's navy, not the browser's blue — ${when}`, async ({ page }) => {
+            await page.clock.setFixedTime(new Date(at));
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            if (open) await page.locator(open).click();
+            const a = page.locator(link, { hasText: 'the journey planner' });
+            await expect(a).toBeVisible();
+            expect(await look(a)).toEqual({ colour: await navy(page), weight: '600' });
+        });
+    }
 });
 
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
@@ -919,6 +1062,45 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
         if (!/^Inter\b/.test(seen.h1))   wrong.push(`${url} h1 → ${seen.h1}`);
     }
     expect(wrong, 'pages not rendering in the app typeface').toEqual([]);
+});
+
+// ── …AND SO DOES EVERY CONTROL ON IT (whole-app review, Nov 2026) ──────────────────────────────────────
+// A form control does not inherit the page's typeface: the browser gives `button`, `input`, `select` and
+// `textarea` a font of their own, so every control without a `font-family` rule of its own was drawn in
+// Arial — the burger on all nine pages, Pay's hours fields and its Clear and ± buttons, the date picker's
+// arrows, the prompt dialog's field, the FIP finder's clear ✕. Asked of every control a page holds, shown
+// or not, and of the two that are built only when opened. A box that names a face on purpose (the
+// monospace paste boxes) is not a browser default, and is the one face allowed besides Inter.
+test('every control on every page and guide is set in Inter, not the browser\'s control font', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    const census = () => page.evaluate(() => [...document.querySelectorAll('button, input, select, textarea')]
+        .filter(el => !['checkbox', 'radio', 'hidden'].includes(el.getAttribute('type') ?? ''))
+        .map(el => ({ el, face: getComputedStyle(el).fontFamily }))
+        .filter(({ face }) => !/^"?Inter\b/.test(face) && !/^ui-monospace\b/.test(face))
+        .map(({ el, face }) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} → ${face.split(',')[0]}`));
+    /** @type {string[]} */
+    const wrong = [];
+    const GUIDES = ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide'].map(g => `/${g}.html`);
+    for (const url of [...APP_URLS, ...GUIDES]) {
+        await page.goto(url);
+        if (APP_URLS.includes(url)) await waitForPageSettled(page);
+        wrong.push(...(await census()).map(c => `${url} ${c}`));
+    }
+    // Built on demand: the date picker (Admin's week label opens it) and the prompt dialog.
+    await page.goto('/admin.html');
+    await waitForPageSettled(page);
+    await page.locator('#weekNavLabel').click();
+    await expect(page.locator('.dp-content')).toBeVisible();
+    wrong.push(...(await census()).map(c => `the date picker ${c}`));
+    await page.goto('/links.html');
+    await page.evaluate(async () => {
+        const { promptDialog } = await import('/overlay.js');
+        promptDialog({ title: 'Name', message: 'Name?', defaultValue: 'seed' });
+    });
+    await expect(page.locator('.dialog-overlay .dialog-input')).toBeVisible();
+    wrong.push(...(await census()).map(c => `the prompt dialog ${c}`));
+    expect(wrong, 'controls in the browser\'s own font').toEqual([]);
 });
 
 // ── No focusable field may sit under 16px on a touch device (v19.61) ─────────────────────────────

@@ -751,6 +751,36 @@ test('settings (signed in): a card whose wiring throws takes nothing else down w
     await expect(page.locator('#tipsLbTitle')).toHaveText('Work Email');
 });
 
+// THE TIPS ✕ IS READ AS TEXT (whole-app review, Nov 2026). It is the panel's only visible way out, and it was
+// black at 35% on white — 2.43:1, under the 3:1 a control's own glyph needs as well as the text floor — with
+// only a mouse's hover ever lifting it. Shared by the six pages with a Tips panel; measured as painted: the
+// ✕'s colour laid over the panel's own, on a canvas, so a translucent colour is judged by what it shows.
+test('settings: the Tips panel\'s ✕ clears the text contrast floor on its panel', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/settings.html');
+    await page.locator('.btn-card-tips[data-card="work-email"]').click();
+    await expect(page.locator('#tipsLightbox')).toBeVisible();
+    const ratio = await page.evaluate(() => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string[]} layers */
+        const paint = (...layers) => {
+            ctx.clearRect(0, 0, 1, 1);
+            for (const c of layers) { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        };
+        /** @param {number[]} rgb */
+        const lum = (rgb) => {
+            const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const panel = getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('tipsLightboxContent'))).backgroundColor;
+        const glyph = getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose'))).color;
+        const [hi, lo] = [lum(paint(panel, glyph)), lum(paint(panel))].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, `the ✕ is ${ratio.toFixed(2)}:1 on its panel`).toBeGreaterThanOrEqual(4.5);
+});
+
 // ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
 // The login overlay and the forced overlay both offer a reveal; this card asked for an 8+ character
 // password TWICE with no way to see either, which is where a mistyped password comes from.
@@ -844,6 +874,42 @@ test('settings: on a desktop the Work Email explainer keeps a reading measure', 
     });
     expect(m.room - m.cap, 'the column is wider than the measure, so the cap is what holds the line').toBeGreaterThan(40);
     expect(m.width).toBeLessThanOrEqual(m.cap + 1);
+});
+
+// The header shares the cards' column at EVERY width (whole-app review, Nov 2026). It was capped only from
+// 768px, so between 581 and 767 — a phone on its side, a foldable, a narrow window — it spanned the window
+// while the cards sat in a 560px column: at 700px the burger 60px left of them, the badge 60px right.
+test('settings: the header spans the cards\' column at every width, a phone on its side included', async ({ page }) => {
+    await seedSession(page);
+    for (const width of [375, 600, 700, 767, 768, 1024, 1366]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/settings.html');
+        await page.locator('.app .card').first().waitFor();
+        const m = await page.evaluate(() => {
+            const edges = (/** @type {string} */ sel) => {
+                const r = /** @type {HTMLElement} */ (document.querySelector(sel)).getBoundingClientRect();
+                return [Math.round(r.left), Math.round(r.right)];
+            };
+            return { header: edges('.app-header'), column: edges('.app') };
+        });
+        expect(m.header, `at ${width}px the header spans ${m.header}, the cards ${m.column}`).toEqual(m.column);
+    }
+});
+
+// The page gutter has ONE home now, shared.css (whole-app review, Nov 2026): every card page restated it, and Settings
+// no longer does. The card pages' values — 20px above, 10px below, 10px a side on a phone, 3vw from 769px — read off
+// Settings, the page that relies on the shared rule, so losing that rule cannot pass unseen.
+test('settings: the page keeps its gutter, from the shared rule', async ({ page }) => {
+    await seedSession(page);
+    for (const [width, side] of [[375, '10px'], [768, '10px'], [1280, '38.4px']]) {
+        await page.setViewportSize({ width: Number(width), height: 800 });
+        await page.goto('/settings.html');
+        const gutter = await page.evaluate(() => {
+            const s = getComputedStyle(document.body);
+            return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(' ');
+        });
+        expect(gutter, `the gutter at ${width}px`).toBe(`20px ${side} 10px ${side}`);
+    }
 });
 
 // SET2 — "You'll get: …" was one run joined with " · ", so a line could end "· Pay" and the next start

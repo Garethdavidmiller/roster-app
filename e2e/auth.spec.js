@@ -908,6 +908,76 @@ test('login overlay geometry is identical across every page that shows it', asyn
     }
 });
 
+// ── A HIDDEN FIELD STAYS HIDDEN, WHATEVER A PAGE STYLES BY ELEMENT (whole-app review, Nov 2026) ─────
+// Both sign-in cards carry a username field for the password manager, `.visually-hidden`. Admin's and
+// Operations' own `input[type="text"] { width: 100%; padding; border }` out-ranked that utility, so on
+// those two pages the field was a full-width box inside the fixed sheet and the whole sign-in screen
+// scrolled sideways: 562px of scroll on a 375px phone, 1,919 in a 1,280 window. Pinned against that
+// kind of rule itself, injected on every page, so the guard holds whichever page happens to carry one.
+test('the sign-in screens never scroll sideways, whatever a page styles its fields by element', async ({ page }) => {
+    const BY_ELEMENT = 'input, input[type="text"] { width: 100%; min-height: 44px; padding: 8px 10px; border: 2px solid; }';
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
+    /** @param {string} sheet */
+    const measure = (sheet) => page.evaluate((sel) => {
+        const ov = /** @type {HTMLElement} */ (document.querySelector(sel));
+        const r = /** @type {HTMLElement} */ (ov.querySelector('input.visually-hidden')).getBoundingClientRect();
+        return { scroll: ov.scrollWidth - ov.clientWidth, field: [Math.round(r.width), Math.round(r.height)] };
+    }, sheet);
+    for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        for (const url of PAGES) {
+            await page.goto(url);
+            await page.locator('#loginOverlay.visible').waitFor();
+            await page.addStyleTag({ content: BY_ELEMENT });
+            expect(await measure('#loginOverlay'), `${url} at ${width}px: the sign-in sheet scrolls, or its hidden field has a box`)
+                .toEqual({ scroll: 0, field: [1, 1] });
+        }
+    }
+    // The forced set-password card carries the same field.
+    await forcePasswordSet(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+    await page.addStyleTag({ content: BY_ELEMENT });
+    expect(await measure('#pwForceOverlay'), 'the set-password sheet scrolls, or its hidden field has a box').toEqual({ scroll: 0, field: [1, 1] });
+});
+
+// ── ONE CARD, ONE FOCUS LOOK (whole-app review, Nov 2026) ───────────────────────────────────────────
+// The sign-in card's fields and the picker sheet's search box are styled in shared.css so that every page
+// draws them the same, and their focus rules had no `--focus-ring`: they wore the 4px field ring only on
+// Admin and Operations, borrowed from those pages' own field rules, and none on the other seven. A focus
+// state is in no screenshot, so it is read off the focused field, on every page that shows the card.
+test('a focused sign-in field, and the picker\'s search box, wear the field ring on every page', async ({ page }) => {
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
+    const ringOf = () => page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.boxShadow = 'var(--focus-ring)';
+        document.body.append(probe);
+        const ring = getComputedStyle(probe).boxShadow;
+        probe.remove();
+        return ring;
+    });
+    for (const url of PAGES) {
+        await page.goto(url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        const ring = await ringOf();
+        expect(ring, 'premise: the token resolves to a ring').not.toBe('none');
+        await page.locator('#loginPassword').focus();
+        expect(await page.locator('#loginPassword').evaluate(el => getComputedStyle(el).boxShadow), `${url}: the focused password field`).toBe(ring);
+    }
+    // The search box, on a page whose own stylesheet styles no field — the case that had no ring to borrow.
+    await page.goto('/settings.html');
+    await page.locator('#loginGradeTrigger').waitFor();
+    await page.locator('#loginGrade').selectOption('CEA');
+    await page.locator('#loginNameTrigger').click();
+    const search = page.locator('.picker-search-input');
+    await expect(search, 'premise: the CEA list is long enough to offer a filter').toBeVisible();
+    await search.focus();
+    expect(await search.evaluate(el => getComputedStyle(el).boxShadow), 'the picker\'s focused search box').toBe(await ringOf());
+});
+
 // ── A SHORT LAPTOP WINDOW SHOWS THE WAY IN (desktop audit, Nov 2026) ────────────────────────────────
 // A laptop's browser window is ~600–650px tall, and the Pay Calculator's card — explanation and all —
 // was 894px, so "Sign in →" sat under the fold with nothing to say the form went on; the Calendar's

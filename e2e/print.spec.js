@@ -26,8 +26,9 @@
  * geometry tests skip elsewhere. The print-media DOM tests run everywhere, which matters — WebKit
  * is the engine half this station reads on, and it is where the `beforeprint` assumption came from.
  */
-import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, seedMemberSession, waitForPageSettled } from './helpers.js';
+import { test, expect, forcePasswordSet } from './fixtures.js';
+import { seedSession, seedMember, seedMemberSession, waitForPageSettled, signInThroughOverlay } from './helpers.js';
+import zlib from 'node:zlib';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
 const A4_W = 595, A4_H = 842;
@@ -274,6 +275,31 @@ test('a guide in a home-screen app on iOS 27 explains instead of printing, and o
     await page.locator('.btn-print').click();
     await expect(page.locator('.print-unavailable')).toHaveCount(1);
 });
+// The strip's button is where focus goes when the strip appears, so its ring is the first thing a keyboard or switch
+// user is shown — and it was gold on the strip's pale blue: 1.45:1 against the 3:1 a focus ring needs (whole-app
+// review, Nov 2026). Measured as painted, the ring's colour against the strip it is drawn on.
+test('the "printing isn’t available" button wears a focus ring its strip lets you see @print', async ({ page }) => {
+    await page.addInitScript(IOS27_STANDALONE);
+    await page.goto('/railcard-guide.html');
+    await page.locator('.btn-print').click();
+    const open = page.locator('#printUnavailable').getByRole('button', { name: 'Open in Safari' });
+    await expect(open).toBeVisible();
+    await page.keyboard.press('Shift');   // keyboard modality, so a scripted focus matches :focus-visible
+    await open.focus();
+    const m = await open.evaluate(el => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} c */
+        const rgb = (c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} v */
+        const lum = (v) => { const [r, g, b] = v.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const strip = getComputedStyle(/** @type {HTMLElement} */ (el.closest('.print-unavailable'))).backgroundColor;
+        const [hi, lo] = [lum(rgb(getComputedStyle(el).outlineColor)), lum(rgb(strip))].sort((a, b) => b - a);
+        return { visible: el.matches(':focus-visible'), style: getComputedStyle(el).outlineStyle, ratio: (hi + 0.05) / (lo + 0.05) };
+    });
+    expect(m.visible, 'premise: the focus is a keyboard\'s').toBe(true);
+    expect(m.style, 'the button draws a ring').toBe('solid');
+    expect(m.ratio, `the ring is ${m.ratio.toFixed(2)}:1 on its strip`).toBeGreaterThanOrEqual(3);
+});
 test('the FIP per-country print is guarded the same way @print', async ({ page }) => {
     await page.addInitScript(IOS27_STANDALONE);
     await page.goto('/fip-guide.html');
@@ -459,6 +485,84 @@ test('an open Daily Huddle is not printed, and says so @print', async ({ page })
     expect(seen.calendarVisible, 'the calendar is not silently substituted').toBe(false);
 });
 
+
+// ── AN OPEN LIGHTBOX DOES NOT CUT THE PRINT TO ONE SHEET (whole-app review, Nov 2026) ────────────────
+// Every lightbox scroll-locks the page by fixing the body (shared.css → body.lb-open), and the lock stayed
+// on in print: Ctrl/Cmd+P with Pay's help sheet open printed ONE sheet of three, shifted up by however far
+// the page had been scrolled, and Trains printed its open Tips panel over a cut-down page. Counted off the
+// real PDF, against the same page printed with nothing open; the shift is the body's computed position.
+test('printing with a lightbox open prints the whole page, and not the lightbox @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    for (const [url, ready, open, panel] of /** @type {Array<[string, string, string, string]>} */ ([
+        ['/paycalc.html', '.ty-tab.active', '.help-btn', '#helpLightbox'],
+        ['/trains.html', '.btn-card-tips', '.btn-card-tips', '#tipsLightbox'],
+    ])) {
+        await page.goto(url);
+        await page.locator(ready).first().waitFor();
+        await page.evaluate(() => document.fonts.ready);
+        const closed = sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
+        expect(closed, `premise: ${url} prints on more than one sheet`).toBeGreaterThan(1);
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.locator(open).first().click();
+        await expect(page.locator(panel)).toHaveClass(/\bopen\b/);
+        expect(await page.evaluate(() => document.body.classList.contains('lb-open')), `premise: ${url} is scroll-locked`).toBe(true);
+        expect(sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true })), `${url} with a lightbox open`).toBe(closed);
+        const onPaper = await inPrint(page, () => ({ body: getComputedStyle(document.body).position,
+            panel: getComputedStyle(/** @type {HTMLElement} */ (document.querySelector('.lb-overlay.open'))).display }));
+        expect(onPaper, `${url}: on paper the body flows and the lightbox is gone`).toEqual({ body: 'static', panel: 'none' });
+        await page.keyboard.press('Escape');
+    }
+});
+
+// ── A SHIFT BADGE KEEPS ITS FILL ON PAPER, ON ANY PAGE (whole-app review, Nov 2026) ─────────────────
+// Printed without "Background graphics" — Chrome's default — a filled badge lost its fill and kept its white
+// word, which then vanished on white paper. Only pages that set `print-color-adjust: exact` on everything
+// were spared; shared.css now sets it on the badges themselves. Read off the PDF: the colours its content
+// streams paint, for one badge as printed and for the same badge forced back to `economy`.
+test('a shift badge keeps its fill on paper even with background graphics off @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    /** The fill colours a PDF's content streams set. @param {Buffer} pdf */
+    const painted = (pdf) => {
+        const found = new Set();
+        for (const m of pdf.toString('latin1').matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+            let body;
+            try { body = zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); } catch { continue; }
+            for (const c of body.matchAll(/(-?[\d.]+ -?[\d.]+ -?[\d.]+) rg/g)) found.add(c[1]);
+        }
+        return found;
+    };
+    // Settings prints a page of its own and sets no `print-color-adjust` on `*` — a page that trusts the badge.
+    await page.goto('/settings.html');
+    await page.evaluate(() => {
+        const badge = document.createElement('span');
+        badge.className = 'shift-badge badge-early';
+        badge.id = 'printedBadge';
+        badge.textContent = '☀️ Early';
+        document.body.prepend(badge);
+    });
+    const kept = painted(await page.pdf({ printBackground: false }));
+    await page.locator('#printedBadge').evaluate(el => {
+        el.style.setProperty('print-color-adjust', 'economy', 'important');
+        el.style.setProperty('-webkit-print-color-adjust', 'economy', 'important');
+    });
+    const dropped = painted(await page.pdf({ printBackground: false }));
+    expect([...kept].filter(c => !dropped.has(c)), 'the badge\'s fill is not on the paper').not.toEqual([]);
+});
+
+// …but a SIGN-IN sheet keeps its lock on paper. Behind the set-password card is the signed-in page it is holding
+// back — a mandatory step (auth.spec.js) — so printing must not be the way round it: the card prints, alone.
+test('printing behind the set-password card prints the card, not the page it holds back @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await forcePasswordSet(page);
+    await page.goto('/paycalc.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+    expect(sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true })), 'one sheet: the card').toBe(1);
+    expect(await inPrint(page, () => getComputedStyle(document.body).position), 'the body stays locked on paper').toBe('fixed');
+});
 
 // ── A NAME IS NEVER ELLIPSISED ON PAPER (v23.71) ────────────────────────────────────────────────
 //
