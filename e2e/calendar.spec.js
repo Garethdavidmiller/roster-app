@@ -599,6 +599,78 @@ test('calendar: coming back into view re-reads a month once it is ten minutes ol
     await expect.poll(reads, { message: 'a stale month is re-read on return' }).toBeGreaterThan(settled);
 });
 
+// …AND WHEN THAT RE-READ FAILS, THE PAGE SAYS SO (10 Nov 2026, external review F1). A month read in the
+// morning and re-checked in the afternoon with no signal went on being drawn as current — "As rostered"
+// included — because the failure could not be recorded against a month already known. The grid must
+// STAY (a failed re-check never blanks good data), labelled as the saved copy; the claim that nothing
+// has changed goes; and the label clears itself on the next return that can check, without a press.
+// Both failures a dead signal produces are driven: the read answered by this device's cache, and the
+// read rejected outright. One-shot counts of the "As rostered" flag, because an auto-retrying assertion
+// would simply wait for a later render.
+test('calendar: a re-check that fails on return keeps the grid as a saved copy, and clears when it can check again', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 2, 9, 0, 0) });
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'oct', memberName: 'G. Miller', date: '2026-10-14', type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/');
+    const shown = page.locator('#calendarDisplay > .calendar-container:not(.carousel-panel)');
+    const note  = page.locator('.calendar-stale-note');
+    const set   = (/** @type {Record<string, any>} */ flags) => page.evaluate((f) => Object.assign(/** @type {any} */ (window).__E2E, f), flags);
+    const comeBack = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    const claiming = () => page.evaluate(() => document.querySelectorAll('.calendar-day[data-detail-as-rostered]').length);
+    const leaveDay = page.locator('.calendar-day[data-detail-day="Wednesday 14 October 2026"]');
+
+    await expect(shown, 'premise: October is read and current').toHaveAttribute('data-override-state', 'render');
+    expect(await claiming(), 'premise: a current month says which days are as rostered').toBeGreaterThan(0);
+    await expect(note).toHaveCount(0);
+    await page.clock.runFor('00:05');
+
+    // No signal: the re-read is answered by this device's cache.
+    await set({ docsFromCache: true });
+    await page.clock.fastForward('11:00');
+    await comeBack();
+    await expect(note, 'the failed re-check must reach the screen').toBeVisible();
+    await expect(note).toContainText('Saved copy — couldn\'t check for changes');
+    await expect(shown).toHaveAttribute('data-override-state', 'stale');
+    await expect(page.locator('.calendar-grid'), 'the grid is kept — a failed re-check never blanks good data').toBeVisible();
+    await expect(leaveDay, 'with the leave it already held').toContainText('AL');
+    expect(await claiming(), '"As rostered" is a claim about a check that worked').toBe(0);
+
+    // The signal is back, and the phone is simply picked up again: no ten minutes, no press.
+    await set({ docsFromCache: false });
+    await comeBack();
+    await expect(note, 'the label clears itself on the next return that can check').toHaveCount(0);
+    await expect(shown).toHaveAttribute('data-override-state', 'render');
+    expect(await claiming()).toBeGreaterThan(0);
+
+    // The other failure: the read is rejected outright. Still the saved copy, not the failure panel.
+    await set({ failGetDocs: true });
+    await page.clock.fastForward('11:00');
+    await comeBack();
+    await expect(note).toBeVisible();
+    await expect(page.locator('.calendar-grid')).toBeVisible();
+    await expect(page.locator('.calendar-pending'), 'never the failure panel over data in hand').toHaveCount(0);
+
+    // "Try again" pressed while the signal is still down must not cost the member the grid they had:
+    // the press forgets the month so that it visibly does something, and the retry then fails too.
+    const settled = () => page.evaluate(() => /** @type {any} */ (window).__E2E.docReadsSettled || 0);
+    const before = await settled();
+    await note.getByRole('button', { name: 'Try again' }).click();
+    await expect.poll(settled, { message: 'premise: the retry was made, and it failed' }).toBeGreaterThan(before);
+    await expect(note, 'the saved copy comes back').toBeVisible();
+    await expect(page.locator('.calendar-grid')).toBeVisible();
+    await expect(page.locator('.calendar-pending'), 'still not the failure panel').toHaveCount(0);
+
+    // And once it can check, one press makes the month current again.
+    await set({ failGetDocs: false });
+    await note.getByRole('button', { name: 'Try again' }).click();
+    await expect(note).toHaveCount(0);
+    await expect(shown).toHaveAttribute('data-override-state', 'render');
+});
+
 // The page's arrow/t/p shortcuts listen on `document`, so they heard keys another control had
 // already handled (a grade tab's arrows changed the WEEK too) and browser chords (Alt+→ changed the
 // month on top of "forward"; Ctrl+P printed twice).

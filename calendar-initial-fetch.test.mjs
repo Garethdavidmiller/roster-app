@@ -17,6 +17,11 @@ import assert from 'node:assert/strict';
 
 let _fetchImpl        = () => Promise.resolve();
 let _grantGen         = 0;   // the current Calendar grant, as calendar-overrides.js would report it
+let _hasAccess        = true;   // whether override reads are permitted right now (false: the Calendar is locked)
+// The code a read rejects with when its answer outlived the access it was issued under. The module
+// compares against this import, so the mock's spelling IS the contract under test here; the real
+// value, and that the real read throws it, are calendar-overrides.test.mjs's.
+const READ_SUPERSEDED = 'read-superseded';
 let _progressHistory  = [];   // calls to setInitialFetchInProgress
 let _addMonthsHistory = [];   // calls to addFetchedMonths
 let _clearMonthsHistory = []; // calls to clearFetchedMonth
@@ -35,6 +40,8 @@ mock.module('./calendar-overrides.js', {
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
         fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),
         accessGeneration:            () => _grantGen,
+        hasOverrideAccess:           () => _hasAccess,
+        READ_SUPERSEDED,
     },
 });
 
@@ -150,6 +157,7 @@ beforeEach(() => {
     _fakeFetchInProgress = false;
     _fetchImpl           = () => Promise.resolve();
     _grantGen            = 0;
+    _hasAccess           = true;
     _cacheFetchImpl      = () => Promise.resolve(false);
     setupDOM();
 });
@@ -341,6 +349,65 @@ describe('failure path', () => {
         assert.equal(lost, 0, 'an old grant\'s refusal must not re-lock the new one');
         assert.deepEqual(_clearMonthsHistory, [], 'the new grant\'s month claims are left alone');
         assert.equal(getSyncChip(), null, 'and no retry chip sits on a calendar that is working');
+    });
+
+    // ── AN ANSWER THAT OUTLIVED ITS GRANT (10 Nov 2026, external review F2) ─────────────────────
+    // `fetchOverridesForRange` rejects with READ_SUPERSEDED when the read's answer lands after the
+    // access it was issued under has gone. It is not a failure: nothing was refused and nothing is
+    // wrong with the network, so nothing may be REPORTED — no chip, no failed months, no re-lock.
+    test('an answer that outlived its grant, on a Calendar still LOCKED: nothing reported, nothing read', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        /** @type {(e: any) => void} */ let fail = () => {};
+        _fetchImpl = () => new Promise((_, rej) => { fail = rej; });
+        let lost = 0, renders = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { renders++; }, onAccessLost: () => { lost++; } });
+        await flushAsync();
+        const monthNow = (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)(new Date());
+        _hasAccess = false;                  // access went while the read was out — same grant, nobody has re-entered a PIN
+        fail(Object.assign(new Error('outlived its grant'), { code: READ_SUPERSEDED }));
+        await flushAsync();
+        assert.equal(getSyncChip(), null, 'a retry chip on a locked Calendar offers a recovery that cannot work');
+        assert.notEqual(knowledgeOf(monthNow), 'error', 'a discarded answer is not a failed month');
+        assert.deepEqual(_clearMonthsHistory, [], 'and releases no claims');
+        assert.equal(lost, 0, 'it is not a refusal, so it must not re-lock anything');
+        assert.equal(renders, 0, 'a locked Calendar has nothing to draw and must not be made to read');
+        assert.equal(_progressHistory.at(-1), false, 'the first load is over all the same');
+    });
+
+    test('a stand-down under a NEW grant re-renders, so the grant now holding the Calendar reads its months', async (t) => {
+        // The re-unlock's own repaint ran while this load was still out, and the month grid does not
+        // read while the first load is in progress — so with no render here the re-unlocked Calendar
+        // sat on "Checking this month" until somebody navigated. True of the v24.57 failure too.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        for (const outcome of [{ code: READ_SUPERSEDED }, { code: 'permission-denied' }]) {
+            setupDOM(); _progressHistory = []; _grantGen = 0; _hasAccess = true;
+            /** @type {(e: any) => void} */ let fail = () => {};
+            _fetchImpl = () => new Promise((_, rej) => { fail = rej; });
+            /** @type {boolean[]} */ const flagAtRender = [];
+            initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { flagAtRender.push(_fakeFetchInProgress); } });
+            await flushAsync();
+            _grantGen = 1;                   // the PIN was re-entered while the read was out
+            fail(Object.assign(new Error('from the earlier grant'), outcome));
+            await flushAsync();
+            assert.deepEqual(flagAtRender, [false],
+                `${outcome.code}: one render, and with the first-load flag already down — or its own read is skipped again`);
+            assert.equal(getSyncChip(), null, `${outcome.code}: and still no chip`);
+        }
+    });
+
+    test('…and in Team View it re-READS the week rather than repainting it', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        /** @type {(e: any) => void} */ let fail = () => {};
+        _fetchImpl = () => new Promise((_, rej) => { fail = rej; });
+        let repaints = 0, rereads = 0;
+        initInitialFetch({ isTeamViewMode: () => true, renderCalendar: () => {},
+            renderTeamView: () => { repaints++; }, refetchTeamView: () => { rereads++; } });
+        await flushAsync();
+        _grantGen = 1;
+        fail(Object.assign(new Error('outlived its grant'), { code: READ_SUPERSEDED }));
+        await flushAsync();
+        assert.equal(rereads, 1, 'a cache repaint asks for nothing, and nothing would ever read the week');
+        assert.equal(repaints, 0);
     });
 
     test('error chip text is the retry prompt', async (t) => {
@@ -667,6 +734,28 @@ describe('retry', () => {
         // The original chip was removed (._removed=true); no new chip should have been added.
         const visibleChips = _header._children.filter(c => c._classes.has('sync-chip') && !c._removed);
         assert.equal(visibleChips.length, 0, 'no visible error chip should appear after belated original rejection');
+    });
+
+    test('a RETRY whose answer outlived its grant stands down too — no chip left saying it failed', async (t) => {
+        // The first load fails (chip), the chip is pressed, and access goes while the retry is out.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(new Error('the first load fails'));
+        let lost = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => { lost++; } });
+        await flushAsync();
+        const chip = getSyncChip();
+        assert.ok(chip?._classes.has('sync-chip-error'), 'premise: the retry chip is up');
+        const clearedBefore = _clearMonthsHistory.length;
+
+        _fetchImpl = () => Promise.reject(Object.assign(new Error('outlived its grant'), { code: READ_SUPERSEDED }));
+        chip._fire('click');
+        _hasAccess = false;
+        await flushAsync(5);
+        assert.equal(chip._removed, true, 'the chip must not stay on "Retrying…", nor go back to "Couldn\'t update"');
+        // (The fake DOM flags a removed node rather than unlinking it, so count what is still showing.)
+        assert.equal(_header._children.filter(c => c._classes.has('sync-chip') && !c._removed).length, 0, 'and no new one takes its place');
+        assert.equal(_clearMonthsHistory.length, clearedBefore, 'a discarded answer releases no claims');
+        assert.equal(lost, 0);
     });
 });
 
