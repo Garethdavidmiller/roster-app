@@ -115,14 +115,16 @@ from cache.
 ## Running it
 
 ```bash
-# 1. The real production SDK, fetched once (the harness imports it from ./sdk/).
+# 1. The SDK the app ships — the version firebase-client.js loads — fetched once (the harness
+#    imports it from ./sdk/).
+SDK=$(grep -o 'firebasejs/[0-9.]*/' ../../firebase-client.js | head -1 | cut -d/ -f2)
 mkdir -p sdk
 for m in app auth firestore; do
-  curl -sSL "https://www.gstatic.com/firebasejs/12.16.0/firebase-$m.js" -o "sdk/firebase-$m.js"
+  curl -sSL "https://www.gstatic.com/firebasejs/$SDK/firebase-$m.js" -o "sdk/firebase-$m.js"
 done
 # The vendored auth/firestore bundles import firebase-app from the CDN by absolute URL; point them
 # at their local sibling, or the page half-loads and nothing says why.
-sed -i 's#from"https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js"#from"./firebase-app.js"#g' \
+sed -i "s#from\"https://www.gstatic.com/firebasejs/$SDK/firebase-app.js\"#from\"./firebase-app.js\"#g" \
   sdk/firebase-auth.js sdk/firebase-firestore.js
 
 # 2. Serve the harness and the Auth emulator.
@@ -134,6 +136,9 @@ node run.mjs                 # warm desktop
 CPU=6 node run.mjs           # a mid-range Android
 NET=300 node run.mjs         # 300 ms on every auth request
 ```
+
+Step 1 fetches whatever `firebase-client.js` loads. **The figures above were measured on SDK 12.16.0
+and have not been re-run since the app moved on** (it loads 13.1.0 on 10 November 2026).
 
 ## Two ways this could have measured the wrong thing
 
