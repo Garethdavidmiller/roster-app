@@ -524,6 +524,19 @@ describe('a refused read re-locks; a failed one offers the retry', () => {
         assert.equal(_clearMonthsHistory.length, 3, 'the three months are still released for the next grant');
     });
 
+    test('a refused boot read records NOTHING against the months — a lock is not a failed month (cal-data-6)', async (t) => {
+        // It used to record `error` before asking whether the refusal was about access, and the
+        // record outlived the lock: the next grant's first render was "Couldn't check this month"
+        // while its own read was still in flight.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        resetKnowledge();
+        _fetchImpl = () => Promise.reject(DENIED());
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => {} });
+        await flushAsync();
+        const monthNow = (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)(new Date());
+        assert.equal(knowledgeOf(monthNow), 'unknown', 'the refusal was recorded as a failed month');
+    });
+
     test('a boot read that FAILED for the network keeps the retry, and does not re-lock', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => Promise.reject(OFFLINE());

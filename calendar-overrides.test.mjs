@@ -615,8 +615,8 @@ describe('a settled month is re-read once it is old (Oct 2026 review)', () => {
 });
 
 describe('a GRANT is a fresh start (v20.41)', () => {
-    // The bug this pins: `handleAccessLost` re-locks the Calendar and forgets what every month knew,
-    // but the months stayed CLAIMED in fetchedMonths. Re-entering the PIN therefore came back to a
+    // The bug this pins: losing access re-locks the Calendar and forgets what every month knew (the
+    // shut, `setOverrideAccess(false)`), but the months stayed CLAIMED in fetchedMonths. Re-entering the PIN therefore came back to a
     // Calendar that would never read anything again — every ensureOverridesCached a no-op against a
     // claim from the previous session, every month stuck on "Checking this month", and a Try again
     // that could not win. Revoking the viewer's tokens is a documented step of rotating the PIN, so
@@ -818,7 +818,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         const a = ensureOverridesCached(2061, 2, () => { paintsA++; });
         await _tick();
         assert.equal(_releases.length, 1, 'premise: A is out');
-        setOverrideAccess(false); forgetKnowledge(); setOverrideAccess(true);   // re-locked, then the PIN again
+        setOverrideAccess(false); setOverrideAccess(true);   // re-locked (the shut forgets), then the PIN again
         _deferGetDocs = false; _getDocsThrows = true;
         await ensureOverridesCached(2061, 2, () => {});
         _getDocsThrows = false;
@@ -836,7 +836,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         let paints = 0;
         const a = ensureOverridesCached(2062, 2, () => { paints++; });
         await _tick();
-        setOverrideAccess(false); forgetKnowledge();   // access lost — and nobody has re-entered the PIN
+        setOverrideAccess(false);   // access lost — and nobody has re-entered the PIN
         _releases[0](); await a;
         assert.equal(rosterOverridesCache.size, 0, 'rows were written behind the lock card');
         assert.equal(knowledgeOf(key), 'unknown', 'a discarded answer is not a failure either — it is nothing');
@@ -1131,5 +1131,84 @@ describe('the initial fetch after a grant', async () => {
         assert.deepEqual(scoped, [], 'the boot\'s cache read was narrowed to one member');
         assert.equal(rosterOverridesCache.has(`B. Colleague|${today}`), true);
         assert.equal(knowledgeOf(thisMonth), 'cached');
+    });
+});
+
+// ── ACCESS LOST THROUGH THE FIRST LOAD FORGETS TOO (cal-data-6, 10 Nov 2026) ───────────────────────
+// The month read's route shut the gate AND forgot what every month knew; the first load's read and
+// its chip's retry reach the coordinator's wrapper, which shut the gate only. So after the next PIN
+// a month read under the old grant was drawn as current — and stayed current, "As rostered" included,
+// when the new grant's own read failed. Driven through the REAL chip retry; the wrapper is modelled by
+// the one step of it that touches this state, `setOverrideAccess(false)` (calendar-app.js).
+describe('losing access through the first load\'s chip forgets what the old grant knew', async () => {
+    const { initInitialFetch } = await import('./calendar-initial-fetch.js');
+    const { hasOverrideAccess } = await import('./calendar-overrides.js');
+    const now = new Date();
+    const thisMonth = monthKey(now.getFullYear(), now.getMonth());
+    // A month the member navigates to, well outside the first load's three.
+    const far = { y: now.getMonth() + 4 > 11 ? now.getFullYear() + 1 : now.getFullYear(), m: (now.getMonth() + 4) % 12 };
+    const farMonth = monthKey(far.y, far.m);
+    const AL = (/** @type {string} */ date) => makeDoc('al-' + date, { memberName: 'A. Smith', date, value: 'AL',
+        type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } });
+    const OFFLINE = () => Object.assign(new Error('offline'), { code: 'unavailable' });
+    const DENIED  = () => Object.assign(new Error('denied'), { code: 'permission-denied' });
+    /** @type {any} */ let savedDoc;
+    /** @type {any[]} */ let headerKids;
+
+    beforeEach(() => {
+        savedDoc = /** @type {any} */ (globalThis).document;
+        headerKids = [];
+        const header = { appendChild(/** @type {any} */ c) { headerKids.push(c); c.isConnected = true; return c; } };
+        /** @type {any} */ (globalThis).document = {
+            getElementById: () => null,
+            querySelector: (/** @type {string} */ sel) => (sel === '.calendar-header' ? header : null),
+            createElement: (/** @type {string} */ tag) => ({ tag, type: '', className: '', textContent: '', disabled: false, onclick: null,
+                isConnected: false, setAttribute() {}, remove() { this.isConnected = false; }, focus() {} }),
+            addEventListener: () => {}, body: null,
+        };
+        mock.timers.enable({ apis: ['setTimeout'] });
+        rosterOverridesCache.clear(); forgetKnowledge();
+        _mockDocs = []; _getDocsThrows = false; _deferGetDocs = true; _releases.length = 0;
+    });
+    afterEach(() => {
+        mock.timers.reset();
+        /** @type {any} */ (globalThis).document = savedDoc;
+        _deferGetDocs = false; _releases.length = 0; _mockCacheDocs = []; _mockDocs = [];
+        setInitialFetchInProgress(false);
+        forgetKnowledge();
+        setOverrideAccess(true);
+    });
+
+    test('the chip\'s retry is refused, the Calendar re-locks, the PIN again — and the new grant\'s read fails', async () => {
+        const chip = () => headerKids.find(k => k.tag === 'button' && k.isConnected);
+        _mockCacheDocs = [AL(`${thisMonth}-10`)];   // the device holds this month: phase 1 paints it
+        setOverrideAccess(true);
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, authReady: Promise.resolve(),
+            onAccessLost: () => setOverrideAccess(false) });
+        await _tick(30);
+        assert.equal(knowledgeOf(thisMonth), 'cached', 'premise: the first load painted the saved copy');
+        _releases.shift()?.(OFFLINE());   // …and its server read failed on the network
+        await _tick(30);
+        assert.ok(chip()?.className.includes('sync-chip-error'), 'premise: the chip offers the retry');
+
+        _mockDocs = [AL(`${farMonth}-10`)];   // the member moves on to a month that loads
+        const nav = ensureOverridesCached(far.y, far.m, () => {});
+        await _tick(); _releases.shift()?.(); await nav;
+        assert.equal(knowledgeOf(farMonth), 'authoritative', 'premise: that month is current');
+
+        chip().onclick();                     // the PIN has been rotated; somebody presses the chip
+        await _tick(30);
+        _releases.shift()?.(DENIED());
+        await _tick(30);
+        assert.equal(hasOverrideAccess(), false, 'premise: the refusal re-locked the Calendar');
+        assert.deepEqual([knowledgeOf(thisMonth), knowledgeOf(farMonth)], ['unknown', 'unknown'],
+            'what the old grant knew survived the lock');
+
+        setOverrideAccess(true);              // the new PIN
+        _mockDocs = [];
+        const again = ensureOverridesCached(far.y, far.m, () => {});
+        await _tick(); _releases.shift()?.(OFFLINE()); await again;
+        assert.equal(knowledgeOf(farMonth), 'error',
+            'the old grant\'s month was drawn as current by the new one, over its own failed read');
     });
 });

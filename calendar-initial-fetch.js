@@ -418,10 +418,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
         if (hasOverrideAccess()) { if (isTeamViewMode()) refetchTeamView(); else renderCalendar(); }
         return;
       }
-      // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
-      // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
-      // and the cached grid stays up behind the retry chip, which is the right answer there.
-      noteKnowledge(_initialMonthKeys, 'error');
       console.error('[Firestore] Initial override fetch failed', err);
       // Release the 3 pre-claimed months so ensureOverridesCached() can re-fetch them on a later
       // render/navigation. Without this they stay marked fetched forever and their overrides never
@@ -429,12 +425,18 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // is absent in team-view and first-run, leaving those states with NO recovery path at all.
       _initialMonthKeys.forEach(clearFetchedMonth);
       // Access gone, not network — see the retry path above for why these must not share a state.
+      // Nothing is recorded against the months first (cal-data-6): a refusal says nothing about them,
+      // and an `error` left across the lock was the first thing the next grant drew.
       if (onAccessLost && isAccessFailure(err)) {
         setChipState(null);
         if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
         onAccessLost();
         return;
       }
+      // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
+      // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
+      // and the cached grid stays up behind the retry chip, which is the right answer there.
+      noteKnowledge(_initialMonthKeys, 'error');
       // A renderCalendar() call between the fetch start and the catch (e.g. from visibilitychange)
       // rebuilds the calendar header, detaching the chip — setChipState re-creates it. When there
       // is NO header at all (first run, Team View) the state is still recorded and rendered the

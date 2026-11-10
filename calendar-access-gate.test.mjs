@@ -312,6 +312,18 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
         calls.serverError = null;
     });
 
+    test('SHUTTING the gate forgets what every month knew — whichever route shut it (cal-data-6)', async () => {
+        // The first load's read and its chip's retry lose access through the coordinator's wrapper,
+        // which shuts the gate and nothing else; only the month read above forgot beside it. A month
+        // still known after the lock was drawn as current by the next grant — and stayed current when
+        // that grant's own read failed.
+        setOverrideAccess(true);
+        await ensureOverridesCached(2026, 5, () => {});
+        assert.equal(knowledgeOf(monthKey(2026, 5)), 'authoritative', 'guard: a month must be known first');
+        setOverrideAccess(false);
+        assert.equal(knowledgeOf(monthKey(2026, 5)), 'unknown', 'shutting the gate kept a month known as current');
+    });
+
     test('an ORDINARY network failure does NOT re-lock — that would be a loop nobody can win', async () => {
         // The whole point of separating these: an offline blip must keep the last-good calendar and
         // the retry chip. Re-locking on it would demand a PIN from someone whose PIN is fine.

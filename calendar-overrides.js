@@ -54,8 +54,7 @@ let _accessGranted = false;
 let _accessGen = 0;
 
 /**
- * Open the override reads. Called by the Calendar coordinator once — and only once — access is
- * confirmed.
+ * Open the override reads once access is confirmed, and shut them when it is lost.
  *
  * ONE argument, and it stays one. Named and viewer access read the same data, so a second parameter
  * would only be a second thing to get wrong. It had one from v22.97 until 26 Sep 2026 — a member
@@ -70,10 +69,16 @@ export function setOverrideAccess(granted) {
     // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost are
     // still claimed after it returns, so without this every `ensureOverridesCached` would no-op and
     // the re-unlocked Calendar would never read anything again — its knowledge having been forgotten
-    // at the same moment, that is a permanent wait state. `_failureRepainted` goes with it for the
+    // by the shut below, that is a permanent wait state. `_failureRepainted` goes with it for the
     // same reason: a failure that happened under the old session is not news the new one has heard.
     // Harmless at boot — the first grant runs before the initial fetch claims anything.
     if (_accessGranted) { _accessGen++; fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); _recheckOwed.clear(); }
+    // A SHUT FORGETS WHAT EVERY MONTH WAS KNOWN TO BE, here, so every route that loses access forgets
+    // (cal-data-6, 10 Nov 2026). Only the month read's route used to: losing access through the first
+    // load's read or its chip's retry shut the gate and kept the knowledge, so after the next PIN a
+    // month read under the old grant was drawn as current — and stayed current if the new grant's own
+    // read failed, "As rostered" included. Access loss is what `forget` is for.
+    else forgetKnowledge();
 }
 
 /** @returns {number} the current grant, for a reader that must ignore a refusal from an older one. */
@@ -496,8 +501,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // and Team View come through HERE instead, and they are the likelier path, because by the
         // time a session expires the initial fetch is long finished.
         if (_onAccessLost && _isAccessFailure(err)) {
-            _accessGranted = false;   // shut the gate before anything can repaint from the cache
-            forgetKnowledge();        // and drop what we knew — see calendar-data-state.js's `forget`
+            setOverrideAccess(false);   // shut the gate before anything can repaint from the cache — which forgets what we knew
             try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
             return;
         }
