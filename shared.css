@@ -1019,21 +1019,15 @@ body.lb-open #stickyTotal { display: none !important; }
 /* PAPER HAS NO SCROLL TO LOCK (whole-app review, Nov 2026). Printing with a lightbox, the drawer or the
    Huddle viewer open laid out ONE sheet — a fixed body is one viewport tall, shifted by the scroll — and
    Trains printed its Tips panel over it. On paper the body flows and lightboxes go. NOT under a sign-in
-   sheet: behind the set-password card is the page it holds back, so the card prints alone, as it always
-   has. (`:has()` unsupported: the rule drops and the lock stays.) */
+   sheet, whose card prints ALONE: every other body child leaves the paper, as the page it holds back sat
+   under the card, unseen but in the PDF's text (a member's name, Pay's figures; 10 Nov 2026). A page's
+   notice is the body's `::before`, so it prints. (No `:has()`: both rules drop, and the lock stays.) */
 @media print {
     body.lb-open:not(:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible)) {
         position: static; top: auto; left: auto; right: auto; width: auto; overflow: visible;
     }
     .lb-overlay { display: none !important; }
-    /* …and the card prints ALONE, in the PDF's text too (whole-app check, 10 Nov 2026). The sheet only
-       PAINTS over the page it holds back, so that page was still on the sheet underneath it: invisible,
-       but selectable and searchable in the PDF — a member's name on the Calendar, Pay's figures behind
-       the set-password card. Every other child of the body leaves the paper. A page's own print notice
-       is the body's `::before`, not a child, so it still prints (Overtime's). */
-    body:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible) > :not(#loginOverlay):not(#pwForceOverlay) {
-        display: none !important;
-    }
+    body:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible) > :not(#loginOverlay):not(#pwForceOverlay) { display: none !important; }
 }
 
 /* Content panel — structural positioning and open animation.    */
