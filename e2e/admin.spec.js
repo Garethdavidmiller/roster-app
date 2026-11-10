@@ -1417,9 +1417,24 @@ test('admin: a change tapped while a save is still sending is refused, not taken
     await expect(page.locator('#saveBtn')).toContainText('Saving');
 
     // While the commit waits: Monday re-typed as Absent, Tuesday ticked, and the bulk bar's All 7.
-    await pill('2027-01-11', 'sick').click({ force: true });
-    await box('2027-01-12').click({ force: true });
-    await page.locator('#bulkSelAll').click({ force: true });
+    // A finger taps what it can SEE. `force` is a click at the target's centre without Playwright's
+    // "receives events" check — it has to be, because a held week receives none — and WebKit scrolls a
+    // target to the nearest EDGE, which at phone width is under the sticky member bar: there the tap
+    // opened the member sheet (mobile-safari, CI run 42838201900), and "nor by the bulk bar" passed
+    // only because the bulk bar was never reached. So each tap is centred first, and the point it will
+    // land on is checked to be the week's own card.
+    const tapHeld = async (/** @type {import('@playwright/test').Locator} */ target) => {
+        await target.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        expect(await target.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return !!hit && !!document.getElementById('change-shift')?.contains(hit);
+        }), 'premise: the tap lands on the held week, not on whatever sits over it').toBe(true);
+        await target.click({ force: true });
+    };
+    await tapHeld(pill('2027-01-11', 'sick'));
+    await tapHeld(box('2027-01-12'));
+    await tapHeld(page.locator('#bulkSelAll'));
     await expect(pill('2027-01-11', 'annual_leave'), 'the row being saved keeps the type it is being saved as').toHaveAttribute('aria-pressed', 'true');
     await expect(pill('2027-01-11', 'sick')).toHaveAttribute('aria-pressed', 'false');
     await expect(box('2027-01-12'), 'nothing new is staged while the save is sending').not.toBeChecked();
