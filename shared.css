@@ -940,14 +940,23 @@ p { text-wrap: pretty; }
     outline-offset: 2px;
 }
 
-/* Safe-area padding — keeps content clear of the iOS notch and home indicator.
-   Uses 16px as the minimum fallback. Individual pages override with 20px in their
-   own <style> block; the cascade ensures page-specific values always win. */
+/* THE PAGE GUTTER — every card page's, with the safe-area insets around it (the notch, the home indicator,
+   a phone on its side). It was declared here as a 16px fallback that matched no page, while each of the
+   eight card pages restated its own 20px gutter later in the cascade, so the rule that read as the source
+   decided nothing anywhere (whole-app review, Nov 2026 — measured on all nine pages at five widths, and
+   Overtime had once lived on the wrong fallback). These are the eight pages' values, so a page that forgets
+   its own gets the right gutter, and the pages' copies can go. The Calendar's full-bleed page keeps its own. */
 body {
-    padding-top:    max(16px, env(safe-area-inset-top));
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-left));
-    padding-right:  max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-right));
+    padding-top:    max(20px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+}
+@media (max-width: 768px) {
+    body {
+        padding-left:  max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+    }
 }
 
 /* Screen-reader-only text — THE shared utility (v16.73; the Calendar's older copy in index.css is
@@ -2244,13 +2253,6 @@ button.lightbox-bug-link {
 @media (min-width: 768px) {
     .badge-name-short { display: none; }
     .badge-name-full  { display: inline; }
-}
-
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
 }
 
 @media (max-width: 480px) {
