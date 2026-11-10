@@ -119,15 +119,22 @@ export const GRADES = {
 // (v18.43 — review item 8; the pension counterpart of getRateForPeriod/getLondonAllowanceForPeriod.)
 //
 // ⚠️ A PAY AWARD MOVES THIS TOO (v21.79). The contribution is a proportion of pensionable pay, so
-// it steps on the award payslip as well as on an RPS review — which is why the newest entry shares
-// its date with `londonAllowFrom`. That was not anticipated: the table was written as "RPS reviews,
-// SEPARATE from the pay award", and the 28 Aug 2026 payslip stepped it while the app went on
-// defaulting to the pre-award figure. Whenever a new award lands, read the "Smart RPS CR Scheme"
-// line off that payslip and add a step here — MAINTENANCE_CALENDAR.md carries it as a checklist row.
+// it steps with a pay award as well as on an RPS review. That was not anticipated: the table was
+// written as "RPS reviews, SEPARATE from the pay award", and the app went on defaulting to the
+// pre-award figure after the 2026/27 award. Whenever a new award lands, read the "Smart RPS CR
+// Scheme" lines off the award payslip AND the one before it, and add the steps here —
+// MAINTENANCE_CALENDAR.md carries it as a checklist row.
+//
+// THE STEP CAN BEGIN INSIDE A PAYSLIP (twelve payslips re-read 10 Nov 2026). The 2026/27 rise
+// reached the pension a month BEFORE the award payslip: the 31 Jul 2026 payslip prints TWO
+// "Smart RPS CR Scheme" lines, £113.90 (21 of its 28 days at the new £151.86) and £36.84 (7 days at
+// the old £147.36). The calculator holds one pension figure per payslip, so that payslip has a step
+// of its own, the two lines' TOTAL — the figure a member checks it against is their sum.
 //
 //  £151.86  from the 28 Aug 2026 payslip — payslip-confirmed (P24 as printed; the 3.6% award payslip)
-//  £147.36  from the  8 May 2026 payslip — payslip-confirmed (P51)
-//  £154.77  from the 29 Aug 2025 payslip — payslip-confirmed
+//  £150.74  on   the 31 Jul 2026 payslip — payslip-confirmed: £113.90 + £36.84, the split period (P20)
+//  £147.36  from the  8 May 2026 payslip — payslip-confirmed (P8 as printed; to the 3 Jul 2026 payslip)
+//  £154.77  from the 29 Aug 2025 payslip — payslip-confirmed (and on every payslip to 10 Apr 2026)
 //  £156.29  on   the  1 Aug 2025 payslip — DERIVED, not read from a payslip: reconstructed from
 //           PAYSLIP_ACTUALS totals (pension ≈ basic + varPay − Taxable Pay, bias-corrected against
 //           the two payslip-confirmed eras). A transitional value between the £160.78 and £154.77
@@ -136,6 +143,7 @@ export const GRADES = {
 /** @type {Array<{ from: Date|null, amount: number }>} */
 export const PENSION_STEPS = [
   { from: new Date(2026, 7, 28), amount: 151.86 },
+  { from: new Date(2026, 6, 31), amount: 150.74 },
   { from: new Date(2026, 4, 8),  amount: 147.36 },
   { from: new Date(2025, 7, 29), amount: 154.77 },
   { from: new Date(2025, 7, 1),  amount: 156.29 },
