@@ -3086,6 +3086,33 @@ test('calendar: Team View opens on the month you were browsing, not the current 
 // test, which is the case that broke: the tap must still open the Huddle, on the stored url, at once.
 // A Daily Huddle tap with nothing to show used to do NOTHING — the hash handler opened only on a
 // loaded Huddle — and stayed armed, so one arriving later opened over whatever the member was doing.
+// ── LESS MOTION MEANS THE HUDDLE APPEARS, NOT SLIDES (whole-app review, 10 Nov 2026) ─────────────
+// Every lightbox on this page opens without movement for a member who has asked for reduced motion;
+// the Huddle viewer, its own full-screen panel, still slid up the screen's whole height. Sampled every
+// frame from the tap, one-shot: its top edge must never leave the top of the screen.
+test('huddle: with reduced motion the viewer appears in place, and still closes', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const tops = await page.evaluate(() => new Promise((resolve) => {
+        const v = /** @type {HTMLElement} */ (document.getElementById('huddleViewer'));
+        /** @type {number[]} */ const seen = [];
+        const t0 = performance.now();
+        const tick = () => {
+            if (v.classList.contains('visible')) seen.push(Math.round(v.getBoundingClientRect().top));
+            if (performance.now() - t0 < 400) requestAnimationFrame(tick); else resolve(seen);
+        };
+        location.hash = '#huddle';
+        requestAnimationFrame(tick);
+    }));
+    expect(tops.length, 'premise: the viewer opened').toBeGreaterThan(3);
+    expect(Math.max(...tops), 'the panel slid in from below').toBe(0);
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+});
+
 test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
     await seedMemberSession(page, 'G. Miller');

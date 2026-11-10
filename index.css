@@ -2781,6 +2781,9 @@
         }
         #huddleViewer.visible { display: flex; }
         #huddleViewer.open    { opacity: 1; transform: translateY(0); }
+        /* Less motion asked for: the panel appears, as every lightbox here does, rather than sliding the
+           screen's height. Closing needs no transitionend in this setting (overlay.js dismissOverlay). */
+        @media (prefers-reduced-motion: reduce) { #huddleViewer { transform: none; transition: none; } }
         #huddleViewerHeader {
             display: flex;
             align-items: center;
