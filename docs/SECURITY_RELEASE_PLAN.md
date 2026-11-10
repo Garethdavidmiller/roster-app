@@ -240,7 +240,9 @@ Three design points that flow from this and still govern any future rule change:
   (`request.resource.data.daily.keys().size() < N`) must ride a `deploy-rules.yml`-gated rules release
   with an emulator `assertFails`; and App Check (D2) removes the un-attested write path entirely. **If
   tightened before App Check:** add a key-count cap to the `activeAccounts` + `perf_` create/update
-  conditions and a matching `assertFails`.
+  conditions and a matching `assertFails`. (Since 10 Nov 2026 a `perf_` month must be the present one
+  or one either side. That stops padding spreading to any other month's document; it does not shrink
+  the exposure of the present month's, or of `activeAccounts`.)
 
 ### Track E — full-app authentication — E0+E1 SHIPPED · the read closure is **CLOSED (26 Aug 2026)** · individual auth UNDECIDED
 
