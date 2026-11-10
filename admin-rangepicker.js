@@ -417,10 +417,18 @@ export function buildRangePicker(prefix, opts = {}) {
     updateChips();
 
     return {
-        reset() {
+        /**
+         * Clear the range. `keepView` leaves the month on screen where it is — what a save wants: the
+         * reader is still looking at the year they just booked in, and moving the picker back to today
+         * told the banner above it to switch years under "✓ Recorded" (owner's decided default, 10 Nov 2026).
+         * @param {{ keepView?: boolean }} [o]
+         */
+        reset({ keepView = false } = {}) {
             fromISO = toISO = hoverISO = focusISO = '';
-            yr = new Date().getFullYear();
-            mo = new Date().getMonth();
+            if (!keepView) {
+                yr = new Date().getFullYear();
+                mo = new Date().getMonth();
+            }
             fromInput.value = toInput.value = '';
             toInput.dispatchEvent(new Event('change'));
             render();
