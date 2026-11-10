@@ -60,6 +60,11 @@ export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear })
  * appears ONLY when the member has opted in to a figure that is still an estimate, because that is
  * the only state where there is something for them to do when the payslip arrives.
  *
+ * A CONFIRMED premium is never hedged. It is the figure the member copied off this very payslip
+ * (the HPP card's box asks for the Holiday Pay Premium line on the January payslip, and this banner
+ * shows only on that payslip), so it IS on this payslip — "could land" undersold a fact the member
+ * had just read, where back pay's confirmed award already says it "will land".
+ *
  * @param {object} s
  * @param {number} s.forPeriod    the premium actually added to this estimate (0 = opted out)
  * @param {number} s.amount       the premium available on this payslip
@@ -70,7 +75,9 @@ export function hppBannerCopy({ forPeriod, amount, isEstimate }) {
     return {
         text: forPeriod > 0
             ? `✓ Includes ${isEstimate ? 'estimated ' : ''}Holiday Pay Premium of ${fmt(amount)}`
-            : `ℹ️ ${isEstimate ? 'Estimated' : 'A'} Holiday Pay Premium of ${fmt(amount)} could land on this payslip — not added to this estimate`,
+            : isEstimate
+                ? `ℹ️ Estimated Holiday Pay Premium of ${fmt(amount)} could land on this payslip — not added to this estimate`
+                : `ℹ️ Your Holiday Pay Premium of ${fmt(amount)} is on this payslip — not added to this estimate`,
         note: (forPeriod > 0 && isEstimate)
             ? 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.'
             : '',

@@ -1702,6 +1702,8 @@ test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on'
 
     await expect(page.locator('#hppBannerTick')).not.toBeChecked();
     await expect(page.locator('#hppBannerText')).toContainText('not added to this estimate');
+    // Confirmed, so not hedged: the figure was copied off this payslip (whole-app check, 10 Nov 2026).
+    await expect(page.locator('#hppBannerText')).toContainText('Your Holiday Pay Premium of £1,843.01 is on this payslip');
     await expect(page.locator('#provChips')).not.toContainText('Holiday Pay Premium');
     const excluded = poundsOf(await page.locator('#netDisplay').textContent());
     expect(excluded, 'the take-home figure rendered').toBeGreaterThan(0);
