@@ -169,11 +169,22 @@ const IDS = [
 ];
 globalThis.document = /** @type {any} */ (doc);
 
-const { SK, periodKey } = await import('./paycalc-migrations.js');
+/** The card itself, made ONCE and never replaced by `openCard`: the module wires its member-edit
+ *  tracking to it on first use, so a card rebuilt per test would leave the listeners on a stale node.
+ *  @type {Record<string, Function[]>} */
+const _cardListeners = {};
+els.backPayCard = { addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => { (_cardListeners[type] ??= []).push(fn); } };
+/** An event reaching the card as the member's own does (`bubbles`), or as the app's own
+ *  `_setSelectPeriod` announces a paid-in it set (non-bubbling `input`). */
+function cardEvent(/** @type {string} */ type, /** @type {boolean} */ bubbles) {
+    for (const fn of _cardListeners[type] ?? []) fn({ type, bubbles });
+}
+
+const { SK, periodKey, bpKey } = await import('./paycalc-migrations.js');
 const { getPeriods, CONFIG: PERIOD_CONFIG, payslipPeriodNum } = await import('./paycalc-periods.js');
 const { awardRatesFor, awardFromForYear } = await import('./paycalc-calc.js');
 const { resolveAuthoritativeRates } = await import('./paycalc-backpay-state.js');
-const { calcBackPay, prefillBackPay, raiseByPercent, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
+const { calcBackPay, prefillBackPay, restoreBpState, raiseByPercent, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
     await import('./paycalc-backpay.js');
 const { getEffectiveContr, getProRateFactor } = await import('./paycalc-settings.js');
 const { _decodeHours } = await import('./paycalc-hpp.js');
@@ -542,5 +553,71 @@ describe('a year flagged as accepted opens with its own offered percentage, or n
         } finally {
             delete TY.rateUnconfirmed;
         }
+    });
+});
+
+// ── VIEWING IS NOT ENTERING (paycalc-2-6) ───────────────────────────────────────────────────────
+// Every recompute used to save the card, so merely opening the page wrote back-pay state, and every
+// "does this device hold pay data?" question answered yes about data nobody entered. ORDER MATTERS
+// in this block: the module remembers a member's change for the rest of the page view, as it should.
+describe('merely viewing writes nothing; the member\'s first change does', () => {
+    test('a first visit computes the default lump and saves NOTHING', () => {
+        openCard();
+        assert.equal(restoreBpState(), false, 'precondition: nothing saved for this year');
+        const out = prefillBackPay();
+        calcBackPay();                                        // the coordinator's second pass, same tick
+        assert.ok(out.bpAmount > 0, 'the default estimate is still computed, closed card or not');
+        assert.equal(_ls.has(bpKey(TY)), false, 'opening the page wrote back-pay state');
+    });
+
+    test('the app announcing a paid-in it set is not the member changing the card', () => {
+        openCard();
+        restoreBpState();                                     // the coordinator's first call: starts the watch
+        assert.ok(_cardListeners.input?.length, 'precondition: the card is being watched');
+        cardEvent('input', false);                            // _setSelectPeriod's own, non-bubbling
+        calcBackPay();
+        assert.equal(_ls.has(bpKey(TY)), false);
+    });
+
+    test('the member\'s first change saves the card — the banner\'s tick included', () => {
+        openCard();
+        prefillBackPay();
+        els.bpIncludeTick.checked = true;
+        cardEvent('change', true);                            // the tick, as the coordinator proxies it
+        calcBackPay();
+        assert.ok(_ls.has(bpKey(TY)), 'a choice the member made must survive a reload');
+        assert.equal(JSON.parse(_ls.get(bpKey(TY))).inc, '1');
+    });
+});
+
+// ── A DAMAGED SAVED STATE IS RESET ALOUD (paycalc-2-10) ─────────────────────────────────────────
+describe('a damaged saved card state is reset ALOUD, until the member re-checks it', () => {
+    test('the warning survives the second render of the same tick, and every render after', () => {
+        openCard();
+        _ls.set(bpKey(TY), '{"mode":"manual","manual":"612.40","paidIn":"55","inc":"1"');   // truncated
+        assert.equal(restoreBpState(), false);
+        prefillBackPay();                                     // render 1: the coordinator's prefill
+        calcBackPay();                                        // render 2: its "Pay rise %" pass, same tick
+        assert.match(els.backPayNotice.innerHTML, /couldn't be read and were reset/,
+            'wiped by the second render before anybody could see it');
+        // Gone, or replaced by a readable state (this year was changed earlier in the page view, so
+        // its card saves) — but never the damaged text, which would reset it again on the next load.
+        const kept = _ls.get(bpKey(TY));
+        assert.ok(kept == null || typeof JSON.parse(kept) === 'object', 'the damaged text was left in storage');
+        calcBackPay();                                        // opening the card renders again
+        assert.match(els.backPayNotice.innerHTML, /couldn't be read and were reset/);
+
+        cardEvent('change', true);                            // the member re-checks a figure
+        calcBackPay();
+        assert.doesNotMatch(els.backPayNotice.innerHTML, /couldn't be read/);
+    });
+
+    test('a saved state that is not an object is damage, never a deliberate all-blank clear', () => {
+        openCard();
+        _ls.set(bpKey(TY), '"hello"');
+        assert.equal(restoreBpState(), false, 'a string read as "a saved state, all blank"');
+        calcBackPay();
+        assert.match(els.backPayNotice.innerHTML, /couldn't be read and were reset/);
+        cardEvent('change', true);                            // leave the module as later cases expect
     });
 });

@@ -53,17 +53,19 @@ const PENDING_AWARD_PCT = Object.freeze({});
 /** @type {string|null} */
 let _lastAwardYear = null;
 
-// Set when restoreBpState found a CORRUPT saved blob (not merely absent). Surfaced ONCE by the next
-// calcBackPay render so the reset isn't silent — the card meanwhile recomputes a correct default
-// estimate (no-silent-caps; Finding #7, v16.99). Cleared when shown.
-let _bpStateWasCorrupt = false;
+// The award year whose saved card state restoreBpState found UNREADABLE (not merely absent) and
+// reset — the card meanwhile computes a correct default estimate (no-silent-caps; Finding #7,
+// v16.99). Its notice carries the warning on EVERY render until the member changes that year's card
+// (paycalc-2-10). It was one-shot, cleared by the render that showed it — and the coordinator renders
+// twice in one tick (prefill, then the "Pay rise %" pass), so the second wiped it before it could be
+// seen, inside a card that is closed by default besides. A typed lump and its tick vanished in silence.
+/** @type {string|null} */
+let _bpCorruptYear = null;
 
-/** Append the one-shot corrupt-saved-state warning to the card notice. Called on EVERY calcBackPay
- *  exit path (manual mode, empty compute, full render) — the early returns previously skipped it,
- *  so the flag leaked onto a later, unrelated render (review finding). */
-function _surfaceCorruptReset(/** @type {HTMLElement} */ noticeEl) {
-  if (!_bpStateWasCorrupt) return;
-  _bpStateWasCorrupt = false;
+/** Append the reset warning to the card notice while `label`'s state is the one that was reset.
+ *  Called on EVERY calcBackPay exit path (manual mode, empty compute, full render). @param {HTMLElement} noticeEl @param {string|undefined} label */
+function _surfaceCorruptReset(noticeEl, label) {
+  if (!label || _bpCorruptYear !== label) return;
   noticeEl.style.display = 'block';
   noticeEl.innerHTML += `<span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Your saved back-pay entries couldn't be read and were reset — re-check the figures and the tick above.</span>`;
 }
@@ -133,6 +135,7 @@ export function _bpAwardTaxYear(fromPNum) {
  * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean, bpIncluded: boolean }}
  */
 export function prefillBackPay() {
+  _trackMemberEdits();
   // The VIEWED period's award (per-year viewing, v17.86): the card follows the payslip on screen,
   // with per-year saved state (bpKey(ty)) keeping each year's figures and tick independent.
   const pNum = currentPeriodNum();
@@ -234,10 +237,42 @@ export function prefillBackPay() {
 }
 
 // ── PERSISTENCE ───────────────────────────────────────────────────────────────
-// The card's figures autosave per member (bpKey — myb_pc_<slug>_bp_state) like every other paycalc
-// input, so the lump a member set up survives a reload. Previously the card's state was ephemeral:
-// the paid-in period's take-home silently LOST the lump on reload until the card was reopened —
-// the same period showed different take-home before and after a refresh.
+// The card's figures autosave per member (bpKey(ty) — myb_pc_<slug>_bp_state_<year>) like every other
+// paycalc input, so the lump a member set up survives a reload. Previously the card's state was
+// ephemeral: the paid-in period's take-home silently LOST the lump on reload until the card was
+// reopened — the same period showed different take-home before and after a refresh.
+//
+// …but ONLY ONCE THE MEMBER HAS CHANGED IT (paycalc-2-6). Until then the card holds nothing but what
+// the app derives on every visit — the default estimate, the rates on record, the paid-in payslip —
+// and saving that on every recompute meant merely OPENING the page wrote back-pay state. A device on
+// which nobody had entered anything then reported "Back pay · Tax year 2026/27" as its member's own
+// data: in the transfer card's list, in the red "Replace your pay data?" dialog, in Settings and in
+// the storage-persistence request. A year that already has a saved blob keeps being saved, because
+// healing it and a deliberate clear both depend on that.
+
+/** Award years whose card the MEMBER has changed in this page view. @type {Set<string>} */
+const _bpTouched = new Set();
+let _bpTouchWired = false;
+
+/** Note the member changing the card: any input or change inside it, the banner's tick included
+ *  (the coordinator proxies that to #bpIncludeTick as a bubbling change). Capture phase, so it runs
+ *  before the coordinator's own listener recomputes and saves. Only BUBBLING events count: the app's
+ *  own `_setSelectPeriod` announces a paid-in it sets with a non-bubbling `input`, which a capture
+ *  listener would otherwise mistake for the member. Wired once, from the coordinator's first call. */
+function _trackMemberEdits() {
+  if (_bpTouchWired) return;
+  const card = document.getElementById('backPayCard');
+  if (!card || typeof card.addEventListener !== 'function') return;
+  _bpTouchWired = true;
+  const mark = (/** @type {Event} */ e) => {
+    if (!e.bubbles) return;
+    const label = _bpAwardTaxYear(_backdatedFromPNum()).label;
+    _bpTouched.add(label);
+    if (_bpCorruptYear === label) _bpCorruptYear = null;   // they are re-checking: the warning has done its job
+  };
+  card.addEventListener('input', mark, true);
+  card.addEventListener('change', mark, true);
+}
 
 /** Persist the card's raw inputs + the award year they belong to. Called from calcBackPay. */
 function _saveBpState() {
@@ -247,6 +282,8 @@ function _saveBpState() {
     // overwrite another year's state. This is what lets the card safely follow the viewed payslip
     // again (the reason v16.91 had to pin it to one award).
     const awardTy = _bpAwardTaxYear(_backdatedFromPNum());
+    // Nothing of the member's yet, and nothing saved before: nothing to keep (see above).
+    if (!_bpTouched.has(awardTy.label) && lsGet(bpKey(awardTy)) == null) return;
     const v = /** @param {string} id */ (id) => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
     // The six text fields come from BP_FIELDS (paycalc-backpay-state.js) rather than being listed
     // here — save, clear and restore each used to carry their own hand-written copy of that list,
@@ -273,18 +310,23 @@ function _saveBpState() {
  * @returns {boolean} true if a same-year saved state was applied.
  */
 export function restoreBpState() {
+  _trackMemberEdits();
   // Restore the VIEWED award year's own blob (bpKey(ty)). Per-year keys mean there is no cross-year
   // contamination to guard against — the old s.year mismatch discard is gone (each year has its own
   // key). Returns true when a blob was applied — even an all-blank one (a deliberate clear must stick).
   const awardTy = _bpAwardTaxYear(_backdatedFromPNum());
-  let s = null;
+  /** @type {any} */ let s;
   try {
     s = JSON.parse(lsGet(bpKey(awardTy)) || 'null');
+    // Only an OBJECT is a state this app wrote. A string, number or array came in some other way
+    // (a backup made elsewhere) and is read as damage, never as a deliberate all-blank clear.
+    if (s !== null && (typeof s !== 'object' || Array.isArray(s))) throw new TypeError('not a saved card state');
   } catch {
-    // Corrupt saved card state — self-heal the bad key and flag it so the next calcBackPay render
-    // tells the member their entries were reset (no-silent-caps; Finding #7).
-    _bpStateWasCorrupt = true;
+    // Corrupt saved card state — self-heal the bad key and flag the YEAR, so every render of its card
+    // tells the member their entries were reset (no-silent-caps; Finding #7, paycalc-2-10).
+    _bpCorruptYear = awardTy.label;
     lsDel(bpKey(awardTy));
+    s = null;
   }
   if (!s) return false;
   // ONE pass over BP_FIELDS that blanks and applies together (v19.93). A field the blob doesn't
@@ -567,7 +609,7 @@ export function calcBackPay() {
       if (periodWrap) periodWrap.style.display = 'none';
       noticeEl.style.display = 'block';
       setStatus(noticeEl, 'ℹ️ Enter the back-pay lump sum from your payslip above.');
-      _surfaceCorruptReset(noticeEl);
+      _surfaceCorruptReset(noticeEl, awardTy?.label);
       return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
     }
     _story('manual', manualAmt);
@@ -586,7 +628,7 @@ export function calcBackPay() {
     } else {
       setStatus(noticeEl, '⚠️ Select which payslip carried this lump sum above.');
     }
-    _surfaceCorruptReset(noticeEl);
+    _surfaceCorruptReset(noticeEl, awardTy?.label);
     const newBpPNum = bpPNum > 0 ? bpPNum : 0;
     return { bpAmount: newBpPNum > 0 ? manualAmt : 0, bpVarAmount: 0, bpPNum: newBpPNum, bpIsEstimate: false, bpIncluded };
   }
@@ -598,7 +640,7 @@ export function calcBackPay() {
     totalEl.style.display      = 'none';
     noticeEl.style.display     = 'none';
     if (periodWrap) periodWrap.style.display = 'none';
-    _surfaceCorruptReset(noticeEl);
+    _surfaceCorruptReset(noticeEl, awardTy?.label);
     return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
   }
 
@@ -771,9 +813,9 @@ export function calcBackPay() {
     noticeEl.innerHTML += `<span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those payslips' : 'that payslip'} on the calculator to re-save, then check again.</span>`;
   }
 
-  // Surface a CORRUPT saved-CARD-state reset once (Finding #7) — shared helper, also called on the
-  // early-return paths above.
-  _surfaceCorruptReset(noticeEl);
+  // Surface a CORRUPT saved-CARD-state reset (Finding #7) until the member changes the card — shared
+  // helper, also called on the early-return paths above.
+  _surfaceCorruptReset(noticeEl, awardTy?.label);
 
   const newBpPNum   = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
   const newBpAmt    = newBpPNum > 0 ? grandTotal    : 0;
