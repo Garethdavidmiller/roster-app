@@ -748,3 +748,102 @@ describe('the sheet says when it was PRINTED (overtime-ui-7)', () => {
         assert.equal(stamped.at(-1)?.[1], NOW, 'by the corrected clock, as the as-at line beside it is');
     });
 });
+
+/** A button the fake DOM can press, answering `getAttribute` for one attribute. */
+function pressable(/** @type {string} */ attr, /** @type {string|null} */ value) {
+    /** @type {Function[]} */ const on = [];
+    return { textContent: 'x', disabled: false, hidden: true, innerHTML: '', classList: { add() {}, remove() {} },
+        getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {},
+        addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => on.push(f),
+        press: () => Promise.all(on.map(f => f())) };
+}
+const keepWeekA = () => overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [WEEK_A] } });
+
+describe('a write whose answer never came is not called a failure, and is re-read (overtime-ui-10)', () => {
+    // A timeout only says the answer never arrived. The server may have added the people (and told
+    // them) or stood somebody down (and taken the week off their page), and the screen said "That
+    // couldn't be saved (timeout)" and kept the old picture until something else re-read it.
+
+    test('a timed-out Add says it may have happened, and re-reads the list and the week', async () => {
+        detailFor.set(A, detail(2, 1));
+        const topup = pressable('data-topup', A);
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-topup]' ? [topup] : []) };
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        const reads = overviewReads, paints = painted.length;
+        createQueue = [{ ok: false, code: 'timeout' }];
+        keepWeekA();
+        await topup.press();
+        await settle();
+        assert.match(dom.otConfirmText.innerHTML, /Couldn't confirm whether anyone was added to Week ending .* — it may still have happened/);
+        assert.doesNotMatch(dom.otConfirmText.innerHTML, /\(timeout\)/, 'not "couldn\'t add anyone"');
+        assert.equal(overviewReads, reads + 1, 'the list is re-read');
+        assert.equal(painted.length, paints + 1, 'and the week on screen');
+    });
+
+    test('a Stop asking answered by a bare 5xx says it may have happened, and re-reads', async () => {
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        withdrawHold = () => ({ ok: false, code: 'http-504', status: 504 });
+        const reads = overviewReads, paints = painted.length;
+        keepWeekA();
+        await painted.at(-1).opts.onAsk('P0', false);
+        await settle();
+        assert.match(dom.otConfirmText.innerHTML, /Couldn't confirm whether P0 was taken off Week ending .* — it may still have happened/);
+        assert.equal(overviewReads, reads + 1);
+        assert.equal(painted.length, paints + 1);
+    });
+
+    test('a refusal the server STATED is still a refusal, and nothing is re-read', async () => {
+        detailFor.set(A, detail(2, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        withdrawHold = () => ({ ok: false, code: 'closed', status: 409 });
+        const reads = overviewReads;
+        await painted.at(-1).opts.onAsk('P0', false);
+        assert.match(dom.otConfirmText.innerHTML, /has closed, so who was asked can no longer be changed/);
+        assert.equal(overviewReads, reads, 'nothing ambiguous happened');
+    });
+
+    test('a create whose answer never came re-reads the list it tells the reviewer to check', async () => {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        dom.otConfirmCreate = pressable('x', null);
+        dom.otConfirmCancel = pressable('x', null);
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        c.wireConfirmBar();
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, audience: 'restricted', expectedCount: 1 } } }];
+        await create.press();
+        createQueue = [{ ok: false, code: 'network' }];
+        const reads = overviewReads;
+        await dom.otConfirmCreate.press();
+        await settle();
+        assert.match(dom.otConfirmText.innerHTML, /may still have been created/);
+        assert.equal(overviewReads, reads + 1, 'so "check the list" checks a current one');
+    });
+});
+
+describe('a refusal about the REVIEWER is worded, never the server\'s sentence in brackets (overtime-core lead)', () => {
+    test('a 401/403 says the sign-in no longer has reviewer access; offline says nothing was sent', async () => {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        createQueue = [{ ok: false, code: 'Forbidden — reviewer access required', status: 403 }];
+        await create.press();
+        assert.match(dom.otConfirmText.innerHTML, /Your sign-in no longer has reviewer access\. Reload the page and sign in again\./);
+        assert.doesNotMatch(dom.otConfirmText.innerHTML, /Forbidden/);
+        createQueue = [{ ok: false, code: 'offline' }];
+        await create.press();
+        assert.match(dom.otConfirmText.innerHTML, /nothing was sent/);
+        assert.doesNotMatch(dom.otConfirmText.innerHTML, /\(offline\)/);
+    });
+});

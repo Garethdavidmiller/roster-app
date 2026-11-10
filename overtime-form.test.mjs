@@ -331,6 +331,21 @@ describe('a timeout must never become a second, contradictory declaration', () =
         assert.doesNotMatch(f.feedback(), /newer version/, 'the member\'s own save, called somebody else\'s');
     });
 
+    test('a 5xx the server did not name is reconciled too — a function out of time may have written (overtime-ui-10)', async () => {
+        // The client's budget is deliberately longer than the server's, so a server that runs out of
+        // time answers first, with a bare 504: "Couldn't save (http-504)" about a save that may stand.
+        submitResults = [{ ok: false, code: 'http-504', status: 504, mutationId: 'm5' }];
+        stateResult = { ok: true, data: { windows: [{
+            weekEnding: WEEK_ENDING,
+            submission: { days: answeredWeek('all_day'), currentRevision: 7, lastMutationId: 'm5' },
+        }] } };
+        const f = await mountForm();
+        await f.submit();
+        assert.equal(calls.filter(c => c.call === 'state').length, 1, 'it goes into reconciliation');
+        assert.match(f.feedback(), /did save/);
+        assert.doesNotMatch(f.feedback(), /http-504/);
+    });
+
     test('an ordinary refusal does NOT reconcile — there is nothing ambiguous about it', async () => {
         // Reconciliation exists because an abort leaves the outcome unknown. A server that answered
         // has already said what happened, and re-reading after one would be an extra round trip

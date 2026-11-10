@@ -29,9 +29,8 @@
  *     least produces a true message.
  */
 
-// WHERE THE WEEK STANDS moved to overtime-phase.js at v23.84 (this file had hit its ratchet again).
-// Re-exported here so nothing that imports from overtime-format.js had to change, and imported back
-// for the three lines in this file that still print a deadline.
+// WHERE THE WEEK STANDS moved to overtime-phase.js at v23.84; re-exported so no importer had to
+// change, and `deadlineLabel` imported back for the words here that print a deadline.
 import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 import { getShiftBadge, formatISO, isSunday } from './roster-data.js';
@@ -117,6 +116,15 @@ export function reconcileVerdict(stateOk, freshSubmission, pendingMutationId, wi
 }
 
 /**
+ * Did a WRITE end without saying whether it happened? A timeout, a cut-off answer, or an error the
+ * server did not name (`http-5xx` — a function out of time answers so) may each have been written, so
+ * only a re-read can tell (overtime-ui-10) — never "it failed". Every Overtime write asks this.
+ * @param {{ ok: boolean, code?: string, status?: number }} r
+ */
+export const writeOutcomeUnknown = (r) => !r.ok && (r.code === 'timeout' || r.code === 'network'
+    || (Number(r.status) >= 500 && r.code === `http-${r.status}`));
+
+/**
  * Did WE win the write the server is now refusing as a conflict?
  *
  * Almost always not — somebody else saved — but the exception is this member's own timed-out
@@ -147,10 +155,9 @@ export function conflictIsOurs(pendingMutationId, lastMutationId) {
  * `start === end` outright, and the server's `before_after` check treats a non-advancing pair as a
  * transposition. A value like that is malformed, not a round-the-clock shift.
  *
- * The consequence was small and in the wrong direction — 1440 is over the 12-hour gate, so the
- * "Up to 12 hours" pill would be withheld on the strength of a garbage reading. `modesFor` needs a
- * POSITIVE fact to withhold, and null is not one, so returning null offers the pill. Withholding an
- * option is a real cost to the member; offering one on a day whose roster is nonsense is not.
+ * The consequence was small and in the wrong direction: 1440 is over the 12-hour gate, so the
+ * willingness tick would be withheld on a garbage reading. `offersFullTwelve` needs a POSITIVE fact
+ * to withhold, and null is not one — withholding costs the member; asking on a nonsense roster does not.
  * @param {string|null|undefined} start @param {string|null|undefined} end
  * @returns {number|null}
  */
@@ -448,10 +455,8 @@ export function countsCopy(expected, received) {
  * by the server as inverted) and unknown rosters — so every day still has a both-sides answer,
  * and a SAVED all_day on a worked day still renders (the form re-adds a stored mode to the list).
  *
- * The same review settled why this stays a single-select at all: twelve hours is the ceiling every
- * plan is subject to, not something a member grants — so "before & after AND up to 12 hours" adds
- * nothing to "before & after". The form now says so (the cap note in overtime-form.js), and the
- * 12-hour pill is worded as what it really is: willingness for the LONGEST day allowed.
+ * It stays a single-select because twelve hours is the ceiling every plan is held to, not something a
+ * member grants — the form states it (the cap note); willingness for that longest day is the tick.
  * @param {{hasTime?: boolean, overnight?: boolean, rosteredMinutes?: number|null}|null} ctx
  * @returns {string[]}
  */
@@ -499,8 +504,8 @@ export function submitFailureCopy(code, dayLabel) {
     if (dayLabel) return `Your answer for ${dayLabel} couldn't be accepted — choose that day again and resubmit.`;
     switch (code) {
         // Nothing left the phone: its sign-in could not be refreshed for want of a network
-        // (overtime-core-3). Never "reload" here — on a phone that throws the unsent answers away.
-        // (A cut-off `network` never reaches this function: the form reconciles it as unknown.)
+        // (overtime-core-3). Never "reload" — that throws the unsent answers away. (`network` and a
+        // code-less 5xx never arrive here: the form reconciles them, `writeOutcomeUnknown`.)
         case 'offline':    return 'Couldn\'t reach the server, so nothing was sent. Check your connection and try again — your answers are still here.';
         case 'no-session': return 'Your sign-in has expired. Reload the page and sign in again.';
         // Server-side refusals: the request ARRIVED, so connection advice would be a false lead.
@@ -910,10 +915,8 @@ export function weekAvailabilitySummary({ weekEnding, dates, participants, submi
 }
 
 /**
- * The reminder-audit line: did the deadline-morning reminder to non-responders actually go out?
- * `reminderSentAt` is stamped server-side by the scheduler (functions/overtime.js) and reaches the
- * horizon row via getOvertimeManagerOverview; until v22.05 nothing displayed it, so "did the
- * reminder fire?" meant reading Cloud Function logs.
+ * The reminder-audit line (v22.05): did the deadline-morning reminder to non-responders go out, without
+ * reading Cloud Function logs? The scheduler (functions/overtime.js) stamps `reminderSentAt`.
  *
  * The stamp is CLAIMED before the send (two overlapping runs must not both send), so alone it says
  * only that a send was ATTEMPTED. What the send reached is recorded after it (overtime-core-4):

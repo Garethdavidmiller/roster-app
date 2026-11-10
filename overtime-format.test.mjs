@@ -24,7 +24,7 @@ import {
     modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
     declaredAgo, deriveHistory,
     dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
-    weekAvailabilitySummary, reminderLine, putBackWindow, canRestoreNow,
+    weekAvailabilitySummary, reminderLine, putBackWindow, canRestoreNow, writeOutcomeUnknown,
 } from './overtime-format.js';
 // WHERE THE WEEK STANDS lives in overtime-phase.js since v23.84 (extracted at the ratchet). Imported
 // from where it is defined, not through overtime-format.js's re-export, so the module is named by
@@ -1184,6 +1184,23 @@ describe('what a timed-out submission can be said to have done', () => {
     });
 });
 
+
+describe('a write whose outcome nobody can know (overtime-ui-10)', () => {
+    test('a timeout, a cut-off answer and an error the server did not name are UNKNOWN, not failed', () => {
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'timeout' }), true);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'network' }), true);
+        // A function that runs out of its own time answers with a bare 5xx: it may have committed.
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-504', status: 504 }), true);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-500', status: 500 }), true);
+    });
+    test('an answer the server DID give is not unknown — it said what happened', () => {
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'write-failed', status: 500 }), false, 'named: the transaction failed');
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'closed', status: 409 }), false);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-404', status: 404 }), false, 'a 4xx is a refusal');
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'offline' }), false, 'nothing was sent');
+        assert.equal(writeOutcomeUnknown({ ok: true, code: 'timeout' }), false);
+    });
+});
 
 describe('whose write the server is refusing', () => {
     // Two opposite sentences hang off this: "your earlier submission did save, review it" against

@@ -43,6 +43,7 @@ import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
     sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs, isAvailableAnswer, weekDates,
+    writeOutcomeUnknown,
 } from './overtime-format.js';
 import { offersSundayRelease, SUNDAY_RELEASE_LABEL, SUNDAY_RELEASE_ASKED } from './overtime-sunday-release.js';
 import { withMode, withFullTwelve, withRelease } from './overtime-answer.js';
@@ -832,7 +833,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // suspends a page mid-request, and a 200 whose body was cut off reads as `network` too
         // (overtime-data.js). Told "couldn't reach the server", the member retried and was shown
         // their own save as "a newer version"; keeping the id lets that conflict say it was theirs.
-        if (r.code === 'timeout' || r.code === 'network') {
+        // So is a 5xx the server did not name: a function out of time may have written (overtime-ui-10).
+        if (writeOutcomeUnknown(r)) {
             pendingMutationId = r.mutationId;
             await reconcile();
             submitBtn.disabled = false;

@@ -448,7 +448,8 @@ nothing; `overtime-format.js` re-exports all six.
 seven ISO dates — the one client copy, for the form and the reviewer) · `printedLabel` (carries
 the year: it stamps paper) · `asAtLine` · `declaredAgo` · `receiptLine`. *The form's rules:*
 `dayUnfinished` / `unfinishedDates` (the count and the day an error walks to come from one list) ·
-`reconcileVerdict` · `conflictIsOurs` · `modesFor` (shortcuts only where an authoritative duty time
+`reconcileVerdict` · `conflictIsOurs` · `writeOutcomeUnknown` (a timeout, a cut-off answer or a 5xx the
+server did not name: re-read, never "failed" — every Overtime write asks it) · `modesFor` (shortcuts only where an authoritative duty time
 exists; one both-sides answer a day; an overnight duty withholds `after` and `before_after`) ·
 `offersFullTwelve` · `shiftSpanMinutes` · `sameAnswer` · `answerAnchorStale` · `submitFailureCopy`.
 *Answers:* `answerCopy` · `answerTone` · `isUnavailable` · `isAvailableAnswer` (not `!isUnavailable` —

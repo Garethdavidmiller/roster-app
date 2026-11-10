@@ -73,6 +73,7 @@
 import * as OTD from './overtime-data.js';
 import {
     weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn, putBackWindow, weekDates,
+    writeOutcomeUnknown,
 } from './overtime-format.js';
 import { phaseAt } from './overtime-phase.js';
 import { renderWeekDetail as paintWeekDetail, stampPrinted } from './overtime-manager.js';
@@ -319,7 +320,7 @@ async function previewWindow(weekEnding, btn) {
     const restore = setCreateBusy(btn);
     const r = await OTD.createOvertimeWindow(weekEnding, { dryRun: true });
     restore();
-    if (!r.ok) { flashConfirm(`Couldn't prepare that week (${esc(r.code)}).`, false); return; }
+    if (!r.ok) { flashConfirm(esc(accessRefusal(r) ?? `Couldn't prepare that week (${r.code}).`), false); return; }
     const w = r.data.window;
     pendingWeek = weekEnding;
     const bar = el('otConfirmBar');
@@ -370,7 +371,9 @@ async function topUpWeek(weekEnding, btn) {
     if (!r.ok) {
         btn.textContent = label;
         /** @type {HTMLButtonElement} */ (btn).disabled = false;
-        flashConfirm(`Couldn't add anyone to that week (${esc(r.code)}).`, false);
+        // The server may have added them, and told them (overtime-ui-10): say so, and re-read.
+        if (writeOutcomeUnknown(r)) { await unknownOutcome(weekEnding, 'whether anyone was added to'); return; }
+        flashConfirm(esc(accessRefusal(r) ?? `Couldn't add anyone to that week (${r.code}).`), false);
         return;
     }
     const added = (r.data && r.data.added) || [];
@@ -456,12 +459,17 @@ function wireConfirmBar() {
         if (pendingWeek !== week) pendingWeek = null;
         armConfirmBar();
         if (!r.ok) {
-            // A timeout on a CREATE is not a failure — the window may exist. Say so, and say
-            // what to do, rather than inviting a second create that would look like a failure
-            // too (it would return the existing window, which is right, but reads as confusing).
-            flashConfirm(r.code === 'timeout'
-                ? 'Timed out waiting for the server. The week may still have been created — close this and check the list.'
-                : `Couldn't create that week (${esc(r.code)}).`, false);
+            // A create whose answer never came is not a failure — the window may exist. Say so, and
+            // say what to do, rather than inviting a second create that would look like a failure
+            // too (it would return the existing window, which is right, but reads as confusing). The
+            // list is re-read, so "check the list" checks a current one (overtime-ui-10).
+            if (writeOutcomeUnknown(r)) {
+                flashConfirm('Couldn\'t confirm whether the week was created — it may still have been created. '
+                    + 'Close this and check the list.', false);
+                loadHorizon({ quiet: true });
+                return;
+            }
+            flashConfirm(esc(accessRefusal(r) ?? `Couldn't create that week (${r.code}).`), false);
             return;
         }
         pendingWeek = null;
@@ -502,6 +510,33 @@ function flashConfirm(html, ok) {
         reserveConfirmSpace(false);
     }, 2500);
 
+}
+
+/**
+ * A write whose answer never came (overtime-ui-10). The server may have done it — added people and
+ * told them, or stood somebody down and taken the week off their page — so it is neither reported
+ * as a failure nor left unread. Both writes are idempotent, so a second press after the re-read is safe.
+ * @param {string} weekEnding @param {string} what e.g. "whether anyone was added to"
+ */
+async function unknownOutcome(weekEnding, what) {
+    flashConfirm(`Couldn't confirm ${esc(what)} ${esc(weekLabel(weekEnding))} — it may still have happened. `
+        + 'Check the week before trying again.', false);
+    await loadHorizon({ quiet: true });
+    if (selectedWeek === weekEnding) renderWeekDetail(weekEnding);
+}
+
+/**
+ * A refusal about the REVIEWER rather than the action (the overtime-core lead): for these the server
+ * puts a sentence in its code field, which read as "(Forbidden — reviewer access required)" after the
+ * action's words. And `offline`: nothing was sent. Null for anything the action words itself.
+ * @param {{ code?: string, status?: number }} r
+ */
+function accessRefusal(r) {
+    if (r.code === 'offline') return 'Couldn\'t reach the server, so nothing was sent. Check your connection and try again.';
+    if (r.code === 'no-session' || r.status === 401 || r.status === 403) {
+        return 'Your sign-in no longer has reviewer access. Reload the page and sign in again.';
+    }
+    return null;
 }
 
 /**
@@ -687,12 +722,17 @@ async function setAsking(weekEnding, memberName, ask) {
     const r = await OTD.withdrawOvertimeParticipant(weekEnding, memberName, !ask);
     pendingWeek = null;   // …nor one that landed while this call was out
     if (!r.ok) {
+        // The server may have done it, and the member's own page with it (overtime-ui-10).
+        if (writeOutcomeUnknown(r)) {
+            await unknownOutcome(weekEnding, `whether ${memberName} was ${ask ? 'put back on' : 'taken off'}`);
+            return;
+        }
         // `closed` is the one refusal worth naming rather than reporting as a fault: it is a
         // rule, and a reviewer told only "that didn't work" would try it again.
         flashConfirm(r.code === 'closed'
             ? `${esc(week)} has closed, so who was asked can no longer be changed — a closed `
               + 'week is the record the roster was planned from.'
-            : `That couldn't be saved (${esc(r.code)}).`, false);
+            : esc(accessRefusal(r) ?? `That couldn't be saved (${r.code}).`), false);
         return;
     }
     flashConfirm(ask
