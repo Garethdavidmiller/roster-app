@@ -54,7 +54,12 @@ async function initErrorLog(opts = {}) {
 
     try {
         await sessionReady;
-        const { errors = [], truncated = false } = (await withClaimRetry(getClientErrors)) || {};
+        const got = (await withClaimRetry(getClientErrors)) || {};
+        const { errors = [], truncated = false } = got;
+        // More than 200 RESOLVED records exist, and the reader took an unordered 200 of them, so the
+        // resolved rows below are the newest of that 200 — not necessarily the newest (pwa-5). Read
+        // loosely: a reader without the flag has not cut the list.
+        const resolvedTruncated = /** @type {any} */ (got).resolvedTruncated === true;
 
         content.innerHTML = '';
 
@@ -161,7 +166,16 @@ async function initErrorLog(opts = {}) {
             return;
         }
 
+        // Said once, where the resolved rows begin (or at the end, when none of them is shown).
+        let resolvedCapSaid = !resolvedTruncated;
+        const sayResolvedCap = () => {
+            const note = Object.assign(document.createElement('p'), { className: 'error-truncation-note error-resolved-cap-note',
+                textContent: 'More than 200 resolved errors — the resolved entries shown may not be the most recent.' });
+            content.appendChild(note);
+            resolvedCapSaid = true;
+        };
         errors.forEach(err => {
+            if (err.resolved && !resolvedCapSaid) sayResolvedCap();
             const row = document.createElement('div');
             row.className = 'error-row' + (err.resolved ? ' error-row--resolved' : '');
 
@@ -256,6 +270,7 @@ async function initErrorLog(opts = {}) {
             row.appendChild(actions);
             content.appendChild(row);
         });
+        if (!resolvedCapSaid) sayResolvedCap();
 
     } catch (e) {
         console.error('[ErrorLog]', e);

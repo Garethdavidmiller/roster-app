@@ -1295,15 +1295,17 @@ test('operations attention: a retry after a failed load still reaches the strip'
  * @param {Array<{id: string, message: string, resolved?: boolean}>} rows
  * @param {{ truncated?: boolean }} [o]
  */
-async function stubErrorLog(page, rows, { truncated = false } = {}) {
-    await page.addInitScript(({ rows, truncated }) => {
+async function stubErrorLog(page, rows, { truncated = false, resolvedTruncated = undefined } = {}) {
+    await page.addInitScript(({ rows, truncated, resolvedTruncated }) => {
         const w = /** @type {any} */ (window);
         const ts = (/** @type {number} */ ms) => ({ toDate: () => new Date(ms), toMillis: () => ms });
         w.__E2E = { ...(w.__E2E || {}), errorRows: rows,
-            errorLog: () => ({ truncated, errors: w.__E2E.errorRows.map((/** @type {any} */ r, /** @type {number} */ i) => ({
-                memberName: 'A. Hared', page: 'calendar', appVersion: '25.64', resolved: false, ...r,
-                timestamp: ts(Date.now() - (i + 1) * 60_000) })) }) };
-    }, { rows, truncated });
+            // `resolvedTruncated` is left out unless a test sets it: an older reader does not send it.
+            errorLog: () => ({ truncated, ...(resolvedTruncated === undefined ? {} : { resolvedTruncated }),
+                errors: w.__E2E.errorRows.map((/** @type {any} */ r, /** @type {number} */ i) => ({
+                    memberName: 'A. Hared', page: 'calendar', appVersion: '25.64', resolved: false, ...r,
+                    timestamp: ts(Date.now() - (i + 1) * 60_000) })) }) };
+    }, { rows, truncated, resolvedTruncated });
     await page.route('**/analytics-client.js', async route => {
         const res = await route.fetch();
         let src = await res.text();
@@ -1335,6 +1337,32 @@ for (const [label, rows, badge] of [
         await expect(page.locator('#errorLogContent .error-truncation-note')).toContainText('3 of them slow-save diagnostics');
         await expect(page.locator('#errorLogCountChip')).toHaveText(badge);
         await expect(page.locator('#attentionStrip .attn-item')).toHaveText(new RegExp(`Unresolved errors\\s*${badge.replace('+', '\\+')}`));
+    });
+}
+
+// ── A CUT RESOLVED LIST SAYS SO (routed from pwa, Nov 2026) ─────────────────────────────────────
+// Past 200 resolved records the read takes an unordered 200, so the card lists the newest of THAT 200,
+// not necessarily the newest. The reader says when (`resolvedTruncated`, pwa-5); the card says so
+// once, where the resolved rows begin (at the end when none is listed) — and nothing at all when the
+// flag is false or absent.
+const OPEN_ROW = { id: 'e1', message: 'boom one' };
+const RESOLVED_ROWS = [OPEN_ROW, { id: 'r1', message: 'old one', resolved: true }, { id: 'r2', message: 'old two', resolved: true }];
+for (const [label, rows, flag, order] of /** @type {const} */ ([
+    ['says so where the resolved rows begin', RESOLVED_ROWS, true, ['open', 'note', 'resolved', 'resolved']],
+    ['says so at the end when no resolved row is listed', [OPEN_ROW], true, ['open', 'note']],
+    ['says nothing when the list was not cut', RESOLVED_ROWS, false, ['open', 'resolved', 'resolved']],
+    ['says nothing to a reader that sends no flag', RESOLVED_ROWS, undefined, ['open', 'resolved', 'resolved']]])) {
+    test(`operations errors: a cut resolved list ${label}`, async ({ page }) => {
+        await stubErrorLog(page, /** @type {any} */ (rows), { resolvedTruncated: flag });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html#error-log');
+        await expect(page.locator('#errorLogContent .error-row')).toHaveCount(rows.length);
+        const seen = await page.locator('#errorLogContent > *').evaluateAll(els => els.map(e =>
+            e.classList.contains('error-resolved-cap-note') ? 'note'
+                : e.classList.contains('error-row--resolved') ? 'resolved' : e.classList.contains('error-row') ? 'open' : null).filter(Boolean));
+        expect(seen).toEqual(order);
+        if (order.includes('note')) await expect(page.locator('#errorLogContent .error-resolved-cap-note'))
+            .toHaveText('More than 200 resolved errors — the resolved entries shown may not be the most recent.');
     });
 }
 
