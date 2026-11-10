@@ -52,6 +52,8 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const OT = require('./overtime-core');
+// Reading a stored window or head back is RULE, so it lives in the core beside what writes it.
+const { storedMilestones, toMillis, publicHead } = OT;
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
@@ -188,15 +190,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     .filter(p => !OT.isWithdrawn(p.data()) && !submitted.has(p.id) && !asked.has(p.id))
                     .map(p => p.id);
                 const uids = (await Promise.all(names.map(uidForName))).filter(Boolean);
-                // ── WHAT IT REACHED, WRITTEN BESIDE THE CLAIM (overtime-core-4, Nov 2026) ───────
-                //
-                // The claim above is an ATTEMPT — it has to be written before the send, or two runs
-                // both send — and the reviewer's line read it as "sent" on a morning nobody could be
-                // reached or the push failed. So the outcome is recorded once the send is over:
-                //   reminderOutstanding  participants who had said nothing (0: nobody needed it)
-                //   reminderAccepted     devices whose push service took it (0: it reached nobody)
-                // A stamp without them stays what it always was — an attempt, outcome unknown: every
-                // window from before this, and a run that stopped between the two writes.
+                // WHAT IT REACHED, beside the claim (overtime-core-4, Nov 2026). The claim is an ATTEMPT
+                // — it must precede the send, or two runs both send — and was read as "sent" on mornings
+                // that reached nobody. So after the send: who had said nothing, and how many devices took
+                // it (`sendTargetedPush`'s accepted count). A stamp without them: outcome unknown.
                 let accepted = 0;
                 if (uids.length) {
                     const n = OT.reminderNotice(milestones);
@@ -205,7 +202,6 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                         url: `${STAFF_SITE_URL}/overtime.html`,
                     });
                     try {
-                        // `sendTargetedPush` counts ACCEPTED sends, and 0 is the direction it vouches for.
                         accepted = Number(await send(payload, uids, `[overtimeReminder ${d.id}]`)) || 0;
                     } catch (sendErr) {
                         console.error(`[overtimeReminder] ${d.id} send failed:`, sendErr);
@@ -229,38 +225,17 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
     /**
      * Is the retention purge allowed to DELETE, or only to report what it would delete?
      *
-     * ── WHY IT WAS BUILT DISARMED, AND HOW IT ARMS ──────────────────────────────────────────────
+     * Built disarmed: the only irreversible thing this feature does runs unattended and first has
+     * work months after it was written, so dry runs exercise the walk on real documents while its
+     * mistakes are still log lines. It arms ITSELF — `index.js` passes `purgeArmedAt`
+     * (overtime-core.js), true from 00:00 London on 1 Dec 2026 — and gates ONE statement, as `dryRun`
+     * does in `createOvertimeWindow`, so what the log described is what the armed run does. A
+     * dependency rather than a constant: the rule belongs to the composition root, and a test drives
+     * both sides without editing source.
      *
-     * `purgeExpiredOvertimeWindows` is the only irreversible thing this feature does, it runs
-     * unattended, and the first time it has anything to do will be months after it was written — by
-     * which point nobody is watching for it. A dry run is how the walk gets exercised against real
-     * documents while its mistakes are still only log lines. Nobody has to arm it by hand: `index.js`
-     * passes `purgeArmedAt` (overtime-core.js), which turns true at 00:00 London on 1 Dec 2026, after
-     * ten daily dry runs have named real expired windows (OVERTIME_AVAILABILITY.md → Retention).
-     *
-     * It gates ONE statement, exactly as `dryRun` does in `createOvertimeWindow`: the selection, the
-     * ordering and the counting are the same code either way, so what the log described is what the
-     * armed run does rather than a prediction of it.
-     *
-     * A dependency rather than a constant here for the same reason as everything else in this
-     * argument list — the literal belongs in the composition root, and a test can drive both sides
-     * of the branch without editing source.
-     *
-     * ── IT IS EVALUATED PER RUN, AND THAT IS THE LOAD-BEARING PART (v24.10) ─────────────────────
-     *
-     * Production now passes a PREDICATE rather than a boolean, because the real rule is a date
-     * (`purgeArmedAt` in overtime-core.js — nothing is expired before 21 Nov 2026, so a boolean
-     * flipped today would arm the job blind two months later). A date read ONCE at module load
-     * would then be wrong in the quiet way: a Cloud Function instance stays warm for hours or days,
-     * so an instance that booted on the 20th would still believe it was disarmed on the 22nd, and
-     * the job would silently keep dry-running until something happened to cold-start it.
-     *
-     * So this resolves on every invocation, and the answer is threaded INTO `purgeWindow` rather
-     * than closed over — one decision per run, used by both the log line and the delete, which is
-     * what makes "what the log described is what the run did" true rather than nearly true.
-     *
-     * A boolean is still accepted, and the existing tests pass one: they are about the ARMED
-     * branch, not about when it arms.
+     * RESOLVED PER RUN (v24.10): a warm instance outlives the date, so a value read at module load
+     * would go on dry-running unseen. The answer is threaded into `purgeWindow`, one decision for a
+     * run's log line and its deletes. A plain boolean is still accepted, for the armed-branch tests.
      * @param {boolean | (() => boolean)} flag
      */
     const resolveArmed = (flag) => (typeof flag === 'function' ? flag() === true : flag === true);
@@ -319,38 +294,13 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         return false;
     }
 
-    /** The window document's stored milestones, as the plain numbers the core works in. */
-    function storedMilestones(data) {
-        return {
-            weekEnding:        data.weekEnding,
-            weekStart:         data.weekStart,
-            initialDeadlineAt: toMillis(data.initialDeadlineAt),
-            draftRosterDate:   data.draftRosterDate,
-            finalDeadlineAt:   toMillis(data.finalDeadlineAt),
-            finalRosterDate:   data.finalRosterDate,
-            retentionUntil:    toMillis(data.retentionUntil),
-            policyVersion:     data.policyVersion,
-        };
-    }
-
-    /** Firestore Timestamp | number | Date → epoch ms. */
-    function toMillis(v) {
-        if (v == null) return 0;
-        if (typeof v === 'number') return v;
-        if (typeof v.toMillis === 'function') return v.toMillis();
-        if (v instanceof Date) return v.getTime();
-        return 0;
-    }
-
     /** Milliseconds → Firestore Timestamp, for anything stored as an instant. */
     function ts(ms) {
         return Timestamp.fromMillis(ms);
     }
 
-    /** Did a `create` find its document already there? Firestore's ALREADY_EXISTS (gRPC code 6). */
-    function isAlreadyExists(err) {
-        return !!err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message)));
-    }
+    /** Firestore's ALREADY_EXISTS (gRPC code 6): a `create` found its document already there. */
+    const isAlreadyExists = (err) => !!err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message)));
 
     // ── createOvertimeWindow ────────────────────────────────────────────────────────────────────
 
@@ -602,11 +552,9 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return [];
         }
 
-        // CREATE, not set, as at window creation (invariant 5). Two top-ups can both read somebody as
-        // missing — the nightly run and a reviewer's Add — and a reviewer can withdraw that person
-        // between the first commit and the second. A `set` then REPLACED the document and the
-        // withdrawal silently vanished. A batch is atomic, so a create that finds a document there
-        // writes nothing at all: read again, once, and add whoever is still missing.
+        // CREATE, not set (invariant 5): two top-ups can read one gap, and a withdrawal landing between
+        // their commits was REPLACED by the second's `set`. A batch is atomic, so a create that finds
+        // the document writes nothing: read again, once, and add whoever is still missing.
         const batch = db().batch();
         for (const p of missing) {
             batch.create(ref.collection('participants').doc(p.memberName), {
@@ -846,10 +794,9 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * The participant-selection policy currently in force. Server-owned release control, not an
      * operational choice — a Manager sees what will happen and cannot change it.
      *
-     * Widening the beta is a one-word edit HERE plus a deploy. No window is REWRITTEN — populations
-     * are frozen at creation — but an existing week still before its first deadline gains the newly
-     * eligible, add-only, at the next nightly top-up (`addMissingParticipants`); "untouched" had come
-     * to mean an audience change never took effect. A pilot rung slots in as a third value.
+     * Widening the beta is a one-word edit HERE plus a deploy. No window is REWRITTEN (populations are
+     * frozen), but a week still before its first deadline gains the newly eligible, add-only, at the
+     * next nightly top-up (`addMissingParticipants`). A pilot rung slots in as a third value.
      */
     function currentAudience() {
         return 'restricted';
@@ -1096,8 +1043,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     // Absent/null on weeks created before the reminder feature — the client's
                     // reminderLine deliberately stays silent for those once they close.
                     reminderSentAt: doc ? (toMillis(doc.reminderSentAt) || null) : null,   // toMillis maps absent to 0
-                    // What that attempt reached (overtime-core-4) — null where nothing was recorded,
-                    // never 0: an unrecorded outcome is unknown, and "reached nobody" would accuse.
+                    // What that attempt reached (overtime-core-4): null where unrecorded — unknown, never 0.
                     reminderOutstanding: doc && Number.isInteger(doc.reminderOutstanding) ? doc.reminderOutstanding : null,
                     reminderAccepted:    doc && Number.isInteger(doc.reminderAccepted) ? doc.reminderAccepted : null,
                     state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
@@ -1248,18 +1194,6 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return res.json({ ok: true, serverNow: nowMs, windows });
         });
 
-    /** The submission head as a member may see it — their own content and nothing about anyone else. */
-    function publicHead(data) {
-        return {
-            currentRevision:   data.currentRevision,
-            days:              data.days,
-            firstAcceptedAt:   toMillis(data.firstAcceptedAt),
-            updatedAt:         toMillis(data.updatedAt),
-            lastMutationId:    data.lastMutationId || null,
-            schemaVersion:     data.schemaVersion,
-        };
-    }
-
     // ── submitOvertimeAvailability ──────────────────────────────────────────────────────────────
 
     /** Bound on the client-supplied correlation id — opaque to us, but not unbounded. */
@@ -1391,20 +1325,11 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                         lastMutationSeenAt: acceptedAt,
                         schemaVersion:   SCHEMA_VERSION,
                     };
-                    // ── THE HEAD IS THE NEWEST ANSWER, WHOLE (overtime-core-1, Nov 2026) ─────────
-                    //
-                    // Both cases used to be one `set(…, { merge: true })`, and a merge-set merges a
-                    // nested map KEY BY KEY: the SDK writes only the leaf paths of `days`. So
-                    // anything a member REMOVED from a day — the 12-hour tick, the Sunday-release
-                    // request, the times of the answer they moved off — stayed in the head for ever
-                    // while the revision beside it was right. The reviewer read a withdrawn request
-                    // as live, a reloaded form re-sent the stale keys (refused `unknown-field` where
-                    // the new answer cannot carry them), and an identical retry stopped being a no-op.
-                    //
-                    // So revision 1 SETS the head (the read above found none), and every later
-                    // revision UPDATES it. An update replaces each field it names whole, `days`
-                    // included, and leaves `firstAcceptedAt` — written by the first revision only —
-                    // where it is.
+                    // THE HEAD IS THE NEWEST ANSWER, WHOLE (overtime-core-1, Nov 2026). Both cases were
+                    // one merge-set, which merges `days` KEY BY KEY, so whatever a member removed from a
+                    // day (a tick, a request, a mode's times) stayed in the head for ever. Revision 1
+                    // sets the head; every later one updates it, which replaces each named field whole
+                    // and keeps `firstAcceptedAt`, written by the first revision only.
                     if (decision.action === 'create') {
                         tx.set(headRef, { ...headWrite, firstAcceptedAt: acceptedAt });
                     } else {

@@ -210,6 +210,30 @@ function deriveMilestones(weekEnding) {
     };
 }
 
+/** A window's STORED milestones as plain numbers — how every reader gets an existing window's
+ *  timetable, never `deriveMilestones` (point 2 above; invariant 7). @param {any} data */
+function storedMilestones(data) {
+    return {
+        weekEnding:        data.weekEnding,
+        weekStart:         data.weekStart,
+        initialDeadlineAt: toMillis(data.initialDeadlineAt),
+        draftRosterDate:   data.draftRosterDate,
+        finalDeadlineAt:   toMillis(data.finalDeadlineAt),
+        finalRosterDate:   data.finalRosterDate,
+        retentionUntil:    toMillis(data.retentionUntil),
+        policyVersion:     data.policyVersion,
+    };
+}
+
+/** A stored instant (a Timestamp, epoch ms or a Date) as epoch ms, else 0 — read through its
+ *  `toMillis`, so this module still needs no Firebase. @param {any} v @returns {number} */
+function toMillis(v) {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    return v instanceof Date ? v.getTime() : 0;
+}
+
 /** @typedef {'INITIAL_OPEN'|'FINAL_OPEN'|'CLOSED'} Phase */
 
 /**
@@ -788,6 +812,19 @@ function decideSubmission(head, incomingDays, ifRevision) {
     return { action: 'append', revision: head.currentRevision + 1 };
 }
 
+/** The submission head as its member may see it — their own content, nothing about anyone else.
+ *  @param {any} data */
+function publicHead(data) {
+    return {
+        currentRevision:   data.currentRevision,
+        days:              data.days,
+        firstAcceptedAt:   toMillis(data.firstAcceptedAt),
+        updatedAt:         toMillis(data.updatedAt),
+        lastMutationId:    data.lastMutationId || null,
+        schemaVersion:     data.schemaVersion,
+    };
+}
+
 /**
  * Everything the Manager needs to know about how a submission moved, derived from the immutable
  * revisions rather than stored as flags.
@@ -1056,6 +1093,8 @@ module.exports = {
     weekEndingFor,
     // milestones + phases
     deriveMilestones,
+    storedMilestones,
+    toMillis,
     phaseFor,
     isOpenPhase,
     canChangeParticipation,
@@ -1076,6 +1115,7 @@ module.exports = {
     // revisions
     revisionId,
     decideSubmission,
+    publicHead,
     deriveHistory,
     // push notices
     REMINDER_LOOKAHEAD_MS,
