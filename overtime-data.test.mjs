@@ -238,6 +238,40 @@ describe('2 · a timeout reported as a failure', () => {
         assert.equal(_calls.length, 0);
     });
 
+    // ── NO SIGNAL IS NOT AN EXPIRED SIGN-IN (overtime-core-3, Nov 2026) ─────────────────────────
+    //
+    // The hourly token lapses while a half-filled form sits open; Submit on a platform with no
+    // signal cannot refresh it. That was `no-session` — "Your sign-in has expired. Reload the page"
+    // — and a reload on a phone throws away every answer not yet submitted, where pressing Submit
+    // again once the signal returned would simply have worked. The SDK names the case itself: a
+    // refresh that cannot reach the network fails `auth/network-request-failed`, its own timeout
+    // included, and it treats every OTHER failure as a token that is no longer valid.
+    const networkFailure = () => Object.assign(new Error('network'), { code: 'auth/network-request-failed' });
+
+    test('a token refresh with no network is `offline` — nothing was sent, and nobody was signed out', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async () => { throw networkFailure(); } };
+        const r = await data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        assert.equal(/** @type {any} */ (r).code, 'offline');
+        assert.equal(_calls.length, 0, 'nothing left the device, so there is nothing to reconcile');
+    });
+
+    test('a token the server REFUSED is still `no-session` — guard the guard', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async () => { throw Object.assign(new Error('expired'), { code: 'auth/user-token-expired' }); } };
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).code, 'no-session');
+    });
+
+    test('and the forced-fresh retry after a 403 tells the two apart the same way', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async (/** @type {boolean} */ fresh) => { if (fresh) throw networkFailure(); return 'tok-stale'; } };
+        _respond = async () => ({ ok: false, status: 403, json: async () => ({ error: 'Forbidden — reviewer access required' }) });
+        const r = await data.getOvertimeManagerOverview();
+        assert.equal(/** @type {any} */ (r).code, 'offline', 'the refresh could not be asked — not a lost sign-in');
+        assert.equal(_calls.length, 1);
+    });
+
     // Whole-app review, Oct 2026: a member given the manager role holds a token minted without it
     // until the hourly refresh, and every call — every Try again — was refused for that hour.
     test('a 403 is retried ONCE on a forced-fresh token, and the fresh answer is the one returned', async () => {

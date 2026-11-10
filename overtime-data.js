@@ -81,8 +81,15 @@ async function postOnce(name, body, opts, fresh) {
         const user = auth.currentUser;
         if (!user) return { ok: false, code: 'no-session' };
         token = await user.getIdToken(fresh);
-    } catch (_) {
-        return { ok: false, code: 'no-session' };
+    } catch (err) {
+        // NO SIGNAL IS NOT AN EXPIRED SIGN-IN (overtime-core-3, Nov 2026). A lapsed hourly token
+        // that cannot be refreshed for want of a network was `no-session`, worded "Reload the page
+        // and sign in again" — and a reload on a phone throws away the answers not yet submitted.
+        // The SDK draws the line itself: a refresh that cannot reach the network (its own timeout
+        // included) fails `auth/network-request-failed`, and it treats any OTHER failure as a token
+        // that is no longer valid. So `offline` is that one code: nothing was sent, try again.
+        const code = /** @type {any} */ (err)?.code === 'auth/network-request-failed' ? 'offline' : 'no-session';
+        return { ok: false, code };
     }
 
     const tSend = Date.now();
