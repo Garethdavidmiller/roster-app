@@ -2419,12 +2419,19 @@
            view — a message, a focused control — clear of it. `--staged-bar-h` is measured (admin-app.js). */
         html:has(#stagedBar:not([hidden])) { scroll-padding-bottom: calc(var(--staged-bar-h) + 12px); }
         body:has(#stagedBar:not([hidden])) { padding-bottom: calc(var(--staged-bar-h) + 12px); }
+        /* …and the save toast rises clear of it (Nov 2026): the two share the foot of the screen, and an
+           Apply that stages days AND raises a toast drew it over the bar's label and buttons for 4s. */
+        body:has(#stagedBar:not([hidden])) #saveToast { bottom: calc(var(--staged-bar-h) + 12px); }
+        /* It WRAPS (Nov 2026): `nowrap` held "Unsaved: 2 days, 1 to remove" at its full width, so at 360px
+           "Save changes" ran 22px off the screen. Balanced, it breaks after the comma; its longest word is
+           its floor, so with large text the buttons wrap their own words too. `--staged-bar-h` is
+           measured, so the page follows the taller bar. */
         .staged-bar-label {
             flex: 1;
             font-size: var(--type-label);
             font-weight: 600;
             color: rgba(255,255,255,0.85);
-            white-space: nowrap;
+            text-wrap: balance;
         }
         .staged-bar-label strong { color: white; }
         .staged-bar-btns { display: flex; gap: 8px; }

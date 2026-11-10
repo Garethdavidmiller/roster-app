@@ -1529,6 +1529,62 @@ test('admin: the week grid\'s Retry looks like Saved Changes\' Retry', async ({ 
     expect(await look(week)).toBe(await look(list));
 });
 
+// The save toast and the Unsaved bar share the foot of the screen, and an Apply that both stages days
+// and raises a toast ("Set 6 days — Sunday skipped …") drew the toast over the bar's label and both of
+// its buttons for four seconds, with taps passing through to buttons nobody could see.
+test('admin: the save toast rises clear of the Unsaved bar', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#bulkSelAll').click();
+    await page.locator('.bulk-type-group .type-pill-btn[data-type="annual_leave"]').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#stagedBar')).toBeVisible();
+    await expect(page.locator('#saveToast'), 'premise: the toast is up with the bar').toHaveClass(/\bvisible\b/);
+    const g = await page.locator('#saveToast').evaluate(async el => {
+        await Promise.all(el.getAnimations().map(a => a.finished));   // it rises as it appears
+        return { toast: el.getBoundingClientRect().bottom,
+                 bar: /** @type {HTMLElement} */ (document.getElementById('stagedBar')).getBoundingClientRect().top };
+    });
+    expect(g.toast, 'the toast is drawn over the Unsaved bar').toBeLessThanOrEqual(g.bar);
+});
+
+// "Unsaved: 2 days, 1 to remove" was `nowrap` and could not shrink, so at 360px the bar's Save button
+// ran 22px off the screen — and with Android's large text, the plain "N days" state did the same.
+test('admin: the Unsaved bar keeps Discard and Save on a 360px screen, removals staged, text large', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-11-12', type: 'rdw', value: '13:30-21:00', note: '' }],
+        });
+    });
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('.week-panel .day-row[data-date="2026-11-12"] .col-check input').click();   // 1 to remove
+    for (const d of ['2026-11-10', '2026-11-11']) {
+        const row = page.locator(`.week-panel .day-row[data-date="${d}"]`);
+        await row.locator('.col-check input').click();
+        await row.locator('.type-pill-btn[data-type="annual_leave"]').click();
+    }
+    await expect(page.locator('#stagedCount')).toHaveText('2 days, 1 to remove');
+    const fit = () => page.evaluate(() => {
+        const label = /** @type {HTMLElement} */ (document.querySelector('.staged-bar-label'));
+        return { vw: document.documentElement.clientWidth, labelOverflow: label.scrollWidth - label.clientWidth,
+            buttons: ['stagedDiscardBtn', 'stagedSaveBtn'].map(id => [id, Math.round(/** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().right)]) };
+    });
+    for (const scale of [1, 1.3]) {
+        if (scale !== 1) await scaleText(page, scale);
+        const f = await fit();
+        for (const [id, right] of f.buttons) expect(right, `${id} runs off the screen at ${scale}× text`).toBeLessThanOrEqual(f.vw);
+        expect(f.labelOverflow, `"Unsaved: …" runs out of its own box, under the buttons, at ${scale}× text`).toBeLessThanOrEqual(0);
+    }
+});
+
 test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
     async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
