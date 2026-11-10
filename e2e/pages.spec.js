@@ -202,8 +202,8 @@ test('confirmDialog → promptDialog: Back closes the prompt and stays on the pa
         })();
     });
     await expect(page.locator('.dialog-overlay.open .dialog-btn-confirm')).toBeVisible();
-    // A DOM click, not a pointer one: signed out, the login overlay sits over the page. The handler
-    // under test is the same either way.
+    // A DOM click. Signed out, the login overlay is up — the dialog opens above it now ("asked over a
+    // higher layer", below), so a pointer would reach it too — and the handler under test is the same.
     await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.dialog-overlay.open .dialog-btn-confirm')).click());
     await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeVisible();
     await page.waitForTimeout(600);   // every traversal has landed; what remains is the steady state
@@ -245,6 +245,60 @@ test('promptDialog: a text selection dragged out onto the backdrop does not clos
     await page.mouse.click(card.x - 24, y);                  // a real tap on the backdrop
     await expect(page.locator('.dialog-overlay.open')).toHaveCount(0);
     expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'a backdrop tap is still a Cancel').toBe(null);
+});
+
+// A DIALOG OPENS ON TOP OF WHATEVER IS SHOWING (routed from the pwa audit, 10 Nov 2026). Its layer was
+// the lightbox base, but a notification tapped while a page holds unsaved work asks its question over
+// whatever is up (sw-register.js) — the sign-in card a lost session mounted, or the picker sheet open on
+// that card, both higher. The question painted BENEATH them while holding the keyboard: focus on "Open
+// it", Tab trapped inside, Escape its own — so Enter answered a question nobody could see.
+test.describe('confirmDialog: asked over a higher layer, it paints on top of it', () => {
+    /** Ask the question a notification tap asks; true when its confirm button is what is painted at its
+     *  own centre. @param {import('@playwright/test').Page} page */
+    const askOnTop = async (page) => {
+        await page.evaluate(async () => {
+            const { confirmDialog } = await import('/overlay.js');
+            /** @type {any} */ (window).__answer = confirmDialog({
+                message: 'A notification asked to open another page, but this one has unsaved changes or a save still on its way. Open it anyway?',
+                confirmLabel: 'Open it', danger: true,
+            });
+        });
+        const dialog = page.locator('.dialog-overlay.open');
+        await expect(dialog.locator('.dialog-btn-confirm'), 'the question holds the keyboard').toBeFocused();
+        await expect.poll(() => dialog.locator('.dialog-lb-content').evaluate(el => getComputedStyle(el).transform),
+            { timeout: 5000 }).toBe('matrix(1, 0, 0, 1, 0, 0)');   // the open's scale has landed
+        return dialog.locator('.dialog-btn-confirm').evaluate(b => {
+            const r = b.getBoundingClientRect();
+            return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b;
+        });
+    };
+    const answer = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => /** @type {any} */ (window).__answer);
+
+    test('over the sign-in card: on top, and a tap answers it', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+        expect(await askOnTop(page), 'the question opened UNDER the sign-in card it was asked over').toBe(true);
+        await page.locator('.dialog-overlay.open .dialog-btn-confirm').click();
+        expect(await answer(page)).toBe(true);
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+    });
+
+    test('over the picker sheet the card opened: on top, and the sheet waits beneath it', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await page.locator('#loginGradeTrigger').click();
+        const sheet = page.locator('.picker-sheet-overlay.open');
+        await expect(sheet).toBeVisible();
+        expect(await askOnTop(page), 'the question opened UNDER the picker sheet it was asked over').toBe(true);
+        await page.locator('.dialog-overlay.open .dialog-btn-cancel').click();
+        expect(await answer(page)).toBe(false);
+        await expect(sheet, 'answering the question closed the sheet beneath it').toBeVisible();
+        await page.keyboard.press('Escape');                // the sheet, the top again, is the next to go
+        await expect(sheet).toBeHidden();
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+    });
 });
 
 // Same race, from the drawer: the brand button closes the drawer (a `history.back()`) and opens

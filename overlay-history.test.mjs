@@ -381,7 +381,7 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
     function el(tag) {
         const cls = new Set(), attrs = /** @type {Record<string, string>} */ ({}), listeners = /** @type {Record<string, Function[]>} */ ({});
         const e = /** @type {any} */ ({
-            tagName: tag.toUpperCase(), children: /** @type {any[]} */ ([]),
+            tagName: tag.toUpperCase(), children: /** @type {any[]} */ ([]), style: /** @type {Record<string, string>} */ ({}),
             set className(/** @type {string} */ v) { cls.clear(); v.split(/\s+/).filter(Boolean).forEach(c => cls.add(c)); },
             get className() { return [...cls].join(' '); },
             classList: { add: (/** @type {string[]} */ ...c) => c.forEach(x => cls.add(x)), remove: (/** @type {string[]} */ ...c) => c.forEach(x => cls.delete(x)),
@@ -402,9 +402,28 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
         return null;
     };
     const microtasks = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+    /** The layers already on screen when a dialog opens, for `querySelectorAll` to find. @type {any[]} */
+    let layers = [];
+    /** A layer already on screen, at its z-index. @param {{ z: string, lbOverlay?: boolean, modal?: boolean, shown?: boolean, ariaHidden?: boolean }} o */
+    const layer = ({ z, lbOverlay = false, modal = false, shown = true, ariaHidden = false }) => {
+        const l = el('div');
+        if (lbOverlay) l.classList.add('lb-overlay');
+        if (modal) l.setAttribute('aria-modal', 'true');
+        if (ariaHidden) l.setAttribute('aria-hidden', 'true');
+        l.style.zIndex = z;
+        l.getClientRects = () => (shown ? [{}] : []);   // a shut sheet is `display: none`: no boxes
+        return l;
+    };
 
     beforeEach(() => {
         keydown = [];
+        layers = [];
+        // The two selectors the layer rule asks for, answered from `layers`.
+        /** @type {any} */ (global.document).querySelectorAll = (/** @type {string} */ sel) => layers.filter(l => sel.split(',').some(s =>
+            (s.trim() === '.lb-overlay' && l.classList.contains('lb-overlay'))
+            || (s.trim() === '[aria-modal="true"]' && l.getAttribute('aria-modal') === 'true')));
+        // An inline z-index wins, as in a browser; an `.lb-overlay` is otherwise the lightbox base.
+        /** @type {any} */ (global).getComputedStyle = (/** @type {any} */ e) => ({ zIndex: e.style?.zIndex || (e.classList?.contains('lb-overlay') ? '8000' : 'auto') });
         // An echoing Back, as at the top of this file (an earlier block swapped in a silent one).
         global.history.back = () => { backCount++; popstateHandler?.(); };
         Object.assign(global.window, { scrollY: 0, scrollTo: () => {} });
@@ -416,7 +435,11 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
         });
         Object.assign(global.document.body, { children: [], appendChild: (/** @type {any} */ c) => { /** @type {any} */ (global.document.body).children.push(c); return c; } });
     });
-    afterEach(() => { Object.assign(global.document, { addEventListener: realAdd, removeEventListener: realRemove }); });
+    afterEach(() => {
+        Object.assign(global.document, { addEventListener: realAdd, removeEventListener: realRemove });
+        delete (/** @type {any} */ (global.document)).querySelectorAll;
+        delete (/** @type {any} */ (global)).getComputedStyle;
+    });
 
     /** Open the real dialog. Reduced motion closes it at once; otherwise the fade waits for `settle()`.
      *  @param {any} opts @param {{ fade?: boolean }} [how] */
@@ -479,5 +502,25 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
         dismissed.confirm.fire('click');
         await dismissed.settle();
         assert.equal(await dismissed.result(), null, 'a button tapped after a dismissal answered a question nobody saw out');
+    });
+
+    // ON TOP OF WHATEVER IS SHOWING (routed from the pwa audit, 10 Nov 2026). A question can open over a
+    // layer above the lightbox base — a notification tap asks over whatever is up: the sign-in card, the
+    // picker sheet, a notice — and it painted BENEATH that layer while it held the keyboard. It opens one
+    // above the highest layer SHOWING (a shut sheet has no boxes, a surface put away is aria-hidden), and
+    // over the lightbox base it gains no style at all. The browser half: e2e/pages.spec.js, "asked over a
+    // higher layer".
+    test('it opens one above the highest layer showing, and over the lightbox base gains no style', async () => {
+        const card = () => layer({ z: '9000', modal: true });                        // the sign-in card: modal, not a lightbox
+        layers = [card()];
+        assert.equal((await open({})).overlay.style.zIndex, '9001', 'the question opened under the sign-in card');
+        layers = [layer({ z: '9100', lbOverlay: true }), card()];                    // a sheet, modal or not
+        assert.equal((await open({})).overlay.style.zIndex, '9101', 'the question opened under the open sheet');
+        layers = [layer({ z: '9100', lbOverlay: true, modal: true, shown: false }),  // a SHUT sheet
+            layer({ z: '9500', modal: true, ariaHidden: true }),                         // a surface put away
+            card()];
+        assert.equal((await open({})).overlay.style.zIndex, '9001', 'a layer that is not showing lifted the question above it');
+        layers = [layer({ z: '8000', lbOverlay: true, modal: true }), layer({ z: '7800', modal: true })];   // About, over the drawer
+        assert.equal((await open({})).overlay.style.zIndex, undefined, 'a question over the lightbox base gained a style it does not need');
     });
 });

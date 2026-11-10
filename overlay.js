@@ -297,14 +297,27 @@ export function trapFocus(container, e) {
 // `_isTopOverlay` orders the stack, and an open `aria-modal` surface NOT on it that paints above (by
 // z-index, then document order) stands the guard down — the sign-in card a lost session mounts over a
 // dialog, the password-force card. Fighting those would leave a member unable to type a password.
+/** An element's layer as it paints: its computed z-index, `auto` as 0. @param {Element} el */
+const _zOf = (el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
 /** Does an open modal surface off the stack paint above `overlay`? (A shut drawer is aria-hidden; a shut lightbox has no boxes.) @param {Element} overlay */
 function _unstackedSurfaceAbove(overlay) {
-    const z = (/** @type {Element} */ el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
     return Array.from(document.querySelectorAll('[aria-modal="true"]')).some(el => {
         if (el === overlay || el.contains(overlay) || overlay.contains(el)) return false;
         if (el.getAttribute('aria-hidden') === 'true' || !el.getClientRects().length) return false;
-        return z(el) > z(overlay) || (z(el) === z(overlay) && !!(overlay.compareDocumentPosition(el) & 4));   // 4: FOLLOWING
+        return _zOf(el) > _zOf(overlay) || (_zOf(el) === _zOf(overlay) && !!(overlay.compareDocumentPosition(el) & 4));   // 4: FOLLOWING
     });
+}
+/**
+ * The highest layer on screen: the open lightboxes and sheets, and the modal surfaces off the stack
+ * (the sign-in and password cards) — shown, and not aria-hidden, as above. 0 when nothing is up.
+ */
+function _highestOpenLayer() {
+    let top = 0;
+    for (const el of Array.from(document.querySelectorAll('.lb-overlay, [aria-modal="true"]'))) {
+        if (el.getAttribute('aria-hidden') === 'true' || !el.getClientRects().length) continue;
+        top = Math.max(top, _zOf(el));
+    }
+    return top;
 }
 /** Pull focus landing outside `overlay` back in. Returns the detach. @param {Element} overlay @param {Element} panel @param {() => boolean} isTop */
 function _guardFocus(overlay, panel, isTop) {
@@ -640,6 +653,16 @@ function _openDialog(o) {
 
         overlay.appendChild(content);
         document.body.appendChild(overlay);
+        // ON TOP OF WHATEVER IS SHOWING (routed from the pwa audit, 10 Nov 2026). A dialog's layer is the
+        // lightbox base, but one can open over a HIGHER layer: a notification tapped while a page holds
+        // unsaved work asks its question over whatever is up (sw-register.js) — the picker sheet, the
+        // sign-in card, a notice. It painted BENEATH that layer while holding the keyboard — focus on its
+        // button, Tab trapped in it, Escape its own — so Enter answered a question nobody could see. The
+        // newest overlay is the top of the stack (`_isTopOverlay`); it paints at the top too: one above
+        // the highest layer showing, and only when one outranks it, so the usual dialog gains no style.
+        // (This one is not `.visible` yet, so it has no boxes and is not counted among them.)
+        const beneath = _highestOpenLayer();
+        if (beneath > _zOf(overlay)) overlay.style.zIndex = String(beneath + 1);
 
         let settled = false;
         // Until a button is pressed the dialog is being DISMISSED — the backdrop, Escape or Android Back
