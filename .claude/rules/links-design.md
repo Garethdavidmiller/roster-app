@@ -329,9 +329,10 @@ deep in the grid never scrolls to save. Grid clicks are **delegated** on `#links
 call `renderGrid()` from inside `saveChanges()`.
 
 **Leaving with unsaved work:** `beforeunload` (`warnOnUnload`), plus the shared async `confirmDialog`
-on sign-out, the header logo and the About panel's Operations link, and a capture-phase click guard on
-the drawer's links — mobile browsers suppress `beforeunload` dialogs. The dialog is async, so the guard
-calls `preventDefault()` first and navigates itself on confirm.
+on sign-out and the header logo, and `askBeforeLeavingByDrawer` (page-session.js) on the drawer's links
+and the About panel's, Operations among them — mobile browsers suppress `beforeunload` dialogs. The
+dialog is async, so it calls `preventDefault()` first and, on "Leave", clicks the link again with itself
+stood aside, so the drawer's own handling still runs (a guide learns `?from=links.html`).
 
 **An app update waits** (`beforeReload` in `links-app.js`): while a write's outcome is unknown it is
 held outright, and with unsaved changes it asks first (AUTH_AND_SESSIONS 22) — saying the work is

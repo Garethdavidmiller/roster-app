@@ -84,6 +84,28 @@ test('links: a guide link (same-tab) routes through the unsaved-changes guard', 
     await expect(page.locator('#linksSaveRow')).toBeVisible();
 });
 
+// …and ANSWERED "Leave", the drawer's own handling runs (links-app-18). Links asked through an older
+// guard of its own that then navigated by itself, so the guide opened without `?from=links.html` — its
+// ← went to the Calendar — and the drawer's history entry stayed behind to swallow one press of Back.
+test('links: a guide link answered "Leave" opens the guide knowing where it came from', async ({ page }) => {
+    await seedContractTargets(page);
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // "Apply" — now there is unsaved work
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#linksSaveRow')).toBeVisible();
+    const guide = await openGuideLink(page, 'Staff & Admin Guide');
+    await guide.click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('unsaved changes');
+    await dialog.getByRole('button', { name: 'Leave' }).click();
+    await expect(page).toHaveURL(/from=links\.html/);
+});
+
 // Regression guard: the auto-generate card holds a wide targets table (one row per shift
 // slot, Mon–Fri / Sat / Sun columns + a spare row). On a narrow phone that table must scroll
 // inside its own card, never stretch the page — a horizontal blowout clips the header and grid.

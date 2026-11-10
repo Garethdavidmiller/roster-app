@@ -60,7 +60,7 @@ import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
     isDeleted, canSoftDelete, sortByDeleted,
@@ -2461,23 +2461,11 @@ export function init() {
         forget: () => draftSlot.forget(),
     });
 
-    document.addEventListener('click', e => {
-        if (!dirty) return;
-        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel a[href]'));
-        if (!link) return;
-        // A target="_blank" link opens a NEW tab — this page and its unsaved work stay put, so there
-        // is nothing to guard; let it through untouched. (No drawer link is _blank today — the guide
-        // links became same-tab at v18.81 and now correctly route through this guard like the page
-        // pills — but the exception stays as future-proofing for any external link that joins the drawer.)
-        if (link.target === '_blank') return;
-        // The custom dialog is async, so it can't decide preventDefault() inline the way the native
-        // confirm() did. Intercept the same-tab nav-drawer click, ask, and navigate on confirm.
-        e.preventDefault();
-        e.stopPropagation();
-        const href = link.href;
-        confirmDialog({ message: 'You have unsaved changes. Leave this page anyway?', confirmLabel: 'Leave' })
-            .then(ok => { if (ok) { dirty = false; window.location.href = href; } });   // clear dirty so beforeunload doesn't double-prompt
-    }, true);
+    // A drawer link or the About panel's Operations link asks first — the shared question every page with
+    // unsaved work asks (links-app-18). Links kept an older copy of its own that navigated by itself on
+    // "Leave", so the drawer's handler never ran: a guide opened without `?from=links.html` (its ← went to
+    // the Calendar), and the drawer's own history entry was left behind to swallow one press of Back.
+    askBeforeLeavingByDrawer(() => dirty);
 
     // ============================================
     // ICON LIGHTBOX — About panel (shared about-lightbox.js)
@@ -2492,20 +2480,11 @@ export function init() {
 
         // The 🔧 Operations shortcut in the About panel is admin-only: operations.html
         // redirects a non-admin designer straight to admin.html, so
-        // showing them the link is a dead end. Reveal it only for admins, and route it
-        // through the unsaved-changes guard (the capture-phase guard above only covers
-        // nav-drawer links, and mobile browsers suppress the beforeunload dialog).
+        // showing them the link is a dead end. Reveal it only for admins. Its unsaved-changes
+        // question is `askBeforeLeavingByDrawer`'s, which covers the About panel's links as
+        // well as the drawer's — mobile browsers suppress the beforeunload dialog.
         const opsLink = document.getElementById('linksOpsLink');
-        if (opsLink && isAdmin) {
-            opsLink.hidden = false;
-            opsLink.addEventListener('click', e => {
-                if (!dirty) return;
-                e.preventDefault();   // async dialog — intercept, then follow the link on confirm
-                const href = /** @type {HTMLAnchorElement} */ (opsLink).href;
-                confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })
-                    .then(ok => { if (ok) { dirty = false; window.location.href = href; } });
-            });
-        }
+        if (opsLink && isAdmin) opsLink.hidden = false;
 
         // Header logo: back to the calendar, through the unsaved-changes question (about-lightbox.js).
         wireHeaderLogo(async () => {
