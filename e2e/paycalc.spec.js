@@ -1519,6 +1519,12 @@ test('paycalc: "Clear all entries" needs a second tap, and disarms itself', asyn
     await expect(btn, 'a change of payslip disarms it').toHaveText('Clear all entries');
     await btn.click();
     expect(await saved(57), 'one tap on the new payslip only arms it').not.toBeNull();
+    // A double-tap is ONE gesture (whole-app review, Nov 2026): the second tap at once is not a
+    // confirmation anybody read, and it used to clear the payslip.
+    await btn.click();
+    expect(await saved(57), 'a tap straight after arming does not confirm').not.toBeNull();
+    await expect(btn).toHaveText('Select again to confirm (3)');
+    await page.clock.runFor(1000);
     await btn.click();
     await expect(btn).toHaveText('Clear all entries');
     expect(await saved(57), 'the second tap clears the payslip on screen').toBeNull();

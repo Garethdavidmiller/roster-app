@@ -570,7 +570,10 @@ export function init() {
       el.className   = 'save-status unsaved';
     }
 
-    const _clearState = /** @type {{ pending: boolean, timer: ReturnType<typeof setTimeout> | null, countdownTimer: ReturnType<typeof setInterval> | null }} */ ({ pending: false, timer: null, countdownTimer: null });
+    const _clearState = /** @type {{ pending: boolean, armedAt: number, timer: ReturnType<typeof setTimeout> | null, countdownTimer: ReturnType<typeof setInterval> | null }} */ ({ pending: false, armedAt: 0, timer: null, countdownTimer: null });
+    /** A confirming tap sooner than this after arming is the SAME gesture — a double-tap, which iOS
+     *  teaches by swallowing a first tap with the keypad up — never a prompt read and answered. */
+    const CLEAR_CONFIRM_MIN_MS = 500;
 
     // Disarm the two-press "select again to confirm" clear — when it times out, when it is confirmed,
     // on tab-hide AND on period change: without the last, arming Clear on period A then switching to
@@ -600,8 +603,10 @@ export function init() {
           if (secs > 0 && btn) btn.textContent = `Select again to confirm (${secs})`;
         }, 1000);
         _clearState.timer = setTimeout(_resetClearConfirm, 3000);
+        _clearState.armedAt = Date.now();
         return;
       }
+      if (Date.now() - _clearState.armedAt < CLEAR_CONFIRM_MIN_MS) return;   // still the arming tap's gesture
       _resetClearConfirm();
       const pNum = currentPeriodNum();
       lsDel(periodKey(pNum));
