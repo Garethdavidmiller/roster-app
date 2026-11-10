@@ -2,7 +2,9 @@
 // that runs Node's test runner held to it.
 //
 // The wrapper exists for the one failure `node --test` does not report: a `describe` whose body
-// THROWS while being built prints `not ok`, adds nothing to the counts, and the run exits 0. Its
+// THROWS while being built prints `not ok`, adds nothing to the counts, and the run exits 0. That
+// is Node 22. From Node 24 Node fails such a run itself, so the tests below demand the wrapper's own
+// message only where plain `node --test` would have passed the file, and the run failing always. Its
 // verdicts had no test of their own, though it has already needed one repair when Node's default
 // reporter changed. And one lane bypassed it: `test:payslip-local`, the command whose green is
 // documented to mean "the real payslip comparison definitely ran", called `node --test` directly —
@@ -33,7 +35,13 @@ function runWrapped(t, body, flags = []) {
     writeFileSync(file, body);
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT;
-    return spawnSync(process.execPath, [...flags, WRAPPER, file], { encoding: 'utf8', env });
+    const wrapped = spawnSync(process.execPath, [...flags, WRAPPER, file], { encoding: 'utf8', env });
+    // What plain `node --test` makes of the same file. Node 22 exits 0 on a suite that fails to
+    // build — the gap the wrapper exists for. From Node 24 Node fails the run itself, so there the
+    // wrapper has nothing to add and prints no message of its own (measured, 10 November 2026: CI
+    // runs Node 24 and failed the old assertions; this container runs Node 22).
+    const raw = spawnSync(process.execPath, [...flags, '--test', '--test-reporter=tap', file], { encoding: 'utf8', env });
+    return Object.assign(wrapped, { rawStatus: raw.status });
 }
 
 const HEAD = "import { describe, test, mock } from 'node:test';\nimport assert from 'node:assert/strict';\n";
@@ -47,8 +55,14 @@ describe('the wrapper\'s verdicts', () => {
             + "});\n"
             + "test('an unrelated test that passes', () => {});\n");
         assert.equal(r.status, 1, r.stdout + r.stderr);
-        assert.match(r.stderr, /FAILED TO BUILD/);
-        assert.match(r.stderr, /payslip integration/, 'the message names the suite that did not build');
+        if (r.rawStatus === 0) {
+            // Node let the run pass, so the wrapper is what failed it, and it must say why.
+            assert.match(r.stderr, /FAILED TO BUILD/);
+            assert.match(r.stderr, /payslip integration/, 'the message names the suite that did not build');
+        } else {
+            // Node failed the run itself; its own report, passed through, names the suite.
+            assert.match(r.stdout, /^not ok \d+ - payslip integration$/m, 'Node\'s report names the suite that did not build');
+        }
     });
 
     test('a failing `todo` test is NOT a build failure — Node passes it by design', (t) => {
@@ -67,7 +81,7 @@ describe('the wrapper\'s verdicts', () => {
             + "describe('payroll # TODO list', () => { throw new Error('no such helper'); });\n"
             + "test('a test that passes', () => {});\n");
         assert.equal(r.status, 1, r.stdout + r.stderr);
-        assert.match(r.stderr, /FAILED TO BUILD/);
+        if (r.rawStatus === 0) assert.match(r.stderr, /FAILED TO BUILD/);
     });
 
     test('an ordinary failing test fails, and a clean file passes', (t) => {
