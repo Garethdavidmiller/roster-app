@@ -423,6 +423,33 @@ test('FIP eligibility states the published one-year qualifying period, cited to 
     }
 });
 
+// ── ONE FACT, ONE ANSWER, WHEREVER THE PAGE SAYS IT (whole-app review, 10 Nov 2026) ─────────────
+// The FIP guide stated two facts twice and disagreed with itself both times: the undated-box penalty
+// was "the box", "two boxes" and "the next box" in three places, and the adjoining-carrier box named
+// the Irish Sea as a crossing a coupon is used on while the Irish Sea card says its allocation is
+// nil. The register ties each block to its source; nothing tied a summary line to the detailed one.
+test('fip: a fact the page states twice is stated the same way both times', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
+    const text = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+    const undated = html.match(/data-guide-source="fip-coupon-undated"[\s\S]*?<\/div>/);
+    assert.ok(undated, 'the undated-box block is missing or no longer cites fip-coupon-undated');
+    const heading = text((undated[0].match(/<strong>([\s\S]*?)<\/strong>/) || ['', ''])[1]);
+    assert.match(heading, /two boxes/i, `the undated-box heading must give the penalty its body gives: "${heading}"`);
+    assert.match(text(undated[0]), /two boxes plus the fare/i, 'the undated-box body lost the penalty count');
+    const mistake = html.match(/<li class="no">Boarding before dating a box[\s\S]*?<\/li>/);
+    assert.ok(mistake, 'the Common mistakes line about dating a box is missing');
+    assert.match(text(mistake[0]), /two boxes/i, 'Common mistakes must give the penalty the red box gives');
+
+    const irish = html.match(/<details id="ferry-stena-irish-sea"[\s\S]*?<\/details>/);
+    assert.ok(irish && /allocation is nil/i.test(text(irish[0])),
+        'the Irish Sea card no longer says its allocation is nil — re-check this test against the register');
+    const adjoining = html.match(/data-guide-source="fip-adjoining-carrier"[\s\S]*?<\/div>/);
+    assert.ok(adjoining, 'the adjoining-carrier block is missing or no longer cites fip-adjoining-carrier');
+    assert.match(text(adjoining[0]), /Irish Sea routes have none|Irish Sea[^.]*no coupons/i,
+        'the adjoining-carrier box must say the Irish Sea has no coupons, or it reads as though one is used there');
+});
+
 // Non-failing diagnostic: surface rows whose manual review is due. Deliberately NOT an assertion —
 // a today-driven failure would break unrelated commits (the same reason the whole file is a
 // structural guard, not a date tripwire). It just prints a reminder so the manual cadence in
