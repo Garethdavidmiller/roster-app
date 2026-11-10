@@ -251,7 +251,7 @@ Firebase Auth initialises — `CALENDAR_DATA.md` 10); phase 2 waits for `authRea
   "Updating…") when the month panel's Try again takes over; the chip also withdraws a failure itself
   once the month on screen has been confirmed since.
 - Chip: hidden → "↻ Updating your shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
-  timeout. The owed state is `_chipState`, not the DOM, and a `MutationObserver` puts the chip back
+  timeout. A press says "↻ Retrying…" for at most `RETRY_TIMEOUT_MS`, then gives the control back. The owed state is `_chipState`, not the DOM, and a `MutationObserver` puts the chip back
   whenever a header rebuild takes it away (beside `setChipState`).
 - Coming back into view, a bfcache restore and — while the page stays visible and holds access — every
   `STALE_MONTH_MS` release months older than that so they are re-read behind the grid
