@@ -376,6 +376,11 @@ export function canonicaliseShift(shift) {
 
 /**
  * Canonicalise every cell of a design's patterns. Pure — returns a new object, mutates nothing.
+ *
+ * A cell that is neither a string nor absent — a number, an object, only ever from a hand-written
+ * document — becomes its STRING form here (whole-app fix, Nov 2026). Passed through, the grid's label
+ * called a string method on it and threw, so one such cell left no grid at all; as a string it is not
+ * a time, so it reads as 'night', the visible flag. `canonicaliseShift` itself still passes it through.
  * @param {any} patterns - { "1".."N": { sun..sat } }
  * @returns {Record<string, any>}
  */
@@ -386,22 +391,34 @@ export function normalisePatterns(patterns) {
         if (!row || typeof row !== 'object') continue;
         /** @type {Record<string, any>} */
         const p = {};
-        for (const d of DAYS) if (d in /** @type {any} */ (row)) p[d] = canonicaliseShift(/** @type {any} */ (row)[d]);
+        for (const d of DAYS) {
+            if (!(d in /** @type {any} */ (row))) continue;
+            const v = /** @type {any} */ (row)[d];
+            p[d] = canonicaliseShift(v === null || v === undefined || typeof v === 'string' ? v : String(v));
+        }
         out[pos] = p;
     }
     return out;
 }
 
-/** Start of a timed shift in minutes since midnight, or null for RD/SPARE. */
+/**
+ * A timed shift, read WHOLE: a real hour and minute at both ends and nothing else (whole-app fix,
+ * Nov 2026). The two readers below each anchored one END and range-checked nothing, so a cell with a
+ * start at the front and an end at the back passed as a duty whatever lay between, and that middle
+ * reached the Design checks card. A midnight finish is written `00:00`, never `24:00`.
+ */
+const TIME_PAIR = /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** Start of a timed shift in minutes since midnight, or null for anything that is not one (RD, SPARE, a malformed cell). */
 export function startMinutes(/** @type {any} */ shift) {
-    const m = typeof shift === 'string' && shift.match(/^(\d{2}):(\d{2})-/);
+    const m = typeof shift === 'string' && shift.match(TIME_PAIR);
     return m ? (+m[1]) * 60 + (+m[2]) : null;
 }
 
-/** End of a timed shift in minutes since midnight, or null for RD/SPARE. */
+/** End of a timed shift in minutes since midnight, or null for anything that is not one. */
 export function endMinutes(/** @type {any} */ shift) {
-    const m = typeof shift === 'string' && shift.match(/-(\d{2}):(\d{2})$/);
-    return m ? (+m[1]) * 60 + (+m[2]) : null;
+    const m = typeof shift === 'string' && shift.match(TIME_PAIR);
+    return m ? (+m[3]) * 60 + (+m[4]) : null;
 }
 
 /**
@@ -1435,7 +1452,9 @@ function _restChecked(patterns, mode, waves, lines, requireRest) {
  */
 export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
     const shiftAt = (/** @type {any} */ w, /** @type {any} */ d) => /** @type {Record<string, any>} */ (patterns)[String(w)]?.[d] ?? 'RD';
-    const isWorked = (/** @type {any} */ s) => s !== 'RD' && s !== 'OFF';
+    // The module's ONE reading of rest (`isRest`): this private copy counted an empty cell as worked
+    // while the run and balance rows below read it as rest (whole-app fix, Nov 2026).
+    const isWorked = (/** @type {any} */ s) => !isRest(s);
 
     // One person's journey through the whole rotation, day by day.
     const seq = [];
