@@ -1455,6 +1455,29 @@ test('operations: a refused reset names the server\'s reason and offers no Retry
     await expect(row.locator('.btn-acct-reset')).toHaveText('Reset');
 });
 
+// A refusal whose body is not the endpoint's own sentence — an HTML error page from in front of the
+// function — was shown VERBATIM as the reason (Nov 2026 review). The endpoint's own 4xx all come before
+// anything is changed, so a refusal can say plainly that nothing was reset.
+test('operations: a refusal that is an HTML page is not shown as the reason', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 404, contentType: 'text/html', headers: { 'access-control-allow-origin': '*' },
+        body: '<!DOCTYPE html><html lang=en><title>Error 404 (Not Found)!!1</title><p><b>404.</b> That’s an error.',
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    await page.locator('.acct-row').first().locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog).toContainText('The reset was refused');
+    await expect(dialog).toContainText('Nothing was reset');
+    await expect(dialog).not.toContainText('<');
+});
+
 // A FULLY SUCCESSFUL RESET SAYS SO (whole-app review, Oct 2026). The row re-renders, and a member
 // already on the default looks exactly as before — so a reset that worked gave no sign it had run.
 test('operations: a fully successful reset leaves a receipt on the row', async ({ page }) => {

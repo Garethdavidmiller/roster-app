@@ -570,7 +570,12 @@ export function init() {
                 const refused = serverRefusal(e);
                 btn.disabled = false;
                 if (refused) sayReset(btn, name); else say(btn, 'Retry', `Retry resetting ${name}'s password`);
-                if (refused) confirmDialog({ title: 'The reset was refused', message: refused.reason, confirmLabel: 'OK' }).catch(() => {});
+                // The endpoint refuses in JSON sentences written for the admin, all before it changes
+                // anything. A body that is MARKUP is not a reason (an HTML error page from in front of the
+                // function), so it is not shown as one (Nov 2026 review).
+                const why = refused && (/<[a-z!/]/i.test(refused.reason)
+                    ? `The server answered ${refused.status} without a reason this page can show. Nothing was reset.` : refused.reason);
+                if (why) confirmDialog({ title: 'The reset was refused', message: why, confirmLabel: 'OK' }).catch(() => {});
                 return;
             }
             // PARTIAL SUCCESS. The endpoint reports each stage separately (v21.86) because the
