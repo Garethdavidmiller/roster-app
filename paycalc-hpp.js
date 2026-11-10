@@ -12,15 +12,17 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod,
+  taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod, awardFromForYear, awardRatesFor,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible, payslipMayBeInHand } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible, payslipMayBeInHand } from './paycalc-periods.js';
 import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear, isPensionOptedOut } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
-import { fmt, fdList } from './paycalc-format.js';
-import { hppPayslipForTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
+import { fmt, fdList, fdLong } from './paycalc-format.js';
+import { hppPayslipForTaxYear, hppPaidInTaxYear, periodsInTaxYear } from './paycalc-hpp-schedule.js';
+import { paidInPeriodNum, _awardBackdateDate, awardLumpNonPremium } from './paycalc-backpay-accrual.js';
+import { resolveAuthoritativeRates } from './paycalc-backpay-state.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
@@ -139,26 +141,30 @@ export function hppFromYtdTaxable(taxablePayYtd, nonPremiumYtd) {
 /**
  * Non-premium LUMPS inside a Year to Date Taxable Pay figure that the app itself holds exactly
  * (72-hour review) — without this the 'ytd' estimate priced each as premium pay and took 7.69% of
- * it. Two are known: peer-training pay (extra BASIC — 2h per day at the period rate, the same
- * `peerDays × 2 × rate` computeGross uses) and last year's Holiday Pay Premium, which lands on this
- * year's January payslip (`hppCarrier`) and is only inside the figure once that payslip is covered.
+ * it. Three are known: peer-training pay (extra BASIC — 2h per day at the period rate, the same
+ * `peerDays × 2 × rate` computeGross uses); last year's Holiday Pay Premium, which lands on this
+ * year's January payslip (`hppCarrier`); and the pay award's back-pay lump (`awardCarrier`). Each
+ * of the two lumps is inside the figure only once the payslip carrying it is covered.
  *
- * THE BACK-PAY LUMP IS DELIBERATELY NOT HERE. In compute mode its amount is never stored, and even a
- * figure typed from the payslip is the wrong thing to subtract whole: its PREMIUM arrears do accrue
- * HPP, and only the basic/London share should come out — a split the app does not hold. Guessing it
- * would break invariant 1.
+ * THE BACK-PAY LUMP COMES OUT ONLY IN PART (owner, 10 Nov 2026). Its PREMIUM arrears are premium pay
+ * and stay in; its basic and London arrears come out. That split depends only on the record — the
+ * award's rates, the London step and the award window — so it is computed, never guessed:
+ * `awardLumpNonPremium` (paycalc-backpay-accrual.js) reuses the card's own accrual. Where a rate it
+ * needs is not on record (the CES 2025/26 old rate) the caller passes nothing and says so instead.
  *
  * Pure. @param {{ covered: any[], readSaved: (n: number) => ({ data: any, error?: any }),
- *   rateFor: (p: any) => number, hppCarrier: { num: number }|null, priorHppAmount: number }} a
+ *   rateFor: (p: any) => number, hppCarrier: { num: number }|null, priorHppAmount: number,
+ *   awardCarrier?: { num: number }|null, awardNonPremium?: number }} a
  * @returns {number}
  */
-export function knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHppAmount }) {
+export function knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHppAmount, awardCarrier = null, awardNonPremium = 0 }) {
   let sum = 0;
   for (const p of covered) {
     const peer = Number(readSaved(p.num)?.data?.peer) || 0;
     if (peer > 0) sum += peer * 2 * rateFor(p);
   }
   if (hppCarrier && covered.some(p => p.num === hppCarrier.num)) sum += Math.max(0, priorHppAmount || 0);
+  if (awardCarrier && covered.some(p => p.num === awardCarrier.num)) sum += Math.max(0, awardNonPremium || 0);
   return sum;
 }
 
@@ -167,15 +173,19 @@ export function knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHp
  * Year to Date figure covers (up to its source payslip, or today if unknown). Subtracted from the
  * YTD Taxable Pay to leave the premium pay that accrues HPP. Reads live grade/rate/pension via the
  * settings + calc helpers, so it tracks the mid-year rate/London steps. @param {any} ty
- * @returns {{ nonPremium: number, count: number }}
+ * @returns {{ nonPremium: number, count: number, unpricedAward: any }} `unpricedAward` — the payslip
+ *   carrying a back-pay lump that is inside the figure but cannot be split from the record, else null.
  */
 function _expectedNonPremiumYtd(ty) {
   const grade       = getGrade();
   const settledRate = getStoredRateForYear(ty);
   const srcNum      = parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0;
-  // Cap at the YTD source payslip; if none recorded, cap at today's period (never the whole year,
-  // which would over-count basic for periods not yet paid and understate the premium).
-  const capNum = srcNum || todaysPeriodNum();
+  // Cap at the YTD source payslip. With none recorded — or the figures detached, the stored '0' —
+  // cap at the last PAID payslip, the standing assumption `ytdAutoSource` makes too: the payslip still
+  // being earned is in no Taxable Pay figure, and counting its basic (as capping at today's period
+  // did) left the estimate about one payslip of basic pay short (paycalc-2-12).
+  const now    = new Date();
+  const capNum = srcNum || ([...getPeriods()].reverse().find(/** @param {any} p */ p => p.payday <= now)?.num ?? 0);
   const covered = getPeriods().filter(/** @param {any} p */ p => {
     const o = p.num - 48;
     return o >= ty.first && o <= ty.last && p.num <= capNum;
@@ -206,7 +216,8 @@ function _expectedNonPremiumYtd(ty) {
     nonPremium += basic + london - pension;
   }
   // …plus the lumps the figure holds that are neither basic nor premium (see knownYtdLumps).
-  const _paid = hppPaidInTaxYear(ty, getPeriods(), CONFIG.TAX_YEARS);
+  const _paid  = hppPaidInTaxYear(ty, getPeriods(), CONFIG.TAX_YEARS);
+  const _award = _awardLumpInYear(ty, grade);
   nonPremium += knownYtdLumps({
     covered, readSaved: readSavedPeriod,
     rateFor: (/** @type {any} */ p) => getRateForPeriod(p, grade, ty.label, settledRate),
@@ -214,22 +225,55 @@ function _expectedNonPremiumYtd(ty) {
     priorHppAmount: _paid
       ? resolveHppForPeriod(lsGet(hppActualKey(_paid.taxYear)), lsGet(hppEstKey(_paid.taxYear))).amount
       : 0,
+    awardCarrier: _award?.carrier ?? null,
+    awardNonPremium: _award?.nonPremium ?? 0,
   });
-  return { nonPremium, count: covered.length };
+  // A lump inside the figure that the record cannot split is NAMED on the card, never guessed.
+  const unpricedAward = (_award && _award.nonPremium == null
+    && covered.some(/** @param {any} p */ p => p.num === _award.carrier.num)) ? _award.carrier : null;
+  return { nonPremium, count: covered.length, unpricedAward };
+}
+
+/**
+ * The pay award's back-pay lump paid INSIDE `ty`: the payslip carrying it, and its non-premium share
+ * from the record (`awardLumpNonPremium` — null when a rate it needs is not on record). Null for a
+ * year whose award is undecided: no date, so no lump has been paid into any figure. @param {any} ty
+ * @param {string} grade @returns {{ carrier: any, nonPremium: number|null }|null}
+ */
+function _awardLumpInYear(ty, grade) {
+  const from = awardFromForYear(ty.label);
+  if (!from) return null;
+  const periods = getPeriods();
+  const carrierNum = paidInPeriodNum(periods, from);
+  const carrier = periods.find(/** @param {any} p */ p => p.num === carrierNum);
+  if (!carrier) return null;
+  const nonPremium = awardLumpNonPremium({
+    window: periodsInTaxYear(ty, periods).filter(p => p.payday < from),
+    auth: resolveAuthoritativeRates(ty, awardRatesFor(grade, ty.label)),
+    backdate: _awardBackdateDate(ty),
+    effContr: getEffectiveContr, proRateFactor: getProRateFactor,
+    peerDays: (/** @type {any} */ p) => Number(readSavedPeriod(p.num)?.data?.peer) || 0,
+  });
+  return { carrier, nonPremium };
 }
 
 /** The 'ytd'-mode rough figure and its ingredients, read live from the Year to Date card.
  *  hpp is 0 when the source can't estimate (no Taxable Pay entered, or no covered periods yet —
  *  the caller branches on taxable/count for the specific message). Shared by _renderHppManual
  *  and the per-radio figures (_updateModeAmounts) so the two can never disagree. @param {any} ty
- *  @returns {{ taxable: number, nonPremium: number, count: number, extra: number, hpp: number }} */
+ *  @returns {{ taxable: number, nonPremium: number, count: number, extra: number, hpp: number,
+ *              below: boolean, unpricedAward: any }} */
 function _ytdRoughHpp(ty) {
   const ytdPayEl = /** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay'));
   const taxable  = Math.max(0, parseSmartFloat(ytdPayEl?.value ?? '') || 0);
-  const { nonPremium, count } = _expectedNonPremiumYtd(ty);
+  const { nonPremium, count, unpricedAward } = _expectedNonPremiumYtd(ty);
   return {
-    taxable, nonPremium, count,
+    taxable, nonPremium, count, unpricedAward,
     extra: Math.max(0, taxable - nonPremium),
+    // "Lower than the expected basic" is a refusal, so it needs to BE lower: a figure that matches
+    // the expected non-premium pay to the penny is a member with no premium pay — £0.00, not a
+    // refusal decided by floating-point noise in either direction.
+    below: taxable - nonPremium < -0.005,
     hpp:   (taxable > 0 && count > 0) ? hppFromYtdTaxable(taxable, nonPremium) : 0,
   };
 }
@@ -336,11 +380,17 @@ function _renderHppManual(ty, mode) {
       return;
     }
     const { extra, hpp } = y;
-    if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
-    if (amountEl) amountEl.textContent = hpp > 0 ? fmt(hpp) : '£–';
+    if (Math.round(hpp * 100) > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
+    if (amountEl) amountEl.textContent = y.below ? '£–' : fmt(hpp);
     if (basisEl) {
-      basisEl.innerHTML = hpp > 0
-        ? `Rough estimate: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>`
+      // A back-pay lump in the figure that the record cannot split (the CES 2025/26 award, whose old
+      // rate is not on record) is SAID, never guessed out (owner, 10 Nov 2026).
+      const c = y.unpricedAward;
+      const lumpNote = c
+        ? ` <span class="hpp-partial-hint">This may include back pay: the pay-rise lump on your ${fdLong(c.payday)} payslip is part of your Year to Date pay, and the rates needed to take it out aren't on record, so this figure may be too high.</span>`
+        : '';
+      basisEl.innerHTML = !y.below
+        ? `Rough estimate: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${lumpNote}`
         : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — fill in your hours on each payslip in the calculator instead, or enter the figure yourself.`;
     }
     return;
@@ -444,7 +494,7 @@ function _updateModeAmounts(ty, hoursRes) {
   };
   set('hppModeHoursAmt', (hoursRes.pCount > 0 && hoursRes.hpp > 0) ? `≈ ${fmt(hoursRes.hpp)}` : '');
   const _ytd = _ytdRoughHpp(ty);
-  set('hppModeYtdAmt', _ytd.hpp > 0 ? `≈ ${fmt(_ytd.hpp)}` : '');
+  set('hppModeYtdAmt', Math.round(_ytd.hpp * 100) > 0 ? `≈ ${fmt(_ytd.hpp)}` : '');
   const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
   const exact   = Math.max(0, parseSmartFloat(exactEl?.value ?? '') || 0);
   set('hppModeExactAmt', exact > 0 ? fmt(exact) : '');

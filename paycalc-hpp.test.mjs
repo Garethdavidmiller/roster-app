@@ -588,3 +588,141 @@ describe('last year\'s premium says what it was built from (paycalc-2-4)', () =>
         assert.match(_els.priorHppBasis.textContent, /^1 of 13 2025\/26 payslips entered — check your January 2027 payslip/);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE ROUGH YEAR TO DATE PREMIUM AND THE BACK-PAY LUMP (paycalc-2-13, owner 10 Nov 2026)
+// ─────────────────────────────────────────────────────────────────────────────
+// The 'ytd' estimate takes 7.69% of whatever premium pay is inside a Taxable Pay figure. Once the
+// payslip carrying the pay award's lump is covered, the lump is inside it — and its basic and London
+// arrears are not premium pay. They come out, computed from the RECORD; its premium arrears stay in.
+// Every expected figure below is DERIVED from the same tables and accrual the card uses, so the next
+// award moves these cases instead of breaking them.
+
+const { getRateForPeriod, getLondonAllowanceForPeriod, awardFromForYear, HPP_FRACTION } = await import('./paycalc-calc.js');
+const { _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } = await import('./paycalc-backpay-accrual.js');
+const { resolveAuthoritativeRates } = await import('./paycalc-backpay-state.js');
+const { ytdSrcKey } = await import('./paycalc-migrations.js');
+
+/** What one payslip of `ty` paid that is not premium: contracted basic + London − the pension. */
+function plainPay(/** @type {any} */ ty, /** @type {any} */ p) {
+    return 140 * getRateForPeriod(p, _grade, ty.label, _settledRate(ty)) + getLondonAllowanceForPeriod(p, ty) - 147.36;
+}
+/** The year's award: the payslip carrying the lump, the window it covers and the record's rates. */
+function award(/** @type {any} */ ty) {
+    const from = /** @type {Date} */ (awardFromForYear(ty.label));
+    const carrier = P(/** @type {number} */ (paidInPeriodNum(getPeriods(), from)));
+    const yearPeriods = getPeriods().filter((/** @type {any} */ p) => p.num - 48 >= ty.first && p.num - 48 <= ty.last);
+    const window = yearPeriods.filter((/** @type {any} */ p) => p.payday < from);
+    const auth = resolveAuthoritativeRates(ty, awardRatesFor(_grade, ty.label));
+    return { carrier, window, auth };
+}
+/** The card's lump for the saved hours, and its non-premium share — the card's own accrual. */
+function lump(/** @type {any} */ ty, /** @type {Record<number, any>} */ hours = {}) {
+    const { window, auth } = award(ty);
+    const rateDiff = /** @type {number} */ (auth.newRateInput) - /** @type {number} */ (auth.oldRate);
+    const londonDiff = /** @type {number} */ (auth.newLondon) - /** @type {number} */ (auth.oldLondon);
+    let total = 0, premium = 0;
+    for (const p of window) {
+        const r = _accrueBackPayPeriod({ effContr: 140, proRateFactor: 1, rateDiff, londonDiff,
+            windowFactor: awardWindowFactor(p, _awardBackdateDate(ty)), hours: _decodeHours(p, hours[p.num] ?? {}) });
+        if (r.backPay > 0) total += Math.round(r.backPay * 100) / 100;
+        premium += r.varPay;
+    }
+    return { total, premium };
+}
+/** Show `pNum` in 'ytd' mode with the Year to Date figures copied from `srcNum`, and run the card. */
+function runYtd(/** @type {any} */ t, /** @type {number} */ pNum, /** @type {string} */ src, /** @type {number} */ taxable) {
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10) });   // 10 Nov 2026
+    _viewPNum = pNum;
+    _ls.set(ytdSrcKey(/** @type {any} */ (PERIOD_CONFIG.TAX_YEARS.find((/** @type {any} */ y) => pNum - 48 >= y.first && pNum - 48 <= y.last))), src);
+    _els.ytdPay.value = taxable.toFixed(2);
+    _els.hppModeYtd.checked = true;
+    calcHPP();
+}
+
+describe('the rough Year to Date premium takes the back-pay lump\'s arrears out (paycalc-2-13)', () => {
+    beforeEach(reset);
+
+    test('a member with NO premium pay gets £0.00 once the award payslip is covered (it read £36.63)', (t) => {
+        const { carrier } = award(TY26);
+        const L = lump(TY26).total;
+        assert.ok(L > 400, `the 2026/27 lump is real money (£${L.toFixed(2)}) — nothing below means anything without it`);
+        // Taxable Pay exactly as those payslips paid it: plain pay on each, and the lump on its own.
+        let taxable = L;
+        for (const p of getPeriods()) if (p.num >= 48 + TY26.first && p.num <= carrier.num) taxable += plainPay(TY26, p);
+        runYtd(t, 58, String(carrier.num), taxable);
+        assert.equal(_els.hppAmount.textContent, '£0.00',
+            `before the fix the lump was priced as premium pay: £${(L * HPP_FRACTION).toFixed(2)}`);
+        assert.equal(_ls.has(hppEstKey(TY26)), false, 'a £0 premium is not stored as an estimate');
+        assert.doesNotMatch(_els.hppBasis.textContent, /looks lower/, 'a figure that MATCHES the expected pay is not lower');
+    });
+
+    test('a member WITH premium pay keeps it — and the lump\'s premium arrears with it', (t) => {
+        const { carrier, window } = award(TY26);
+        const hours = { [window[2].num]: { otH: 10, otM: 0, sunH: 8, sunM: 0 }, [carrier.num + 1]: { otH: 5, otM: 0 } };
+        for (const [n, d] of Object.entries(hours)) saveHours(Number(n), d);
+        const L = lump(TY26, hours);
+        assert.ok(L.premium > 5, 'the window hours earn premium arrears, or this case cannot tell them apart');
+        let taxable = L.total, premiumPaid = 0;
+        for (const p of getPeriods()) {
+            if (p.num < 48 + TY26.first || p.num > carrier.num + 1) continue;
+            const prem = _varPayForPeriod(p, hours[p.num] ?? {}, getRateForPeriod(p, _grade, TY26.label, _settledRate(TY26)));
+            premiumPaid += prem;
+            taxable += plainPay(TY26, p) + prem;
+        }
+        runYtd(t, 58, String(carrier.num + 1), taxable);
+        const expected = (premiumPaid + L.premium) * HPP_FRACTION;
+        assert.ok(expected > 1, 'precondition: a real premium');
+        assert.equal(_els.hppAmount.textContent, `£${expected.toFixed(2)}`,
+            'the premium pay AND the premium arrears stay in; only the basic and London arrears come out');
+    });
+
+    test('a year whose old rate is not on record (CES 2025/26) is LABELLED, never guessed', (t) => {
+        _grade = 'ces';
+        const { carrier, auth } = award(TY25);
+        assert.equal(auth.oldRate, null, 'precondition: CES 2025/26 has no old rate on record');
+        const covered = getPeriods().filter((/** @type {any} */ p) => p.num >= 48 + TY25.first && p.num <= carrier.num + 2);
+        const plain = covered.reduce((/** @type {number} */ s, /** @type {any} */ p) => s + plainPay(TY25, p), 0);
+        const taxable = plain + 1000;                        // £1,000 of premium pay and arrears together
+        runYtd(t, carrier.num + 3, String(carrier.num + 2), taxable);
+        assert.match(_els.hppBasis.textContent, /This may include back pay/);
+        assert.match(_els.hppBasis.textContent, /pay-rise lump on your \d{1,2} \w{3} 2025 payslip/);
+        // Nothing was taken out: the figure is 7.69% of all £1,000.
+        assert.equal(_els.hppAmount.textContent, `£${(1000 * HPP_FRACTION).toFixed(2)}`);
+    });
+
+    test('before the award payslip is covered, nothing is taken out and nothing is said', (t) => {
+        const { carrier } = award(TY26);
+        const covered = getPeriods().filter((/** @type {any} */ p) => p.num >= 48 + TY26.first && p.num < carrier.num);
+        const taxable = covered.reduce((/** @type {number} */ s, /** @type {any} */ p) => s + plainPay(TY26, p), 0) + 500;
+        runYtd(t, carrier.num, String(carrier.num - 1), taxable);
+        assert.equal(_els.hppAmount.textContent, `£${(500 * HPP_FRACTION).toFixed(2)}`);
+        assert.doesNotMatch(_els.hppBasis.textContent, /back pay/);
+    });
+});
+
+describe('with the Year to Date figures detached, only PAID payslips count (paycalc-2-12)', () => {
+    beforeEach(reset);
+
+    test('the payslip still being earned is not treated as covered', (t) => {
+        // 10 Nov 2026: the 20 Nov payslip is still being earned. The stored '0' is the member choosing
+        // "— choose a payslip —"; the cap then falls to the last PAID payslip, not today's period.
+        const last = [...getPeriods()].reverse().find((/** @type {any} */ p) => p.payday <= new Date(2026, 10, 10, 10));
+        let taxable = lump(TY26).total;
+        for (const p of getPeriods()) if (p.num >= 48 + TY26.first && p.num <= last.num) taxable += plainPay(TY26, p);
+        runYtd(t, 58, '0', taxable);
+        assert.doesNotMatch(_els.hppBasis.textContent, /looks lower/,
+            'counting the unpaid payslip\'s basic made a correct figure read as too low');
+        assert.equal(_els.hppAmount.textContent, '£0.00');
+    });
+});
+
+describe('knownYtdLumps — the award lump only once its payslip is covered', () => {
+    const base = { covered: [{ num: 54 }, { num: 55 }], readSaved: () => ({ data: null }), rateFor: () => 20,
+        hppCarrier: null, priorHppAmount: 0 };
+    test('covered → its non-premium share comes out; not covered → nothing', () => {
+        assertPounds(knownYtdLumps({ ...base, awardCarrier: { num: 55 }, awardNonPremium: 476.18 }), 476.18, 'covered');
+        assertPounds(knownYtdLumps({ ...base, awardCarrier: { num: 56 }, awardNonPremium: 476.18 }), 0, 'not yet covered');
+        assertPounds(knownYtdLumps({ ...base, awardCarrier: { num: 55 }, awardNonPremium: -3 }), 0, 'never negative');
+    });
+});

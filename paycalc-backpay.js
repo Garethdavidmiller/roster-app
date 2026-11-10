@@ -2,11 +2,12 @@
 /**
  * paycalc-backpay.js — Back-pay lump sum calculator for paycalc.html.
  *
- * Owns: prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, and the pure accrual
- *   helpers (_accrueBackPayPeriod, awardWindowFactor, paidInPeriodNum, bpStoryHtml).
+ * Owns: prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, and the pure story strip
+ *   (bpStoryHtml).
  * Does NOT own: coordinator state (_bpAmount/_bpPNum live in paycalc-app.js),
  *   calculation engine (paycalc-app.js), settings (paycalc-settings.js), which figure goes in
- *   which box (paycalc-backpay-state.js).
+ *   which box (paycalc-backpay-state.js), or the award arithmetic itself
+ *   (paycalc-backpay-accrual.js — re-exported below, so its importers are unchanged).
  * Edit here for: back-pay calculation logic, lump sum breakdown rendering.
  * Do not edit here for: pay maths, period navigation, HPP formula.
  *
@@ -16,10 +17,11 @@
 
 import { parseSmartFloat } from './roster-data.js';
 import {
-  RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, taxYearForPeriod, awardRatesFor, awardFromForYear, capHours,
+  getTaxYearForOffset, taxYearForPeriod, awardRatesFor, awardFromForYear,
 } from './paycalc-calc.js';
-import { CONFIG as PERIOD_CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
+import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
+import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
+export { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
@@ -57,26 +59,6 @@ function _surfaceCorruptReset(/** @type {HTMLElement} */ noticeEl) {
   _bpStateWasCorrupt = false;
   noticeEl.style.display = 'block';
   noticeEl.innerHTML += `<span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Your saved back-pay entries couldn't be read and were reset — re-check the figures and the tick above.</span>`;
-}
-
-// ── PAID-IN PERIOD (pure) ─────────────────────────────────────────────────────
-
-/**
- * The paid-in payslip period for a DECIDED award: the number of the FIRST period whose payday is
- * on/after the award-application date — the payslip that actually carries the backdated lump. PURE
- * (DOM callers pass `getPeriods()` + `awardFromForYear(label)`), so it is unit-testable. Extracted
- * v18.13 after an award-date MOVE (the 3.6% award, 31 Jul → 28 Aug) left a stale saved paid-in
- * pinning the lump to the old payslip — this locks the derivation so a future date move is caught by
- * a test, not by a member noticing the "green box" on the wrong payslip. Returns null for an
- * undecided award (no date) or when no period qualifies.
- * @param {Array<{num:number, payday:Date}>} periods  - ascending by payday, as getPeriods() returns
- * @param {Date|null|undefined} awardFrom
- * @returns {number|null}
- */
-export function paidInPeriodNum(periods, awardFrom) {
-  if (!awardFrom) return null;
-  const p = periods.find(/** @param {any} x */ x => x.payday >= awardFrom);
-  return p ? p.num : null;
 }
 
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
@@ -393,119 +375,6 @@ export function bpStoryHtml(o) {
 }
 
 // ── BACK PAY CALCULATOR ───────────────────────────────────────────────────────
-
-/**
- * 1 April of an award tax year — the date Chiltern backdates a pay award TO.
- *
- * Noon, deliberately: every period date in this app is noon (inherited from `ANCHOR_DATE`),
- * so a noon-to-noon subtraction is a whole number of days regardless of British Summer Time. A
- * midnight date here would make the day count off by a fraction across the March DST change, which
- * is exactly the period this is used on.
- *
- * @param {{label: string}} awardTy a TAX_YEARS entry — '2026/27' → 1 Apr 2026
- * @returns {Date|null}
- */
-export function _awardBackdateDate(awardTy) {
-  const year = parseInt(String(awardTy?.label || '').slice(0, 4), 10);
-  return Number.isFinite(year) ? new Date(year, 3, 1, 12, 0, 0) : null;
-}
-
-/**
- * How much of a period's SHIFT WINDOW falls on or after the award's backdate — 0…1 (v21.79).
- *
- * ── WHY THIS EXISTS: THE APP WAS 19% HIGH ───────────────────────────────────────────────────────
- *
- * A period is 28 days of SHIFTS paid six days after its cut-off, so the first period of a tax year
- * covers work done largely in MARCH. The award is backdated to 1 April, and the accrual used to
- * include that whole period — charging the rise against three weeks of work the award does not
- * cover.
- *
- * Measured against the real 28 Aug 2026 payslip (VAL-PAY-001, settled): the app estimated £977.69
- * where payroll paid £821.68. The first period in the window (paid 10 Apr 2026, shifts 8 Mar –
- * 4 Apr) is only 4 days in scope, and the app counted all 28.
- *
- * ── THE EVIDENCE THAT THIS IS THE RIGHT SHAPE ───────────────────────────────────────────────────
- *
- * The London Allowance settles it exactly. Its uplift is a flat £9.94 a period with no hours in it,
- * so it isolates the WINDOW from everything else: 4/28 + 4 whole periods × £9.94 = £41.18, and the
- * arrears inside that payslip's London line are £41.18 to the penny. The basic component agrees to
- * within £2.30 (0.5%) and the premiums to within a few pounds — close enough for a figure the card
- * calls "roughly", and the residual is payroll's own daily rounding, not a different rule.
- *
- * ── WHAT IT DELIBERATELY DOES NOT DO ────────────────────────────────────────────────────────────
- *
- * It scales the period's WHOLE accrual, premiums included, even though payroll paid the premiums of
- * the part-week ending 4 April in full. Splitting premiums by week is impossible here: hours are
- * stored per PERIOD, not per week, so there is nothing finer to apportion. The approximation costs
- * a few pounds on one period a year and is stated as an estimate; inventing a weekly split from
- * period totals would look more precise and be less true.
- *
- * It also MULTIPLIES with a joiner's pro-rate rather than taking the longer of the two. Both are
- * suffixes of the same period — employment starts mid-period and runs to the end, and so does the
- * award window — so the exact answer is the shorter suffix, not the product, and the product
- * under-counts. It is left as a product because reaching `min` from here means unpicking the
- * pro-rate already baked into `effContr`, and no member can currently hit it: the earliest start
- * date on the roster is 20 Apr 2026, well clear of the one period a year where the two overlap.
- * Fix it properly if a March joiner ever appears, and not before.
- *
- * @param {{start?: Date, cutoff?: Date}} p a period from getPeriods()
- * @param {Date|null} backdatedFrom
- * @param {number} [periodDays]
- * @returns {number} 0 (wholly before the award) … 1 (wholly inside it)
- */
-export function awardWindowFactor(p, backdatedFrom, periodDays = PERIOD_CONFIG.PERIOD_DAYS) {
-  // No backdate in hand → change nothing. Failing towards the OLD behaviour keeps a missing or
-  // malformed tax-year label from silently zeroing somebody's whole lump.
-  if (!p?.start || !p?.cutoff || !backdatedFrom) return 1;
-  if (p.start  >= backdatedFrom) return 1;   // the ordinary case: every period but the first
-  if (p.cutoff <  backdatedFrom) return 0;   // wholly before the award — owes nothing
-  const DAY  = 86400000;
-  const days = Math.round((p.cutoff.getTime() - backdatedFrom.getTime()) / DAY) + 1;  // inclusive
-  return Math.max(0, Math.min(1, days / periodDays));
-}
-
-/**
- * PURE per-period back-pay arithmetic — no DOM, no storage. Extracted from calcBackPay so the
- * money maths is unit-testable (paycalc-periods.test.mjs); calcBackPay maps DOM/storage to these
- * numbers and renders. Mirrors calculate()'s hour capping: Saturday hours cap at contracted,
- * bank-holiday hours cap at the remaining normal hours.
- *
- * PRECONDITION: rateDiff/londonDiff are ≥ 0 (calcBackPay zeroes an invalid pair before calling).
- *
- * backPay = contracted basic diff + premium-bucket diffs + peer diff + pro-rated London diff.
- * varPay  = the HPP-accruing portion — premium buckets only (contracted basic, peer pay and the
- *           London diff are excluded, mirroring _varPayForPeriod).
- *
- * @param {{ effContr: number, proRateFactor: number, peer?: number, rateDiff: number, londonDiff: number,
- *           windowFactor?: number,
- *           hours: { satHrs?: number, bhHrs?: number, bhOtHrs?: number, otHrs?: number,
- *                    rdwHrs?: number, sunHrs?: number, boxHrs?: number } }} i
- * @returns {{ backPay: number, varPay: number }}
- */
-export function _accrueBackPayPeriod(i) {
-  const { satHrs = 0, bhHrs = 0, bhOtHrs = 0, otHrs = 0, rdwHrs = 0, sunHrs = 0, boxHrs = 0 } = i.hours || {};
-  const { satCapped, bhCapped } = capHours({ effContr: i.effContr, satHrs, bhHrs });
-  const premium =
-    satCapped * i.rateDiff * (RATE_125 - 1) +
-    bhCapped  * i.rateDiff * (RATE_125 - 1) +
-    bhOtHrs   * i.rateDiff * RATE_125       +
-    otHrs     * i.rateDiff * RATE_125       +
-    rdwHrs    * i.rateDiff * RATE_125       +
-    sunHrs    * i.rateDiff * RATE_150       +
-    boxHrs    * i.rateDiff * RATE_300;
-  const londonPart = i.londonDiff * i.proRateFactor;
-  // The AWARD WINDOW scales the whole period (v21.79) — see awardWindowFactor. Defaults to 1, so a
-  // caller that does not pass it behaves exactly as before.
-  const w = i.windowFactor == null ? 1 : i.windowFactor;
-  return {
-    // backPay = the whole lump (basic + premium + peer + London arrears are all owed).
-    // varPay = the HPP-ACCRUING portion only — premiums, NOT London (London doesn't accrue HPP;
-    // see paycalc-hpp.js _varPayForPeriod). Currently unused (v16.89 stopped feeding it into HPP),
-    // but kept correct so a future re-wire can't reintroduce the London-in-HPP bug.
-    backPay: (i.effContr * i.rateDiff + premium + (i.peer || 0) * 2 * i.rateDiff + londonPart) * w,
-    varPay:  premium * w,
-  };
-}
 
 /**
  * Reset the per-period breakdown to fully closed. Needed whenever the rows are cleared/replaced
