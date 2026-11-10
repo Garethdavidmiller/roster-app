@@ -3901,6 +3901,30 @@ test('links re-review: an offline save says it is in this browser, not "✓ Save
     await context.setOffline(false);
 });
 
+// A DESIGN REMOVED FOR GOOD, SAVED OFFLINE (links-design-12). Offline, the store consults what this
+// device holds before it queues a save. Plain getDoc rejects offline for a document the cache KNOWS was
+// deleted exactly as for one it never held (measured against the real SDK), so the save was queued over
+// a design a colleague had removed for good, and brought it back on sync. The page now hands the store
+// getDocFromCache, which tells the two apart.
+test('links: an offline save of a design this device knows was removed for good is not queued', async ({ page, context }) => {
+    await openWindowDesign(page);
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txErrorCode = 'unavailable';   // no server
+        w.__E2E.failGetDoc = true;             // and offline getDoc rejects, as the real one does
+        w.__E2E.docCache = { d1: null };       // the cache recorded that the design was removed
+    });
+    await context.setOffline(true);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('.dialog-overlay.visible')).toContainText('removed this design for good');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .filter((/** @type {any} */ w) => /\/d1$/.test(w.path)).length);
+    expect(written, 'nothing is queued over the removed design').toBe(0);
+    await context.setOffline(false);
+});
+
 // ── A design MADE while a write is in flight (whole-app fix, Nov 2026 — links-app-3) ─────────────────
 // A create resolves only when the server answers. With the signal up but not answering, Save a copy
 // as… and New blank design showed nothing, a second press passed the duplicate-name check (the first

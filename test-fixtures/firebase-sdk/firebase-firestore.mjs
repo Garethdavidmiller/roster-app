@@ -114,6 +114,7 @@ export async function getDocs(q) {
     return { docs, size: docs.length, empty: docs.length === 0 };
 }
 export const getDocsFromCache = getDocs;
+export const getDocFromCache = getDoc;
 export function onSnapshot() { return () => {}; }
 export function writeBatch() {
     const pending = [];

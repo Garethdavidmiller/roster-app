@@ -261,6 +261,21 @@ export const getDocsFromCache = () => {
   const docs = rows.map(r => ({ id: r.id, data: () => r }));
   return Promise.resolve({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
 };
+// The SINGLE-document cache read (whole-app fix, Nov 2026), which the Links store consults offline.
+// Seed window.__E2E.docCache = { id: row } for a document this device holds, or { id: null } for one
+// whose deletion the cache recorded — that resolves as NOT EXISTING, exactly as the real SDK answers
+// it. A document not named was never held, and the read REJECTS, as the real one does; so nothing
+// seeded is the default, and every spec written before this existed still consults nothing.
+// (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+export const getDocFromCache = (ref) => {
+  const held = (globalThis.__E2E || {}).docCache || {};
+  const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
+  if (!id || !Object.prototype.hasOwnProperty.call(held, id)) {
+    return Promise.reject(Object.assign(new Error('e2e: Failed to get document from cache'), { code: 'unavailable' }));
+  }
+  const row = held[id];
+  return Promise.resolve(row ? { exists: () => true, data: () => row } : { exists: () => false, data: () => undefined });
+};
 // window.__E2E.getDocData seeds what a SINGLE-doc read RESOLVES WITH (v19.91). The default stays
 // "does not exist", which is what every existing spec is written against — notably the Settings
 // password chip, whose whole suite assumes an un-migrated member. Seeding it is how a spec reaches
