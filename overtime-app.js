@@ -2,20 +2,11 @@
 /**
  * overtime-app.js — coordinator for overtime.html.
  *
- * Owns: the access gate, the session/login wiring, the two tab surfaces, and the Manager planning
- * horizon. Delegates every RULE to the server (functions/overtime-core.js) and every WORD to
- * overtime-format.js; the network lives in overtime-data.js.
- *
- * ── THE PLANNING HORIZON IS THE POINT OF THIS PAGE, NOT A CONVENIENCE ───────────────────────────
- *
- * A weekly-window system has exactly one catastrophic failure, and it happens before any document
- * exists: nobody creates the window. Then no participants exist, so nobody is outstanding, so no
- * reminder can fire, so staff see nothing — and "no window" is indistinguishable from "no overtime
- * needed this week". The clerk plans a roster from a page that is quietly empty.
- *
- * So the horizon is rendered FIRST, above the week detail, from the CALENDAR rather than from
- * Firestore, and a missed week keeps its row until its Saturday has passed. Anything that makes
- * these rows less prominent makes the feature less safe.
+ * Owns: the access gate, the session/login wiring, the tab surfaces and the member's own forms. The
+ * reviewer's side — the planning horizon, week selection and workspace — is
+ * overtime-review-controller.js, whose header says why the horizon is the point of this page. Every
+ * RULE is the server's (functions/overtime-core.js), every WORD overtime-format.js's; the network
+ * lives in overtime-data.js.
  *
  * ── BETA ACCESS IS A CLIENT COURTESY, NOT THE BOUNDARY ──────────────────────────────────────────
  *
@@ -23,17 +14,6 @@
  * Firestore gives ordinary members nothing, and every endpoint re-checks the claim server-side.
  * Someone who types the URL sees a short "not available" panel because that is kinder than a blank
  * page — not because it stops them.
- *
- * ── WHICH READ IS LATEST, NOT MERELY WHICH WEEK IS SELECTED ─────────────────────────────────────
- *
- * `renderWeekDetail` guards on the selected WEEK, so two reads of the SAME week both satisfy it —
- * and since v21.48 three things start one (Refresh, the visibility refetch, a week press). If the
- * second returns first, the first lands after it and paints the OLDER snapshot beneath the NEWER
- * "as at" time. Every other stale render is a page that is behind; this is a page that is behind
- * while saying it is current, on the surface a clerk rings people from. Hence `detailGeneration`:
- * a ticket per call, and only the newest may paint. Coalescing into one in-flight promise is
- * worse — it would hand a Refresh press the answer to the read already running, which is the
- * stale data the press exists to replace.
  */
 
 import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
@@ -94,6 +74,19 @@ export function init() {
     /** Which week that form is for, so a resync knows whether a moved window is the visible one. */
     /** @type {string|null} */
     let currentFormWeek = null;
+    /** The landing layout's list painter, so a resync can repaint the rows without the form. @type {(() => void)|null} */
+    let repaintLists = null;
+    /** A form is about to be replaced: drop every handle to it FIRST (overtime-ui-15) — kept through the
+     *  next form's roster read, `confirmDiscard` asked about answers the member had already left. */
+    function releaseForm() { currentForm = null; currentFormWeek = null; repaintLists = null; }
+    /** …and the new one is adopted only if nothing replaced it while its roster was read: an older
+     *  read landing last must not make a detached form the one every guard asks. @returns {boolean} */
+    function adopt(/** @type {HTMLElement} */ holder, /** @type {HTMLElement} */ host, /** @type {any} */ form,
+        /** @type {string} */ week, /** @type {(() => void)|null} */ lists = null) {
+        if (holder.parentNode !== host) return false;
+        currentForm = form; currentFormWeek = week; repaintLists = lists;
+        return true;
+    }
     // The service worker, BEFORE the access gate below (whole-app review, Oct 2026) — the sign-in and
     // "not open to you" branches return early, and a signed-out view must still take an update, as
     // Operations and Links do. A release must not take a half-answered form, or a submit on its way,
@@ -103,7 +96,7 @@ export function init() {
 
     /**
      * The reviewer's workspace — horizon, week selection, detail, creation preview, confirm bar,
-     * and the eight pieces of state that have to agree about which week is on screen (v21.88).
+     * and the state that has to agree about which week is on screen (v21.88).
      *
      * A page holding BOTH surfaces is deliberate (see overtime.html), and it is still not a reason
      * for one coordinator to hold both: nothing in the reviewer's world is reachable from the
@@ -126,6 +119,8 @@ export function init() {
             // hardest: overtime wires the drawer even for a signed-out visitor ("so an unauthorised
             // visitor can leave", above), so the refusal was reachable without a race.
             authReady: sessionReady,
+            // No session, no document: this page sheds a PIN holder's identity, so a read is refused or cache-answered (contracts-a lead).
+            canReadDocuments: () => !!currentUser,
             currentPage: 'overtime',
             memberName: currentUser,
             isAdmin: !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser),
@@ -212,8 +207,7 @@ export function init() {
         // (v21.58, owner request) — the same "Staff member" field a self-service member sees
         // there, locked to the one name it can hold — so both pages answer "who am I acting as?"
         // in one visual language. A real <select>, disabled: there is genuinely nobody else to
-        // pick. Filled here because start() re-runs on an in-place sign-in, so a changed
-        // identity repaints it — and REBUILT rather than appended, for exactly that path.
+        // pick. Filled here because start() runs once, after any in-place sign-in, so the name is final.
         const idBar = el('otMineIdentity');
         const idSel = /** @type {HTMLSelectElement|null} */ (el('otIdentityMember'));
         if (idBar && idSel && currentUser) {
@@ -245,25 +239,21 @@ export function init() {
         // Every named page's follow-up (page-session.js): an unconfirmed OWN session is asked to sign
         // in again — and, since v24.52, so is one revoked LATER. This page alone never watched for
         // that, so a revoked member was left on a form whose every send would fail.
-        if (currentUser) guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: currentUser, established: setAuth });
+        // The sign-in that covers the page is hidden in print, so what the lost account read goes
+        // first — or Ctrl+P printed the availability sheet from behind it (overtime-ui-4).
+        if (currentUser) guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: currentUser, established: setAuth,
+            signIn: () => { review.standDown({ clear: true }); initLoginOverlay({ pageLabel: 'Overtime', onSuccess: () => window.location.reload() }); } });
 
         // ── THE `ready` MILESTONE IS LATE ON THIS PAGE, AND THAT IS THE POINT ───────────────────
         //
-        // This page's shell is a row of "Loading…" placeholders, and its content needs TWO network
-        // round trips before any of it can be used: `getMyOvertimeState`, then the member's roster
-        // behind the form. `domReady` fires at the first of those and `fcp` paints the placeholder,
-        // so the two metrics the App Speed card had would both have called this page ready while
-        // it was still empty — the same mis-measurement `markPageReady` was written for at v20.80,
-        // and worse here than on the pages it was written for, because those are waiting on auth
-        // rather than on data.
-        //
-        // `recordPageLatency` therefore moves AFTER the load — the mark has to exist before the
-        // read, which is why the three `auth-ready` pages get away with marking synchronously. It
-        // is in a `finally`, not the success path: a page that failed to load still took time, and
-        // dropping its sample would quietly bias the figures towards loads that went well.
-        // The forced set-password step, as on every other page that mounts the sign-in (v23.21 —
-        // this coordinator was the one that had never run it, so a reviewer who signed in here was
-        // asked on whichever page they opened next). Fails open by design; never awaited here.
+        // The content needs TWO round trips before any of it is usable (`getMyOvertimeState`, then
+        // the roster behind the form), so `domReady` and `fcp` would both call a row of "Loading…"
+        // placeholders ready — the mis-measurement `markPageReady` exists for. `recordPageLatency`
+        // therefore runs AFTER the load (the mark must exist before the read), in a `finally`: a
+        // page that failed to load still took time, and dropping its sample would bias the figures
+        // towards loads that went well.
+        // The forced set-password step, as on every page that mounts the sign-in (v23.21: a reviewer
+        // who signed in here was asked on the next page instead). Fails open; never awaited here.
         sessionReady.then(() => initPasswordForce(currentUser)).catch(() => {});
         sessionReady.then(() => {
             initErrorReporter();
@@ -274,8 +264,11 @@ export function init() {
             // an absent `ready` is rendered as "—" by the card, which is honest — where a number
             // would be a measurement of something nobody could use.
             if (!mineFailed) markPageReady();
-        }).catch(() => {
+        }).catch((err) => {
             renderError(document.getElementById('otMineContent'));
+            // Both loaders answer their own network failures, so this is a fault in the page: it must
+            // reach the console and the Error Log, not only a "Couldn't load" card (overtime-ui-17).
+            globalThis.reportError?.(err);
         }).finally(() => {
             recordPageLatency('overtime', currentUser);
         });
@@ -296,7 +289,7 @@ export function init() {
         warnOnUnload(formDirty);
         askBeforeLeavingByDrawer(formDirty);
 
-        // ── The reviewer's week must not go quietly stale (v21.48, external review) ─────────────
+        // ── The reviewer's week, and the horizon above it, must not go quietly stale (v21.48) ───
         //
         // The workspace is a one-off snapshot, and the page states its age ("Availability as at…")
         // without ever improving it: a reviewer who opened a week at 09:00 and looked again at
@@ -308,36 +301,28 @@ export function init() {
         // through arriving submissions, listen to the heads then — the checklist carries it.
         document.addEventListener('visibilitychange', () => {
             if (document.hidden || !canReview) return;
-            review.refreshSelectedIfStale();
+            review.refreshIfStale();
         });
     }
 
     /**
      * Keep the page honest across a deadline it sat open through.
      *
-     * `shouldResyncClock` and its five-minute window have existed since v20.69 with nothing
-     * calling them — a member who opened the form at 11:50 was still told "open" at 12:05. The
-     * realistic shape of that failure is a phone pocketed and re-woken, so the trigger is the page
-     * BECOMING VISIBLE near a deadline, not a timer: a timer burns battery all afternoon to catch
-     * a case that, when it matters, always arrives through this event.
+     * The realistic failure is a phone pocketed and re-woken — a form opened at 11:50 still said
+     * "open" at 12:05 — so the trigger is the page BECOMING VISIBLE near a deadline, or after one has
+     * passed since the screen was read (`shouldResyncClock`), never a timer: a timer burns battery
+     * all afternoon to catch a case that, when it matters, always arrives through this event.
      *
      * ── IT RE-RENDERS ONLY WHEN A PHASE ACTUALLY CHANGED, AND THEN ONLY IF IT MUST ──────────────
      *
-     * The blunt version — reload the card whenever the window is near a deadline — would WIPE a
-     * half-filled form under the member's thumb, which is worse than the stale line it fixes. So
-     * this re-reads state (which also refreshes the clock offset that `submitDisposition` uses) and
-     * compares phases.
-     *
-     * Until v20.86 ANY phase move then reloaded, with a comment reasoning that a member mid-form
-     * whose week just closed loses their picks and the server would have refused them anyway. That
-     * is true of `FINAL_OPEN → CLOSED`. It is not true of `INITIAL_OPEN → FINAL_OPEN`, where the
-     * form stays fully submittable — so there the reload destroyed work for nothing, and the
-     * realistic case is exactly the one this whole function was written for: answering at 11:58,
-     * pocket, reopen at 12:02, five days' answers gone. The window is ±5 minutes of EITHER deadline,
-     * so it is the initial deadline that most often triggers it.
-     *
-     * A still-open move is therefore handed to the form to absorb (`setPhase` repaints the head and
-     * touches nothing else). Only a form that must lose its controls is rebuilt.
+     * Reloading the card near every deadline would WIPE a half-filled form under the member's thumb,
+     * which is worse than the stale line it fixes. So this re-reads state (which also refreshes the
+     * clock offset `submitDisposition` uses) and compares phases. A rebuild is right for
+     * `FINAL_OPEN → CLOSED`, whose picks the server would refuse anyway, and wrong for
+     * `INITIAL_OPEN → FINAL_OPEN`, where the form stays submittable — answering at 11:58 and
+     * reopening at 12:02 lost five days' answers until v20.86. So a still-open move is handed to the
+     * form to absorb (`setPhase` repaints the head and touches nothing else); only a form that must
+     * lose its controls is rebuilt.
      */
     function wireDeadlineResync() {
         document.addEventListener('visibilitychange', async () => {
@@ -358,15 +343,16 @@ export function init() {
                 // Record every move on the window objects — the week LIST rows read `phase` too, and
                 // leaving them stale would be the same lie in a quieter place.
                 for (const w of moved) w.phase = phases.get(w.weekEnding);
-                // The form on screen is the only one that can absorb a change in place. If it took
-                // the new phase, nothing else is needed; if it refused (it is closing), rebuild.
+                // The form on screen is the only one that can absorb a change in place; if it refused
+                // (it is closing), rebuild. When only ANOTHER week moved (they share Tuesday 12:00s), a
+                // rebuild would wipe this form, so it is skipped only when there are answers to lose.
+                // A form KEPT either way has the rows beneath it repainted, or a week that has just
+                // closed goes on saying "you can still change it" (overtime-ui-9).
                 const onScreen = currentForm && currentFormWeek
                     && moved.some((/** @type {any} */ w) => w.weekEnding === currentFormWeek);
-                if (onScreen && currentForm.setPhase(phases.get(currentFormWeek))) return;
-                // Only ANOTHER week moved (they share Tuesday 12:00s): a rebuild would wipe this form,
-                // so skip it only when there are answers to lose — a clean form rebuilds, or the list
-                // rows beneath it keep the old phase.
-                if (currentForm && !onScreen && currentForm.isDirty()) return;
+                const kept = onScreen ? currentForm.setPhase(phases.get(currentFormWeek))
+                    : !!currentForm && currentForm.isDirty();
+                if (kept) { repaintLists?.(); return; }
                 await loadMine();
             } finally {
                 resyncing = false;
@@ -437,8 +423,7 @@ export function init() {
         // The form on screen is about to be replaced whatever happens below, so the handle to it
         // must go now. A stale one would let a later resync call `setPhase` on a detached node —
         // and, worse, let `confirmDiscard` warn about unsaved answers that are no longer anywhere.
-        currentForm = null;
-        currentFormWeek = null;
+        releaseForm();
         const r = await OTD.getMyOvertimeState();
         if (!r.ok) { mineFailed = true; renderError(host); return; }
 
@@ -495,9 +480,8 @@ export function init() {
      * @param {HTMLElement} host @param {any[]} windows
      */
     async function renderMine(host, windows) {
-        const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED')
-            .sort((/** @type {any} */ a, /** @type {any} */ b) => a.finalDeadlineAt - b.finalDeadlineAt);
-        const closed = windows.filter((/** @type {any} */ w) => w.phase === 'CLOSED');
+        releaseForm();
+        const { open, closed } = byPhase(windows);
         // With nothing open, the newest CLOSED week is still what they came to look at (read-only).
         const lead = open.find((/** @type {any} */ w) => !w.submission)
             || open[0] || closed[closed.length - 1];
@@ -509,19 +493,27 @@ export function init() {
         // Re-render the LISTS after a save, not the form: the row for a week just submitted has to
         // stop saying "Not submitted yet", and the outstanding-count nudge below has to recount.
         // Re-rendering the form as well would throw away the confirmation the member is reading.
-        currentForm = await renderWeekForm(holder, lead, String(currentUser),
-            { onSaved: () => paintLists() });
-        currentFormWeek = lead.weekEnding;
-        paintLists();
+        const form = await renderWeekForm(holder, lead, String(currentUser), { onSaved: () => paintLists() });
+        if (adopt(holder, host, form, lead.weekEnding, paintLists)) paintLists();
 
+        // The phases are read AGAIN at every paint — a resync moves `phase` on these same objects
+        // (overtime-ui-9) — and a form that has left the page paints nothing: its save can land
+        // after the member opened another week (overtime-ui-15).
         function paintLists() {
+            if (holder.parentNode !== host) return;
             while (holder.nextSibling) host.removeChild(holder.nextSibling);
-            appendWeekList(host, open.filter((/** @type {any} */ w) => w !== lead),
-                'Other open weeks', windows);
-            appendWeekList(host, closed.filter((/** @type {any} */ w) => w !== lead),
-                'Previous forms', windows);
-            appendOutstandingNudge(host, open, lead);
+            const now = byPhase(windows);
+            appendWeekList(host, now.open.filter((/** @type {any} */ w) => w !== lead), 'Other open weeks', windows);
+            appendWeekList(host, now.closed.filter((/** @type {any} */ w) => w !== lead), 'Previous forms', windows);
+            appendOutstandingNudge(host, now.open, lead);
         }
+    }
+
+    /** The member's weeks by phase, the open ones soonest-closing first. @param {any[]} windows */
+    function byPhase(windows) {
+        const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED')
+            .sort((/** @type {any} */ a, /** @type {any} */ b) => a.finalDeadlineAt - b.finalDeadlineAt);
+        return { open, closed: windows.filter((/** @type {any} */ w) => w.phase === 'CLOSED') };
     }
 
     /**
@@ -585,11 +577,12 @@ export function init() {
                 if (!w) return;
                 // Opening another week DESTROYS the form on screen. Ask first if it holds work.
                 if (!await confirmDiscard()) return;
+                releaseForm();
                 const holder = document.createElement('div');
                 cardHost.innerHTML = '';
                 cardHost.appendChild(holder);
-                currentForm = await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
-                currentFormWeek = w.weekEnding;
+                const form = await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
+                if (!adopt(holder, cardHost, form, w.weekEnding)) return;
                 // A way BACK to the list. Opening a week replaces the whole card, so without this
                 // the member is stranded on one form with no route to the others.
                 if (windows.length > 1) appendBackToList(cardHost, windows);
@@ -675,6 +668,8 @@ export function init() {
         if (minePanel) minePanel.hidden = !mine;
         if (allPanel)  allPanel.hidden = mine;
         document.body.dataset.otView = which;
+        // Its confirm bar is fixed to the foot, over the member's Submit bar (css-overtime-guides lead).
+        if (mine) review.standDown();
     }
 
     /** @param {string} id @param {boolean} selected @param {boolean} [focus] */
@@ -714,7 +709,7 @@ export function init() {
     function renderError(host, retry) {
         if (!host) return;
         host.innerHTML = `
-            <div class="ot-state ot-state--error">
+            <div class="ot-state ot-state--error" role="alert">
                 <span class="ot-state-icon" aria-hidden="true">⚠️</span>
                 Couldn't load overtime availability.
                 <div class="ot-state-actions">
@@ -737,6 +732,10 @@ export function init() {
         setTabStrip(false);
         if (allPanel) allPanel.hidden = true;
         if (paused && title) title.innerHTML = '<span aria-hidden="true">⏱️</span> Overtime availability';
+        // Either way there is no form, so nothing that describes one stays: the hint, both caveats, and
+        // the ? and chevron only start() wires (overtime-ui-14; the paused CSS rule covered that path only).
+        document.querySelectorAll('#otMineCard .hint, #otMineCard .card-header-actions, .ot-explainer, .ot-privacy')
+            .forEach((n) => n.classList.add('hidden'));
         if (mine) {
             mine.innerHTML = `
                 <div class="ot-state">

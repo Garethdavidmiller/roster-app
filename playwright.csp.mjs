@@ -27,7 +27,7 @@ export default defineConfig({
         // IPv6/IPv4 split the main config documents).
         baseURL: 'http://127.0.0.1:5000',
         // Block the service worker: we want to measure the PAGE's loads under CSP, not have the SW
-        // intercept them or hammer the emulator with the ~110-file precache. The SW itself is
+        // intercept them or hammer the emulator with the whole-app precache. The SW itself is
         // same-origin (worker-src 'self'), so blocking it hides no realistic CSP failure.
         serviceWorkers: 'block',
         trace: 'retain-on-failure',

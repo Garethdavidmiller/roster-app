@@ -6,15 +6,16 @@
 // Extracted from overtime-format.js at v23.84, which had reached its 1030-line ratchet for the
 // second time in three releases (coordinator-ratchet.test.mjs). The ratchet offers EXTRACT, SPLIT or
 // RAISE, and this repo's answer is the first unless there is an argument for the others; the
-// argument for this seam is that the four functions here are ONE subject and the rest of that file
-// is another. overtime-format.js formats ANSWERS — what a member said, how it reads on a chip, how
+// argument for this seam is that the functions here are ONE subject and the rest of that file is
+// another. overtime-format.js formats ANSWERS — what a member said, how it reads on a chip, how
 // old it is. This file formats TIME: which phase the week is in, what that phase is called (as a
 // sentence, as a two-word chip, as a tone), and the two deadlines that define it. `deadlineLabel`
 // comes with them because `deadlineLines` is built from it and a module that imports its own
 // re-exporter is a cycle.
 //
-// Everything here is re-exported from overtime-format.js, so no call site and no test changed —
-// the same move `isWorkingDate` made from admin-overrides.js into al-entitlement.js (v23.79).
+// Everything here except `phaseAt` is re-exported from overtime-format.js, so no call site and no
+// test changed — the same move `isWorkingDate` made from admin-overrides.js into al-entitlement.js
+// (v23.79). `phaseAt` is imported from this module directly.
 //
 // The reasoning each function carries is in its own header below and was moved, not rewritten:
 // the v20.70 rule that these lines describe the member's position and never name a document they

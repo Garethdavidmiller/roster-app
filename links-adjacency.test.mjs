@@ -1,9 +1,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     OBJECTIVES, GENTLE_THRESHOLD_MINUTES, DEFAULT_BLOCK_TARGET, lineStartProfile, weekStep,
     breakLength, boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
-    blockRuns, blockExcess, spareSpread, longestRunFor, runExcess,
+    blockRuns, longestBlockOf, blockExcess, spareSpread, longestRunFor, runExcess,
 } from './links-adjacency.js';
 import { generatePatterns, generateLink, runDesignChecks, ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
 import { buildRosterTargets } from './links-seed.js';
@@ -119,6 +120,51 @@ describe('scoreOrder', () => {
         // 3 → 1 is a −14h step; without wrapping it would be invisible.
         assert.equal(s.gentleWorst, 14 * 60);
     });
+
+    test('every figure, counted by hand on four lines — and renumbering moves none but the partition', () => {
+        // The search chooses an order by these figures and the status line reports them, through one
+        // shared walk, so a miscount here is a wrong design AND a wrong report of it.
+        //   1 → 2  Fri, Sat | Sun, Mon off      a four-day break, three contracted days given
+        //   2 → 3  Sat | Sun, Mon off           three days, two given
+        //   3 → 4  Sat | Sun off                two days, one given
+        //   4 → 1  Sat 14:00-22:00 → Sun 06:00  no weekend, and 8 hours' rest
+        // Start profiles 08:24, 09:00, 13:00 and 09:50, so the steps are 36, 240, 190 and 86 minutes.
+        const late = '13:00-21:00';
+        const p = {
+            1: line({ sun: '06:00-14:00', fri: 'RD' }),
+            2: line({ mon: 'RD' }),
+            3: line({ mon: 'RD', tue: late, wed: late, thu: late, fri: late }),
+            4: line({ sat: '14:00-22:00' }),
+        };
+        const order = ['1', '2', '3', '4'];
+        const s = scoreOrder(p, order);
+        assert.deepEqual(
+            [s.gentleMean, s.gentleOver, s.gentleWorst, s.unmeasurable], [138, 2, 240, 0],
+            'mean, steps over two hours, largest, unmeasurable');
+        assert.deepEqual(
+            [s.weekends, s.longWeekends, s.fourDayBreaks, s.contractedDaysGiven], [3, 2, 1, 3 + 2 + 1],
+            'full weekends, long ones, four-day ones, contracted days given');
+        assert.equal(s.shortBoundary, 1, 'the 8-hour Saturday-into-Sunday turnaround');
+        assert.equal(scoreOrder(p, order, { minRestMinutes: 8 * 60 }).shortBoundary, 0, 'short means UNDER the minimum');
+        assert.equal(scoreOrder(p, order, { minRestMinutes: 8 * 60 + 1 }).shortBoundary, 1);
+        assert.deepEqual(s.blocks, [1, 3]);
+        assert.equal(s.longestBlock, 3, '09:50 → 08:24 → 09:00');
+        assert.equal(s.longestRun, 11, "line 4's Monday to Saturday, then line 1's Sunday to Thursday");
+        assert.equal(scoreOrder(p, order, { maxRunTarget: 6 }).runExcess, 5 + 4 + 3 + 2 + 1,
+            'that run of 11 counted from each of its starts, against 6');
+        assert.deepEqual([s.spareExcess, s.spareMinGap, s.spareGaps], [0, 4, []]);
+        // A step of exactly two hours is not MORE than two hours, ORR's FF19 figure.
+        const pair = (/** @type {string} */ t) => ({ 1: only({ mon: '06:00-14:00' }), 2: only({ mon: t }) });
+        assert.equal(scoreOrder(pair('08:00-16:00'), ['1', '2']).gentleOver, 0);
+        assert.equal(scoreOrder(pair('08:01-16:01'), ['1', '2']).gentleOver, 2);
+
+        // Every figure but `blocks` is a property of the CIRCLE. `blocks` is the optimiser's partition,
+        // walked from the first step over two hours in the order given (see `blockRuns`).
+        const circle = (/** @type {Record<string, any>} */ x) => { const c = { ...x }; delete c.blocks; return c; };
+        for (const r of [['2', '3', '4', '1'], ['3', '4', '1', '2'], ['4', '1', '2', '3']]) {
+            assert.deepEqual(circle(scoreOrder(p, r)), circle(s), `renumbered from line ${r[0]}`);
+        }
+    });
 });
 
 describe('blockRuns — how many weeks in a row on much the same shift', () => {
@@ -150,6 +196,57 @@ describe('blockRuns — how many weeks in a row on much the same shift', () => {
 
     test('a whole rotation inside one band is ONE block, not a partition artefact', () => {
         assert.deepEqual(runs(['06:00-14:00', '06:30-14:30', '07:00-15:00', '07:30-15:30']), [4]);
+        const p = rota(['06:00-14:00', '06:30-14:30', '07:00-15:00', '07:30-15:30']);
+        assert.equal(longestBlockOf(p, Object.keys(p)), 4);
+    });
+
+    // ── THE REPORTED FIGURE IS A PROPERTY OF THE CIRCLE (whole-app review, Nov 2026) ──────────────
+    // `blockRuns` walks from the first step over two hours in the order it is given, so where the
+    // walk starts decides the partition. The figure a designer is told — `longestBlock`, on the
+    // generator's status line — asks from every line instead.
+    test('renumbering the rotation cannot move the longest block', () => {
+        // Weeks starting 06:20, 08:30, 07:15, 09:30: blocks of 1 and 3 numbered this way, 1, 1 and 2
+        // numbered from the 09:30 line, by the old reading. Lines 2–4 sit within 2h of 08:30 either way.
+        const times = ['06:20-14:20', '08:30-17:00', '07:15-15:45', '09:30-18:00'];
+        for (let s = 0; s < times.length; s++) {
+            const p = rota([...times.slice(s), ...times.slice(0, s)]);
+            assert.equal(scoreOrder(p, Object.keys(p)).longestBlock, 3, `numbered from line ${s + 1}`);
+        }
+        // …and on seeded random rotations, every cyclic renumbering gives one figure.
+        let seed = 26;
+        const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+        const T = ['06:20-14:20', '07:15-15:45', '08:30-17:00', '09:30-18:00', '11:00-19:30', '13:30-22:00', '15:25-23:55', 'SP'];
+        for (let i = 0; i < 60; i++) {
+            const base = Array.from({ length: 12 }, () => T[Math.floor(rnd() * T.length)]);
+            const seen = new Set();
+            for (let s = 0; s < base.length; s++) {
+                const p = rota([...base.slice(s), ...base.slice(0, s)]);
+                seen.add(scoreOrder(p, Object.keys(p)).longestBlock);
+            }
+            assert.equal(seen.size, 1, `${base.join(' ')} reads ${[...seen].join(' or ')}`);
+        }
+    });
+
+    test('a gradual drift is measured as the stretches it holds, not as one block', () => {
+        // 06:00 → 12:00 → 06:00 in 90-minute steps: no single step is over two hours, so the
+        // optimiser's walk has no boundary to start at. The longest stretch within 2h of its own
+        // first week is the four around the peak: 10:30, 12:00, 10:30, 09:00.
+        const p = rota(['06:00-14:00', '07:30-15:30', '09:00-17:00', '10:30-18:30', '12:00-20:00',
+            '10:30-18:30', '09:00-17:00', '07:30-15:30']);
+        assert.equal(longestBlockOf(p, Object.keys(p)), 4);
+        assert.equal(scoreOrder(p, Object.keys(p)).longestBlock, 4);
+    });
+
+    test('the figure counts a block the optimiser\'s partition cut in two', () => {
+        // A stretch can start at a line that follows its predecessor by less than two hours, so the
+        // partition never starts a block there: 15:20, 15:25, then 13:50, 13:10, 13:30, 15:15 — the
+        // last four are within 2h of 13:50, the first three of 15:20. Generated designs do this
+        // (the default, every switch on, at attempt 1).
+        const p = rota(['15:20-23:50', '15:25-23:55', '13:50-22:20', '13:10-21:40', '13:30-22:00',
+            '15:15-23:45', '06:20-14:20', '06:30-14:30']);
+        const k = Object.keys(p);
+        assert.ok(Math.max(...blockRuns(p, k)) < 4, 'premise: the partition does not see four in a row');
+        assert.equal(scoreOrder(p, k).longestBlock, 4);
     });
 
     test('the excess is summed over every over-long block, not just the worst', () => {
@@ -549,6 +646,23 @@ describe('maxRun', () => {
         assert.ok(r.after.longestRun <= before,
             `expected no worse, got ${before} → ${r.after.longestRun}`);
     });
+
+    test('on its own it aims at the target it is GIVEN, and leaves an order that already meets it', () => {
+        // On the shipped default design. The search scores candidates through its own call, so a
+        // target that reached `scoreOrder` but not the search would still report correctly while
+        // choosing an order for some other number.
+        const t = buildDefaultTargets();
+        const p = generateLink({ slots: t.slots, spareLines: t.spareLines, lines: ROTATING_LINES }).patterns;
+        const keys = Object.keys(p).sort((a, b) => Number(a) - Number(b));
+        const handed = scoreOrder(p, keys).longestRun;
+        assert.ok(handed > 8, `premise: the order as generated has a run the cap can shorten (${handed})`);
+        for (const target of [6, 7, 8]) {
+            const r = reorderLines(p, { on: { maxRun: true }, maxRunTarget: target });
+            assert.ok(r.after.longestRun <= target, `asked for ${target}, reached ${r.after.longestRun}`);
+        }
+        // "No more than N", not "as few as possible": nothing to gain, so nothing moves.
+        assert.equal(reorderLines(p, { on: { maxRun: true }, maxRunTarget: handed }).changed, false);
+    });
 });
 
 // ── ATTEMPTS — deterministic per press, not per se (v20.07) ─────────────────────────────────────
@@ -597,6 +711,23 @@ describe('reorderLines attempts', () => {
             assert.equal(sp.excess, 0, `attempt ${a}: cover weeks uneven — gaps ${sp.gaps.join(',')}`);
             assert.ok(sp.minGap > 1, `attempt ${a}: two cover weeks adjacent`);
         }
+    });
+
+    test('the spread is a FILTER as well as a weight — a start the search cannot repair is refused', () => {
+        // The sweep above passes on the weight alone at this rotation length: the 2-opt finds an even
+        // spread every time, so deleting the filter changed nothing it could see (whole-app review,
+        // Nov 2026). With no improvement passes a shuffled start is scored as it lies, and a random
+        // arrangement of the cover weeks is almost never even, so only the filter can keep the
+        // promise. Each refused attempt falls back to the canonical design, and says so (`attempt` 0).
+        let fellBack = 0;
+        for (let a = 1; a <= 6; a++) {
+            const r = reorderLines(real, { on: every, maxRunTarget: DEFAULT_MAX_RUN, attempt: a, passes: 0 });
+            if (r.attempt === 0) fellBack++;
+            const p = applyOrder(real, r.order);
+            const sp = spareSpread(p, r.order.map((_, i) => String(i + 1)));
+            assert.equal(sp.excess, 0, `attempt ${a}, no passes: cover weeks uneven — gaps ${sp.gaps.join(',')}`);
+        }
+        assert.ok(fellBack > 0, 'premise: some attempt had no even start, so the filter is what decided it');
     });
 });
 
@@ -653,6 +784,21 @@ describe('minimum rest survives the reorder', () => {
             assert.ok(r.after.shortBoundary <= 1,
                 `attempt ${attempt}: ${r.after.shortBoundary} short steps — more than the design was handed`);
             assert.deepEqual(r.order, Object.keys(p), `attempt ${attempt}: the handed order is kept`);
+        }
+    });
+
+    test('the minimum is the generator\'s own MIN_REST_MINUTES — no Links module that applies or states it types it', () => {
+        // The day the constant moves, a typed copy keeps the old figure: the reorder would filter on
+        // it and could put back a Saturday-into-Sunday turnaround the generator's gate had repaired,
+        // and the panels would state a minimum nobody applies (links-analysis-14). Both are 720
+        // today, so no behaviour can tell them apart, which is why this reads the source. Comments
+        // may quote the figure; code may not. FF5, FF10 and FF13 keep "12h" in links-fatigue.js:
+        // they quote the ORR's sheet, not the company minimum, so that module is not read here.
+        for (const f of ['links-adjacency.js', 'links-analysis.js', 'links-compare.js']) {
+            const code = readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                .replace(/(^|\s)\/\/.*$/gm, '$1');
+            assert.doesNotMatch(code, /\b12\s*\*\s*60\b|\b720\b|\b12 hours\b|\b12h\b/, `${f} writes the minimum rest down`);
         }
     });
 });

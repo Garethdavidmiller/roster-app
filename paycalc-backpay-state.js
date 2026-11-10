@@ -138,6 +138,35 @@ export function resolveAuthoritativeRates(taxYear, award) {
 }
 
 /**
+ * Was a saved blob written under the grade now in force? (paycalc-2-9)
+ *
+ * A box with no figure on record keeps whatever the blob holds, because the member is its only
+ * source — so a blob saved under ANOTHER grade carries that grade's figure into a box the record says
+ * nothing about, unlocked, and the lump is priced from it: CEA's old rate against CES's new one, a
+ * rise nobody was given. That is defect 2 above arriving by grade instead of by year.
+ *
+ * A blob saved since this rule carries its `grade`. One saved before it is recognised by its LOCKED
+ * boxes, which were written with the record of the grade it was saved under: a recorded figure that
+ * disagrees with this grade's record means another grade wrote the blob. Agreement, or nothing to
+ * compare, reads as a fit — a member's own typed figure is never thrown away on a guess.
+ *
+ * @param {Record<string, any>|null|undefined} blob
+ * @param {string} grade - the grade now in force
+ * @param {Record<string, number|null>} auth - resolveAuthoritativeRates for this grade and year
+ * @returns {boolean}
+ */
+export function blobFitsGrade(blob, grade, auth) {
+    if (typeof blob?.grade === 'string' && blob.grade) return blob.grade === grade;
+    for (const f of BP_FIELDS) {
+        const rec = auth[f.id];
+        if (rec == null) continue;                          // nothing on record to compare with
+        const v = parseFloat(String(blob?.[f.key] ?? ''));
+        if (Number.isFinite(v) && Math.abs(v - rec) > 0.005) return false;
+    }
+    return true;
+}
+
+/**
  * Are ALL four figures on record? Drives the collapse of the two input-shaped Old→New rows into one
  * read-only line — ~300px of boxes nobody can edit, restating figures the hero already carries.
  *

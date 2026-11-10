@@ -47,9 +47,10 @@
  *   `structured` — true when the stored value is a JSON blob, so the damage preflight may parse it.
  *                  It may also be a PREDICATE on the tail, for a kind that is mixed: `pension`
  *                  covers an amount (`21.49`), a retired boolean, and `pension_timeline`, which is
- *                  a JSON array. A predicate keeps that in the one table rather than starting a
- *                  second list of exceptions beside it — which is the shape of the defect this
- *                  module exists to end.
+ *                  a JSON array; `hpp` covers three plain figures and `hpp_mode_<year>`, the JSON
+ *                  blob holding the amount source and the member's own typed premium. A predicate
+ *                  keeps that in the one table rather than starting a second list of exceptions
+ *                  beside it — which is the shape of the defect this module exists to end.
  *
  * Order matters: the first match wins, so the per-year forms sit above their member-level
  * namesakes (`ytd_pay_2026_27` before `ytd_pay`). Several kinds carry BOTH forms, because the
@@ -65,7 +66,8 @@
 export const KEY_KINDS = [
     { id: 'payslip',  label: 'payslip figures',          structured: true, test: t => /^p\d+$/.test(t) },
     { id: 'snapshot', label: 'roster-suggested figures', structured: true, test: t => /^snap_\d+$/.test(t) },
-    { id: 'hpp',      label: 'Holiday Pay Premium',                        test: t => /^hpp_(est|actual|inc|mode)_\d{4}_\d{2}$/.test(t) },
+    { id: 'hpp',      label: 'Holiday Pay Premium', structured: t => t.startsWith('hpp_mode_'),
+                                                                           test: t => /^hpp_(est|actual|inc|mode)_\d{4}_\d{2}$/.test(t) },
     { id: 'backpay',  label: 'back pay',                 structured: true, test: t => /^bp_state(_\d{4}_\d{2})?$/.test(t) },
     { id: 'ytd',      label: 'Year to Date figures',                       test: t => /^ytd_(pay|tax|src)_\d{4}_\d{2}$/.test(t) || /^ytd_(pay|tax)$/.test(t) },
     { id: 'yearSetup',label: 'tax year setup',                             test: t => /^setup_\d{4}_\d{2}$/.test(t) },
@@ -167,7 +169,10 @@ export function inventoryOf(keys, prefix) {
 }
 
 /**
- * Which of the STRUCTURED entries will not parse — i.e. which figures are damaged.
+ * Which of the STRUCTURED entries will not parse into the object (or list) their reader expects —
+ * i.e. which figures are damaged. Parsing alone was not enough: `null` and a bare number are valid
+ * JSON, and an object-reader cannot use either (`JSON.parse('null').mode` throws), while no
+ * structured key this app writes ever holds anything but an object or a list.
  *
  * ── WHY THIS REPORTS RATHER THAN REFUSES ───────────────────────────────────────────────────────
  *
@@ -193,7 +198,9 @@ export function damagedEntries(entries, prefix) {
         const tail = k.slice(prefix.length);
         const c = classifyPayKey(tail);
         if (!c.structured) continue;
-        try { JSON.parse(v); } catch { bad.push({ key: k, tail, label: describePayKey(tail) }); }
+        let usable = false;
+        try { const parsed = JSON.parse(v); usable = parsed !== null && typeof parsed === 'object'; } catch { /* unreadable */ }
+        if (!usable) bad.push({ key: k, tail, label: describePayKey(tail) });
     }
     return bad;
 }

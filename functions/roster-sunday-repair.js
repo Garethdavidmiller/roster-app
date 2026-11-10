@@ -29,6 +29,11 @@
  *    grid shows as occupied keeps the row read when the scan called it EMPTY: the physical fact
  *    beats a second reading by the same model. When the scan saw a printed rest code the grid
  *    agrees with the scan, not the row read, and the Sunday goes to review (re-review R-A1).
+ *
+ * 3. **Only the ROW READ's own Sunday is a Case A claim** (whole-app fix, Nov 2026). The column
+ *    cross-check runs first, and when the column scan misread an empty Sunday as a shift it left a
+ *    question there naming both readings — which, taken for a claim, moved a correctly read week a
+ *    day right. The question's pick says what the row read gave, and only that is asked.
  */
 
 const { blankCellMeaning, isPhysicallyBlank, isNotAvailable, isNotAvailableSunday } = require('./cell-day-rules');
@@ -37,8 +42,9 @@ const { reviewLabel } = require('./roster-parse-helpers');
 /** The value `buildSafeEntries` writes for a Saturday the model reported empty. */
 const BLANK_SATURDAY = blankCellMeaning(6, 'Saturday');
 
-/** The Sunday scan saw NOTHING in the cell — the only reading the PDF grid can contradict. */
-const scanSawEmpty = (/** @type {any} */ raw) => isPhysicallyBlank(raw) || String(raw).trim().toUpperCase() === 'EMPTY';
+/** The Sunday scan saw NOTHING in the cell (no answer, BLANK or EMPTY) — the only reading the PDF
+ *  grid can contradict. A dash is ink in the cell, so it is a rest code below, not this. */
+const scanSawEmpty = (/** @type {any} */ raw) => isPhysicallyBlank(raw);
 
 /** The Sunday scan saw a printed rest code. NA and NS on a Sunday are both the rest day a Sunday
  *  already is (cell-day-rules.js, which also reads `N.A.` as `NA`). OFF is the rest code the CES and
@@ -67,8 +73,9 @@ const scanSawRestCode = (/** @type {any} */ raw) => {
  * @param {boolean}  hasSundayColumn
  * @param {string[]} dates          - 7 ISO dates; dates[0] is Sunday, dates[6] Saturday
  * @param {Record<string, any>} [choices] - the column cross-check's two-way picks, keyed
- *   "memberName|date" (modified in place). A right-shifted row takes its picks with it — see
- *   `shiftChoices`.
+ *   "memberName|date" (modified in place). A Sunday holding the cross-check's question is judged
+ *   by the row read's own value in its pick (`rowReadOf`), and a right-shifted row takes its picks
+ *   with it — see `shiftChoices`.
  * @returns {string[]} members whose Sunday claim the scan disputes and nothing could repair
  */
 function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates, choices) {
@@ -88,13 +95,14 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
 
         const scanStr  = String(scanRaw).trim().toUpperCase();
         const sunShift = entry.shifts[sunDate];
+        const rowSun   = rowReadOf(entry, sunDate, choices);   // header, rule 3
 
         // Case A: scan says the Sunday cell is blank, but the AI put SOMETHING there.
         // NA and NS on a Sunday are both blank-equivalent: the rest day a Sunday already is (cell-day-rules.js).
         // OFF is a rest day (the CES and bilingual rosters print it), not a claim — without this a
         // correct OFF week was right-shifted a day.
         const isBlank = scanSawEmpty(scanStr) || scanSawRestCode(scanStr);
-        if (isBlank && sunShift !== 'RD' && sunShift !== 'OFF') {
+        if (isBlank && rowSun !== 'RD' && rowSun !== 'OFF') {
             const sat = entry.shifts[satDate];
             // THE EMPTY SLOT IS `BLANK_SATURDAY`, AND ONLY THAT (6 Nov 2026 review). `'RD'` was the
             // empty slot before v22.25, when a blank became a rest day; since then a Saturday reading
@@ -126,6 +134,21 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
         }
     }
     return disputed;
+}
+
+/**
+ * The value the ROW READ gave this member for `date`. The column cross-check runs first and turns a
+ * disagreement into a question naming both readings; its pick keeps them as values, the row read
+ * first (`applyColumnScanCrossCheck`), so that is where the row read's value still is.
+ * @param {{ memberName: string, shifts: Record<string, any> }} entry
+ * @param {string} date
+ * @param {Record<string, any>} [choices]
+ * @returns {any}
+ */
+function rowReadOf(entry, date, choices) {
+    const v = entry.shifts[date];
+    const pick = choices ? choices[`${entry.memberName}|${date}`] : undefined;
+    return Array.isArray(pick) && typeof v === 'string' && v.startsWith('UNKNOWN|') ? pick[0] : v;
 }
 
 /**

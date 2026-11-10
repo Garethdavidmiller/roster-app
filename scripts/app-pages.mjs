@@ -30,7 +30,7 @@
  *
  * ── ADDING A PAGE ──────────────────────────────────────────────────────────────────────────────
  *
- * Add its entry below; then run `node --test page-contract-parity.test.mjs`, which names every
+ * Add its entry below; then run `node scripts/run-tests.mjs page-contract-parity.test.mjs`, which names every
  * app-side list (service worker, auth policy, nav, rules, reports, guide back-arrow) the page has
  * not joined yet.
  */

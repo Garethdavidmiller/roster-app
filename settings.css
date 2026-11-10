@@ -8,27 +8,21 @@ body {
     background: var(--primary-blue);
     min-height: 100vh;
     min-height: 100dvh;
-    padding-top:    max(20px, env(safe-area-inset-top));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+    /* The gutter, safe-area insets included, is shared.css's — the card pages' own values, kept in one place. */
     overflow-x: hidden; overflow-x: clip;
     overscroll-behavior: none;
     color: var(--text-dark);
 }
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
-}
 
-.app { max-width: 560px; margin: 0 auto; }
+/* The header takes the column's cap at EVERY width, so the burger and the badge sit over the cards'
+   edges. Capped only from 768px, between 581 and 767px the header spanned the window while the cards
+   sat in a 560px column — at 700px the burger 60px left of them, the badge 60px right (whole-app
+   review, Nov 2026); a phone on its side lands exactly there. */
+.app, .app-header { max-width: 560px; margin-left: auto; margin-right: auto; }
 @media (min-width: 768px) {
     /* Tablet tier: one centred 600px panel (v18.59). Below 1024px there is not room for two
        columns, and the cards are forms — a 700px+ single column would stretch every field. */
-    .app { max-width: 600px; }
-    .app-header { max-width: 600px; margin-left: auto; margin-right: auto; }
+    .app, .app-header { max-width: 600px; }
 }
 .app-header { margin-bottom: 4px; }
 
@@ -137,18 +131,6 @@ body {
     /* Brighten to white when active — matches the field focus ring on admin/operations */
     background-color: white;
 }
-/* Password reveal toggle (v18.95). `.login-pw-wrap`/`.login-pw-toggle` in shared.css are unscoped, so
-   the button itself needs nothing here — but shared.css reserves the button's room via
-   `.login-field .login-pw-wrap input`, and this card's fields are `.contact-email-input`, not login
-   fields. Without this the typed password would run underneath "Show". The wrapper also has to carry
-   the field's own bottom margin, since the input inside it no longer sits in the card's flow.
-   SCOPED TO #passwordBody, and that matters: `.login-pw-wrap` is ALSO the login overlay's own password
-   wrapper (login-overlay.js injects it on every page), so the unscoped first cut of this rule pushed
-   14px into the sign-in card — on settings.html only, making one page's login taller than the other
-   five. Caught by the cross-page login-geometry test in e2e/auth.spec.js, which now guards it. */
-#passwordBody .login-pw-wrap { margin-bottom: 14px; }
-#passwordBody .login-pw-wrap .contact-email-input { padding-right: 62px; margin-bottom: 0; }
-
 .btn-contact-remove {
     display: block;
     background: none;
@@ -343,8 +325,8 @@ body {
 }
 /* BOTH columns' first labels, not just the side's (polish pass): with only `.col-side` zeroed, the
    left column's label kept its 4px and every left card sat 4px below its right-hand neighbour at
-   1024px+. On mobile both wrappers are `display: contents` and the margin collapses into the
-   summary's / card's larger one, so nothing moves there. */
+   1024px+. Below 1024px the wrappers are plain blocks with no border or padding, so the label's 4px
+   top margin collapses through them into the summary's / card's larger one, and nothing moves there. */
 .col-main > .settings-section-label:first-child,
 .col-side > .settings-section-label:first-child { margin-top: 0; }
 
@@ -441,17 +423,18 @@ body {
        control you reach for at the moment you have mistyped one.
 
    AT THE END OF THE FILE, AND HERE THAT IS NECESSARY RATHER THAN CONVENTIONAL. `.btn-contact-remove`
-   declares `display` and `padding`, and `.pw-show-row input` declares `width`/`height` — so these
-   ARE same-property conflicts at equal specificity, and a block placed above them would read as
-   though it worked and change nothing. That is this repo's twice-recorded trap (links.css records
-   both instances); it is live here, not hypothetical.
+   declares `display` and `padding` above, so the touch block below IS a same-property conflict at
+   equal specificity, and placed above that rule it would read as though it worked and change
+   nothing. That is this repo's twice-recorded trap (links.css records both instances); it is live
+   here, not hypothetical.
 
    The remove button takes `.btn-text-link`'s recipe from links.css rather than a second one — the
-   same shape (a small standalone underlined button), so the same answer. The checkbox takes the
-   figure the `.gen-obj` boxes settled on, 20px, for the reason recorded there: the ROW is the
-   target, because clicking a label toggles the box it wraps. What Settings was missing is the
-   other half of that bargain — `.pw-show-row` had no height of its own, so unlike `.gen-obj` the
-   row did NOT clear 44px and the label rescued nothing. */
+   same shape (a small standalone underlined button), so the same answer. The "Show passwords" box
+   is the app-drawn checkbox (shared.css — 20px, 22px under a coarse pointer, and no page sizes it),
+   and the ROW is its target, because clicking a label toggles the box it wraps — the bargain the
+   `.gen-obj` rows made. What Settings was missing is the other half of that bargain — `.pw-show-row`
+   had no height of its own, so unlike `.gen-obj` the row did NOT clear 44px and the label rescued
+   nothing. */
 .btn-contact-remove { position: relative; touch-action: manipulation; }
 /* Expand the REGION, not the glyph — the `.collapse-chevron` / `.btn-card-tips` idiom (v21.53),
    which is what gives this a real target on a fine pointer too. */

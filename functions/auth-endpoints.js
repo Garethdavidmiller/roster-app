@@ -359,7 +359,7 @@ const setupRosterAuth = onRequest(
  * ONE member's Firebase Auth password back to their surname default and signs their other devices
  * out; at their next sign-in the forced overlay (CONFIG.FORCE_PASSWORD_SET) has them choose their
  * own. The only ADMIN / server-side password-write path — self-service changes go through the client
- * `setOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
+ * `changeOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
  *
  * Admin-only (requireAdmin). Target must be a SERVER-OWNED provisioned account (roster-members.json),
  * never a raw client name.

@@ -19,11 +19,17 @@ import { SELECTED_MEMBER } from './storage-keys.js';
 /** @type {string|null} */
 let _staleMemberName = null;
 
-// In-memory backstop for the selected member index. In iOS Safari private mode lsSet() silently
-// no-ops, so a picked name would never persist and isFirstRun() would stay true forever — the
-// first-run prompt would re-appear on every render and the user could never reach their calendar.
-// saveSelectedMember() records the choice here too, so within the page session the selection sticks
-// and the prompt clears even when localStorage is unavailable. (Onboarding H1, private-mode fix.)
+// THIS PAGE'S OWN SELECTION, held in memory once it is known (cal-data-2, 10 Nov 2026). It is read
+// from the shared key — or the signed-in member — the first time it is asked for, and after that only
+// a pick on this page changes it. The picker is filled ONCE, at start-up, while the grid asked the key
+// on every render, so a key rewritten under a live page drew one person under a picker naming another:
+// Admin rewrites it to whoever it is editing, in another tab or before a Back that restores this page
+// from the back/forward cache. The key still hands the selection to the NEXT load of the Calendar.
+//
+// It is also the backstop for iOS Safari private mode, where lsSet() silently no-ops: a picked name
+// would never persist and isFirstRun() would stay true for ever, re-showing the first-run prompt on
+// every render. (Onboarding H1, private-mode fix.) The default member is never held on a first run —
+// nobody has chosen it, and holding it would end the prompt.
 /** @type {number|null} */
 let _selectedIndexFallback = null;
 
@@ -75,10 +81,12 @@ function _sessionMemberIndex() {
 
 /** @returns {number} */
 export function getSelectedMemberIndex() {
+    // This page's own selection, once it has one — see `_selectedIndexFallback`.
+    if (_selectedIndexFallback !== null) return _selectedIndexFallback;
     const savedName = lsGet(SELECTED_MEMBER);
     if (savedName) {
         const idx = teamMembers.findIndex(m => m.name === savedName && !m.hidden);
-        if (idx !== -1) return idx;
+        if (idx !== -1) return (_selectedIndexFallback = idx);
         // savedName stored but not found — stale entry from a removed member. Prefer the
         // signed-in member (their OWN calendar) over the default before falling back — otherwise
         // this call returns the default (marking the dropdown option) while the next call, now that
@@ -88,11 +96,8 @@ export function getSelectedMemberIndex() {
         lsDel(SELECTED_MEMBER);
         const staleSessIdx = _sessionMemberIndex();
         if (staleSessIdx !== -1) { saveSelectedMember(staleSessIdx); return staleSessIdx; }
-        return getDefaultMemberIndex();
+        return _defaultSelection();
     }
-    // In-memory backstop for when localStorage writes silently fail (iOS private mode): a name
-    // picked this session was recorded here even though lsSet() no-opped.
-    if (_selectedIndexFallback !== null) return _selectedIndexFallback;
     // No saved selection — auto-select from the admin session if present so the
     // logged-in staff member sees their own calendar without triggering a cache clear.
     const sessIdx = _sessionMemberIndex();
@@ -100,13 +105,21 @@ export function getSelectedMemberIndex() {
         saveSelectedMember(sessIdx);
         return sessIdx;
     }
-    return getDefaultMemberIndex();
+    return _defaultSelection();
+}
+
+/** The default member, held as this page's selection unless this is a first run, where nobody has
+ *  chosen it. @returns {number} */
+function _defaultSelection() {
+    const idx = getDefaultMemberIndex();
+    if (!isFirstRun()) _selectedIndexFallback = idx;
+    return idx;
 }
 
 /**
- * Test-only: clear the in-memory selection backstop so each unit test starts from a clean module
+ * Test-only: forget this page's held selection so each unit test starts from a clean module
  * state (mirrors how takeStaleMemberName() resets _staleMemberName in beforeEach). Not used in
- * production — the fallback is meant to persist for the life of the page.
+ * production — the selection is meant to persist for the life of the page.
  */
 export function _resetSelectionFallbackForTest() {
     _selectedIndexFallback = null;

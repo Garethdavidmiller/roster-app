@@ -349,6 +349,22 @@ describe('2 · a notice arriving at the wrong moment', () => {
         assert.equal(_openedViaHelper.length > 0, true);
     });
 
+    test('access taken back INSIDE the defer: nothing opens over the lock card, and nothing is flagged (cal-docs-11)', async () => {
+        // Granted, the gate passed, the 1500ms timer armed — then re-locked ("Calendar access has
+        // expired"), as a member whose first read is refused is. The audience was asked once, at the
+        // grant; the open itself must ask again, or the notice lands on the card it waits to avoid.
+        await wire({ accessType: SHOWING_ACCESS });
+        _access.decide();
+        await _access.promise;
+        await drain();
+        _accessType = 'none';
+        mock.timers.tick(2000);
+        assert.equal(_openedViaHelper.length, 0, 'no notice opened on a re-locked Calendar');
+        const doneKeys = new Set(NOTICES.map(DONE_KEY_OF));
+        assert.deepEqual(_writes.filter(([k]) => doneKeys.has(k)), [],
+            'and none is flagged seen, so each arrives intact the next time this device is let in');
+    });
+
     test('a notice opens through openNoticeIfClear, never lightbox.open()', async () => {
         // v19.53: with two overlays up, one Escape ran BOTH onClose callbacks — the buried notice was
         // archived and flagged seen by somebody who never saw it.
@@ -977,6 +993,27 @@ describe('8 · the final-week timetable notice: due on 6 December, gone on the 1
         assert.match(IIFE, /isNoticeExpired\(CHANGE_EVE, 1\)/, 'offered through the whole of the Saturday, gone on the day');
         assert.match(IIFE, /const CHANGE_EVE\s*=\s*'12 Dec 2026'/);
         assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
+    });
+
+    test('every day it is offered, its words are true: they name the date, never "Sunday" or "this weekend" alone (whole-app review, 10 Nov 2026)', () => {
+        // Its first day is Sunday 6 December. "The new timetable starts on Sunday" read, that day, as
+        // TODAY, and "This weekend Chiltern’s trains move…" named the wrong weekend; "Sunday 13 December"
+        // is true on all seven days it runs. Read from the page and the module, so the dialog's name,
+        // the title on screen and the App Notices record are held together.
+        const HTML = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const at = HTML.indexOf(`id="${SOON.overlay}"`);
+        const block = HTML.slice(at, HTML.indexOf('<!-- One-time notice', at));
+        const text = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+        const label = block.match(/aria-label="([^"]+)"/)?.[1] ?? '';
+        const title = text(block.match(/class="lightbox-app-name">([\s\S]*?)<\/div>/)?.[1] ?? '');
+        const archived = IIFE.match(/title: '([^']+)'/)?.[1] ?? '';
+        assert.ok(block.length > 200, 'guard: the notice markup was found');
+        for (const [where, words] of [['the dialog name', label], ['the title', title], ['the App Notices record', archived]]) {
+            assert.match(words, /Sunday 13 December/, `${where} must name the date: "${words}"`);
+        }
+        assert.equal(archived, title, 'the App Notices record keeps the title the member was shown');
+        assert.doesNotMatch(text(block), /this weekend/i, 'on Sunday 6 December "this weekend" is the wrong one');
+        assert.doesNotMatch(text(block), /\b(?:on|this|next) Sunday\b(?! 13 December)/i, 'a Sunday with no date reads as today on the 6th');
     });
 
     test('on a member\'s device in its week it opens, and nothing is flagged', async () => {

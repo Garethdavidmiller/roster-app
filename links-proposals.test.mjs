@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { PROPOSALS, PROPOSAL_PREFIX, isProposalId, proposalById, proposalCopyName } from './links-proposals.js';
 import { ROTATING_LINES, DAYS, normalisePatterns, weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
+import { checkName } from './links-design-naming.js';
 
 // each source grid's path under docs/links-26/ — a 30-day link's is in its own folder, a Balanced design's in that folder's
 // balanced/ subfolder (all three since 8 Nov 2026)
@@ -115,5 +116,18 @@ describe('a proposal can never be mistaken for a saved design', () => {
         assert.equal(proposalCopyName(lc, []), 'Level Crossing — copy');
         assert.equal(proposalCopyName(lc, [{ name: 'level crossing — COPY' }]), 'Level Crossing — copy 2');
         assert.doesNotMatch(proposalCopyName(lc, []), /LC-26|·/);
+    });
+
+    // The suggestion pre-fills the first save's name prompt, and the save then runs `checkName`. With
+    // a "taken" rule of its own (trim and lower-case) it missed a saved name holding a double or a
+    // no-break space — which `nameKey` folds — and the page refused the very name it had suggested.
+    test('the suggested name is never one the naming rule refuses (white space folded)', () => {
+        const v6 = /** @type {any} */ (proposalById(PROPOSAL_PREFIX + 'MB-26-V6'));
+        for (const taken of ['Balanced V6 —  copy', 'Balanced V6 — copy', ' balanced v6 —\tcopy ']) {
+            const existing = [{ id: 'x', name: taken }];
+            const offered = proposalCopyName(v6, existing);
+            assert.equal(offered, 'Balanced V6 — copy 2', `with ${JSON.stringify(taken)} saved`);
+            assert.ok(checkName(offered, { existing }).ok, `${JSON.stringify(offered)} is refused beside ${JSON.stringify(taken)}`);
+        }
     });
 });

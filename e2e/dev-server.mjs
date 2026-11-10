@@ -23,9 +23,17 @@
  *
  *   Reuse a server only when it is serving THIS checkout.
  *
- * The port is therefore derived from the checkout's own path. Two worktrees get two ports and never
- * adopt each other; two configs in the SAME checkout share a port and may reuse freely, which is
- * correct — they serve identical bytes, and that is the speed the original comment wanted.
+ * The port is therefore derived from the checkout's own path, so two worktrees USUALLY get two ports;
+ * two configs in the SAME checkout share a port and may reuse freely, which is correct — they serve
+ * identical bytes, and that is the speed the original comment wanted.
+ *
+ * **Usually is not enough, and the rule is now CHECKED, not inferred from the port (10 Nov 2026).**
+ * 120 ports per config is a birthday problem: with about 25 worktrees active, three pairs shared a
+ * port (4025, 4089, 4113), Playwright adopted the other checkout's server, and runs tested the wrong
+ * tree in silence. Every config that uses this module therefore runs `server-identity.mjs` as its
+ * `globalSetup` (devServer() hands it over): before the first test, a fresh token written into this
+ * checkout must come back through the server, or the run stops and names the port. A collision is now
+ * a loud refusal with two ways out — stop the other server, or pin this checkout with `E2E_DEV_PORT`.
  *
  * **CI keeps the base port unchanged.** There is one checkout per runner and `reuseExistingServer`
  * is already false there, so the hazard cannot arise; a derived port would only make a CI failure
@@ -44,8 +52,8 @@
  * of 4001–4300, 4045 is the only port refused.
  *
  * A refused port moves up past every block (below), out of the range every other checkout draws
- * from — not to the next port, which is another checkout's: two checkouts on one port adopt each
- * other's server, the very failure above. CI is untouched; its base ports are not refused.
+ * from — not to the next port, which is another checkout's: two checkouts on one port is the
+ * collision above. CI is untouched; its base ports are not refused.
  *
  * ── ONE BLOCK OF PORTS PER CONFIG (6 Nov 2026 review) ─────────────────────────────────────────
  *
@@ -58,6 +66,11 @@
  * 4243–4362. A base not in BASES throws, so a new config cannot quietly overlap one that exists.
  */
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+
+/** The identity check every config runs as its `globalSetup` — absolute, because a scratch config that
+ *  imports and spreads one of ours would resolve a relative path against ITS own folder. */
+export const SERVER_IDENTITY_SETUP = fileURLToPath(new URL('./server-identity.mjs', import.meta.url));
 
 /** How many ports above the base a derived port may land. Keeps the whole range well inside the
  *  unprivileged space and far from the Firebase emulator ports (4000, 5000, 8080, 9099, 9199). */
@@ -99,21 +112,33 @@ export function portFor(base, hash) {
  */
 export function devServerPort(base) {
     if (process.env.CI) return base;
-    // The checkout ROOT, not the cwd of whatever invoked us — a spec run from a subdirectory must
-    // resolve to the same server as one run from the top, or the same files get two ports.
+    // The way out of a collision server-identity.mjs reports: a port chosen by hand, for every config
+    // in this checkout (they serve the same files, so sharing it is correct). Ignored on CI.
+    const pinned = process.env.E2E_DEV_PORT;
+    if (pinned) {
+        const port = Number(pinned);
+        if (!Number.isInteger(port) || port < 1024 || port > 65535 || BROWSER_REFUSED_PORTS.includes(port)) {
+            throw new Error(`dev-server: E2E_DEV_PORT=${pinned} is not a usable port — give a whole number from 1024 to 65535 that the browser does not refuse.`);
+        }
+        return port;
+    }
+    // The working directory, which is the checkout root because every config lives there and
+    // `npx playwright test` is run beside it. (A run started from elsewhere would hash elsewhere —
+    // and server-identity.mjs would refuse a server that does not serve this checkout.)
     const root = process.cwd();
     const digest = createHash('sha256').update(root).digest();
     return portFor(base, digest.readUInt16BE(0));
 }
 
 /**
- * The `baseURL` and `webServer` block for a config, already agreed with each other.
+ * The `baseURL` and `webServer` block for a config, already agreed with each other, and the
+ * `globalSetup` that checks a reused server serves this checkout.
  *
  * Returned as one object on purpose: the two used to be written separately in each config, and a
  * port changed in one and not the other is a readiness probe that hangs rather than an error.
  *
  * @param {number} base
- * @returns {{ baseURL: string, webServer: { command: string, url: string, reuseExistingServer: boolean } }}
+ * @returns {{ baseURL: string, webServer: { command: string, url: string, reuseExistingServer: boolean }, globalSetup: string }}
  */
 export function devServer(base) {
     const port = devServerPort(base);
@@ -123,8 +148,10 @@ export function devServer(base) {
         webServer: {
             command: `npx http-server . -p ${port} -a 127.0.0.1 -c-1 --silent`,
             url,
-            // Safe now that the port names the checkout: an adopted server is serving these files.
+            // Safe only with the globalSetup below: an adopted server must PROVE it serves these files.
             reuseExistingServer: !process.env.CI,
         },
+        // Every config that uses devServer() must pass this on (server-identity.test.mjs checks).
+        globalSetup: SERVER_IDENTITY_SETUP,
     };
 }
