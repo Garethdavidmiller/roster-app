@@ -2186,10 +2186,10 @@ for (const [width, scale] of [[320, 1.0], [360, 1.0], [412, 1.0], [320, 1.3], [3
         await page.addInitScript((sc) => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: sc }); }, scale);
         await page.setViewportSize({ width, height: 800 });
         await page.goto('/');
-        await expect(page.locator('.calendar-day').first()).toBeVisible();
         // A tap is answered once the splash has gone, a frame after the first render — which WebKit, busy, can
         // hold back past the grid's appearance: every tap below then landed on the splash (10 Nov 2026, CI).
         await expect(page.locator('#splash')).toHaveCount(0);
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
         if (scale !== 1) {
             // Every used font size × k, read before any is written so none compounds — what the OS does.
             await page.evaluate((k) => {
