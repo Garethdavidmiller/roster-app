@@ -9,8 +9,10 @@
     animation-duration: var(--dur-med);
     animation-timing-function: ease;
 }
-/* The app neutralises motion everywhere else under reduced-motion; the page crossfade
-   was the last escapee. Kill the animation so navigations cut instantly. */
+/* Everything that moves in this file stands still under reduced motion, each component's rule beside it
+   (e2e/pages.spec.js checks the header and the arrows); a page stylesheet answers for its own. The page
+   crossfade was an escapee, and so, until Nov 2026, were the logo's grow and three turning arrows. Kill
+   the animation so navigations cut instantly. */
 @media (prefers-reduced-motion: reduce) {
     ::view-transition-group(*),
     ::view-transition-old(root),
@@ -2193,6 +2195,12 @@ button.lightbox-bug-link {
     .app-icon:hover { transform: scale(1.12); }
 }
 .app-icon:active { transform: scale(var(--press-scale)); }
+/* Reduced motion: the grow is decoration that exists to move, so it goes rather than snapping; the press is
+   already neutral through `--press-scale`. */
+@media (prefers-reduced-motion: reduce) {
+    .app-header img, .app-icon { transition: none; }   /* both selectors: `.app-header img` out-ranks the class */
+    .app-icon:hover { transform: none; }
+}
 
 .app-header h1 {
     font-size: var(--type-large);
@@ -2944,7 +2952,8 @@ button.nav-panel-link--notices {
     .nav-panel, .nav-panel-overlay, .btn-burger { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .nav-panel, .nav-panel-overlay { transition: none; }
+    /* The Reference arrow still turns over to say the section is open — it just does not swing there. */
+    .nav-panel, .nav-panel-overlay, .nav-panel-guides-arrow { transition: none; }
 }
 
 /* Nav panel footer — member name + bell + sign-out; only rendered when a session exists */
@@ -3574,6 +3583,8 @@ body.auth-ready .boot-placeholder { display: none; }
     padding: 3px 0 0 12px; line-height: 1.5;
 }
 .card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
+/* Reduced motion: the arrows still turn over to say open or shut — they do not swing there. */
+@media (prefers-reduced-motion: reduce) { .collapse-chevron, .card-toggle-arrow { transition: none; } }
 
 /* Non-collapsible variant: same row layout without the toggle affordance. */
 .card-header--row {

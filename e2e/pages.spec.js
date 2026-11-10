@@ -387,6 +387,27 @@ test('header: the burger and the sub-page logo answer a mouse', async ({ page },
         .toBe('matrix(1.12, 0, 0, 1.12, 0, 0)');
 });
 
+// …AND UNDER REDUCED MOTION NOTHING IN THE SHARED CHROME SWINGS OR GROWS (whole-app review, Nov 2026). shared.css says
+// motion is neutralised everywhere, and three still moved: the logo's hover grow, every card's chevron and the drawer's
+// Reference arrow, each turning through 180° on its way to saying open or shut. The arrows still turn — that is the
+// state — they just do not swing there; the grow, being only movement, goes.
+test('header and cards: with reduced motion on, the logo does not grow and the arrows do not swing', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
+    await seedSession(page, 'G. Miller');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/settings.html');
+    const logo = page.locator('#appIcon');
+    await logo.hover();
+    expect(await logo.evaluate(el => getComputedStyle(el).transform), 'the logo under a mouse').toBe('none');
+    await page.locator('#navMenuBtn').click();
+    const moving = await page.evaluate(() => [...document.querySelectorAll('.app-icon, .collapse-chevron, .nav-panel-guides-arrow')]
+        .filter(el => getComputedStyle(el).transitionDuration.split(',').some(d => parseFloat(d) > 0))
+        .map(el => el.id || el.className));
+    expect(moving, 'still easing under reduced motion').toEqual([]);
+    expect(await page.locator('.collapse-chevron').count(), 'premise: the page has card chevrons to check').toBeGreaterThan(0);
+});
+
 // ── KEYBOARD FOCUS ON THE NAVY SURFACES THE SHARED CODE DRAWS (desktop audit, Nov 2026) ──────────
 // A ring is drawn only while a keyboard user is on the element, so no screenshot and no axe rule sees
 // one. These had no focus rule of their own, so each fell to the app-wide fallback — the NAVY ring —
