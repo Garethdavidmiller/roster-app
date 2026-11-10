@@ -10,11 +10,11 @@
  * coordinating the Calendar. `/new-notice` additions for index.html land HERE from now on.
  *
  * Everything here follows `.claude/skills/new-notice/` — the HTML template lives in index.html,
- * the rules table in CLAUDE.md ("Current notices"). Two rules worth restating because both were
- * shipped bugs once: a notice OPENS through `openNoticeIfClear`, never `open()` (two notices up,
- * one Escape flagged the buried one seen for good — v19.53); and it waits for
- * `calendarAccessReady` (on a locked Calendar it would cover the staff-PIN card, the one control
- * on the page — v20.12).
+ * the "Current notices" table in that skill (it moved there from CLAUDE.md on 7 Nov 2026). Two
+ * rules worth restating because both were shipped bugs once: a notice OPENS through
+ * `openNoticeIfClear`, never `open()` (two notices up, one Escape flagged the buried one seen for
+ * good — v19.53); and it waits for `calendarAccessReady` (on a locked Calendar it would cover the
+ * staff-PIN card, the one control on the page — v20.12).
  *
  * AND EVERY NOTICE DECLARES AN AUDIENCE (v21.81). `calendarAccessReady` resolves the moment access
  * is granted and says nothing about WHOSE it is, so both notices were opening on a PIN-unlocked
@@ -186,8 +186,9 @@ export function initCalendarNotices({ after } = {}) {
 
         // 'members' — chosen while the Trains page signed people in, when its link would have led the
         // station PC only to a sign-in. The PIN has read Trains since v24.84; whether the station
-        // should be told too is the owner's open question (CLAUDE.md's notice table). A PIN unlock
-        // is not flagged seen, so the notice still arrives when that device is next signed in.
+        // should be told too was left to the owner (this notice's row is in the new-notice skill's
+        // "Current notices" table). A PIN unlock is not flagged seen, so the notice still arrives
+        // when that device is next signed in.
         _openWhenAudienceAllows(lb, 'members');
     }());
 

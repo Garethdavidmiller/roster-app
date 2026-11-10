@@ -36,14 +36,16 @@
          (deferred) Firebase load starts from an already-open connection. -->
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-    <!-- Firebase Auth endpoints — overlap TLS with HTML parse so the first sign-in / token restore
-         (the calendar signs in anonymously on load) isn't a cold connection. -->
+    <!-- Firebase Auth endpoints — overlap TLS with HTML parse so the first token restore (a returning
+         member's saved session) or a sign-in from the card isn't a cold connection. (The Calendar no
+         longer signs visitors in anonymously: calendar-app.js → "THE CALENDAR ACCESS BOOTSTRAP".) -->
     <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
 
     <!--
       Module preload (v15.96 calendar load-speed pass — mirrors paycalc's v14.94 fix).
-      calendar-app.js pulls a 31-module static graph, several levels deep to
+      calendar-app.js pulls a large static graph — the list below, which sw-asset-check.test.mjs
+      holds to the real one, so no count is written here to go stale — several levels deep to
       firebase-client → the gstatic Firebase SDK. Module scripts are deferred and block
       DOMContentLoaded ("ready"), and without these hints the browser discovers modules in
       a WATERFALL (parse a file, THEN fetch its imports) — so the heavy cross-origin SDK
