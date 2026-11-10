@@ -593,8 +593,9 @@ on the answer: the app's ring, not the browser's orange one. */
 @media (min-width: 1024px) {
     /* Fixed layout: the station column is set, every train column gets an equal share. */
     .tr-grid { width: 100%; table-layout: fixed; }
-    .tr-grid tbody tr:hover > * { background: var(--surface-sunken); }
 }
+/* The row under a mouse, and only a mouse: on a touch screen as wide, a tapped row kept the tint. */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .tr-grid tbody tr:hover > * { background: var(--surface-sunken); } }
 .tr-grid th, .tr-grid td { padding: 5px 6px; border-bottom: 1px solid var(--border-light); text-align: center; }
 .tr-grid thead th { vertical-align: bottom; color: var(--text-mid); font-weight: 600; }
 .tr-grid-min { display: block; color: var(--text-dark); font-size: var(--type-label); font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -643,7 +644,8 @@ on the answer: the app's ring, not the browser's orange one. */
     cursor: pointer;
     touch-action: manipulation;
 }
-.tr-grid-colbtn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* Inset: the tallest head is flush with the top of the scroll box, which clipped an outside ring's top edge. */
+.tr-grid-colbtn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 /* The whole cell is the button (v24.96): the head's padding sits on the button, not the cell, so a
    thumb has the 51px cell rather than the 28px of text inside it — the one new control members are
    told to tap had the page's smallest target. */
@@ -678,11 +680,11 @@ on the answer: the app's ring, not the browser's orange one. */
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
-/* THE COLUMN HEADS, KEPT IN VIEW (v24.92). A fixed picture of the header row that trains-app.js
+/* THE COLUMN HEADS, KEPT IN VIEW (v24.92). A fixed picture of the header row that trains-grid-mirror.js
    shows while the real one is above the screen and the table is not — 39 rows of dots were read up to
    600px below the minute and destination that give them meaning. Fixed, not sticky: the card and
    every ancestor clip their overflow, and a sticky element sticks to the nearest of those, never to
-   the screen. aria-hidden and inert; the real heads stay the controls. */
+   the screen. aria-hidden, and no pointer events (below); the real heads stay the controls. */
 .tr-grid-stick {
     position: fixed;
     top: env(safe-area-inset-top, 0px);   /* an installed iPhone's status bar; trains-grid-mirror.js reads this back */

@@ -503,6 +503,34 @@ test.describe('trains', () => {
         });
     }
 
+    // The tallest column head is flush with the top of the grid's scroll box, and the box clips: a ring
+    // drawn 2px OUTSIDE the button lost its whole top edge there (measured 4px above the box).
+    test('where they stop: the focus ring on a column head is drawn whole', async ({ page }) => {
+        await page.setViewportSize({ width: 393, height: 900 });
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        const heads = page.locator('#trPattern .tr-grid-colbtn');
+        await expect(heads.first()).toBeVisible();
+        const tallest = await heads.evaluateAll(bs => {
+            const tops = bs.map(b => b.getBoundingClientRect().top);
+            return tops.indexOf(Math.min(...tops));
+        });
+        await heads.nth(tallest).focus();
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('Tab');            // a keyboard arrival, so :focus-visible draws the ring
+        const g = await page.evaluate(() => {
+            const el = /** @type {HTMLElement} */ (document.activeElement);
+            const box = /** @type {Element} */ (document.querySelector('#trPattern .tr-grid-wrap')).getBoundingClientRect();
+            const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+            const reach = parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth);
+            return { head: el.classList.contains('tr-grid-colbtn'), ringTop: r.top - reach, boxTop: box.top };
+        });
+        expect(g.head, 'premise: Tab landed on the column head').toBe(true);
+        expect(g.ringTop, 'the ring\'s top edge is inside the scroll box that clips it').toBeGreaterThanOrEqual(g.boxTop - 0.5);
+    });
+
     // Every view at phone width, with the widest content each holds open. The basic-hour grid
     // scrolls inside its own box, and v24.74 shipped with its screen-reader words escaping that box
     // and stretching the PAGE to 444px on a 390px phone — the whole page scrolled sideways.

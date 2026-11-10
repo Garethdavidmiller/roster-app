@@ -35,8 +35,8 @@
             min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
             display: flex;
             flex-direction: column;
-            /* Safe area insets baked in with max() — survives any breakpoint shorthand override.
-               env() returns 0 on non-notched devices so this is always safe to apply. */
+            /* Safe area insets through max(), so a notch or home bar never covers content; env() is 0 on
+               other devices. Every screen breakpoint below that restates `padding` restates the max() too. */
             padding-top:    max(20px, env(safe-area-inset-top));
             padding-bottom: max(20px, env(safe-area-inset-bottom));
             padding-left:   max(20px, env(safe-area-inset-left));
@@ -372,7 +372,7 @@
             /* On the navy body canvas — on-navy (light) text, not the card greys. */
             text-align: center; font-size: var(--type-badge); color: rgba(255, 255, 255, 0.7);
             padding: 2px 12px 8px; opacity: 1;
-            transition: opacity 0.4s ease;
+            transition: opacity var(--dur-slower) var(--ease-standard);   /* inside calendar-app.js's 400ms wait before it hides the line */
             pointer-events: none; -webkit-user-select: none; user-select: none;
         }
         .swipe-hint.fade-out { opacity: 0; pointer-events: none; }
@@ -571,7 +571,7 @@
             border-radius: var(--radius-md);
             padding: 12px;
             background: white;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
             position: relative;
             box-shadow: none;
             display: flex;
@@ -779,7 +779,7 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
             min-width: 80%;
-            transition: transform 0.12s var(--ease-spring),
+            transition: transform var(--dur-fast) var(--ease-spring),
                         background-color var(--dur-fast) var(--ease-standard),
                         color var(--dur-fast) var(--ease-standard);
         }
@@ -869,7 +869,8 @@
             body {
                 overflow-x: hidden;
                 /* No gradient: the flat navy of every other page (a ramp here alone changed colour on a hop). */
-                padding: 16px;
+                padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+                         max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
             }
 
             .container {
@@ -1876,7 +1877,7 @@
             }
 
             .header {
-                display: block !important; /* grid would misplace ::before/::after print annotations */
+                display: block !important; /* as a flex row its ::before/::after annotations sat beside the title, not above and below */
                 background: white !important;
                 box-shadow: none !important;
                 border: 1px solid var(--primary-blue) !important;
@@ -2761,7 +2762,7 @@
             flex-direction: column;
             opacity: 0;
             transform: translateY(100%);
-            transition: opacity 0.22s ease, transform 0.25s var(--ease-emphasized);
+            transition: opacity var(--dur-base) var(--ease-standard), transform var(--dur-slow) var(--ease-emphasized);
         }
         #huddleViewer.visible { display: flex; }
         #huddleViewer.open    { opacity: 1; transform: translateY(0); }
@@ -2878,8 +2879,9 @@
             left: 0;
             z-index: 1;
             /* MUST be opaque: the scrolled column passes underneath, and a transparent sticky cell
-               shows it through — which reads as a rendering fault, not a feature. */
-            background: var(--surface, #fff);
+               shows it through — which reads as a rendering fault, not a feature. White, the viewer's
+               own ground: the card's off-white here is the pale band the covers above were cured of. */
+            background: white;
         }
         #huddleViewerBody th.huddle-shift-col { background: var(--primary-blue); }
         #huddleViewerBody th { background: var(--primary-blue); color: white; }
@@ -2923,7 +2925,7 @@
             padding: 14px 28px;
             cursor: pointer;
             touch-action: manipulation;
-            transition: background var(--dur-med) ease, opacity var(--dur-med) ease;
+            transition: background var(--dur-med) var(--ease-standard), opacity var(--dur-med) var(--ease-standard);
         }
         .huddle-open-btn:active { opacity: 0.8; }
         @media (hover: hover) and (pointer: fine) {
@@ -3071,7 +3073,7 @@
             font-family: inherit;
             cursor: pointer;
             border: none;
-            transition: background var(--dur-med), transform 0.1s;
+            transition: background var(--dur-med) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
         }
         .month-jump-actions button:active { transform: scale(var(--press-scale)); }
         .month-jump-actions button:focus-visible {
@@ -3406,7 +3408,7 @@
            the browser may turn out to have no access at all.
 
            The measurements below are the REAL grid's, read off a rendered calendar at 390px (2px
-           gap, 70px rows, `--radius-md` cells) rather than picked to look right. That is the point:
+           gap, 70px rows, 6px corners) rather than picked to look right. That is the point:
            when the real grid replaces this, nothing on the page moves. */
         .cal-boot {
             padding: 8px 0 24px;
@@ -3435,7 +3437,7 @@
         }
         .cal-boot-grid { grid-auto-rows: 70px; }
         .cal-boot-cell {
-            border-radius: var(--radius-md);   /* the real `.calendar-day` radius */
+            border-radius: var(--radius-md);   /* the real `.calendar-day` radius from 481px; a phone's is below */
             background: var(--boot-ghost);
             animation: cal-boot-pulse 1.4s var(--ease-standard) infinite;
         }
@@ -3457,6 +3459,8 @@
             .cal-boot-days, .cal-boot-grid { gap: 6px; }
             .cal-boot-grid { grid-auto-rows: minmax(48px, 1fr); }
         }
+        /* …and a phone's: there the real cells and day heads have 6px corners (the ≤480px block). */
+        @media (max-width: 480px) { .cal-boot-cell, .cal-boot-days span { border-radius: 6px; } }
         /* A pulse is decoration; a resting shape still says "working" beside the live region. */
         @media (prefers-reduced-motion: reduce) {
             .cal-boot-cell { animation: none; opacity: 0.5; }
