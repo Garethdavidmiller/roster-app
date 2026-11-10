@@ -212,6 +212,39 @@ describe('moving the start of a spell', () => {
         assert.equal(isOptedOutAt(tl, 55), false);
         assert.equal(isOptedOutAt(tl, 60), true);
     });
+
+    // ── NEVER BEHIND THE REJOIN THAT ENDED THE LAST SPELL (whole-app review, Nov 2026) ─────────────
+    // Out 40–44, back from 45, out again from 56. Re-picking the current spell's start as 43 collapsed
+    // it into the history behind it: [{40,out},{45,in}] — contributing from 45 for good, the tick on.
+    const TWO = [{ from: 40, out: true }, { from: 45, out: false }, { from: 56, out: true }];
+
+    test('a start at or before the earlier rejoin is refused — nothing recorded changes', () => {
+        for (const pNum of [30, 38, 40, 43, 44, 45]) {
+            assert.deepEqual(withOptOutStartAt(TWO, pNum), TWO, `re-picked as ${pNum}`);
+        }
+    });
+
+    test('after the rejoin the start moves, both ways, and the current spell always survives', () => {
+        for (let pNum = 46; pNum <= 62; pNum++) {
+            const tl = withOptOutStartAt(TWO, pNum);
+            assert.equal(optOutStartsAt(tl), pNum, `re-picked as ${pNum}`);
+            assert.equal(isOptedOutAt(tl, 62), true, 'still out of the scheme today');
+            assert.deepEqual(tl.slice(0, 2), TWO.slice(0, 2), 'the spell behind is untouched');
+        }
+        for (let pNum = 30; pNum <= 62; pNum++) {
+            assert.equal(isOptedOutAt(withOptOutStartAt(TWO, pNum), 62), true, `no pick erases today's spell (${pNum})`);
+        }
+    });
+
+    test('a rejoin recorded in error is still undone where it was made: untick, then tick on it', () => {
+        const erased = withRejoinAt(TWO, 45);     // unticked while viewing the rejoin payslip
+        const joined = withOptOutStartAt(erased, 45);   // ticked again there — a NEW spell, at the rejoin
+        assert.deepEqual(joined, [{ from: 40, out: true }], 'one spell, from 40 onwards');
+    });
+
+    test('with no rejoin in front of it, the start moves back freely — a redundant change is not a rejoin', () => {
+        assert.deepEqual(withOptOutStartAt([{ from: 40, out: true }, { from: 45, out: true }], 38), [{ from: 38, out: true }]);
+    });
 });
 
 describe('ending a spell — the rejoin', () => {

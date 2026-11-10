@@ -42,7 +42,8 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
-    sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs,
+    sameAnswer, receiptLine, unfinishedDates, reconcileVerdict, conflictIsOurs, isAvailableAnswer, weekDates,
+    writeOutcomeUnknown,
 } from './overtime-format.js';
 import { offersSundayRelease, SUNDAY_RELEASE_LABEL, SUNDAY_RELEASE_ASKED } from './overtime-sunday-release.js';
 import { withMode, withFullTwelve, withRelease } from './overtime-answer.js';
@@ -130,7 +131,8 @@ const ALL_DAY_ON_DUTY = 'Any time around my shift';
  */
 export async function renderWeekForm(host, win, memberName, { onSaved }) {
     const dates = weekDates(win.weekStart);
-    const closed = win.phase === 'CLOSED';
+    // `let`: a send the server refuses as closed closes the form where it stands (`closeHere`).
+    let closed = win.phase === 'CLOSED';
 
     host.innerHTML = `<div class="ot-state">Loading your roster…</div>`;
     const ctx = await loadRosterContext(memberName, dates);
@@ -174,45 +176,29 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
 
     // ── Render ──────────────────────────────────────────────────────────────────────────────────
 
+    // The page's furniture, with its reasons here rather than in the markup (where every paint
+    // shipped them to the member's phone — overtime-ui-17):
+    //   · THE ALL-WEEK SHORTCUT (v22.05) PRE-FILLS, never submits: answering "Not available" seven
+    //     times a week teaches the people the data most needs to stop answering, and the member
+    //     still sees seven days and presses Submit. No "copy last week": "after my duty" means
+    //     THAT week's duty. Its QUESTION is not part of the button (v23.27): one underlined string
+    //     ran off a phone, read as a link, and its ellipsis promised choices where a confirm follows.
+    //   · THE CAP NOTE states the ceiling every plan is held to, so the willingness tick below it
+    //     ("a full 12-hour day") means something exact. It sits against the rows it qualifies
+    //     (v23.83), and only on an open form: it says "whatever you answer below".
+    //   · THE SUBMIT BAR IS STICKY (v21.47): the form runs to about twelve phone screens, and the
+    //     bar is the live answer to "how much is left?" — and, pressed while incomplete, the way to
+    //     the first unanswered day. Its position lives in CSS; the member's view does not print
+    //     (overtime.css prints a notice in its place).
     function shell() {
         return `<div class="ot-form-head">${headInner()}</div>
             ${ctx.knowledge === 'error' ? `
-                <div class="ot-roster-warning" role="status">
-                    Couldn't confirm your current MYB roster. You can still enter availability using
-                    custom times.
-                </div>` : ''}
+                <div class="ot-roster-warning" role="status">${rosterWarning()}</div>` : ''}
             ${closed ? '' : `
-                <!-- The cap note (v21.22, reworded v21.24). It states the rule the roster is planned
-                     under, which nothing said out loud until v21.22. Its job CHANGED when the
-                     willingness tick arrived: it used to explain why no second press was needed,
-                     and now it sets the ceiling the tick refers to — so "a full 12-hour day" on a
-                     row below means something exact rather than inviting a guess. Both sentences
-                     are still about the same number, which is why they belong in one line. -->
-                <!-- The all-week shortcut (v22.05). Answering "Not available" seven separate times,
-                     every week, teaches exactly the people the data most needs to hear from to stop
-                     answering at all. This PRE-FILLS — it never submits: the member still sees seven
-                     filled days and presses Submit themselves, so the all-seven-answered principle
-                     survives with six taps removed. There is deliberately no "copy last week":
-                     "after my duty" is relative to THAT week's duty, and copying it forward
-                     silently changes its meaning under a different roster.
-
-                     THE QUESTION IS NOT PART OF THE BUTTON (v23.27, owner report). It shipped as one
-                     underlined muted string — "Can't do overtime this week? Mark all seven days…" —
-                     which failed three ways at once on a phone: it ran off the edge, it read as a
-                     link into somewhere rather than a control that acts here, and the trailing
-                     ellipsis suggested more choices were coming when what follows is a confirm.
-                     Splitting them lets the button say what pressing it DOES, first word first,
-                     which is the same rule every other action on this page follows. The question
-                     stays because it is what a member is thinking; it is just not clickable. -->
                 <div class="ot-bulk-row">
                     <span class="ot-bulk-q">Not available at all this week?</span>
                     <button type="button" class="ot-bulk-unavailable">Mark all seven days Not available</button>
                 </div>
-                <!-- MOVED DOWN HERE AT v23.83, so it sits against what it qualifies. It is a
-                     standing rule about answering a DAY, and it had been in the card head among
-                     this week's dates, reading as a fifth fact about the week rather than as the
-                     ceiling the rows below refer to. It stays INSIDE the not-closed branch: it
-                     says "whatever you answer below", and a closed form has nothing to answer. -->
                 <p class="ot-cap-note">A working day is never planned past 12 hours in total,
                 whatever you answer below.</p>`}
             <div class="ot-days"></div>
@@ -221,13 +207,6 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     <strong>Final availability recorded.</strong>
                     This form is now closed. If your circumstances have changed, speak to a Manager.
                 </div>` : `
-                <!-- STICKY (v21.47). The seven-day form runs to roughly twelve phone screens, and
-                     this bar used to sit inline at the very end — so the one line that answers
-                     "how much is left?" ("4 days still to answer") was invisible for the whole
-                     time a member was answering, and reaching Submit meant scrolling past
-                     everything. Sticky keeps it in view as live progress, and tapping it while
-                     incomplete already jumps to the first unanswered day (the refusal focuses it),
-                     so the bar is also the shortcut. Position lives in CSS; print unsticks it. -->
                 <div class="ot-submit-bar">
                     <div class="ot-feedback" aria-live="polite"></div>
                     <button type="button" class="btn-action btn-primary ot-submit">Submit availability</button>
@@ -293,6 +272,12 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
 
     function paintHead() {
         if (headHost) headHost.innerHTML = headInner();
+    }
+
+    /** What a failed roster read means here — and on a CLOSED form, nothing is left to enter (overtime-ui-16). */
+    function rosterWarning() {
+        return 'Couldn\'t confirm your current MYB roster.'
+            + (closed ? '' : ' You can still enter availability using custom times.');
     }
 
     /** Has the member changed anything that is not on the server? @returns {boolean} */
@@ -369,16 +354,22 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             focusFullTwelve(date);
             updateSubmitState();
         }));
+        daysHost.querySelectorAll('[data-reanchor]').forEach(btn => btn.addEventListener('click', () => {
+            const date = String(btn.getAttribute('data-reanchor'));
+            const mode = String(answers[date]?.mode);
+            answers[date] = reanchored(answers[date], ctx.byDate[date]);
+            paintDays();
+            updateSubmitState();
+            focusMode(date, mode);   // the note and its button are gone; the option they changed is not
+        }));
         daysHost.querySelectorAll('[data-release]').forEach(box => box.addEventListener('change', () => {
             const date = String(box.getAttribute('data-release'));
             // NO ANSWER REQUIRED, unlike the willingness tick above — this asks about CONTRACTED
             // work, so it stands on its own. And it ANSWERS NOTHING: on a day with no availability
             // answer the working copy holds `{ releaseRequested: true }` with no mode, which
-            // `dayUnfinished` still counts as unanswered. Until v23.87 this line wrote
-            // `{ mode: 'unavailable' }` underneath, reasoning that it was "the honest mode for I have
-            // said nothing" — the one answer this feature must never invent, and the completeness
-            // check then stopped asking for the Sunday (external review of v23.85). The rules are
-            // overtime-answer.js's; this is only the wiring.
+            // `dayUnfinished` still counts as unanswered. Until v23.87 it wrote `{ mode: 'unavailable' }`
+            // underneath — the one answer this feature must never invent — and the completeness check
+            // stopped asking for the Sunday. The rules are overtime-answer.js's; this is the wiring.
             setAnswer(date, withRelease(answers[date], /** @type {HTMLInputElement} */ (box).checked));
             paintDays();
             focusRelease(date);
@@ -480,15 +471,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const answered = !!a?.mode;
         const state = dayState(a, date);
         // "Sun 30 Aug" splits into admin's two-part day label — the bold day, the lighter date —
-        // so the two week-of-days surfaces read identically.
+        // so the two week-of-days surfaces read identically. The roster badge takes a visually
+        // hidden "Rostered:" rather than an aria-label: a label on a plain span is unreliably
+        // announced, and the badge's own text needs only the word that says what it IS.
         const [dayName, ...dayDate] = shortDate(date).split(' ');
         return `
             <div class="ot-day${answered ? ' ot-day--answered' : ''}${state ? ` ot-day--${state}` : ''}" data-day="${esc(date)}">
                 <div class="ot-day-head">
                     <span class="ot-day-name">${esc(dayName)} <span class="ot-day-date">${esc(dayDate.join(' '))}</span></span>
-                    <!-- A visually-hidden prefix, not an aria-label: a label on a plain span is
-                         unreliably announced, and the badge's own text (the shift name + times)
-                         already reads well — it only needs the word that says what it IS. -->
                     <span class="ot-day-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(c)}</span>
                 </div>
                 ${closed
@@ -501,11 +491,29 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                        ${a?.mode === 'custom' ? customRow(date, a) : ''}
                        ${fullTwelveRow(date, c, a)}
                        ${sundayReleaseRow(date, c, a)}
-                       ${answerAnchorStale(a, c) ? `
-                        <p class="ot-day-stale" role="status">Your shift has changed since you
-                        answered. Your answer still says <strong>${esc(answerCopy(a))}</strong> —
-                        change it if that no longer suits.</p>` : ''}`}
+                       ${answerAnchorStale(a, c) ? staleNote(date, a, c) : ''}`}
             </div>`;
+    }
+
+    /**
+     * An answer anchored to a shift that has since moved — said, and (overtime-ui-18) with the way to
+     * the shift as it is now. Re-pressing the chosen option keeps the saved answer (the v20.75 rule),
+     * so the new time was reachable only by choosing something else first. Offered only where the
+     * roster still has that boundary: none on a rest day, and no "after" on an overnight duty.
+     * @param {string} date @param {any} a @param {any} c
+     */
+    function staleNote(date, a, c) {
+        const next = c?.hasTime && modesFor(c).includes(a.mode) ? reanchored(a, c) : null;
+        const words = next ? answerCopy({ mode: next.mode, until: next.until, from: next.from }).replace(/^Available /, '') : '';
+        return `<p class="ot-day-stale">Your shift has changed since you answered. Your answer
+            still says <strong>${esc(answerCopy(a))}</strong> — change it if that no longer suits.${next ? `
+            <button type="button" class="ot-mode ot-mode--yes" data-reanchor="${esc(date)}">Change it to ${esc(words)}</button>` : ''}</p>`;
+    }   // (the answer pills' recipe: it chooses an available answer, and takes their 44px touch target)
+
+    /** The two presses a member would make — another option, then this one — as one, through
+     *  overtime-answer.js's own transitions, so the 12-hour tick and a Sunday request survive. */
+    function reanchored(/** @type {any} */ a, /** @type {any} */ c) {
+        return withMode(withMode(a, 'all_day', c), a.mode, c);
     }
 
     /**
@@ -578,7 +586,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      */
     function fullTwelveRow(date, c, a) {
         if (!a?.mode || a.mode === 'unavailable') return '';
-        if (!offersFullTwelve(c)) return '';
+        // A tick ALREADY GIVEN is shown wherever the day stops asking, as a saved mode keeps its
+        // button (dayBlock) — hidden, it could not be taken back and went out with every save (overtime-ui-6).
+        if (!offersFullTwelve(c) && a.fullTwelve !== true) return '';
         const on = a.fullTwelve === true;
         return `
             <label class="ot-longday">
@@ -599,14 +609,17 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * @param {string} date @param {any} c @param {any} a
      */
     function sundayReleaseRow(date, c, a) {
-        if (!offersSundayRelease(date, c)) return '';
+        // A request ALREADY MADE is shown, so it can be withdrawn, though the Sunday no longer offers
+        // one (now a rest day, or the roster unread) — as `fullTwelveRow` does (overtime-ui-6).
+        if (!offersSundayRelease(date, c) && a?.releaseRequested !== true) return '';
         const on = a?.releaseRequested === true;
+        // The note is the tick's DESCRIPTION, not a live region re-announced at every repaint (overtime-ui-13).
         return `
             <label class="ot-release">
-                <input type="checkbox" class="ot-release-box" data-release="${esc(date)}"${on ? ' checked' : ''}>
+                <input type="checkbox" class="ot-release-box" data-release="${esc(date)}"${on ? ` checked aria-describedby="otReleaseSaid-${esc(date)}"` : ''}>
                 <span>${esc(SUNDAY_RELEASE_LABEL)}</span>
             </label>
-            ${on ? `<p class="ot-release-said" role="status">${esc(SUNDAY_RELEASE_ASKED)}</p>` : ''}`;
+            ${on ? `<p class="ot-release-said" id="otReleaseSaid-${esc(date)}">${esc(SUNDAY_RELEASE_ASKED)}</p>` : ''}`;
     }
 
     /** @param {string} date @param {any} a */
@@ -788,6 +801,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // The receipt's time moves with a real change and not with a no-op. `serverNow` is the
             // instant the server decided the write — the one it now stamps `acceptedAt` with.
             const at = !r.data.noop && typeof r.data.serverNow === 'number' ? r.data.serverNow : null;
+            // The SERVER's phase at the moment it decided (overtime-ui-5): accepted at 12:03 on the
+            // first deadline's day, the head must stop saying "Answers due" — the page keeps no timer.
+            if (r.data.phase === 'INITIAL_OPEN' || r.data.phase === 'FINAL_OPEN') win.phase = r.data.phase;
             win.submission = {
                 ...(win.submission || {}),
                 days: sent,
@@ -816,7 +832,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // suspends a page mid-request, and a 200 whose body was cut off reads as `network` too
         // (overtime-data.js). Told "couldn't reach the server", the member retried and was shown
         // their own save as "a newer version"; keeping the id lets that conflict say it was theirs.
-        if (r.code === 'timeout' || r.code === 'network') {
+        // So is a 5xx the server did not name: a function out of time may have written (overtime-ui-10).
+        if (writeOutcomeUnknown(r)) {
             pendingMutationId = r.mutationId;
             await reconcile();
             submitBtn.disabled = false;
@@ -824,11 +841,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }
         submitBtn.disabled = false;
         if (r.code === 'revision-conflict') { showConflict(r); return; }
-        if (r.code === 'closed') {
-            say('This form closed before your answers reached the server. Speak to a Manager.', 'warn');
-            return;
-        }
-        if (r.code === 'cancelled') return;   // the member navigated away; nothing to report
+        if (r.code === 'closed') { closeHere(); return; }
 
         // A refusal that names a DAY gets copy that names the day, and the page walks there —
         // the message and the scroll agreeing about where the problem is. Everything else gets
@@ -837,6 +850,29 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const failDate = typeof r.data?.date === 'string' ? r.data.date : null;
         say(submitFailureCopy(r.code, failDate ? shortDate(failDate) : null), 'warn');
         if (failDate) focusDay(failDate);
+    }
+
+    /**
+     * The server refused the send because the form has CLOSED (overtime-ui-5) — the page never decides
+     * that on its own clock (header rule 2), so this is where it learns. Left as it was, the form kept
+     * every control live, Submit enabled and the leave-guard armed over answers nothing will take. So
+     * it becomes the closed form where it stands: what the server HOLDS, read-only, and why.
+     */
+    function closeHere() {
+        closed = true;
+        win.phase = 'CLOSED';
+        for (const d of Object.keys(answers)) delete answers[d];
+        Object.assign(answers, win.submission?.days ? deepCopy(win.submission.days) : {});
+        for (const sel of ['.ot-bulk-row', '.ot-cap-note']) host.querySelector(sel)?.remove();
+        submitBtn?.remove();
+        const warning = host.querySelector('.ot-roster-warning');
+        if (warning) warning.innerHTML = rosterWarning();
+        paintHead();
+        paintDays();
+        say('This form closed before your answers reached the server, so '
+            + (win.submission ? 'this change was not saved — what you submitted earlier stands. '
+                : 'nothing was submitted for this week. ')
+            + 'If your circumstances have changed, speak to a Manager.', 'warn');
     }
 
     /**
@@ -931,10 +967,11 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         feedback?.appendChild(btn);
     }
 
-    /** A one-line description of a stored week, for the conflict message. */
+    /** A one-line description of a stored week, for the conflict message — available by the RULE
+     *  (`isAvailableAnswer`), never "any mode but unavailable", which counts an unreadable mode. */
     /** @param {Record<string, any>} days */
     function summarise(days) {
-        const avail = Object.values(days).filter((/** @type {any} */ d) => d?.mode && d.mode !== 'unavailable').length;
+        const avail = Object.values(days).filter(isAvailableAnswer).length;
         return `available on ${avail} of ${Object.keys(days).length} days`;
     }
 
@@ -955,16 +992,6 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
 }
 
 // ── Small helpers ───────────────────────────────────────────────────────────────────────────────
-
-/** The seven Sunday→Saturday ISO dates. Mirrors the server's `weekDates`, which is authoritative. */
-/** @param {string} weekStart */
-function weekDates(weekStart) {
-    const [y, m, d] = String(weekStart).split('-').map(Number);
-    return Array.from({ length: 7 }, (_, i) => {
-        const dt = new Date(Date.UTC(y, m - 1, d + i));
-        return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
-    });
-}
 
 /** @param {any} o */
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }

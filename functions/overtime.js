@@ -52,9 +52,12 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const OT = require('./overtime-core');
+// Reading a stored window or head back is RULE, so it lives in the core beside what writes it.
+const { storedMilestones, toMillis, publicHead } = OT;
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
+const { isViewerAccount } = require('./calendar-viewer-auth');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
 const WINDOWS = 'overtimeWindows';
@@ -96,9 +99,14 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return sendTargetedPush(payload, uids, tag);
         }
         : async (_payload, _uids, tag) => { console.warn(`${tag} push not configured — nothing sent`); return 0; });
+    // The shared Calendar PIN account is refused even when a roster email has been linked to it:
+    // the devices it owns are the station's shared PCs, not the member's phone — as `uidForMember`
+    // (pay-reminder.js) refuses it for the pay reminder.
     const uidForName = (notify && notify.uidForName) || (async (name) => {
-        try { return (await getAuth().getUserByEmail(nameToEmail(name))).uid; }
-        catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
+        try {
+            const u = await getAuth().getUserByEmail(nameToEmail(name));
+            return u && u.uid && !isViewerAccount(u) ? u.uid : null;
+        } catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
     });
 
     /**
@@ -188,15 +196,26 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     .filter(p => !OT.isWithdrawn(p.data()) && !submitted.has(p.id) && !asked.has(p.id))
                     .map(p => p.id);
                 const uids = (await Promise.all(names.map(uidForName))).filter(Boolean);
+                // WHAT IT REACHED, beside the claim (overtime-core-4, Nov 2026). The claim is an ATTEMPT
+                // — it must precede the send, or two runs both send — and was read as "sent" on mornings
+                // that reached nobody. So after the send: who had said nothing, and how many devices took
+                // it (`sendTargetedPush`'s accepted count). A stamp without them: outcome unknown.
+                let accepted = 0;
                 if (uids.length) {
                     const n = OT.reminderNotice(milestones);
                     const payload = buildPushPayload({
                         feature: 'overtime', headline: n.headline, body: n.body,
                         url: `${STAFF_SITE_URL}/overtime.html`,
                     });
-                    await send(payload, uids, `[overtimeReminder ${d.id}]`);
+                    try {
+                        accepted = Number(await send(payload, uids, `[overtimeReminder ${d.id}]`)) || 0;
+                    } catch (sendErr) {
+                        console.error(`[overtimeReminder] ${d.id} send failed:`, sendErr);
+                    }
                 }
-                console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, ${uids.length} resolvable target(s)`);
+                console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, `
+                    + `${uids.length} resolvable target(s), ${accepted} accepted`);
+                await d.ref.update({ reminderOutstanding: names.length, reminderAccepted: accepted });
             } catch (err) {
                 // One bad week must not abandon the rest. NOTE there is no retry to rely on
                 // (v21.56): `reminderDue` selects only the run inside 24h of noon — the deadline's
@@ -212,37 +231,17 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
     /**
      * Is the retention purge allowed to DELETE, or only to report what it would delete?
      *
-     * ── WHY IT SHIPS DISARMED ───────────────────────────────────────────────────────────────────
+     * Built disarmed: the only irreversible thing this feature does runs unattended and first has
+     * work months after it was written, so dry runs exercise the walk on real documents while its
+     * mistakes are still log lines. It arms ITSELF — `index.js` passes `purgeArmedAt`
+     * (overtime-core.js), true from 00:00 London on 1 Dec 2026 — and gates ONE statement, as `dryRun`
+     * does in `createOvertimeWindow`, so what the log described is what the armed run does. A
+     * dependency rather than a constant: the rule belongs to the composition root, and a test drives
+     * both sides without editing source.
      *
-     * `purgeExpiredOvertimeWindows` is the only irreversible thing this feature does, it runs
-     * unattended, and the first time it has anything to do will be months after it was written — by
-     * which point nobody is watching for it. A dry run is how the walk gets exercised against real
-     * documents while its mistakes are still only log lines. Read one run's log, confirm the weeks
-     * and the counts are the ones you expect, then arm it in `index.js`.
-     *
-     * It gates ONE statement, exactly as `dryRun` does in `createOvertimeWindow`: the selection, the
-     * ordering and the counting are the same code either way, so what the log described is what the
-     * armed run does rather than a prediction of it.
-     *
-     * A dependency rather than a constant here for the same reason as everything else in this
-     * argument list — the literal belongs in the composition root, and a test can drive both sides
-     * of the branch without editing source.
-     *
-     * ── IT IS EVALUATED PER RUN, AND THAT IS THE LOAD-BEARING PART (v24.10) ─────────────────────
-     *
-     * Production now passes a PREDICATE rather than a boolean, because the real rule is a date
-     * (`purgeArmedAt` in overtime-core.js — nothing is expired before 21 Nov 2026, so a boolean
-     * flipped today would arm the job blind two months later). A date read ONCE at module load
-     * would then be wrong in the quiet way: a Cloud Function instance stays warm for hours or days,
-     * so an instance that booted on the 20th would still believe it was disarmed on the 22nd, and
-     * the job would silently keep dry-running until something happened to cold-start it.
-     *
-     * So this resolves on every invocation, and the answer is threaded INTO `purgeWindow` rather
-     * than closed over — one decision per run, used by both the log line and the delete, which is
-     * what makes "what the log described is what the run did" true rather than nearly true.
-     *
-     * A boolean is still accepted, and the existing tests pass one: they are about the ARMED
-     * branch, not about when it arms.
+     * RESOLVED PER RUN (v24.10): a warm instance outlives the date, so a value read at module load
+     * would go on dry-running unseen. The answer is threaded into `purgeWindow`, one decision for a
+     * run's log line and its deletes. A plain boolean is still accepted, for the armed-branch tests.
      * @param {boolean | (() => boolean)} flag
      */
     const resolveArmed = (flag) => (typeof flag === 'function' ? flag() === true : flag === true);
@@ -301,33 +300,13 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         return false;
     }
 
-    /** The window document's stored milestones, as the plain numbers the core works in. */
-    function storedMilestones(data) {
-        return {
-            weekEnding:        data.weekEnding,
-            weekStart:         data.weekStart,
-            initialDeadlineAt: toMillis(data.initialDeadlineAt),
-            draftRosterDate:   data.draftRosterDate,
-            finalDeadlineAt:   toMillis(data.finalDeadlineAt),
-            finalRosterDate:   data.finalRosterDate,
-            retentionUntil:    toMillis(data.retentionUntil),
-            policyVersion:     data.policyVersion,
-        };
-    }
-
-    /** Firestore Timestamp | number | Date → epoch ms. */
-    function toMillis(v) {
-        if (v == null) return 0;
-        if (typeof v === 'number') return v;
-        if (typeof v.toMillis === 'function') return v.toMillis();
-        if (v instanceof Date) return v.getTime();
-        return 0;
-    }
-
     /** Milliseconds → Firestore Timestamp, for anything stored as an instant. */
     function ts(ms) {
         return Timestamp.fromMillis(ms);
     }
+
+    /** Firestore's ALREADY_EXISTS (gRPC code 6): a `create` found its document already there. */
+    const isAlreadyExists = (err) => !!err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message)));
 
     // ── createOvertimeWindow ────────────────────────────────────────────────────────────────────
 
@@ -471,7 +450,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         try {
             await batch.commit();
         } catch (err) {
-            const now = err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message))) ? await ref.get() : null;
+            const now = isAlreadyExists(err) ? await ref.get() : null;
             if (!now || !now.exists) throw err;
             return existed(ref, now.data(), nowMs);
         }
@@ -558,9 +537,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * A CLOSED window was already refused and still is. Nobody is ever REMOVED, at any phase: a
      * population only grows.
      *
+     * @param {boolean} [retried] set on the one re-read after another writer got there first
      * @returns {Promise<string[]>} the names added, for the caller to report
      */
-    async function addMissingParticipants(ref, data, nowMs) {
+    async function addMissingParticipants(ref, data, nowMs, retried = false) {
         const milestones = storedMilestones(data);
         if (milestones.retentionUntil <= nowMs) return [];
         if (OT.phaseFor(milestones, nowMs) !== 'INITIAL_OPEN') return [];
@@ -578,9 +558,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return [];
         }
 
+        // CREATE, not set (invariant 5): two top-ups can read one gap, and a withdrawal landing between
+        // their commits was REPLACED by the second's `set`. A batch is atomic, so a create that finds
+        // the document writes nothing: read again, once, and add whoever is still missing.
         const batch = db().batch();
         for (const p of missing) {
-            batch.set(ref.collection('participants').doc(p.memberName), {
+            batch.create(ref.collection('participants').doc(p.memberName), {
                 memberName:  p.memberName,
                 uid:         null,
                 grade:       p.grade,
@@ -588,7 +571,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 createdAt:   FieldValue.serverTimestamp(),
             });
         }
-        await batch.commit();
+        try {
+            await batch.commit();
+        } catch (err) {
+            if (!retried && isAlreadyExists(err)) return addMissingParticipants(ref, data, nowMs, true);
+            throw err;
+        }
         console.log(`[addMissingParticipants] ${data.weekEnding} + ${missing.length}: ${missing.map(p => p.memberName).join(', ')}`);
         return missing.map(p => p.memberName);
     }
@@ -812,8 +800,9 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * The participant-selection policy currently in force. Server-owned release control, not an
      * operational choice — a Manager sees what will happen and cannot change it.
      *
-     * Widening the beta is a one-word edit HERE plus a deploy; existing windows are untouched,
-     * because their populations were frozen at creation. A pilot rung slots in as a third value.
+     * Widening the beta is a one-word edit HERE plus a deploy. No window is REWRITTEN (populations are
+     * frozen), but a week still before its first deadline gains the newly eligible, add-only, at the
+     * next nightly top-up (`addMissingParticipants`). A pilot rung slots in as a third value.
      */
     function currentAudience() {
         return 'restricted';
@@ -1046,6 +1035,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 //
                 // A week that cannot grow reports `null`, which the client already reads as "no
                 // offer" — the same answer a CLOSED week has always given.
+                const creatable = OT.validateWeekEnding(weekEnding, { nowMs, maxRosterYear: rosterMembers.maxRosterYear });
                 const canGrow = OT.phaseFor(milestones, nowMs) === 'INITIAL_OPEN';
                 const canAdd = doc && canGrow
                     ? Math.max(0, audienceFor(milestones.weekStart).length
@@ -1060,12 +1050,15 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     // Absent/null on weeks created before the reminder feature — the client's
                     // reminderLine deliberately stays silent for those once they close.
                     reminderSentAt: doc ? (toMillis(doc.reminderSentAt) || null) : null,   // toMillis maps absent to 0
-                    state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
+                    // What that attempt reached (overtime-core-4): null where unrecorded — unknown, never 0.
+                    reminderOutstanding: doc && Number.isInteger(doc.reminderOutstanding) ? doc.reminderOutstanding : null,
+                    reminderAccepted:    doc && Number.isInteger(doc.reminderAccepted) ? doc.reminderAccepted : null,
+                    // A week past the roster's last year says so rather than "overnight" (overtime-core-6).
+                    state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding),
+                        creatable.error === 'beyond-horizon'),
                     audience: doc ? doc.audience : null,
                     canAdd,
-                    canCreate: !doc && OT.validateWeekEnding(weekEnding, {
-                        nowMs, maxRosterYear: rosterMembers.maxRosterYear,
-                    }).ok,
+                    canCreate: !doc && creatable.ok,
                     // `participantCount` deliberately does NOT go over the wire. It exists so the
                     // line above can compare like with like, and shipping it would put the raw
                     // population back within reach of a client doing exactly the subtraction that
@@ -1208,18 +1201,6 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return res.json({ ok: true, serverNow: nowMs, windows });
         });
 
-    /** The submission head as a member may see it — their own content and nothing about anyone else. */
-    function publicHead(data) {
-        return {
-            currentRevision:   data.currentRevision,
-            days:              data.days,
-            firstAcceptedAt:   toMillis(data.firstAcceptedAt),
-            updatedAt:         toMillis(data.updatedAt),
-            lastMutationId:    data.lastMutationId || null,
-            schemaVersion:     data.schemaVersion,
-        };
-    }
-
     // ── submitOvertimeAvailability ──────────────────────────────────────────────────────────────
 
     /** Bound on the client-supplied correlation id — opaque to us, but not unbounded. */
@@ -1351,8 +1332,16 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                         lastMutationSeenAt: acceptedAt,
                         schemaVersion:   SCHEMA_VERSION,
                     };
-                    if (decision.action === 'create') headWrite.firstAcceptedAt = acceptedAt;
-                    tx.set(headRef, headWrite, { merge: true });
+                    // THE HEAD IS THE NEWEST ANSWER, WHOLE (overtime-core-1, Nov 2026). Both cases were
+                    // one merge-set, which merges `days` KEY BY KEY, so whatever a member removed from a
+                    // day (a tick, a request, a mode's times) stayed in the head for ever. Revision 1
+                    // sets the head; every later one updates it, which replaces each named field whole
+                    // and keeps `firstAcceptedAt`, written by the first revision only.
+                    if (decision.action === 'create') {
+                        tx.set(headRef, { ...headWrite, firstAcceptedAt: acceptedAt });
+                    } else {
+                        tx.update(headRef, headWrite);
+                    }
                     return { revision, created: decision.action === 'create' };
                 });
             } catch (err) {

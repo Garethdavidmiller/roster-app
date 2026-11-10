@@ -2,7 +2,7 @@
 // override it saw." run.mjs reloads the PAGE, which tears down the SDK and re-reads IndexedDB —
 // necessary but not sufficient, because the browser process never exits. This closes Chromium
 // entirely and reopens it against the same on-disk profile, with the rules tightened in between.
-import { chromium } from '/home/user/roster-app/node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';   // the repository's install, from any checkout
 import { rmSync } from 'node:fs';
 
 const PROJECT = 'myb-roster-offline-proof';

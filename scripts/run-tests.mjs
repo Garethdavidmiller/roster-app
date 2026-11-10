@@ -38,7 +38,10 @@ child.stdout.on('data', (b) => { out += b; process.stdout.write(b); });
 child.on('close', (code) => {
     // A top-level `not ok` with no indentation is a FILE or SUITE that did not build. Node's own
     // counts and exit code both miss it; the TAP line is the only evidence.
-    const broken = out.split('\n').filter(l => /^not ok \d+ - /.test(l));
+    // The one exception is a failing `{ todo }` test, which Node passes BY DESIGN and prints as
+    // `not ok N - name # TODO`. Its directive is an unescaped `#` after a space; a `#` inside a
+    // NAME is written `\#`, so a suite called "… # TODO" that fails to build is still caught.
+    const broken = out.split('\n').filter(l => /^not ok \d+ - /.test(l) && !/\s# TODO\b/.test(l));
     if (broken.length && code === 0) {
         process.stderr.write(
             '\n✖ A suite reported `not ok` but the run exited 0 — it FAILED TO BUILD, so its tests\n'

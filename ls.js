@@ -147,12 +147,34 @@ export function lsKeys() {
     } catch(e) { _warnOnce(e); return []; }
 }
 
-/** Device flag: the durability request is one-shot, so a refused request is not re-asked
- *  on every page open (and, in a browser that prompts for it, not re-prompted). */
+/** Device flag: what the durability request last knew — `granted`, or the levers that held when it
+ *  last asked (`tab`, `installed`, `notifications`, `installed+notifications`). The pre-Nov-2026 value
+ *  `1` was written however the request went, and reads as asked in a tab. */
 const PERSIST_ASKED_KEY = 'myb_storage_persist_asked';
+const PERSIST_GRANTED = 'granted';
 
 /**
- * Ask the browser to make this origin's storage DURABLE, once per device.
+ * What can turn a browser's "no" into a "yes" without a prompt: running INSTALLED, and notifications
+ * allowed — both on Chrome's list of what earns persistence, and installing is the lever WebKit
+ * names. Engagement is on Chrome's list too, but nothing marks the day it changes, and asking on every
+ * open would re-raise Firefox's doorhanger for a member who dismissed it without answering.
+ * @returns {string[]}
+ */
+function _persistLevers() {
+    const levers = [];
+    try {
+        const standalone = globalThis.matchMedia?.('(display-mode: standalone)')?.matches;
+        if (standalone || /** @type {any} */ (navigator).standalone === true) levers.push('installed');
+    } catch { /* no media queries here — not installed, as far as this can tell */ }
+    try {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') levers.push('notifications');
+    } catch { /* no Notification API — not a lever */ }
+    return levers;
+}
+
+/**
+ * Ask the browser to make this origin's storage DURABLE — once, and once more each time a lever that
+ * can change its answer starts to hold (Nov 2026, the owner's decision).
  *
  * WHY. The pay calculator's figures live in localStorage and nowhere else — never sent to a server,
  * by design — so they are the one thing in this app that cannot be recreated. Without a persistence
@@ -178,6 +200,15 @@ const PERSIST_ASKED_KEY = 'myb_storage_persist_asked';
  * means the request happens on the first open AFTER the member has saved something, which is both
  * the earliest useful moment and the first moment it can be explained by what they just did.
  *
+ * A REFUSAL IS NOT FOR EVER (Nov 2026). This asked once per device whatever the answer, and the
+ * likely first answer — Chrome, in a tab, before the app is installed — is a silent no: Chrome shows
+ * no prompt, it decides by its own rule. So after the member installed the app or allowed
+ * notifications, when Chrome would have said yes, nothing asked again, and the figures stayed
+ * evictable. Now the ANSWER is kept: a yes ends it, and a no is asked again once — only once — for
+ * each lever that has started to hold since (`_persistLevers`). That cannot nag: Chrome and Safari
+ * never prompt, and Firefox remembers its own prompt's answer, so its doorhanger comes back only for
+ * a member who closed it unanswered — at most once per new lever.
+ *
  * Fire-and-forget: the result changes nothing the member can see, a refusal is not an error, and
  * every branch is wrapped because this whole module exists for browsers that throw on storage.
  *
@@ -186,11 +217,23 @@ const PERSIST_ASKED_KEY = 'myb_storage_persist_asked';
  */
 export function requestPersistentStorage(keyPrefix) {
     try {
-        if (!keyPrefix || lsGet(PERSIST_ASKED_KEY)) return;
+        if (!keyPrefix) return;
+        const asked = lsGet(PERSIST_ASKED_KEY);
+        if (asked === PERSIST_GRANTED) return;                      // durable already — nothing to ask
         if (!lsKeys().some(k => k.startsWith(keyPrefix))) return;   // nothing worth protecting yet
-        lsSet(PERSIST_ASKED_KEY, '1');                              // one-shot, before the await
+        const levers = _persistLevers();
+        // Asked before: ask again only for a lever that has not held at any earlier ask. `1` and
+        // `tab` name none.
+        const before = asked === null ? null : asked.split('+');
+        if (before && levers.every(l => before.includes(l))) return;
         const s = /** @type {any} */ (navigator).storage;
-        if (!s || typeof s.persist !== 'function') return;          // no API: older engines, Linux WebKit
-        s.persist().catch(() => { /* refused or unsupported — nothing to do */ });
+        // No API (older engines, Linux WebKit): nothing recorded, so an update that brings it asks.
+        if (!s || typeof s.persist !== 'function') return;
+        // Every lever seen at any ask so far, so each one earns ONE more ask, ever. Before the await.
+        const seen = [...new Set([...(before ?? []), ...levers])].filter(l => l === 'installed' || l === 'notifications');
+        lsSet(PERSIST_ASKED_KEY, seen.join('+') || 'tab');
+        s.persist()
+            .then((/** @type {boolean} */ granted) => { if (granted) lsSet(PERSIST_ASKED_KEY, PERSIST_GRANTED); })
+            .catch(() => { /* refused or unsupported — nothing to do */ });
     } catch { /* storage unavailable — the member has no saved data here anyway */ }
 }

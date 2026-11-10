@@ -9,7 +9,10 @@
  * (getRosterSuggestion — premium categories only, no guessed weekday hours) across every period
  * the year-so-far block lists under "Not entered yet", and no others.
  *
- * Four rules, each the difference between a convenience and a data-loss bug:
+ * Seven rules, each the difference between a convenience and a data-loss bug. The first four decide
+ * WHICH periods may be written and how a fill is marked; 5, 6 and 7 are numbered where they bite, in
+ * the loop below (5 — keep what the calendar does not own; 6 — a receipt counts only a verified
+ * write; 7 — re-ask eligibility after the await):
  *
  *  1. NEVER A PERIOD WITH ENTERED DATA. Eligibility is the EXACT test the "Not entered yet" list
  *     uses (paid + employed + isDataEmpty), so the button fills precisely what that line names.
@@ -24,8 +27,8 @@
  *     result card's provenance chip, exactly like the single fill.
  *
  * Pure orchestration over INJECTED deps (fetch, suggest, read, write), so the interleavings and
- * all four rules run in Node — paycalc-fill-year.test.mjs, including the reintroduction of each
- * rule's violation as a mutation. The DOM button and the post-fill refresh live in paycalc-app.js.
+ * all seven rules run in Node — paycalc-fill-year.test.mjs, a describe block per rule. The DOM
+ * button and the post-fill refresh live in paycalc-year-card.js.
  */
 
 import { HM_PAIRS, isDataEmpty } from './paycalc-format.js';
@@ -33,7 +36,21 @@ import { emptyPeriodData } from './paycalc-form-data.js';
 
 /** How long one period's recorded-changes fetch may hold the fill before it is named unreached. A
  *  connection that is up but not answering could otherwise leave the button on "Filling…". */
-const FETCH_TIMEOUT_MS = 15000;
+export const FETCH_TIMEOUT_MS = 15000;
+
+/**
+ * A fetch's answer, or 'timeout' once `ms` pass without one. EVERY fetch a fill waits on goes through
+ * this — the loop's, and the card's re-fetch of the payslip on screen afterwards, which had no limit
+ * and so could hold the fill for ever after the loop itself had finished (paycalc-2-14). A rejection
+ * is the fetch's own, passed on to the caller.
+ * @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T|'timeout'>}
+ */
+export async function answerWithin(promise, ms) {
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+    try {
+        return await Promise.race([promise, new Promise(r => { timer = setTimeout(() => r('timeout'), ms); })]);
+    } finally { clearTimeout(timer); }
+}
 
 /**
  * Which of the year's periods this action may touch — and what it must leave alone.
@@ -79,13 +96,7 @@ export async function fillYearFromCalendar({ periods, member, now, deps }) {
     const timeoutMs = deps.timeoutMs ?? FETCH_TIMEOUT_MS;
     for (const p of fillable) {
         let state = 'base-only';
-        /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
-        try {
-            state = await Promise.race([
-                deps.fetchOverrides(p, member?.name),
-                new Promise(r => { timer = setTimeout(() => r('timeout'), timeoutMs); }),
-            ]);
-        } catch { /* skip below */ } finally { clearTimeout(timer); }
+        try { state = await answerWithin(deps.fetchOverrides(p, member?.name), timeoutMs); } catch { /* skip below */ }
         // rule 3 — never half-know. Only 'loaded' is the server's answer: 'cached' (the device's
         // persistent cache answering offline), 'base-only' and 'timeout' are all unreached.
         if (state !== 'loaded') { unreached.push(p); continue; }
@@ -147,12 +158,14 @@ export function fillYearReceipt(r, fd) {
             + 'Review the suggested hours (shown in gold) before relying on them.');
     }
     if (r.nothing.length) lines.push(`No special-rate hours to add for ${list(r.nothing)}.`);
+    // Singular for one payslip: a receipt naming "15 Jan" and then "each of those payslips" reads as
+    // though some were left out of the list (paycalc-2-20).
     if (r.unreached.length) {
         lines.push(`Couldn't check your recorded shift changes for ${list(r.unreached)} — `
-            + 'open each of those payslips and use "Fill from calendar" there.');
+            + `open ${r.unreached.length === 1 ? 'that payslip' : 'each of those payslips'} and use "Fill from calendar" there.`);
     }
     if (r.unsaved?.length) {
-        lines.push(`Couldn't save ${list(r.unsaved)} — this device refused to store them `
+        lines.push(`Couldn't save ${list(r.unsaved)} — this device refused to store ${r.unsaved.length === 1 ? 'it' : 'them'} `
             + '(private browsing, or storage is full). Nothing was lost; try again after freeing space.');
     }
     if (r.corrupt.length) lines.push(`${r.corrupt.length} saved payslip${r.corrupt.length === 1 ? '' : 's'} couldn't be read and ${r.corrupt.length === 1 ? 'was' : 'were'} left untouched.`);

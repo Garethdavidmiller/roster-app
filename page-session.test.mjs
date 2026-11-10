@@ -302,16 +302,17 @@ describe('back/forward cache', () => {
 // The About panel's links joined the drawer's: Admin's "View staff roster" left staged edits behind
 // without one, because the guard looked for `.nav-panel` alone.
 describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', () => {
-    /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither).
-     *  @param {{ href: string, zone?: string, target?: string }} o */
-    function tapOn({ href, zone = '#iconLightbox', target = '' }) {
+    /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither). `click`
+     *  holds what a real click carries — `button` and the modifier keys — when a test needs them.
+     *  @param {{ href: string, zone?: string, target?: string, click?: Record<string, any> }} o */
+    function tapOn({ href, zone = '#iconLightbox', target = '', click = {} }) {
         /** @type {any} */ const link = {
             target,
             getAttribute: (/** @type {string} */ n) => (n === 'href' ? href : null),
             closest: (/** @type {string} */ sel) => (sel === 'a[href]' ? link : sel === zone ? {} : null),
             click: () => log.push(`follow:${href}`),
         };
-        const e = { target: { closest: (/** @type {string} */ sel) => link.closest(sel) }, prevented: false,
+        const e = { ...click, target: { closest: (/** @type {string} */ sel) => link.closest(sel) }, prevented: false,
             preventDefault() { this.prevented = true; }, stopPropagation() {} };
         fireDoc('click', e);
         return e;
@@ -349,6 +350,26 @@ describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', (
         }
         await answered();
         assert.deepEqual(log, [], 'nothing asked, nothing followed by the guard');
+    });
+
+    test('a click that opens the link in a new tab or window is not asked about — "Leave" could not honour it (routed from shared-ui)', async () => {
+        // Ctrl/Cmd-click on a drawer pill with staged edits asked "Leave this page anyway?", and Leave
+        // then re-clicked the link with no modifier — so THIS tab went, and the work with it (seen in
+        // Chromium, Nov 2026). A new tab, a new window or a download leaves the page where it is.
+        const fresh = await import('./page-session.js?new-tab');
+        fresh.askBeforeLeavingByDrawer(() => true);
+        for (const click of [{ button: 0, ctrlKey: true }, { button: 0, metaKey: true }, { button: 0, shiftKey: true },
+            { button: 0, altKey: true }, { button: 1 }]) {
+            assert.equal(tapOn({ href: './', zone: '.nav-panel', click }).prevented, false, JSON.stringify(click));
+        }
+        await answered();
+        assert.deepEqual(log, [], 'nothing asked, nothing followed by the guard');
+        // CONTROL: the plain click a tap, Enter or the guard's own re-click makes is still asked about,
+        // and so is a click built in code with no `button` at all.
+        assert.equal(tapOn({ href: './', zone: '.nav-panel', click: { button: 0 } }).prevented, true);
+        assert.equal(tapOn({ href: './', zone: '.nav-panel' }).prevented, true);
+        await answered();
+        assert.deepEqual(log, ['confirm', 'confirm', 'follow:./', 'follow:./']);
     });
 
     test('a link anywhere else on the page, or a page with nothing unsaved, is not asked about', async () => {
@@ -561,7 +582,8 @@ describe('unsaved-draft.js', () => {
         /** @param {string} by @param {number} [t] */
         const slotFor = (by, t = NOW) => ud.createDraftSlot({ page: 'admin', by, now: () => t });
         /** @type {any[]} */ let asked = [];
-        const ask = (/** @type {boolean} */ answer) => async (/** @type {any} */ o) => { asked.push(o); return answer; };
+        /** What the page's confirmDialog answers: true Restore, false Discard, null a dismissal. */
+        const ask = (/** @type {boolean|null} */ answer) => async (/** @type {any} */ o) => { asked.push(o); return answer; };
         beforeEach(() => { asked = []; });
 
         test('keep, then peek; a colleague\'s slot on the same phone sees none of it; forget deletes it', () => {
@@ -596,7 +618,21 @@ describe('unsaved-draft.js', () => {
             assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: (d) => applied.push(d) }), 'restored');
             assert.deepEqual(applied.map(d => d.data.rows[0].type), ['sick']);
             assert.equal(ls.has(KEY), false, 'cleared after a restore: the work is the page\'s again');
-            assert.deepEqual(asked[1], { title: 'Unsaved changes', message: 'Restore your unsaved changes from 13:20?', confirmLabel: 'Restore', cancelLabel: 'Discard' });
+            assert.deepEqual(asked[1], { title: 'Unsaved changes', message: 'Restore your unsaved changes from 13:20?', confirmLabel: 'Restore', cancelLabel: 'Discard',
+                dismissResult: null });
+        });
+
+        test('a question put away unanswered — a tap outside it, Escape, Back — keeps the draft, still unanswered (rule 1)', async () => {
+            ls.set(KEY, stored());
+            const slot = slotFor('A. Member');
+            /** @type {any[]} */ const applied = [];
+            assert.equal(await slot.offer({ ask: ask(null), apply: (d) => applied.push(d) }), 'unanswered');
+            assert.equal(asked[0].dismissResult, null, 'the dialog must be told a dismissal is not Discard');
+            assert.deepEqual(applied, [], 'nothing is put back');
+            assert.ok(ls.has(KEY), 'a tap on the backdrop deleted the kept work');
+            slot.forget();   // a clean hide in the same page life
+            assert.ok(ls.has(KEY), 'still unanswered, so a clean hide may not delete it (rule 3)');
+            assert.ok(slotFor('A. Member').peek(), 'and the next load asks again');
         });
 
         test('a Restore that could not be put back keeps the draft for the next load', async () => {
@@ -617,6 +653,27 @@ describe('unsaved-draft.js', () => {
             ls.set(KEY, stored({ savedAt: NOW - ud.DRAFT_MAX_AGE_MS - HOUR }));
             assert.equal(slotFor('A. Member').peek(), null);
             assert.equal(ls.has(KEY), false);
+        });
+
+        // A DAY, THEN GONE — FOR EVERY DRAFT ON THE DEVICE (whole-app check, Nov 2026). A draft was read,
+        // and so deleted when stale, only through the slot that owns its key: a colleague's staged week
+        // left on the station PC by somebody who never opened that page there again stayed for good.
+        test('creating any slot sweeps every draft on the device that nobody can be offered — and leaves a live one (rule 4)', () => {
+            const colleague = 'myb_draft_admin_B.%20Colleague', unreadable = 'myb_draft_admin_D.%20Fourth';
+            const live = 'myb_draft_links_C.%20Third', ahead = 'myb_draft_links_E.%20Fifth';
+            ls.set(colleague, ud.encodeDraft({ page: 'admin', by: 'B. Colleague', scope: { member: 'B. Colleague', date: '2026-12-07' },
+                data: { rows: [{ date: '2026-12-08', type: 'sick' }] }, savedAt: NOW - ud.DRAFT_MAX_AGE_MS - HOUR }));
+            ls.set(unreadable, '{not json');
+            ls.set(live, ud.encodeDraft({ page: 'links', by: 'C. Third', scope: {}, data: { patterns: { 1: {} } }, savedAt: NOW - HOUR }));
+            ls.set(ahead, ud.encodeDraft({ page: 'links', by: 'E. Fifth', scope: {}, data: { patterns: { 1: {} } }, savedAt: NOW + 2 * HOUR }));
+            ls.set('myb_pc_a_member_settings', 'kept');
+            slotFor('A. Member');
+            assert.equal(ls.has(colleague), false, 'a colleague\'s day-old staged week stayed on the shared PC');
+            assert.equal(ls.has(unreadable), false, 'unreadable: no page can ever offer it');
+            assert.equal(ls.has(ahead), false, 'dated ahead of the clock: its age cannot be judged, so it is never offered');
+            assert.ok(ls.has(live), 'inside its day: still its own member\'s to be offered (rule 2)');
+            assert.equal(ls.get('myb_pc_a_member_settings'), 'kept', 'only drafts are swept');
+            ls.delete(live); ls.delete('myb_pc_a_member_settings');
         });
 
         test('nobody signed in keeps nothing', () => {

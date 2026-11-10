@@ -104,4 +104,25 @@ describe('the reporter stays quiet exactly where the filter says, and nowhere el
         assert.equal(writes.length, 1);
         assert.equal(writes[0].memberName, 'unknown');
     });
+
+    test('a blob that PARSES but names no string reports as "unknown" — the rule refuses anything else', () => {
+        // firestore.rules → clientErrors takes `memberName is string && size() <= 100` and refuses the
+        // WHOLE record otherwise, so `{"name":5}` silently dropped every report the session made.
+        for (const [i, blob] of [JSON.stringify({ name: 5 }), JSON.stringify({ name: { first: 'G' } }), JSON.stringify({ name: '' }), 'null'].entries()) {
+            authBlob = blob;
+            throwError(new Error(`a session that names nobody, case ${i}`));
+        }
+        assert.deepEqual(writes.map(w => w.memberName), ['unknown', 'unknown', 'unknown', 'unknown']);
+    });
+
+    test('every capped field fits the rule\'s size, the name and the page included', () => {
+        authBlob = JSON.stringify({ name: 'N'.repeat(150) });
+        const prev = globalThis.location;
+        globalThis.location = /** @type {any} */ ({ hostname: 'myb-roster.web.app', pathname: `/roster-app/${'p'.repeat(150)}.html` });
+        try { throwError(new Error('the record must not be refused for its length')); }
+        finally { globalThis.location = prev; }
+        assert.equal(writes.length, 1);
+        assert.equal(writes[0].memberName.length, 100, 'memberName.size() <= 100');
+        assert.equal(writes[0].page.length, 100, 'page.size() <= 100');
+    });
 });

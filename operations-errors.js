@@ -13,12 +13,24 @@ import { _cardLoadError, _relativeTime } from './operations-reports.js';
 
 import { setStatus } from './status-text.js';
 import { isDiagnosticEntry } from './client-errors.js';
+import { attentionBadge } from './operations-attention.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
+import { withSlowSaveNotice } from './slow-save.js';
+
+/** A line under a control that says what became of its write, as the Account status rows do.
+ *  @param {string} text @returns {HTMLSpanElement} */
+function writeLine(text) {
+    const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: text });
+    msg.setAttribute('role', 'alert');
+    return msg;
+}
 /**
  * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void, onWithdraw?: () => void}} [opts]
  *   `onWithdraw` (v25.06) — the count has become UNKNOWN (a refresh failed): the strip withdraws its
  *   item, exactly as the header chip clears. It kept "3 unresolved errors" above a failed panel.
  *   `onAttention` feeds the Needs-attention strip — called at the SAME moments the header count
- *   chip is set, so the strip and the chip cannot disagree. Deliberately NOT called when the card
+ *   chip is set, with the same pair the chip is spelled from (`attentionBadge`), so the strip and the
+ *   chip cannot disagree. Deliberately NOT called when the card
  *   load fails: the strip only claims what is known, and a reassuring zero from a failed read
  *   would be a lie (operations-attention.js header).
  *
@@ -42,7 +54,12 @@ async function initErrorLog(opts = {}) {
 
     try {
         await sessionReady;
-        const { errors = [], truncated = false } = (await withClaimRetry(getClientErrors)) || {};
+        const got = (await withClaimRetry(getClientErrors)) || {};
+        const { errors = [], truncated = false } = got;
+        // More than 200 RESOLVED records exist, and the reader took an unordered 200 of them, so the
+        // resolved rows below are the newest of that 200 — not necessarily the newest (pwa-5). Read
+        // loosely: a reader without the flag has not cut the list.
+        const resolvedTruncated = /** @type {any} */ (got).resolvedTruncated === true;
 
         content.innerHTML = '';
 
@@ -54,13 +71,14 @@ async function initErrorLog(opts = {}) {
         errStatus.setAttribute('aria-live', 'polite');
         content.appendChild(errStatus);
 
-        // No-silent-caps: more than 100 unresolved errors exist; only the first 100 are
-        // shown. The card renders once on load and the Resolve button doesn't re-fetch, so
-        // tell the admin to reload after clearing some — don't imply they appear on their own.
+        // No-silent-caps: more than 100 unresolved ENTRIES exist and 100 are shown. "Resolve all
+        // shown" re-reads and pulls the next batch; a per-row Resolve does not, so the note says how
+        // the rest arrive. Entries, not errors: slow-save diagnostics share the cap and are not errors.
         if (truncated) {
             const note = document.createElement('p');
             note.className = 'error-truncation-note';
-            setStatus(note, '⚠ More than 100 unresolved errors — showing the first 100. Resolve these to load the rest.');
+            const diag = errors.filter(e => !e.resolved && isDiagnosticEntry(e)).length;
+            setStatus(note, `⚠ More than 100 unresolved entries — showing 100${diag ? `, ${diag} of them slow-save diagnostics` : ''}. Resolve these to load the rest.`);
             content.appendChild(note);
         }
 
@@ -69,15 +87,14 @@ async function initErrorLog(opts = {}) {
         // shown, then refreshes the card in place to pull the next batch (B3).
         let unresolvedShown = errors.filter(e => !e.resolved);
         // Header count chip (v18.17): the unresolved backlog at a glance while the card is collapsed.
-        // '100+' when the query cap hid the true total; empty (→ :empty hides it) at zero. Re-set on
-        // every render (resolve-all does a full refresh) and on each per-row resolve (via
+        // A floor ("2+") when the query cap hid entries; empty (→ :empty hides it) at a known zero.
+        // Re-set on every render (resolve-all does a full refresh) and on each per-row resolve (via
         // _syncResolveAllBtn below), so it never goes stale.
         const _countChip = document.getElementById('errorLogCountChip');
         const _setCountChip = () => {
             // Diagnostics are listed and resolvable, but never COUNTED as errors (v24.57).
             const n = unresolvedShown.filter(e => !isDiagnosticEntry(e)).length;
-            if (_countChip) _countChip.textContent = n
-                ? (truncated ? '100+' : String(n)) : '';
+            if (_countChip) _countChip.textContent = attentionBadge(n, truncated);
             onAttention?.(n, { truncated });
         };
         _setCountChip();
@@ -101,9 +118,18 @@ async function initErrorLog(opts = {}) {
             allBtn.addEventListener('click', async () => {
                 allBtn.disabled = true;
                 allBtn.textContent = 'Resolving…';
-                const count   = unresolvedShown.length;
-                const results = await Promise.allSettled(unresolvedShown.map(e => resolveClientError(e.id)));
-                const failedItems = unresolvedShown.filter((_, i) => results[i].status === 'rejected');
+                bar.querySelector('.email-set-error')?.remove();
+                // The batch is captured ONCE (Nov 2026 review). A row's own Resolve finishing meanwhile
+                // replaces `unresolvedShown` with a shorter array, and matching the results by index
+                // against THAT blamed a neighbour — "try again" then re-stamped a row that had resolved.
+                const batch   = unresolvedShown;
+                const count   = batch.length;
+                const results = await Promise.allSettled(batch.map(e => withSlowSaveNotice(resolveClientError(e.id))));
+                // …and a failure the row's own Resolve has since made good is no failure.
+                const failedItems = batch.filter((e, i) => results[i].status === 'rejected' && unresolvedShown.some(u => u.id === e.id));
+                // An outcome nobody knows (signed out mid-write, or refused by the page's write gate after
+                // one) is said so, and the button stays off: another press would only be refused.
+                const unknown = results.map(r => (r.status === 'rejected' ? unconfirmedWriteLine(r.reason, 'this batch of resolves', 'the Error Log') : null)).find(Boolean);
                 if (failedItems.length) {
                     // Retry only the ones that FAILED — re-resolving the already-succeeded rows would
                     // reset their 90-day retention clock and inflate the count.
@@ -113,9 +139,10 @@ async function initErrorLog(opts = {}) {
                     // _syncResolveAllBtn because it sets its own "✗ N didn't resolve" button text,
                     // so the header chip stranded on the pre-resolve count).
                     _setCountChip();
-                    allBtn.disabled = false;
-                    allBtn.textContent = `✗ ${failedItems.length} didn't resolve — try again`;
-                    errStatus.textContent = `${succeeded} resolved, ${failedItems.length} failed`;
+                    allBtn.disabled = !!unknown;
+                    allBtn.textContent = unknown ? `${failedItems.length} not confirmed` : `✗ ${failedItems.length} didn't resolve — try again`;
+                    if (unknown) bar.append(writeLine(unknown));
+                    errStatus.textContent = `${succeeded} resolved, ${failedItems.length} ${unknown ? 'not confirmed' : 'failed'}`;
                     return;   // leave the list as-is so the admin can retry just the failures
                 }
                 content.setAttribute('aria-busy', 'true');
@@ -139,7 +166,16 @@ async function initErrorLog(opts = {}) {
             return;
         }
 
+        // Said once, where the resolved rows begin (or at the end, when none of them is shown).
+        let resolvedCapSaid = !resolvedTruncated;
+        const sayResolvedCap = () => {
+            const note = Object.assign(document.createElement('p'), { className: 'error-truncation-note error-resolved-cap-note',
+                textContent: 'More than 200 resolved errors — the resolved entries shown may not be the most recent.' });
+            content.appendChild(note);
+            resolvedCapSaid = true;
+        };
         errors.forEach(err => {
+            if (err.resolved && !resolvedCapSaid) sayResolvedCap();
             const row = document.createElement('div');
             row.className = 'error-row' + (err.resolved ? ' error-row--resolved' : '');
 
@@ -206,7 +242,9 @@ async function initErrorLog(opts = {}) {
                 resolveBtn.addEventListener('click', async () => {
                     resolveBtn.disabled = true;
                     try {
-                        await resolveClientError(err.id);
+                        // withSlowSaveNotice (Nov 2026 review): a write the server has not answered
+                        // says so, as Admin's and Settings' do, rather than sitting on a disabled button.
+                        await withSlowSaveNotice(resolveClientError(err.id));
                         row.classList.add('error-row--resolved');
                         resolveBtn.remove();
                         // Prune this doc from the resolve-all snapshot: without this, a later
@@ -215,7 +253,12 @@ async function initErrorLog(opts = {}) {
                         unresolvedShown = unresolvedShown.filter(u => u.id !== err.id);
                         _syncResolveAllBtn();
                         errStatus.textContent = `Error from ${err.memberName ?? 'unknown'} marked resolved`;
-                    } catch {
+                    } catch (e) {
+                        // An UNKNOWN outcome is not a failure (AUTH_AND_SESSIONS 22): the write may still
+                        // land, and the page's write gate refuses the next one — so it says which, and
+                        // Resolve stays off rather than inviting a press that can only be refused.
+                        const unknown = unconfirmedWriteLine(e, 'this resolve', 'the Error Log');
+                        if (unknown) { actions.append(writeLine(unknown)); return; }
                         resolveBtn.disabled = false;
                         resolveBtn.textContent = '✗ Failed — try again';
                         setTimeout(() => { resolveBtn.textContent = '✓ Resolve'; }, 3000);
@@ -227,6 +270,7 @@ async function initErrorLog(opts = {}) {
             row.appendChild(actions);
             content.appendChild(row);
         });
+        if (!resolvedCapSaid) sayResolvedCap();
 
     } catch (e) {
         console.error('[ErrorLog]', e);

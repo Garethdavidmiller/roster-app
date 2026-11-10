@@ -222,8 +222,9 @@ export function isCompletePin(pin) {
  * sends somebody hunting for a PIN that was right all along.
  *
  * Deliberately says nothing about rate-limit internals: how many attempts remain, when the window
- * opened, or what the threshold is. That is not coyness for its own sake — those are exactly the
- * numbers an automated traversal would use to pace itself under the limit.
+ * opened, or what the threshold is. That is a choice about the MESSAGE, not a secret — the endpoint
+ * sends `Retry-After` with every 429 (functions/index.js), so an automated caller can pace itself
+ * either way — and a member standing at the panel needs only "try again shortly".
  *
  * @param {{ status?: number|null, code?: string|null, offline?: boolean }} info
  * @returns {{ kind: 'rejected'|'throttled'|'offline'|'network'|'auth'|'server', message: string, retryable: boolean }}

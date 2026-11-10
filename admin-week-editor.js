@@ -12,8 +12,8 @@
  *
  * `hasStagedEdits` is the reason a background refresh does not repaint over an admin mid-edit, and
  * it counts BOTH directions: a row given a type that is not an unchanged prefill (a staged change)
- * and a prefilled row un-ticked (a staged REMOVAL). Counting only the first is a defect that has
- * shipped here before — the refresh discarded staged removals while `userMadeChanges` stayed true,
+ * and a prefilled row with its type taken away (a staged REMOVAL). Counting only the first is a
+ * defect that has shipped here before — the refresh discarded staged removals while `userMadeChanges` stayed true,
  * which blocked the week swipe and left a phantom unsaved-changes warning behind.
  *
  * ── AN UNREAD MEMBER IS NOT A MEMBER WITH NO CHANGES ────────────────────────────────────────────
@@ -30,56 +30,45 @@
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
          DAY_NAMES, MONTH_ABB, escapeHtml, parseISODate, isWorkedShift } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS } from './override-utils.js';
+import { isWorkingDate } from './al-entitlement.js';
+import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
-import { bulkApplyWaitingFor } from './admin-bulk-apply.js';
+import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
+import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
 // this cluster was the seam and the bulk bar was not.
-import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, _syncAlSwap, isStagedRow }
-    from './admin-week-row-state.js';
+import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, isStagedRow, prefillRow,
+         rosteredWords } from './admin-week-row-state.js';
+export { rosteredWords };   // its home is the row's own words now; exported here as it always was
 // The grid's time boxes — typed formatting and the HH:MM check — moved out at v24.64, for the same
 // reason as the line above, and now share clock-input.js's rule rather than restating it.
 import { initTimeInputs } from './admin-time-inputs.js';
 import { setStatus } from './status-text.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
-let _currentIsAdmin = false;
-/** @type {(msg: string) => void} */   let _showSuccess  = () => {};
+let _canPickMember = false;   // admin or manager: the member field is theirs to change
+/** @type {(msg: string, lines?: string[], o?: { toast?: boolean }) => void} */   let _showSuccess  = () => {};
 /** @type {() => void} */              let _markChanged  = () => {};
 /** @type {(m: string) => Map<string, any>} */ let buildMemberDateMap = () => new Map();
 
 /** Delegated listeners are attached once per page life — see the note inside initWeekEditor. */
 let _wired = false;
 
-/**
- * A base shift as a manager reads it in the week grid's warning: an Other-family day by its full word
- * ("Training", with its times if it has any), a spare day as "Spare", anything else — a time — as its
- * value. The warning printed the raw code, so a manager ticking RDW on one of a trainee's days read
- * "Originally rostered TRG this day" (6 Nov 2026 review), and on a spare week "SPARE" (7 Nov).
- * `OTHER_FLAVOURS` is the one table of the Other words; "Spare" is the grid's own badge word.
- * @param {string} baseShift
- * @returns {string}
- */
-export function rosteredWords(baseShift) {
-    const other = parseOtherValue(baseShift);
-    if (!other) return baseShift === 'SPARE' ? 'Spare' : baseShift;
-    const word = OTHER_FLAVOURS[other.flavour]?.full ?? other.flavour;
-    return other.time ? `${word} ${other.time}` : word;
-}
 
 /**
  * @param {object} deps
- * @param {boolean} deps.currentIsAdmin
- * @param {(msg: string) => void} deps.showSuccess
+ * @param {boolean} deps.canPickMember  admin or manager
+ * @param {(msg: string, lines?: string[], o?: { toast?: boolean }) => void} deps.showSuccess
  * @param {() => void} deps.markChanged
  * @param {(m: string) => Map<string, any>} deps.memberDateMap
  * @returns {void}
  */
 export function initWeekEditor(deps) {
-    _currentIsAdmin   = deps.currentIsAdmin;
+    _canPickMember    = deps.canPickMember;
     _showSuccess      = deps.showSuccess;
     _markChanged      = deps.markChanged;
     buildMemberDateMap = deps.memberDateMap;
@@ -102,8 +91,8 @@ export function initWeekEditor(deps) {
 
 /** True when the week grid currently holds STAGED (unsaved) work — mirrors updateSaveBtn's
  *  save/delete counts so it catches BOTH a staged addition/change (a row with a chosen type that
- *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row unticked → existingId, no
- *  type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
+ *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row whose type was taken away →
+ *  existingId, no type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
  *  loadOverrides AND by the Saved-Changes delete paths (v16.82: deleting an unrelated saved change
  *  must not silently discard staged pills; the old active-pill-only check also missed staged
  *  removals). Exported so admin-app's period-delete path can apply the same guard. The row test is
@@ -176,6 +165,8 @@ export function updateWeekNavLabel(dateStr) {
         todaySun.setDate(todaySun.getDate() - todaySun.getDay());
         label.classList.toggle('is-current-week', sunday.toDateString() === todaySun.toDateString());
     }
+    // NO ARROW INTO A WEEK OUTSIDE THE CONFIGURED YEARS (whole-app check, Nov 2026) — `weekStepAllowed`.
+    for (const [id, n] of /** @type {Array<[string, number]>} */ ([['prevWeekBtn', -7], ['nextWeekBtn', 7]])) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = !weekStepAllowed(dateStr, n); }
 }
 
 /**
@@ -198,9 +189,7 @@ export function buildWeekGridInto(container, dateStr) {
     header.innerHTML = `
         <div class="hdr-check"></div>
         <div class="hdr-day">Day</div>
-        <div class="hdr-base">Base roster</div>
-        <div class="hdr-pills">Record as</div>
-        <div class="hdr-time">Shift time</div>`;
+        <div class="hdr-base">Base roster</div>`;
     container.appendChild(header);
 
     // Compute once for the whole 7-row loop instead of allocating a Date per row.
@@ -223,6 +212,10 @@ export function buildWeekGridInto(container, dateStr) {
         const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}">${b.icon}</span>`).join('');
 
         const existing = memberDateMap.get(dateISO);
+        // TWO DAYS THAT TAKE NO CHANGE, refused at the pills as a Sunday is, with the reason in the row
+        // (admin-shift-rules.js → checkDayRules, the backstop at Save): before the member's start date,
+        // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026).
+        const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
         // CHRISTMAS LEAVE (v25.37) — said in the row, as the Sunday reason is, because the Base roster
         // column shows the rest day `getBaseShift` makes both Christmas days for everybody. A member due
         // at work is on leave that is never counted, unless work is recorded on the day; a Boxing Day
@@ -240,6 +233,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         const row = document.createElement('div');
         const isToday = dateISO === todayISO;
+        // The overwrite badge is drawn empty: `prefillRow` below writes its words before the row is painted.
         // Unique id linking each row's time inputs to their inline error message
         // (aria-describedby / aria-errormessage need a per-row target id).
         const timeErrId = `timeErr-${dateISO}`;
@@ -255,13 +249,15 @@ export function buildWeekGridInto(container, dateStr) {
             </div>
             <label class="col-day" for="day-cb-${dateISO}">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ` <span class="overwrite-badge"><span aria-hidden="true">⚠</span> ${escapeHtml(existing.value === 'SICK' ? 'Absent' : existing.value === 'SPARE' ? 'Spare' : (existing.value || existing.type))}</span>` : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ' <span class="overwrite-badge"></span>' : ''}</span>
             </label>
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
                 ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded</span>` : ''}
                 ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
+                ${beforeStart ? `<span class="start-note">Before the start date (${formatDisplay(formatISO(/** @type {Date} */ (member.startDate)))}) — the Calendar doesn’t show changes here, so none can be recorded</span>`
+                    : boxing ? '<span class="christmas-note">Boxing Day can’t be an Other day — training, meetings and the rest</span>' : ''}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
@@ -326,6 +322,12 @@ export function buildWeekGridInto(container, dateStr) {
                 shiftPill.setAttribute('aria-label', 'Shift — unavailable on Sundays; record Sunday work as Rest Day Working (RDW)');
             }
         }
+        if (beforeStart || boxing) row.querySelectorAll('.type-pill-btn').forEach(p => {
+            const t = /** @type {HTMLElement} */ (p).dataset.type ?? '';
+            if (!beforeStart && t !== 'other') return;
+            /** @type {HTMLButtonElement} */ (p).disabled = true;
+            p.setAttribute('aria-label', `${TYPES[t]?.label ?? t} — unavailable ${beforeStart ? 'before the start date' : 'on Boxing Day'}`);
+        });
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
         const pills    = row.querySelectorAll('.type-pill-btn');
@@ -333,49 +335,7 @@ export function buildWeekGridInto(container, dateStr) {
         const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
 
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
-        if (existing) {
-            // Spare moved under the Other pill (v15.57): an existing spare_shift override prefills
-            // via Other → Spare (there is no top-level Spare pill anymore).
-            const isSpare       = existing.type === 'spare_shift';
-            const prefillType   = isSpare ? 'other' : existing.type;
-            const typeMeta      = TYPES[prefillType];
-            _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
-            row.classList.add('prefilled-existing');
-            _syncAlSwap(row);         // a saved, untouched row is not being booked — not asked
-            _syncOverwriteBadge(row); // loaded + untouched → "✓ Saved" (not "Updating")
-            if (isSpare) {
-                // Activate the Spare chip inside the now-open Other submenu; _syncOtherSpareMode
-                // hides RDW/times and applies the fixed-type "No time needed" state.
-                row.querySelectorAll('.other-flavour-btn').forEach(b => {
-                    const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === 'SPARE';
-                    b.classList.toggle('active', on);
-                    b.setAttribute('aria-pressed', String(on));
-                });
-                _syncOtherSpareMode(row);
-            }
-            const _exOther = existing.type === 'other' ? parseOtherValue(existing.value) : null;
-            if (_exOther) {
-                // Restore flavour + RDW tick + optional times from the stored grammar —
-                // a naive value.split('-') would shred 'TRG RDW 08:00-16:00'.
-                row.querySelectorAll('.other-flavour-btn').forEach(b => {
-                    const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === _exOther.flavour;
-                    b.classList.toggle('active', on);
-                    b.setAttribute('aria-pressed', String(on));
-                });
-                const _cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
-                if (_cb && !_cb.disabled) _cb.checked = _exOther.rdw;
-                _syncOtherRdwWarn(row);
-                if (_exOther.time) {
-                    const [s, e] = _exOther.time.split('-');
-                    /** @type {HTMLInputElement} */ (startEl).value = s;
-                    /** @type {HTMLInputElement} */ (endEl).value   = e;
-                }
-            } else if (typeMeta && !typeMeta.fixed && existing.value && existing.value.includes('-')) {
-                const [s, e] = existing.value.split('-');
-                /** @type {HTMLInputElement} */ (startEl).value = s;
-                /** @type {HTMLInputElement} */ (endEl).value   = e;
-            }
-        }
+        if (existing) prefillRow(row, existing);
 
         pills.forEach(pillEl => {
             const pill = /** @type {HTMLButtonElement} */ (pillEl);
@@ -421,9 +381,11 @@ export function buildWeekGridInto(container, dateStr) {
                     // Ticking stages nothing (the collector keys off dataset.type), so it is not a
                     // change — the v16.23 rule for the bulk tick buttons, missed here (review A17).
                 } else {
-                    const hadStaged = !!(row.dataset.type || row.dataset.existingId);
-                    row.classList.remove('prefilled-existing');
-                    _deactivateRow(row, checkbox, pills, startEl, endEl);
+                    // UNTICKING NEVER DELETES A SAVED CHANGE (owner, 10 Nov 2026): a day with a saved
+                    // record goes back to it, unticked; any other day is cleared. Removing a saved change
+                    // is its type selected again, or ✕ in Saved Changes.
+                    const hadStaged = isStagedRow(row);
+                    if (existing) prefillRow(row, existing); else _deactivateRow(row, checkbox, pills, startEl, endEl);
                     if (hadStaged) _markChanged();
                 }
                 updateSaveBtn();   // …which recounts the bulk bar too
@@ -487,24 +449,24 @@ export function buildWeekGridInto(container, dateStr) {
 }
 
 /**
- * Re-renders the full week grid for the currently selected member and date.
- * Resets unsaved-changes state, shows the bulk bar, and refreshes the Save button.
+ * Re-renders the full week grid for the currently selected member and date — or the state that stands
+ * in for it (no member, loading, failed) — and refreshes the bulk bar and the Save button to match, on
+ * every branch: a bar left counting the previous week's rows has a Save that does nothing.
  */
 export function renderWeekGrid() {
     const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     const weekGrid    = document.getElementById('weekGrid');
     const bulkBar     = document.getElementById('bulkBar');
-    const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     const memberName  = fieldMember?.value;
     const dateStr     = fieldDate?.value;
 
     updateWeekNavLabel(dateStr ?? '');
 
     if (!memberName || !dateStr) {
-        if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_currentIsAdmin ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
+        if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_canPickMember ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
         if (bulkBar)  bulkBar.style.display = 'none';
-        if (saveBtn)  saveBtn.disabled = true;
+        updateSaveBtn();
         return;
     }
 
@@ -525,7 +487,7 @@ export function renderWeekGrid() {
                     : 'Couldn\'t load this member\'s saved changes.')
                     + '<br><span class="reload-link" id="retryWeekLink" role="button" tabindex="0">↻ Retry</span></div>';
                 const r = document.getElementById('retryWeekLink');
-                const again = () => { loadOverrides({ member: memberName }); };
+                const again = () => { loadOverrides({ everyone: false, member: memberName }); };   // this member: a capped re-read never covers them
                 r?.addEventListener('click', again);
                 r?.addEventListener('keydown', /** @param {KeyboardEvent} e */ e => {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); again(); }
@@ -535,7 +497,7 @@ export function renderWeekGrid() {
             }
         }
         if (bulkBar)  bulkBar.style.display = 'none';
-        if (saveBtn)  saveBtn.disabled = true;
+        updateSaveBtn();
         return;
     }
 
@@ -543,7 +505,7 @@ export function renderWeekGrid() {
 
     if (!teamMembers.find(m => m.name === memberName)) {
         if (bulkBar) bulkBar.style.display = 'none';
-        if (saveBtn) saveBtn.disabled = true;
+        updateSaveBtn();
         return;
     }
 
@@ -560,8 +522,21 @@ export function renderWeekGrid() {
 // and the sticky bar's Discard stayed live — a "discarded" save then landed anyway. Set around the
 // commit by executeSave; while set, Save and both sticky-bar buttons stay disabled.
 let _saveInFlight = false;
-/** @param {boolean} on */
-export function setSaveInFlight(on) { _saveInFlight = !!on; updateSaveBtn(); }
+/** Is the week itself held still for its own save? @type {boolean} */
+let _weekHeld = false;
+/**
+ * @param {boolean} on
+ * @param {{ grid?: boolean }} [opts] `grid`: the write is this WEEK's own save, which resets and redraws
+ *   every row when it lands — so a change made in the wait (seconds, on an iPhone) was taken and then
+ *   thrown away without a word. The grid and the bulk bar are `inert` until it settles. A range booking
+ *   leaves them live: it never redraws over staged rows, and asks before it moves the week.
+ */
+export function setSaveInFlight(on, { grid = false } = {}) {
+    _saveInFlight = !!on;
+    _weekHeld = _saveInFlight && grid;
+    for (const id of ['weekGrid', 'bulkBar']) { const el = document.getElementById(id); if (el) el.inert = _weekHeld; }
+    updateSaveBtn();
+}
 /** Is any override write on this page still sending? One lock for the grid AND the range cards (v24.38). @returns {boolean} */
 export function isSaveInFlight() { return _saveInFlight; }
 
@@ -630,7 +605,9 @@ export function updateSaveBtn() {
         // Blank the hint only when the preview above is actually carrying the summary; if the
         // preview isn't showing (no member selected, or stale HTML without #gridPreview) fall
         // back to the guidance so there's never an enabled Save with no on-screen explanation.
-        hint.textContent = previewShown ? '' : 'Select a type on at least one day, then save your changes';
+        // While the week is held for its own save, a tap on it does nothing, and this says why.
+        hint.textContent = _weekHeld ? 'You can change this week again once the save has finished.'
+            : previewShown ? '' : 'Select a type on at least one day, then save your changes';
     }
 }
 
@@ -643,12 +620,26 @@ function _updateBulkSelCount() {
     _bulkSay('');   // whatever a press refused, the bar has changed since
     const ticked = [...(document.getElementById('weekGrid')?.querySelectorAll('.day-cb:checked') ?? [])]
         .map(cb => /** @type {HTMLElement|null} */ (cb.closest('.day-row'))?.dataset.date ?? ''), n = ticked.length;
-    const why = bulkApplyWaitingFor(ticked, _bulkActiveType);
+    const why = bulkApplyWaitingFor(ticked, _bulkActiveType, _leftAloneBy(_bulkActiveType));
     const count = document.getElementById('bulkSelCount'), hint = document.getElementById('bulkApplyHint');
     const apply = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkApplyBtn'));
     if (count) count.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
     if (apply) apply.disabled = !!why;
     if (hint && hint.textContent !== why) hint.textContent = why;
+}
+
+/**
+ * Why Apply leaves a ticked day alone for `type`, beyond the Sunday rule (admin-bulk-apply.js names
+ * each): before the member's start date, or — for Absent — a rest day by `isWorkingDate`, the rule the
+ * Absence card writes by, so a swapped-in shift saved on a rest day counts as work here too.
+ * @param {string} type @returns {(date: string) => import('./admin-bulk-apply.js').LeftAlone}
+ */
+function _leftAloneBy(type) {
+    const name   = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value ?? '';
+    const member = teamMembers.find(m => m.name === name);
+    const map    = member && type === 'sick' ? buildMemberDateMap(name) : null;
+    return d => !member ? '' : isBeforeMemberStart(member, parseISODate(d)) ? 'start'
+        : map && !isWorkingDate(member, d, map) ? 'rest' : '';
 }
 
 // ── BULK BAR ──────────────────────────────────────────────────────────────────
@@ -766,14 +757,11 @@ function _initBulkBar() {
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const dateISO  = row.dataset.date ?? '';
-            const date     = parseISODate(dateISO);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
-            const base = member ? getBaseShift(member, date) : 'RD';
-            // Also respect recorded RD corrections so corrected days aren't re-selected
-            const ov    = selMemberDateMap?.get(dateISO) ?? null;
-            const isRD  = isRestShift(base) || (ov && isRestShift(ov.value));
-            if (!isRD) {
+            // The cards' rule (`isWorkingDate`): a saved rest-day correction makes a day rest, and a
+            // shift swapped onto a rest day makes it worked — the AL card charges that day, so this ticks it.
+            if (member && selMemberDateMap && isWorkingDate(member, dateISO, selMemberDateMap)) {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
@@ -798,14 +786,19 @@ function _initBulkBar() {
 
     bulkApplyBtn?.addEventListener('click', () => {
         if (!_bulkActiveType) { _bulkSay('Choose a type in step 2 first, then select Apply.'); return; }
-        const typeMeta = TYPES[_bulkActiveType];
-        let ticked = 0, applied = 0, sundaySkipped = 0;
+        const typeMeta = TYPES[_bulkActiveType], leftAlone = _leftAloneBy(_bulkActiveType);
+        let applied = 0;
+        /** @type {string[]} */ const ticked = [];
+        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'start' }>} */ const skipped = [];
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
-            ticked++;
-            if (isForbiddenOnSunday(_bulkActiveType) && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Layer 2 of the Sunday rule — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js).
+            const date = row.dataset.date ?? '';
+            ticked.push(date);
+            if (isForbiddenOnSunday(_bulkActiveType) && isSunday(date)) { skipped.push({ date, why: 'sunday' }); return; } // Layer 2 of the Sunday rule — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js).
+            const why = leftAlone(date);
+            if (why) { skipped.push({ date, why }); return; }   // Absent on a rest day; any day before the start date
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
@@ -820,11 +813,12 @@ function _initBulkBar() {
             }
         });
         // Backstops: Apply is greyed out for both of these before a press (admin-bulk-apply.js).
-        if (ticked === 0)  { _bulkSay('Tick some days first — use the buttons above, or tick days in the week below.'); return; }
-        if (applied === 0) { _bulkSay('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
+        if (!ticked.length) { _bulkSay('Tick some days first — use the buttons above, or tick days in the week below.'); return; }
+        if (applied === 0)  { _bulkSay(bulkApplyWaitingFor(ticked, _bulkActiveType, leftAlone) || 'Nothing applied.'); return; }
         _markChanged();
         updateSaveBtn();   // …and with it the bulk bar's count and Apply
-        // Tell the user when ticked Sundays were dropped, so "All 7 → 6 applied" isn't a surprise.
-        if (sundaySkipped > 0) _showSuccess(`Set ${applied} day${applied !== 1 ? 's' : ''} — Sunday skipped (not a contracted day).`);
+        // Name the ticked days left alone, so "All 7 → 4 applied" isn't a surprise.
+        const said = bulkSkippedLine(applied, skipped, formatDisplay);
+        if (said) _showSuccess(said, undefined, { toast: false });   // staged, not saved: never the save's toast
     });
 }

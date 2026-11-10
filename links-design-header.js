@@ -70,8 +70,10 @@
  *    and `applyShift` fires once per cell during a paint drag, so an unconditional rebuild would
  *    tear down and re-create every row dozens of times a second — and would destroy the row under
  *    a reader's finger while the sheet is open. The signature compares ids, names, saved-dates and
- *    the active id — the same shape the brush bar uses for the same reason. The click handler is
- *    DELEGATED to the list for the same reason: a rebuild can then never orphan a listener.
+ *    the active id — the same shape the brush bar uses for the same reason — and, for an open
+ *    PROPOSAL only, whether it has been edited: its row is the one whose words follow `dirty`, and
+ *    that flips once per edit session, not once per cell. The click handler is DELEGATED to the
+ *    list for the same reason: a rebuild can then never orphan a listener.
  *
  * What it deliberately does NOT own: the decision to save, the conflict protocol, naming validation
  * (`links-design-naming.js`), compare mode, the bin. Every handle is injected; the module reaches for
@@ -80,7 +82,7 @@
  */
 
 import { avatarInitials, avatarHue } from './roster-data.js';
-import { formatDayMonth, formatDayMonthYear } from './date-format.js';
+import { formatDayMonth, formatDayMonthYear, formatClock } from './date-format.js';
 import { nameConflict } from './links-design-naming.js';
 
 /**
@@ -192,10 +194,15 @@ function sameDay(when, now) {
  * The status pill's words and tone. `long` is the desktop sentence, `short` the phone one — the
  * phone row has room for a dot and two words beside the badge and two buttons.
  *
- * @param {{ saved: boolean, dirty: boolean, saving?: boolean, updatedAt?: any, now?: Date, proposal?: boolean }} s
- * @returns {{ tone: 'saved'|'dirty'|'new'|'saving'|'proposal', long: string, short: string }}
+ * `queued` (links-app-4): the open design's last write is only in THIS BROWSER's queue — made offline,
+ * or not answered by the server — so nobody else has it yet. It is neither a success nor a failure,
+ * and its tone has no colour of its own: the pill's neutral base. Saying "Saved", or "Saved today at
+ * 14:20" off this device's clock, would tell the designer a colleague can already see it.
+ *
+ * @param {{ saved: boolean, dirty: boolean, saving?: boolean, updatedAt?: any, now?: Date, proposal?: boolean, queued?: boolean }} s
+ * @returns {{ tone: 'saved'|'dirty'|'new'|'saving'|'proposal'|'queued', long: string, short: string }}
  */
-export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now = new Date(), proposal = false }) {
+export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now = new Date(), proposal = false, queued = false }) {
     if (saving) return { tone: 'saving', long: 'Saving…', short: 'Saving…' };
     // A built-in proposal, untouched (v24.47): it is not "not saved" — there is nothing of yours to
     // lose. Once edited it is an unsaved working copy, and says so like any other.
@@ -203,9 +210,10 @@ export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now
                                : { tone: 'proposal', long: 'Read-only', short: 'Read-only' };
     if (!saved)  return { tone: 'new', long: 'Not saved yet', short: 'Not saved' };
     if (dirty)   return { tone: 'dirty', long: 'Unsaved changes', short: 'Unsaved' };
+    if (queued)  return { tone: 'queued', long: 'Saved in this browser', short: 'Saved here' };
     const when = toDate(updatedAt);
     if (!when) return { tone: 'saved', long: 'Saved', short: 'Saved' };
-    const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const time = formatClock(when);   // the app's one 24-hour clock — the save row beside it uses it too
     if (sameDay(when, now)) return { tone: 'saved', long: `Saved today at ${time}`, short: `Saved ${time}` };
     const date = shortDate(when, now);
     return { tone: 'saved', long: `Saved ${date} at ${time}`, short: `Saved ${date}` };
@@ -273,11 +281,11 @@ export function proposeNewDesignName(currentUser, existing = [], now = new Date(
  * @property {{ name?: string }|null} design   the working copy, or null when nothing is open
  * @property {boolean} dirty
  * @property {boolean} [saving]
- * @property {boolean} [canDelete]  false while the bin rule forbids deleting the last design
  * @property {string} currentUser
  * @property {Date} [now]
  * @property {DesignEntry[]} [proposals]  built-in proposals (links-proposals.js), listed in their own group
  * @property {string|null} [proposalId]   the proposal whose working copy is open, while it has not been saved
+ * @property {boolean} [queued]  the open design's last write is only in this browser's queue (`statusCopy`)
  */
 
 /**
@@ -315,10 +323,10 @@ function pickRow({ id, name, meta, current }) {
  * skipped, so the module cannot throw on a page that lacks part of the markup.
  *
  * BOTH sheets are built here, from injected elements, and every action closes its sheet first and
- * runs after the fade — the pattern `#linksHowBtn` established for the About panel. Stacking a
- * dialog over an open sheet leaves the sheet behind a finished action, and acting in the same tick
- * as close() races the sheet's history.back() against the dialog's pushState. The 500ms matches
- * `dismissOverlay`'s fallback; with no sheet injected at all there is no fade to wait out, so the
+ * runs once the close has landed — the pattern `#linksHowBtn` established for the About panel.
+ * Stacking a dialog over an open sheet leaves the sheet behind a finished action, and acting in the
+ * same tick as close() races the sheet's history.back() against the dialog's pushState. One action
+ * per opening (`closeThen`); with no sheet injected at all there is no fade to wait out, so the
  * action runs at once.
  *
  * @typedef {{ overlay: HTMLElement|null, content: HTMLElement|null, closeBtn?: HTMLElement|null,
@@ -343,14 +351,30 @@ export function createDesignHeader(els, handlers, extra = {}) {
     const sheet  = build(extra.sheet);
     const picker = build(extra.picker);
 
-    /** Close `lb`, then run `fn` after its fade. */
+    /**
+     * ONE ACTION PER OPENING (whole-app fix, Nov 2026). A sheet stays tappable through its fade, and a
+     * second `close()` hands back the same landing promise, so each extra tap ran the row again: a
+     * double tap on Delete stacked two confirms and filed the design in the bin twice. The first
+     * action spends the opening and `openSheet` re-arms it — select-sheet.js's "one tap, one pick".
+     */
+    const spent = new WeakSet();
+    const openSheet = (/** @type {any} */ lb) => { if (!lb) return; spent.delete(lb); lb.open(); };
+    /**
+     * Close `lb`, then run `fn` once the close has LANDED: the fade finished and the history echo of
+     * its `history.back()` arrived, which `createLightbox`'s `close()` resolves on. A fixed 500 ms
+     * stood in for that until Nov 2026 — a wait with no promise about the echo, and a dialog opened
+     * before the echo pops itself (select-sheet.js has the account). `fn` gets no argument, whatever
+     * the close resolves with.
+     */
     const closeThen = (/** @type {any} */ lb, /** @type {() => void} */ fn) => {
         if (!lb) { fn(); return; }   // nothing to fade, so nothing to wait out
-        lb.close();
-        setTimeout(fn, 500);
+        if (spent.has(lb)) return;
+        spent.add(lb);
+        Promise.resolve(lb.close()).then(() => fn())
+            .catch((/** @type {any} */ err) => console.error('[Links] A sheet action failed:', err));
     };
 
-    extra.moreButton?.addEventListener('click', () => sheet?.open());
+    extra.moreButton?.addEventListener('click', () => openSheet(sheet));
     /** Close the ··· More sheet, then run `fn`. Exposed for a row wired elsewhere (the bin). */
     const viaSheet = (/** @type {() => void} */ fn) => closeThen(sheet, fn);
     for (const [el, run] of extra.sheetActions || []) el?.addEventListener('click', () => viaSheet(run));
@@ -358,7 +382,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
     // NOTE the button comes from `els`, not `extra`: `render` has to disable it, so it belongs with
     // the other rendered handles. Reading it from `extra` here is what shipped first, and the face
     // then had no listener at all while every unit test still passed.
-    els.pickerButton?.addEventListener('click', () => picker?.open());
+    els.pickerButton?.addEventListener('click', () => openSheet(picker));
     // ONE delegated handler on the list, so a rebuild never leaves listeners behind or drops them.
     els.pickList?.addEventListener('click', (/** @type {any} */ ev) => {
         const row = ev.target?.closest?.('.picker-opt[data-id]');
@@ -368,8 +392,8 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
     /** @param {HeaderState} state */
     function render(state) {
-        const { designs, activeId, design, dirty, currentUser, saving = false, canDelete = true, now = new Date(),
-                proposals = [], proposalId = null } = state;
+        const { designs, activeId, design, dirty, currentUser, saving = false, now = new Date(),
+                proposals = [], proposalId = null, queued = false } = state;
         const saved = !!activeId;
         const open  = !!design;
         const isProposal = !saved && open && !!proposalId;
@@ -378,7 +402,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
         // ── the picker list (rebuilt only on a content change — rule 4) ──
         if (els.pickList) {
-            const sig = JSON.stringify([saved, activeId, open, proposalId, proposals.map(d => d.id), groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
+            const sig = JSON.stringify([saved, activeId, open, proposalId, isProposal && dirty, proposals.map(d => d.id), groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
             if (sig !== pickSignature) {
                 pickSignature = sig;
                 els.pickList.textContent = '';
@@ -387,7 +411,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
                 if (!saved && open && !isProposal) {
                     els.pickList.appendChild(pickRow({ name: 'Untitled design', meta: 'Not saved yet', current: true }));
                 }
-                // THE SHORTLIST FIRST (v24.47; four since v25.01): the designs everything is measured against,
+                // THE SHORTLIST FIRST (v24.47): the designs everything is measured against,
                 // built in and read-only. A group of their own, so they cannot be mistaken for
                 // somebody's saved work — "Last saved by" would be a claim about nobody.
                 if (proposals.length) {
@@ -423,7 +447,9 @@ export function createDesignHeader(els, handlers, extra = {}) {
                         wrap.appendChild(pickRow({
                             id: d.id,
                             name: d.name,
-                            meta: when ? `Saved ${shortDate(when, now)}` : 'Not saved yet',
+                            // Every row here HAS a document; with no time yet (a queued create, a failed
+                            // read-back) it says what the pill says, never "Not saved yet".
+                            meta: when ? `Saved ${shortDate(when, now)}` : 'Saved',
                             current: saved && d.id === activeId,
                         }));
                     }
@@ -473,7 +499,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
         }
         if (els.whoName) els.whoName.textContent = who.name;
         if (els.whoRole) els.whoRole.textContent = who.role;
-        const st = statusCopy({ saved, dirty, saving, updatedAt: lastSaveTime(entry), now, proposal: isProposal });
+        const st = statusCopy({ saved, dirty, saving, updatedAt: lastSaveTime(entry), now, proposal: isProposal, queued });
         if (els.status) {
             els.status.className = `dm-status dm-status--${st.tone}`;
             els.status.hidden = !open;
@@ -486,7 +512,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
         if (els.sheetSub) {
             // The LAST SAVE, read with dirty/saving off — the pill's own words ("Unsaved changes",
             // "Saving…") describe the working copy and read as nonsense after "Saved by".
-            const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: lastSaveTime(entry), now });
+            const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: lastSaveTime(entry), now, queued });
             els.sheetSub.textContent = !open ? 'Start a new design, import one, or restore one from Recently deleted.'
                 : isProposal ? 'A shortlisted proposal, built in. Change anything — saving makes your own copy.'
                 : !saved ? 'Not saved yet. Save it to give it a name.'
@@ -505,7 +531,8 @@ export function createDesignHeader(els, handlers, extra = {}) {
         // greyed in another reads as a bug in whichever the reader found first (v23.33).
         for (const b of els.renameButtons || []) if (b) b.disabled = !saved;
         if (els.renameMenuButton) els.renameMenuButton.disabled = !saved;
-        if (els.deleteButton) els.deleteButton.disabled = !saved || !canDelete;
+        // Delete needs a saved design, and nothing else: the last one may go too (links-app-23).
+        if (els.deleteButton) els.deleteButton.disabled = !saved;
     }
 
     return { render, viaSheet };

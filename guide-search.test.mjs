@@ -15,6 +15,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import { tokeniseText, searchGuideIndex } from './guide-search.js';
 
 /** Small hand-built index — shapes mirror the generator's output exactly. */
@@ -36,6 +38,30 @@ test('tokeniser: case, punctuation and accents fold; short fragments drop; order
     assert.deepEqual(tokeniseText(''), []);
     // @ts-expect-error non-string input is a caller bug the search box can still produce
     assert.deepEqual(tokeniseText(null), []);
+});
+
+// Whole-app review, Nov 2026: NFKD takes an ACCENT off its letter, but a stroke or a ligature IS the
+// letter, so Ł and ø survived the fold, split their words, and "lodz", "kobenhavn" and "LKA" — the
+// names typed on a UK keyboard — found nothing. These are the guides' own words.
+test('tokeniser: a stroke or a ligature folds to the letters a UK keyboard types', () => {
+    assert.deepEqual(tokeniseText('Øresundståg København ŁKA KMŁ Łódź Słoneczny'),
+        ['oresundstag', 'kobenhavn', 'lka', 'kml', 'lodz', 'sloneczny']);
+    assert.deepEqual(tokeniseText('Đakovo Straße Æbeltoft Œuvre'), ['dakovo', 'strasse', 'aebeltoft', 'oeuvre']);
+});
+
+// The FIP guide's country finder is a classic script and cannot import the tokeniser, so it keeps its
+// own copy of the fold — the drift the ONE-tokeniser rule exists to stop, one page down. So the copy
+// is run here, from the served file, against the same words: any letter one folds and the other
+// does not makes a country the finder shows and the drawer cannot find, or the reverse.
+test('the FIP country finder folds a word exactly as the drawer search does', () => {
+    const src = readFileSync(new URL('./fip-guide.js', import.meta.url), 'utf8');
+    const fn = src.match(/^function foldWords\(s\) \{[\s\S]*?^\}/m);
+    assert.ok(fn, 'fip-guide.js has no foldWords this test can read — re-anchor it');
+    /** @type {(s: string) => string[]} */
+    const foldWords = vm.runInNewContext(`(${fn[0]})`);
+    const words = 'Øresundståg København ŁKA KMŁ Łódź Đakovo Straße Æbeltoft Œuvre ÖBB MÁV Kraków Société ČD ℹ️ 100 km';
+    const finder = [...new Set(foldWords(words).filter(w => w.length >= 2))];
+    assert.deepEqual(finder, tokeniseText(words));
 });
 
 test('every query token must match — one alien token refuses the unit (AND, not OR)', () => {

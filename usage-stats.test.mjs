@@ -247,6 +247,31 @@ describe('summarising the migration picture', () => {
             { origin: 'fb',  accounts: 1, installed: 0 },
         ]);
     });
+    test('a written `__proto__` or `constructor` origin never reaches a prototype — it counts as "other"', () => {
+        // Any signed-in session can write these keys (firestore.rules checks only that `daily` is a
+        // map). `__proto__` used to land on Object.prototype, so every object on the admin's page
+        // inherited `accounts: NaN`, and `constructor` landed on the Object function.
+        const rows = summariseOrigins({
+            '2026-07-29|web': 5,
+            '2026-07-29|__proto__': 4, '2026-07-29|__proto__|pwa': 2,
+            '2026-07-29|constructor': 3,
+        }, NOW);
+        assert.equal(/** @type {any} */ ({}).accounts, undefined, 'Object.prototype must be untouched');
+        assert.equal(/** @type {any} */ ({}).installed, undefined);
+        assert.equal(/** @type {any} */ (Object).accounts, undefined, 'and so must the Object function');
+        assert.deepEqual(rows, [
+            { origin: 'other', accounts: 7, installed: 2 },
+            { origin: 'web',   accounts: 5, installed: 0 },
+        ], 'a label no writer uses is "elsewhere", not a row the Usage card cannot name');
+    });
+    test('every label originLabel writes is read back as its own row', () => {
+        // The reader folds unknown labels into "other", so a new address added to originLabel and not
+        // to the reader's list would vanish into "elsewhere" — this is the pair kept in step.
+        for (const host of ['myb-roster.web.app', 'garethdavidmiller.github.io', 'myb-roster.firebaseapp.com', 'localhost']) {
+            const label = originLabel(host);
+            assert.deepEqual(summariseOrigins({ [originKey('2026-07-29', label)]: 1 }, NOW).map(r => r.origin), [label], host);
+        }
+    });
 });
 
 describe('origin retention', () => {

@@ -96,3 +96,68 @@ describe('installRoute(): where the install notice may ask, and how', () => {
         assert.equal(installRoute()?.how, 'prompt', 'and the offer is still held afterwards');
     });
 });
+
+describe('the strip, once answered, stays answered for the visit (cal-docs-9, whole-app review 10 Nov 2026)', () => {
+    // Chromium fires `beforeinstallprompt` AGAIN when the member cancels the dialog that Install
+    // opened — "typically immediately after the userChoice property has resolved" (web.dev,
+    // "Customize install"). The handler showed the strip whenever the event arrived, so a member who
+    // had just said no was asked again at once, by a fresh button. The header promises the strip
+    // "disappears whichever way the member answers".
+
+    /** A page with ONE of each element, kept for the whole test, and a storage that works (or throws). */
+    function stripPage({ storageThrows = false } = {}) {
+        /** @type {Record<string, any>} */ const els = {};
+        for (const id of ['installPrompt', 'installPromptAction', 'installPromptDismiss', 'installPromptSteps', 'notifPrompt']) {
+            /** @type {Record<string, Function>} */ const on = {};
+            els[id] = { id, hidden: false, style: { display: '' }, on,
+                        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { on[t] = fn; } };
+        }
+        globalThis.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] ?? null });
+        /** @type {Map<string, string>} */ const store = new Map();
+        globalThis.localStorage = /** @type {any} */ (storageThrows
+            ? { getItem() { throw new Error('SecurityError'); }, setItem() { throw new Error('SecurityError'); }, removeItem() {} }
+            : { getItem: (/** @type {string} */ k) => store.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => { store.set(k, v); }, removeItem() {} });
+        // A fresh wiring hears the offer alone — earlier tests' handlers are not this page's.
+        delete listeners.beforeinstallprompt;
+        delete listeners.appinstalled;
+        initInstallPrompt({ accessReady: Promise.resolve(), getAccessType: () => 'named' });
+        let prompts = 0;
+        const offer = async () => {
+            for (const fn of listeners.beforeinstallprompt ?? []) fn({ preventDefault() {}, prompt: async () => { prompts += 1; }, userChoice: Promise.resolve({ outcome: 'dismissed' }) });
+            for (let i = 0; i < 4; i++) await Promise.resolve();   // the accessReady hop
+        };
+        return { els, store, offer, prompts: () => prompts };
+    }
+    const settleAll = () => new Promise(r => setTimeout(r, 0));
+
+    test('Install, then "Cancel" in the browser\'s dialog: the re-fired offer does not bring the strip back', async () => {
+        const p = stripPage();
+        await p.offer();
+        assert.equal(p.els.installPrompt.style.display, 'flex', 'the strip was offered');
+        p.els.installPromptAction.on.click();
+        assert.equal(p.prompts(), 1, 'Install opened the browser\'s own dialog');
+        assert.equal(p.els.installPrompt.style.display, 'none');
+        await p.offer();                                   // Chromium fires again after the cancel
+        await settleAll();
+        assert.equal(p.els.installPrompt.style.display, 'none', 'the member has answered; the strip is not offered again');
+    });
+
+    test('× then a re-fired offer: still answered', async () => {
+        const p = stripPage();
+        await p.offer();
+        p.els.installPromptDismiss.on.click();
+        await p.offer();
+        await settleAll();
+        assert.equal(p.els.installPrompt.style.display, 'none');
+    });
+
+    test('where storage throws (iOS private mode), the answer still holds for the visit', async () => {
+        const p = stripPage({ storageThrows: true });
+        await p.offer();
+        assert.equal(p.els.installPrompt.style.display, 'flex');
+        p.els.installPromptAction.on.click();
+        await p.offer();
+        await settleAll();
+        assert.equal(p.els.installPrompt.style.display, 'none', 'remembered in memory, not only on disk');
+    });
+});

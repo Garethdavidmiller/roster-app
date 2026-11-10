@@ -30,7 +30,7 @@
 import { CONFIG, teamMembers } from './roster-data.js';
 
 /** @typedef {import('./auth-state-core.js').AuthState} AuthState */
-/** @typedef {{ requireNamed?: boolean, anonymousOk?: boolean, soft?: boolean, role?: string[]|null, staffPin?: boolean }} PagePolicy */
+/** @typedef {{ requireNamed?: boolean, soft?: boolean, role?: string[]|null, staffPin?: boolean }} PagePolicy */
 /** @typedef {{ decision: 'allow'|'soft-allow'|'login'|'forbidden'|'pending', reason: string }} AuthDecision */
 
 /** The possible decisions (for callers/tests to reference). */
@@ -55,7 +55,7 @@ export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidd
  * @type {Record<string, PagePolicy>}
  */
 export const PAGE_POLICIES = Object.freeze({
-    calendar:   { requireNamed: false, anonymousOk: true, staffPin: true },
+    calendar:   { requireNamed: false, staffPin: true },
     guides:     { requireNamed: false },
     paycalc:    { requireNamed: true,  soft: true,  role: null },
     settings:   { requireNamed: true,  role: null },
@@ -78,8 +78,9 @@ export const PAGE_POLICIES = Object.freeze({
     // The new link (v25.06; the December link until v25.10): a preview of the admin's and the named previewers' until v25.60
     // (CONFIG.NEWLINK_PREVIEW: S. Silva, its contact, since v25.33). OPEN since v25.60 (owner, 9 Nov 2026: "send the new
     // links section live for everyone with a cea contract and the managers"): `newlinkAudience` — every colleague on a
-    // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' with it, and newlink-config.test.mjs
-    // fails if the two part. Never `staffPin` (owner, 2 Nov 2026: "No, signed-in only").
+    // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' — or 'decided', which follows
+    // CHOSEN — with it, and newlink-config.test.mjs fails if the two part. Never `staffPin` (owner, 2 Nov 2026:
+    // "No, signed-in only").
     newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview', 'newlinkAudience'] },
 });
 
@@ -135,8 +136,9 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
                 : decide('forbidden', `named but lacks role [${p.role.join('|')}]`);
         }
         // Still establishing, or a transient blip. Decide NOTHING yet: `degraded` grants no
-        // authority (the invariant) but is retryable, so it is "pending", not "login" — the
-        // coordinator shows a loading/reconnecting state and re-decides on the next snapshot.
+        // authority (the invariant) but is retryable, so it is "pending", not "login" — nothing is
+        // cleared. `guardNamedSession` (page-session.js) asks ONCE: on `pending` it shows the sign-in
+        // over the kept session and reloads if the member's own identity lands late.
         case 'initialising':
         case 'resolving':
         case 'degraded':
@@ -277,13 +279,12 @@ export function overtimeEnabled() {
  * @returns {AuthDecision}
  */
 export function requirePage(snapshot, pageName) {
-    // Object.hasOwn: a bare index would also match Object.prototype members ('toString',
-    // 'constructor', …), returning a truthy FUNCTION as the "policy" — requirePageAuth would then
-    // see requireNamed undefined and ALLOW it as a public page, inverting the fail-closed
+    // An OWN-property lookup, never a bare index: that would also match Object.prototype members
+    // ('toString', 'constructor', …), returning a truthy FUNCTION as the "policy" — requirePageAuth
+    // would then see requireNamed undefined and ALLOW it as a public page, inverting the fail-closed
     // guarantee for exactly the misconfiguration class this guard exists for (v16.23).
-    // hasOwnProperty.call (not Object.hasOwn, which is Safari 15.4+) so page auth doesn't hard-throw
-    // on an iPhone stuck below iOS 15.4 — same anti-prototype-match intent (a bare index would match
-    // 'toString'/'constructor' etc.), just a wider-supported call.
+    // `hasOwnProperty.call` dates from when iPhones below iOS 15.4, which lack `Object.hasOwn`, were
+    // still served; the floor is 16.4 now, so either would do, and this one is left as it is.
     const policy = Object.prototype.hasOwnProperty.call(PAGE_POLICIES, pageName) ? PAGE_POLICIES[pageName] : null;
     const roles  = rolesFor(snapshot && snapshot.member);
     if (!policy) {

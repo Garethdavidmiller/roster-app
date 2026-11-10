@@ -724,8 +724,9 @@ export const isTouchProject = (info) => TOUCH_PROJECTS.includes(info.project.nam
  * sheets hang off it: the PICKER, opened by the heading face, and the ··· More sheet holding every
  * verb but Save. So "how many designs" is the picker's row count, "which is open" is the face, and
  * Delete/Duplicate/Import/Compare/Recently deleted are reached by opening More first. Both sheets
- * close themselves and run their action 500ms later; every caller's next `expect` auto-waits, so no
- * sleep is needed here.
+ * close themselves and run their action once the close has LANDED — one action per opening, so a
+ * second tap during the fade runs nothing; every caller's next `expect` auto-waits, so no sleep is
+ * needed here.
  *
  * The rows exist in the DOM whether or not the picker is open (the list is built on render, not on
  * open), so a COUNT needs no click — same as the <select>'s options before it. A CLICK does.
@@ -747,9 +748,10 @@ export async function openDesignSheet(page) {
 export async function sheetAction(page, id) {
     await openDesignSheet(page);
     await page.locator(`#${id}`).click();
-    // The row closes the sheet and runs its action 500ms later. `clickDialogConfirm` treats "no
-    // dialog yet" as "no dialog", so wait here for the sheet to go and for whatever the action opens
-    // to arrive; an action that opens nothing (Compare) simply lets the short wait lapse.
+    // The row closes the sheet and runs its action once that close has landed (one action per
+    // opening). `clickDialogConfirm` treats "no dialog yet" as "no dialog", so wait here for the sheet
+    // to go and for whatever the action opens to arrive; an action that opens nothing (Compare)
+    // simply lets the short wait lapse.
     await expect(page.locator('#designMoreLb.visible')).toHaveCount(0);
     await page.locator('.dialog-overlay, .lb-overlay.visible').first()
         .waitFor({ state: 'attached', timeout: 1500 }).catch(() => {});

@@ -109,7 +109,7 @@ const { teamMembers, getBaseShift, formatISO } = await import('./roster-data.js'
 
 const _changed = [];
 initWeekEditor({
-    currentIsAdmin: true,
+    canPickMember: true,
     showSuccess: () => {},
     markChanged: () => { _changed.push(1); },
     memberDateMap: () => new Map(),   // no existing overrides — see the header
@@ -244,6 +244,23 @@ describe('a member whose saved changes have not arrived', () => {
 
     const MEMBER = teamMembers.find(m => !m.hidden).name;
 
+    test('the Unsaved bar and the "about to change" line go with the rows they counted', () => {
+        // A member switch with Discard drew the loading (or, on a dropped read, the failed) state under
+        // a bar still reading "Unsaved: 1 day" — whose Save did nothing — and a line naming the member left.
+        for (const [label, failed, name] of [['loading', false, MEMBER], ['failed', true, MEMBER], ['no member', false, '']]) {
+            _authority = false;
+            _failed    = failed;
+            const bar = put('stagedBar'); bar.hidden = false;
+            put('stagedCount').textContent = '1 day';
+            const preview = put('gridPreview'); preview.hidden = false;
+            preview.textContent = "You're about to change 1 day for the previous member.";
+            put('saveBtnHint');
+            renderFor(name);
+            assert.equal(bar.hidden, true, `${label}: an Unsaved bar over a week with nothing staged`);
+            assert.equal(preview.hidden, true, `${label}: a line naming somebody else`);
+        }
+    });
+
     test('draws a LOADING state, never seven blank base-roster days', () => {
         _authority = false;
         const g = renderFor(MEMBER);
@@ -264,6 +281,19 @@ describe('a member whose saved changes have not arrived', () => {
         assert.match(g.innerHTML, /Couldn’t load|Couldn't load/);
         assert.match(g.innerHTML, /role="alert"/, 'a stopped load is an alert, not a status');
         assert.match(g.innerHTML, /Retry/);
+    });
+
+    test('its Retry reads THAT member, never "everybody" again (whole-app check, Nov 2026)', () => {
+        // Left to the store's default, a session that had made a capped "All staff" read retried the capped
+        // collection, which never covers the member: the same failure, redrawn for ever.
+        _authority = false;
+        _failed    = true;
+        /** @type {Record<string, Function>} */ const on = {};
+        const link = put('retryWeekLink');
+        link.addEventListener = (/** @type {string} */ t, /** @type {Function} */ fn) => { on[t] = fn; };
+        renderFor(MEMBER);
+        on.click();
+        assert.deepEqual(_loadCalls, [[{ everyone: false, member: MEMBER }]]);
     });
 
     test('once the slice has arrived the week is built', () => {
@@ -399,9 +429,11 @@ describe('the "Base roster" column says what the day WAS', () => {
             /class="christmas-note">Christmas Day: due at work, so on annual leave that is never counted — nothing to record</);
         assert.match(row('2026-12-26').innerHTML, /class="christmas-note">Boxing Day: /);
         assert.doesNotMatch(row('2026-12-24').innerHTML, /christmas-note/, 'an ordinary day says nothing');
-        // Before 2026 the days are rest days like any other, and the row says nothing.
+        // Before 2026 the days are rest days like any other, and the row says nothing about leave…
         const old = buildWeek('G. Miller', '2025-12-25').slice(1);
-        assert.ok(old.every(r => !/christmas-note/.test(r.innerHTML)));
+        assert.ok(old.every(r => !/class="christmas-note">(Christmas Day|Boxing Day):/.test(r.innerHTML)));
+        // …while Boxing Day refuses an Other day in every year (owner, Jul 2026), and says so.
+        assert.match(old.find(r => r.dataset.date === '2025-12-26').innerHTML, /Boxing Day can’t be an Other day/);
     });
 });
 
@@ -481,6 +513,26 @@ test('while a save is in flight the unsaved banner\'s Discard is held too (revie
     assert.equal(discard.disabled, true, 'navigating mid-save let the landing save reset the new view');
     setSaveInFlight(false);
     assert.equal(discard.disabled, false);
+});
+
+test('the week\'s own save holds the grid and the bulk bar still until it lands; a range booking does not', () => {
+    const g = grid([]);
+    const bar = put('bulkBar');
+    put('saveBtn', makeEl('button'));
+    const hint = put('saveBtnHint');
+    setSaveInFlight(true, { grid: true });
+    assert.equal(g.inert, true, 'the week is redrawn when its save lands: a change made in the wait was thrown away');
+    assert.equal(bar.inert, true, 'the bulk bar stages rows too');
+    assert.match(hint.textContent, /once the save has finished/, 'a tap that does nothing says why');
+    setSaveInFlight(false);
+    assert.equal(g.inert, false);
+    assert.equal(bar.inert, false);
+    assert.doesNotMatch(hint.textContent, /once the save has finished/);
+    // A range booking takes the same write lock, and leaves the week live: it never redraws over staged rows.
+    setSaveInFlight(true);
+    assert.equal(g.inert, false);
+    assert.equal(bar.inert, false);
+    setSaveInFlight(false);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -633,5 +685,61 @@ describe('a week of staged rows, kept and put back', () => {
             draftRow({ date: '2026-12-10', type: 'sick', existingId: 'ov10', prefilled: true })];
         assert.deepEqual(applyWeekDraft(gridOf(after.map(x => x.r)), kept, () => ''), { put: 3, left: [] });
         assert.deepEqual(readWeekDraft(gridOf(after.map(x => x.r)), () => ''), kept);
+    });
+});
+
+// ── A ROW DRAWN FROM ITS SAVED RECORD (prefillRow) ───────────────────────────────────────────────
+// What a manager reads as "already recorded" on each day. Each kind of record is drawn differently:
+// times split out of a shift, none for a fixed type, an Other day read through its grammar, and
+// Spare shown under Other.
+const { prefillRow } = await import('./admin-week-row-state.js');
+const pressed = (/** @type {any} */ x) => x.pills.filter((/** @type {any} */ p) => p.classList.contains('active')).map((/** @type {any} */ p) => p.dataset.type);
+const chips   = (/** @type {any} */ x) => x.flavours.filter((/** @type {any} */ f) => f.classList.contains('active')).map((/** @type {any} */ f) => f.dataset.flavour);
+
+describe('prefillRow draws a row as its saved record', () => {
+    test('a shift: its type, its times, and marked as an untouched prefill', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'shift', value: '07:00-15:00' });
+        assert.deepEqual(pressed(x), ['shift']);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['07:00', '15:00']);
+        assert.equal(x.r.classList.contains('prefilled-existing'), true);
+        assert.equal(isStagedRow(x.r), false, 'a saved record is not staged work');
+        assert.equal(x.r.querySelector('.day-cb').checked, false, 'nor a day ticked for Apply (owner, 10 Nov 2026)');
+    });
+
+    test('drawn again over an edit, a row is the saved record and nothing else', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'shift', value: '07:00-15:00' });
+        applyRowDraft(x.r, { date: '2026-12-08', type: 'other', flavour: 'TRG', start: '09:00', end: '12:00' });
+        prefillRow(x.r, { type: 'annual_leave', value: 'AL' });
+        assert.deepEqual(pressed(x), ['annual_leave']);
+        assert.deepEqual(chips(x), [], 'no flavour left over from the edit');
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['', ''], 'nor its times');
+        assert.equal(isStagedRow(x.r), false);
+    });
+
+    test('a fixed type carries no times', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'annual_leave', value: 'AL' });
+        assert.deepEqual(pressed(x), ['annual_leave']);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['', '']);
+    });
+
+    test('an Other day is read through its grammar: flavour, RDW tick and times', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'other', value: 'IND RDW 08:00-16:00' });
+        assert.deepEqual(pressed(x), ['other']);
+        assert.deepEqual(chips(x), ['IND']);
+        assert.equal(x.rdwCb.checked, true);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['08:00', '16:00'], 'not shredded on its first hyphen');
+    });
+
+    test('a Spare record shows under Other, with the Spare chip and no times', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'spare_shift', value: 'SPARE' });
+        assert.deepEqual(pressed(x), ['other']);
+        assert.deepEqual(chips(x), ['SPARE']);
+        assert.equal(x.r.classList.contains('other-spare'), true);
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['', '']);
     });
 });

@@ -102,6 +102,30 @@ export function shouldOpen(state) {
     return state === 'action' || state === 'blocked' || state === 'error';
 }
 
+/**
+ * Is installing a thing to FINISH on this device, and where is the app added from?
+ *
+ * In exactly one case: an iPhone in a browser, where WebKit gives a page no push until it is on the
+ * Home Screen (`CARD_ORDER` above). Everywhere else installing is an offer, and `n/a`.
+ *
+ * ── THE PAGES MIRROR (Nov 2026 review) ────────────────────────────────────────────────────────
+ *
+ * An iPhone on the GitHub Pages mirror reported `n/a` too, because the app is never installed FROM
+ * the mirror — it would pin the member to the address staff are moving off. But it cannot receive a
+ * notification there either, so with nothing else outstanding the summary said "✓ You're all set"
+ * to a phone that will never be told anything: the outcome this module was written to remove, on
+ * the address most staff still use. It is a to-do there too (review decision, 10 November 2026), and
+ * the steps start at the main address instead (`from: 'main-address'`).
+ *
+ * @param {{ ios: boolean, installed: boolean, onMirror: boolean }} device
+ * @returns {{ state: CardState, from: null|'here'|'main-address' }} `from` is where the steps start,
+ *   null when there are no steps to show.
+ */
+export function installNeed({ ios, installed, onMirror }) {
+    if (!ios || installed) return { state: 'n/a', from: null };
+    return { state: 'action', from: onMirror ? 'main-address' : 'here' };
+}
+
 /** Where each to-do LEADS: the card that fixes it, by its element id in settings.html (desktop audit,
  *  7 Nov 2026). The strip's items are links to these — a list of things to finish that leads nowhere
  *  leaves the member to go and find each card. settings-status.test.mjs holds every id to the page.
