@@ -978,6 +978,19 @@ service cloud.firestore {
       // sub-map keys — App Check is the eventual integrity control; the data is non-sensitive
       // aggregate counts. No client delete — daily-bucket pruning is a field-level update.
       allow read: if request.auth != null && request.auth.token.admin == true;
+      // ── A COUNTER MONTH IS THE PRESENT ONE, OR ONE EITHER SIDE (10 Nov 2026) ─────────────────
+      // `pv_` and `perf_` ids were pinned to a YYYY-MM SHAPE but not to the present, so any member
+      // or PIN session could create a document for any month a YYYY-MM can name, and no client can
+      // delete one (`allow delete: if false` below). The client names the month by its OWN clock
+      // (`monthKey`, usage-stats.js), up to an hour ahead of the server's UTC in London summer time,
+      // so one month either side stays open; that also covers a device clock a little out, and a
+      // write the offline queue sends early in the next month. `month` is already the id's
+      // YYYY-MM when this runs.
+      function isCounterMonth(month) {
+        let asked = int(month[0:4]) * 12 + int(month[5:7]);
+        let now = request.time.year() * 12 + request.time.month();
+        return asked >= now - 1 && asked <= now + 1;
+      }
       // Anti-WIPE guard (review B4): the legit writers only INCREMENT (setDoc merge with FieldValue),
       // never remove keys. A malicious non-merge overwrite with empty maps passed the shape check and
       // ZEROED existing counters (worse than the "tamper one value" App-Check gap). So on UPDATE a
@@ -993,6 +1006,7 @@ service cloud.firestore {
            request.resource.data.keys().hasOnly(['month', 'counts']) &&
            request.resource.data.month is string &&
            docId == 'pv_' + request.resource.data.month &&
+           isCounterMonth(request.resource.data.month) &&
            request.resource.data.counts is map &&
            // One page-view id per app page + the document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter
            // opens and the guide opens share the same anonymous counter map; guide-staff and
@@ -1051,6 +1065,7 @@ service cloud.firestore {
            request.resource.data.keys().hasOnly(['month', 'samples']) &&
            request.resource.data.month is string &&
            docId == 'perf_' + request.resource.data.month &&
+           isCounterMonth(request.resource.data.month) &&
            request.resource.data.samples is map &&
            (resource == null || request.auth.token.admin == true ||
             request.resource.data.samples.keys().hasAll(resource.data.samples.keys())))

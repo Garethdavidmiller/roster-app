@@ -12,7 +12,7 @@
  *
  * Each collection tests: auth boundaries, field validation, enum/format guards.
  */
-import { test, describe, before, after } from 'node:test';
+import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
@@ -1845,45 +1845,68 @@ describe('pushSubscriptions', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('analytics', () => {
-    const VALID_PV = () => ({ month: '2026-06', counts: { calendar: 1, paycalc: 1 } });
+    // ── THE MONTH IS THE PRESENT ONE (whole-app fix, 10 Nov 2026) ─────────────────────────────
+    // The rules accept a `pv_`/`perf_` document only for this month or one either side, by the
+    // SERVER's clock (UTC), so every case here writes a month computed at the moment it runs, never a
+    // literal. These cases used twelve different months purely to stay out of each other's way; with
+    // three writable months, `beforeEach` clears those documents instead, so each case still starts
+    // from a document that does not exist.
+    /** "YYYY-MM", `offset` months from now by UTC — the clock the rules read. */
+    const monthAt = (offset = 0) => {
+        const now = new Date();
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    };
+    const pvId = (offset = 0) => `pv_${monthAt(offset)}`;
+    const perfId = (offset = 0) => `perf_${monthAt(offset)}`;
+    const VALID_PV = () => ({ month: monthAt(), counts: { calendar: 1, paycalc: 1 } });
     const VALID_ACTIVE = () => ({ months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } });
-    const VALID_PERF = () => ({ month: '2026-06', samples: { '14_88|calendar|ttfb|lt500ms|browser|4g': 3 } });
+    const VALID_PERF = () => ({ month: monthAt(), samples: { '14_88|calendar|ttfb|lt500ms|browser|4g': 3 } });
+
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            for (const offset of [-1, 0, 1]) {
+                await deleteDoc(doc(ctx.firestore(), 'analytics', pvId(offset)));
+                await deleteDoc(doc(ctx.firestore(), 'analytics', perfId(offset)));
+            }
+        });
+    });
 
     test('admin can read', async () => {
-        await assertSucceeds(getDoc(doc(adminDb(), 'analytics', 'pv_2026-06')));
+        await assertSucceeds(getDoc(doc(adminDb(), 'analytics', pvId())));
     });
 
     test('staff (non-admin) cannot read', async () => {
-        await assertFails(getDoc(doc(memberDb(), 'analytics', 'pv_2026-06')));
+        await assertFails(getDoc(doc(memberDb(), 'analytics', pvId())));
     });
 
     test('anon cannot read', async () => {
-        await assertFails(getDoc(doc(anonDb(), 'analytics', 'pv_2026-06')));
+        await assertFails(getDoc(doc(anonDb(), 'analytics', pvId())));
     });
 
     test('auth can write a page-view counter doc', async () => {
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), VALID_PV()));
     });
 
     test('auth can write the Trains page-view counter (v24.71)', async () => {
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-10'), {
-            month: '2026-10', counts: { trains: 1 },
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { trains: 1 },
         }));
     });
 
     test('auth can write the new link page-view counter (v25.06), and only as a number', async () => {
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-11'), {
-            month: '2026-11', counts: { newlink: 1 },
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { newlink: 1 },
         }));
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-12'), {
-            month: '2026-12', counts: { newlink: 'one' },
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId(1)), {
+            month: monthAt(1), counts: { newlink: 'one' },
         }));
     });
 
     test('auth can write the seven document/guide OPEN counters (v18.20; all four guides v19.95)', async () => {
         // Huddle/Circular/Newsletter opens + all four guide opens share the pv_ counts map.
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-07'), {
-            month: '2026-07',
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(),
             counts: { huddle: 1, circular: 2, newsletter: 3,
                       'guide-staff': 4, 'guide-paycalc': 5, 'guide-railcard': 6, 'guide-fip': 7 },
         }));
@@ -1893,15 +1916,40 @@ describe('analytics', () => {
         // This used 'guide-staff' until v19.95, when that became a real id — a teeth test whose
         // example is promoted to legal quietly stops having teeth, and would have gone green here
         // for the wrong reason. The key below is deliberately not on any roadmap.
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-08'), {
-            month: '2026-08', counts: { 'guide-nonexistent': 1 },
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { 'guide-nonexistent': 1 },
         }));
     });
 
     test('an open counter must be an int', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-09'), {
-            month: '2026-09', counts: { huddle: 'lots' },
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { huddle: 'lots' },
         }));
+    });
+
+    // rules-3 (whole-app fix, 10 Nov 2026). The id was pinned to a YYYY-MM SHAPE and not to the
+    // present, so any member or PIN session could create a document for any of 120,000 months in
+    // each family — documents no client can delete. One month either side stays open: the client
+    // names the month by its own clock, which runs ahead of UTC in London summer time.
+    test('a counter for this month or one either side is accepted', async () => {
+        for (const offset of [-1, 0, 1]) {
+            await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId(offset)),
+                { month: monthAt(offset), counts: { calendar: increment(1) } }, { merge: true }));
+            await assertSucceeds(setDoc(doc(memberDb(), 'analytics', perfId(offset)),
+                { month: monthAt(offset), samples: { k: increment(1) } }, { merge: true }));
+        }
+    });
+
+    test('a counter for any other month is REFUSED — to a member, the PIN viewer and the admin alike', async () => {
+        const far = [monthAt(-2), monthAt(2), monthAt(-120), '2001-01', '9999-12'];
+        for (const db of [memberDb(), viewerDb(), adminDb()]) {
+            for (const month of far) {
+                await assertFails(setDoc(doc(db, 'analytics', `pv_${month}`),
+                    { month, counts: { calendar: increment(1) } }, { merge: true }));
+                await assertFails(setDoc(doc(db, 'analytics', `perf_${month}`),
+                    { month, samples: { k: increment(1) } }, { merge: true }));
+            }
+        }
     });
 
     test('auth can write an active-accounts doc', async () => {
@@ -1918,7 +1966,7 @@ describe('analytics', () => {
     });
 
     test('auth can write a perf-latency doc (Project 0)', async () => {
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', perfId()), VALID_PERF()));
     });
 
     // ── THE REAL WRITER, NOT A HAND-WRITTEN EXAMPLE (App Speed review, Oct 2026) ──────────────────
@@ -2000,19 +2048,19 @@ describe('analytics', () => {
     });
 
     // ── B4: anti-wipe guard — a non-admin overwrite may not REMOVE existing keys (destructive wipe),
-    //    but incrementing (adding/preserving keys) stays open, and admin may prune. (unique doc ids
-    //    below because this suite has no clearFirestore between tests.)
+    //    but incrementing (adding/preserving keys) stays open, and admin may prune. (Each month
+    //    document starts absent — `beforeEach` above.)
     test('B4: a non-admin increment that preserves keys is allowed (update)', async () => {
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 1 } }));
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 2, admin: 1 } }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 1 } }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 2, admin: 1 } }));
     });
     test('B4: a non-admin CANNOT wipe pv counts (removes existing keys)', async () => {
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: { calendar: 5, admin: 2 } }));
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: {} }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 5, admin: 2 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: {} }));
     });
     test('B4: a non-admin CANNOT wipe perf samples (removes existing keys)', async () => {
-        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: { 'k1': 1 } }));
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: {} }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', perfId()), { month: monthAt(), samples: { 'k1': 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', perfId()), { month: monthAt(), samples: {} }));
     });
     test('B4: a non-admin CANNOT wipe activeAccounts, but admin CAN prune a daily key', async () => {
         // Seed a known state via admin (admin may set/remove any valid shape).
@@ -2063,11 +2111,12 @@ describe('analytics', () => {
     });
 
     test('auth cannot write a perf doc with an extra field', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-06'), { ...VALID_PERF(), memberName: 'G. Miller' }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', perfId()), { ...VALID_PERF(), memberName: 'G. Miller' }));
     });
 
     test('auth cannot write a perf doc whose month != the doc id', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-06'), { month: '2026-07', samples: {} }));
+        // Both months are open ones, so only the mismatch can refuse it.
+        await assertFails(setDoc(doc(memberDb(), 'analytics', perfId()), { month: monthAt(1), samples: {} }));
     });
 
     test('auth cannot write a perf doc whose id is not perf_YYYY-MM', async () => {
@@ -2075,21 +2124,21 @@ describe('analytics', () => {
     });
 
     test('anon (no Firebase session) cannot write a perf doc', async () => {
-        await assertFails(setDoc(doc(anonDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
+        await assertFails(setDoc(doc(anonDb(), 'analytics', perfId()), VALID_PERF()));
     });
 
     test('anon (no Firebase session) cannot write', async () => {
-        // Real calendar visitors have an anonymous Firebase session (request.auth != null);
-        // a context with no auth at all must be rejected.
-        await assertFails(setDoc(doc(anonDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
+        // No session at all is refused before the shape is read. (Calendar visitors carried an
+        // anonymous session until v20.12; an anonymous token is refused too, since v24.56.)
+        await assertFails(setDoc(doc(anonDb(), 'analytics', pvId()), VALID_PV()));
     });
 
     test('auth cannot write a page-view doc with an extra field', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { ...VALID_PV(), memberName: 'G. Miller' }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { ...VALID_PV(), memberName: 'G. Miller' }));
     });
 
     test('auth cannot write a page-view doc with non-string month', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: 6, counts: { calendar: 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: 6, counts: { calendar: 1 } }));
     });
 
     test('auth cannot write a doc with unrecognised shape', async () => {
@@ -2101,15 +2150,16 @@ describe('analytics', () => {
     });
 
     test('auth cannot write a page-view doc whose month != the doc id', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: '2026-07', counts: { calendar: 1 } }));
+        // Both months are open ones, so only the mismatch can refuse it.
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(1), counts: { calendar: 1 } }));
     });
 
     test('auth cannot write a page-view doc with an unknown counts key', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { hacker: 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { hacker: 1 } }));
     });
 
     test('auth cannot write a page-view doc with a non-int count value', async () => {
-        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { calendar: 'evil' } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 'evil' } }));
     });
 
     test('auth cannot write an active-accounts shape under any other doc id', async () => {
@@ -2117,10 +2167,10 @@ describe('analytics', () => {
     });
 
     test('client cannot delete an analytics doc', async () => {
-        const ref = doc(adminDb(), 'analytics', 'pv_2026-06');
-        await setDoc(ref, VALID_PV());
-        await assertFails(deleteDoc(doc(memberDb(), 'analytics', 'pv_2026-06')));
-        await assertFails(deleteDoc(doc(adminDb(), 'analytics', 'pv_2026-06')));
+        const ref = doc(adminDb(), 'analytics', pvId());
+        await assertSucceeds(setDoc(ref, VALID_PV()));
+        await assertFails(deleteDoc(doc(memberDb(), 'analytics', pvId())));
+        await assertFails(deleteDoc(doc(adminDb(), 'analytics', pvId())));
     });
 
     // These exercise the EXACT FieldValue.increment() payloads the app writes
@@ -2128,16 +2178,16 @@ describe('analytics', () => {
     // validated against the real client contract, not an invented stand-in.
     test('real increment() page-view write (merge create) is allowed', async () => {
         await assertSucceeds(setDoc(
-            doc(memberDb(), 'analytics', 'pv_2026-06'),
-            { month: '2026-06', counts: { calendar: increment(1) } },
+            doc(memberDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { calendar: increment(1) } },
             { merge: true },
         ));
     });
 
     test('real increment() page-view write (merge update onto existing) is allowed', async () => {
-        const ref = doc(memberDb(), 'analytics', 'pv_2026-06');
-        await setDoc(ref, { month: '2026-06', counts: { calendar: increment(1) } }, { merge: true });
-        await assertSucceeds(setDoc(ref, { month: '2026-06', counts: { paycalc: increment(1) } }, { merge: true }));
+        const ref = doc(memberDb(), 'analytics', pvId());
+        await assertSucceeds(setDoc(ref, { month: monthAt(), counts: { calendar: increment(1) } }, { merge: true }));
+        await assertSucceeds(setDoc(ref, { month: monthAt(), counts: { paycalc: increment(1) } }, { merge: true }));
     });
 
     test('real increment() active-account write (both buckets) is allowed', async () => {
@@ -2259,10 +2309,11 @@ describe('calendar viewer — read-only, and only the Calendar', () => {
 
     test('it CANNOT read usage analytics, only increment them', async () => {
         // Same asymmetry, same reason: usage from a shared PC is real usage, the counters carry no
-        // identity, and reading them is an admin surface.
-        await assertSucceeds(setDoc(doc(viewerDb(), 'analytics', 'pv_2026-08'),
-            { month: '2026-08', counts: { calendar: increment(1) } }, { merge: true }));
-        await assertFails(getDoc(doc(viewerDb(), 'analytics', 'pv_2026-08')));
+        // identity, and reading them is an admin surface. This month by UTC: the only months open.
+        const month = new Date().toISOString().slice(0, 7);
+        await assertSucceeds(setDoc(doc(viewerDb(), 'analytics', `pv_${month}`),
+            { month, counts: { calendar: increment(1) } }, { merge: true }));
+        await assertFails(getDoc(doc(viewerDb(), 'analytics', `pv_${month}`)));
     });
 
     test('it CANNOT write a push subscription — every office PC shares this uid', async () => {
