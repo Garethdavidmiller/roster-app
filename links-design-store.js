@@ -192,6 +192,11 @@ export function createDesignStore(deps) {
      * document carries OUR revision over HER content, stamp and name — and the revision alone took it
      * for our rename and queued an overwrite of her save unasked. A rename writes neither stamp nor
      * name, so while both still match the ones we cached, the content is the one we held.
+     *
+     * …AND ONLINE, ONCE THE RENAME HAS SYNCED (whole-app fix, Nov 2026). The server then holds what
+     * the cache did, and the transactions read it raw, so the first ONLINE save after a queued rename
+     * met the same false conflict about S. Silva. Every save, forced save and rename now reads through
+     * it, and a colleague's save — under our rename or after it — is still caught by the same checks.
      * @type {Map<string, {rev: number, before: number|null, stamp: number|null, by: string|null}>}
      */
     const ownRenames = new Map();
@@ -322,7 +327,7 @@ export function createDesignStore(deps) {
                         if (!snap.exists()) { gone = true; return; }
                         const d = snap.data() || {};
                         if (isDeleted(d)) { deletedData = d; return; }
-                        movedOn = movedOnOf(d);
+                        movedOn = movedOnOf(throughOwnRename(id, d));   // see `ownRenames`
                         if (movedOn) return;
                         committed = nextRevision(d);
                         tx.set(ref, { ...buildPayload(), revision: committed });
@@ -370,7 +375,7 @@ export function createDesignStore(deps) {
                         e.deletedData = snap.exists() ? snap.data() : null;
                         throw e;
                     }
-                    const c = conflictOf(snap.data() || {}, snap.exists(),
+                    const c = conflictOf(throughOwnRename(id, snap.data() || {}), snap.exists(),   // see `ownRenames`
                         { loadedRevision, loadedUpdatedAt: baseline, baselineUnknown, currentUser });
                     if (c) { const e = /** @type {any} */ (new Error('concurrent-edit')); e.conflict = c; throw e; }
                     // Reassigned on EVERY attempt, from what THIS attempt read — a retried
@@ -436,15 +441,17 @@ export function createDesignStore(deps) {
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
                     // Reassigned on every attempt: a retried transaction must not keep the verdict
-                    // of the attempt that lost.
-                    const liveRev = typeof snap.data()?.revision === 'number' ? snap.data().revision : null;
+                    // of the attempt that lost. Asked of the document with our own queued rename seen
+                    // through (`ownRenames`), and the counter moved from the one really there.
+                    const seen = throughOwnRename(id, snap.data() || {});
+                    const liveRev = typeof seen.revision === 'number' ? seen.revision : null;
                     // The REVISION answers "is this still the document we loaded?" exactly; the
                     // timestamp is the fallback for a design nobody has saved since v22.18. Same
                     // rule as before — advance our baseline only when nothing moved underneath us —
                     // asked with a value that cannot be raced.
                     baselineFresh = (liveRev !== null || preRevision !== null)
                         ? liveRev === preRevision
-                        : canAdvanceBaseline(snap.data()?.updatedAt?.toMillis?.() ?? null, preBaseline);
+                        : canAdvanceBaseline(seen.updatedAt?.toMillis?.() ?? null, preBaseline);
                     committed = nextRevision(snap.data());
                     // On a STALE baseline the name and the revision are written and the "last saved
                     // by" is not: the content under this rename is a colleague's save we never took

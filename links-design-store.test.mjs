@@ -984,6 +984,65 @@ describe('offline: our own queued rename is not a colleague\'s save, and Replace
         assert.equal(res.status, 'queued', `nobody but us has touched it — not ${THEM}`);
     });
 
+    // ── …AND ONLINE (whole-app fix, Nov 2026) ───────────────────────────────────────────────────
+    // The rename above synced: the server holds OUR clock revision over S. Silva's untouched content,
+    // stamp and name. The next save is ONLINE, so it runs the TRANSACTION — which compared the raw
+    // document with our baseline and said "S. Silva saved a different version … after you opened this
+    // page", about our own rename. Only the offline consult saw through it.
+    const renamedOfflineThenBackOnline = async (/** @type {any} */ initial) => {
+        const db = makeDb({ initial });
+        const tx = db.api.runTransaction;
+        let offline = true;
+        db.api.runTransaction = async (/** @type {any} */ d, /** @type {Function} */ fn) => {
+            if (offline) throw Object.assign(new Error('client is offline'), { code: 'unavailable' });
+            return tx(d, fn);
+        };
+        db.api.isOnline = () => !offline;
+        const store = createDesignStore(db.api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        offline = false;   // the queued merge has landed (the fake applied it) and the signal is back
+        return { db, store, ours: db.current().revision };
+    };
+    const SILVA_5 = { name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 5 };
+
+    test('online, the first save after our own queued rename is a SAVE, not a conflict', async () => {
+        const { store, ours } = await renamedOfflineThenBackOnline(SILVA_5);
+        const res = await save(store);
+        assert.equal(res.status, 'saved', `nobody but us has touched it since we loaded it — not ${THEM}`);
+        assert.equal(res.baseline?.loadedRevision, ours + 1, 'and the counter moves on from the revision really there');
+    });
+
+    test('online: a colleague\'s save that synced UNDER our rename is still caught, and named', async () => {
+        const { db, store, ours } = await renamedOfflineThenBackOnline(SILVA_5);
+        db.setStore({ name: 'B', updatedAt: ts(2000), updatedBy: THEM, revision: ours });
+        const res = await save(store);
+        assert.equal(res.status, 'conflict', 'her save sits under our revision — it is not our rename');
+        assert.equal(res.conflict?.by, THEM);
+    });
+
+    test('online: a colleague\'s save AFTER our rename synced is still caught', async () => {
+        const { db, store, ours } = await renamedOfflineThenBackOnline(SILVA_5);
+        db.setStore({ name: 'B', updatedAt: ts(3000), updatedBy: 'M. Robson', revision: ours + 1 });
+        const res = await save(store);
+        assert.equal(res.status, 'conflict');
+        assert.equal(res.conflict?.by, 'M. Robson');
+    });
+
+    test('online: Replace, given against the version the cache showed under our rename, writes', async () => {
+        // The cache held S. Silva's 6 before we renamed offline, so the dialog named her 6. Back online,
+        // the server holds our revision over that 6 — the version agreed to, under our own rename.
+        const { store } = await renamedOfflineThenBackOnline({ name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 6 });
+        const res = await save(store, { forcing: true, forceAgainstRev: 6, forceAgainstRevision: 2000 });
+        assert.equal(res.status, 'saved', 'the only change since the dialog is our own rename');
+    });
+
+    test('online: a second rename after our queued one advances the baseline, as a fresh rename does', async () => {
+        const { store } = await renamedOfflineThenBackOnline(SILVA_5);
+        const res = await store.rename({ id: ID, name: 'C', by: ME, preBaseline: 1000, preRevision: 5 });
+        assert.equal(res.baselineFresh, true, 'left stale, the save after it met the same false conflict');
+        assert.equal(typeof res.revision, 'number');
+    });
+
     test('Replace, offline, queues against the version it was shown', async () => {
         const { api, writes } = offlineDb({ name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 6 });
         const store = createDesignStore(api);
