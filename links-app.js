@@ -883,6 +883,21 @@ export function init() {
             const _renameStatus = document.getElementById('linksSaveStatus');
             if (_renameStatus) { _renameStatus.textContent = ''; _renameStatus.className = 'links-save-status'; }
         } catch (err) {
+            // NO LONGER A LIVE DESIGN (links-design-5): binned, or removed for good, by somebody else while
+            // it sat in this list. "Check your connection and try again" was a dead end — no retry can
+            // rename it. It leaves the live list, into Recently deleted when it is there, exactly as a save
+            // that finds it deleted does (`dropDeleted`), and the line says what happened instead.
+            if (/** @type {any} */ (err)?.code === 'deleted-elsewhere') {
+                const binned = /** @type {any} */ (err).deletedData ?? null;
+                designs = designs.filter(x => x.id !== id);
+                if (binned) library.upsertBin(binEntryFromDoc(id, binned));
+                renderDesignPicker();
+                const by = String(binned?.deletedBy ?? '').trim() || 'Someone';
+                _designActionStatus(binned
+                    ? `“${d.name}” was not renamed — ${by} deleted it while it was open here. It is in Recently deleted.`
+                    : `“${d.name}” was not renamed — it was removed for good while it was open here.`);
+                return;
+            }
             console.error('[Links] Rename failed:', err);
             _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t rename the design — check your connection and try again.');
         }
@@ -954,12 +969,19 @@ export function init() {
             // landing used to open the next design over whatever they had done meanwhile.
             _designActionStatus(`Deleting “${d.name}”…`, '');
             const before = _contentKey();
-            await store.softDelete(id, currentUser);
+            const { status: found, deletedData } = await store.softDelete(id, currentUser);
             designs = designs.filter(x => x.id !== id);
-            // deletedAt is null until the server resolves it — deliberately kept as null rather
-            // than stamped with a client clock, so the row reads "Deleted by X" until the real
-            // time is known instead of showing a countdown built from an invented figure.
-            library.addToBin(binEntryFrom(d, currentUser));
+            // The bin row is what the delete FOUND (whole-app fix, Nov 2026). Binned by somebody else
+            // already, the row is THEIR delete, read from the server, never one signed as ours; removed
+            // for good, there is no row at all. Our own delete's deletedAt is null until the server
+            // resolves it — deliberately kept as null rather than stamped with a client clock, so the
+            // row reads "Deleted by X" until the real time is known instead of an invented figure.
+            if (found === 'already-deleted') library.upsertBin(binEntryFromDoc(id, deletedData));
+            else if (found !== 'gone') library.addToBin(binEntryFrom(d, currentUser));
+            const outcome = found === 'gone' ? `“${d.name}” had already been removed for good.`
+                : found === 'already-deleted'
+                    ? `“${d.name}” is in Recently deleted — ${String(deletedData?.deletedBy ?? '').trim() || 'someone'} had already deleted it.`
+                    : `“${d.name}” is in Recently deleted.`;
             const wasOpen = id === activeDesignId;
             const newActive = wasOpen && _contentKey() === before ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
@@ -971,14 +993,20 @@ export function init() {
             if (id === cmpId || designs.length + PROPOSAL_ENTRIES.length < 2 || (newActive && newActive.id === cmpId) || !newActive) {
                 compare.resetCompare();
             }
-            if (newActive) { _activateDesign(newActive); return; }
+            if (newActive) {
+                _activateDesign(newActive);
+                // Our own delete needs no line once the next design is open; one that found the design
+                // already deleted, or gone, is news.
+                if (found !== 'deleted') _designActionStatus(outcome, '');
+                return;
+            }
             // Edited while its own delete was in flight: the design is in the bin, and the edits are kept
             // as an unsaved NEW design rather than thrown away with it.
             if (wasOpen && design) _openAsNew(design.patterns, design.window);
             renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); renderCoverageCard(); compare.renderCompare(); updateSaveBtn();
             _designActionStatus(wasOpen
-                ? `“${d.name}” is in Recently deleted. What you changed while it was being deleted is still here, not saved — Save keeps it as a new design.`
-                : `“${d.name}” is in Recently deleted.`, wasOpen ? '' : 'ok');
+                ? `${outcome} What you changed while it was being deleted is still here, not saved — Save keeps it as a new design.`
+                : outcome, wasOpen || found !== 'deleted' ? '' : 'ok');
         } catch (err) {
             console.error('[Links] Delete failed:', err);
             // Was console-only: a rules rejection or a dropped connection looked like the button

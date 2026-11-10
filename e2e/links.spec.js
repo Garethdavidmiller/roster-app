@@ -934,6 +934,78 @@ test('links: deleting a design writes a SOFT delete and leaves the document in p
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
 });
 
+// A RENAME OR A DELETE THAT FINDS THE DESIGN ALREADY GONE (links-design-5, and the delete's twin). The
+// store now asks, inside its transaction, whether the design is still live; the page says what it found.
+// A rename used to say "check your connection and try again", which no retry could answer; a delete
+// filed the design in Recently deleted as OURS when a colleague had binned it, or filed a row for a
+// design already removed for good. The server's view is `txDocs`: both designs binned, or both gone.
+/** @param {import('@playwright/test').Page} page @param {'binned'|'gone'} how */
+async function serverAlready(page, how) {
+    await page.evaluate((h) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = h === 'gone' ? []
+            : w.__E2E.docs.map((/** @type {any} */ d) => ({ ...d, deletedAt: 1760000000000, deletedBy: 'S. Silva' }));
+        w.__E2E.setWrites = [];
+    }, how);
+}
+/** @param {import('@playwright/test').Page} page */
+async function renameOpenDesignTo(page, name) {
+    await sheetAction(page, 'designRenameMenuBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill(name);
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+}
+
+test('links: renaming a design a colleague deleted says so, and files it as THEIR delete', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    const open = String(await activeDesignName(page).textContent());
+    await serverAlready(page, 'binned');
+    await renameOpenDesignTo(page, 'Renamed');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText(`“${open}” was not renamed — S. Silva deleted it while it was open here. It is in Recently deleted.`);
+    await expect(designOptions(page), 'out of the live list').toHaveCount(1);
+    await sheetAction(page, 'designBinBtn');
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
+    await expect(page.locator('#designBinList .bin-row')).toContainText(open);
+    await expect(page.locator('.bin-row-meta').first()).toHaveText(/by S\. Silva/);
+});
+
+test('links: renaming a design removed for good says so, with nothing in the bin', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    const open = String(await activeDesignName(page).textContent());
+    await serverAlready(page, 'gone');
+    await renameOpenDesignTo(page, 'Renamed');
+    await expect(page.locator('#linksSaveStatus')).toHaveText(`“${open}” was not renamed — it was removed for good while it was open here.`);
+    await expect(designOptions(page)).toHaveCount(1);
+    await openDesignSheet(page);
+    await expect(page.locator('#designBinBtn'), 'no bin row for a design that is gone').toBeHidden();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites), 'and nothing written').toEqual([]);
+});
+
+test('links: deleting a design a colleague already binned files THEIR delete, and says so', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    const open = String(await activeDesignName(page).textContent());
+    await serverAlready(page, 'binned');
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveStatus')).toHaveText(`“${open}” is in Recently deleted — S. Silva had already deleted it.`);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites), 'nothing written over their delete').toEqual([]);
+    await sheetAction(page, 'designBinBtn');
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
+    await expect(page.locator('.bin-row-meta').first(), 'their delete, not one signed as ours').toHaveText(/by S\. Silva/);
+});
+
+test('links: deleting a design already removed for good adds no bin row, and says so', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    const open = String(await activeDesignName(page).textContent());
+    await serverAlready(page, 'gone');
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveStatus')).toHaveText(`“${open}” had already been removed for good.`);
+    await expect(designOptions(page)).toHaveCount(1);
+    await openDesignSheet(page);
+    await expect(page.locator('#designBinBtn'), 'no phantom row').toBeHidden();
+});
+
 test('links: a pasted design is checked before it can be saved, and saved as a NEW design', async ({ page }) => {
     // The RULES are unit-tested in links-import.test.mjs. What only a browser answers is the WIRING
     // of the two-step: that Save is unreachable until a check has passed, that a later edit takes it
