@@ -62,9 +62,9 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fd, fdShort, fdLong, fmt, decimalToHM, minutesFieldText } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fmt, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
-import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning } from './paycalc-inputs.js';
+import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { classifyPayKey } from './paycalc-inventory.js';
@@ -191,7 +191,7 @@ export function init() {
     // (`_adjNegative` and the period pension default are injected into it); the wiring stays here
     // because it closes over calculate(), autosave() and the period state.
 
-    // If someone types "7.5" into an hours field, split it into 7 hrs 30 mins
+    // If someone types "7.5" (or "7,5", or "7:30") into an hours field, split it into 7 hrs 30 mins
     // automatically on blur rather than silently truncating to 7. The live preview
     // (decPreview) has already shown the result, so the split is no surprise.
     /**
@@ -199,9 +199,7 @@ export function init() {
      * @param {string} mId
      */
     function autoDecimalHours(hId, mId) {
-      const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
-      if (!/[.,]/.test(raw)) return;   // a decimal comma too — hmPair (paycalc-inputs.js)
-      const hm = decimalToHM(parseSmartFloat(raw));
+      const hm = hoursTextToHM(/** @type {HTMLInputElement} */ (document.getElementById(hId)).value);   // paycalc-inputs.js
       if (!hm) return;
       /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(hm.h);
       /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = hm.m ? minutesFieldText(hm.m) : '';

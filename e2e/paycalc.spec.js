@@ -2526,6 +2526,28 @@ test('paycalc: the Decimal Hours Converter reads a decimal comma as the point', 
     expect(errors).toHaveLength(0);
 });
 
+// A desk keyboard can type a clock time into an hours box; parseInt stopped at the colon, so "7:30" was
+// priced and SAVED as 7h while the box still read 7:30 (whole-app review, Nov 2026). The reading is
+// unit-tested (`hoursTextToHM`); this proves the price, the save and the blur split all use it.
+test('paycalc: "7:30" in an hours box is seven and a half hours — priced, saved and split', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    const pNum = await page.locator('#periodSelect').inputValue();
+    await page.locator('#otH').fill('7:30');
+    await expect(page.locator('#otH').locator('xpath=ancestor::div[contains(@class,"hhmm-wrap")]/..').locator('.hhmm-dec-hint'))
+        .toHaveText('= 7h 30m');
+    const saved = await page.evaluate((n) => JSON.parse(localStorage.getItem(`myb_pc_gmiller_p${n}`) ?? 'null'), pNum);
+    expect([saved?.otH, saved?.otM], 'saved as typed means, before the box is left').toEqual([7, 30]);
+    await page.locator('#otH').blur();
+    await expect(page.locator('#otH')).toHaveValue('7');
+    await expect(page.locator('#otM')).toHaveValue('30');
+    expect(errors).toHaveLength(0);
+});
+
 // "Download backup" said "Saved as …" the instant the tap landed — before iOS had saved anything —
 // and a blob download in the Home Screen app may open a preview rather than save. On an iPhone it now
 // opens the share sheet (Save to Files, in a tab and in the installed app), IN the tap, and reports

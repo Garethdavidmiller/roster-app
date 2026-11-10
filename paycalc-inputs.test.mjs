@@ -4,7 +4,7 @@
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField,
-    paintTaxCodeWarning } from './paycalc-inputs.js';
+    paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
 class FakeEl {
@@ -87,6 +87,28 @@ test('hhmmDec / hmPair read a decimal hours value the way the blur split will', 
   assert.equal(hhmmDec('h', 'm'), 0, 'hours can never be negative');
   installDom({ h: field('8'), m: field('45') });
   assert.deepEqual(hmPair('h', 'm'), { h: 8, m: 45 }, 'no decimal → the two fields as typed');
+});
+
+// A desk keyboard can type a clock time into the hours box, and parseInt stopped at the colon: "7:30"
+// was priced and saved as 7h while the box went on reading 7:30 (whole-app review, Nov 2026).
+test('an hours box holding a clock time reads as hours and minutes — priced, previewed and split alike', () => {
+  for (const [typed, want] of [['7:30', { h: 7, m: 30 }], [' 7:30 ', { h: 7, m: 30 }], ['7:5', { h: 7, m: 5 }],
+                               [':30', { h: 0, m: 30 }], ['7:', { h: 7, m: 0 }], ['7:75', { h: 7, m: 59 }]]) {
+    assert.deepEqual(hoursTextToHM(typed), want, JSON.stringify(typed));
+  }
+  for (const typed of ['', '7', ':', 'abc']) assert.equal(hoursTextToHM(typed), null, `${JSON.stringify(typed)} is not more than whole hours`);
+  assert.deepEqual(hoursTextToHM('7.5'), { h: 7, m: 30 }, 'the decimal reading is the same reader');
+  assert.deepEqual(hoursTextToHM('7,5'), { h: 7, m: 30 }, 'and the decimal comma');
+  installDom({ h: field('7:30'), m: field('15') });
+  assert.deepEqual(hmPair('h', 'm'), { h: 7, m: 30 }, 'the minutes box is replaced, as the blur split will');
+  assert.equal(hhmmDec('h', 'm'), 7.5);
+  const hint = new FakeEl('div');
+  const col = new FakeEl('div'); const wrap = new FakeEl('div'); wrap.className = 'hhmm-wrap';
+  const h = field('7:30'); col.appendChild(wrap); wrap.appendChild(h); col.appendChild(hint); hint.className = 'hhmm-dec-hint';
+  installDom({ h });
+  decPreview('h');
+  assert.equal(hint.textContent, '= 7h 30m', 'the live preview shows it before the split');
+  assert.equal(hint.hidden, false);
 });
 
 // ── clampMins (rewrites only when out of range) ──────────────────────────────────

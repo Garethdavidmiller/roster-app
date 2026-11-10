@@ -48,23 +48,36 @@ export function numValOr(id, fallback) {
 export function intVal(id)    { return Math.max(0, parseInt(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '') || 0); }
 
 /**
- * An hours/minutes pair as whole hours + minutes, reading a DECIMAL still in the hours box the way
- * the blur split (`autoDecimalHours`) will write it: floor to hours, the fraction to minutes, the
- * minutes box REPLACED. Before this, "7.5" read as parseInt's 7 until blur — priced 7h live, and
- * stored 7h by any autosave that ran while the field was focused. One reader, so what is priced,
- * what is stored and what the member sees after blur cannot disagree.
+ * What an hours box holding MORE than whole hours means, as hours + minutes — or null for whole
+ * hours or nothing, which the box's own integer read handles. PURE. Two shapes:
+ *  - a decimal, "7.5" → 7h 30m — and with a decimal COMMA, "7,5", which a decimal-comma region's
+ *    keypad offers (whole-app review, Oct 2026; how a bare ",5" parses is `parseSmartFloat`'s rule);
+ *  - a clock time, "7:30" → 7h 30m (whole-app review, Nov 2026). The box is text, so a desk keyboard
+ *    can type one, and `parseInt` stopped at the colon: priced and saved as 7h while still reading
+ *    "7:30". Minutes above 59 are held at 59, as the minutes box holds them.
+ * The ONE reader behind the price (`hmPair`), the live "= 7h 30m" preview and the blur split, so
+ * what is priced, what is stored and what the member sees afterwards cannot disagree.
+ * @param {string} raw the hours box's text
+ * @returns {{ h: number, m: number } | null}
+ */
+export function hoursTextToHM(raw) {
+  const s = String(raw ?? '').trim();
+  const clock = /^(\d*):(\d{0,2})$/.exec(s);
+  if (clock) return clock[1] || clock[2] ? { h: parseInt(clock[1] || '0', 10), m: clampMinute(parseInt(clock[2] || '0', 10)) } : null;
+  return /[.,]/.test(s) ? decimalToHM(Math.max(0, parseSmartFloat(s))) : null;
+}
+
+/**
+ * An hours/minutes pair as whole hours + minutes, reading a DECIMAL or a clock time still in the
+ * hours box the way the blur split (`autoDecimalHours`) will write it (`hoursTextToHM`), the minutes
+ * box REPLACED. Before this, "7.5" read as parseInt's 7 until blur — priced 7h live, and stored 7h
+ * by any autosave that ran while the field was focused.
  * @param {string} hId @param {string} mId
  * @returns {{ h: number, m: number }}
  */
 export function hmPair(hId, mId) {
-  const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId))?.value ?? '';
-  // A decimal COMMA is a decimal point too: a decimal-comma region's keypad offers "," and "7,5"
-  // priced 7h (whole-app review, Oct 2026). parseSmartFloat reads ",5" as the fraction.
-  if (/[.,]/.test(raw)) {
-    const hm = decimalToHM(Math.max(0, parseSmartFloat(raw)));
-    if (hm) return hm;
-  }
-  return { h: intVal(hId), m: intVal(mId) };
+  const hm = hoursTextToHM(/** @type {HTMLInputElement} */ (document.getElementById(hId))?.value ?? '');
+  return hm ?? { h: intVal(hId), m: intVal(mId) };
 }
 
 /**
@@ -127,13 +140,11 @@ export function decimalHoursText(raw) {
   return `${hrs} ${mins}`;
 }
 
-// Live "= 7h 30m" preview shown WHILE a decimal is being typed, so the on-blur
+// Live "= 7h 30m" preview shown WHILE a decimal (or a clock time) is being typed, so the on-blur
 // split is a visible transformation rather than a silent one (trust on a pay form).
 /** @param {string} hId */
 export function decPreview(hId) {
-  const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
-  const val = parseSmartFloat(raw);
-  const hm = /[.,]/.test(raw) ? decimalToHM(val) : null;   // a decimal comma too — see hmPair
+  const hm = hoursTextToHM(/** @type {HTMLInputElement} */ (document.getElementById(hId)).value);
   if (hm) {
     const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, true));
     if (hint) { hint.textContent = `= ${hm.h}h ${String(hm.m).padStart(2, '0')}m`; hint.hidden = false; }
