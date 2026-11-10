@@ -1584,6 +1584,8 @@ export function init() {
 
         openOptionSheet({
             title: `Line ${pos} · ${dayLabel}`,
+            // The title names the CELL, not the list, so the search box is named here (shared-ui-5).
+            searchLabel: 'Search shift times',
             groups: readGroups(holder),
             current,
             createLightbox,
@@ -2310,6 +2312,7 @@ export function init() {
         // Which SAVED design is open (links-design-10): Keep only the shortlist replaces the working copy
         // only when that design is one of those moving, so it warns about unsaved work only then.
         activeId: () => activeDesignId,
+        markQueued: (id) => queuedIds.add(id),   // an import queued in this browser: the pill says so (links-app-4)
         hasOpenDesign: () => !!design,
         renderPicker: renderDesignPicker,
         refreshLists: _refreshLists,

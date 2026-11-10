@@ -53,7 +53,9 @@ function setup(over = {}) {
     _els = {};
     _confirmAnswer = true;
     _confirmed = [];
-    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [], tone: [], removed: [] });
+    // `seq` is the ORDER of the calls that matter to the masthead: whether a design is recorded as
+    // queued before or after the open (or the picker repaint) that draws it.
+    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [], tone: [], removed: [], queued: [], seq: [] });
     /** @type {any[]} */ const designs = [];
     let open = false;
     let dirty = false;
@@ -67,14 +69,15 @@ function setup(over = {}) {
         store, currentUser: 'G. Miller',
         getDesigns: () => designs,
         addDesign: (d) => { designs.push(d); calls.add.push(d.id); },
-        activate: (d) => { calls.activate.push(d.id); open = true; },
+        activate: (d) => { calls.activate.push(d.id); calls.seq.push(`activate:${d.id}`); open = true; },
         isDirty: () => dirty,
         hasOpenDesign: () => open,
-        renderPicker: () => { calls.picker.push(1); },
+        renderPicker: () => { calls.picker.push(1); calls.seq.push('picker'); },
         refreshLists: async () => {},
         actionStatus: (msg, tone) => { calls.status.push(msg); calls.tone.push(tone); },
         getHeader: () => null,
         removeDesigns: (ids) => { calls.removed.push([...ids]); },
+        markQueued: (id) => { calls.queued.push(id); calls.seq.push(`queued:${id}`); },
         ...(over.activeId ? { activeId: over.activeId } : {}),
     });
     return { lib, calls, designs, setOpen: (/** @type {boolean} */ v) => { open = v; }, setDirty: (/** @type {boolean} */ v) => { dirty = v; } };
@@ -252,6 +255,35 @@ describe('import: what a create that had to WAIT is called, and where it lands',
         await importIt(lib);
         assert.doesNotMatch(calls.status.at(-1), /in this browser/);
         assert.equal(calls.tone.at(-1), 'ok');
+    });
+
+    // THE PILL AS WELL AS THE LINE (whole-app fix, Nov 2026). The coordinator keeps the designs whose
+    // last write is only in this browser's queue, and the masthead's pill reads them when it is drawn.
+    // Nothing told it about a queued import, so the pill said "Saved" under a line saying the opposite.
+    test('one QUEUED is recorded as queued, and before the open that draws the pill', async () => {
+        const { lib, calls } = setup({ create: async () => ({ id: 'q1', updatedAt: null, queued: true, baseline: { loadedRevision: 1 } }) });
+        await importIt(lib);
+        assert.deepEqual(calls.queued, ['q1']);
+        assert.deepEqual(calls.seq, ['queued:q1', 'activate:q1'], 'recorded after the open, the pill is drawn as "Saved"');
+    });
+
+    test('…one the server confirmed is not recorded as queued', async () => {
+        const { lib, calls } = setup();
+        await importIt(lib);
+        assert.deepEqual(calls.queued, [], 'a confirmed import would read "Saved in this browser" when everybody has it');
+        assert.deepEqual(calls.activate, ['new1']);
+    });
+
+    test('one queued that lands after the panel was closed is recorded too, for when it is opened', async () => {
+        /** @type {() => void} */ let land = () => {};
+        const { lib, calls } = setup({ create: () => new Promise(r => { land = () => r({ id: 'late1', updatedAt: null, queued: true, baseline: { loadedRevision: 1 } }); }) });
+        const saving = importIt(lib);
+        await settle();
+        await fire('linksImportCancel', 'click');
+        land();
+        await saving;
+        assert.deepEqual(calls.activate, [], 'premise: not opened over the work in front');
+        assert.deepEqual(calls.seq, ['queued:late1', 'picker']);
     });
 
     test('one that lands after the panel was CLOSED is listed, never opened over the work in front (links-design-2)', async () => {
