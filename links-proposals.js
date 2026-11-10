@@ -39,7 +39,7 @@
  *
  * **A proposal id never reaches Firestore.** Ids carry the `proposal:` prefix, and the coordinator
  * opens a proposal with NO saved-design id, so every write path (save, rename, delete) already
- * treats it as unsaved. `links-proposals.test.mjs` pins that each design is 26 lines, meets the
+ * treats it as unsaved. `links-proposals.test.mjs` pins that each design is `ROTATING_LINES` lines, meets the
  * hard limits, and matches its fingerprinted source.
  *
  * If the shortlist changes, re-copy from the pack (the grids are the `patterns` of each `.json`, in

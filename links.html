@@ -31,7 +31,8 @@
     <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
     <!--
       Module preload (v21.75 load-speed pass). links.html carries the DEEPEST static graph in the
-      app — links-boot → links-app → 46 modules — and without these hints the browser
+      app — links-boot → links-app → every module below, the whole static graph (counted by
+      sw-asset-check.test.mjs, which holds this list to it, not written here) — and without these hints the browser
       discovers them in a WATERFALL: parse a file, THEN fetch what it imports. Measured on a
       throttled phone (4× CPU, 40ms RTT) that was 8–9 sequential discovery rounds; with the hints
       it is one, worth ~120ms on a cold load and repeatable across runs. modulepreload only
@@ -162,10 +163,6 @@
     </div>
 </div>
 
-<!-- First-visit notice — shown once, never again after close. Replaced the v12.33 BETA notice at
-     v19.51: the beta marker was removed at v19.50, so its first paragraph ("this is an early beta,
-     the finished version will look quite different") described a page that no longer exists. Only
-     the paragraph that was still true survived. -->
 <!-- Import a design pasted from a spreadsheet or a transcribed sheet (v20.97).
      Two steps on purpose: Check it reports what WOULD be saved, and only then does Save appear.
      A paste is somebody else's proposal and the reader has not seen it as a grid yet. -->
@@ -426,8 +423,8 @@
                 <!-- Compare mode: two read-only grids with diff highlighting -->
                 <div id="compareGridsWrap" class="compare-grids-wrap">
                     <!-- THE DIFFERENCE, BEFORE THE EVIDENCE FOR IT (v22.60). Two grids with gold
-                         outlines is a picture of the difference; reading it means holding 336 cells
-                         in your head. Filled by `renderCompare`; the grids below are unchanged. -->
+                         outlines is a picture of the difference; reading it means holding every cell
+                         of both grids in your head. Filled by `renderCompare`; the grids below are unchanged. -->
                     <div id="compareSummary" class="compare-summary" role="status"></div>
                     <!-- OUTSIDE the summary, and not by accident: `#compareSummary` is a live
                          region, so a control inside it has its label re-announced on every render.
@@ -589,11 +586,11 @@
                     <div class="gen-actions">
                         <button class="btn-text-link" id="genAddSlotBtn" type="button">+ Add another shift</button>
                         <!-- TWO RESETS, AND THEY ANSWER DIFFERENT QUESTIONS (v21.00). The default is
-                             a table DESIGNED against the December 2026 service — it pays the
-                             contracted week exactly, so Generate works the moment the card opens.
-                             LABELLED "demand-based" since v21.06: it read "December 2026 default",
-                             which names the TIMETABLE it was built against, and the owner could not
-                             tell from it whether the button loaded the demand-designed table or
+                             a duty table that pays the contracted week exactly — Short Run's, from
+                             the pack (links-default-targets.js) — so Generate works the moment the
+                             card opens. Its label says what ARRIVES, the staffing: an earlier one,
+                             "December 2026 default", named the TIMETABLE it was built against, and
+                             the owner could not tell from it whether the button loaded that table or
                              something else. A label on a reset has to say what arrives.
                              The roster seed MEASURES what is worked today, which is the right
                              comparison to reach for and cannot pay a ROTATING_LINES rotation, so it will

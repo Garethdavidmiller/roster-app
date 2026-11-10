@@ -2,11 +2,15 @@
 /**
  * links-app.js — Coordinator for links.html.
  *
- * Owns: auth guard, Firestore load/save for named link-design documents,
- *   the design grid (ROTATING_LINES rows), design picker, compare mode, paint-mode brush bar,
- *   coverage analysis, design quality checks, and the auto-generator.
- * Pure maths (classifyShift, calcCoverage, generatePatterns, runDesignChecks)
- *   live in links-design.js — no DOM, no Firebase there.
+ * Owns: the page gate, the working copy and its `dirty` state, what a grid cell MEANS and the paint
+ *   bar's brush (links-grid-input.js operates the grid), every path that can replace or discard the
+ *   working copy and the question each one asks, the Build press, and the wiring of the modules
+ *   below. It makes no Firestore write of its own — designs go through links-design-store.js — and
+ *   one direct read remains, `loadDesigns`, which needs `metadata.fromCache`.
+ * Does NOT own: the masthead and its sheets (links-design-header.js), compare mode (links-compare.js),
+ *   the analysis panels (links-analysis.js), the generator's targets (links-generator-targets.js), the
+ *   bin, import and shortlist (links-design-library.js), or any of the maths (links-design.js and its
+ *   siblings — no DOM, no Firebase there). The module table is .claude/rules/links-design.md.
  */
 
 import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
@@ -289,9 +293,6 @@ export function init() {
     // Paint-mode brush: string = armed shift, null = no brush
     /** @type {any} */ let brush = null;
 
-    // Generator targets
-    /** @type {Array<{time:string, weekday:number, sat:number, sun:number}>} */
-
     // Multi-design state
     /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, savedAt?:Date, updatedBy:string, revision?:number|null}>} */
     let designs         = [];
@@ -503,11 +504,6 @@ export function init() {
         const s = p?.[d] ?? 'RD';
         return s === 'RD' || s === 'OFF';
     });
-
-    /**
-     * Deep-copy a patterns object so edits don't mutate the designs array.
-     * @param {any} patterns
-     */
 
     /**
      * Shared HTML options for any shift dropdown.
@@ -1487,7 +1483,6 @@ export function init() {
         renderDesignChecks();
     }
 
-    /** @param {any} cov */
     /**
      * The three right-hand cells for ONE line (v21.09).
      *
@@ -1496,7 +1491,7 @@ export function init() {
      * titled, because it is a convention rather than a reading of the row. Its DAYS are a dash:
      * unknown, not none, since the design does not record which days a cover week works.
      *
-     * An unfilled line is a dash in all three. Twenty-four rows of "0h 00m" is noise, and the row
+     * An unfilled line is a dash in all three. A grid of empty rows reading "0h 00m" is noise, and the row
      * already carries `row-unfilled`; a dash says the same thing without competing with the figures
      * on the lines that have been designed.
      *
@@ -2310,10 +2305,6 @@ export function init() {
         }
     }
 
-    /**
-     * Load all named designs from Firestore.
-     * Migrates the legacy combined-28 document into a named design on first run.
-     */
     // The design collection's persistence lifecycle and its concurrency protocol (v21.87). Every
     // Firestore handle it needs is passed in, which is what makes the interleavings testable —
     // see links-design-store.js for why that mattered enough to extract.
@@ -2409,6 +2400,11 @@ export function init() {
         }
     }
 
+    /**
+     * Load every named design — the page's one direct Firestore read, because it needs
+     * `metadata.fromCache` — and migrate the legacy `combined-28` document into a named design the
+     * first time a collection that has never held one is read.
+     */
     async function loadDesigns() {
         listLoading = true;
         loadFailed = false;
