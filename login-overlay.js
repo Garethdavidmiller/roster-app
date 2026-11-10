@@ -528,14 +528,12 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     /** The person in the card just changed — a different grade or name — so nothing of the previous
      *  person's may stay (sessions-3, Nov 2026; until then only the first two went): their error,
-     *  their reset-request line or emphasis (see `resetResetRequest`), their failure streak — the reset
-     *  link is raised from a person's SECOND failure (v18.94), and a newcomer's first mistake was
-     *  being counted as the third — and a password they chose to show, or the next person types
-     *  theirs in clear. */
+     *  their reset-request line or emphasis (see `resetResetRequest`), and a password they chose to
+     *  show, or the next person types theirs in clear. Their failure streak is not reset here but
+     *  counted per person (`_failFor`), because a `change` can fire for the same name re-picked. */
     function personChanged() {
         errorEl.classList.remove('visible');
         resetResetRequest();
-        _failCount = 0;
         setPasswordShown(false);
     }
 
@@ -559,7 +557,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         if (nameSelect.value) passwordInput.focus();
     });
 
-    let _failCount   = 0;       // this person's credential failures in a row — zeroed by `personChanged`
+    let _failCount   = 0;       // credential failures in a row by `_failFor`, the person they are counted for
+    let _failFor     = '';
     let _lockedUntil = 0;
     let _attempting  = false;
     let _signingIn   = false;   // true ONLY while Firebase auth is genuinely in flight (not lockout)
@@ -728,6 +727,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 // problem) or any other cause (`'other'`, which no password could fix). Firebase does
                 // the real rate-limiting; this is a UX brake on hammering.
                 if (_result.kind === 'credential') {
+                    // Counted PER PERSON (sessions-3): a newcomer's first mistake is their first, not the
+                    // previous person's third — which locked them out and pushed them to a reset.
+                    if (_failFor !== name) { _failFor = name; _failCount = 0; }
                     _failCount++;
                     // From the SECOND failure (FIX, v18.94). v18.93 revealed on the first, which
                     // contradicted its own stated rationale — "the remedy for a mistype is to try
