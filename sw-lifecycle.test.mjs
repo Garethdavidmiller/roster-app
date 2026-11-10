@@ -219,7 +219,10 @@ describe('service worker — a warm-up body that stalls after its headers', () =
             } }), { status: 200 })
             : okAsset());
         const w = boot({ seed: { [CACHE]: {}, [OLD_CACHE]: { './index.html': 'old release' } }, network: stallOne, readBodies: true });
-        const deadline = Date.now() + 3000;   // 300 s of worker time — ten times the timeout
+        // 1,500 s of worker time — fifty times the timeout. A healthy run finishes in well under a second;
+        // 3 s ran out on a machine busy with browser suites (twice, 10 Nov 2026), and a warm-up that
+        // never finishes fails at any deadline, so the margin costs only the wait when it does.
+        const deadline = Date.now() + 15000;
         while (!w.fetched.length && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));   // it has started
         assert.ok(w.warming(), 'premise: a warm-up is running');
         while (w.warming() && Date.now() < deadline) await new Promise(r => setTimeout(r, 15));
