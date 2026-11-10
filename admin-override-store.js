@@ -34,6 +34,7 @@
  */
 
 import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, COLLECTIONS } from './firebase-client.js';
+import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { shouldReplaceOverride } from './override-utils.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
@@ -78,17 +79,18 @@ export function initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits,
 //     over-entitlement check — which a cold cache would make wrong (a real <12h gap missed, or a valid
 //     save wrongly blocked). It disables Save BEFORE the await (the v16.23 "disable before the first
 //     await" invariant) so no double-tap window opens.
-// The ONE deliberately-ungated read is the AL RANGE-booking over-entitlement WARNING
-// (admin-al.js checkEntitlement, via admin-range-booking's preSave): gating it safely is
-// disproportionately risky (its confirm bar re-triggers the same Save button via
-// triggerConfirmedALSave → click, so disabling it there would break the confirm→save flow), and a
-// cold miss only SKIPS a warning — the write itself is still correct (recordRangeOverrides self-gates)
-// and by the time an admin has built a range booking the cache is long warm.
+//   • The RANGE cards (AL and Absence) gate at the click: until `hasOverrideAuthorityFor(member)` they
+//     refuse and say why (admin-range-booking.js, whole-app check, Nov 2026; admin-2-1), so their
+//     pre-save reads — the over-entitlement warning, the swap answers, the "left alone" receipt lines —
+//     are never built from a cold cache. They had been left ungated on two premises that stopped
+//     holding: that the cache is long warm by then (since v21.38 every member switch starts a fresh,
+//     staged load), and that a cold miss only SKIPS a warning (since v23.75 the swap answers too).
 // Resolving on FAILURE too is deliberate — if the first read errored Firestore is unreachable and the
 // write will fail its own commit anyway, better than hanging the Save button forever. loadOverrides()
 // is called unconditionally in the AUTHORISED admin-init branch (not the not-signed-in/login branch,
 // where sessionReady also never resolves and the login overlay covers the Save button), so a write
-// path can't pend on this indefinitely. (v16.85)
+// path can't pend on this indefinitely. (v16.85) Every read now waits for `sessionReady` first (see
+// `loadOverrides`), which that same branch resolves — and every write path awaits it anyway.
 /** @type {(v?: any) => void} */
 let _resolveOverridesReady = () => {};
 const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
@@ -122,7 +124,7 @@ export function whenOverridesReady() { return _overridesReady; }
 let _coverage = emptyCoverage();
 
 /** @returns {boolean} True once the override cache has been authoritatively populated at least once.
- *  Kept as the page-wide "has anything loaded" signal; a WRITE must ask `hasOverrideAuthorityFor`. */
+ *  A TEST SEAM: nothing in the app asks it any more; a WRITE must ask `hasOverrideAuthorityFor`. */
 export function isOverrideCacheLoaded() { return _coverage.all || _coverage.members.length > 0; }
 
 /** @param {string|null|undefined} member @returns {boolean} May a decision about this member be
@@ -167,11 +169,9 @@ export function isTruncated() { return _overridesTruncated; }
 /** @param {any[]} arr */
 export function setAllOverrides(arr) {
     _allOverrides = arr;
-    // Explicitly setting the cache to a known state is itself a "ready" signal: the caller is
-    // asserting `_allOverrides` is now authoritative. In production this only runs post-load (the
-    // delete-path cache mutations in admin-app), so readiness is already resolved; it also lets the
-    // write-path unit tests, which seed the cache via setAllOverrides() rather than loadOverrides(),
-    // satisfy the whenOverridesReady() gate. (v16.85)
+    // A TEST SEAM: nothing in the app calls it — the delete paths drop rows through `removeFromCache`
+    // (v21.38). Setting the cache to a known state is itself a "ready" signal, which is what lets the
+    // write-path unit tests seed the cache this way and still pass the whenOverridesReady() gate. (v16.85)
     // AN ASSERTION OF COMPLETENESS, so it grants FULL coverage (Finding #2). Use it only when the
     // array genuinely is the whole cache — seeding a test, or replacing everything. To DROP rows,
     // use `removeFromCache`: a delete learns nothing and must not widen what the cache claims.
@@ -268,6 +268,13 @@ export function whenLoadSettled() { return _loadInFlight ?? Promise.resolve(); }
  *
  * `everyone` defaults to whatever the cache already claims, so once an admin has opened All staff,
  * later resyncs keep the list whole rather than silently narrowing it under them.
+ *
+ * NO READ BEFORE THE SESSION (whole-app check, Nov 2026). The page calls this the moment it boots,
+ * and on an iPhone that is often BEFORE it is signed in: Firebase can restore no user behind a valid
+ * local session, so the page signs in silently (`ensureFirebaseSession`), and Firestore holds a read
+ * only until Auth has STARTED, not until that sign-in lands. The read went out with no credential,
+ * the rules refused it, and nothing read again — "Couldn't load" on a page whose session was fine.
+ * After boot `sessionReady` has long resolved, so this costs a later read nothing.
  * @param {{ everyone?: boolean, member?: string }} [opts]
  * @returns {Promise<void>}
  */
@@ -279,6 +286,7 @@ export async function loadOverrides(opts = {}) {
     if (_loadInFlight && _loadInFlightKey === key) return _loadInFlight;
     const prev = _loadInFlight;
     const run = (prev ? prev.catch(() => {}) : Promise.resolve())
+        .then(() => sessionReady)
         .then(() => _loadOverridesInner({ everyone, member }))
         .finally(() => { if (_loadInFlight === run) { _loadInFlight = null; _loadInFlightKey = null; } });
     _loadInFlight    = run;
@@ -452,6 +460,10 @@ async function _loadOverridesInner(opts) {
             _allOverrides = _overridesTruncated ? mergeCappedRead(_allOverrides, rows, _coverage.members) : rows;
             // A CAPPED read covers the LIST, never a write — see admin-override-coverage.js.
             _coverage = withAll(_coverage, { complete: !_overridesTruncated });
+            // So a member on screen whom only an earlier COMPLETE read covered has just lost cover, with no
+            // read of their own coming: their week sat on "Loading…" for ever. Queue one (whole-app check, Nov 2026).
+            const onScreen = fieldMember?.value;
+            if (onScreen && !hasAuthorityFor(_coverage, onScreen)) loadOverrides({ everyone: false, member: onScreen });
         } else {
             // ONE MEMBER, EVERY DATE. No cap and no truncation flag: a single member cannot approach
             // the collection cap, so the partial-list banner would be claiming something untrue.
@@ -465,6 +477,9 @@ async function _loadOverridesInner(opts) {
             _coverage = withMember(_coverage, member);
             _loadFailedFor.delete(member);
         }
+        // NEWEST FIRST, WHICHEVER READ FILLED IT (whole-app check, Nov 2026; admin-2-3). The member read has no
+        // `orderBy`, so the list came in document-id order — no date order at all — until a save sorted it.
+        _allOverrides.sort((a, b) => String(b.date).localeCompare(String(a.date)));
         _renderTable();
         const fieldDate = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
         // Do NOT re-render over staged edits: on a slow first load the admin can already have
@@ -494,9 +509,12 @@ async function _loadOverridesInner(opts) {
                 ? 'You\'re offline — saved changes can\'t be checked until you reconnect.'
                 : 'Couldn\'t load saved changes.'}<br><span class="reload-link" id="retryLoadLink" role="button" tabindex="0">↻ Retry</span></div>`;
             const retry = document.getElementById('retryLoadLink');
-            // No captured opts: after a member switch the stale ones would re-fetch the member the
-            // admin has already left. Re-resolve from the page at the moment Retry is pressed.
-            const again = () => { loadOverrides(everyone ? { everyone: true } : {}); };
+            // No captured member: after a member switch it would re-fetch the member the admin has
+            // already left. Re-resolve from the page at the moment Retry is pressed. But a failed
+            // MEMBER read retries as a member read: left to the default, a session that had made a
+            // capped "All staff" read re-read the capped collection, which never covers the member,
+            // so Retry redrew the same failure for ever (whole-app check, Nov 2026).
+            const again = () => { loadOverrides({ everyone }); };
             // Back online, it tries again by itself — the offline case is the one with a known cure.
             if (offline) window.addEventListener('online', again, { once: true });
             retry?.addEventListener('click', again);

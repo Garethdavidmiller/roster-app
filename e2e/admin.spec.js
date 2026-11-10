@@ -6,8 +6,8 @@
  */
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
-import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
-import { teamMembers, getBaseShift, CONFIG } from '../roster-data.js';
+import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
+import { teamMembers, getBaseShift, parseISODate, CONFIG } from '../roster-data.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -574,6 +574,106 @@ test('admin: another member signing in on the same phone is offered nothing — 
     expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'G. Miller\'s copy is left for G. Miller').not.toBeNull();
 });
 
+// RESTORE PUTS ROWS BACK ONLY ON THEIR OWN MEMBER AND WEEK (whole-app check, Nov 2026). The offer waits for the
+// draft's member to be read, and meanwhile the member on screen can be edited. Restore then jumped — which,
+// with this week's own changes staged, stops at "Discard or keep editing?" — and put the rows back anyway, onto
+// the member on screen, under "Your unsaved changes are back". A Save would have written them to that person.
+test('admin: Restore while another member\'s same week holds changes of its own puts nothing on it, and keeps the draft', async ({ page }) => {
+    const { date } = await stageAbsenceAndHide(page);   // G. Miller, week of 7 Dec 2026
+    await page.addInitScript(() => {   // after the session seeder's own, which selects the signed-in member
+        localStorage.setItem('myb_roster_selected_member', 'S. Silva');
+        window.__E2E = { ...(window.__E2E || {}), docsDelayMs: 1500 };
+    });
+    const accept = (/** @type {import('@playwright/test').Dialog} */ d) => d.accept().catch(() => {});
+    page.on('dialog', accept);
+    await page.goto('/admin.html?date=2026-12-07');   // S. Silva's same week, as a link from the Calendar opens it
+    page.off('dialog', accept);
+    // S. Silva's read is slow; G. Miller's — the one the offer waits for — is held until this test has edited S. Silva.
+    const memberReads = () => page.evaluate(() => ((/** @type {any} */ (window).__E2E.whereCalls || [])).filter((/** @type {any[]} */ w) => w[0] === 'memberName').map((/** @type {any[]} */ w) => w[2]));
+    await expect.poll(memberReads).toEqual(['S. Silva']);
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsHeld = true; e.docsDelayMs = 0; });
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await expect(page.locator('#fieldMember')).toHaveValue('S. Silva');
+    await expect.poll(memberReads, { message: 'premise: the offer\'s read of G. Miller is out, and held' }).toEqual(['S. Silva', 'G. Miller']);
+    await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0);
+    const own = page.locator(`.day-row:not([data-date="${date}"])`)
+        .filter({ has: page.locator('.type-pill-btn[data-type="annual_leave"]:not([disabled])') }).last();
+    await own.locator('.day-cb').click();
+    await clickInView(own.locator('.type-pill-btn[data-type="annual_leave"]'));
+    const ownDate = await own.getAttribute('data-date');
+    expect(ownDate, 'premise: S. Silva\'s own change is on another day').not.toBe(date);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText('Restore your unsaved changes');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes weren’t put back, because this week has changes of its own.');
+    await expect(page.locator('#fieldMember')).toHaveValue('S. Silva');
+    await expect(page.locator(`.day-row[data-date="${date}"] .type-pill-btn[data-type="sick"]`), 'G. Miller\'s absence is not on S. Silva').toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator(`.day-row[data-date="${ownDate}"] .type-pill-btn[data-type="annual_leave"]`), 'S. Silva\'s own change stands').toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'kept, for the next load').not.toBeNull();
+});
+
+// A SAVE THAT LANDS FORGETS THE COPY THE HIDE KEPT (whole-app check, Nov 2026). Saving and then switching
+// app is what the slow save teaches, so the rows are kept while the commit waits. When it landed, every
+// row was switched off before the week was redrawn — and a switched-off row with a saved record reads
+// as a staged removal, so on any week holding one the "saved: forget it" check found unsaved work and
+// kept the copy. A page iOS then discarded offered to restore work that had been saved.
+test('admin: a save landing while the page is hidden forgets the kept copy, on a week holding another saved change', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), holdCommits: true, docs: [{ id: 'm_2026-12-09_G.%20Miller', memberName: 'G. Miller',
+            date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }] };
+    });
+    await openAdminOnDecember(page);
+    await expect(page.locator('.day-row[data-date="2026-12-09"] .overwrite-badge'), 'premise: Wednesday holds a saved change, untouched').toContainText('Saved');
+    await page.locator('.day-row[data-date="2026-12-08"] .day-cb').click();
+    await page.locator('.day-row[data-date="2026-12-08"] .type-pill-btn[data-type="annual_leave"]').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#saveBtn')).toContainText('Saving');
+    await setVisibility(page, 'hidden');
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'premise: hidden mid-save, the rows are kept').not.toBeNull();
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'saved: forgotten as it lands, not at a later hide').toBeNull();
+});
+
+// …AND WHILE A READ THAT WAS ALREADY RUNNING FINISHES, THE WEEK READS AS SAVED. A save waits for a read in
+// flight at commit (All staff, a Retry, the return refresh) before it redraws, and in that wait the rows
+// were switched off and nothing recounted: the day just saved showed nothing, a saved day lost its type,
+// and under "1 change saved" the Unsaved bar still read "1 day".
+test('admin: while a read that was running at the save finishes, the week reads as saved, not as unsaved', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'm_2026-12-09_G.%20Miller', memberName: 'G. Miller',
+            date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }] };
+    });
+    await openAdminOnDecember(page);
+    const badge = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"] .overwrite-badge`);
+    await expect(badge('2026-12-09'), 'premise: Wednesday holds a saved change, untouched').toContainText('Saved');
+    await page.locator('#overridesToggleHeader').click();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await page.locator('#showAllOverridesBtn').click();   // the collection read, held in flight
+    await page.locator('.day-row[data-date="2026-12-08"] .day-cb').click();
+    await page.locator('.day-row[data-date="2026-12-08"] .type-pill-btn[data-type="annual_leave"]').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+
+    // Committed, and waiting on the read.
+    const al = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"] .type-pill-btn[data-type="annual_leave"]`);
+    await expect(badge('2026-12-08'), 'the day just saved reads as saved').toContainText('Saved');
+    await expect(al('2026-12-08')).toHaveAttribute('aria-pressed', 'true');
+    await expect(al('2026-12-09'), 'a saved day nobody touched keeps its type').toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#stagedBar'), 'nothing reads as unsaved').toBeHidden();
+    await expect(page.locator('#gridPreview')).toBeHidden();
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await waitForReadsToLand(page, 'the All staff read never landed');
+    await expect(badge('2026-12-08')).toContainText('Saved');
+    await expect(page.locator('#saveBtn'), 'and the save has finished').toHaveText('Save changes');
+});
+
 // ── A WEEK LEFT OPEN IS READ AGAIN WHEN THE APP COMES BACK (iPhone audit, Nov 2026) ─────────────
 // An installed app is not reloaded when it is reopened — iOS keeps it resident for days — and Admin
 // read its week once, with "Today" stamped as it drew. Back after five minutes away, with nothing
@@ -676,9 +776,13 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     const thisYear = await read();
     expect(thisYear.taken, 'the fixture must actually be on record, or every figure below is a true zero')
         .toBeGreaterThan(0);
+    // AND IT SAYS WHICH YEAR (whole-app check, Nov 2026; admin-2-14): four figures with no year beside them.
+    const entLbl = page.locator('#alBannerLblEntitlement');
+    await expect(entLbl).toHaveText('2026 entitlement');
 
     await scroll('#alRpNext');
     await expect(page.locator('#alRpLabel, #alRangePicker .rp-label')).toContainText('2027');
+    await expect(entLbl, 'the year moves with the figures').toHaveText('2027 entitlement');
     const nextYear = await read();
     expect(nextYear.taken, 'leave taken in 2026 is being counted against 2027').toBe(0);
     expect(nextYear.remaining, 'a year with nothing booked shows the whole entitlement')
@@ -1046,6 +1150,58 @@ test('admin: the over-entitlement question stays up past an earlier success mess
     await expect(bar, 'the question must wait for an answer, not for a timer').toHaveClass(/visible/);
 });
 
+// ONE WRITE AT A TIME, "SAVE ANYWAY" INCLUDED (whole-app check, Nov 2026; routed from admin-2). The bar's
+// Save anyway ran the week's save whatever else was sending: beside an absence booking still writing, two
+// writes to one page at once (the v24.38 duplicate-record race), and the week's save then released the lock
+// the booking still held. It now waits, as the cards' own Save buttons do.
+test('admin: "Save anyway" does not start while a booking is still sending', async ({ page }) => {
+    test.setTimeout(45_000);
+    const TAKEN = [];
+    for (const m of ['06', '07']) for (let d = 1; d <= 28; d++) TAKEN.push(`2026-${m}-${String(d).padStart(2, '0')}`);
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');   // a real user, so neither write is refused
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = dates.map((date, i) => ({ id: `al-${i}`, memberName: 'G. Miller', date,
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    }, TAKEN);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    // An absence picked and ready to record (Tue 8 Sep 2026, a working day on his line).
+    await page.locator('#sickToggleHeader').click();
+    await page.locator('#sickRpNext').click();
+    const day = page.locator('#sickRpGrid .rp-day[data-iso="2026-09-08"]');
+    await day.click();
+    await day.click();
+    await expect(page.locator('#sickSaveBtn')).toBeEnabled();
+    // A week's leave over the allowance: the bar asks.
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2026-11-16';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Nov 2026');
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    for (const btn of await page.locator('.day-row .al-swap-btn[data-swap="no"]').all()) {
+        if (await btn.isVisible()) await clickInView(btn);
+    }
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#alConfirmBar')).toHaveClass(/visible/);
+    // The absence starts sending, and is held there…
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.holdCommits = true; });
+    await clickInView(page.locator('#sickSaveBtn'));
+    const held = () => page.evaluate(() => (/** @type {any} */ (window).__E2E._held || []).length);
+    await expect.poll(held, { message: 'premise: the booking is sending' }).toBe(1);
+    // …and Save anyway, pressed meanwhile, waits.
+    await page.locator('#alConfirmSaveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('Another change is still saving — try again when it has finished.');
+    expect(await held(), 'one write at a time').toBe(1);
+    await expect(page.locator('#alConfirmBar'), 'the question stays, to answer once the booking is in').toHaveClass(/visible/);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+});
+
 // Whole-app review, Oct 2026: a leave range picked while the member's records were still loading was
 // previewed from an empty cache — asking about a rest day the records show is worked (RDW) — and the
 // load refreshed the banners but never the preview, so the question stayed.
@@ -1078,6 +1234,36 @@ test('admin: a leave preview drawn before the member\'s records arrive is redraw
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the records land
     await expect(preview).toContainText('recorded at no cost', { timeout: 8_000 });
     await expect(preview).not.toContainText('rest day to answer');
+});
+
+// …AND ONE DRAWN BEFORE A RECORDED PERIOD IS DELETED IS REDRAWN AFTER IT (whole-app check, Nov 2026; admin-2-2).
+// Every other path that changes the records redraws both previews; the ✕ in the recorded dates did not, so a
+// swapped-in day whose leave was just deleted — a bare rest day now — was saved over without its question.
+test('admin: a leave preview is redrawn when a recorded period under it is deleted', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');   // a real user, so the delete is not refused
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {   // Mon 7 Sep: RD on his line, a declared swap
+            docs: [{ id: 'm_2026-09-07_G.%20Miller', memberName: 'G. Miller', date: '2026-09-07', type: 'annual_leave', value: 'AL',
+                note: '', source: 'manual', replacedType: 'shift' }] });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpNext').click();
+    const cell = page.locator('#alRpGrid .rp-day[data-iso="2026-09-07"]');
+    await cell.click();
+    await cell.click();
+    const preview = page.locator('#alPreview');
+    await expect(preview).toBeVisible();
+    await expect(preview, 'premise: its record settles the question').not.toContainText('rest day to answer');
+    await page.locator('#alBookedToggle').click();
+    const del = page.locator('#alBookedBody .btn-period-delete[aria-label*="7 Sep"]');
+    await del.click();
+    await del.click();
+    await expect(page.locator('#saveToast')).toHaveText(/Deleted 1 AL day for G\. Miller/);
+    await expect(preview, 'a bare rest day now: asked about again').toContainText('rest day to answer');
 });
 
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {
@@ -1167,6 +1353,101 @@ test('admin: a slow save says "Waiting for signal" only when the browser reports
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => /^Slow save/.test(w.data?.message ?? '')).length),
         'an offline-when-slow save must not be logged as a diagnostic').toBe(0);
+});
+
+// ── A CHANGE MADE WHILE A SAVE IS SENDING IS REFUSED, NOT TAKEN AND THROWN AWAY (Nov 2026) ─────────
+// The batch is the grid as it stood at the press. When the commit lands every row is reset and the week
+// redrawn, so a tap in the wait — seconds on an iPhone (KNOWN_LIMITATIONS) — used to light up, then
+// vanish under a receipt that never mentioned it: Monday re-typed as Absent still SAVED as leave.
+// Clicked with the real mouse, so a held grid is met the way a finger meets it.
+test('admin: a change tapped while a save is still sending is refused, not taken and then thrown away', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    // Monday and Tuesday are both rostered working days on this line, so leave asks nothing. A row's
+    // pills show once it is ticked, so each is ticked first, as a person does.
+    const box  = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"] .day-cb`);
+    const pill = (/** @type {string} */ d, /** @type {string} */ t) =>
+        page.locator(`.day-row[data-date="${d}"] .type-pill-btn[data-type="${t}"]`);
+    await box('2027-01-11').click();
+    await pill('2027-01-11', 'annual_leave').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#saveBtn')).toContainText('Saving');
+
+    // While the commit waits: Monday re-typed as Absent, Tuesday ticked, and the bulk bar's All 7.
+    await pill('2027-01-11', 'sick').click({ force: true });
+    await box('2027-01-12').click({ force: true });
+    await page.locator('#bulkSelAll').click({ force: true });
+    await expect(pill('2027-01-11', 'annual_leave'), 'the row being saved keeps the type it is being saved as').toHaveAttribute('aria-pressed', 'true');
+    await expect(pill('2027-01-11', 'sick')).toHaveAttribute('aria-pressed', 'false');
+    await expect(box('2027-01-12'), 'nothing new is staged while the save is sending').not.toBeChecked();
+    await expect(box('2027-01-15'), 'nor by the bulk bar').not.toBeChecked();
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
+    expect(written, 'the save wrote the batch it was pressed with').toEqual(['2027-01-11 annual_leave']);
+    await expect(pill('2027-01-11', 'annual_leave'), 'and the week shows what was saved').toHaveAttribute('aria-pressed', 'true');
+    // …and the week is editable again once it has landed.
+    await box('2027-01-12').click();
+    await pill('2027-01-12', 'annual_leave').click();
+    await expect(pill('2027-01-12', 'annual_leave')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#saveBtn')).toBeEnabled();
+});
+
+// ── "APPLY TO TICKED DAYS" IS ONLY THE DAYS TICKED (owner, 10 Nov 2026) ─────────────────────────────
+// A day already holding a saved change opened TICKED, so Apply re-typed it unasked — and the one way to
+// leave it out, unticking, staged its deletion. A tick is now only ever the manager's own, and an untick
+// never removes anything: a saved day goes back to what is saved.
+test('admin: Apply changes only the days ticked — a saved day is left alone, and an untick never deletes it', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'ri-wed', memberName: 'G. Miller', date: '2026-12-09',
+            type: 'shift', value: '10:00-18:00', note: '', source: 'roster_import' }] };
+    });
+    await openAdminOnDecember(page);
+    const row  = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"]`);
+    const box  = (/** @type {string} */ d) => row(d).locator('.day-cb');
+    const pill = (/** @type {string} */ d, /** @type {string} */ t) => row(d).locator(`.type-pill-btn[data-type="${t}"]`);
+    const badge = row('2026-12-09').locator('.overwrite-badge');
+    await expect(pill('2026-12-09', 'shift'), 'premise: Wednesday shows its saved shift').toHaveAttribute('aria-pressed', 'true');
+    await expect(box('2026-12-09'), 'a saved day is not a ticked day').not.toBeChecked();
+    await expect(page.locator('#bulkSelCount')).toHaveText('');
+    await box('2026-12-10').click();
+    await box('2026-12-11').click();
+    await expect(page.locator('#bulkSelCount')).toHaveText('2 days selected');
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(pill('2026-12-10', 'annual_leave')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pill('2026-12-11', 'annual_leave')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pill('2026-12-09', 'shift'), 'Wednesday keeps its shift').toHaveAttribute('aria-pressed', 'true');
+    await expect(badge).toContainText('Saved');
+
+    // Ticked on purpose it counts; unticked again it is only unticked.
+    await box('2026-12-09').click();
+    await expect(page.locator('#bulkSelCount')).toHaveText('3 days selected');
+    await box('2026-12-09').click();
+    await expect(badge, 'an untick is not a removal').toContainText('Saved');
+    await expect(pill('2026-12-09', 'shift')).toHaveAttribute('aria-pressed', 'true');
+    // An edit unticked goes back to what is saved, not to a removal.
+    await pill('2026-12-09', 'rdw').click();
+    await expect(badge).toContainText('Updating');
+    await box('2026-12-09').click();
+    await expect(badge).toContainText('Saved');
+    await expect(pill('2026-12-09', 'shift')).toHaveAttribute('aria-pressed', 'true');
+
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('2 changes saved for G. Miller', { timeout: 10000 });
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
+    expect(written, 'only the two days ticked').toEqual(['2026-12-10 annual_leave', '2026-12-11 annual_leave']);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.batchDeletes || []), 'and nothing deleted').toEqual([]);
 });
 
 // ── A SAVE WHOSE ACCOUNT IS REVOKED ENDS, AND SAYS WHERE TO SIGN IN (v24.36 / v24.37) ─────────────
@@ -1283,11 +1564,13 @@ test('admin: a colleague signing in from another tab does not sign anybody out h
 /** The dates of the rendered week, keyed by weekday. The grid always runs Sunday→Saturday, but the
  *  assertions name the day rather than an index so a failure says which day it meant. */
 async function weekGridDates(page) {
-    return page.evaluate(() => Object.fromEntries(
-        [...document.querySelectorAll('.day-row')].map(r => {
+    return page.evaluate(() => Object.fromEntries([
+        ...[...document.querySelectorAll('.day-row')].map(r => {
             const iso = /** @type {HTMLElement} */ (r).dataset.date || '';
             return [['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date(iso + 'T12:00:00').getDay()], iso];
-        })));
+        }),
+        ['member', /** @type {HTMLSelectElement} */ (document.getElementById('fieldMember')).value],   // whose week it is
+    ]));
 }
 
 test('admin: the Sunday row offers no pill for anything that cannot be recorded on a Sunday', async ({ page }) => {
@@ -1346,9 +1629,13 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
             })));
         expect(staged[days.sun], `${type} must not stage on a Sunday`).toBe('');
         // The other six DID take it — the sweep is being filtered, not broken. Without this, a
-        // guard that skipped every row would pass the line above.
+        // guard that skipped every row would pass the line above. Absent also leaves a REST day alone
+        // (owner, 10 Nov 2026 — its own test below), so for Absent the six are the working ones.
+        const who = teamMembers.find(m => m.name === days.member);
         for (const key of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat']) {
-            expect(staged[days[key]], `${key} is a contracted day and must take ${type}`).toBe(type);
+            const restLeft = type === 'sick' && isRestShift(getBaseShift(who, parseISODate(days[key])));
+            expect(staged[days[key]], restLeft ? `${key} is a rest day, which Absent leaves alone`
+                : `${key} is a contracted day and must take ${type}`).toBe(restLeft ? '' : type);
         }
         // "All 7 → 6 applied" is a surprise unless it is stated. This is the only place the manager
         // is told, and it is what stops the drop reading as a lost tap.
@@ -1359,6 +1646,160 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
         await page.locator('#stagedDiscardBtn').click();
         await expect(page.locator('#saveBtn')).toBeDisabled();
     }
+});
+
+// ── A BULK ABSENT LEAVES A REST DAY ALONE, AND NAMES IT (owner, 10 Nov 2026: "Skip rest days") ──────
+// The Absence card and the roster import record no absence on a rest day. The bulk bar did — and the
+// Calendar then hid it, while Admin's Recorded Absence dates listed and counted it.
+test('admin: All 7 → Absent → Apply stages only the working days, and names the rest days it left alone', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    for (const d of ['2027-01-13', '2027-01-14']) {
+        await expect(page.locator(`.day-row[data-date="${d}"]`), `premise: ${d} is a rest day on this line`).toHaveAttribute('data-base-is-rd', '1');
+        await page.locator(`.day-row[data-date="${d}"] .day-cb`).click();
+    }
+    await page.locator('#bulkTypePills .pill-sick').click();
+    await expect(page.locator('#bulkApplyBtn'), 'only rest days ticked: nothing Absent could go on').toBeDisabled();
+    await expect(page.locator('#bulkApplyHint')).toHaveText('An absence isn’t recorded on a rest day — tick a working day');
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkApplyBtn').click();
+    const staged = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.day-row')]
+        .map(r => [/** @type {HTMLElement} */ (r).dataset.date, /** @type {HTMLElement} */ (r).dataset.type || ''])));
+    expect(staged).toEqual({ '2027-01-10': '', '2027-01-11': 'sick', '2027-01-12': 'sick', '2027-01-13': '',
+        '2027-01-14': '', '2027-01-15': 'sick', '2027-01-16': 'sick' });
+    await expect(page.locator('#formFeedback')).toContainText('Set 4 days — Sunday skipped (not a contracted day); '
+        + '13 Jan 2027 and 14 Jan 2027 skipped: rest days on the base roster, so nothing is recorded.');
+    // STAGED, NOT SAVED (whole-app check, Nov 2026): never the save's own toast, which covered the Unsaved bar.
+    expect(await page.locator('#saveToast').getAttribute('class') ?? '', 'read at once: a toast fades by itself').not.toMatch(/\bvisible\b/);
+    await expect(page.locator('#stagedBar')).toBeVisible();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('4 changes saved for G. Miller', { timeout: 10000 });
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
+    expect(written).toEqual(['2027-01-11 sick', '2027-01-12 sick', '2027-01-15 sick', '2027-01-16 sick']);
+});
+
+// "WORKING DAYS" IS THE WORKING DAYS THE CARDS WRITE BY (whole-app check, Nov 2026). The button read a
+// rest day the member had been swapped onto as a rest day, while `isWorkingDate` — the Annual Leave
+// card's rule — calls it worked: Working days → AL left the swapped-in day out, the card charged it.
+test('admin: Working days ticks a rest day with a swapped-in shift, and leaves a plain rest day and Sunday', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'swap-wed', memberName: 'G. Miller', date: '2027-01-13',
+            type: 'shift', value: '09:00-17:00', note: '', source: 'manual' }] };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('.day-row[data-date="2027-01-13"] .type-pill-btn[data-type="shift"]'),
+        'premise: the swap is on record').toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#bulkSelWorking').click();
+    const ticked = await page.evaluate(() => [...document.querySelectorAll('.day-row')]
+        .filter(r => /** @type {HTMLInputElement} */ (r.querySelector('.day-cb')).checked).map(r => /** @type {HTMLElement} */ (r).dataset.date));
+    // Wed 13 is a base rest day worked by swap; Thu 14 a plain rest day; Sun 10 never.
+    expect(ticked).toEqual(['2027-01-11', '2027-01-12', '2027-01-13', '2027-01-15', '2027-01-16']);
+});
+
+/** Admin on `member`'s week holding `iso`, signed in as G. Miller with a working Firebase user.
+ *  @param {import('@playwright/test').Page} page @param {string} member @param {string} iso */
+async function adminOnWeek(page, member, iso) {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(member);
+    await page.locator('#fieldDate').evaluate((el, d) => {
+        /** @type {HTMLInputElement} */ (el).value = d;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, iso);
+    await expect(page.locator(`.day-row[data-date="${iso}"]`)).toBeVisible();
+}
+
+// BOXING DAY IS NEVER AN OTHER DAY (owner, Jul 2026 — CLAUDE.md, Shift types), refused the way a Sunday's
+// is: at the pill, with the reason in the row, and at Save for a row that reaches it another way.
+test('admin: Boxing Day takes no Other day — the pill says why, and Save refuses one', async ({ page }) => {
+    await adminOnWeek(page, 'G. Miller', '2026-12-21');
+    const boxing = page.locator('.day-row[data-date="2026-12-26"]');
+    await boxing.locator('.day-cb').click();
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toBeDisabled();
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toHaveAttribute('aria-label', /Boxing Day/);
+    await expect(boxing.locator('.col-pills')).toContainText('Boxing Day can’t be an Other day');
+    await expect(boxing.locator('.type-pill-btn[data-type="rdw"]'), 'work on Boxing Day is still recordable').toBeEnabled();
+    const thu = page.locator('.day-row[data-date="2026-12-24"]');   // a working day, so the save has a batch
+    await thu.locator('.day-cb').click();
+    await thu.locator('.type-pill-btn[data-type="annual_leave"]').click();
+    await boxing.evaluate((r) => {   // an Other day reaching Save by another route
+        /** @type {HTMLElement} */ (r).dataset.type = 'other';
+        r.querySelector('.other-flavour-btn[data-flavour="TRG"]')?.classList.add('active');
+    });
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('26 Dec 2026: an "Other" day cannot be recorded on Boxing Day');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
+});
+
+// A DAY BEFORE A MEMBER'S START DATE TAKES NO CHANGE (whole-app check, Nov 2026; decided default). The
+// Calendar, its legend and Team Week never show one (`isBeforeMemberStart`), so a change saved there was
+// accepted, receipted and then invisible for ever.
+test('admin: a day before the start date takes no change — the pills say why, Apply skips it, and Save refuses it', async ({ page }) => {
+    await adminOnWeek(page, 'K. Jedlinski', '2026-06-01');   // starts Wed 3 Jun 2026
+    const mon = page.locator('.day-row[data-date="2026-06-01"]');
+    await mon.locator('.day-cb').click();
+    for (const t of ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other']) {
+        await expect(mon.locator(`.type-pill-btn[data-type="${t}"]`), `${t} before the start date`).toBeDisabled();
+    }
+    await expect(mon.locator('.col-pills')).toContainText('Before the start date (3 Jun 2026)');
+    await expect(page.locator('.day-row[data-date="2026-06-03"] .type-pill-btn[data-type="shift"]'), 'the start date itself is a working day').toBeEnabled();
+
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-correction').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('Set 3 days — 1 Jun 2026 and 2 Jun 2026 skipped: before the start date, so nothing is recorded.');
+    await expect(mon).not.toHaveAttribute('data-type', /./);
+
+    await mon.evaluate((r) => { /** @type {HTMLElement} */ (r).dataset.type = 'correction'; });   // reaching Save another way
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('1 Jun 2026: before the start date, so a change here would never show on the Calendar');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
+});
+
+// THE FIRST READ WAITS FOR THE SESSION (whole-app check, Nov 2026). On an iPhone Firebase can restore no
+// user behind a valid local session (AUTH_AND_SESSIONS.md), and Admin then signs in silently. The boot
+// read went out first — with no credential, which the overrides rule refuses — and nothing retried it once
+// the sign-in landed: "Couldn't load" on a page whose session was fine. Held here: a sign-in that never lands.
+test('admin: the first read of saved changes waits for the silent sign-in, and the week says it is loading', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), hangSignIn: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForFunction(() => document.body.classList.contains('auth-ready'));
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.signIns || []).length),
+        { message: 'premise: the silent sign-in is out' }).toBeGreaterThan(0);
+    await expect(page.locator('#weekGrid')).toContainText("Loading this member's saved changes");
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.docReads || 0), 'no read before the session is there').toBe(0);
+});
+
+// …AND WHILE THAT FIRST READ IS OUT, THE WEEK SAYS SO. It showed the page's static "Select a staff member
+// and date above to load the week" — over a member bar and a week label already showing both.
+test('admin: while the first read is out, the week says it is loading, not "select a staff member"', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docsHeld: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.docReads || 0), { message: 'premise: the read is out' }).toBeGreaterThan(0);
+    await expect(page.locator('#weekGrid')).toContainText("Loading this member's saved changes");
+    await expect(page.locator('#weekGrid')).not.toContainText('Select a staff member');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await page.waitForSelector('.day-row', { timeout: 10000 });
 });
 
 // ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
@@ -2215,6 +2656,69 @@ test('admin: a booked period a colleague has since changed is not deleted, and t
     await expect(page.locator('#alBookedBody .btn-period-delete')).toHaveCount(1);
 });
 
+// THE FEEDBACK LINE HAS ONE FADE (whole-app check, Nov 2026; routed from admin-2, admin-2-7). A delete's
+// "✓ Deleted" set its own untracked six-second timer, which then took down whatever the line said next —
+// here the refusal of a second delete, gone three seconds after it appeared.
+test('admin: a refused delete straight after a delete stays on screen past the first one\'s fade', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    const me = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const works = (/** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(getBaseShift(me, d));
+    const firstWorked = (/** @type {Date} */ from) => { const d = new Date(from); while (!works(d)) d.setDate(d.getDate() + 1); return d; };
+    const a = firstWorked(new Date(2026, 2, 2));
+    const days = [iso(a), iso(firstWorked(new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7)))];   // two periods
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript((ds) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: ds.map((/** @type {string} */ date, /** @type {number} */ i) => ({ id: 'k' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })),
+        });
+    }, days);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    const dels = page.locator('#alBookedBody .btn-period-delete');
+    await dels.first().click();
+    await dels.first().click();
+    const line = page.locator('#alFeedback');
+    await expect(line).toContainText('Deleted 1 AL day');
+    // A colleague changes the other day; deleting it now is refused, on the same line.
+    await page.evaluate((d) => { /** @type {any} */ (window).__E2E.getDocData = { memberName: 'G. Miller', date: d, type: 'rdw', value: '09:00-17:00' }; }, days[1]);
+    await page.clock.fastForward(3_000);
+    await dels.first().click();
+    await dels.first().click();
+    await expect(line).toContainText(/Someone else has changed this/);
+    await page.clock.fastForward(4_000);   // past the first delete's six seconds
+    await expect(line, 'the refusal is still there to read').toHaveClass(/\berror\b/);
+    await expect(line).toBeVisible();
+});
+
+// A REFUSED PERIOD DELETE IS NOT BLAMED ON THE CONNECTION (whole-app check, Nov 2026; routed from admin-2,
+// admin-2-10). Anything not named was "Delete failed — check your connection", a refusal by the rules included.
+test('admin: a period delete the rules refuse says so, not "check your connection"', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    // The stub records each delete it is handed; recording this one throws the rules' refusal instead.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.batchDeletes = { push() {
+        throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' }); } }; });
+    const btn = page.locator('#alBookedBody .btn-period-delete').first();
+    await btn.click();
+    await btn.click();
+    await expect(page.locator('#alFeedback')).toContainText('you may have been signed out');
+    await expect(page.locator('#alFeedback')).not.toContainText('check your connection');
+});
+
 test('admin: an armed Saved Changes delete says so in its accessible name, and says it only while armed', async ({ page }) => {
     // The recorded-dates ✕ already renames itself "Confirm delete …" while armed; this control kept
     // announcing "Delete G. Miller 2026-09-01" under a button reading "Delete?" (external review,
@@ -2241,6 +2745,25 @@ test('admin: an armed Saved Changes delete says so in its accessible name, and s
     await expect(btn, 'idle again: the name comes back with the glyph').toHaveAttribute('aria-label', 'Delete G. Miller 2026-09-01', { timeout: 7000 });
     await expect(btn).toHaveText('✕');
     await expect(btn).not.toHaveClass(/confirming/);
+});
+
+// NEWEST FIRST ON LOAD, NOT ONLY AFTER A SAVE (whole-app check, Nov 2026; admin-2-3). The member read has no
+// orderBy, so the list came in document-id order — a roster import's random id among the manual `m_<date>` ones.
+test('admin: a member\'s Saved Changes are listed newest first as they load', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {   // as Firestore answers: by id
+            docs: [['m_2026-09-01_G.%20Miller', '2026-09-01'], ['Zx81', '2026-09-20'], ['m_2026-09-10_G.%20Miller', '2026-09-10'], ['aB3', '2026-09-03']]
+                .map(([id, date]) => ({ id, memberName: 'G. Miller', date, type: 'shift', value: '09:00-17:00', note: '' })),
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#overridesToggleHeader').click();
+    await expect(page.locator('.override-card')).toHaveCount(4);
+    expect(await page.locator('.override-card .btn-edit').evaluateAll(bs => bs.map(b => b.getAttribute('data-date'))))
+        .toEqual(['2026-09-20', '2026-09-10', '2026-09-03', '2026-09-01']);
 });
 
 // ── A DELETE FROM THE KEYBOARD HANDS FOCUS ON (whole-app check, 10 Nov 2026) ─────────────────────
@@ -2737,6 +3260,142 @@ test('admin: the week label follows the swipe, so the grid and its heading agree
         .toContain(String(sunday.getDate()));
     expect(text, `the heading should name the week containing ${iso}`)
         .toContain(String(saturday.getDate()));
+});
+
+/** Where `dragWeek` drags the grid towards the next week, without dragging it. @param {import('@playwright/test').Page} page */
+async function weekDragPoints(page) {
+    await page.locator('#weekGrid').scrollIntoViewIfNeeded();
+    const box = /** @type {{ x: number, y: number, width: number, height: number }} */ (await page.locator('#weekGrid').boundingBox());
+    const vh = /** @type {{ height: number }} */ (page.viewportSize()).height;
+    return { from: box.x + box.width - 30, to: box.x + 40, y: (Math.max(box.y, 0) + Math.min(box.y + box.height, vh)) / 2 };
+}
+
+// A READ LANDING DURING A SWIPE (whole-app check, Nov 2026). A load finishing mid-gesture redraws the grid for
+// the week the date still names; the swipe then committed anyway, so the heading and the date moved on while
+// the rows stayed on the old week. Landing between the press and the drag left TWO weeks in the grid.
+test('admin: a read landing during a week swipe leaves one week, the one the date names', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    for (const when of ['before the drag starts', 'mid-drag']) {
+        await page.waitForFunction(() => document.querySelectorAll('.week-carousel-panel').length === 0, null, { timeout: 5000 });
+        const start = await page.locator('#fieldDate').inputValue();
+        // A background read held open — the return-to-page refresh or a Retry, as the store runs it.
+        await page.evaluate(async () => {
+            const w = /** @type {any} */ (window);
+            w.__E2E.docsHeld = true;
+            const m = await import('./admin-overrides.js');
+            w.__landed = m.loadOverrides({ everyone: false, member: 'G. Miller' });
+        });
+        const land = () => page.evaluate(async () => { const w = /** @type {any} */ (window); w.__E2E.docsHeld = false; await w.__landed; });
+        const { from, to, y } = await weekDragPoints(page);
+        await page.mouse.move(from, y);
+        await page.mouse.down();
+        if (when === 'before the drag starts') await land();
+        await page.mouse.move((from + to) / 2, y, { steps: 7 });
+        if (when === 'before the drag starts') {
+            expect(await page.locator('#weekGrid .week-panel:not(.week-carousel-panel)').evaluate(p => /** @type {HTMLElement} */ (p).style.transform),
+                'the week on screen follows the drag, not the one the read replaced').not.toBe('');
+        }
+        if (when === 'mid-drag') await land();
+        await page.mouse.move(to, y, { steps: 7 });
+        await page.mouse.up();
+        await expect.poll(() => page.locator('#fieldDate').inputValue(), { message: when }).not.toBe(start);
+        const iso = await page.locator('#fieldDate').inputValue();
+        expect(Math.round((Date.parse(iso) - Date.parse(start)) / 86400000), when).toBe(7);
+        await expect.poll(() => page.locator('#weekGrid .day-row').evaluateAll(rs => rs.map(r => r.getAttribute('data-date'))),
+            { message: `${when}: the rows are the week the date names` }).toContain(iso);
+        await expect(page.locator('#weekGrid .week-panel'), `${when}: one week in the grid`).toHaveCount(1);
+    }
+});
+
+// THE CONFIGURED YEARS ARE THE EDGE OF THE WEEK GRID (whole-app check, Nov 2026). The arrows, the swipe and
+// `?date=` walked on past CONFIG.MAX_YEAR, into weeks with no bank holiday marked where nothing saved could be
+// opened on the Calendar; and a `?date=` of 30 February emptied the field, so ‹ › then made NaN-NaN-NaN of it.
+test('admin: the week grid stops at the configured years, and a ?date= that is not a real day opens today', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html?date=2026-02-30');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await expect(page.locator('#fieldDate'), 'not a real day: today').toHaveValue('2026-08-27');
+    await page.locator('#nextWeekBtn').click();
+    await expect(page.locator('#fieldDate'), 'and the arrows work from it').toHaveValue('2026-09-03');
+
+    const [min, max] = await page.evaluate(async () => { const { CONFIG } = await import('./roster-data.js'); return [CONFIG.MIN_YEAR, CONFIG.MAX_YEAR]; });
+    expect(await page.locator('#fieldDate').evaluate(el => [/** @type {HTMLInputElement} */ (el).min, /** @type {HTMLInputElement} */ (el).max]),
+        'the date picker greys out the days past them').toEqual([`${min}-01-01`, `${max}-12-31`]);
+    await page.goto(`/admin.html?date=${max}-12-24`);
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#nextWeekBtn').click();
+    await expect(page.locator('#fieldDate')).toHaveValue(`${max}-12-31`);
+    await expect(page.locator('#nextWeekBtn'), 'no arrow into the year after').toBeDisabled();
+    await expect(page.locator('#prevWeekBtn')).toBeEnabled();
+    // And the step itself is refused, should an arrow's state ever be stale.
+    await page.locator('#nextWeekBtn').evaluate(b => { /** @type {HTMLButtonElement} */ (b).disabled = false; });
+    await page.locator('#nextWeekBtn').click();
+    await expect(page.locator('#fieldDate'), 'nor a stale arrow').toHaveValue(`${max}-12-31`);
+    await dragWeek(page, 'next');
+    await page.waitForFunction(() => document.querySelectorAll('.week-carousel-panel').length === 0, null, { timeout: 5000 });
+    await expect(page.locator('#fieldDate'), 'nor a swipe').toHaveValue(`${max}-12-31`);
+    await page.locator('#prevWeekBtn').click();
+    await expect(page.locator('#fieldDate')).toHaveValue(`${max}-12-24`);
+    await expect(page.locator('#nextWeekBtn')).toBeEnabled();
+});
+
+// A MOUSE SWIPES WITH ITS MAIN BUTTON, AND ONLY WHILE IT IS HELD (whole-app check, Nov 2026). A right-click opens
+// the menu on the press and a Mac never hands the page its release, and a press released outside the grid is
+// never heard either; the grid stayed armed, and the next bare movement over it slid the week under the cursor.
+test('admin: only the main mouse button, held, drags the week — and a pointer that has gone is not an error', async ({ page }) => {
+    /** @type {string[]} */ const errors = [];
+    page.on('pageerror', (err) => errors.push(err.message));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const start = await page.locator('#fieldDate').inputValue();
+    const unmoved = async (/** @type {string} */ what) => {
+        expect(await page.evaluate(() => document.querySelectorAll('.week-carousel-panel').length), `${what}: no week built to slide in`).toBe(0);
+        expect(await page.locator('#weekGrid .week-panel').evaluate(p => /** @type {HTMLElement} */ (p).style.transform), `${what}: the week has not moved`).toBe('');
+    };
+    /** @param {string} type @param {Record<string, number>} o */
+    const fire = (type, o) => page.locator('#weekGrid').evaluate((g, a) => g.dispatchEvent(new PointerEvent(a.type,
+        { bubbles: true, isPrimary: true, pointerType: 'mouse', ...a.o })), { type, o });
+    let { from, to, y } = await weekDragPoints(page);
+
+    // A drag with the RIGHT button held.
+    await page.mouse.move(from, y);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(to, y, { steps: 14 });
+    await unmoved('a right-button drag');
+    await page.mouse.up({ button: 'right' });
+
+    // A main-button press whose release the grid never heard, then a bare movement over it.
+    ({ from, to, y } = await weekDragPoints(page));
+    await page.mouse.move(from, y);
+    await page.locator('#weekGrid').evaluate((g, a) => g.dispatchEvent(new PointerEvent('pointerdown',
+        { bubbles: true, isPrimary: true, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1, clientX: a.from, clientY: a.y })), { from, y });
+    await page.mouse.move(to, y, { steps: 14 });   // no button held
+    await unmoved('a press released elsewhere');
+
+    // A press released OFF the grid, and then a drag begun elsewhere carried in with the button held: the
+    // grid still took it as the old press's swipe (the document hears that release; the grid did not).
+    ({ from, to, y } = await weekDragPoints(page));
+    const box = /** @type {{ x: number, y: number, width: number, height: number }} */ (await page.locator('#weekGrid').boundingBox());
+    await page.mouse.move(from, y);
+    await page.mouse.down();
+    await page.mouse.move(from, box.y - 20);                 // straight off the grid, unseen by it
+    await page.mouse.up();
+    await page.mouse.move(box.x + box.width / 2, box.y - 20);
+    await page.mouse.down();                                   // a new press, NOT on the grid
+    await page.mouse.move(to, y, { steps: 14 });               // carried in, button held
+    await unmoved('a drag begun off the grid');
+    await page.mouse.up();
+
+    // A pointer the browser no longer knows: capturing it throws, which must end the gesture, not escape it.
+    await fire('pointerdown', { pointerId: 99, button: 0, buttons: 1, clientX: from, clientY: y });
+    await fire('pointermove', { pointerId: 99, button: -1, buttons: 1, clientX: to, clientY: y });
+    await unmoved('a pointer that has gone');
+    expect(errors, 'no uncaught error').toEqual([]);
+    await expect(page.locator('#fieldDate')).toHaveValue(start);
 });
 
 // ── THE WEEK JUMP OPENS THE APP'S OWN CALENDAR (v23.38) ───────────────────────────────────────
@@ -3783,6 +4442,22 @@ test('admin: leave over a worked Boxing Day names the day in lieu it takes back,
     const bar = page.locator('#alConfirmBar');
     await expect(bar, 'one day left, and the save takes the day in lieu back: it ends one over').toHaveClass(/visible/);
     await expect(bar).toContainText('1 day over their 2026 AL entitlement');
+    // CANCEL PUTS FOCUS BACK ON THE SAVE THAT ASKED (whole-app check, Nov 2026): it was left on a hidden button.
+    await page.locator('#alConfirmCancelBtn').click();
+    await expect(bar).not.toHaveClass(/visible/);
+    await expect(page.locator('#alSaveBtn')).toBeFocused();
+});
+
+// THE ABSENCE TIP SAYS WHAT A SUNDAY IN THE RANGE BECOMES (whole-app check, Nov 2026; admin-2-4). "Skipped"
+// alone was half of it: a Sunday rostered as work inside the range is written as a rest day, so its shift goes.
+test('admin: the Record Absence tips say a Sunday rostered as work is set as a rest day', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('.btn-card-tips[data-card="sick-days"]').click();
+    const tips = page.locator('#tipsLbBody');
+    await expect(tips).toContainText('Rest days and Sundays inside the range are skipped automatically');
+    await expect(tips).toContainText('Sundays are never recorded as absence — a rostered Sunday in the range is set as a rest day, and the preview names it.');
 });
 
 // ── THE DESKTOP AUDIT (Nov 2026) ─────────────────────────────────────────────────────────────────
