@@ -152,6 +152,25 @@ test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_P
         'notification deep-link urls in functions/*.js whose page is not in SW SAFE_NOTIFICATION_PAGES');
 });
 
+test('SAFE_NOTIFICATION_PAGES matches the documented deep links ENTRY FOR ENTRY', () => {
+    // `.claude/rules/notifications.md` → "Deep link": "This list and SAFE_NOTIFICATION_PAGES must match,
+    // entry for entry. A security allowlist is audited against its documentation, so an allowlisted page
+    // this list does not explain is the wrong way round." The test above covers one direction (every
+    // sender's page is allowed); this is the other — nothing allowed that the document does not explain.
+    // `index.html` was exactly that, on the list unexplained, until Nov 2026.
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    const safe = (sw.match(/const SAFE_NOTIFICATION_PAGES\s*=\s*\[([^\]]*)\]/)?.[1] ?? '')
+        .split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+    const doc = readFileSync(join(ROOT, '.claude', 'rules', 'notifications.md'), 'utf8');
+    const section = doc.split(/^## Deep link\s*$/m)[1]?.split(/^## /m)[0] ?? '';
+    const documented = section.split('\n').filter(l => /^- .*→/.test(l))
+        .map(l => /`([^`]+)`/.exec(l.slice(l.indexOf('→')))?.[1] ?? '?')
+        .map(link => link.split(/[?#]/)[0]);
+    assert.ok(documented.length >= 5, `the "Deep link" list was not read (${documented.length} entries) — this checks nothing`);
+    assert.deepEqual([...new Set(safe)].sort(), [...new Set(documented)].sort(),
+        'SAFE_NOTIFICATION_PAGES and the documented deep links differ — allow only what the document explains');
+});
+
 test('the push notification names the BADGE asset, the ICON asset, and re-bases both onto SW scope', () => {
     // THE ONE APP SURFACE NOBODY CAN SEE FROM A TEST, AND THE ONE WITH NO GUARD ON IT.
     //

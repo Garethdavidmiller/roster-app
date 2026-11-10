@@ -3,7 +3,8 @@
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Served INSTANTLY from this version's cache; a cached entry is never
 //                 rewritten (Oct 2026 — a background rewrite mixed releases, see the JS/CSS
-//                 branch). No blocking network wait on any page open. Freshness is the version-bump →
+//                 branch) or even re-fetched (Nov 2026). No network wait on any page open,
+//                 and no network request for a page or file already held. Freshness is the version-bump →
 //                 new SW → new cache lifecycle (each deploy precaches fresh assets
 //                 and the new SW claims immediately, then reloads the page); roster
 //                 DATA is always live from Firestore, independent of cached code.
@@ -12,6 +13,8 @@
 //   Firebase SDK (gstatic, version-pinned) → Cache-first in a dedicated SDK-versioned
 //                 cache; offline no longer depends on the browser HTTP cache.
 //   Icons, fonts, manifest → Cache-first: stable assets served instantly; fetched on miss.
+//   Anything under docs/ (the repository's documents, which the Pages mirror serves) → left to the
+//                 browser, never kept in this cache (Nov 2026 — see the fetch handler).
 //
 // self.skipWaiting() on install activates the new SW immediately — install does
 // NOTHING else (v15.41: precache moved to a detached post-activation warm-up, so
@@ -140,9 +143,10 @@ const NETWORK_FIRST_FILES = [
     'purify.es.mjs',
 ];
 
-// Critical app files — precached on install. Each is fetched individually and the
-// batch is wrapped in Promise.allSettled (see the install handler), so a single 404
-// or network blip skips that one file and logs it rather than aborting the install.
+// Critical app files — precached by the post-activation warm-up (`warmCacheAndSweepOld`), never by
+// install. Each is fetched individually and every batch is wrapped in Promise.allSettled
+// (`fetchInBatches`), so a single 404 or network blip skips that one file — logged, and retried on
+// the next wake — rather than aborting the warm-up.
 const CORE_ASSETS = [
     "./index.html",
     "./admin.html",
@@ -349,8 +353,8 @@ const CORE_ASSETS = [
     "./paycalc-money-banner.js",
 ];
 
-// Reference guides and icons — cached individually so a transient network error
-// on any one file does not block the whole service worker from installing.
+// The reference guides with their scripts and styles, and the vendored DOMPurify — warmed after the
+// core files, each fetched individually in the same way.
 const SUPPLEMENTARY_ASSETS = [
     "./paycalc-guide.html",
     "./fip-guide.html",
@@ -609,7 +613,7 @@ self.addEventListener("activate", event => {
 });
 
 // ============================================
-// FETCH — stale-while-revalidate for HTML/JS/CSS, cache-first for SDK + stable assets
+// FETCH — HTML/JS/CSS from this version's cache (fetched on a miss only), cache-first for SDK + stable assets
 // ============================================
 self.addEventListener("fetch", event => {
     // Piggyback an in-flight warm-up onto this event's lifetime so the browser doesn't
@@ -655,8 +659,8 @@ self.addEventListener("fetch", event => {
     if (url.origin !== self.location.origin) return;
 
     const path = url.pathname;
-    // HTML documents and JS/CSS are both stale-while-revalidate (v16.10) — instant from
-    // cache, refreshed in the background; HTML falls back to network-first on a miss.
+    // HTML documents and JS/CSS are both served instantly from this version's cache (v16.10) and
+    // never re-fetched once there; HTML falls back to network-first on a miss.
     const isDoc          = path === '/' || path.endsWith('/') || path.endsWith('.html');
     // Scope-relative so JS/CSS match under a sub-path (/roster-app/) too, not just root.
     const relPath        = path.startsWith(SCOPE_PATH) ? path.slice(SCOPE_PATH.length) : path.replace(/^\//, '');
@@ -865,11 +869,8 @@ self.addEventListener("fetch", event => {
             return response;
         }
     } else if (isManagedAsset) {
-        // Stale-while-revalidate for JS/CSS: respond from cache immediately when present and
-        // refresh the cache in the background; on a cold cache, wait for the network. The
-        // version-pinned CACHE_NAME means the cache only ever holds the current version's
-        // assets, so "stale" is at most one version behind during the brief window before a
-        // newly-installed SW claims (skipWaiting + clients.claim on activate).
+        // JS/CSS: respond from this version's cache when the file is there, and fetch nothing; on a
+        // cold cache, wait for the network (the note below says why a held file is never refreshed).
         event.respondWith((async () => {
             const cache   = await openCache();
             const cached  = await cache.match(event.request);
@@ -909,9 +910,9 @@ self.addEventListener("fetch", event => {
             }
             if (cached) return cached;
             // Cold current-version cache: prefer a GOOD (2xx) network response, but if the network
-            // resolved a 4xx/5xx (a transient 502 mid-deploy, a hosting hiccup) fall back to ANY
-            // cached copy — the previous version's cache still holds a working module (caches.match
-            // searches every cache; the warm-up keeps the old one until the new is fully populated).
+            // resolved a 4xx/5xx (a transient 502 mid-deploy, a hosting hiccup) fall back to an older
+            // release's cached copy — the warm-up keeps the previous version's cache, holding a
+            // working module, until the new one is fully populated.
             // Returning the bad response to a <script type=module> would break the import and stick
             // the splash — the doc branch already falls back on !response.ok, this mirrors it (v16.19).
             const net = await network;
@@ -988,7 +989,7 @@ self.addEventListener("push", event => {
     // Neutral defensive fallback for a data-less / unparseable push — we can't know the feature, so
     // do NOT assume a Huddle (the old fallback used the app name as title and mistagged everything as
     // 'huddle', colliding with real Huddle notifications). Well-formed payloads come from
-    // buildPushPayload in functions/index.js and Object.assign over these defaults.
+    // buildPushPayload in functions/roster-parse-helpers.js and Object.assign over these defaults.
     let data = { title: "Marylebone Roster", body: "Open the app for the latest update." };
     try { if (event.data) Object.assign(data, event.data.json()); } catch (_) {}
 
@@ -1017,9 +1018,9 @@ self.addEventListener("push", event => {
 });
 
 // When staff tap a notification, bring the correct app page to the front.
-// Huddle → index.html#huddle (the in-app Huddle viewer opens on the hash; the old #huddleBtn
+// Huddle → the app root with #huddle (the in-app Huddle viewer opens on the hash; the old #huddleBtn
 //   title-bar button was removed at v12.57 — the viewer is reached via the nav link + this tap).
-// Pay reminder → paycalc.html.
+// Pay reminder → paycalc.html. Every page a payload may name: SAFE_NOTIFICATION_PAGES, below.
 //
 // iOS-safe order: focus the existing window FIRST, then navigate.
 // Calling navigate() on an unfocused window is silently dropped on iOS.
@@ -1040,8 +1041,11 @@ const APP_SCOPE = self.registration.scope;
 // not an access grant — this allowlist only decides which in-scope page a payload may navigate to;
 // the page itself still runs its own admin gate, and a non-admin who somehow received the payload
 // would land on that gate. It is on the list because the notification is only ever SENT to the
-// admin's own owner-stamped devices (sendTargetedPush in functions/index.js). trains.html (v24.94) is the one-off timetable reminder's landing page.
-const SAFE_NOTIFICATION_PAGES = ['', 'index.html', 'paycalc.html', 'operations.html', 'overtime.html', 'settings.html', 'trains.html'];
+// admin's own owner-stamped devices (sendTargetedPush in functions/push.js). trains.html (v24.94) is the one-off timetable reminder's landing page.
+// The list matches .claude/rules/notifications.md → "Deep link" entry for entry (sw-asset-check.test.mjs):
+// `index.html` came off it in Nov 2026 — no sender names it (the Huddle's path is the root), and it was
+// the one entry nothing there explained.
+const SAFE_NOTIFICATION_PAGES = ['', 'paycalc.html', 'operations.html', 'overtime.html', 'settings.html', 'trains.html'];
 
 self.addEventListener("notificationclick", event => {
     event.notification.close();
