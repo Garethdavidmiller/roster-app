@@ -210,6 +210,30 @@ function deriveMilestones(weekEnding) {
     };
 }
 
+/** A window's STORED milestones as plain numbers — how every reader gets an existing window's
+ *  timetable, never `deriveMilestones` (point 2 above; invariant 7). @param {any} data */
+function storedMilestones(data) {
+    return {
+        weekEnding:        data.weekEnding,
+        weekStart:         data.weekStart,
+        initialDeadlineAt: toMillis(data.initialDeadlineAt),
+        draftRosterDate:   data.draftRosterDate,
+        finalDeadlineAt:   toMillis(data.finalDeadlineAt),
+        finalRosterDate:   data.finalRosterDate,
+        retentionUntil:    toMillis(data.retentionUntil),
+        policyVersion:     data.policyVersion,
+    };
+}
+
+/** A stored instant (a Timestamp, epoch ms or a Date) as epoch ms, else 0 — read through its
+ *  `toMillis`, so this module still needs no Firebase. @param {any} v @returns {number} */
+function toMillis(v) {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    return v instanceof Date ? v.getTime() : 0;
+}
+
 /** @typedef {'INITIAL_OPEN'|'FINAL_OPEN'|'CLOSED'} Phase */
 
 /**
@@ -788,6 +812,19 @@ function decideSubmission(head, incomingDays, ifRevision) {
     return { action: 'append', revision: head.currentRevision + 1 };
 }
 
+/** The submission head as its member may see it — their own content, nothing about anyone else.
+ *  @param {any} data */
+function publicHead(data) {
+    return {
+        currentRevision:   data.currentRevision,
+        days:              data.days,
+        firstAcceptedAt:   toMillis(data.firstAcceptedAt),
+        updatedAt:         toMillis(data.updatedAt),
+        lastMutationId:    data.lastMutationId || null,
+        schemaVersion:     data.schemaVersion,
+    };
+}
+
 /**
  * Everything the Manager needs to know about how a submission moved, derived from the immutable
  * revisions rather than stored as flags.
@@ -894,9 +931,10 @@ const REMINDER_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 /**
  * Should THIS window's initial-deadline reminder go out now?
  *
- * `reminderSentAtMs` is the idempotency stamp (0 when never sent): the scheduler stamps after the
- * attempt, so a re-run the same morning sends nothing. Once the deadline passes the phase moves and
- * this is false for ever — the stamp only has to protect the one morning.
+ * `reminderSentAtMs` is the idempotency stamp (0 when never claimed): the scheduler CLAIMS it in a
+ * transaction before it sends (functions/overtime.js) — written after, two overlapping runs would
+ * both read "unsent" and both send — so a re-run the same morning sends nothing. Once the deadline
+ * passes the phase moves and this is false for ever: the stamp only has to protect the one morning.
  *
  * @param {{ initialDeadlineAt: number, retentionUntil: number, weekStart: string,
  *           finalDeadlineAt: number }} milestones
@@ -1055,6 +1093,8 @@ module.exports = {
     weekEndingFor,
     // milestones + phases
     deriveMilestones,
+    storedMilestones,
+    toMillis,
     phaseFor,
     isOpenPhase,
     canChangeParticipation,
@@ -1075,6 +1115,7 @@ module.exports = {
     // revisions
     revisionId,
     decideSubmission,
+    publicHead,
     deriveHistory,
     // push notices
     REMINDER_LOOKAHEAD_MS,

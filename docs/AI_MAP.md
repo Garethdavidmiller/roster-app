@@ -599,7 +599,8 @@ five things it protects. Feature design: `OVERTIME_AVAILABILITY.md`.
   The two-pass solve in `londonTimestamp` is redundant at 00:00 and 12:00 and is kept for the next hour
   somebody adds.
 - **Weeks and phases:** `isSaturday` · `weekDates` · `weekEndingFor` · `deriveMilestones` (once, at
-  creation, and stored) · `phaseFor` / `isOpenPhase` (half-open: 12:00:00 belongs to the later phase) ·
+  creation, and stored) · `storedMilestones` (how every reader gets them back) · `toMillis` ·
+  `phaseFor` / `isOpenPhase` (half-open: 12:00:00 belongs to the later phase) ·
   `validateWeekEnding` · `planningWeekEndings` · `weeksNeedingWindows` (the same filter as the Create
   button) · `windowRowState` (a missed week stays visible until its Saturday) · `lastSchedulerRun`.
 - **Who was asked:** `isEligibleForWeek` · `selectParticipants` (narrows the generated list, never widens
@@ -608,7 +609,8 @@ five things it protects. Feature design: `OVERTIME_AVAILABILITY.md`.
 - **Answers:** `AVAILABILITY_MODES` · `REQUEST_DAY_FIELDS` · `OPTIONAL_DAY_FIELDS` · `normaliseDay` /
   `normaliseDays` (refuse a partial week or an unknown field; derive `nextDay`) · `daysEqual` ·
   `decideSubmission(head, days, ifRevision)` → `create`, `append`, `noop` or `conflict` — **the no-op check
-  comes before the conflict check**, so a timeout retry succeeds · `deriveHistory` · `revisionId`.
+  comes before the conflict check**, so a timeout retry succeeds · `publicHead` (what a member is shown
+  of their own head) · `deriveHistory` · `revisionId`.
 - **Notices:** `reminderDue` · `londonDeadlineLabel` · `askedNotice` · `reminderNotice` (the words are
   asserted through the real `buildPushPayload`).
 - **Nothing here manufactures an answer:** no response is unknown, never "not available".
