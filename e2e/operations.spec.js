@@ -1745,6 +1745,25 @@ test('operations: a roster apply signed out mid-save closes the review rather th
     await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
 });
 
+// A SAVE STILL GOING OUT IS BUSY, WHATEVER THE SCREEN SHOWS (Nov 2026 review). The page's busy check
+// looked only at what was on screen, so a roster save in several parts whose review the admin had
+// dismissed ("Upload a different file") read as not busy — and an update's reload, or a notification
+// tap, would take the page away with the later parts unsent. Asked here the way the worker asks.
+test('operations: a roster save still sending is busy, even once its review has been dismissed', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    await page.locator('#rosterApplyBtn').click();                     // the first part is held on the device
+    await page.locator('#rosterCancelBtn').click();                    // "Upload a different file"
+    await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+    const busy = await page.evaluate(() => new Promise(resolve => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = (e) => resolve(e.data?.busy);
+        navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
+    }));
+    expect(busy, 'a reload now would strand the parts not yet sent').toBe(true);
+});
+
 // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record outranks an import, so "Use new
 // roster" — which deleted only the record the review showed — left the copy to resurface over it.
 test('operations: "Use new roster" also clears an older manual copy of the day', async ({ page }) => {
