@@ -405,7 +405,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
                 if (!saved && open && !isProposal) {
                     els.pickList.appendChild(pickRow({ name: 'Untitled design', meta: 'Not saved yet', current: true }));
                 }
-                // THE SHORTLIST FIRST (v24.47; four since v25.01): the designs everything is measured against,
+                // THE SHORTLIST FIRST (v24.47): the designs everything is measured against,
                 // built in and read-only. A group of their own, so they cannot be mistaken for
                 // somebody's saved work — "Last saved by" would be a claim about nobody.
                 if (proposals.length) {
@@ -441,7 +441,9 @@ export function createDesignHeader(els, handlers, extra = {}) {
                         wrap.appendChild(pickRow({
                             id: d.id,
                             name: d.name,
-                            meta: when ? `Saved ${shortDate(when, now)}` : 'Not saved yet',
+                            // Every row here HAS a document; with no time yet (a queued create, a failed
+                            // read-back) it says what the pill says, never "Not saved yet".
+                            meta: when ? `Saved ${shortDate(when, now)}` : 'Saved',
                             current: saved && d.id === activeId,
                         }));
                     }

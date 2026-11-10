@@ -284,6 +284,17 @@ describe('render — what the masthead SAYS', () => {
         assert.equal(els.statusShort.textContent, 'Saved 14:32');
         assert.equal(els.sheetSub.textContent, `Saved by ${ME} today at 14:32`);
     });
+    test('a saved design with no save time yet says "Saved" in its row, as the pill does', () => {
+        // A create that had to be queued, or whose read-back failed, carries no stamp yet. The pill
+        // said "Saved" and the picker row "Not saved yet" — one design, two answers, and the row's
+        // was the false one: the design has a document (whole-app fix, Nov 2026).
+        const { els, h } = harness();
+        const designs = [{ id: 'q', name: 'Queued', updatedBy: ME, updatedAt: null }];
+        h.render({ designs, activeId: 'q', design: { name: 'Queued' }, dirty: false, currentUser: ME, now: NOW });
+        assert.equal(els.statusLong.textContent, 'Saved');
+        assert.equal(rowMeta(allRows(els.pickList)[0]), 'Saved');
+    });
+
     test('the ··· More sheet names the last SAVE, whatever the working copy is doing', () => {
         // It was built from the status pill's words, so with unsaved edits it read "Saved by
         // G. Miller Unsaved changes" and mid-save "Saved by G. Miller Saving…".
