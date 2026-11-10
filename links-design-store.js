@@ -40,7 +40,8 @@
  * **4. A queued (offline) write is started, not awaited, and never stamps a revision a colleague's
  * online save could also produce.** See `sendWrite` and `queuedRevision`. A save, a rename, a delete
  * and a create alike — the create names its document with an auto-id reference so it can be queued
- * too — and an online delete the server does not answer within `SLOW_SAVE_MS` is answered as queued.
+ * too. Online, the save, the rename and the delete are transactions, so a server the device cannot
+ * reach FAILS them and they are queued; only the online create still waits on a plain write.
  *
  * ── WHAT IS DELIBERATELY NOT HERE ───────────────────────────────────────────────────────────────
  *
@@ -59,7 +60,6 @@
 import { conflictOf, baselineAfterWrite, baselineAfterCommit, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
 import { isDeleted } from './links-deletion.js';
 import { SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
-import { SLOW_SAVE_MS } from './slow-save.js';
 
 /**
  * @typedef {object} StoreDeps
@@ -70,8 +70,6 @@ import { SLOW_SAVE_MS } from './slow-save.js';
  * @property {any} designsCol                     the collection reference
  * @property {Function} withClaimRetry            wraps every write (stale-claim self-heal)
  * @property {() => boolean} [isOnline]           overridable for tests
- * @property {number} [ackWaitMs]                 how long an online delete waits for the server
- *                                                before it is answered as queued; overridable for tests
  * @property {Function} [getDocFromCache]         the CACHE's own answer for one document, for the
  *                                                offline consult — see `cacheRead`
  */
@@ -111,7 +109,6 @@ export function createDesignStore(deps) {
     } = deps;
     const _isOnline = deps.isOnline;
     const offlineNow = _isOnline ? () => !_isOnline() : _offlineByDefault;
-    const ackWaitMs = deps.ackWaitMs ?? SLOW_SAVE_MS;
     /**
      * WHAT THIS DEVICE HOLDS for one document — the offline consult before a queued write (whole-app
      * fix, Nov 2026). `getDocFromCache` answers from the cache alone: a deletion the cache recorded
@@ -251,10 +248,11 @@ export function createDesignStore(deps) {
                 return { id: queuedRef.id, updatedAt: null, queued: true, baseline: baselineAfterCommit(1) };
             }
             // Online the create is AWAITED, so on a connection that is up but cannot reach Firestore it
-            // has no bound, unlike the delete below (whole-app fix, Nov 2026). Bounding it needs the
-            // document named BEFORE the write, as the branch above does, so that an unanswered create
-            // can still come back as queued with its id; the e2e double mints no id for `doc(col)`
-            // and models a create only through `addDoc`, so that change waits on e2e/fixtures.js.
+            // has no bound, unlike the transactions, which the SDK fails there (whole-app fix, Nov 2026).
+            // Bounding it (`sendWrite`) needs the document named BEFORE the write, as the branch above
+            // does, so that an unanswered create can still come back as queued with its id; the e2e
+            // double mints no id for `doc(col)` and models a create only through `addDoc`, so that
+            // change waits on e2e/fixtures.js.
             const ref = await withClaimRetry(() => addDoc(designsCol, body));
             const updatedAt = await readStamp(ref);
             return {
@@ -521,19 +519,52 @@ export function createDesignStore(deps) {
         /**
          * Soft-delete. A MERGE, never a replace: the patterns we hold may be a stale copy of a
          * co-designer's newer version, and deleting is not a reason to overwrite them.
+         *
+         * IT ASKS WHAT IS THERE FIRST, inside the write (rule 1; whole-app fix, Nov 2026). It was a
+         * blind merge: on a design a colleague had already binned it wrote over who deleted it and
+         * when, and on one removed for good it wrote a nameless skeleton the rules refuse, so the
+         * designer read "check your connection" about a design that was already gone. Neither is a
+         * failure — a delete asks for a design that is not live, and that is what there is — so both
+         * come back as what was found (`already-deleted`, with `deletedData`; `gone`), with nothing
+         * written.
          * @param {string} id @param {string} by
+         * @returns {Promise<{ queued: boolean, status: 'deleted'|'already-deleted'|'gone', deletedData?: any }>}
          */
         async softDelete(id, by) {
-            const write = () => setDoc(refFor(id), { deletedAt: serverTimestamp(), deletedBy: by }, { merge: true });
+            const ref = refFor(id);
+            const binIt = () => ({ deletedAt: serverTimestamp(), deletedBy: by });
+            /** Offline: consult what this device holds (`cacheRead`), then queue. @returns {Promise<any>} */
+            const consultThenQueue = async () => {
+                try {
+                    const cached = await cacheRead(ref);
+                    if (!cached.exists()) return { queued: false, status: 'gone' };
+                    if (isDeleted(cached.data())) return { queued: false, status: 'already-deleted', deletedData: cached.data() };
+                } catch { /* nothing cached to consult — queue, as an offline save does */ }
+                await queueWrite(() => setDoc(ref, binIt(), { merge: true }));
+                return { queued: true, status: 'deleted' };
+            };
             // RULE 4, for the delete too (whole-app review, Oct 2026). Awaited offline, it held until
             // the signal came back: nothing changed on screen, the designer kept editing, and the late
             // landing then switched the page away and dropped those edits unasked. Queued, it shows now.
-            if (offlineNow()) { await queueWrite(write); return { queued: true }; }
-            // …and on a connection that is UP but cannot reach Firestore the browser says online, so
-            // the same wait had no end at all (whole-app fix, Nov 2026). Bounded by the app's one
-            // figure for a write the server has not answered (slow-save.js): past it the delete is in
-            // the SDK's queue, and saying so is the answer the press is owed.
-            return { queued: await sendWrite(write, ackWaitMs) === 'queued' };
+            if (offlineNow()) return consultThenQueue();
+            /** @type {any} */ let found = null;
+            try {
+                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    found = null;   // a retried transaction re-decides from scratch
+                    const snap = await tx.get(ref);
+                    if (!snap.exists()) { found = { status: 'gone' }; return; }
+                    if (isDeleted(snap.data())) { found = { status: 'already-deleted', deletedData: snap.data() }; return; }
+                    tx.set(ref, binIt(), { merge: true });
+                }));
+            } catch (err) {
+                // A connection that is UP but cannot reach Firestore leaves the browser saying online.
+                // As a plain write the delete then had no answer at all until the signal came back; a
+                // transaction is FAILED there, after the SDK's retries, and the delete is queued like a
+                // save (whole-app fix, Nov 2026).
+                if (!isOffline(err)) throw err;
+                return consultThenQueue();
+            }
+            return { queued: false, ...(found ?? { status: 'deleted' }) };
         },
 
         /**

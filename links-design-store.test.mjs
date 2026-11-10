@@ -491,11 +491,70 @@ describe('creating and restoring ARM the baseline', () => {
         assert.equal(res.revision, 7);
     });
 
-    test('soft delete is a merge as well', async () => {
+    test('soft delete is a merge as well — a transactional one', async () => {
         const { api, writes } = makeDb({ initial: { name: 'A', patterns: { 1: 'theirs' } } });
-        await createDesignStore(api).softDelete(ID, ME);
-        assert.equal(writes[0].kind, 'merge');
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(writes[0].kind, 'tx-merge');
         assert.equal(writes[0].payload.patterns, undefined, 'our patterns are not written over theirs');
+        assert.deepEqual(res, { queued: false, status: 'deleted' });
+    });
+
+    // ── A DELETE ASKS WHAT IS THERE (whole-app fix, Nov 2026 — the rules reader's lead) ──────────
+    // It was a blind merge. On a design a colleague had already BINNED it wrote over who deleted it
+    // and when; on one REMOVED FOR GOOD it wrote a nameless skeleton the rules refuse, and the
+    // designer read "check your connection" about a design that was already gone. Neither is a
+    // failure — a delete asks for a design that is not live, and that is what there is — so both come
+    // back as what was found, with nothing written.
+    test('a design a colleague already binned: nothing written, and the bin keeps who deleted it', async () => {
+        const { api, writes, current } = makeDb({ initial: { name: 'A', deletedAt: ts(1500), deletedBy: THEM } });
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(res.status, 'already-deleted');
+        assert.equal(res.deletedData?.deletedBy, THEM);
+        assert.deepEqual(writes, []);
+        assert.equal(current()?.deletedBy, THEM);
+    });
+
+    test('a design removed for good: nothing written — no skeleton', async () => {
+        const { api, writes, current } = makeDb({ initial: null });
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(res.status, 'gone');
+        assert.deepEqual(writes, []);
+        assert.equal(current(), null);
+    });
+
+    test('offline, a cache that knows it is binned or gone queues nothing either', async () => {
+        for (const [initial, cache, status] of /** @type {Array<[any, any, string]>} */ ([
+            [{ name: 'A', deletedAt: ts(1500), deletedBy: THEM }, null, 'already-deleted'],
+            [null, 'knows-deleted', 'gone'],
+        ])) {
+            const { api, writes } = makeDb({ initial, cache });
+            api.isOnline = () => false;
+            assert.equal((await createDesignStore(api).softDelete(ID, ME)).status, status);
+            assert.deepEqual(writes, [], status);
+        }
+    });
+
+    test('a RETRIED delete decides afresh — the losing attempt\'s finding does not survive', async () => {
+        const { api, writes } = makeDb();
+        let attempt = 0;
+        api.runTransaction = async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
+            /** @type {any[]} */ let pending = [];
+            const tx = {
+                get: async () => (++attempt === 1
+                    ? { exists: () => true, data: () => ({ name: 'A', deletedAt: ts(1500), deletedBy: THEM }) }
+                    : { exists: () => true, data: () => ({ name: 'A' }) }),
+                set: (/** @type {any} */ _r, /** @type {any} */ p, /** @type {any} */ o) => pending.push({ kind: o?.merge ? 'tx-merge' : 'tx-set', payload: p }),
+            };
+            await fn(tx);   // the losing attempt: Firestore discards what it wrote
+            pending = [];
+            const r = await fn(tx);
+            writes.push(...pending);
+            return r;
+        };
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(attempt, 2, 'premise: the body ran twice');
+        assert.equal(res.status, 'deleted', 'a colleague restored it between attempts, so this delete is the one that binned it');
+        assert.equal(writes.length, 1);
     });
 
     // The AUTOMATIC bin move (v24.47) decides from a list read earlier, so it must ask again at commit.
@@ -954,23 +1013,22 @@ describe('a queued write does not wait for a server that is not there', () => {
     });
 
     test('soft delete ONLINE, on a connection that cannot reach the server (whole-app fix, Nov 2026)', async () => {
-        // The browser says online — Wi-Fi with no uplink, a dead mobile cell — and the real SDK holds
-        // the write without answering. Awaited, the delete had no outcome at all until the signal came
-        // back, and then switched the page away from whatever had been edited meanwhile.
-        const { api } = makeDb({ initial: { name: 'A', revision: 2 } });
+        // The browser says online — Wi-Fi with no uplink, a dead mobile cell — and the real SDK holds a
+        // plain write without ever answering: the delete had no outcome until the signal came back, and
+        // then switched the page away from whatever had been edited meanwhile. A transaction is FAILED
+        // there (`unavailable`, after the SDK's retries), so the delete is queued like a save.
+        const { api } = makeDb({ initial: { name: 'A', revision: 2 }, failTx: { code: 'unavailable', message: 'client is offline' } });
         api.isOnline = () => true;
-        api.ackWaitMs = 20;
         let issued = false;
         api.setDoc = () => { issued = true; return neverResolves(); };
         const res = await Promise.race([createDesignStore(api).softDelete(ID, ME), hang()]);
-        assert.notEqual(res, 'hung', 'the press has an answer within the bound');
-        assert.equal(/** @type {any} */ (res).queued, true, 'past the bound the delete is in the SDK\'s queue, and says so');
+        assert.notEqual(res, 'hung', 'the press has an answer');
+        assert.equal(/** @type {any} */ (res).queued, true, 'the delete is in the SDK\'s queue, and says so');
         assert.equal(issued, true, 'and it was issued');
     });
 
-    test('…while one the server answers in time is not called queued', async () => {
+    test('…while one the server commits is not called queued', async () => {
         const { api } = makeDb({ initial: { name: 'A', revision: 2 } });
-        api.ackWaitMs = 1000;
         assert.equal((await createDesignStore(api).softDelete(ID, ME)).queued, false);
     });
 
