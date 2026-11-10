@@ -76,6 +76,7 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
  *   MUTATION this module can start: it hands the decision straight back out, because writing is
  *   the coordinator's job and this module is a pure render everywhere else — which is what makes
  *   it testable with a two-line fake DOM.
+ * @returns {{ grade: string }} the grade the workspace opened on
  */
 export function renderWeekDetail(host, win, data,
     { dates, now, grade: initialGrade = 'ALL', onGrade, day: initialDay = 'ALL', onDay, onRefresh, onAsk,
@@ -113,6 +114,9 @@ export function renderWeekDetail(host, win, data,
      */
     let day = (initialDay === 'ALL' || dates.includes(initialDay)) ? initialDay : 'ALL';
     paint();
+    // Which grade it OPENED on — not the one handed in, when that fell back above — so the card
+    // header's chip counts the people the card does (overtime-ui-8).
+    return { grade };
 
     function paint() {
         host.innerHTML = build(win, data, { dates, now, grade, day, canRefresh: !!onRefresh, refreshFailed, printedAt });

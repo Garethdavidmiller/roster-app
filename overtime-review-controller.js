@@ -277,7 +277,8 @@ function renderPastWeekRow(w) {
                 <div class="ot-week-meta">Closed ${esc(deadlineLabel(w.finalDeadlineAt))}</div>
             </div>
             <div class="ot-week-actions">
-                <button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}">View</button>
+                <button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}"
+                        aria-pressed="${selectedWeek === w.weekEnding}">View</button>
             </div>
         </div>`;
 }
@@ -618,7 +619,7 @@ async function renderWeekDetail(weekEnding) {
 function paintShown(host, { weekEnding, win, data, dates, now }, refreshFailed) {
     // The overview's rows carry no `phase`, and the workspace keys the closed-week panels and the
     // reminder audit on it — so it is derived from the clock here, never read off the row.
-    paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
+    const drawn = paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
         dates, now, refreshFailed, printedAt: OTD.correctedNow(),
         grade: reviewGrade, onGrade: (g) => { reviewGrade = g; paintWeekChip(data, g); },
         day: reviewDay, onDay: (d) => { reviewDay = d; },
@@ -626,7 +627,9 @@ function paintShown(host, { weekEnding, win, data, dates, now }, refreshFailed) 
         onRefresh: () => { loadHorizon({ quiet: true }); return renderWeekDetail(weekEnding); },
         onAsk: (memberName, ask) => setAsking(weekEnding, memberName, ask),
     });
-    paintWeekChip(data, reviewGrade);
+    // The grade the card OPENED on: a carried grade this week does not hold falls back to All
+    // grades there, and `reviewGrade` stays the reviewer's for the next week (overtime-ui-8).
+    paintWeekChip(data, drawn?.grade ?? reviewGrade);
 }
 
 /**

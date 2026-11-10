@@ -89,10 +89,13 @@ mock.module('./overtime-data.js', {
 
 /** Every restamp of the sheet's "Printed …" line, as [host, instant]. */
 let stamped = /** @type {any[]} */ ([]);
+/** What the workspace reports it opened on — the real one says when it fell back to All grades. */
+let opensOn = /** @type {null | ((grade: string) => string)} */ (null);
 mock.module('./overtime-manager.js', {
     namedExports: {
         renderWeekDetail: (_host, win, data, opts) => {
             painted.push({ weekEnding: win.weekEnding, phase: win.phase, dates: opts.dates, grade: opts.grade, day: opts.day, data, opts });
+            return { grade: opensOn ? opensOn(opts.grade) : opts.grade };
         },
         stampPrinted: (/** @type {any} */ host, /** @type {number} */ at) => { stamped.push([host, at]); },
     },
@@ -175,6 +178,7 @@ beforeEach(() => {
     createQueue = [];
     withdrawHold = null;
     dialogs = [];
+    opensOn = null;
     // A success flash arms a REAL 2.5-second auto-hide that no test here waits for, and it held the
     // process open after the last test: 2.7 s of wall for ~60 ms of tests (test audit, 7 Nov 2026).
     // Mocked, it is a fake timer that the reset below throws away.
@@ -360,6 +364,34 @@ describe('a week that has gone says so, and leaves the chip able to come back', 
         assert.equal(dom.otWeekChip.textContent, '');
         await c.selectWeek(B);
         assert.equal(dom.otWeekChip.textContent, '6/6', 'a later week still gets its ratio');
+    });
+
+    test('a carried grade the week does not hold is counted as the workspace drew it — All grades (overtime-ui-8)', async () => {
+        // The workspace falls back to All grades and leaves the reviewer's choice alone (it comes
+        // back on a week that holds it); the chip went on counting the absent grade: "0/0" over
+        // "1 of 2 forms received".
+        detailFor.set(A, detail(4, 1));
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        painted.at(-1).opts.onGrade('CES');   // the reviewer works CES …
+        opensOn = () => 'ALL';                // … on a week whose population holds none
+        await c.selectWeek(A);
+        assert.equal(painted.at(-1).grade, 'CES', 'the choice is still handed in — it is the reviewer\'s');
+        assert.equal(dom.otWeekChip.textContent, '1/4', 'and the chip counts what the card does');
+    });
+
+    test('a past week chosen before a horizon reload is still marked as chosen after it (css lead)', async () => {
+        // Its View button was built with no `aria-pressed`, unlike a horizon row's, so any reload of
+        // the list — every Refresh now — unmarked the week on screen.
+        const PAST = week('2026-08-15', '2026-08-09');
+        detailFor.set(PAST.weekEnding, detail(2, 1));
+        const c = makeController();
+        await boot(c, [PAST]);
+        await c.selectWeek(PAST.weekEnding);
+        overviewQueue.push({ ok: true, data: { planningWeeks: [], retained: [PAST] } });
+        await c.loadHorizon();
+        assert.match(dom.otHorizonContent.innerHTML, /data-open="2026-08-15"\s+aria-pressed="true"/);
     });
 });
 

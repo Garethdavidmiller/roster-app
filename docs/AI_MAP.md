@@ -508,8 +508,9 @@ sheet — rendered from data handed in (paused — see the Overtime entry). It p
 (`loadWeekDetail` in `overtime-data.js` does) and imports only DOM-free modules, so
 `overtime-manager.test.mjs` drives it with a two-line fake DOM.
 - `renderWeekDetail(host, win, data, { dates, now, grade?, onGrade?, day?, onDay?, onRefresh?, onAsk?,
-  refreshFailed?, printedAt? })` — the surface is a pure function of `(data, state)`; `refreshFailed`
-  keeps a snapshot whose newer read did not arrive, and says so.
+  refreshFailed?, printedAt? })` → `{ grade }` — the surface is a pure function of `(data, state)`;
+  `refreshFailed` keeps a snapshot whose newer read did not arrive, and says so; the returned grade is
+  the one it OPENED on (All grades when the carried grade is not in this week), which the card's chip counts.
 - `stampPrinted(host, nowMs)` — restamps the sheet's "Printed …" line as it prints (`beforeprint`); iOS
   fires none for AirPrint, so there it keeps the paint's stamp.
 - **Rules its header and comments argue:** three sections per date — Available, Not available, No

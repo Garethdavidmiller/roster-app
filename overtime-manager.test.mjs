@@ -400,6 +400,15 @@ describe('the grade filter is about the reviewer, not the week', () => {
         assert.match(html, /data-grade="ALL"[^>]*aria-pressed="true"/);
     });
 
+    test('it says which grade it opened on, so the card header can count the same people (overtime-ui-8)', () => {
+        const opened = (/** @type {string} */ grade, /** @type {any[]} */ participants) => renderWeekDetail(
+            /** @type {any} */ (fakeHost()), WIN, { participants, submissions: submissions() },
+            { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z'), grade });
+        assert.deepEqual(opened('CES', PARTICIPANTS), { grade: 'CES' }, 'a grade the week holds is the grade drawn');
+        assert.deepEqual(opened('CES', PARTICIPANTS.filter(p => p.grade === 'CEA')), { grade: 'ALL' },
+            'a grade it does not hold falls back, and SAYS so — the chip counted the absent grade, "0/0"');
+    });
+
     test('a grade this week\'s population does not hold falls back to all grades', () => {
         // The choice crosses week switches, and populations are frozen per week — so a clerk who
         // picked CES on one week can land on a week created before any CES was asked. Filtering
