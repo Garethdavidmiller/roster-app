@@ -244,6 +244,7 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
         uploadFn: uploadHuddle, currentUser,
         successMsg: date => `Huddle uploaded for ${date} — staff will see it on the main app`,
         btnLabel: 'Upload Huddle', logPrefix: 'Huddle',
+        whereToCheck: '☰ → Daily Huddle',
         maxDateOffsetDays: 1,
         isAccepted: f => isPdfFile(f) || isDocxFile(f),
         rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',

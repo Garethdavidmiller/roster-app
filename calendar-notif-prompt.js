@@ -107,6 +107,34 @@ export function initNotifPrompt({ authReady, getAccessType }) {
     });
     function hide() { _prompt.style.display = 'none'; }
 
+    /**
+     * GRANTED, BUT NOT SWITCHED ON (whole-app review, 10 Nov 2026). The system said yes and the
+     * subscription still failed — no signal (the Calendar works offline), or a push service that
+     * would not register — and `enableNotifications` answers 'off-lapsed'. The strip had already
+     * gone, and with permission now 'granted' it is never offered again (the granted branch above
+     * only renews), so the member believed they would be told about the Huddle and the pay cut-off
+     * and were not. It comes back saying so instead: its second line (index.html), with Enable to try
+     * again and where to try later. Spoken as well as shown, through the Calendar's polite announcer:
+     * the strip was off the page while the system asked, so a screen reader has nothing to notice it
+     * coming back by. Access is asked again first — a Calendar re-locked while the system asked is no
+     * longer a member's, and the strip's first showing asks the same.
+     */
+    function showFailed() {
+        if (getAccessType() !== 'named') return;
+        const offer = document.getElementById('notifPromptOffer');
+        const failed = document.getElementById('notifPromptFailed');
+        const line = document.getElementById('notifPromptFailedLine');
+        if (!failed || !line) return;
+        if (offer) offer.hidden = true;
+        failed.hidden = false;
+        _prompt.style.display = 'flex';
+        const announcer = document.getElementById('ariaAnnouncer');
+        if (!announcer) return;
+        // Cleared first, so a second failure is spoken again (announceMonthChange's pattern).
+        announcer.textContent = '';
+        requestAnimationFrame(() => { announcer.textContent = (line.textContent || '').trim(); });
+    }
+
     enableBtn.addEventListener('click', async () => {
         hide();
         try {
@@ -123,7 +151,9 @@ export function initNotifPrompt({ authReady, getAccessType }) {
             // callback — but kept so the gesture/auth ordering above stays explicit at the one
             // place it matters.
             await authReady;
-            await enableNotifications();   // permission already granted → goes straight to subscribe
+            // Permission already granted → straight to subscribe. Its answer is READ: 'off-lapsed'
+            // is a subscription that failed, and the strip says so rather than vanishing.
+            if (await enableNotifications() === 'off-lapsed') showFailed();
         } catch (err) {
             console.warn('[Notifications] Enable failed:', /** @type {any} */ (err).message);
         }
