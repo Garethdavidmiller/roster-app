@@ -170,6 +170,8 @@ export async function fetchOverridesForPeriod(p, memberName) {
 // ── SUGGESTION ENGINE ─────────────────────────────────────────────────────────
 /** A bare Training day from the pattern, on a bank holiday: the contracted day (owner, 7 Nov 2026). */
 export const BARE_TRAINING_DAY_MINS = 7 * 60;
+/** How the day list names those 7 hours — a default the member checks, never a record. */
+const BARE_DAY_LABEL = `${BARE_TRAINING_DAY_MINS / 60}h default — adjust to actual`;
 
 /**
  * Scan the period window using the logged-in member's base roster, merged with
@@ -279,11 +281,12 @@ export function getRosterSuggestion(p, member) {
     // weekday is contracted basic pay, a Sunday or Boxing Day cannot be a training day, and no
     // pattern has a bare Training Saturday. Absence and an untimed Other day on top pay as the day
     // underneath, so they reach this too (effValue is the base).
-    const _bareBase = effValue === baseValue ? parseOtherValue(baseValue) : null;
-    if (_bareBase && !_bareBase.time && !_bareBase.rdw && cur.getDay() !== 0
+    const _baseOther = parseOtherValue(baseValue);
+    const baseIsBareOther = !!_baseOther && !_baseOther.time && !_baseOther.rdw;
+    if (effValue === baseValue && baseIsBareOther && cur.getDay() !== 0
         && !(cur.getMonth() === 11 && cur.getDate() === 26) && _isDateBH(cur)) {
       bhMins += BARE_TRAINING_DAY_MINS; bhCount++; defaulted7h.bh = true;
-      days.push({ date: new Date(cur), shift: `${BARE_TRAINING_DAY_MINS / 60}h default — adjust to actual`, type: 'bh', source: 'base' });
+      days.push({ date: new Date(cur), shift: BARE_DAY_LABEL, type: 'bh', source: 'base' });
       cur.setDate(cur.getDate() + 1);
       continue;
     }
@@ -300,11 +303,19 @@ export function getRosterSuggestion(p, member) {
       const isBH     = !isBoxing && _isDateBH(cur);
       const fromOv   = _otherFromOv !== null ? _otherFromOv : (ov && ov.type === 'sick' ? false : !!ov);
 
+      // A BARE TRAINING DAY FROM THE PATTERN IS THE ROSTERED 7-HOUR DAY ON A BANK HOLIDAY — with times
+      // recorded on it as much as without (paycalc-3-4). The no-times case is the branch above; a record
+      // WITH times (a timed Training day, a plain shift, a rest day worked on top) found no rostered
+      // shift here to cap against, so the rest-day branch below paid the whole day as Bank Holiday
+      // Overtime — on top of contracted hours, where rostered hours only carry the premium. Only on a
+      // bank holiday, the one day the owner's decision covers (paycalc.md): a weekday is contracted
+      // basic pay, and inferring an overtime split there would be a category nobody decided.
+      const bareRostered = isBH && dow !== 0 && baseIsBareOther;
       // Pre-compute base duration to cap rostered hours and detect overtime
       // when admin extends a shift beyond the base roster.
-      const baseWorked = baseValue && baseValue.includes('-') && baseValue.includes(':');
-      let baseMins = 0;
-      if (baseWorked) {
+      const baseWorked = bareRostered || (baseValue && baseValue.includes('-') && baseValue.includes(':'));
+      let baseMins = bareRostered ? BARE_TRAINING_DAY_MINS : 0;
+      if (baseWorked && !bareRostered) {
         const [bst, ben] = baseValue.split('-');
         const [bsh, bsm] = bst.split(':').map(Number);
         const [beh, bem] = ben.split(':').map(Number);
@@ -315,8 +326,12 @@ export function getRosterSuggestion(p, member) {
       // rostered shift still pays the FULL shift. Without this, the shift-override split below
       // (Math.min(mins, baseMins) on the Sat/BH branches) credited only the Other-day duration —
       // e.g. training 12:00-16:00 on a base Saturday 13:30-21:00 suggested 4h sat instead of 7.5h.
-      // Over-runs are unaffected (mins > baseMins); weekdays were already safe (excess-only).
-      if (_otherFromOv === true && baseWorked && mins < baseMins) mins = baseMins;
+      // Over-runs are unaffected (mins > baseMins); weekdays were already safe (excess-only). On a
+      // bare Training base the shift it lifts to is the 7-hour DEFAULT, not a record, so it says so.
+      if (_otherFromOv === true && baseWorked && mins < baseMins) {
+        mins = baseMins;
+        if (bareRostered) defaulted7h.bh = true;
+      }
 
       if (isBoxing) {
         boxMins += mins; boxCount++;
@@ -337,7 +352,8 @@ export function getRosterSuggestion(p, member) {
           if (baseWorked) {
             bhMins   += baseMins; bhCount++;
             bhOtMins += mins;     bhOtCount++;
-            days.push({ date: new Date(cur), shift: baseValue, type: 'bh',   source: 'base'     });
+            if (bareRostered) defaulted7h.bh = true;   // its rostered hours are the 7-hour default
+            days.push({ date: new Date(cur), shift: bareRostered ? BARE_DAY_LABEL : baseValue, type: 'bh', source: 'base' });
             days.push({ date: new Date(cur), shift: effValue,  type: 'bhOt', source: 'override' });
           } else {
             bhOtMins += mins; bhOtCount++;

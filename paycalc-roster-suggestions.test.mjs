@@ -782,20 +782,69 @@ describe('getRosterSuggestion — a bare Training day from the pattern on a bank
     }
   });
 
-  test('recorded times replace the default — the day is priced as worked, and flagged as nothing', () => {
+  // THE BUCKET, NOT ONLY THE SUM (paycalc-3-4). This case used to assert `bhH + bhOtH === 8`, which
+  // stayed true while all eight hours sat in Bank Holiday OVERTIME: a record with times found no
+  // rostered shift to cap against (the base has none), so the branch for a bank holiday worked on a
+  // REST day took the whole day. Overtime is paid on top of contracted hours; rostered hours only
+  // carry the premium — so a seven-hour day was over-suggested by a day's basic pay. The rostered day
+  // on a bank holiday is the 7-hour day, with or without times on record.
+  /** Suggest the bank holiday with this one record on it. */
+  function withRecord(/** @type {any} */ ov) {
     _addBhDateForTest(2026, BH);
     try {
-      _setOverridesForTest(new Map([[BH, { type: 'other', value: 'TRG 09:00-17:00', _ts: 1, _manual: true }]]));
-      const s = getRosterSuggestion(period(BH), campbell);
-      assert.equal(s.bhH + s.bhOtH, 8, 'the eight hours recorded');
-      assert.deepEqual(s.defaulted7h, { bh: false });
+      _setOverridesForTest(new Map([[BH, { _ts: 1, _manual: true, ...ov }]]));
+      return /** @type {any} */ (getRosterSuggestion(period(BH), campbell));
     } finally {
       _removeBhDateForTest(2026, BH);
     }
+  }
+
+  test('recorded times replace the default — the rostered 7 hours, the excess as overtime', () => {
+    const s = withRecord({ type: 'other', value: 'TRG 09:00-17:00' });
+    assert.equal(s.bhH, 7, 'the rostered day went to Bank Holiday Overtime');
+    assert.equal(s.bhOtH, 1, 'only the hour past the 7-hour day is overtime');
+    assert.deepEqual(s.defaulted7h, { bh: false }, 'the eight hours are on record');
+  });
+
+  test('a 7-hour Training day, or a plain shift, is all Bank Holiday Rostered', () => {
+    for (const ov of [{ type: 'other', value: 'TRG 09:00-16:00' }, { type: 'shift', value: '09:00-16:00' }]) {
+      const s = withRecord(ov);
+      assert.equal(s.bhH, 7, `${ov.value}: the rostered day was paid as overtime`);
+      assert.equal(s.bhOtH, 0, ov.value);
+      assert.equal(s.bhOtCount, 0, ov.value);
+    }
+  });
+
+  test('a Training day that ran short still pays the 7-hour day — flagged, because the 7 is not on record', () => {
+    const s = withRecord({ type: 'other', value: 'TRG 09:00-14:00' });
+    assert.equal(s.bhH, 7, 'never paid less than the rostered day (OTHER_DAYS.md decision 5)');
+    assert.equal(s.bhOtH, 0);
+    assert.deepEqual(s.defaulted7h, { bh: true });
+  });
+
+  test('a plain shift recorded short is the shift recorded — a shift replaces the day', () => {
+    const s = withRecord({ type: 'shift', value: '09:00-14:00' });
+    assert.equal(s.bhH, 5);
+    assert.equal(s.bhOtH, 0);
+    assert.deepEqual(s.defaulted7h, { bh: false });
+  });
+
+  test('a rest day worked recorded on top adds to the rostered day, as on any rostered bank holiday', () => {
+    const s = withRecord({ type: 'rdw', value: '18:00-20:00' });
+    assert.equal(s.bhH, 7, 'the rostered day was dropped');
+    assert.equal(s.bhOtH, 2);
+    assert.deepEqual(s.defaulted7h, { bh: true }, 'the 7 rostered hours here are the default');
   });
 
   test('on an ordinary weekday it suggests nothing — the day is contracted basic pay', () => {
     _setOverridesForTest(new Map());
+    assert.equal(getRosterSuggestion(period(BH), campbell), null);
+  });
+
+  test('…even with long times recorded: the 7-hour day is a bank-holiday decision, not a weekday one', () => {
+    // Splitting a long weekday Training day into overtime would infer a category nobody decided
+    // (invariant 11) — the owner's 7 hours answer the bank holiday only.
+    _setOverridesForTest(new Map([[BH, { type: 'other', value: 'TRG 09:00-18:00', _ts: 1, _manual: true }]]));
     assert.equal(getRosterSuggestion(period(BH), campbell), null);
   });
 });
