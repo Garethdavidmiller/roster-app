@@ -117,6 +117,14 @@ const _RETRIABLE_FIRESTORE_CODES = new Set([
 /** @param {any} err */
 const _isRetriableFirestoreError = (err) => _RETRIABLE_FIRESTORE_CODES.has(err && err.code);
 
+// How long after a roster upload ARRIVES the model call must be over — every attempt, and the SDK's
+// waits between them (functions-core-7). The SDK's own default is ten minutes per attempt with two
+// retries, inside a function the platform ends at 120 s, so a stalled model was killed by the
+// PLATFORM: the admin saw the page's "Unexpected error" fallback instead of this handler's answer.
+// Sized to leave the post-model geometry re-wait (GEOMETRY_WAIT_BUDGET_MS) and the reply inside the
+// limit, and far above an ordinary read (~15 s). index-endpoints.test.mjs checks both directions.
+const PARSE_MODEL_DEADLINE_MS = 100_000;
+
 /**
  * Read the raw base64 plain-text request body (bypasses the JSON body-size limit), size-capped at
  * MAX_RAW_BODY_BYTES so an oversized upload is rejected DURING streaming rather than after buffering
@@ -239,10 +247,12 @@ exports.parseRosterPDF = onRequest(
         secrets:        [ANTHROPIC_API_KEY],
         region:         'europe-west2',
         cors:           ADMIN_FUNCTION_ORIGINS,
-        timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
+        timeoutSeconds: 120,            // the model call is held to PARSE_MODEL_DEADLINE_MS inside this
         memory:         '512MiB',       // pdf-parse needs a little headroom
     },
     async (req, res) => {
+        // The model call's deadline counts from here (PARSE_MODEL_DEADLINE_MS).
+        const receivedAt = Date.now();
 
         // ---- Method check ----
         if (req.method !== 'POST') {
@@ -518,9 +528,14 @@ columnScan: one key per column header; every staff member appears in every colum
         // there is no table left to read: the cells arrive already placed, as text.
 
         let parsed;
+        /** @type {AbortSignal|null} */
+        let modelDeadline = null;
         try {
             const { Anthropic } = require('@anthropic-ai/sdk'); // M8: lazy-loaded here only
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+            // ONE deadline for the whole call. The SDK checks the signal before each attempt, during
+            // it, and in its sleeps between retries, so quick failures are still retried — inside it.
+            modelDeadline = AbortSignal.timeout(Math.max(1_000, PARSE_MODEL_DEADLINE_MS - (Date.now() - receivedAt)));
 
             // HOW the model is asked (which model, thinking off, the effort) is MODEL_REQUEST in
             // roster-prompt.js, with its reasons; index-endpoints.test.mjs pins it through this call.
@@ -539,7 +554,8 @@ columnScan: one key per column header; every staff member appears in every colum
                     },
                     { type: 'text', text: prompt },
                 ];
-            const message = await client.messages.create({ ...MODEL_REQUEST, messages: [{ role: 'user', content }] });
+            const message = await client.messages.create(
+                { ...MODEL_REQUEST, messages: [{ role: 'user', content }] }, { signal: modelDeadline });
 
             // A decline is an HTTP 200 with no text. Reported as one: DECLINED_ERROR says why.
             if (message.stop_reason === 'refusal') {
@@ -562,6 +578,8 @@ columnScan: one key per column header; every staff member appears in every colum
             // Distinguish JSON parse errors (bad AI output) from API errors
             if (err instanceof SyntaxError) {
                 res.status(502).json({ error: 'The AI returned an unreadable response — please try again' });
+            } else if (modelDeadline && modelDeadline.aborted) {
+                res.status(502).json({ error: 'The AI service did not answer in time — please try again in a moment' });
             } else {
                 res.status(502).json({ error: 'Could not reach the AI service — please try again in a moment' });
             }

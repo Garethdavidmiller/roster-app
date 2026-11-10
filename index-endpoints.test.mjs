@@ -632,6 +632,58 @@ describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', 
     });
 });
 
+describe('parseRosterPDF: a model that never answers gets the handler\'s answer, not the platform\'s kill', () => {
+    // functions-core-7 (whole-app check, 10 Nov 2026). The SDK gives a call like this ten minutes
+    // per attempt and two retries, inside a function the platform ends at 120 s — so on a stall the
+    // platform killed the request first and the admin saw the page's "Unexpected error" fallback,
+    // never the handler's own answer. The handler now holds the whole call (attempts and the SDK's
+    // waits between them) to one deadline measured from the request's arrival.
+    //
+    // A REAL SDK against a server that accepts the request and never answers. `AbortSignal.timeout`
+    // is wrapped to record the deadline the handler asks for and to make it fire in 150 ms, so the
+    // test exercises the real arithmetic and the real SDK's abort without waiting a minute and a half.
+    const stall = { server: null, url: '', sockets: new Set() };
+    before(async () => {
+        stall.server = http.createServer(() => { /* accepts, never answers */ });
+        stall.server.on('connection', (s) => { stall.sockets.add(s); s.on('close', () => stall.sockets.delete(s)); });
+        await new Promise((resolve) => stall.server.listen(0, '127.0.0.1', resolve));
+        stall.url = `http://127.0.0.1:${stall.server.address().port}`;
+    });
+    after(() => {
+        for (const s of stall.sockets) s.destroy();
+        return new Promise((resolve) => stall.server.close(resolve));
+    });
+
+    test('the call is held to a deadline that leaves the function time to answer, and says so', async () => {
+        build();
+        AI.wire = class extends RealAnthropic {
+            constructor(opts) { super({ ...opts, baseURL: stall.url }); }
+        };
+        const asked = [];
+        const realTimeout = AbortSignal.timeout;
+        AbortSignal.timeout = (ms) => { asked.push(ms); return realTimeout.call(AbortSignal, 150); };
+        let out = null;
+        let bound;
+        try {
+            const pending = call(index.parseRosterPDF, rosterRequest()).then((o) => { out = o; });
+            // Bounded: on a handler with no deadline this would otherwise wait out the SDK's ten minutes.
+            await Promise.race([pending, new Promise((resolve) => { bound = setTimeout(resolve, 5_000); })]);
+        } finally {
+            clearTimeout(bound);
+            AbortSignal.timeout = realTimeout;
+        }
+        assert.equal(asked.length, 1, 'the model call carried no deadline of its own');
+        const limitMs = index.parseRosterPDF.__endpoint.timeoutSeconds * 1000;
+        const { GEOMETRY_WAIT_BUDGET_MS } = require('./functions/roster-geometry.js');
+        assert.ok(asked[0] >= 60_000, `a ${asked[0]} ms deadline would cut off an ordinary read (~15 s, slower under load)`);
+        assert.ok(asked[0] + GEOMETRY_WAIT_BUDGET_MS + 5_000 <= limitMs,
+            `a ${asked[0]} ms deadline leaves the post-model geometry wait and the answer no room inside ${limitMs} ms`);
+        assert.ok(out, 'the handler did not answer when its deadline passed');
+        assert.equal(out.code, 502);
+        assert.match(out.body.error, /did not answer in time/);
+    });
+});
+
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // unlockCalendarViewer — the cost is the whole roster, against a secret with 10,000 values in it
 // ════════════════════════════════════════════════════════════════════════════════════════════════
