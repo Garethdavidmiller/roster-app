@@ -4195,6 +4195,25 @@ test('links: a copy made offline says it is saved in this browser, not "Saved"',
     await context.setOffline(false);
 });
 
+// AN IMPORT MADE OFFLINE is only in this browser's queue too. Its line said so (links-design-8), and the
+// masthead's pill still said "Saved", as though a colleague could already open it: the coordinator keeps
+// the queued designs for the pill, and the import panel never told it about one.
+test('links: an import made offline says it is saved in this browser, in the pill as well as the line', async ({ page, context }) => {
+    await openWindowDesign(page);
+    await context.setOffline(true);
+    await sheetAction(page, 'importDesignBtn');
+    await page.locator('#linksImportText').fill('1\tNA\t06:20-13:50\tRD\tRD\t06:20-13:50\t06:20-13:50\t06:20-14:20');
+    await page.locator('#linksImportCheck').click();
+    await page.locator('#linksImportName').fill('Offline import');
+    await page.locator('#linksImportSave').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(activeDesignName(page)).toHaveText('Offline import');
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
+    await expect(page.locator('#designStatusShort')).toHaveText('Saved here');
+    await expect(page.locator('#designStatus')).toHaveClass(/dm-status--queued/);
+    await context.setOffline(false);
+});
+
 // A row stays tappable through its sheet's fade, and each tap closes the sheet and runs the row after
 // the fade — so a DOUBLE TAP ran it twice (links-app-11): Compare on and straight back off, two Rename
 // prompts, and on a picker row two "unsaved changes" questions stacked.

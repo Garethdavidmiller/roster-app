@@ -62,6 +62,8 @@ import { unconfirmedWriteLine } from './claim-retry.js';
  * @property {() => any} getHeader           the masthead, once built (the bin opens from its ··· sheet)
  * @property {(ids: Set<string>) => void} removeDesigns  drop these from the live list; if one was open,
  *   open the next live design, else the first of the shortlist (Keep only the shortlist)
+ * @property {(id: string) => void} markQueued  this design's last write is only in THIS BROWSER's queue
+ *   (a create the store returned `queued`) — the coordinator's record, which the masthead's pill reads
  * @property {() => (string|null)} [activeId]  the open SAVED design's id — null for a proposal's copy
  *   or an unsaved design. Without it, Keep only the shortlist cannot tell whether the open design is
  *   among those moving, and warns about unsaved work whenever there is any
@@ -202,6 +204,10 @@ export function createDesignLibrary(ctx) {
                            { updatedBy: ctx.currentUser, updatedAt: serverTimestamp() }));
             const d = restoredEntryFrom({ id: importedId, name, patterns, window: null }, { updatedAt: ts, updatedBy: ctx.currentUser, revision: impBase.loadedRevision });
             ctx.addDesign(d);
+            // Recorded BEFORE the open or the repaint below, which draws the masthead's pill: unrecorded,
+            // a queued import's pill said "Saved" under a line saying "in this browser" (whole-app fix,
+            // Nov 2026).
+            if (queued) ctx.markQueued(importedId);
             // OPENED ONLY FROM THE PANEL IT WAS SAVED FROM (whole-app fix, Nov 2026). An online create
             // waits for the server's answer, and on a weak connection the designer can close the panel
             // and go back to their design meanwhile; opening the import when it landed replaced
