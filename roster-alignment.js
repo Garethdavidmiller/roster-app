@@ -10,12 +10,12 @@
  * Edit here for: the drift detector, the block threshold, how a batch signature is judged, or the
  *   default week ending.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract, including why this
- *   module is the only INDEPENDENT witness among the day-drift defences.
+ *   module is the only INDEPENDENT witness among the first three day-drift layers.
  *
  * ── WHY THIS IS ITS OWN MODULE (v22.16, external review) ───────────────────────────────────────
  *
- * It is the app's only AI-INDEPENDENT evidence about the roster import, and that makes it a
- * domain rule rather than coordination.
+ * It is the import's only AI-INDEPENDENT evidence drawn from the member's own pattern, and that
+ * makes it a domain rule rather than coordination.
  *
  * The row read, the Sunday scan and the column scan all come from ONE model call looking at ONE
  * PDF. They are not independent witnesses, and the failure that prompted this proves it: when the
