@@ -640,11 +640,21 @@ test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and
     await expect(block).toBeVisible();
     await expect(block).toContainText('Not entered yet');
     await expect(page.locator('#fillYearBtn')).toBeVisible();
+    const lumpBefore = await page.locator('#backPayTotalAmt').textContent();
     await clickInView(page.locator('#fillYearBtn'));
 
     // The receipt: filled payslips BY DATE, plus the review-before-relying line.
     await expect(block.locator('.yearso-receipt')).toContainText(/Filled \d+ payslips? from your calendar/);
     await expect(block.locator('.yearso-receipt')).toContainText('Review the suggested hours');
+
+    // The back-pay lump accrues from those hours too (paycalc-2-2, whole-app check, 10 Nov 2026): it
+    // moves with the fill, to exactly what a fresh look at the payslip gives.
+    const lumpAfter = await page.locator('#backPayTotalAmt').textContent();
+    expect(lumpAfter, 'the fill moves the lump at once — the filled hours sit inside the award window').not.toBe(lumpBefore);
+    const viewed = await page.locator('#periodSelect').inputValue();
+    await page.locator('#periodSelect').selectOption(String(Number(viewed) - 1));
+    await page.locator('#periodSelect').selectOption(viewed);
+    await expect(page.locator('#backPayTotalAmt')).toHaveText(lumpAfter ?? '');
 
     // The entered period survived byte-for-byte — rule 1, proven against real storage.
     const entered = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_pc_gmiller_p51') || 'null'));
@@ -1532,6 +1542,36 @@ test('paycalc: the back-pay lump joins take-home ONLY when the tick is on', asyn
     expect(poundsOf(await page.locator('#netDisplay').textContent()),
         'the lump was added to a payslip that does not carry it').toBe(nextWithout);
     expect(errors, 'Uncaught JS exceptions on the back-pay opt-in').toHaveLength(0);
+});
+
+// ── HOURS INSIDE THE AWARD WINDOW MOVE THE LUMP AT ONCE (paycalc-2-2, whole-app check, 10 Nov 2026) ──
+// The lump accrues from SAVED hours, and saving hours re-priced everything but it: 20 hours of overtime
+// on the 5 Jun payslip left the card on £476.18 until the member moved away and back (£494.93). The
+// figure must move on the edit, to exactly what a fresh look gives.
+test('paycalc: an hours edit inside the award window re-prices the back-pay lump at once', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);
+    await seedSession(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('52');   // 5 Jun 2026 — inside the 2026/27 award window
+    await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'));
+        /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+    });
+    const total = page.locator('#backPayTotalAmt');
+    await expect(total).toHaveText(/£\d/);
+    const before = await total.textContent();
+
+    await page.fill('#otH', '20');
+    await page.dispatchEvent('#otH', 'input');
+    await expect(total, 'the overtime is priced into the lump on the edit').not.toHaveText(before ?? '');
+    const moved = await total.textContent();
+    await page.locator('#periodSelect').selectOption('53');
+    await page.locator('#periodSelect').selectOption('52');
+    await expect(total, 'and to exactly what a fresh look gives').toHaveText(moved ?? '');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
 // ── A LUMP TYPED FROM THE PAYSLIP IS NOT AN ESTIMATE TO SHARPEN (whole-app check, 10 Nov 2026) ────

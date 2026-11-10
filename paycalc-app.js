@@ -491,6 +491,7 @@ export function init() {
         lsSet(periodKey(pNum), JSON.stringify(d));
         updateSaveStatus(pNum);
       } catch { /* storage unavailable */ }
+      _runCalcBackPay();   // the lump accrues from SAVED hours, so it re-prices from what was just saved (paycalc-2-2)
       calculate();
     }
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
@@ -1546,6 +1547,7 @@ export function init() {
     initYearCard({
       afterFill: (r) => {
         if (r.filled.some((/** @type {any} */ p) => p.num === currentPeriodNum())) loadPeriodData(currentPeriodNum());
+        _runCalcBackPay();   // filled hours inside the award window move the lump (paycalc-2-2)
         calculate();
       },
     });
