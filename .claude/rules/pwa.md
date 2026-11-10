@@ -66,7 +66,7 @@ deep-link allowlist are `notifications.md`.
   already resolved.
 - **An `opaqueredirect` is passed straight through** (status 0 — a redirect under the navigation's
   'manual' redirect mode, which is how a navigation-preload answer surfaced the start_url
-  `./index.html` → `/` 301 while preload was on; it is off since Nov 2026, and the pass-through stays
+  `./index.html` → `/` 301 while preload was on; it is off since November 2026, and the pass-through stays
   for one that arrives) so the browser follows it — treating it as a broken-site response would send every
   installed-PWA launch down the cache fallback. `manifest.json` `start_url` and the Calendar shortcut
   point at `./` (a reinstall picks that up; the pass-through covers existing installs).

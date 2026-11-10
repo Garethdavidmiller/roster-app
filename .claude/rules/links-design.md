@@ -387,7 +387,7 @@ kept, because the reload's hide keeps the copy above.
   `.links-grid-wrapper`, so on a phone it wears the same `local`/`scroll` gradient. Its cells are
   transparent, so the shade shows through them at the visible end of a column while more remains, and
   that shade is the cue. The `local` layer masks it once the column's end is reached, and the gold
-  outlines stay intact. Rendered with and without the gradient, 10 Nov 2026.
+  outlines stay intact. Rendered with and without the gradient, 10 November 2026.
 
 ### Paint mode
 
