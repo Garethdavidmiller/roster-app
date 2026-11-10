@@ -72,7 +72,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
 | Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
-| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
+| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-overrides.js` (save logic) |
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` (`parseRosterPDF`) + `functions/roster-parse-helpers.js` + `functions/roster-prompt.js` |
@@ -187,10 +187,12 @@ The Calendar's display month and year, and the arithmetic that moves them. No DO
 - `changeDisplay(delta)` — clamped to `CONFIG.MIN_YEAR`–`MAX_YEAR`.
 - `addMonths(month, year, delta)` → `{ month, year }` — the one clamped month arithmetic, shared with the
   swipe carousel's adjacent panels so the two cannot disagree.
-- `persistViewedMonth()` — stores the position after each navigation.
+- `persistViewedMonth()` — stores the position after each render; the CURRENT month is cleared
+  rather than stored, so a month that has ended is never restored as though it had been browsed to.
 - `watchLocalDate(onChange, env?)` → a stop function — fires when the device's local date turns (on
   resume, and at local midnight while open), so a PWA resumed next morning stops highlighting
-  yesterday. Tested by `calendar-state.test.mjs`.
+  yesterday. A display on the month the old date fell in is moved to the new date's month first, so
+  a page open over a month end shows the new month. Tested by `calendar-state.test.mjs`.
 - At load, `restoreViewedMonth` honours a `?date=` link once (then strips it), else the stored month
   unless it is in the future.
 
@@ -212,8 +214,10 @@ day is. The reasoning sits beside each step, in `index.css` (layout) and in `ind
 - **Leave panel.** Reads the member's own `annual_leave` overrides (one member, to the end of next
   January) and counts them with `countedAlDates`, `entitlementFor` and `entitlementNote`
   (`al-entitlement.js`), adding the carry line (`leave-year.js`) and the Christmas line
-  (`christmas-leave.js`). A last-known-good memo per member and year paints at once; a refresh that fails,
-  or that the offline cache answered, keeps it. A `null` entitlement shows the em-dash state. The panel
+  (`christmas-leave.js`). A last-known-good memo per member and year paints at once, labelled as the
+  saved copy until a read confirms it; a refresh that fails, or that the offline cache answered, keeps it
+  under "Saved copy — couldn't check for changes". On a first run (no name chosen) it shows nobody's
+  figures and asks for a name. A `null` entitlement shows the em-dash state. The panel
   has its own year (‹ ›), opening on the Calendar's, and names whose leave it is (`#alLbWho`, and the
   dialog's own name) from the same member its figures are counted for — on every open, because the
   member picker moves under a page that is never reloaded.
@@ -221,6 +225,7 @@ day is. The reasoning sits beside each step, in `index.css` (layout) and in `ind
   the date and roster week, the shift with its kind glyph, the change as two badges built from
   `shiftBadgeParts` with `textContent` (never markup from an attribute), who last saved it, "As rostered"
   only where the renderer earned it, the day markers as chips, and the leave-year and Christmas lines.
+  Closing it after the grid was rebuilt behind it returns focus to the same day.
 - **Its two actions are personal.** "Pay estimate" and "Leave dates" show only when
   `personalActionsAllowed` says the calendar on screen is the signed-in member's own; the leave link
   carries the tapped day's year (`admin.html?alYear=…#alBookedBox`). The action row must vanish when
@@ -242,13 +247,15 @@ Firebase Auth initialises — `CALENDAR_DATA.md` 10); phase 2 waits for `authRea
   per-month read competes, and on success repaints whichever surface is live. `onAccessLost` hands a
   `permission-denied` to the access layer instead of looping on Retry. `cacheSettled` lets the boot wait
   a moment for the cache paint; `dismissSyncError()` withdraws a recorded failure (never a running
-  "Updating…") when the month panel's Try again takes over.
+  "Updating…") when the month panel's Try again takes over; the chip also withdraws a failure itself
+  once the month on screen has been confirmed since.
 - Chip: hidden → "↻ Updating your shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
   timeout. The owed state is `_chipState`, not the DOM, and a `MutationObserver` puts the chip back
   whenever a header rebuild takes it away (beside `setChipState`).
-- Coming back into view, or a bfcache restore, releases months older than `STALE_MONTH_MS` so they are
-  re-read behind the grid (`releaseStaleMonths`, `CALENDAR_DATA.md` 18); Team View re-reads through
-  `refetchTeamView`.
+- Coming back into view, a bfcache restore and — while the page stays visible and holds access — every
+  `STALE_MONTH_MS` release months older than that so they are re-read behind the grid
+  (`releaseStaleMonths`, `CALENDAR_DATA.md` 18); a first load that failed over a saved copy owes those
+  months a re-check on return (`oweRecheck`). Team View re-reads through `refetchTeamView`.
 
 ### `calendar-keyboard.js`
 Keyboard navigation and the hover tooltip for the month grid.
@@ -283,8 +290,10 @@ viewer's session. The header carries the design; `CALENDAR_DATA.md` 3, 4, 11 and
   and `calendar-overrides.js` refuses reads on its own, because the local cache never consults the
   rules; sign the old identity out BEFORE changing persistence, and check the claim BEFORE granting; the
   boot's waits share one budget, `ACCESS_DECISION_BUDGET_MS` (`session.js`); a member is never sent to
-  the PIN — a late-identity watcher keeps listening, and a held session tries a silent sign-in behind the
-  skeleton for up to `SILENT_BEFORE_CARD_MS` before its card goes up; whichever recovery route grants
+  the PIN — a late-identity watcher keeps listening, and grants a staff-PIN session that restores late
+  as the viewer, once its token carries the claim and never while the PIN card's own exchange runs; a
+  held session tries a silent sign-in behind the skeleton for up to `SILENT_BEFORE_CARD_MS` before its
+  card goes up; whichever recovery route grants
   second stands down; `#staff-pin` is consumed at boot whatever the decision.
 - The cards are `calendar-lock-cards.js`, in the one slot `calendar-lock-slot.js` owns. Why `overrides`
   stopped being world-readable, and running the PIN: OPERATIONS_REFERENCE.md → "Staff PIN access for the
@@ -360,13 +369,15 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
 - `rosterOverridesCache` — a `Map` keyed `"memberName|YYYY-MM-DD"`.
 - `fetchOverridesForRange(startStr, endStr)` — the authoritative server read. It reconciles each month
   slice only where no NEWER read has written it (`_monthSlices`, a test seam). A snapshot the offline
-  cache answered is merged additively and thrown as `SERVED_FROM_CACHE` (carrying `painted`), so the
-  month is recorded `cached` or `error` and released. An answer that lands after the access it was
+  cache answered is merged additively and thrown as `SERVED_FROM_CACHE` (carrying `painted`, true only
+  for a month this device once read whole — the `myb_cal_whole_months` record), so the month is recorded
+  `cached` or `error` and released. An answer that lands after the access it was
   issued under has gone, or been replaced, commits NOTHING and is thrown as `READ_SUPERSEDED` — a
   caller stands down on it, and never records a success or reports a failure.
 - `fetchOverridesForRangeFromCache(startStr, endStr, monthsWithRows?)` — phase 1: the local cache only,
-  additive (never evicts), skipping months a server read owns; never throws, and paints nothing if
-  access went while it was out.
+  additive (never evicts), skipping months a server read owns; it names a month in `monthsWithRows`
+  only where it held rows and this device once read it whole (a device with no record yet keeps the old
+  rule); never throws, and paints nothing if access went while it was out.
 - `ensureOverridesCached(year, month, renderFn)` — a no-op once the month is claimed; otherwise reads it,
   records what is now known, and calls back EVERY waiter when it settles (a caller arriving mid-read
   joins). A failure repaints once per claim, or it would be a fetch↔render loop. A failed RE-check of a
@@ -671,9 +682,11 @@ notice HTML stays in `index.html`; which notices are wired and live: the new-not
 
 ### `calendar-member.js`
 Which member the Calendar shows, and the member picker.
-- `getSelectedMemberIndex()` — the saved name, else this page's pick, else the signed-in member, else the
-  default. A saved name no longer on the roster sets the stale flag and prefers the signed-in member over
-  the default, so the picker and the grid name the same person.
+- `getSelectedMemberIndex()` — this page's selection: read once — the saved name, else the signed-in
+  member, else the default (held only where it is not a first run) — and after that changed only by a
+  pick on this page, so a key rewritten by Admin or another tab never moves the grid off the picker. A
+  saved name no longer on the roster sets the stale flag and prefers the signed-in member over the
+  default.
 - `takeStaleMemberName()` — one-shot; `renderCalendar` (or the Team View boot) shows the banner.
 - `getCurrentMember()` · `getDefaultMemberIndex()` (`CONFIG.DEFAULT_MEMBER_NAME`).
 - `saveSelectedMember(index)` — stores the name and keeps an in-memory copy, so a pick survives an iOS
@@ -1065,13 +1078,14 @@ Coordinator for `links.html`, the link-design workspace (designers only). It own
 - Every path that would lose unsaved work asks first. Duplicate's wording is deliberately not "will be lost", because the copy carries the live patterns (comment beside `duplicateDesign`).
 - A proposal opens with `activeDesignId` null and `activeProposalId` set, so no write path can send a proposal id to Firestore (`links-proposals.js`).
 - The orientation lightbox (`#linksWelcomeLb`) opens once per device under `myb_links_welcome_seen`, never expires, and `#linksHowBtn` in the About panel reopens it. Printing opens every `<details>` first (`_preparePrint`), because CSS cannot.
-- At its coordinator-ratchet cap: the next Links rule goes in a domain module.
+- Capped by `coordinator-ratchet.test.mjs`, whose latest raise of this cap is argued beside it; the next
+  Links rule still goes in a domain module.
 
 ### `links-analysis.js`
 The read-only analysis on `links.html`: the Coverage heat map with its demand rows, the Design checks card, and the sticky summary strip in the grid card's save row. Render only — every figure comes from the pure modules (`links-design`, `links-fatigue`, `links-limits`, `links-window`, `links-demand`), and none of the coordinator's save, concurrency or dirty state is touched.
 - `initLinksAnalysis({ getDesign, getBaseline?, isComparing? })` → `{ renderCoverageChart, renderDesignChecks, renderSummary }`. `getDesign` is a thunk for the live design or null; `getBaseline` gives today's link's fatigue profile, so a proposal's findings read against what the roster already scores; `isComparing` makes the strip name its design in compare mode. `links-app.js`'s `renderCoverageCard()` calls the chart, the window editor and the strip together.
 - Design checks open with a triage block ("Needs fixing before review", "Worth discussing") that restates the red and amber rows below and computes nothing of its own; a clean design gets no tick. The sections stay grouped by SOURCE, because a section claiming a limit must name whose requirement it is (`.claude/rules/links-design.md` invariant 10).
-- The strip shows lines undesigned, staffed hours with nobody on, fatigue factors present (never `standing`) and hours a week. It is not a score, and it recomputes rather than reading the other renderers' results, so render order cannot make it wrong.
+- The strip shows lines undesigned, staffed hours with trains and nobody on, fatigue factors present (never `standing`) and hours a week. It is not a score, and it recomputes rather than reading the other renderers' results, so render order cannot make it wrong.
 - `NIGHT_FAMILY` must equal the `family` string `links-fatigue.js` stamps, or the night rollup stops matching.
 - **Every class this module emits must exist in `links.css`**: `links-analysis.test.mjs` scans a prefix set and fails on an emitted family outside it. Tested by `links-analysis.test.mjs` (fake DOM).
 
@@ -1226,7 +1240,8 @@ The HARD limits: the ones a design meets or cannot be run. A separate module fro
 
 ### `links-fatigue.js`
 The ORR good-practice fatigue factors (December 2021 guide: twenty-five rows in six families, read at source) assessed against a link design. Pure. **It reports factors PRESENT and never passes or fails a design**: the ORR says these are not prescriptive limits, and the dominant risk is false assurance. The header and the comment beside each row carry the reasoning.
-- `assessFatigue(patterns, lines)` → `{ results, present, standing, confirmNeeded, hoursAreFloor }`; each result is `{ code, family, title, status, value?, threshold?, detail?, confirm? }`, `status` being `present` / `clear` / `standing` / `n/a`.
+- `assessFatigue(patterns, lines)` → `{ results, present, standing, confirmNeeded, hoursAreFloor }`
+  (`hoursAreFloor` is true only when the rotation holds a SPARE day); each result is `{ code, family, title, status, value?, threshold?, detail?, confirm? }`, `status` being `present` / `clear` / `standing` / `n/a`.
 - The rules it is built from: `isRest` / `isWorked` (SPARE is worked; `isRest` is re-exported from `links-design.js`, as is `dutyMinutes`) · `isEarlyStart` · `isVeryEarlyStart` · `coversNightWindow` (exact interval overlap, never sampled) · `toSequence` · `longestRunBetween48hBreaks` (FF11: only two rest days together count as a break, so it can only overstate) · `longestWorkedRun` (delegates to `worstCaseWorkedRun`) · `longestRunOf` · `earlyBlocksWithShortRecovery` · `maxHoursInAny7Days` · `startTimeJumps` · `rotationDirection`.
 - **Never hardcode a status**: a factor that cannot be computed gets no tick, and FF13 reads `runDesignChecks` so the two cannot disagree. NOT-APPLICABLE, CLEAR and STANDING are three different answers, and `standing` (a feature of the operation, such as FF2's 06:20 starts) is counted apart from `present`. Every rule laps the rotation.
 - `family` names a group and never a verdict; `links-analysis.js`'s `NIGHT_FAMILY` must equal the night family's string.
