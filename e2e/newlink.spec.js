@@ -486,6 +486,56 @@ test.describe('new link', () => {
         await expect(page.locator('#pdfViewerRetry')).toBeHidden();
     });
 
+    // A PAGE THAT CANNOT BE DRAWN SAYS SO, AND CAN BE TRIED AGAIN (external review, 10 Nov 2026). The file can open and one
+    // page still fail to draw. Such a page used to be skipped in silence — a white box, no word why, no way to try again
+    // short of zooming. Both ways a draw fails are made to happen here, in the real viewer with a real pack file: a canvas
+    // the browser gives no 2D context (an older iPhone short of memory), and a drawing that throws part-way, which PDF.js
+    // answers by rejecting the page's render.
+    for (const fault of /** @type {const} */ (['no context', 'drawing refused'])) {
+        test(`a page that cannot be drawn (${fault}) says so, and its own Try again draws it once it can`, async ({ page }) => {
+            await servePack(page);
+            await page.addInitScript((kind) => {
+                const w = /** @type {any} */ (window);
+                w.__drawFault = kind;
+                const getContext = HTMLCanvasElement.prototype.getContext;
+                // @ts-ignore — the stand-in keeps getContext's own signature
+                HTMLCanvasElement.prototype.getContext = function (...args) {
+                    return w.__drawFault === 'no context' ? null : getContext.apply(this, args);
+                };
+                const save = CanvasRenderingContext2D.prototype.save;
+                CanvasRenderingContext2D.prototype.save = function () {
+                    if (w.__drawFault === 'drawing refused') throw new Error('test: the drawing was refused');
+                    return save.call(this);
+                };
+            }, fault);
+            await seedSession(page, 'G. Miller');
+            await page.goto('/newlink.html');
+            const file = PACK.find(f => f.design && f.pages > 1) ?? PACK[0];
+            await page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`).click();
+
+            // The FILE opened — every page has its box and the viewer's own status is clear — but this page could not be
+            // drawn, and its box says so, with a way to try it again.
+            const first = page.locator('#pdfViewerSheet .pdf-viewer-page').first();
+            const notice = first.locator('.pdf-viewer-page-failed');
+            await expect(notice).toContainText('This page could not be shown.', { timeout: 20_000 });
+            await expect(page.locator('#pdfViewerSheet .pdf-viewer-page')).toHaveCount(file.pages);
+            await expect(page.locator('#pdfViewerStatus')).toHaveText('');
+            await expect(first.locator('canvas')).toHaveCount(0);
+            const retry = notice.getByRole('button', { name: 'Try again' });
+            await expect(retry).toBeVisible();
+
+            // The fault passes; the page's own Try again — from the keyboard, so every engine has focus on it — draws it:
+            // real ink, the notice gone, and focus kept inside the viewer rather than lost with the button.
+            await page.evaluate(() => { /** @type {any} */ (window).__drawFault = null; });
+            await retry.focus();
+            await page.keyboard.press('Enter');
+            await expect(first.locator('canvas')).toHaveCount(1, { timeout: 20_000 });
+            expect(await inked(first.locator('canvas')), 'the page is drawn now').toBeGreaterThan(200);
+            await expect(notice).toHaveCount(0);
+            await expect(page.locator('#pdfViewerPages')).toBeFocused();
+        });
+    }
+
     // WHO IT IS NOT FOR (owner, 8 Nov 2026: "This link will only apply to people with the normal CEA contract and NOT the
     // bilingual contract who will still have their own links"), nor a CES or a Dispatcher, who have links of their own. The
     // bilingual contract is ALSO made a Links designer, on a designer list of its own (the real one is the admin alone),

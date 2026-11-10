@@ -35,12 +35,20 @@
  *     draws nothing.
  *  3. `isEvalSupported: false`. PDF.js compiles some PDF functions with `new Function`, which the CSP
  *     forbids; without this it would try, be refused, and log a violation on every such file.
+ *
+ * ── A PAGE THAT CANNOT BE DRAWN SAYS SO (external review, 10 Nov 2026) ─────────────────────────
+ *
+ * The file can open and one page still fail: PDF.js refuses it, or the browser gives its canvas no
+ * memory to draw in (an older iPhone near its limit). Such a page was marked failed and skipped in
+ * silence — a blank white box, no word why, no way to try it again short of zooming. Its box now says
+ * so, with a Try again of its own; a zoom or a resize clears it too, as it always did. A failed page is
+ * never retried on its own, because a page PDF.js cannot draw would fail again in a loop.
  */
 import { createLightbox } from './overlay.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 import {
     ZOOM_STEPS, zoomAfter, zoomLabel, pageLayout, canOpenOutside, classifyFailure, FAILURE_TEXT,
-    pageLabel, pagesLabel,
+    PAGE_FAILURE_TEXT, pageLabel, pagesLabel,
 } from './pdf-viewer-core.js';
 
 const LIBRARY_URL = new URL('./pdfjs/pdf.min.mjs', import.meta.url).href;
@@ -99,7 +107,8 @@ function freeCanvas(canvas) {
  * @property {number} drawnWidth   the pixel width `canvas` was drawn at (0 = nothing drawn)
  * @property {any} task            the render task in flight, or null
  * @property {boolean} near        within a screen of view
- * @property {boolean} failed      PDF.js could not draw it; not retried until the zoom changes
+ * @property {boolean} failed      it could not be drawn; not retried until its Try again, a zoom or a resize
+ * @property {HTMLElement|null} notice  the "could not be shown" box with its Try again, while it is failed
  */
 
 /**
@@ -255,7 +264,7 @@ export function initPdfViewer() {
             return {
                 page, width: viewport.width, height: viewport.height, wrap, words,
                 layout: pageLayout({ pageWidth: viewport.width, pageHeight: viewport.height, boxWidth: mine.boxWidth }),
-                canvas: null, drawnWidth: 0, task: null, near: false, failed: false,
+                canvas: null, drawnWidth: 0, task: null, near: false, failed: false, notice: null,
             };
         });
         layout(mine);
@@ -305,8 +314,52 @@ export function initPdfViewer() {
             entry.layout = pageLayout({ pageWidth: entry.width, pageHeight: entry.height, boxWidth: mine.boxWidth, zoom: mine.zoom, dpr });
             entry.wrap.style.width = `${entry.layout.cssWidth}px`;
             entry.wrap.style.height = `${entry.layout.cssHeight}px`;
-            entry.failed = false;
+            clearFailure(entry);   // a new size is worth one more try
         }
+    }
+
+    /**
+     * The page could not be drawn: say so in its box, with a Try again for that page alone. Any older drawing of it goes,
+     * so the box holds the notice and nothing stale beneath it.
+     * @param {PageEntry} entry
+     */
+    function markFailed(entry) {
+        entry.failed = true;
+        if (entry.canvas) {
+            freeCanvas(entry.canvas);
+            entry.canvas = null;
+            entry.drawnWidth = 0;
+        }
+        if (entry.notice) return;
+        const notice = document.createElement('div');
+        notice.className = 'pdf-viewer-page-failed';
+        const text = document.createElement('p');
+        text.textContent = PAGE_FAILURE_TEXT;
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'pdf-viewer-page-retry';
+        retry.textContent = 'Try again';
+        retry.addEventListener('click', () => retryPage(entry));
+        notice.append(text, retry);
+        entry.wrap.append(notice);
+        entry.notice = notice;
+    }
+
+    /** Clear a page's failure, and its notice. @param {PageEntry} entry */
+    function clearFailure(entry) {
+        entry.failed = false;
+        if (!entry.notice) return;
+        // Focus on its button would go with it, out of the viewer to the page beneath: keep it on the pages.
+        if (entry.notice.contains(document.activeElement)) pagesEl.focus({ preventScroll: true });
+        entry.notice.remove();
+        entry.notice = null;
+    }
+
+    /** One page's Try again: clear it and draw it. @param {PageEntry} entry */
+    function retryPage(entry) {
+        if (!current?.entries.includes(entry)) return;   // a notice left from a load that has since gone
+        clearFailure(entry);
+        drawNext();
     }
 
     /** @param {number} zoom */
@@ -353,7 +406,13 @@ export function initPdfViewer() {
         canvas.height = plan.pixelHeight;
         canvas.setAttribute('aria-hidden', 'true');
         const context = canvas.getContext('2d', { alpha: false });
-        if (!context) { entry.failed = true; return; }
+        // No context: the browser would not give this canvas memory to draw in. Said, not skipped.
+        if (!context) {
+            freeCanvas(canvas);
+            console.error('[pdf-viewer] no drawing context for a page');
+            markFailed(entry);
+            return;
+        }
         try {
             entry.task = entry.page.render({ canvasContext: context, viewport: entry.page.getViewport({ scale: plan.scale }) });
             await entry.task.promise;
@@ -363,7 +422,7 @@ export function initPdfViewer() {
             // could not draw, and trying it again in a loop would never end.
             if (current === mine && /** @type {any} */ (err)?.name !== 'RenderingCancelledException') {
                 console.error('[pdf-viewer] could not draw a page', err);
-                entry.failed = true;
+                markFailed(entry);
             }
             return;
         } finally {
