@@ -266,7 +266,10 @@ button, input, select, textarea { font-family: inherit; }
     white-space: nowrap;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    /* `color` eases WITH the fill (css-tokens.md → "A colour may not transition independently of the ground
+       behind it"): a chosen chip turns navy with white words, and with only the fill eased the words were
+       white on a still-white chip for part of the 150ms, and navy on a still-navy one going back. */
+    transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 /* Desktop affordance (v18.79) — the chips previously only reacted on :active, so a mouse gave
    no feedback at all. Colour-fade only, no transform (nothing for reduced-motion to opt out of). */

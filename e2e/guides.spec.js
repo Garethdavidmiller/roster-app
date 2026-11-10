@@ -97,6 +97,30 @@ test('fip: the section chip-bar jumps to a section and marks it current', async 
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+// A CHOSEN CHIP'S WORDS EASE WITH ITS FILL (whole-app review, Nov 2026). Choosing a section turns its chip navy with
+// white words, and the chip eased only its fill: for part of the 150ms the words were white on a still-white chip (and
+// navy on a still-navy one going back). The axe scan waits out transitions, so it cannot see this — frozen here a
+// tenth of the way into the change, where the words must still be told from the fill they sit on.
+test('guides: a section chip\'s label stays readable while the chip changes colour', async ({ page }) => {
+    await page.goto('/railcard-guide.html');
+    const ratio = await page.locator('.chip-bar .chip').nth(1).evaluate(el => {
+        document.querySelectorAll('.chip[aria-current]').forEach(c => c.removeAttribute('aria-current'));
+        void getComputedStyle(el).color;          // the resting style, settled
+        el.setAttribute('aria-current', 'true');  // what the page's script does on a tap
+        void getComputedStyle(el).color;          // …which starts the transitions
+        for (const a of el.getAnimations()) { a.pause(); a.currentTime = 15; }
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} c */
+        const rgb = (c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} v */
+        const lum = (v) => { const [r, g, b] = v.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const cs = getComputedStyle(el);
+        const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((a, b) => b - a);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, `15ms into being chosen, the chip's label is ${ratio.toFixed(2)}:1 on its fill`).toBeGreaterThanOrEqual(4.5);
+});
+
 test('fip: scrollspy marks the chip for the section scrolled into view', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // No sleep after each scroll (test audit, 7 Nov 2026 — three 350ms waits): each assertion WAITS
