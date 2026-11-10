@@ -23,8 +23,9 @@ export const TAX_YEARS = [
     londonAllow: 276.16, londonAllowPre: 267.08, londonAllowFrom: new Date(2025, 9, 24) },
   { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028,
     londonAllow: 286.10, londonAllowPre: 276.16, londonAllowFrom: new Date(2026, 7, 28) }, // 3.6% RMT award, paid from the 28 Aug 2026 payslip (rate + London step together; DEFERRED from the 31 Jul payslip — informed Jul 2026)
-  // NEXT award: add the new tax year here with rateUnconfirmed: true until its payslip lands, then
-  // set its londonAllow/londonAllowPre/londonAllowFrom + AWARD_RATES.rate and drop rateUnconfirmed.
+  // The yearly rollover adds a tax year WITHOUT rateUnconfirmed (docs/MAINTENANCE_CALENDAR.md). Only
+  // once the NEXT award is ANNOUNCED: set rateUnconfirmed: true on its tax year until its payslip
+  // lands, then set its londonAllow/londonAllowPre/londonAllowFrom + AWARD_RATES.rate and drop the flag.
 ];
 
 // ── Tax & NI thresholds by tax year ───────────────────────────────────────
