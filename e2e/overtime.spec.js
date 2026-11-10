@@ -1039,18 +1039,21 @@ test.describe('overtime.css — print, focus and contrast', () => {
     const CREATED = { ...W, exists: true, state: 'created', canCreate: false, expected: 6, received: 4, noResponse: 2 };
     const PEOPLE = ['L. Springer', 'A. Hared', 'M. Robson', 'J. Davies', 'I. Cooper', 'A. Panchal'];
 
-    /** The reviewer's sheet for one created week, with six people on it. @param {any} page */
-    async function reviewerSheet(page, weeks = [CREATED]) {
+    /**
+     * The reviewer's sheet for one created week, with six people on it — two grades if asked, which
+     * is what puts the grade lens on the page. @param {any} page
+     */
+    async function reviewerSheet(page, weeks = [CREATED], { twoGrades = false } = {}) {
         await seedSession(page, 'H. Croft');
         await stubOvertime(page, { weeks });
         const days = Object.fromEntries(weekDates(W.weekStart).map((d, i) => [d, { mode: i % 2 ? 'unavailable' : 'all_day' }]));
-        await page.addInitScript(({ people, days, at }) => {
+        await page.addInitScript(({ people, days, at, twoGrades }) => {
             window.__E2E = { ...(window.__E2E || {}), docsByPath: {
-                participants: people.map((id, i) => ({ id, grade: 'CEA', rosterOrder: i + 1, createdAt: at })),
+                participants: people.map((id, i) => ({ id, grade: twoGrades && i % 2 ? 'CES' : 'CEA', rosterOrder: i + 1, createdAt: at })),
                 submissions: people.slice(0, 4).map(id => ({ id, currentRevision: 1, firstAcceptedAt: at, updatedAt: at, days })),
                 revisions: [],
             } };
-        }, { people: PEOPLE, days, at: W.initialDeadlineAt - 3 * 86_400_000 });
+        }, { people: PEOPLE, days, at: W.initialDeadlineAt - 3 * 86_400_000, twoGrades });
     }
 
     /** Reviewer day panels that get a box — an ancestor's `display: none` included. @param {any} page */
@@ -1259,6 +1262,35 @@ test.describe('overtime.css — print, focus and contrast', () => {
         const hovered = await look(other);
         expect(hovered.opacity, 'nothing fades').toBe('1');
         expect(hovered.fill, 'an unchosen pill answers the mouse with a tint').not.toBe('rgba(0, 0, 0, 0)');
+    });
+
+    test('on a phone the reviewer\'s small controls meet the compact touch tier', async ({ page }) => {
+        // The grade lens, Refresh, Copy summary and Stop asking measured 22–24px on a coarse pointer —
+        // smaller than the 31px tabs that started the tier. Touch only: a fine pointer would pass by
+        // not applying it, which is a guard that has quietly stopped guarding.
+        await reviewerSheet(page, [CREATED], { twoGrades: true });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        test.skip(!await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'the 36px floor is scoped to touch');
+        const controls = await page.locator('.ot-grade, .ot-refresh-btn, .ot-copy-btn, .ot-person-btn').evaluateAll(els => els
+            .filter(el => el.getBoundingClientRect().height > 0)
+            .map(el => ({ kind: el.classList[0], h: Math.round(el.getBoundingClientRect().height) })));
+        expect([...new Set(controls.map(c => c.kind))].sort(), 'all four kinds are on the page')
+            .toEqual(['ot-copy-btn', 'ot-grade', 'ot-person-btn', 'ot-refresh-btn']);
+        expect(controls.filter(c => c.h < 36)).toEqual([]);
+    });
+
+    test('Copy summary wears the recipe of the Refresh button beside it', async ({ page }) => {
+        // Two chips on one line, and the second (v22.05) invented its own look — the mistake the
+        // Refresh button's comment records — at 23px against its neighbour's 24px.
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        const look = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+            const cs = getComputedStyle(el);
+            return [cs.fontSize, cs.fontWeight, cs.padding, cs.borderTopColor, cs.backgroundColor, cs.color, cs.borderRadius];
+        });
+        expect(await look('.ot-copy-btn')).toEqual(await look('.ot-refresh-btn'));
     });
 
     test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {

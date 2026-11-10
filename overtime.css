@@ -209,14 +209,17 @@ body {
    one. `.ot-tab` is the page's own navigation and `.ot-row-btn` is "Open now" /
    "View" / "Add N" / "Try again" — the same weight of control as an admin bulk
    button, and they should match it rather than out-shout the mode pills that
-   are the actual answer-giving controls.
+   are the actual answer-giving controls. The reviewer's own small controls join
+   the tier (whole-app fix, Nov 2026) for the same reason: the grade lens, Refresh,
+   Copy summary and Stop asking / Ask again measured 22–24px on a phone, smaller
+   still than the 31px that started this.
 
    Scoped to `pointer: coarse` because it is a TOUCH decision, not a width one
-   (css-tokens.md) — a mouse does not need the extra 5px and desktop keeps the
-   density it has. */
+   (css-tokens.md) — a mouse does not need the extra pixels and desktop keeps the
+   density it has. Nothing else sets these controls' heights, so order is free. */
 @media (pointer: coarse) {
-    .ot-tab     { min-height: 36px; }
-    .ot-row-btn { min-height: 36px; }
+    .ot-tab, .ot-row-btn,
+    .ot-grade, .ot-refresh-btn, .ot-copy-btn, .ot-person-btn { min-height: 36px; }
 }
 
 /* WHOSE answers these are — ADMIN'S BAR, ON THE PAGE (v21.57 · v21.58 · v21.59 · v23.84).
@@ -1340,8 +1343,11 @@ html:has(#otConfirmBar:not([hidden])) { --ot-confirm-clear: calc(212px + env(saf
    and measured 21px tall on mobile-chrome against the grade chip's 24px, which made the newest
    control on the page also its smallest; and it filled with --surface, the CARD's own colour, when
    a button is Layer 2 and belongs on white. Both are the mistake .ot-mode's comment above already
-   records: copying a look without its size. */
-.ot-refresh-btn {
+   records: copying a look without its size. "Copy summary", beside it on the same line, made the
+   same mistake again (v22.05: 12px/600 on the field fill, no press, an ungated hover) and takes
+   the recipe too. */
+.ot-refresh-btn,
+.ot-copy-btn {
     margin-left: 6px;
     padding: 4px 11px;
     border: 1px solid var(--border-mid);
@@ -1357,9 +1363,9 @@ html:has(#otConfirmBar:not([hidden])) { --ot-confirm-clear: calc(212px + env(saf
                 transform var(--dur-fast) var(--ease-standard);
 }
 
-.ot-refresh-btn:active { transform: scale(var(--press-scale)); }
-.ot-refresh-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-@media (hover: hover) and (pointer: fine) { .ot-refresh-btn:hover { background: var(--bg-light); } }
+.ot-refresh-btn:active, .ot-copy-btn:active { transform: scale(var(--press-scale)); }
+.ot-refresh-btn:focus-visible, .ot-copy-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .ot-refresh-btn:hover, .ot-copy-btn:hover { background: var(--bg-light); } }
 
 .ot-detail-audience {
     display: inline-block;
@@ -1872,20 +1878,7 @@ html:has(#otConfirmBar:not([hidden])) { --ot-confirm-clear: calc(212px + env(saf
 }
 .ot-bulk-unavailable:hover { background: white; border-color: var(--primary-blue); }
 
-/* ── Copy summary + reminder audit (v22.05) ─────────────────────────────────────────────────── */
-.ot-copy-btn {
-    margin-left: 8px;
-    padding: 3px 10px;
-    font-family: var(--font-sans);
-    font-size: var(--type-small);
-    font-weight: 600;
-    color: var(--primary-blue);
-    background: var(--field-bg);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-pill);
-    cursor: pointer;
-}
-.ot-copy-btn:hover { background: white; }
+/* ── Copy summary + reminder audit (v22.05) — the button wears `.ot-refresh-btn`'s recipe ─────── */
 .ot-copy-status { margin-left: 6px; font-size: var(--type-small); color: var(--text-light); }
 .ot-reminder-line { font-size: var(--type-small); color: var(--text-light); margin-top: 2px; }
 .ot-reminder-line--warn { color: var(--al-warning); font-weight: 600; }
