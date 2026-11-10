@@ -488,6 +488,28 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // EVERY CARD OPEN (whole-app check, 10 Nov 2026). The scan above sees the Huddle card alone, so the
+    // reset queue, Account status, Set up accounts, the Error Log, Usage and App Speed were never read by
+    // it — settings-ops-4's mismatched names were found by applying axe's rule by hand. Each card is
+    // opened the way a reader opens it, so whatever loads on opening has loaded when the scan reads it.
+    test('operations — every card open (admin, signed in)', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await expect(page.locator('#huddleUploadCard')).toBeVisible();
+        const bodies = await page.locator('.card-collapsible-body').evaluateAll(els => els.map(e => e.id));
+        expect(bodies.length, 'premise: the cards were found').toBeGreaterThanOrEqual(10);
+        for (const id of bodies) {
+            const body = page.locator(`#${id}`);
+            if (!await body.evaluate(el => el.classList.contains('open'))) {
+                await body.evaluate(el => /** @type {HTMLElement} */ (el.closest('.card')?.querySelector('.card-header-toggle'))?.click());
+            }
+            await expect(body, `#${id} opened`).toHaveClass(/\bopen\b/);
+        }
+        await expect(page.locator('#accountStatusContent'), 'premise: Account status has loaded').not.toHaveAttribute('aria-busy', 'true');
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // ── THE ROSTER REVIEW TABLE (v24.00) ────────────────────────────────────────────────────────
     //
     // Every other scan in this file loads a page and reads what it finds. This one has to DRIVE the
