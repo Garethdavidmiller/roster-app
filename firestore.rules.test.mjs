@@ -1001,9 +1001,9 @@ describe('staffContact', () => {
     test("the admin CAN save and replace a member's work email on their behalf; a manager cannot", async () => {
         const save = (/** @type {any} */ db, /** @type {string} */ workEmail) => setDoc(doc(db, 'staffContact', 'S. Boyle'),
             { memberName: 'S. Boyle', workEmail, updatedAt: serverTimestamp() }, { merge: true });
-        await assertSucceeds(save(adminDb(), 's.boyle@chilternrailways.co.uk'));
-        await assertSucceeds(save(adminDb(), 'sam.boyle@chilternrailways.co.uk'));
-        await assertFails(save(managerDb('D. Watts'), 'someone@chilternrailways.co.uk'));
+        await assertSucceeds(save(adminDb(), 'first@chilternrailways.co.uk'));
+        await assertSucceeds(save(adminDb(), 'second@chilternrailways.co.uk'));
+        await assertFails(save(managerDb('D. Watts'), 'third@chilternrailways.co.uk'));
     });
 
     test('auth with name claim can create valid contact', async () => {
@@ -2017,7 +2017,7 @@ describe('analytics', () => {
         }));
     });
 
-    // rules-2 (whole-app fix, 10 Nov 2026). Rules judge the RESULTING document, and the allowlist
+    // A RETIRED ID (whole-app fix, 10 Nov 2026). Rules judge the RESULTING document, and the allowlist
     // used to be applied to every key in it. So an id taken off the list — which the parity test
     // demands as soon as no client writes it — left this month's document holding a key the list
     // refused, and every later page view, on every page, was refused until the month ended (the
@@ -2057,10 +2057,10 @@ describe('analytics', () => {
             { month: monthAt(), counts: { 'retired-page': 9 } }, { merge: true }));
     });
 
-    // rules-3 (whole-app fix, 10 Nov 2026). The id was pinned to a YYYY-MM SHAPE and not to the
-    // present, so any member or PIN session could create a document for any of 120,000 months in
-    // each family — documents no client can delete. One month either side stays open: the client
-    // names the month by its own clock, which runs ahead of UTC in London summer time.
+    // A MONTH NOBODY IS IN (whole-app fix, 10 Nov 2026). The id was pinned to a YYYY-MM SHAPE and
+    // not to the present, so any member or PIN session could create a document for any of 120,000
+    // months in each family — documents no client can delete. One month either side stays open: the
+    // client names the month by its own clock, which runs ahead of UTC in London summer time.
     test('a counter for this month or one either side is accepted', async () => {
         for (const offset of [-1, 0, 1]) {
             await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId(offset)),
@@ -2142,8 +2142,8 @@ describe('analytics', () => {
         const today = dayKey(now);
         const earlier = dayKey(new Date(now.getTime() - 10 * 86_400_000));
         const origin = originLabel('myb-roster.web.app');
-        // The cases around this one share these documents and the emulator is never cleared, so
-        // whatever they held is put back afterwards: this test leaves no state behind.
+        // The cases around this one share these documents, and nothing clears activeAccounts or
+        // origins, so whatever they held is put back afterwards: this test leaves no state behind.
         const ids = [`pv_${monthKey(now)}`, 'activeAccounts', 'origins'];
         /** @type {Map<string, any>} */ const before = new Map();
         await testEnv.withSecurityRulesDisabled(async ctx => {

@@ -44,8 +44,8 @@ rules_version = '2';
 // `isKnownIdentity()` like its create/update, and may find the record already gone; `pv_`/`perf_`
 // months must be the present one or one either side; the `pv_` id list judges what a write adds or
 // changes, so retiring an id is safe; the three documents' `uploadedAt` is the server's clock;
-// `memberEmailFor` maps İ and the Kelvin sign as the app does. Changed between v24.56 and this
-// sweep without it: override provenance pinned, and a push record taken over by the same browser
+// `memberEmailFor` maps İ and the Kelvin sign as the app does. Changed after v24.56 with no
+// re-sweep: override provenance pinned, and a push record taken over by the same browser
 // (v24.68); the `trains` and `newlink` counter ids (v24.71, v25.06); deleting an override that is
 // already gone (v25.07); `leaveYear` (v25.18).
 // Prior sweep v24.56 (Oct 2026, auth review): an `m_` override id must name the record it holds;
@@ -173,7 +173,8 @@ service cloud.firestore {
     // one there — İ (U+0130) to "i̇" and the Kelvin sign K (U+212A) to "k" — so `nameToEmail`, which
     // lowers the SURNAME before stripping it, keeps an "i" or a "k" this copy would drop. They are
     // mapped by hand; without it a member named, say, "A. İnce" is locked out of everything. The
-    // initial needs nothing: both copies are left with A–Z alone before the result can differ.
+    // initial needs nothing: `nameToEmail` strips it to A–Z BEFORE lowering, and with this
+    // engine's lower() the rules are left with the same letters.
     function memberEmailFor(n) {
       let parts = n.split(' ');
       return parts[0].lower().replace('[^a-z]', '')
