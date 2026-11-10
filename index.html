@@ -517,14 +517,14 @@
          read out when a message replaces "Loading…" (focus goes to ✕, which says nothing of it). The
          body is a Tab stop because it SCROLLS: the ✕ was the only stop, so a keyboard could not move
          a long plan (axe's scrollable-region-focusable, as Team View and App Notices). Its ring is
-         drawn inside the box, which runs to the screen's edges. calendar-huddle-viewer.js. -->
+         drawn inside the box, which runs to the screen's edges (index.css). calendar-huddle-viewer.js. -->
     <div id="huddleViewer" role="dialog" aria-label="Daily Huddle" aria-modal="true">
         <div id="huddleViewerHeader">
             <span id="huddleViewerTitle">📋 Daily Huddle</span>
             <p id="huddleViewerStatus" class="visually-hidden" role="status"></p>
             <button id="huddleViewerClose" type="button" class="lb-close" aria-label="Close">✕</button>
         </div>
-        <div id="huddleViewerBody" tabindex="0" role="group" aria-label="Daily Huddle" style="outline-offset: -2px">
+        <div id="huddleViewerBody" tabindex="0" role="group" aria-label="Daily Huddle">
             <p id="huddleViewerLoading">Loading…</p>
         </div>
     </div>

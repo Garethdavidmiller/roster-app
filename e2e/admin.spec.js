@@ -1843,6 +1843,25 @@ test('admin: a leave range across a start date asks nothing about the days befor
     expect(written).toEqual(['2026-06-03', '2026-06-04', '2026-06-05']);
 });
 
+// …and the preview says what those days are. It counted them among "rest days skipped" — a day before somebody
+// started is not a rest day, and is told apart from the real ones in the same range (Sat 6 answered free, Sun 7).
+test('admin: the leave preview names the days before the start date as such, not as rest days', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-06-01T09:00:00Z'));
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('K. Jedlinski');   // starts Wed 3 Jun 2026; Sat 6 and Sun 7 are rest days
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-01"]').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-07"]').click();
+    const preview = page.locator('#alPreview');
+    await clickInView(preview.locator('.swapday-row[data-date="2026-06-06"] .swapday-opt[data-answer="no"]'));
+    await expect(preview).toContainText('3 days of Annual Leave');
+    await expect(preview).toContainText('2 rest days skipped');
+    await expect(preview).toContainText('2 days skipped before the start date');
+});
+
 // THE FIRST READ WAITS FOR THE SESSION (whole-app check, Nov 2026). On an iPhone Firebase can restore no
 // user behind a valid local session (AUTH_AND_SESSIONS.md), and Admin then signs in silently. The boot
 // read went out first — with no credential, which the overrides rule refuses — and nothing retried it once
@@ -2191,10 +2210,12 @@ test('admin: "AL left" in the card header is readable when only a few days remai
     expect(ratio, '"AL left: N" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
 });
 
-// Unticking a day that holds a saved change stages its removal, and the badge beside its date says
-// so in the badge's own colours — which were white on the bright orange, 2.16:1, the one pairing
-// css-tokens.md forbids. The a11y scan never unticks a saved row.
-test('admin: the "Removing" badge on an unticked saved day is readable', async ({ page }) => {
+// Staging a saved change's removal puts "Removing" in the badge beside its date, in the badge's own
+// colours — which were white on the bright orange, 2.16:1, the one pairing css-tokens.md forbids. The
+// a11y scan never stages a removal. Since the owner's 10 Nov 2026 decision a tick on a saved row only
+// selects it; a saved change is removed by selecting its own type again (admin-week-editor.js, the
+// checkbox handler).
+test('admin: the "Removing" badge on a saved day staged for removal is readable', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -2207,7 +2228,7 @@ test('admin: the "Removing" badge on an unticked saved day is readable', async (
     await page.locator('#fieldMember').selectOption('G. Miller');
     const row = page.locator('.week-panel .day-row[data-date="2026-11-12"]');
     await expect(row.locator('.overwrite-badge')).toContainText('Saved');
-    await row.locator('.col-check input').click();
+    await row.locator('.type-pill-btn[data-type="rdw"]').click();
     const badge = row.locator('.overwrite-badge');
     await expect(badge).toContainText('Removing');
     const ratio = await badge.evaluate(async el => {
@@ -2320,7 +2341,9 @@ test('admin: the Unsaved bar keeps Discard and Save on a 360px screen, removals 
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#fieldMember').selectOption('G. Miller');
-    await page.locator('.week-panel .day-row[data-date="2026-11-12"] .col-check input').click();   // 1 to remove
+    // 1 to remove. Since the owner's 10 Nov 2026 decision a tick on a saved row only selects it; a saved
+    // change is removed by selecting its own type again (admin-week-editor.js, the checkbox handler).
+    await page.locator('.week-panel .day-row[data-date="2026-11-12"] .type-pill-btn[data-type="rdw"]').click();
     for (const d of ['2026-11-10', '2026-11-11']) {
         const row = page.locator(`.week-panel .day-row[data-date="${d}"]`);
         await row.locator('.col-check input').click();
@@ -4970,6 +4993,18 @@ test('admin: the staff picker\'s focus ring stands out from the member bar behin
         expect(m.ratio, `${size.width}: 3:1 against the bar behind it`).toBeGreaterThanOrEqual(3);
         expect(m.ringInsideBar, `${size.width}: and the bar has room for all of it`).toBe(true);
     }
+});
+
+// ONE BAR, ONE LABEL COLOUR (whole-app fix, 10 Nov 2026). Overtime's copy of this bar ("a member arriving from admin
+// sees the same first line", overtime.css) took its label from the on-navy token; Admin's kept a white-alpha literal,
+// so the two bars that should match did not (7.6:1 against 8.7:1). Read off the navy bar a phone draws.
+test('admin: the member bar\'s label is the app\'s on-navy secondary text, as on Overtime\'s copy of the bar', async ({ page }) => {
+    await deskAdmin(page, { width: 390, height: 844 });
+    const label = page.locator('.member-context-bar label').first();
+    await expect(label).toBeVisible();
+    expect(await label.evaluate(el => getComputedStyle(/** @type {Element} */ (el.closest('.member-context-bar'))).backgroundColor),
+        'premise: at a phone width the bar is navy').toBe(await tokenColour(page, '--primary-blue'));
+    expect(await label.evaluate(el => getComputedStyle(el).color)).toBe(await tokenColour(page, '--on-navy-muted'));
 });
 
 test('admin: each calendar is ONE Tab stop, and the arrow keys move the day — the leave range and the week jump', async ({ page }, info) => {

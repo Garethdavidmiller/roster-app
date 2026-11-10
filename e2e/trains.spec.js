@@ -533,6 +533,34 @@ test.describe('trains', () => {
         expect(g.ringTop, 'the ring\'s top edge is inside the scroll box that clips it').toBeGreaterThanOrEqual(g.boxTop - 0.5);
     });
 
+    // A line's name heads its stations, so it must stay in view with them when the grid is scrolled sideways.
+    // Its cell spans every column — the table's whole width — so only an element inside it can be pinned
+    // (trains.css → .tr-grid-band-label). Read off the rendered text, whatever wraps it.
+    test('where they stop: scrolled sideways, each line\'s name stays at the left with the station names', async ({ page }) => {
+        await page.setViewportSize({ width: 393, height: 727 });
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPattern .tr-grid-band')).toHaveText(['Main line', 'Aylesbury via Amersham']);
+        const g = await page.locator('#trPattern .tr-grid-wrap').evaluate(wrap => {
+            wrap.scrollLeft = wrap.scrollWidth;   // as far as it goes: about 120px at this width
+            return {
+                scrolled: wrap.scrollLeft,
+                boxLeft: wrap.getBoundingClientRect().left,
+                labels: [...wrap.querySelectorAll('.tr-grid-band td')].map(td => {
+                    const range = document.createRange();
+                    range.selectNodeContents(td);
+                    return { text: (td.textContent || '').trim(), left: range.getBoundingClientRect().left };
+                }),
+            };
+        });
+        expect(g.scrolled, 'premise: the grid scrolls sideways at a phone width').toBeGreaterThan(100);
+        for (const l of g.labels) {
+            expect(Math.abs(l.left - g.boxLeft), `"${l.text}" scrolled away with the dots (${l.left}px, the box starts at ${g.boxLeft}px)`).toBeLessThanOrEqual(1);
+        }
+    });
+
     // "A TAB is a button" (css-tokens.md → Corners): Overtime's and New link's tabs are 12px; every strip
     // here — the views, the days, a station's direction, the grid's timetable — was on the 16px card-like
     // corner. Read from every tab on the page, shown or not, against the token as this page resolves it.

@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, isTouchProject, seedMemberSession } from './helpers.js';
+import { collectFatalErrors, isTouchProject, scaleText, seedMemberSession } from './helpers.js';
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
@@ -139,6 +139,152 @@ test('guides: a deep link leaves alone a page scrolled away without a touch or a
     await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
     await settleFrames(page);
     expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement pulled the page back to the fragment').toBe(moved);
+});
+
+// ── …AND ON THE TWO DOCUMENT GUIDES, WHICH HAVE NO CHIP BAR (whole-app fix, 10 Nov 2026) ─────────────────
+// Their one sticky element is the header, and no stylesheet knows its height: with the phone's text one
+// step up the title wraps, and a search result opened its heading under the header — 25px at 375px,
+// 60px at 1.3×. The text is scaled as Android scales it (every used size multiplied, each read before
+// any is written) at DOMContentLoaded, so it is in place before the browser lands, and the measurement
+// is held until after `load`, the phone's order, as above. guide-back.js does the measuring.
+/** @param {import('@playwright/test').Page} page @param {number} k */
+async function scaleTextBeforeLanding(page, k) {
+    await page.addInitScript((mult) => document.addEventListener('DOMContentLoaded', () => {
+        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+        const px = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (px[i]) el.style.fontSize = `${px[i] * mult}px`; });
+    }), k);
+}
+/** @param {import('@playwright/test').Page} page @param {string} id */
+function underHeader(page, id) {
+    return page.evaluate((target) => {
+        const top = /** @type {HTMLElement} */ (document.getElementById(target)).getBoundingClientRect().top;
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect().bottom;
+        return { top: Math.round(top), hdr: Math.round(hdr) };
+    }, id);
+}
+
+for (const [guide, id, k] of /** @type {Array<[string, string, number]>} */ ([
+    ['staff-guide', 'sg-change-a-shift', 1.15],
+    ['paycalc-guide', 'pg-holiday-pay-premium-hpp', 1.15],
+    ['staff-guide', 'sg-sundays', 1.3],
+])) {
+    test(`guides: a deep link to ${guide}#${id} lands below the header with the text at ${k}×`, async ({ page }) => {
+        await page.setViewportSize({ width: 375, height: 740 });
+        await holdGuideMeasurement(page);
+        await scaleTextBeforeLanding(page, k);
+        await landHeld(page, `/${guide}.html#${id}`);
+        const landed = await underHeader(page, id);
+        expect(landed.top, 'premise: the browser\'s own landing, on the stylesheet\'s fallback, is under the header').toBeLessThan(landed.hdr);
+        await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+        await settleFrames(page);
+        const geo = await underHeader(page, id);
+        expect(geo.top, `#${id} starts under the header (top ${geo.top}px, header ends ${geo.hdr}px)`).toBeGreaterThanOrEqual(geo.hdr);
+        // …and an in-page jump made later keeps the same clearance: it is the measured margin that holds it.
+        await page.evaluate(() => { location.hash = ''; window.scrollTo(0, 0); });
+        await page.evaluate((t) => { location.hash = t; }, id);
+        await settleFrames(page);
+        const jumped = await underHeader(page, id);
+        expect(jumped.top, 'an in-page jump lands under the header').toBeGreaterThanOrEqual(jumped.hdr);
+    });
+}
+
+// The two guards, on the document guides too: a reader who has moved, and a reload, are left where they are.
+test('guides: on a document guide a deep link does not pull back a reader who has moved, or a reload', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await scaleTextBeforeLanding(page, 1.15);
+    await landHeld(page, '/staff-guide.html#sg-change-a-shift');
+    await page.mouse.move(180, 500);
+    await page.mouse.wheel(0, 30);
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    const { top, hdr } = await underHeader(page, 'sg-change-a-shift');
+    expect(top, 'the nudge leaves the heading inside the band a re-land would act on').toBeLessThan(hdr);
+    expect(top, 'and still on the screen').toBeGreaterThanOrEqual(0);
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reader who had scrolled').toBe(moved);
+
+    await page.reload();
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const restored = await page.evaluate(() => Math.round(window.scrollY));
+    const back = await underHeader(page, 'sg-change-a-shift');
+    expect(back.top, 'premise: the reload restored a position inside the band').toBeLessThan(back.hdr);
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reloaded page off its restored position').toBe(restored);
+});
+
+test('guides: on a document guide a deep link leaves alone a page scrolled away without a touch or a key', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await scaleTextBeforeLanding(page, 1.15);
+    await landHeld(page, '/paycalc-guide.html#pg-holiday-pay-premium-hpp');
+    await page.evaluate(() => window.scrollBy(0, 400));
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement pulled the page back to the fragment').toBe(moved);
+});
+
+// The landing ENDS once the page has loaded and measured: the header still re-measures afterwards (a font swap, a
+// rotation), but that only moves the margins, never the reader.
+test('guides: on a document guide, once the page has landed, a later change to the header does not move the reader', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await scaleTextBeforeLanding(page, 1.15);
+    await landHeld(page, '/staff-guide.html#sg-change-a-shift');
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    await page.evaluate(() => window.scrollBy(0, 40));   // no touch and no key: the heading goes back under the header
+    await settleFrames(page);
+    const { top, hdr } = await underHeader(page, 'sg-change-a-shift');
+    expect(top, 'premise: the heading is inside the band a re-land would act on').toBeLessThan(hdr);
+    expect(top, 'and still on the screen').toBeGreaterThanOrEqual(0);
+    // The header is in the flow, so growing it moves the page under it, and the browser's scroll anchoring then
+    // keeps what is on screen where it was: the reader's view is the heading's place on the screen, not scrollY.
+    await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.page-header h1')).style.fontSize = '24px'; });
+    await settleFrames(page);
+    const after = await underHeader(page, 'sg-change-a-shift');
+    expect(after.hdr, 'premise: the header grew').toBeGreaterThan(hdr);
+    expect(Math.abs(after.top - top), `a header change after the landing moved the reader (the heading went from ${top}px to ${after.top}px)`).toBeLessThanOrEqual(2);
+});
+
+// guide-back.js measures the HEADER alone, which on a chip-bar guide is short of the sticky stack by the whole bar —
+// so it must leave those three to their own scripts. Today's script order would hide a lapse (the page's script
+// writes last), so every margin WRITTEN is recorded, not just the one that ends up on the card.
+test('guides: on a chip-bar guide, every scroll margin written clears the header and the chip bar', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {number[]} */
+        const seen = [];
+        /** @type {any} */ (window).__marginsWritten = seen;
+        const read = (/** @type {string|null} */ style) => {
+            const m = /scroll-margin-top:\s*([\d.]+)px/.exec(style || '');
+            if (m) seen.push(parseFloat(m[1]));
+        };
+        new MutationObserver(records => records.forEach(r => {
+            const el = /** @type {HTMLElement} */ (r.target);
+            if (!el.id || !el.closest('main')) return;
+            read(r.oldValue);
+            read(el.getAttribute('style'));
+        })).observe(document, { subtree: true, attributes: true, attributeFilter: ['style'], attributeOldValue: true });
+    });
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        await settleFrames(page);
+        const m = await page.evaluate(() => ({
+            written: /** @type {number[]} */ (/** @type {any} */ (window).__marginsWritten),
+            stack: /** @type {HTMLElement} */ (document.querySelector('.page-header')).offsetHeight
+                + /** @type {HTMLElement} */ (document.querySelector('.chip-bar')).offsetHeight,
+        }));
+        expect(m.written.length, `premise: ${guide} measured its stack`).toBeGreaterThan(0);
+        expect(Math.min(...m.written), `${guide}: a margin was written that leaves a card under the chip bar (stack ${m.stack}px)`)
+            .toBeGreaterThanOrEqual(m.stack);
+    }
 });
 
 test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
@@ -703,17 +849,13 @@ test('staff guide: the on-screen banner\'s title has no top margin, as on paper'
 // A GRID TRACK IS ONLY AS NARROW AS ITS WIDEST CHILD ALLOWS (css-tokens.md), on the document guides (whole-app review,
 // Nov 2026). `.cols` had bare `1fr` tracks, so with the text enlarged one child that will not shrink — the Staff Guide's
 // two-column badge key — widened the column past a phone's edge, and every paragraph, heading and table in it ran off
-// the right. The text is scaled ONCE, every size read before any is written (the shared `scaleText` compounds through
-// inherited sizes), because Android's font scale multiplies sizes and leaves the viewport alone.
+// the right. The text is scaled as Android's font scale scales it (`scaleText`): every size multiplied, the viewport
+// left alone.
 test('staff guide: enlarged text does not widen the column past a phone @layout', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto('/staff-guide.html');
     await page.evaluate(() => document.fonts.ready);
-    await page.evaluate(() => {
-        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
-        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
-        els.forEach((el, i) => { if (sizes[i]) el.style.fontSize = (sizes[i] * 1.5) + 'px'; });
-    });
+    await scaleText(page, 1.5);
     const m = await page.evaluate(() => {
         const vw = document.documentElement.clientWidth;
         const cols = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.cols')]);
@@ -911,15 +1053,7 @@ test('fip: an opened country card shows its checked date', async ({ page }) => {
 // ── WHAT THE GUIDE STYLESHEETS OWE THE READER (whole-app fix, 10 Nov 2026) ───────────────────────────
 // Each a fault in a guide's own stylesheet, invisible to the behaviour tests above, and measured on the
 // rendered page. Larger text is modelled the way Android's setting works — every used font size
-// multiplied, the viewport left alone — reading every size before writing any, so nested text is
-// scaled once: `scaleText` (helpers.js) reads while it writes, and inherited sizes compound in it.
-
-/** Multiply every element's font size by `k`, once. @param {import('@playwright/test').Page} page @param {number} k */
-const scaleTextOnce = (page, k) => page.evaluate((k) => {
-    const els = [...document.querySelectorAll('*')];
-    const sizes = els.map(e => parseFloat(getComputedStyle(e).fontSize));
-    els.forEach((e, i) => { if (sizes[i]) /** @type {HTMLElement} */ (e).style.fontSize = `${sizes[i] * k}px`; });
-}, k);
+// multiplied, the viewport left alone (`scaleText`, helpers.js).
 
 for (const [guide, row, label] of [['rangers-guide', '.rr-row', '.rr-lbl'], ['railcard-guide', '.rc-layer', '.rc-layer-lbl']]) {
     test(`${guide}: a row's label never runs into its value under larger text`, async ({ page }) => {
@@ -929,7 +1063,7 @@ for (const [guide, row, label] of [['rangers-guide', '.rr-row', '.rr-lbl'], ['ra
             await page.setViewportSize({ width: w, height: 800 });
             await page.goto(`/${guide}.html`);
             await page.evaluate(() => document.fonts.ready);
-            if (k !== 1) await scaleTextOnce(page, k);
+            if (k !== 1) await scaleText(page, k);
             const worst = await page.evaluate(([row, label]) => {
                 let found = { over: -Infinity, text: '' };
                 for (const r of document.querySelectorAll(row)) {
@@ -965,6 +1099,59 @@ test('guides: each side of the page takes its own safe-area inset', async ({ pag
         expect(col, `${guide}: the content column`).toEqual(['16px', '44px']);
         if (banner) expect(banner, `${guide}: the source banner`).toEqual(['16px', '44px']);
     }
+});
+
+// …and so does the chip bar, below 800px, where the shell gave both its sides the LEFT inset (from 800px its sides
+// are the column's own edges, each with its own inset already).
+test('guides: on a phone the chip bar takes each side\'s own safe-area inset', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'safe-area emulation is a Chromium DevTools call');
+    await page.setViewportSize({ width: 390, height: 800 });
+    const cdp = await page.context().newCDPSession(page);
+    for (const [left, right] of [[0, 44], [44, 0]]) {
+        await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left, bottom: 0, right } });
+        for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+            await page.goto(`/${guide}.html`);
+            const pad = await page.locator('.chip-bar').evaluate(el => [getComputedStyle(el).paddingLeft, getComputedStyle(el).paddingRight]);
+            expect(pad, `${guide}, a ${left || right}px inset on the ${left ? 'left' : 'right'}`)
+                .toEqual([`${Math.max(12, left)}px`, `${Math.max(12, right)}px`]);
+        }
+    }
+});
+
+// ── WITH NO SCRIPT, THE CHIP BAR NEVER PARKS UNDER THE HEADER (whole-app fix, 10 Nov 2026) ────────────────────
+// The bar's sticky `top` is the header's height, which only the page's script measures; the stylesheet's own
+// figure is a guess. Stuck at it with no script, the bar sat under the header's last 24–41px at 360–390px (the
+// header is 78px on FIP and 95px on Railcard and Rangers there, up to 138px at 320px). No one guess fits every
+// header — taller than FIP's, it pushes that bar, which sits straight under the header, down over the page — and
+// with no script the chips do nothing anyway (a script wires them), so the bar stays where the page puts it.
+test.describe('guides with JavaScript off', () => {
+    test.use({ javaScriptEnabled: false });
+
+    test('the chip bar never parks under the header, and is not pushed over the page', async ({ page }) => {
+        const geo = () => page.evaluate(() => {
+            const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+            const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect();
+            const at = bar.getBoundingClientRect();
+            bar.style.position = 'static';   // where the page itself puts the bar
+            const flow = bar.getBoundingClientRect().top;
+            bar.style.position = '';
+            return { hdrBottom: hdr.bottom, top: at.top, bottom: at.bottom, flow };
+        });
+        for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+            for (const width of [320, 390, 1280]) {
+                await page.setViewportSize({ width, height: 800 });
+                await page.goto(`/${guide}.html`);
+                await page.evaluate(() => document.fonts.ready);
+                const rest = await geo();
+                expect(Math.abs(rest.top - rest.flow), `${guide} at ${width}px: at the top of the page the bar is moved from its place (${rest.top} against ${rest.flow})`)
+                    .toBeLessThanOrEqual(0.5);
+                await page.evaluate(() => window.scrollTo(0, 1500));
+                const s = await geo();
+                expect(s.bottom <= s.hdrBottom + 0.5 || s.top >= s.hdrBottom - 0.5,
+                    `${guide} at ${width}px, scrolled: the bar (${s.top}–${s.bottom}px) is part-hidden under the header (ends ${s.hdrBottom}px)`).toBe(true);
+            }
+        }
+    });
 });
 
 test('fip: a focused country row shows its whole ring, inside the card that clips it', async ({ page }) => {
@@ -1017,7 +1204,7 @@ test('staff guide: the badge grid stacks when its pair no longer fits, so larger
         await page.setViewportSize({ width: w, height: 800 });
         await page.goto('/staff-guide.html');
         await page.evaluate(() => document.fonts.ready);
-        if (k !== 1) await scaleTextOnce(page, k);
+        if (k !== 1) await scaleText(page, k);
         const m = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: innerWidth,
             columns: getComputedStyle(/** @type {Element} */ (document.querySelector('.badge-grid'))).gridTemplateColumns.split(' ').length }));
         expect(m.scroll, `the page's width at ${w}px, ${k}× text`).toBeLessThanOrEqual(m.width);

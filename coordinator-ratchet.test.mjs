@@ -11,7 +11,8 @@
  * The app is already good at this: `links-design.js`, `overtime-core.js`, `paycalc-calc.js`,
  * `calendar-data-state.js` and a dozen others exist because reasoning was pulled out of a
  * coordinator. But extraction has been an ACT OF WILL each time, and nothing stopped the next
- * feature going straight back into the big file. `links-app.js` is 3,200 lines.
+ * feature going straight back into the big file. `links-app.js` stood at 3,200 lines when this was
+ * written; its cap below says what it is held to now.
  *
  * ── WHY A RATCHET AND NOT A LIMIT ───────────────────────────────────────────────────────────────
  *

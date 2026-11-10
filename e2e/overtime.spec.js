@@ -7,7 +7,7 @@
  * horizon lists weeks nobody has created.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession, signInThroughOverlay, trackEndpointUse, endpointUse, waitForReadsToLand } from './helpers.js';
+import { seedSession, signInThroughOverlay, trackEndpointUse, endpointUse, waitForReadsToLand, isTouchProject } from './helpers.js';
 import { APP_PAGES } from '../scripts/app-pages.mjs';
 
 // Overtime is PAUSED for everyone (CONFIG.OVERTIME_ENABLED, owner, Nov 2026). These tests switch it back on
@@ -1010,6 +1010,30 @@ test.describe('access and chrome', () => {
         for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
     });
 
+    // …and the header those controls sat in opens nothing either, so it offers a mouse no hand and no hover fill. The
+    // paused card had the hand taken away (keyed on the attribute only the paused path sets) and kept the fill; the
+    // card that is not open to this member kept both.
+    for (const [state, enabled, words] of /** @type {Array<[string, boolean, string]>} */ ([
+        ['paused', false, 'Overtime availability is paused'],
+        ['not open to this member', true, "isn't open to everyone yet"],
+    ])) {
+        test(`a card with no form, ${state}: its header offers a mouse no hand and no hover fill (overtime-ui-14)`, async ({ page }, info) => {
+            test.skip(isTouchProject(info), 'a cursor and a hover are a fine pointer\'s');
+            await page.addInitScript((on) => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: on }; }, enabled);
+            await stubOvertime(page, { windows: [openWindow()] });
+            await seedSession(page, 'S. Silva');
+            await page.goto('/overtime.html');
+            await expect(page.locator('#otMineContent')).toContainText(words);
+            const header = page.locator('#otMineToggleHeader');
+            const look = () => header.evaluate(h => `cursor ${getComputedStyle(h).cursor}, fill ${getComputedStyle(h).backgroundColor}`);
+            await page.mouse.move(0, 0);
+            const rest = await look();
+            expect(rest, 'a hand on a header that opens nothing').toMatch(/^cursor default,/);
+            await header.hover();
+            expect(await look(), 'the header answers a mouse').toBe(rest);
+        });
+    }
+
     test('a session lost over the reviewer\'s sheet takes the sheet with it (overtime-ui-4)', async ({ page }) => {
         // The sign-in that covers the page is hidden in print, and the week behind it printed: who
         // was asked, what they answered and who had not, from a PC whose account had just gone.
@@ -1218,6 +1242,52 @@ test.describe('overtime.css — print, focus and contrast', () => {
         }));
         expect(notice).toContain('Sign in to see overtime availability');
         expect(top, 'the notice is drawn on the sheet, not at the old scroll offset above it').toBeGreaterThanOrEqual(0);
+    });
+
+    // An open panel locks the page by fixing the body, and the lock used to hold on paper too: the call sheet printed
+    // the one slice at the scroll offset (9 sheets came out as 1). shared.css lets the body flow on paper under any
+    // lightbox but a sign-in sheet; this is the page the fault was found on, counted off the real PDF.
+    test('printing with Tips open prints the whole call sheet, not the slice at the scroll', async ({ page, browserName }) => {
+        test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.evaluate(() => document.fonts.ready);
+        const sheets = async () => ((await page.pdf({ preferCSSPageSize: true, printBackground: true })).toString('latin1')
+            .match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+        const closed = await sheets();
+        expect(closed, 'premise: the call sheet runs to more than one sheet').toBeGreaterThan(1);
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.locator('#otAllPanel .btn-card-tips').first().click();
+        await expect(page.locator('#tipsLightbox')).toHaveClass(/\bopen\b/);
+        expect(await page.evaluate(() => document.body.classList.contains('lb-open')), 'premise: the page is scroll-locked').toBe(true);
+        expect(await sheets(), 'printed with Tips open').toBe(closed);
+    });
+
+    // The same over a member's own form. The reviewer's sheet is emptied when the session goes (overtime-ui-4), and
+    // an emptied page has no scroll left to lock, so that case hid this one: here the page stays long under the card,
+    // the sign-in locks it at the scroll it found, and shared.css keeps that lock on paper under a sign-in sheet. Only
+    // overtime.css's own `body:has(#loginOverlay) { position: static }` puts the notice on the sheet.
+    test('with the sign-in up over a member\'s form, the notice is on the sheet, not at the scroll the page was locked at', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.setViewportSize({ width: 390, height: 700 });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 8000 });
+        expect(await page.evaluate(() => getComputedStyle(document.body).top), 'premise: the sign-in locked the page part-way down')
+            .toMatch(/^-[1-9]\d*(\.\d+)?px$/);
+
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.app'), 'nothing behind the sign-in prints').toBeHidden();
+        const { notice, top } = await page.evaluate(() => ({
+            notice: getComputedStyle(document.body, '::before').content,
+            top: document.body.getBoundingClientRect().top,
+        }));
+        expect(notice).toContain('Sign in to see overtime availability');
+        expect(top, 'the notice is drawn on the sheet, not at the scroll above it').toBeGreaterThanOrEqual(0);
     });
 
     test('a collapsed "Who is available" still prints its sheet, and a view with no week says why', async ({ page }) => {

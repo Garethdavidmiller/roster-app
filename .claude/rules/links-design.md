@@ -79,7 +79,7 @@ list.
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-compare-analysis.js` | what the difference between two designs MEANS — cover, limits and fatigue for both (pure, `compareDesigns`) |
 | `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each) |
-| `links-deletion.js` | the soft-delete rules: what counts as deleted, its label and order, and the last-live-design guard |
+| `links-deletion.js` | the soft-delete rules: what counts as deleted, its label and order, and what a delete or a rename that found the design already gone says |
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in |
 | `links-seed.js` | the roster SEED — read today's main cycle and produce a target table |
 | `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between them |
@@ -117,7 +117,9 @@ list.
 ## Deletion — a permanent bin
 
 - **Delete is a soft delete.** *Delete this design* writes `deletedAt`/`deletedBy` as a MERGE — a
-  replace would push the deleting device's copy of `patterns` over the server's — and the design moves
+  replace would push the deleting device's copy of `patterns` over the server's — inside a transaction
+  that asks first. Over a design a colleague has already binned it writes nothing, so the bin keeps who
+  deleted it; over one removed for good it writes nothing at all. Otherwise the design moves
   to **🗑 Recently deleted**. Restore clears both fields with `deleteField()`, bumps the revision and
   stamps `updatedAt`, so a restored design counts as saved now for every date rule below. The decisions
   are pure in `links-deletion.js`; the Firestore calls are `links-design-store.js`; the panel is
@@ -212,8 +214,8 @@ at 1280.
   generator table lose their sticky headers (Sticky headers, below), and the sticky save row and the
   brush bar take a large share of the screen. Two further trims were costed and refused: hiding
   `.links-save-meta` below 1024px — who last saved a SHARED design, and when, is exactly what you want
-  while editing on a phone — and shortening "staffed hours with no cover", which this file forbids
-  softening.
+  while editing on a phone — and shortening "staffed hours with trains and nobody on", which this file
+  forbids softening.
 - **Do not design against the iPhone SE** (owner, Sep 2026): no designer has a device that narrow, so a
   320px column in any measurement here is hypothetical.
 
@@ -302,8 +304,9 @@ nothing** — `A → B`, and the reader decides.
 - **Both windows are always stated** — compare diffs cells, not windows (The staffed operating window,
   below).
 - With two or more designs: two read-only grids side by side from 1024px and stacked below, gold
-  outlines on differing cells, and the two columns kept on the same day as either scrolls. Each column
-  keeps `overflow-x: auto`. The main grid stays **rendered** in compare mode, hidden on screen only
+  outlines on differing cells, and the two columns kept on the same day as either scrolls. The outline
+  is the DARK gold, `--gold-text`, at 5.4:1 or more on every cell fill: the brand gold measured
+  1.2–1.4:1, under the 3:1 a marker needs. Each column keeps `overflow-x: auto`. The main grid stays **rendered** in compare mode, hidden on screen only
   (`body.links-compare-on` inside `@media screen`), so print always outputs the active design;
   `#printDesignName` names the sheet.
 
@@ -357,11 +360,13 @@ kept, because the reload's hide keeps the copy above.
   the 44px target and the press feedback with them.
 - **The Design checks card is a long list, so it needs structure, not just rows.** `.check-section-head`
   carries a hairline rule and the section's headline counts at the far end
-  (`N present · N standing · N to confirm · N clear`), so nobody has to tally icons; `.check-code` is a
-  fixed-width tag, so the FF codes align down the left edge for cross-referencing the ORR's own list;
+  (`N present · N standing · N to confirm · N clear · N not applicable`), so nobody has to tally icons;
+  `.check-code` is a fixed-width tag, so the FF codes align down the left edge for cross-referencing the
+  ORR's own list;
   and `.check-family` names the ORR's families, with the factors in number order within each. The
   counts keep `present` and `standing` apart — an unavoidable characteristic of the operation is not a
-  finding about the design.
+  finding about the design — and `clear` and `not applicable` apart (NOT-APPLICABLE ≠ CLEAR, under
+  Fatigue factors below).
 - **`.check-code` is a fixed `width`, never `min-width`.** A minimum let a wider code push its title out
   of line. CSS cannot stop a code outgrowing the width, so `links-analysis.test.mjs` asserts that none
   does, and that the declaration is still `width`.
@@ -378,12 +383,11 @@ kept, because the reload's hide keeps the copy above.
   carries **no status tint** — a coloured chip would read as one more finding. Naming the design was
   chosen over hiding the strip: a designer comparing options still wants live analysis of the one they
   are editing.
-- **Accepted, not fixed: compare columns scroll with no right-edge cue.** The grid wrapper and the
-  generator table carry the `local`/`scroll` gradient cue on a phone; a compare column cannot, because
-  its cells are TRANSPARENT, so a wrapper fade would show THROUGH them and tint the end of every column,
-  gold outlines included. That was measured from the computed backgrounds, not assumed. The
-  alternative is a narrower cell, which hurts the single-design view. Revisit only with a real
-  complaint.
+- **Compare columns carry the same right-edge cue as the single grid.** Each column is a
+  `.links-grid-wrapper`, so on a phone it wears the same `local`/`scroll` gradient. Its cells are
+  transparent, so the shade shows through them at the visible end of a column while more remains, and
+  that shade is the cue. The `local` layer masks it once the column's end is reached, and the gold
+  outlines stay intact. Rendered with and without the gradient, 10 November 2026.
 
 ### Paint mode
 
@@ -476,8 +480,11 @@ in the **same table**, so cover and service are compared column by column. Rules
   the reader to skip the row.
 - **Ask the boundary question to the MINUTE, never by the hour.** A window that closes at 23:25 makes
   hour 23 "staffed", and an hourly test reports the movements after 23:25 as covered — the one live
-  finding the feature exists for. `summariseDemand` takes the window in minutes and the profile stores
-  times, so the hourly question cannot be asked by accident.
+  finding the feature exists for. Cover is asked to the minute as well: each train is checked against
+  `dutySpans`, who is on duty at that minute, so a gap inside a staffed hour is a finding although its
+  cell still counts the people on for the rest of the hour, and the card's note says so.
+  `summariseDemand` takes the window in minutes and the duty spans, never the hourly cells, so the
+  hourly question cannot be asked by accident.
 - The `dem-shut` marker comes from the same summary the prose reads, so a marked cell and a named
   movement cannot disagree. It marks the opening hour too, where trains run before the station opens.
 
@@ -519,6 +526,11 @@ an edit's effect was out of sight.
 - **A load FAILURE is not "you have not made one yet".** On `loadFailed`, `renderGrid` swaps the title and
   hides the actions: inviting someone whose designs did not load to make a new one is how a connection
   blip becomes a duplicate design.
+- **Until the first read answers, the page is LOADING, not empty** (whole-app fix, Nov 2026). The grid
+  card says "Loading your designs…" with no actions, the picker and ··· More are disabled, and Build
+  says to wait: the load replaces the working copy when it lands, so a design made before it would
+  vanish unasked. A CACHED answer with no live design in it is the failed state, never "No designs
+  yet". The failed state carries **Try again**, because an installed app has no reload.
 - **The card header hint is state-dependent** (`_setGridHint`), so it never describes a grid and a
   paint bar that are not on screen.
 - **`links-analysis.js` must MIRROR the empty-panel markup** that `links.html` ships, because that branch
@@ -609,8 +621,9 @@ of every rule — read it before changing one. What governs it:
 - **FF11 is not the consecutive-worked-days check it resembles.** It counts shifts between two-day
   breaks: a single rest day is not counted as a 48-hour break (two together always are), so FF11 can
   only overstate, and a rotation with no two-day break at all returns every worked day.
-- **Hours totals are a FLOOR**: SPARE carries no times, so a standby day adds no hours
-  (`hoursAreFloor`), and the panel says so.
+- **Hours totals are a FLOOR when the design has a spare day**: SPARE carries no times, so a standby
+  day adds no hours (`hoursAreFloor`, true only then), and the panel says so. With no spare day the
+  totals are exact, and the panel does not call them a floor.
 
 **A cover week is an unknown, not a no.** Every rule that counts a RUN measures it with
 `runLengthsWhere` — `workedRunLengths`'s spare-week budget with the question as a parameter — and never
@@ -653,8 +666,9 @@ not a limit; the hard-limit row states its own figure and source. Pinned by a te
 in that band.
 
 **The `clear` and `n/a` rows are collapsed behind a disclosure**, and that must not weaken "silence is
-not compliance": the counts stay in the always-visible heading (`clear` among them), the disclosure is
-labelled with what is inside, and CLEAR and NOT-APPLICABLE keep their own icons and wording inside it.
+not compliance": the counts stay in the always-visible heading (`clear` and `not applicable` among
+them, each counted as itself), the disclosure is labelled with what is inside, and CLEAR and
+NOT-APPLICABLE keep their own icons and wording inside it.
 What is hidden is the PROSE, never the fact of the check; `present` and `standing` always render inline.
 The night-family rollup belongs INSIDE the disclosure, or the heading and the label count different
 things.
@@ -721,8 +735,11 @@ The HOURS averages are `weeklyHours`, so the page cannot state a design's hours 
 average divides by the WORKING lines (invariant 7), because a cover week does not record which days it
 works; that is also how `TARGET_DAYS_PER_WEEK` is derived, so the measured figure is comparable with the
 target. Both divisors are printed on screen. A cover week's hours show as the contracted week, muted and
-italic, because that is a convention rather than a reading; its days are a dash — unknown, not none. The
-`.tot-legend` line under the grid says what each style means. Rules in `lineTotals`; pinned by
+italic, because that is a convention rather than a reading; its days are a dash — unknown, not none. A
+total that is a FLOOR (a duty on the line could not be read) is orange and ends in "+", so it is not
+told by its colour alone; the "+" is silent where the cell's label already says it. The
+`.tot-legend` line under the grid says what each style means, the floor included ("so the total is a
+floor, marked “+”"). Rules in `lineTotals`; pinned by
 `links-design.test.mjs`.
 
 ## The generator
@@ -1134,8 +1151,9 @@ authority on the reasoning, and owns four rules:
 
 A conflict comes back as `{ status: 'conflict', conflict }`, and `links-app.js` decides whether to ask,
 overwrite or fork — the store never asks. A design deleted elsewhere, binned or removed for good, comes
-back as `deleted-elsewhere`, and a save never recreates it. A rename on a stale baseline writes the name
-and the revision but not `updatedBy`, or the next conflict dialog names you as the person whose version
+back as `deleted-elsewhere` — a save's status, a rename's thrown error — and neither recreates it nor
+renames it in the bin. A rename on a stale baseline writes the name and the revision but not
+`updatedBy`, or the next conflict dialog names you as the person whose version
 you are about to replace. The pure comparison rules (`conflictOf`, the baseline helpers) are
 `links-concurrency.js`. A failed load sets `loadFailed`, and the empty state says so. The store's
 rules are pinned in `links-design-store.test.mjs`, the comparison rules in `links-concurrency.test.mjs`.
@@ -1153,7 +1171,9 @@ The workspace's own rules, in `saveChanges`:
   Links is open here with a connection*, without the success colour (iPhone audit, Nov 2026: "when
   you're back online" promised an upload a closed page cannot make). It still clears `dirty`: the write is in the device's
   persistent queue, a re-save would only queue a duplicate, and a leave-page warning would claim work is
-  at risk that is not.
+  at risk that is not. Nor does the masthead's pill say "Saved": while a design's last write — a save,
+  a new design, a copy or an import — is only in this browser's queue, it reads "Saved in this browser". An online
+  create the server has not answered within `SLOW_SAVE_MS` is queued the same way.
 - **`dirty` clears only if nothing was edited while the save was in flight**, and the payload recorded is
   the one actually WRITTEN, window and revision included.
 - **A save that finds its design deleted drops it from the live list even when the page has moved on**
@@ -1205,8 +1225,12 @@ and the window editor are hidden.
 - **The grid's day header sticks from 768px up.** Below that the table really does overflow, so the
   wrapper is `overflow-x: auto`, which makes it a scroll container and leaves the sticky `thead` inert
   (an accepted phone constraint, KNOWN_LIMITATIONS.md → Links). From 768px the table fits, the wrapper is
-  `overflow-x: visible`, and the header sticks. Do not add a `max-height` without resetting it at that
-  breakpoint and in `@media print`, where a clipped sheet is silent on screen.
+  `overflow-x: visible`, and the header sticks. It fits there only because, below 1024px, the totals'
+  names and the days note may wrap (`links.css` has the measurements). At large Android text it still
+  clips the last totals column at the narrow end of that band, and keeping the sticky header against
+  restoring the scroll container is the owner's decision (KNOWN_LIMITATIONS.md → Links). Do not add a
+  `max-height` without resetting it at that breakpoint and in `@media print`, where a clipped sheet is
+  silent on screen.
 - **The paint bar sticks above the day header from 768px on a fine pointer**, and the header sticks
   beneath it at the bar's measured height (`--brush-bar-h`), so the lower lines can be painted without
   scrolling back up. Not on a phone, where the bar is already counted as a cost to the screen.

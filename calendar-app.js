@@ -223,7 +223,10 @@ function dismissSwipeHint() {
     if (!hint || hint.style.display === 'none') return;
     lsSet('myb_swipe_hint_seen', '1');
     hint.classList.add('fade-out');
-    setTimeout(() => { hint.style.display = 'none'; hint.classList.remove('fade-out'); }, 400);
+    // Hidden once the fade has run. Its length is the stylesheet's (.swipe-hint, index.css), read back
+    // rather than restated: a copy of the number here had already drifted from it.
+    const fadeMs = (parseFloat(getComputedStyle(hint).transitionDuration) || 0) * 1000;
+    setTimeout(() => { hint.style.display = 'none'; hint.classList.remove('fade-out'); }, fadeMs + 50);
 }
 
 

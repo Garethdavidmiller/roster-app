@@ -3113,10 +3113,11 @@ test('paycalc: a notice sheet\'s two answers are one width, from tablet up', asy
 });
 
 test('paycalc: a primary button and the secondary under it are drawn by one recipe', async ({ page }) => {
-    // paycalc.css keeps its own `.btn-primary` recipe for Save settings, the one primary that does not
-    // wear `.btn-action` — and it reached the three that do, overriding the shared recipe's display,
-    // edge and timing: two shapes in one pair. Nothing differed by a pixel, which is why it is the
-    // computed SHAPE that is compared — the next change to the shared recipe would have split them.
+    // paycalc.css kept its own `.btn-primary` recipe for Save settings, then the one primary without
+    // `.btn-action` — and it reached the three that do, overriding the shared recipe's display, edge
+    // and timing: two shapes in one pair. Nothing differed by a pixel, which is why it is the computed
+    // SHAPE that is compared — the next change to the shared recipe would have split them. Save
+    // settings wears `.btn-action` too now (Nov 2026), and the page recipe has gone.
     await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
     await seedSession(page);
     await page.addInitScript(() => {
@@ -3140,6 +3141,13 @@ test('paycalc: a primary button and the secondary under it are drawn by one reci
     await expect(page.locator('#ptDownload')).toBeVisible();
     const [download, copy] = await shape(['ptDownload', 'ptCopy']);
     expect(download, '"Download backup" against "Copy as text"').toBe(copy);
+    // …and Save settings is one more primary drawn by it, not by a recipe of its own.
+    if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#settingsToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#saveSettingsBtn')).toBeVisible();
+    const [save] = await shape(['saveSettingsBtn']);
+    expect(save, '"Save settings" against "Download backup"').toBe(download);
 });
 
 test('paycalc guide: the two bulleted lists keep their bullets on paper', async ({ page }) => {

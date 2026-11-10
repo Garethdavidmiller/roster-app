@@ -58,6 +58,13 @@ write something the parsed path would have refused. Sunday exclusions are read f
 optional times (generated from `OTHER_FLAVOURS`, composed by `composeOtherValue`); Spare is the one
 flavour not offered here. The control's own rules are in `roster-entry-control.js`'s header.
 
+**A member the model lists twice keeps ONE row, and the review names them.** `memberRows`
+(`functions/roster-parse-helpers.js`) keeps the first row that is not empty, as the grid matcher does
+(`soleOccupied`: a real Dispatch sheet prints an empty placeholder row above the member's real one),
+and `buildSafeEntries` skips the rest. `parseRosterPDF` sends each such member as `duplicateMembers`
+(`repeatedMembers`, `functions/roster-prompt.js`, judged against the same names `missingMembers` is),
+and the review gives each one a line asking the admin to check them against the PDF.
+
 ### A day the guards REFUSE to record is SHOWN — the `GUARDED` row
 
 Leave or an absence on a base REST day, and anything on a Sunday, is normalised to `RD` by
@@ -101,7 +108,8 @@ maps it to an **UNREADABLE** review row.
   as "Rest"): the row shows what was read, and the entry below asks the swapped-day question. A rest
   day picked or entered over a base rest day writes nothing new, only clearing what the day held
   (`restOverRest`; whole-app fix, Nov 2026).
-- An EMPTY cell is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row
+- An EMPTY cell — nothing, `BLANK`, `EMPTY` or a lone dash (`BLANK_READINGS`, the one list every read
+  shares) — is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row
   Monday to Saturday (below).
 
 ## Day drift — a week written onto the wrong days
@@ -117,14 +125,19 @@ chosen on the form instead, and only layer 4 can see it.
    printed (and `NA`/`NS` read as `RD`), so counting it would right-shift a correctly read week whose
    Sunday the scan mistook for blank, with nothing flagged. That case is disputed instead. The
    partial branch never overwrites the Sunday claim: it leaves it for the geometry witness, and
-   `settleDisputedSundays` sends it to review afterwards if the witness could not look.
+   `settleDisputedSundays` sends it to review afterwards if the witness could not look. And the claim
+   must be the ROW READ's own: where the column cross-check has left a question on the Sunday, its
+   pick's row reading decides, so a question whose row reading was a rest day moves nothing (rule 3 in
+   the module's header).
 2. **`applyColumnScanCrossCheck`** (`functions/roster-parse-helpers.js`) — the prompt demands a
    second, column-by-column read (`columnScan`, generalising `sundayScan` to all 7 columns) and every
    cell is cross-checked row-vs-column:
    - agreement → keep;
    - a disagreement that realigns exactly under a one-day SUFFIX shift anchored at the first
      disagreeing day (a dropped blank shifts only the tail after it), with ≥2 disagreements and ≥5
-     signalled days → deterministic repair (two-source consensus);
+     signalled days → deterministic repair (two-source consensus); the cell the shift vacates takes
+     the day's blank meaning when the scan saw it empty or read nothing there — Monday to Saturday a
+     question, never a rest day;
    - a **Rest ↔ Absence** disagreement (one read is `SICK` — a positive OD/HA/SC/ML/CL absence code;
      **SN is not one**: it is sickness on a day not booked to work and reads as RD — the other a rest
      day, and not a Sunday) → **records the absence** (`SICK`), because dropping a real absence is the
@@ -234,8 +247,8 @@ model call; that is the cost of the guarantee.
 **`settledGeometry` re-asks on `wait-timeout` and ONLY on that.** `awaitGeometryWithin` is a
 `Promise.race`: when the early wait times out, the extraction is still running and the caller holds a
 fail-open object, so reusing it for the witness would lose BOTH the geometry path and the witness on a
-slow PDF. Every other fail-open reason (`no-grid`, `pdfjs-unavailable`, `unreadable-pdf`, `no-text`,
-`work-budget`, `threw`) is a settled answer, and re-asking those would spend the whole budget again on
+slow PDF. Every other fail-open reason (`no-grid`, `no-rows`, `pdfjs-unavailable`, `unreadable-pdf`,
+`no-text`, `work-budget`, `threw`) is a settled answer, and re-asking those would spend the whole budget again on
 every ordinary fallback. The full reasoning is beside `settledGeometry` in `functions/roster-geometry.js`.
 
 **A member legitimately absent from one week's sheet turns the geometry path OFF for that upload.**
@@ -284,8 +297,8 @@ does real work: the parser reads `06:00-12:00 GER` but not `GER 06:00-12:00`).
 `functions/roster-geometry.js` (ROADMAP "Roster import" phase 1). The roster's table rules are DRAWN
 in the PDF, at nine fixed x positions on every content page of every roster type measured, and
 assigning each text run by coordinate places every cell — on the row that drifts, not one text object
-sits in the Sunday column. `parseRosterPDF` reads that grid in parallel with the model call and
-applies it as the FINAL gate, after the column cross-check and the Sunday corrections: **an AI day
+sits in the Sunday column. `parseRosterPDF` reads that grid before the model call (phase 2 needs its
+cells) and applies it as the FINAL gate, after the column cross-check and the Sunday corrections: **an AI day
 landing in a physically EMPTY cell is refused, not weighed** — the cell becomes UNREADABLE and the row
 comes back as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift
 (unticked, and counted toward the breaker). Zero false refusals on the corpus. It fails open

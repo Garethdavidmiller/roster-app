@@ -65,19 +65,7 @@ body {
        the gutter and this one page changes colour with it. Measured before the fix: body
        transparent, html navy; every other page's body opaque navy. */
     background: var(--primary-blue);
-    /* The same page inset as every other card page (desktop audit, Nov 2026). With none of its own the
-       page took shared.css's 16px fallback, so its header sat 4px higher and its burger further out
-       than on the page you had just left. */
-    padding-top:    max(20px, env(safe-area-inset-top));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
-}
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
+    /* The page gutter, with the safe-area insets, is shared.css's: the same on every card page. */
 }
 
 /* The header takes the column's cap at EVERY width (css-tokens.md → Desktop layout: the chrome and
@@ -454,15 +442,14 @@ body {
 
 .ot-state-actions { margin-top: var(--space-3); }
 
-/* PAUSED (v25.05; tidied v25.06, whole-app review). The card keeps its title and the paused note and
-   nothing else: the hint ("Tell the roster team…"), the two caveats about what a submission does,
-   the ? panel and the chevron all describe a form that is not on the page — and the last two were
-   dead controls, because the paused path wires neither. Keyed on the attribute the paused path sets. */
-body[data-ot-paused] #otMineCard .hint,
-body[data-ot-paused] #otMineCard .card-header-actions,
-body[data-ot-paused] .ot-explainer,
-body[data-ot-paused] .ot-privacy { display: none; }
-body[data-ot-paused] #otMineToggleHeader { cursor: default; }
+/* NO FORM ON THE CARD — paused (v25.05), or not open to this member. renderUnavailable hides the hint,
+   both caveats, the ? and the chevron on either path (overtime-ui-14), so the header opens nothing too:
+   no hand and no hover fill for a mouse. Keyed on what both paths leave, the hidden actions cluster —
+   the paused attribute on <body> is set by one of them only (whole-app fix, 10 Nov 2026). */
+#otMineCard:has(.card-header-actions.hidden) #otMineToggleHeader { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+    #otMineCard:has(.card-header-actions.hidden) #otMineToggleHeader:hover { background: var(--surface); }
+}
 
 /* ── Create-window confirm bar ──────────────────────────────────────────────
    Fixed to the bottom rather than inline, so the preview it describes stays on

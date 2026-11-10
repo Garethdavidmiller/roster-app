@@ -8,7 +8,7 @@
  * are pinned in Node (newlink-render.test.mjs, newlink-data.test.mjs); this drives the real page through them.
  */
 import { test, expect, withLinksDesigners } from './fixtures.js';
-import { collectFatalErrors, seedSession } from './helpers.js';
+import { collectFatalErrors, scaleText, seedSession } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
@@ -264,8 +264,7 @@ test.describe('new link', () => {
     // sideways inside their frame — and only there: the page itself never does — and the pack's rows give way.
     // Each half is pinned: nothing leaves its cell, its card or the screen at 320px, or at 1.3 times the text from 320px to
     // 375px; at 375px at the normal size, where everything fits, no held run is split and the 26 weeks do not scroll.
-    // The text is enlarged ONCE per element, as Android does: helpers.js's scaleText reads each size after its parent has
-    // been enlarged, so inherited text is multiplied again at every level (14px became 49px at 1.15 on this page).
+    // The text is enlarged as Android enlarges it (helpers.js → scaleText): every size once, the width left alone.
     test('a phone\'s larger text runs nothing into its neighbour or off the screen, and the 26 weeks scroll rather than overlap', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         const open = async (/** @type {number} */ width) => {
@@ -276,10 +275,6 @@ test.describe('new link', () => {
             await expect(page.locator('#nlPersonaPanel .nl-persona')).toHaveCount(6);
             await expect(page.locator('#nlWeeksPanel .is-chosen .nl-weeks tbody tr')).toHaveCount(26);
         };
-        const scaleOnce = (/** @type {number} */ k) => page.evaluate(m => {
-            const els = [...document.querySelectorAll('*')], px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
-            els.forEach((e, i) => { if (px[i]) /** @type {HTMLElement} */ (e).style.fontSize = `${px[i] * m}px`; });
-        }, k);
         // every table cell on the page: the figures and their headings, and the chosen proposal's 26 weeks
         const CELLS = '#nlPersonaPanel .nl-fig td, #nlPersonaPanel .nl-fig th, #nlWeeksPanel .is-chosen .nl-weeks td, #nlWeeksPanel .is-chosen .nl-weeks th';
         const spills = () => page.locator(CELLS).evaluateAll(cells => cells.flatMap(cell => {
@@ -305,7 +300,7 @@ test.describe('new link', () => {
         const weeksScroll = () => page.locator('#nlWeeksPanel .is-chosen .nl-weeks-wrap').evaluate(w => w.scrollWidth - w.clientWidth);
         for (const [width, k] of [[320, 1], [320, 1.3], [360, 1.3], [375, 1.3]]) {
             await open(width);
-            if (k !== 1) await scaleOnce(k);
+            if (k !== 1) await scaleText(page, k);
             const at = `at ${width}px${k === 1 ? '' : ` with the text ${k} times larger`}`;
             expect(await spills(), `${at}: nothing leaves its cell`).toEqual([]);
             expect(await offCard(), `${at}: nothing is cut off at a card's edge`).toEqual([]);
