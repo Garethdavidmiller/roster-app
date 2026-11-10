@@ -668,8 +668,9 @@ match the payslip box.
 
 **Year to Date figures are ANCHORED to their source payslip (owner request).** The card records which
 payslip the two totals were copied from (`ytdSrcKey(ty)`, a "From which payslip?" select auto-stamped
-to the latest PAID payslip on first entry, moved to the payslip the take-home line names when they are
-typed in again over an older one (`ytdSourceAfterRetype`), correctable).
+to the latest PAID payslip on first entry, moved to the payslip the take-home line names when figures
+already recorded against an older one are typed in again (`ytdSourceAfterRetype`) — never when typed
+into empty boxes, nor over a payslip picked in the select on this visit — correctable).
 - **Payslips are issued before payday**, so from the current payslip's cut-off the picker also offers
   it (`ytdSourceOffered`): a member copying from it picks it, and an anchor one payslip early would
   count its pay twice. The first-entry stamp keeps the standing rule (`ytdAutoSource`); do not replace

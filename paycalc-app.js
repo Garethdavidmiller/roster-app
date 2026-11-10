@@ -1391,21 +1391,29 @@ export function init() {
     // Year to Date figures: stamp the source payslip on first entry (the latest paid one, where the
     // totals almost always come from), and move an older one to the payslip the take-home line names
     // when they are typed in again (ytdSourceAfterRetype); then persist + recalc. The select corrects it.
+    // "Again" is figures already in the boxes when the edit began (_ytdOver — the two boxes are one
+    // edit), and never a source picked in the select this visit (_ytdKeep): typed into empty boxes, or
+    // after a pick, the figures come from the payslip the member chose, and moving it lost that choice.
+    let _ytdOver = false; const _ytdKeep = new Set();
     const _ytdFigureInput = () => {
       saveSettings();
       const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       const _ty2 = taxYearForPeriod(_p2);
       const _raw = lsGet(ytdSrcKey(_ty2));
-      const _moved = ytdSourceAfterRetype(_raw, { p: _p2, ty: _ty2 });
+      const _moved = _ytdOver && !_ytdKeep.has(_ty2.label) ? ytdSourceAfterRetype(_raw, { p: _p2, ty: _ty2 }) : null;
       if (_moved != null) lsSet(ytdSrcKey(_ty2), String(_moved));
       if (_moved != null || !_raw) _refreshYtdSrc(_ty2);
       calculate();
     };
-    /** @type {HTMLElement} */ (document.getElementById('ytdPay')).addEventListener('input', _ytdFigureInput);
-    /** @type {HTMLElement} */ (document.getElementById('ytdTax')).addEventListener('input', _ytdFigureInput);
+    for (const id of ['ytdPay', 'ytdTax']) {
+      const el = /** @type {HTMLElement} */ (document.getElementById(id));
+      el.addEventListener('focus', e => { if (!['ytdPay', 'ytdTax'].includes(/** @type {any} */ (e).relatedTarget?.id)) _ytdOver = _ytdHasFigures(); });
+      el.addEventListener('input', _ytdFigureInput);
+    }
     /** @type {HTMLElement} */ (document.getElementById('ytdSrcSelect')).addEventListener('change', () => {
       const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       const _ty2 = taxYearForPeriod(_p2);
+      _ytdKeep.add(_ty2.label);
       const _v = /** @type {HTMLSelectElement} */ (document.getElementById('ytdSrcSelect')).value;
       // Picking the blank placeholder un-anchors the figures: record an explicit '0', so calculate()
       // drops to the standard method — as the note now says — and the un-anchor PERSISTS. Deleting

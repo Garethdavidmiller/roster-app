@@ -1987,6 +1987,43 @@ test('paycalc: Year to Date figures from an older payslip are asked for again', 
     expect(errors).toHaveLength(0);
 });
 
+// …but ONLY over figures already recorded (whole-app check, 10 Nov 2026 — the move above first fired
+// on any typing). Figures typed into empty boxes against a payslip already recorded, or after the
+// member picked one in the select, come from the payslip they chose; moving it lost that choice, and
+// for a joiner it priced a June figure as October's (the ytd-mode HPP test went to £0).
+test('paycalc: Year to Date figures typed against a payslip the member chose keep it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '56');   // the 25 Sep payslip — no figures yet
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+
+    // Into the empty boxes — both, which are one edit: the payslip already recorded stands.
+    await page.fill('#ytdPay', '11000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '1400');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('56');
+
+    // A new edit over those figures — the boxes are left first, as picking in the sheet leaves them —
+    // after picking a payslip in the select: the pick stands.
+    await page.locator('#ytdTax').blur();
+    await page.locator('#ytdSrcSelect').selectOption('55', { force: true });
+    await page.locator('#ytdSrcSelect').dispatchEvent('change');
+    await page.fill('#ytdPay', '9000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('55');
+    expect(errors).toHaveLength(0);
+});
+
 // A week 1 / month 1 code never uses the figures, and the card said "✓ in use" over it all the same
 // (whole-app review, Nov 2026). The code is a setting, not a Year to Date box — so this pins that the
 // chip is written by calculate() from computeTax's own answer, on every recalculation.
