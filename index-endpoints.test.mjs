@@ -160,7 +160,21 @@ stub(require.resolve('./roster-prompt', { paths: [fnDir] }), {
             : { usable: false, rows: [], unmatched: ['forced'], reason: 'forced off for the legacy-path cases' }),
 });
 
-import { rosterPage, buildPdf, DATES } from './test-fixtures/roster-pdf.mjs';
+// ── AN EARLY WAIT THAT GAVE UP (import-server-2) ────────────────────────────────────────────────
+//
+// `SLOW.early` makes the handler's first wait on the grid read answer `wait-timeout` at once, as the
+// real one does after its budget, while the extraction it started runs on for real. Everything after
+// it is real, including `settledGeometry`, which waits on that same extraction a second time.
+const REAL_GEOMETRY = require('./functions/roster-geometry.js');
+const SLOW = { early: false };
+stub(require.resolve('./roster-geometry', { paths: [fnDir] }), {
+    ...REAL_GEOMETRY,
+    awaitGeometryWithin: (/** @type {Promise<any>} */ promise, /** @type {number|undefined} */ ms) => (SLOW.early
+        ? Promise.resolve({ available: false, reason: 'wait-timeout', rows: [], pagesRead: 0, pagesRejected: 0 })
+        : REAL_GEOMETRY.awaitGeometryWithin(promise, ms)),
+});
+
+import { rosterPage, buildPdf, DATES, ROSTER_FIXTURE } from './test-fixtures/roster-pdf.mjs';
 
 const index = require('./functions/index.js');
 
@@ -627,7 +641,7 @@ describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', 
     // a request the model will not take, a rejected key: each fails the same way every time, and
     // "Could not reach the AI service — please try again in a moment" sent the admin round a retry
     // that cannot work. roster-prompt.js names the case: a model that rejects a setting "would fail
-    // every upload as 'Could not reach the AI service'".
+    // every upload as 'The AI service refused the request (HTTP 400)'" — which is what this checks.
     for (const [status, type] of [[400, 'invalid_request_error'], [401, 'authentication_error'],
         [403, 'permission_error'], [404, 'not_found_error']]) {
         test(`an HTTP ${status} is the AI service refusing, said so, and not worth a retry`, async () => {
@@ -1130,6 +1144,202 @@ describe('parseRosterPDF — the PDF path keeps a moved question answerable', ()
         assert.match(shifts[mon], /^UNKNOWN\|05:30-11:30 or Rest day\?/, 'the question is on Monday');
         assert.deepEqual(out.body.choices[`L. Springer|${mon}`], ['05:30-11:30', 'RD'], 'and so is its pick');
         assert.equal(out.body.choices[`L. Springer|${sun}`], undefined, 'nothing points at the Sunday');
+    });
+});
+
+// ── A CORRECTLY READ WEEK STAYS ON ITS OWN DAYS (import-server-1, whole-app fix, Nov 2026) ───────
+//
+// The Sunday repair moved a correctly read week a day right when the Sunday slot held something the
+// row read never claimed: the cross-check's question about a column scan that misread the empty
+// Sunday, or an empty Sunday the row read wrote as "-". roster-parse-helpers.test.mjs drives the
+// helpers in this handler's order; this drives the handler, so a call that stopped handing the
+// repair the cross-check's picks — the one record of what the row read gave — fails here. The fake
+// PDF fails the grid open, so no witness stands behind the repair: the worst case.
+describe('parseRosterPDF — a correctly read week comes back on its own days', () => {
+    const ROW = { memberName: 'L. Springer', Sun: 'BLANK', Mon: '05:30-11:30', Tue: '06:30-12:30', Wed: 'RD',
+        Thu: '07:30-13:30', Fri: '08:30-14:30', Sat: 'BLANK' };
+    const reply = (/** @type {any} */ row, /** @type {string} */ colSunday) => JSON.stringify({
+        columnHeaders: DAY_HEADERS, parsed: [row], sundayScan: { 'L. Springer': 'BLANK' },
+        columnScan: Object.fromEntries(DAY_HEADERS.map(h => [h, { 'L. Springer': h === 'Sun' ? colSunday : ROW[h] }])),
+    });
+    for (const [label, row, colSunday] of [
+        ['the column scan misread the empty Sunday as a shift', ROW, '10:00-18:00'],
+        ['the row read wrote the empty Sunday as "-"', { ...ROW, Sun: '-' }, 'BLANK'],
+    ]) {
+        test(`${label}: Monday to Saturday as printed`, async () => {
+            const warn = console.warn; console.warn = () => {};
+            let out;
+            try {
+                build({ aiReply: reply(row, colSunday) });
+                out = await call(index.parseRosterPDF, rosterRequest());
+            } finally { console.warn = warn; }
+            assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+            const week = out.body.dates.map((/** @type {string} */ d) => out.body.parsed[0].shifts[d]);
+            assert.deepEqual(week.slice(1, 6), ['05:30-11:30', '06:30-12:30', 'RD', '07:30-13:30', '08:30-14:30'],
+                'a day late — the Sunday repair moved a week the row read had right');
+            assert.match(week[6], /^UNKNOWN\|no Saturday cell was read/, 'the empty Saturday is still the question it was');
+        });
+    }
+});
+
+// ── A NAME GIVEN TWICE, THE EMPTY ROW FIRST (import-server-5, whole-app fix, Nov 2026) ──────────
+//
+// A real Dispatch sheet prints an EMPTY placeholder row above the same member's real row. A model
+// matching both to the one name returned the placeholder first, and the response carried six "no
+// cell was read" questions for a member whose week was on the page. The name comes from the
+// generated roster, so the case tracks the roster rather than going stale with one person.
+describe('parseRosterPDF — an empty duplicate row never stands in front of the real one', () => {
+    const DISPATCHER = require('./functions/roster-members.json').dispatcher[0];
+    test('the member\'s real week arrives, once', async () => {
+        const empty = { memberName: DISPATCHER, ...Object.fromEntries(DAY_HEADERS.map(h => [h, 'BLANK'])) };
+        const real  = { memberName: DISPATCHER, Sun: 'BLANK', Mon: '06:00-14:00', Tue: '06:00-14:00', Wed: 'RD',
+            Thu: 'RD', Fri: '14:00-22:00', Sat: '14:00-22:00' };
+        const warn = console.warn; console.warn = () => {};
+        let out;
+        try {
+            build({ aiReply: JSON.stringify({ columnHeaders: DAY_HEADERS, parsed: [empty, real] }) });
+            const req = rosterRequest();
+            req.headers['x-roster-type'] = 'dispatcher';
+            out = await call(index.parseRosterPDF, req);
+        } finally { console.warn = warn; }
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        const rows = out.body.parsed.filter((/** @type {any} */ e) => e.memberName === DISPATCHER);
+        assert.equal(rows.length, 1, 'one member, one row');
+        assert.deepEqual(out.body.dates.slice(1).map((/** @type {string} */ d) => rows[0].shifts[d]),
+            ['06:00-14:00', '06:00-14:00', 'RD', 'RD', '14:00-22:00', '14:00-22:00']);
+    });
+});
+
+// ── …AND THE REVIEW IS TOLD (import-dup, whole-app fix, Nov 2026) ───────────────────────────────
+//
+// Which row stands is settled above. The other row's only trace was a log line, so the admin had
+// no reason to check that person against the PDF. `duplicateMembers` names each member the model
+// listed more than once, judged against the same roster list as `missingMembers`.
+describe('parseRosterPDF — a member the model listed twice is named in the response', () => {
+    const DISPATCHER = require('./functions/roster-members.json').dispatcher[0];
+    /** One reply through the real handler, with its log silenced. */
+    const parse = async (/** @type {any[]} */ rows, rosterType = 'cea') => {
+        const warn = console.warn; console.warn = () => {};
+        try {
+            build({ aiReply: JSON.stringify({ columnHeaders: DAY_HEADERS, parsed: rows }) });
+            const req = rosterRequest();
+            req.headers['x-roster-type'] = rosterType;
+            return await call(index.parseRosterPDF, req);
+        } finally { console.warn = warn; }
+    };
+
+    test('the empty placeholder row and the real one: the member is named, once', async () => {
+        const empty = { memberName: DISPATCHER, ...Object.fromEntries(DAY_HEADERS.map(h => [h, 'BLANK'])) };
+        const real  = { memberName: DISPATCHER, Sun: 'BLANK', Mon: '06:00-14:00', Tue: '06:00-14:00', Wed: 'RD',
+            Thu: 'RD', Fri: '14:00-22:00', Sat: '14:00-22:00' };
+        const out = await parse([empty, real, empty], 'dispatcher');
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.duplicateMembers, [DISPATCHER]);
+        assert.ok(!out.body.missingMembers.includes(DISPATCHER), 'listed twice is not missing');
+    });
+
+    test('control: a read that lists every member once names nobody', async () => {
+        const out = await parse([PARSED_ROW]);
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.duplicateMembers, []);
+    });
+
+    test('control: a name no roster lists, given twice, is not named — it is not on the review', async () => {
+        const stray = { ...PARSED_ROW, memberName: 'Q. Notonroster' };
+        const out = await parse([PARSED_ROW, stray, stray]);
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.parsed.map((/** @type {any} */ e) => e.memberName), ['L. Springer']);
+        assert.deepEqual(out.body.duplicateMembers, []);
+    });
+
+    // buildSafeEntries keys a row by its TRIMMED name, so these two rows are one member to it and it
+    // skipped the second. The response has to agree, or the review is silent about a skipped row.
+    test('a name repeated with a stray space is the same member, and the first row with shifts stood', async () => {
+        const out = await parse([PARSED_ROW, { ...PARSED_ROW, memberName: ' L. Springer ', Mon: '06:30-12:30' }]);
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.deepEqual(out.body.duplicateMembers, ['L. Springer']);
+        assert.equal(out.body.parsed.length, 1, 'one member, one row');
+        assert.equal(out.body.parsed[0].shifts[out.body.dates[1]], '05:30-11:30', 'the first row that was not empty');
+    });
+});
+
+// ── THE SHEET'S OWN WEEK, THROUGH THE HANDLER (import-server-2; the owner supplied a sheet, 10 Nov 2026) ──
+//
+// A whole week out is the one misplacement the day-drift layers cannot see, and the sheet prints its
+// own week ("Week Ending:" and a DD/MM/YYYY date, above the grid). These send a REAL openable PDF —
+// synthetic: the shared fixture plus that heading — so the real extractor reads it, and the handler
+// must decide before the model is asked anything. WEEK_ENDING, the week chosen, is 2026-09-05.
+describe('parseRosterPDF — a sheet printed for another week is refused before the model runs', () => {
+    const withHeading = (/** @type {string} */ printed) => {
+        const page = rosterPage(ROSTER_FIXTURE);
+        page.push('BT /F1 9 Tf 635 760 Td (Week Ending:) Tj ET', `BT /F1 9 Tf 712 760 Td (${printed}) Tj ET`);
+        return buildPdf([page]);
+    };
+    const send = async (/** @type {Buffer} */ pdf) => {
+        /** @type {string[]} */
+        const logs = [];
+        const warn = console.warn;
+        console.warn = (...a) => logs.push(a.join(' '));
+        try {
+            build();
+            const req = rosterRequest();
+            req.rawBody = Buffer.from(pdf.toString('base64'), 'utf8');
+            return { out: await call(index.parseRosterPDF, req), logs };
+        } finally { console.warn = warn; }
+    };
+
+    test('a heading for another week refuses the whole read, naming both weeks, and the model is never asked', async () => {
+        const { out } = await send(withHeading('12/09/2026'));
+        assert.equal(out.code, 409, JSON.stringify(out.body).slice(0, 300));
+        assert.equal(out.body.error, 'This roster is for the week ending Saturday 12 September 2026, but the week chosen is '
+            + 'Saturday 5 September 2026. Choose the matching week and upload it again.');
+        assert.equal(out.body.sheetWeekEnding, '2026-09-12');
+        assert.equal(out.body.parsed, undefined, 'nothing reaches the review');
+        assert.equal(modelCalls().length, 0, 'the model was asked to read a week the admin did not choose');
+    });
+
+    test('the heading for the week chosen lets the read go on as before', async () => {
+        const { out } = await send(withHeading('05/09/2026'));
+        assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+        assert.equal(modelCalls().length, 1);
+    });
+
+    test('no heading that can be read fails OPEN: the read goes on, and the log says the check did not run', async () => {
+        for (const [label, pdf] of /** @type {Array<[string, Buffer]>} */ ([
+            ['no heading', buildPdf([rosterPage(ROSTER_FIXTURE)])],
+            ['a heading date that is not a Saturday', withHeading('11/09/2026')],
+            ['a PDF pdfjs cannot open', Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(256, 0x20)])],
+        ])) {
+            const { out, logs } = await send(pdf);
+            assert.equal(out.code, 200, `${label}: ${JSON.stringify(out.body).slice(0, 200)}`);
+            assert.ok(logs.some(l => l.includes('the sheet\'s own week was not checked')), `${label}: the log does not say so`);
+        }
+    });
+
+    // The early wait gives up on a slow PDF, and its fail-open answer holds no heading. The grid read
+    // is asked again once the model has answered (`settledGeometry`), and so is the sheet's week: a
+    // refusal then has spent one model call, but nothing has been written.
+    test('an early wait that gave up asks again once the read settles, and still refuses another week', async () => {
+        SLOW.early = true;
+        try {
+            const { out, logs } = await send(withHeading('12/09/2026'));
+            assert.equal(out.code, 409, JSON.stringify(out.body).slice(0, 300));
+            assert.equal(out.body.sheetWeekEnding, '2026-09-12');
+            assert.match(out.body.error, /^This roster is for the week ending Saturday 12 September 2026, but the week chosen is Saturday 5 September 2026\. /);
+            assert.equal(out.body.parsed, undefined, 'nothing reaches the review');
+            assert.equal(modelCalls().length, 1, 'the early check could not run, so the model was asked');
+            assert.ok(logs.some(l => l.includes('the sheet\'s own week was not checked')), 'the early check does not say it did not run');
+            assert.ok(logs.some(l => l.includes('REFUSED: the sheet says week ending 2026-09-12')), 'the settled check does not say why');
+        } finally { SLOW.early = false; }
+    });
+
+    test('…and lets the week chosen through', async () => {
+        SLOW.early = true;
+        try {
+            const { out } = await send(withHeading('05/09/2026'));
+            assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+            assert.equal(modelCalls().length, 1);
+        } finally { SLOW.early = false; }
     });
 });
 

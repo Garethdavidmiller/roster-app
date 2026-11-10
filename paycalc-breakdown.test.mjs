@@ -6,7 +6,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fmtHrsMins, buildSummaryRows, buildLoanLines, buildBreakdownRows, buildActualCheck, buildProvChips, buildActualComparison,
-    buildBreakBar } from './paycalc-breakdown.js';
+    buildBreakBar, taxCodeNotRecognised } from './paycalc-breakdown.js';
 import { getThresholds } from './paycalc-calc.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
@@ -14,6 +14,21 @@ test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
     assert.equal(fmtHrsMins(7.5), '7h 30m');
     assert.equal(fmtHrsMins(0), '0h');
     assert.equal(fmtHrsMins(1.25), '1h 15m');
+});
+
+test('fmtHrsMins carries 60 minutes into the hour — never "124h 60m"', () => {
+    // 140 contracted hours less Saturday 7h 20m and Bank Holiday 7h 40m: 124.99999999999999 in floating
+    // point, and the basic-pay row read "124h 60m" (whole-app review, Nov 2026).
+    assert.equal(fmtHrsMins(140 - (7 + 20 / 60) - (7 + 40 / 60)), '125h');
+    assert.equal(fmtHrsMins(7.999), '8h');
+    // Every Saturday/bank-holiday split of the contracted hours that should come out whole, does.
+    for (let sat = 0; sat <= 140 * 60; sat += 7) {
+        for (const bh of [20, 40, 50, 110]) {
+            if ((sat + bh) % 60) continue;
+            const label = fmtHrsMins(140 - sat / 60 - bh / 60);
+            assert.ok(!/60m/.test(label), `Saturday ${sat}m, bank holiday ${bh}m → ${label}`);
+        }
+    }
 });
 
 // ── buildSummaryRows ────────────────────────────────────────────────────────────
@@ -110,6 +125,49 @@ test('buildSummaryRows: cumulative tax adds the "adjusted from payslip" note; sl
     assert.ok(html.includes(sl), 'pre-rendered slLines passed through unchanged');
 });
 
+test('buildSummaryRows: Year to Date figures asking for more tax than the payslip pays say to check them', () => {
+    // computeTax's `payLimited`: only a mistyped figure asks for that (whole-app review, Nov 2026).
+    const html = buildSummaryRows({ ...SUM_BASE, usingCumulative: true, taxPayLimited: true });
+    const taxRow = html.split('\n').find(l => l.includes('Income Tax')) ?? '';
+    assert.match(taxRow, /ask for more tax than this payslip pays/);
+    assert.match(taxRow, /check Taxable Pay and Tax Paid against your payslip/);
+    assert.ok(!/ask for more tax/.test(buildSummaryRows({ ...SUM_BASE, usingCumulative: true })), 'quiet otherwise');
+});
+
+// ── A TAX CODE THE CALCULATOR DOES NOT RECOGNISE (whole-app review, Nov 2026) ─────────────────────
+// computeTax prices it on the standard 1257L allowance and reports `recognised: false`. Only the
+// "Check against your payslip" line used to read that, and it is hidden until the payslip's cut-off:
+// "OT" typed for a payslip's 0T put the next-payslip estimate £241.80 high with nothing on screen.
+describe('an unrecognised tax code is said under Income Tax', () => {
+    test('the Income Tax row names the code, the allowance it fell back to, and where to fix it', () => {
+        const html = buildSummaryRows({ ...SUM_BASE, taxCode: 'OT', taxCodeRecognised: false });
+        const taxRow = html.split('\n').find(l => l.includes('Income Tax')) ?? '';
+        assert.match(taxRow, /Tax code <strong>OT<\/strong> isn't one the calculator recognises/);
+        assert.match(taxRow, /standard 1257L allowance — check it in Your Settings/);
+        assert.match(taxRow, /0T and D0 are written with a zero, not the letter O/);
+    });
+
+    test('a recognised code — or a caller that says nothing — adds no line', () => {
+        for (const extra of [{}, { taxCode: '1257L', taxCodeRecognised: true }]) {
+            assert.ok(!/recognises/.test(buildSummaryRows({ ...SUM_BASE, ...extra })), JSON.stringify(extra));
+        }
+    });
+
+    test('each hint fits its slip, and a code is quoted as the payslip prints it', () => {
+        assert.match(taxCodeNotRecognised('1182').row, /ends in a letter, like the L in 1257L/, 'numbers with no letter');
+        assert.match(taxCodeNotRecognised('DO').field, /zero, not the letter O/);
+        assert.ok(!/zero|ends in a letter/.test(taxCodeNotRecognised('500K').row), 'no hint that does not fit');
+        assert.match(taxCodeNotRecognised('OTM1').row, /<strong>OT M1<\/strong>/, 'the emergency suffix is its own word');
+    });
+
+    test('nothing typed into the box reaches the page as markup', () => {
+        const { row, field } = taxCodeNotRecognised('<img src=x onerror=1>');
+        assert.ok(!/<img/.test(row), 'described, never quoted');
+        assert.match(row, /The tax code in Your Settings isn't one the calculator recognises/);
+        assert.ok(!/<img/.test(field));
+    });
+});
+
 // ── buildLoanLines — a loan never shows an unexplained £0 ───────────────────────────────────────
 // Moved out of calculate() whole. These pin each state's words against the REAL loan tables, so a
 // threshold that moves at the next uprating moves the expected figure with it rather than the rule.
@@ -202,15 +260,18 @@ test('buildBreakdownRows: each premium row appears only when its hours > 0', () 
     assert.ok(!html.includes('Bank Holiday Rostered'), 'bhCapped = 0 → no BH row');
 });
 
-test('buildBreakdownRows: training pluralises days; otherAdj shows sign', () => {
+test('buildBreakdownRows: peer training pluralises days; otherAdj shows sign', () => {
+    // "Peer Training", as the Hours row is named (paycalc-3-18) — never "Training Days", the Calendar's
+    // word for a day a member attends training, which needs nothing in the calculator.
     const one = buildBreakdownRows({ ...BD_BASE, peer: 1, gPeer: 42.98 });
-    assert.ok(one.includes('Training Days (1 day × 2h × £21.49)'));
+    assert.ok(one.includes('Peer Training (1 day × 2h × £21.49)'));
     const many = buildBreakdownRows({ ...BD_BASE, peer: 3, gPeer: 128.94 });
-    assert.ok(many.includes('Training Days (3 days × 2h × £21.49)'));
-    // A negative adjustment gets no '+' prefix; fmt() renders the sign after the £ (£-12.50) —
-    // this mirrors the original inline template exactly (byte-identical extraction).
+    assert.ok(many.includes('Peer Training (3 days × 2h × £21.49)'));
+    assert.ok(!many.includes('Training Days'));
+    // A negative adjustment reads "−£12.50", beside the "+£" of a positive one (whole-app review):
+    // it printed "£-12.50", the extraction having copied the old template's sign after the £.
     const neg = buildBreakdownRows({ ...BD_BASE, otherAdj: -12.5 });
-    assert.ok(neg.includes('Other payroll adjustment</span><span class="b-val">£-12.50</span>'));
+    assert.ok(neg.includes('Other payroll adjustment</span><span class="b-val">−£12.50</span>'));
     const pos = buildBreakdownRows({ ...BD_BASE, otherAdj: 12.5 });
     assert.ok(pos.includes('Other payroll adjustment</span><span class="b-val">+£12.50</span>'));
 });
@@ -421,23 +482,31 @@ test('paycalc.css never lets a summary figure wrap or shrink', () => {
 
 // ── buildActualComparison (v22.07) — the estimate-vs-payslip table ─────────────────────────────
 describe('buildActualComparison', () => {
-    const EST = { gross: 3808.87, pension: 151.86, tax: 538.80, ni: 215.48, net: 2907.23 };
+    // `gross` is Taxable Pay — the pay AFTER the pension, as the payslip prints it: 3808.87 − 151.86.
+    const EST = { gross: 3657.01, pension: 151.86, tax: 538.80, ni: 215.48, net: 2902.73 };
 
     test('net alone renders NOTHING — the verdict line owns that case, and a one-row echo of it is noise', () => {
-        assert.equal(buildActualComparison({ actual: { gross: null, pension: null, tax: null, ni: null, net: 2907.23 }, estimate: EST }), '');
+        assert.equal(buildActualComparison({ actual: { gross: null, pension: null, tax: null, ni: null, net: 2902.73 }, estimate: EST }), '');
     });
 
     test('only the lines the member typed render — an absent figure is not a £0 claim', () => {
-        const html = buildActualComparison({ actual: { gross: 3808.87, pension: null, tax: 540.20, ni: null, net: null }, estimate: EST });
-        assert.match(html, /Total pay/);
+        const html = buildActualComparison({ actual: { gross: 3657.01, pension: null, tax: 540.20, ni: null, net: null }, estimate: EST });
         assert.match(html, /Income Tax/);
         assert.ok(!/Pension contribution/.test(html));
         assert.ok(!/National Insurance/.test(html));
         assert.ok(!/Take-home/.test(html));
     });
 
+    test('the pay row carries the payslip\'s own name, Taxable Pay — not the summary\'s Total pay', () => {
+        // The estimate's Total pay row is BEFORE the pension and the payslip's figure is after it, so a
+        // row named "Total pay" invited the one figure the comparison does not hold.
+        const html = buildActualComparison({ actual: { gross: 3657.01, pension: null, tax: null, ni: null, net: null }, estimate: EST });
+        assert.match(html, /<th scope="row">Taxable Pay<\/th>/);
+        assert.doesNotMatch(html, /Total pay/);
+    });
+
     test('the difference is signed actual-minus-estimate, and an exact match reads as a dash', () => {
-        const html = buildActualComparison({ actual: { gross: 3808.87, pension: null, tax: 540.20, ni: 210.48, net: null }, estimate: EST });
+        const html = buildActualComparison({ actual: { gross: 3657.01, pension: null, tax: 540.20, ni: 210.48, net: null }, estimate: EST });
         assert.match(html, /cmp-same">—</);                       // gross matches → dash, muted
         assert.match(html, /cmp-diff">\+£1\.40</);               // payslip tax is MORE
         assert.match(html, /cmp-diff">−£5\.00</);                 // payslip NI is LESS

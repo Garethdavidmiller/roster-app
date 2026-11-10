@@ -15,7 +15,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAttentionItems, ATTENTION_CATALOGUE } from './operations-attention.js';
+import { buildAttentionItems, ATTENTION_CATALOGUE, attentionBadge } from './operations-attention.js';
 
 test('a zero count renders nothing, and an UNREPORTED card is absent — unknown is not clean', () => {
     assert.deepEqual(buildAttentionItems({}), []);
@@ -52,6 +52,33 @@ test('a truncated error backlog says 100+ in BOTH voices, never the capped numbe
     assert.equal(item.badge, '100+');
 });
 
+// A TRUNCATED COUNT IS A FLOOR (Nov 2026 review). The Error Log's cap is shared with slow-save
+// diagnostics, which are listed and never counted, so "100+" stood over two real errors — and over a cap
+// holding none the chip was EMPTY while the strip said "100+". The count is how many errors were seen;
+// the "+" says entries were not loaded, and any of them may be an error.
+test('a truncated count says how many errors were SEEN, with "+" — never "100+" for two', () => {
+    const [two] = buildAttentionItems({ errors: { count: 2, truncated: true } });
+    assert.equal(two.badge, '2+');
+    assert.equal(two.text, 'Unresolved errors: 2+');
+    // None seen, more not loaded: still an item, because absence would read as "nothing to do".
+    const [none] = buildAttentionItems({ errors: { count: 0, truncated: true } });
+    assert.equal(none?.badge, '0+', 'a cap full of diagnostics is not a clean bill');
+});
+
+// The chip on the Error Log's header is spelled by the same function (operations-errors.js), so the
+// two voices are one rule rather than two copies that happen to agree.
+test('attentionBadge: empty only when known clean, a floor whenever entries were hidden', () => {
+    assert.equal(attentionBadge(0), '');
+    assert.equal(attentionBadge(3), '3');
+    assert.equal(attentionBadge(0, true), '0+');
+    assert.equal(attentionBadge(2, true), '2+');
+    assert.equal(attentionBadge(100, true), '100+');
+    for (const [count, truncated] of [[0, false], [3, false], [0, true], [2, true]]) {
+        const [item] = buildAttentionItems({ errors: { count, truncated } });
+        assert.equal(item?.badge ?? '', attentionBadge(count, truncated), `${count}/${truncated}: the strip and the chip disagree`);
+    }
+});
+
 test('the two voices state one fact: the badge is the count the sentence speaks', () => {
     const [item] = buildAttentionItems({ resets: { count: 3 } });
     assert.equal(item.badge, '3');
@@ -78,20 +105,58 @@ test('every catalogue entry carries what a row needs — a half-declared id cann
 });
 
 // ── the DOM half, against a minimal fake document ───────────────────────────────────────────────
-// Enough DOM for render(): createElement with append/textContent/setAttribute, and `hidden`.
+// Enough DOM for render(): createElement with append/insertBefore/remove/textContent/setAttribute,
+// sibling and parent links (render inserts in catalogue order), and `hidden`.
 function fakeDocument() {
     const el = (tag) => ({
-        tag, children: /** @type {any[]} */ ([]), attrs: {}, className: '', hidden: false,
+        tag, children: /** @type {any[]} */ ([]), attrs: {}, className: '', hidden: false, parent: null,
         _text: '',
         set textContent(v) { this._text = v; this.children = []; },
         get textContent() { return this._text + this.children.map(c => typeof c === 'string' ? c : c.textContent).join(''); },
         setAttribute(k, v) { this.attrs[k] = v; },
         getAttribute(k) { return this.attrs[k]; },
-        append(...kids) { this.children.push(...kids); },
+        append(...kids) { for (const k of kids) { if (typeof k === 'object') k.parent = this; this.children.push(k); } },
+        insertBefore(k, ref) {
+            k.parent = this;
+            const at = ref ? this.children.indexOf(ref) : -1;
+            if (at === -1) this.children.push(k); else this.children.splice(at, 0, k);
+        },
+        get firstChild() { return this.children[0] ?? null; },
+        get nextSibling() { const s = this.parent?.children; return s ? (s[s.indexOf(this) + 1] ?? null) : null; },
+        remove() { const s = this.parent?.children; if (s) s.splice(s.indexOf(this), 1); this.parent = null; },
         addEventListener() {},
     });
     return { createElement: el, _el: el };
 }
+
+/** The strip's links, in order, read off the fake tree. @param {any} host */
+const linksOf = (host) => host.children.find((c) => c.tag === 'ul')?.children.map((li) => li.children[0]) ?? [];
+
+// THE STRIP IS UPDATED IN PLACE (Nov 2026 review). Every report wiped and redrew it, and reports keep
+// coming — one on every return to the tab — so a link a keyboard user had tabbed to was destroyed and
+// focus fell to the page. A link must outlive any report that keeps its item, and a new item must be
+// INSERTED where the catalogue puts it, because moving an existing link would drop its focus too.
+test('a report keeps the SAME link for an item it keeps, and inserts a new one in catalogue order', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('./operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    strip.report('resets', 2);
+    strip.report('errors', 1);
+    const [resets, errors] = linksOf(container);
+    strip.report('resets', 3);                                   // the tab came back: a re-report
+    strip.report('accountSetup', 1);                             // a new item, between the two in the catalogue
+    const after = linksOf(container);
+    assert.equal(after[0], resets, 'the resets link was rebuilt — a focused link would have been destroyed');
+    assert.equal(after[2], errors, 'an existing link moved, or was rebuilt, to make room');
+    assert.deepEqual(after.map((a) => a.attrs['aria-label']), ['Password resets: 3 waiting', 'Not set up: 1 member', 'Unresolved errors: 1']);
+    assert.match(resets.textContent, /3/, 'the kept link says the new count');
+    strip.withdraw('accountSetup');
+    assert.deepEqual(linksOf(container), [resets, errors], 'withdrawing one item leaves the others where they are');
+    assert.equal(container.children.filter((c) => c.tag === 'h2').length, 1, 'one heading, however many reports');
+});
 
 test('report(): an unknown id THROWS — a typo cannot report into the void', async (t) => {
     const doc = fakeDocument();

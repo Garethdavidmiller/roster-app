@@ -19,9 +19,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor } from './al-entitlement.js';
-import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
-import { isRestShift } from './override-utils.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote, isWorkingDate } from './al-entitlement.js';
+import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement, getBankHolidays, dispatcherBaseAL } from './roster-data.js';
+import { isRestShift, nextReplacedType, nextLeaveYear, buildOverrideCacheRecord } from './override-utils.js';
+import { rangeWriteDates, swapDecisionDates } from './al-swapped-days.js';
 
 /** A CEA on the main rotation — a real member, so the base roster under each date is real too. */
 const MEMBER = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate);
@@ -538,16 +539,100 @@ describe('a Dispatcher entitlement splits into the two things it is made of', ()
         assert.equal(split.proRated, false);
     });
 
+    test('with no bank holiday worked the lieu part is 0 — the allowance and the split start from ONE base', () => {
+        // Both read `dispatcherBaseAL` (roster-data.js). Each held its own literal 22 until 10 Nov 2026,
+        // and the identity above could not see them drift: the lieu part is derived by subtraction, so
+        // a different base on one side would have moved into "BH lieu" and still added up.
+        for (const m of [disp(), disp({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } })]) {
+            const rested = getBankHolidays(2026).map(day =>
+                ({ memberName: m.name, date: formatISO(day), type: 'correction', value: 'RD', source: 'manual' }));
+            const split = dispatcherBreakdown({ member: m, year: 2026, overrides: rested });
+            assert.equal(split.lieu, 0, 'no bank holiday was worked, so there is no day in lieu');
+            assert.equal(split.base, dispatcherBaseAL(m, 2026));
+        }
+    });
+
     test('and it answers null for anybody it has nothing to say about', () => {
         assert.equal(dispatcherBreakdown({ member: { name: 'C', role: 'CEA' }, year: 2026, overrides: [] }), null);
         assert.equal(dispatcherBreakdown({ member: null, year: 2026, overrides: [] }), null);
         // Management exits at the ROLE check, not the entitlement one — said plainly because the
         // line below looks like it covers both and does not. The `entitlement === null` guard inside
-        // `dispatcherBreakdown` is UNREACHABLE today: every Dispatcher gets a number, and every
-        // other role has already returned. Deleting it leaves this suite green, which is the honest
-        // state of it — kept as a fail-closed guard for the day `getALEntitlement` grows a null path
-        // for a Dispatcher, not claimed as tested.
+        // `dispatcherBreakdown` is reached by a Dispatcher in a year before they joined, and is
+        // tested in 'a year before the member joined has no allowance on record' below.
         assert.equal(dispatcherBreakdown({ member: { name: 'M', role: 'Management' }, year: 2026, overrides: [] }), null);
+    });
+});
+
+// isWorkingDate's override map was documented as required while two callers treat it as optional
+// (projectAlBooking defaults it to null), and without one it threw on any ordinary day (whole-app
+// review, 10 Nov 2026). An absent map now means "no override", as it does for consumesEntitlement.
+describe('isWorkingDate without an override map', () => {
+    test('the base roster decides, rather than a crash', () => {
+        for (const map of [null, undefined]) {
+            assert.equal(isWorkingDate(MEMBER, WORKED[0], map), true);
+            assert.equal(isWorkingDate(MEMBER, RESTED[0], map), false);
+        }
+        assert.equal(isWorkingDate(MEMBER, WORKED[0], new Map([[WORKED[0], { value: 'RD' }]])), false,
+            'a map that is given is still read');
+    });
+});
+
+// ── NO ALLOWANCE FOR A YEAR BEFORE THE MEMBER JOINED (whole-app review, 10 Nov 2026) ────────────
+//
+// Every year before the joining year read the full contract figure with all of it remaining — on the
+// Calendar's leave panel, whose year arrows reach back to MIN_YEAR, and in the January carry-back,
+// which offered a January starter the year before they arrived as somewhere to take leave from. A
+// year before somebody joined is no entitlement on record, and every surface already has a state
+// for that. Asked through the doors the surfaces read, not only `getALEntitlement`.
+describe('a year before the member joined has no allowance on record', () => {
+    const joiner = /** @type {any} */ (teamMembers.find(m => m.name === 'J. Davies'));
+    const TODAY = '2026-11-10';
+
+    test('the premise: a real member who joined during 2026, with a pro-rated first year', () => {
+        assert.ok(joiner?.startDate instanceof Date && joiner.startDate.getFullYear() === 2026);
+        assert.equal(typeof joiner.proRatedAL?.[2026], 'number');
+    });
+
+    test('the leave panel and the banner have no figures for the years before', () => {
+        for (const year of [2024, 2025]) {
+            const pos = alPosition({ overrides: [], member: joiner, year, todayStr: TODAY });
+            assert.equal(pos.entitlement, null, `${year} must not read a full year's allowance`);
+            assert.equal(pos.remaining, null, `${year} must not read all of it remaining`);
+            assert.equal(entitlementNote({ member: joiner, year, overrides: [] }), null);
+        }
+    });
+
+    test('the joining year and the years after are unchanged', () => {
+        assert.equal(entitlementFor(joiner, 2026, []), joiner.proRatedAL[2026]);
+        assert.equal(entitlementFor(joiner, 2027, []), 32);
+    });
+
+    test('a Dispatcher too — the base and the earned days both start with them', () => {
+        const disp = { name: 'D', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1,
+                       startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } };
+        assert.equal(entitlementFor(disp, 2025, []), null);
+        assert.equal(dispatcherBreakdown({ member: disp, year: 2025, overrides: [] }), null,
+            'nothing to split — not a "22 base" caption for a year they were not here');
+        assert.equal(entitlementNote({ member: disp, year: 2025, overrides: [] }), null);
+        assert.equal(dispatcherBreakdown({ member: disp, year: 2026, overrides: [] })?.base, 12);
+    });
+
+    test('the January carry-back offers a January starter nothing from the year before they joined', () => {
+        const jan = { name: 'X. Test', currentWeek: 3, rosterType: 'main', role: 'CEA',
+                      startDate: new Date(2027, 0, 4), proRatedAL: { 2027: 31 } };
+        // Three January days the starter WORKS by the base roster, so each one costs a day.
+        const days = [];
+        for (let d = new Date(2027, 0, 4, 12); days.length < 3; d.setDate(d.getDate() + 1)) {
+            if (d.getDay() !== 0 && !isRestShift(getBaseShift(jan, d))) days.push(formatISO(d));
+        }
+        const overrides = days.map(date => ({ memberName: jan.name, date, type: 'annual_leave', value: 'AL' }));
+        const byDate = new Map(overrides.map(o => [o.date, o]));
+        assert.ok(days.every(date => consumesEntitlement(jan, date, byDate)), 'premise: the days cost a day');
+        assert.deepEqual(leaveYearChoices({ overrides, member: jan, todayStr: '2027-01-10' }), [],
+            '2026 is not a year they had leave in, so it is no place to take January\'s leave from');
+        // The same days for somebody who was here the year before ARE offered — the joining year is why.
+        const earlier = { ...jan, startDate: new Date(2026, 0, 5), proRatedAL: { 2026: 31 } };
+        assert.equal(leaveYearChoices({ overrides, member: earlier, todayStr: '2027-01-10' }).length, 1);
     });
 });
 
@@ -724,5 +809,72 @@ describe('the January days the Admin card offers to move', () => {
     test('a role with no entitlement on record is offered nothing — there is no figure to cap by', () => {
         const mgmt = { ...MEMBER, role: 'Management' };
         assert.deepEqual(leaveYearChoices({ overrides: [{ ...al(JAN[0]), memberName: mgmt.name }], member: mgmt, todayStr: NOV }), []);
+    });
+});
+
+// ── LEAVE OVER REST-DAY WORKING IS FREE, WHATEVER KIND (owner, 10 Nov 2026) ──────────────────────
+//
+// The whole-app review asked: leave booked across a base rest day holding an Other day ("TRG RDW") or
+// a Spare turn was written and CHARGED, while the same booking across a plain RDW was free. The owner:
+// "Free, like plain RDW." Driven through the helpers the range writer (recordRangeOverrides in
+// admin-overrides.js) calls, in its order — rangeWriteDates, nextReplacedType, the cache record it
+// keeps — and then counted by the allowance, so this is the booking path and not one predicate.
+// VAL-AL-001 stands: a recorded swap (`shift`) on the rest day is the one thing that still costs.
+describe('a Mon–Sat booking across a rest day that holds rest-day working', () => {
+    /** MEMBER's first Mon–Sat week from Mon 1 Mar 2027 with exactly ONE base rest day. */
+    const { week, rest } = (() => {
+        for (let i = 0; i < 30; i++) {
+            const days = [...Array(6)].map((_, k) => formatISO(new Date(2027, 2, 1 + 7 * i + k, 12)));
+            const rests = days.filter(day => isRestShift(getBaseShift(MEMBER, parseISODate(day))));
+            if (rests.length === 1) return { week: days, rest: rests[0] };
+        }
+        return { week: [], rest: '' };
+    })();
+    /** What the member's day holds before the booking. */
+    const on = (/** @type {string} */ date, /** @type {string} */ type, /** @type {string} */ value) =>
+        [{ memberName: MEMBER.name, date, type, value, source: 'manual', createdAt: new Date(2027, 0, 1) }];
+    /** Book Mon–Sat over `held` as recordRangeOverrides does, then count 2027's allowance. */
+    const book = (/** @type {any[]} */ held) => {
+        const ovByDate = new Map(held.map(o => [o.date, o]));
+        const written = rangeWriteDates({ type: 'annual_leave', dates: week, memberObj: MEMBER, ovByDate });
+        const after = held.filter(o => !written.includes(o.date));
+        for (const date of written) {
+            const existing = ovByDate.get(date);
+            after.push(buildOverrideCacheRecord(`m_${date}`, {
+                memberName: MEMBER.name, date, type: 'annual_leave', value: 'AL', source: 'manual',
+                replacedType: nextReplacedType(existing, 'annual_leave'), leaveYear: nextLeaveYear(existing, 'annual_leave', date),
+            }, new Date(2027, 1, 1)));
+        }
+        return { written, asked: swapDecisionDates({ dates: week, memberObj: MEMBER, ovByDate }),
+                 counted: countedAlDates({ overrides: after, member: MEMBER, year: 2027 }) };
+    };
+
+    test('the premise: a Monday-to-Saturday week with one base rest day and five rostered days', () => {
+        assert.equal(week.length, 6, 'no such week found in thirty — the fixture search has stopped working');
+        assert.equal(parseISODate(week[0]).getDay(), 1);
+        assert.equal(week.filter(d => !isRestShift(getBaseShift(MEMBER, parseISODate(d)))).length, 5);
+    });
+
+    for (const [type, value] of [['rdw', '09:00-17:00'], ['other', 'TRG RDW'], ['other', 'MEET RDW 10:00-14:00'], ['spare_shift', 'SPARE']]) {
+        test(`${value} on the rest day: never asked, written, and not charged — the five rostered days only`, () => {
+            const { written, asked, counted } = book(on(rest, type, value));
+            assert.deepEqual(asked, [], 'the record settles the day, as RDW does');
+            assert.ok(written.includes(rest), 'the leave is written over it, as over RDW');
+            assert.equal(counted.has(rest), false, `leave over ${value} on a rest day must not cost a day`);
+            assert.equal(counted.size, 5);
+        });
+    }
+
+    test('a recorded swap (`shift`) on the rest day still costs a day — VAL-AL-001 is unchanged', () => {
+        const { counted } = book(on(rest, 'shift', '09:00-17:00'));
+        assert.equal(counted.has(rest), true);
+        assert.equal(counted.size, 6);
+    });
+
+    test('on a ROSTERED day an Other day or a Spare turn still costs a day', () => {
+        const worked = /** @type {string} */ (week.find(d => d !== rest));
+        for (const [type, value] of [['other', 'TRG'], ['spare_shift', 'SPARE']]) {
+            assert.equal(book(on(worked, type, value)).counted.has(worked), true, `${type} on a rostered day`);
+        }
     });
 });

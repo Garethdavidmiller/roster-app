@@ -26,10 +26,13 @@
  * the day was filed under a year they had no reason to open. Leave is counted, capped and asked
  * about PER YEAR; the list has to be cut the way the question is asked.
  *
- * The consequence worth stating: each year's list now adds up to exactly the dates the AL banner
- * counts for that year, because both cut on the DATE. There is still no total printed here —
- * the banner directly above owns the figures and this owns the dates, one fact one home — but the
- * two can no longer disagree, which the start-year rule could not promise.
+ * The consequence worth stating: each year's list holds the dates of that year the AL banner counts.
+ * There is still no total printed here — the banner directly above owns the figures and this owns
+ * the dates, one fact one home. ONE KIND OF DAY IS FILED APART FROM ITS ALLOWANCE (v25.18): a
+ * January day moved to the previous year's allowance (leave-year.js) stays under its own date's
+ * year, as the Calendar shows it, while the banner counts it the year before. So the two can differ
+ * by exactly the moved days, and each says so — the row holding one names the year it comes out
+ * of, and that year's list ends with a line naming the days it lends.
  *
  * ── WHAT THE PURE HALF IS FOR ───────────────────────────────────────────────────────────────────
  *
@@ -38,7 +41,90 @@
  * recorded" — the same false statement v23.08 fixed one layer up, arrived at from a different
  * direction. `pickBookedYear` may therefore only ever return a year that is IN the list it was
  * handed, or null when the list is empty.
+ *
+ * ── THE TWO CONTROLS A DELETING LIST NEEDS, SHARED ──────────────────────────────────────────────
+ *
+ * The two-tap ✕ (`armConfirm` / `disarmConfirm`) and the feedback line's fade (`fadeFeedback` /
+ * `holdFeedback`) are exported because Saved Changes deletes the same records another way, and the
+ * range cards write the same feedback line this list's deletes report on. There was a second copy
+ * of the two-tap in Saved Changes, and only that copy had been fixed: this one left its five-second
+ * disarm timer running, so it could disarm a re-armed ✕ early or put "✕" back over a slow delete's
+ * "…" (whole-app check, 10 Nov 2026). One copy cannot drift.
  */
+
+import { carriedFrom } from './leave-year.js';
+
+/**
+ * Arm a two-tap destructive control: its label, class and accessible name change together. A
+ * DESTRUCTIVE TWO-STEP CONTROL MUST SAY ITS MEANING CHANGED (v23.16, external review), so the name
+ * becomes "Confirm …"; the idle name is kept on the element, so any exit — the timer, a failure,
+ * success — can restore it, and a re-arm while armed never reads "Confirm confirm …". It disarms
+ * itself after five seconds — but never while it is `disabled`, which is how both delete paths mark
+ * a delete in flight.
+ *
+ * The countdown is ONE per control, so a re-arm gets its own five seconds, and it lives ON the
+ * control as `armTimer`, where the Saved Changes copy kept it: e2e/axe.spec.js clears it to hold
+ * a confirm open for the length of its scan.
+ * @param {HTMLElement} btn
+ * @param {string} armedText what the armed control SHOWS
+ * @param {string} idleText what it shows again once disarmed
+ * @param {string} [armedName] the armed accessible name, where "Confirm " + the idle one would not
+ *   contain what the control shows — the bulk button's count, said by a voice user as "Delete 3"
+ *   (WCAG 2.5.3; 6 Nov 2026)
+ */
+export function armConfirm(btn, armedText, idleText, armedName) {
+    btn.classList.add('confirming');
+    btn.textContent = armedText;
+    const idle = btn.dataset.idleLabel || btn.getAttribute('aria-label');
+    if (idle) {
+        btn.dataset.idleLabel = idle;
+        btn.setAttribute('aria-label', armedName ?? `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
+    }
+    const b = /** @type {any} */ (btn);
+    clearTimeout(b.armTimer);
+    b.armTimer = setTimeout(() => {
+        if (btn.classList.contains('confirming') && !b.disabled) disarmConfirm(btn, idleText);
+    }, 5000);
+}
+
+/**
+ * The armed control back to idle — label, class and accessible name together, so no exit can
+ * restore two of the three — and its countdown stopped.
+ * @param {HTMLElement} btn @param {string} idleText
+ */
+export function disarmConfirm(btn, idleText) {
+    const b = /** @type {any} */ (btn);
+    clearTimeout(b.armTimer);
+    b.armTimer = undefined;
+    btn.classList.remove('confirming');
+    btn.textContent = idleText;
+    if (btn.dataset.idleLabel) btn.setAttribute('aria-label', btn.dataset.idleLabel);
+}
+
+/** Each feedback line's pending fade. ONE per line, cancelled by every later write to it. */
+const _fades = new WeakMap();
+
+/**
+ * Stop a feedback line's pending fade. Every writer of a shared line calls this before it writes:
+ * a fade started for an earlier message took a later one down — an error three seconds after a
+ * delete, or a receipt meant never to time out (whole-app check, 10 Nov 2026).
+ * @param {Element|null|undefined} el
+ */
+export function holdFeedback(el) {
+    if (!el) return;
+    clearTimeout(_fades.get(el));
+    _fades.delete(el);
+}
+
+/**
+ * Fade a feedback line back to `idleClass` after `ms`, replacing any fade already pending on it.
+ * @param {Element|null|undefined} el @param {string} idleClass @param {number} ms
+ */
+export function fadeFeedback(el, idleClass, ms) {
+    if (!el) return;
+    holdFeedback(el);
+    _fades.set(el, setTimeout(() => { _fades.delete(el); el.className = idleClass; }, ms));
+}
 
 /**
  * Split merged booking periods at every year end, so no segment crosses 31 Dec → 1 Jan.
@@ -125,8 +211,8 @@ export function pickBookedYear({ pinned, preferred, years }) {
 
 
 /**
- * Build the renderer. Every handle it needs is INJECTED — this module imports nothing, which is
- * what lets the two pure functions above be tested in Node with no DOM and no Firebase.
+ * Build the renderer. Every handle it needs is INJECTED — this module imports only leave-year.js,
+ * which imports nothing — so the whole of it is tested in Node with no DOM and no Firebase.
  *
  * @param {{
  *   doc: Document,
@@ -227,6 +313,27 @@ export function createBookedPeriods(deps) {
         const periods = dateList.length ? deps.mergePeriods(dateList,
             d => deps.isRestGap(d, memberObj), d => deps.addDays(d, 1)) : [];
 
+        // A ROW'S ✕ ALSO TAKES THE UNCOUNTED LEAVE AT ITS EDGES (whole-app check, 10 Nov 2026). Leave
+        // on a rest day costs nothing, so it is not listed — and the ✕ deletes from its first listed
+        // date to its last, which removes such a day INSIDE a period but left one at either END: a
+        // pre-v23.88 week-grid booking of Mon–Thu plus the Friday and Saturday rest days deleted as
+        // "4 AL days" and kept 🏖️ on the Friday and Saturday, with no row left to remove them from.
+        // The reach walks out through rest days only, and stops at a Sunday and at the year end, so a
+        // delete never widens past the week or the year its row is in.
+        const counted   = new Set(dateList);
+        const uncounted = new Set(entries.map(e => e.date).filter(d => !counted.has(d)));
+        const reach = (/** @param {string} edge @param {number} dir */ (edge, dir) => {
+            let out = edge;
+            for (let d = deps.addDays(edge, dir), i = 0; i < 6 && d.slice(0, 4) === edge.slice(0, 4)
+                && !deps.isSunday(d) && deps.isRestGap(d, memberObj); d = deps.addDays(d, dir), i++) {
+                if (uncounted.has(d)) out = d;
+            }
+            return out;
+        });
+        /** Which counted dates come out of ANOTHER year's allowance — a January day moved back (v25.18). */
+        const winnerOn = new Map(entries.map(e => [e.date, e]));
+        const movedTo  = (/** @type {string} */ d) => carriedFrom(winnerOn.get(d), d);
+
         // Cut at every year end FIRST, so a 28 Dec → 1 Jan booking puts its January day under
         // January's year — the owner's decision at v23.11, argued in the header.
         const segments = splitAtYearEnd(periods, dateList);
@@ -315,26 +422,31 @@ export function createBookedPeriods(deps) {
             // NAMED BY WHAT IT DELETES. Fifteen buttons all called "Delete" are fifteen
             // identical announcements with nothing to choose between them, and the glyph alone
             // has no name at all.
-            const idle = () => {
-                btn.classList.remove('confirming');
-                btn.textContent = '✕';
-                btn.setAttribute('aria-label', `Delete ${what}`);
-            };
-            idle();
+            btn.textContent = '✕';
+            btn.setAttribute('aria-label', `Delete ${what}`);
             btn.addEventListener('click', () => {
-                if (!btn.classList.contains('confirming')) {
-                    btn.classList.add('confirming');
-                    btn.textContent = 'Confirm?';
-                    btn.setAttribute('aria-label', `Confirm delete ${what}`);
-                    setTimeout(() => { if (btn.classList.contains('confirming')) idle(); }, 5000);
-                    return;
-                }
+                if (!btn.classList.contains('confirming')) { armConfirm(btn, 'Confirm?', '✕'); return; }
+                // FOCUS IS HANDED ON, NOT DROPPED (whole-app check, 10 Nov 2026). A delete that lands
+                // re-renders the list and destroys this control — and a focused element that is
+                // removed hands focus to <body>, so a keyboard user's next Tab began at the burger.
+                const hadFocus = deps.doc.activeElement === btn;
+                const pos = [...body.querySelectorAll('.btn-period-delete')].indexOf(btn);
                 // Whatever the delete does — succeeds, is refused, throws — the control comes
                 // back to idle. On success the box has already re-rendered and this node is
                 // detached, which is harmless; on every other path it is the node on screen.
                 Promise.resolve(deps.onDelete(type, memberName, start, end, feedbackEl, btn, count))
                     .catch(() => {})
-                    .finally(idle);
+                    .finally(() => {
+                        disarmConfirm(btn, '✕');
+                        if (!hadFocus) return;
+                        // Still here (refused, or failed): back to this ✕. Gone: the ✕ now in its
+                        // place, the year chip, or — the list emptied and hid — the line saying why.
+                        if (!box.hidden && body.contains(btn)) { btn.focus(); return; }
+                        const left = box.hidden ? [] : [...body.querySelectorAll('.btn-period-delete')];
+                        /** @type {any} */ (left[Math.min(pos, left.length - 1)]
+                            ?? (box.hidden ? null : body.querySelector('.al-year-chip.is-active'))
+                            ?? deps.doc.getElementById(feedbackId))?.focus();
+                    });
             });
             return btn;
         };
@@ -418,6 +530,15 @@ export function createBookedPeriods(deps) {
                     if (!isHead) mark('before', '←', `continued from ${deps.fmtDate(p.splitFrom)} ${p.splitFrom.slice(0, 4)}`);
                     if (!isTail) mark('after',  '→', `continues to ${deps.fmtDate(p.splitTo)} ${p.splitTo.slice(0, 4)}`);
                 }
+                // A January day moved to the previous year's allowance is listed here, under its
+                // own date, and counted on the banner the year before — so the row says so (header).
+                const moved = dateList.filter(d => d >= p.start && d <= p.end && movedTo(d) !== null);
+                if (moved.length) {
+                    const note = deps.doc.createElement('span');
+                    note.className = 'al-period-note';
+                    note.textContent = `${moved.length === 1 ? '1 day' : `${moved.length} days`} from ${movedTo(moved[0])}’s allowance`;
+                    dates.appendChild(note);
+                }
                 row.appendChild(dates);
 
                 const count = deps.doc.createElement('span');
@@ -425,11 +546,20 @@ export function createBookedPeriods(deps) {
                 count.textContent = countFn(p.count);
                 row.appendChild(count);
 
-                row.appendChild(deleteButton(dateStr, p.start, p.end, p.count));
+                row.appendChild(deleteButton(dateStr, reach(p.start, -1), reach(p.end, 1), p.count));
                 monthDiv.appendChild(row);
             }
             if (xmasPending) monthDiv.appendChild(christmasRow());
             body.appendChild(monthDiv);
+        }
+        // …and the year those days come out of names them, since its own list cannot show them.
+        const next = String(Number(year) + 1);
+        const lent = dateList.filter(d => d.startsWith(`${next}-01-`) && movedTo(d) === Number(year)).length;
+        if (lent) {
+            const foot = deps.doc.createElement('p');
+            foot.className = 'ly-note';
+            foot.textContent = `Also from ${year}’s allowance: ${lent === 1 ? '1 day' : `${lent} days`} in January ${next}, listed under ${next}.`;
+            body.appendChild(foot);
         }
         if (refocusChip) /** @type {any} */ (bar.querySelector('.al-year-chip.is-active'))?.focus();
         /** @type {any} */ (box).hidden = false;

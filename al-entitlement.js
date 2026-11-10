@@ -60,7 +60,7 @@
  * pure, which is what lets the boundary (a day that is today) be tested at all.
  */
 
-import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { getALEntitlement, dispatcherBaseAL, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
 import { isChristmasClosureDate, boxingDayLieuDays } from './christmas-leave.js';
@@ -117,6 +117,7 @@ export function consumesEntitlement(member, date, ovByDate = null) {
 
     // The day is (or is about to be) AL-overridden, so the question is what is UNDERNEATH it.
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
+    const base = getBaseShift(member, parseISODate(date));
     // An AL doc has already replaced whatever it covered, so `replacedType` is the only surviving
     // record of it — and so has an ABSENCE carrying a chain, whose `replacedType` the leave written
     // over it will inherit (review A2); any other override IS the thing underneath and answers directly.
@@ -124,14 +125,16 @@ export function consumesEntitlement(member, date, ovByDate = null) {
     // and it is not needed — every type whose value could matter has that value pinned by the
     // rules (`correction` is always 'RD'), which is why isContractedWorkOverride classifies
     // `correction` by type (v21.56 — the first cut read a `replacedValue` nothing ever wrote).
-    const contracted = isContractedWorkOverride(contractEvidence(ov));
+    // The BASE goes in too: an Other day or a Spare turn on a base rest day is rest-day working, and
+    // leave over it is free, like leave over RDW (owner, 10 Nov 2026 — isContractedWorkOverride).
+    const contracted = isContractedWorkOverride(contractEvidence(ov), base);
     if (contracted !== null) return contracted;
 
     // No override information — the base roster decides, which is what this function did for every
     // date before v21.55 and still does for every AL written before it. This also settles leave
     // dated before the member joined: `getBaseShift` returns 'RD' for every such date, so no
     // separate start-date test belongs here (see the header).
-    return !isRestShift(getBaseShift(member, parseISODate(date)));
+    return !isRestShift(base);
 }
 
 /**
@@ -291,13 +294,12 @@ export function dispatcherBreakdown({ member, year, overrides }) {
     if (!member || member.role !== 'Dispatcher') return null;
     const y = parseInt(String(year), 10);
     const entitlement = entitlementFor(member, y, overrides);
-    // Unreachable today — every Dispatcher gets a number and every other role returned above —
-    // so removing it leaves the tests green. Kept fail-closed rather than deleted, and said
-    // here rather than covered by a test that would only be pretending.
+    // A year before the Dispatcher joined has no entitlement on record (getALEntitlement), so there
+    // is nothing to split — without this, `entitlement - base` would invent a lieu count from null.
     if (entitlement === null) return null;
 
     const proRated = member.proRatedAL?.[y] !== undefined;
-    const base = proRated ? member.proRatedAL[y] : 22;
+    const base = dispatcherBaseAL(member, y);   // the figure getALEntitlement starts from — one formula
     // A BOXING DAY IN LIEU IS NOT A BANK-HOLIDAY DAY (v25.37) — in 2026 Boxing Day is a Saturday and
     // no bank holiday at all — so it is reported on its own and kept out of `lieu`, which the caption
     // labels "BH lieu". `base + lieu + boxingDay === entitlement` is what the test pins.
@@ -377,12 +379,13 @@ export function winningEntriesOfType(overrides, memberName, type) {
  * Consolidating onto this (the save/write rule) fixes that drift.
  * @param {any} memberObj  teamMembers entry
  * @param {string} dateStr  YYYY-MM-DD
- * @param {Map<string, any>} ovByDate  from buildMemberDateMap
+ * @param {Map<string, any>|null} [ovByDate]  from buildMemberDateMap. Omit only where there are none to
+ *        hand — like `consumesEntitlement`'s, an absent map means "no override", never a crash.
  * @returns {boolean}
  */
-export function isWorkingDate(memberObj, dateStr, ovByDate) {
+export function isWorkingDate(memberObj, dateStr, ovByDate = null) {
     if (isSunday(dateStr)) return false;
-    const ov = ovByDate.get(dateStr);
+    const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(dateStr) : null;
     if (ov) return !isRestShift(ov.value);
     return !isRestShift(getBaseShift(memberObj, parseISODate(dateStr)));
 }

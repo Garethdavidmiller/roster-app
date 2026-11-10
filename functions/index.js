@@ -42,7 +42,8 @@ const {
 const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
 const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, reviewRestReadsOfEmptyCells, DAY_LABELS: CELL_DAY_LABELS,
-    MODEL_REQUEST, DECLINED_ERROR } = require('./roster-prompt');
+    MODEL_REQUEST, DECLINED_ERROR, repeatedMembers } = require('./roster-prompt');
+const { checkSheetWeek } = require('./roster-week-heading');
 const {
     CALENDAR_VIEWER_UID,
     isValidPinShape,
@@ -232,7 +233,7 @@ Object.assign(exports, buildDocumentEndpoints({
  *     weekEnding:  "2026-04-04",
  *     rosterType:  "cea",
  *     dates:       ["2026-03-29", ..., "2026-04-04"],   // Sun → Sat
- *     crossCheck, missingMembers, choices, geometry, geometryRefused,   // the review's evidence — each explained where it is sent
+ *     crossCheck, missingMembers, duplicateMembers, choices, geometry, geometryRefused,   // the review's evidence — each explained where it is sent
  *     parsed: [
  *       { memberName: "L. Springer", shifts: { "2026-03-29": "RD", "2026-03-30": "05:30-11:30", ... } },
  *       ...
@@ -496,6 +497,18 @@ columnScan: one key per column header; every staff member appears in every colum
             console.log(`[parseRosterPDF] geometry cannot place every ${rosterType} row (${cellTable.reason}; ${cellTable.unmatched.length} unmatched) — reading the PDF as before`);
         }
 
+        // ---- The sheet's own week, from its printed heading: no model involved (roster-week-heading.js) ----
+        // A whole week out is the one misplacement the day-drift layers cannot see. Refused here, before
+        // the model is called (or below, if the wait gave up first); a sheet whose heading cannot be
+        // read goes on as before, and is logged. Either way, nothing has been written.
+        const refusedForWeek = geo => {
+            const check = checkSheetWeek(geo, weekEnding);
+            console[check.status === 'match' ? 'log' : 'warn'](`[parseRosterPDF] ${check.note}`);
+            if (check.status === 'mismatch') res.status(409).json({ error: check.message, sheetWeekEnding: check.sheetWeek });
+            return check.status === 'mismatch';
+        };
+        if (refusedForWeek(geometryEarly)) return;
+
         // ---- Call Claude AI ----
         // On the PDF path we pass the document itself so Claude reads the actual visual layout of
         // the roster table, preserving column structure — far more reliable than extracting text
@@ -702,6 +715,8 @@ columnScan: one key per column header; every staff member appears in every colum
         // cheap, and a refusal there would mean the two halves disagree, which is worth hearing
         // about rather than assuming away.
         const geometry = await settledGeometry(geometryEarly, geometryPromise);
+        // An early wait that gave up read no heading either, so the sheet's week is asked again too.
+        if (geometry !== geometryEarly && refusedForWeek(geometry)) return;
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
         settleDisputedSundays(safeEntries, disputedSundays, geoStats, dates, sundayScan);
         if (geoStats.status !== 'complete') {
@@ -763,6 +778,8 @@ columnScan: one key per column header; every staff member appears in every colum
             dates,
             crossCheck,
             missingMembers,
+            // …and each one the model listed MORE THAN ONCE: one row stood, and the rest were skipped.
+            duplicateMembers: repeatedMembers(parsed.parsed, relevantNames),
             // The two candidate values for each cell the cross-check flagged (v19.32) — lets the
             // review table offer a pick instead of a dead "couldn't read" row. Keyed
             // "memberName|date"; keys for names filtered out above are harmless (never looked up).

@@ -75,7 +75,7 @@ import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.
 import { initLockCards, resetUnlockFailures, hideLockPanel, showLockPanel, showSignInPanel,
-         showMemberPanel, PIN_FIRST_HASH } from './calendar-lock-cards.js';
+         showMemberPanel, dismissSignInForm, PIN_FIRST_HASH } from './calendar-lock-cards.js';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
 const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer';
@@ -85,11 +85,10 @@ const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCal
  *  on a working network is the more annoying of the two errors. */
 const UNLOCK_TIMEOUT_MS = 15000;
 
-/** The whole access decision's deadline — NOT a per-step one (v21.29). Everything `resolveAccess`
- *  waits for shares this budget, so a wedged auth layer costs it once rather than once per step.
- *  Past it the answer is `none`, which shows the unlock card, which is recoverable — and the
- *  late-identity watcher then corrects it the moment a real identity turns up. */
-// ACCESS_DECISION_BUDGET_MS is session.js's since v24.96 — one constant for this decision and holdsStaffPin's.
+// ACCESS_DECISION_BUDGET_MS — session.js's since v24.96, one constant for this decision and
+// holdsStaffPin's — is the WHOLE decision's deadline, not a per-step one (v21.29): everything
+// `resolveAccess` waits for shares it, so a wedged auth layer costs it once. Past it the answer is
+// `none`, a card, which is recoverable — and the late-identity watcher corrects it when an identity lands.
 
 /** @type {'named'|'viewer'|'none'} */
 let _accessType = 'none';
@@ -210,6 +209,13 @@ async function resolveAccess() {
  *
  * Deliberately NOT time-limited. There is no instant after which a member's own restored identity
  * should stop being honoured, and the listener costs one closure.
+ *
+ * A STAFF-PIN SESSION THAT RESTORES LATE IS HONOURED TOO (cal-data-10, 10 Nov 2026) — a station PC
+ * reloading on a bad connection was shown the sign-in card for good, although the browser held a
+ * valid PIN session the boot decision would have granted. It is granted as what `decideAccess` says
+ * it is, the viewer, never as a member — and only once its token is seen to carry the claim, the
+ * check the unlock itself makes; and never during the PIN card's own exchange, which checks the
+ * claim and grants for itself (`_unlocking`).
  */
 function watchForLateNamedIdentity() {
     let off = /** @type {null | (() => void)} */ (null);
@@ -219,13 +225,37 @@ function watchForLateNamedIdentity() {
             // Only ever UPGRADES, and only from locked. A grant that already happened owns the
             // page; re-granting would run the workspace hooks a second time.
             if (_accessType !== 'none') { stop(); return; }
-            if (decideAccess({ session: getSession(), firebaseUser: u }) !== 'named') return;
+            const late = decideAccess({ session: getSession(), firebaseUser: u });
+            if (late === 'viewer') { grantLateViewer(u, stop); return; }
+            if (late !== 'named') return;
             stop();
             console.warn('[CalendarAccess] a named identity restored after the access decision — granting.');
             grant('named');
         }, () => stop());
     } catch { /* an auth layer that cannot be watched simply leaves the panel up */ }
     return stop;
+}
+
+/** True while the PIN card's exchange is signing in. It checks the claim and grants for itself, so a
+ *  late viewer granted meanwhile — the exchange's own sign-in, or a restored session it is part-way
+ *  through signing out — would be granted twice. */
+let _unlocking = false;
+
+/**
+ * Grant a staff-PIN session that restored after the decision — see `watchForLateNamedIdentity`.
+ * Asked again after the token read, because the page may have moved on while it was out.
+ * @param {any} u the restored viewer @param {() => void} stop the watcher's own stop
+ */
+async function grantLateViewer(u, stop) {
+    /** @type {any} */ let claims;
+    try { claims = (await u.getIdTokenResult())?.claims; } catch { return; }
+    if (claims?.[CALENDAR_VIEWER_CLAIM] !== true) return;
+    // Granted meanwhile, or signed out by an exchange — or an exchange is still signing it out: the
+    // SDK clears `currentUser` only when its own queue runs, so that one still reads as `u` here.
+    if (_unlocking || _accessType !== 'none' || auth.currentUser !== u) return;
+    stop();
+    console.warn('[CalendarAccess] a viewer session restored after the access decision — granting.');
+    grant('viewer');
 }
 
 /** Commit an access decision exactly once, and let the Calendar start. */
@@ -239,6 +269,7 @@ function grant(/** @type {'named'|'viewer'} */ type) {
     document.body.classList.remove('calendar-locked');
     document.body.classList.add('calendar-unlocked');
     hideLockPanel();
+    dismissSignInForm();   // the come-back card's full-screen form is not in the slot (cal-data-9)
     setWorkspaceHidden(false);
     // TWO hooks, because a grant is two different things (v20.41). Building the workspace must happen
     // ONCE — running it twice would re-wire the swipe handler and re-launch the initial fetch. But
@@ -318,6 +349,10 @@ export async function unlockWithPin(pin) {
         return { ok: false, kind: f.kind, message: f.message };
     }
 
+    // A staff-PIN session restored late and was granted while this exchange was out (cal-data-10):
+    // there is nothing left to unlock, and signing it out to sign in again would rebuild a working gate.
+    if (_accessType !== 'none') return { ok: true };
+    _unlocking = true;   // this exchange grants for itself, after its claim check — see `grantLateViewer`
     try {
         // ── The persistence switch, in the one order that is safe ───────────────────────────────
         // Sign out anything already here FIRST. `setPersistence` migrates the CURRENT user into the
@@ -367,6 +402,8 @@ export async function unlockWithPin(pin) {
         try { await signOut(auth); } catch { /* noop */ }
         const f = classifyUnlockFailure({ code: /** @type {any} */ (e)?.code || 'auth-failed' });
         return { ok: false, kind: f.kind, message: f.message };
+    } finally {
+        _unlocking = false;
     }
 }
 
@@ -421,9 +458,11 @@ function setWorkspaceHidden(hidden) {
         if (!el) continue;
         // The `hidden` ATTRIBUTE, not a CSS class or opacity: it removes the element from the
         // accessibility tree as well as the page, so a screen reader cannot read out a Calendar the
-        // eye cannot see. There is nothing inside these nodes to hide while locked — the Calendar is
-        // never initialised — but a gate whose correctness depends on something else being empty is
-        // one refactor away from not being a gate.
+        // eye cannot see. But only where the stylesheet lets it: a `display` of the element's own
+        // outranks the attribute, so each element here needs a `[hidden]` rule beside that `display`
+        // (cal-docs-11 found the two prompt strips without one). And it is load-bearing: before the
+        // first grant these nodes are empty, but a re-lock (`handleAccessLost`) does not reload, so
+        // after one they hold the roster the grant drew.
         if (hidden) el.setAttribute('hidden', '');
         else el.removeAttribute('hidden');
     }

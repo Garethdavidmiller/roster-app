@@ -8,7 +8,7 @@
 // Two runs, differing in ONE step:
 //   control: unlock → close browser            → expect NO user on reopen (session-only held)
 //   test:    unlock → RELOAD (app boot) → close → user on reopen = the migration happened
-import { chromium } from '/home/user/roster-app/node_modules/@playwright/test/index.mjs';
+import { chromium } from '@playwright/test';   // the repository's install, from any checkout
 import { rmSync } from 'node:fs';
 
 const PROFILE = '/tmp/viewer-proof-profile';

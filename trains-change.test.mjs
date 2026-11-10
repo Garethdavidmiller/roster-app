@@ -12,7 +12,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, trainsNear, parseTypedTime, daysUntil, changeLabel,
-    daysLabel, routeName, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, lineDepth, timetablePhase, dateWords, railwayToday } from './trains-change.js';
+    daysLabel, routeName, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, lineDepth, timetablePhase, dateWords, railwayToday, holidaysWithin } from './trains-change.js';
 import { stoppingGrid, aRealDay, callsOf } from './trains-stations.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 
@@ -395,7 +395,58 @@ describe('the Trains tips hold on both sides of the change', () => {
         const all = Object.values(CARD_TIPS).flatMap(c => c.sections.flatMap(s => s.items.map(i => i.html)));
         assert.ok(all.length > 10, 'the panels were read');
         for (const html of all) {
-            assert.doesNotMatch(html, /can still change|says it will|today beside|today['’]s .*timetable|starts on/i, html);
+            // A bare "today's" (whole-app fix, Nov 2026): "today's .*timetable" let "A few of today's weekday
+            // trains run only on Mondays and Fridays" through, which from 13 December described a timetable
+            // that had stopped. The columns are named instead.
+            assert.doesNotMatch(html, /can still change|says it will|today beside|today['’]s|starts on/i, html);
         }
+    });
+
+    // The Stations panel explained the chips as "No longer stops here" and "Will stop here" — one of each
+    // tense, so before the change one name was not on the cards and after it the other was not. The chips
+    // are `changeLabel`'s, so the panel is held to what it writes on both sides.
+    test('the Stations panel quotes each chip for a stop gained or lost in both of its tenses', async () => {
+        const { CARD_TIPS } = await import('./trains-tips.js');
+        const stations = CARD_TIPS.stations.sections.flatMap(s => s.items.map(i => i.html)).join(' ');
+        for (const kind of /** @type {const} */ (['passes', 'calls'])) for (const started of [false, true]) {
+            const chip = changeLabel({ now: '10:00', dec: '10:00', kind, shift: 0, days: '' }, STATIONS, 'dep', { started });
+            assert.ok(stations.includes(`<strong>${chip}</strong>`), `"${chip}" (${kind}, ${started ? 'after' : 'before'} the change) is not in the panel`);
+        }
+    });
+
+    // "…or only on Wednesdays" was said of trains neither timetable has (whole-app review, Nov 2026). Each
+    // kind of weekday a tip says trains run on must be a day exception some row of the tables carries.
+    test('every weekday exception a tip names is one the timetables have', async () => {
+        const { CARD_TIPS } = await import('./trains-tips.js');
+        const all = Object.values(CARD_TIPS).flatMap(c => c.sections.flatMap(s => s.items.map(i => i.html))).join(' ');
+        const held = new Set(Object.values(TIMETABLES).flatMap(t => [...t.SX.dep, ...t.SX.arr].map(r => r[3])));
+        const NAMES = /** @type {const} */ ([[/Mondays and Fridays/, 'MFO'], [/Tuesday to Thursday/, 'MFX'], [/Wednesdays/, 'WO']]);
+        for (const [words, code] of NAMES) if (words.test(all)) assert.ok(held.has(code), `a tip names ${words} trains, and no row is ${code}`);
+        assert.ok(NAMES.some(([words]) => words.test(all)), 'the panels still name the exceptions the tables have');
+    });
+
+    test('the changes panel opens with the title its view goes by before the change', async () => {
+        const { CARD_TIPS } = await import('./trains-tips.js');
+        const { changesTitle } = await import('./trains-render.js');
+        assert.equal(CARD_TIPS.changes.title, `🔔 ${changesTitle(false)}`);
+        assert.notEqual(changesTitle(true), changesTitle(false), 'and the view has another name from the change');
+    });
+});
+
+// The note for the weeks of Chiltern's further changes named Christmas in typed words (whole-app fix,
+// Nov 2026); the next books would move the dates and leave it saying Christmas in May.
+describe('holidaysWithin — the holidays the further-changes note may name', () => {
+    test('the real window holds both, as Chiltern said it does', () => {
+        assert.equal(holidaysWithin(CHANGE_DATE, FURTHER_CHANGES_UNTIL), 'Christmas and New Year');
+    });
+    test('a window names only the holidays inside it, either side of the year', () => {
+        assert.equal(holidaysWithin('2026-12-13', '2026-12-28'), 'Christmas');
+        assert.equal(holidaysWithin('2026-12-27', '2027-01-10'), 'New Year');
+        assert.equal(holidaysWithin('2027-01-01', '2027-01-10'), 'New Year', 'a window that starts on New Year’s Day');
+        assert.equal(holidaysWithin('2026-12-25', '2026-12-25'), 'Christmas', 'both ends count');
+    });
+    test('a window in the spring names none', () => {
+        assert.equal(holidaysWithin('2027-05-16', '2027-06-13'), '');
+        assert.equal(holidaysWithin('2027-01-02', '2027-12-24'), '', 'nearly a year, and still neither');
     });
 });

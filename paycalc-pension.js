@@ -159,12 +159,21 @@ export function withPensionChange(timeline, pNum, out) {
  * A spell that has already ENDED is left alone — the timeline's final state being "contributing"
  * means this is a NEW spell, not a correction to the last one.
  *
+ * And so a start at or before the REJOIN that ended the previous spell is refused, returning the
+ * timeline as it was (whole-app review, Nov 2026). Moved there, the current spell's start fell
+ * behind that rejoin: both collapsed away, the current spell was erased with the tick still on, and
+ * every payslip since regained its deduction — out 40–44, back from 45, out from 56, re-picked to 43,
+ * left her contributing from 45 for good. A rejoin recorded in error is undone where it was made:
+ * untick, then tick again while viewing that payslip, which joins the two spells.
+ *
  * @param {PensionChange[]} timeline @param {number} pNum @returns {PensionChange[]}
  */
 export function withOptOutStartAt(timeline, pNum) {
     const start = optOutStartsAt(timeline);
-    const base  = start == null ? timeline : timeline.filter(c => c.from !== start);
-    return withPensionChange(base, pNum, true);
+    if (start == null) return withPensionChange(timeline, pNum, true);
+    const rejoin = timeline.filter(c => !c.out && c.from < start).pop();
+    if (rejoin && pNum <= rejoin.from) return timeline;
+    return withPensionChange(timeline.filter(c => c.from !== start), pNum, true);
 }
 
 /**

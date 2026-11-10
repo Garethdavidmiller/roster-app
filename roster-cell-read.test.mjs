@@ -242,6 +242,16 @@ describe('reviewBlankReadsOfFilledCells — the grid says what an empty read mis
         assert.ok(run(reply({ ...WEEK }), CELLS).sunday.startsWith('UNKNOWN|'));
     });
 
+    test('and one it wrote as "-" or "EMPTY", which buildSafeEntries reads as an empty cell too', () => {
+        // The two readers share one list of empty words (import-server-1). Were this one to lag,
+        // a worked Sunday written as a dash would become the rest day a blank Sunday is, unseen.
+        for (const word of ['-', 'EMPTY', ' empty ']) {
+            const { sunday, sent } = run(reply({ Sunday: word, ...WEEK }), CELLS);
+            assert.match(sunday, /^UNKNOWN\|the PDF has "08:00-16:00 \| CEA 3"/, `${JSON.stringify(word)} became ${sunday}`);
+            assert.deepEqual(sent, [{ memberName: 'G. Miller', dates: [SUN] }]);
+        }
+    });
+
     test('a Sunday the grid shows EMPTY stays the rest day it is', () => {
         const { sunday, sent } = run(reply({ Sunday: 'BLANK', ...WEEK }), ['', ...CELLS.slice(1)]);
         assert.equal(sunday, 'RD');
@@ -269,6 +279,70 @@ describe('reviewBlankReadsOfFilledCells — the grid says what an empty read mis
     test('a weekday cell that SAYS rest keeps the ordinary unread-cell question', () => {
         const { safe } = run(reply({ Sunday: 'BLANK', ...WEEK, Wednesday: 'BLANK' }), ['', ...CELLS.slice(1)]);
         assert.match(safe[0].shifts[dates[3]], /^UNKNOWN\|no Wednesday cell was read/);
+    });
+
+    test('it judges the reply buildSafeEntries KEPT — an empty duplicate in front changes nothing', () => {
+        // import-server-5: the first row that says anything stands, in both places. Were this pass to
+        // keep the empty row instead, every filled cell would read as an empty read of it.
+        const parsed = [reply({ Sunday: 'BLANK', Monday: 'BLANK', Tuesday: 'BLANK', Wednesday: 'BLANK',
+            Thursday: 'BLANK', Friday: 'BLANK', Saturday: 'BLANK' }), reply({ Sunday: '08:00-16:00', ...WEEK })];
+        const warn = console.warn; console.warn = () => {};
+        try {
+            const safe = buildSafeEntries(parsed, DAY_LABELS, dates);
+            const sent = reviewBlankReadsOfFilledCells(safe, parsed, [{ memberName: 'G. Miller', cells: CELLS }], dates);
+            assert.deepEqual(sent, []);
+            assert.equal(safe[0].shifts[SUN], '08:00-16:00');
+        } finally { console.warn = warn; }
+    });
+
+    // WHAT THE PASS WRITES TO THE FUNCTIONS LOG (import-server-6, -8), which keeps what it is given.
+    /** Run `fn` with console.warn captured; returns the lines. @param {() => void} fn */
+    const captureWarn = (fn) => {
+        /** @type {string[]} */
+        const lines = [];
+        const real = console.warn;
+        console.warn = (...a) => lines.push(a.join(' '));
+        try { fn(); } finally { console.warn = real; }
+        return lines;
+    };
+
+    test('the log quotes no cell — beside a name and a date, an absence code is its reason', () => {
+        // An invented member, so the codes below are nobody's week.
+        for (const code of ['SC', 'HA', 'OD', 'ML', 'CL']) {
+            const parsed = { memberName: 'X. Test', Sunday: 'BLANK', ...WEEK, Monday: 'BLANK' };
+            const safe = buildSafeEntries([parsed], DAY_LABELS, dates);
+            const lines = captureWarn(() => reviewBlankReadsOfFilledCells(safe, [parsed],
+                [{ memberName: 'X. Test', cells: ['', code, ...CELLS.slice(2)] }], dates));
+            assert.equal(lines.length, 1, `one line for the one empty read: ${lines.join(' / ')}`);
+            assert.doesNotMatch(lines[0], new RegExp(`\\b${code}\\b`), `the log quoted the printed ${code}`);
+            assert.match(safe[0].shifts[dates[1]], new RegExp(`^UNKNOWN\\|the PDF has "${code}"`),
+                'the admin, who holds the PDF, is still told what the cell says');
+        }
+    });
+
+    test('the review quotes at most 40 characters of a cell, and says it was cut', () => {
+        const { sunday } = run(reply({ Sunday: 'BLANK', ...WEEK }), [`08:00-16:00 | ${'X'.repeat(300)}`, ...CELLS.slice(1)]);
+        const quoted = /the PDF has "([^"]*)"/.exec(sunday)?.[1] ?? '';
+        assert.ok(quoted.length > 0 && quoted.length <= 40, `quoted ${quoted.length} characters`);
+        assert.ok(quoted.endsWith('…'));
+    });
+
+    test('a correct read of a week of duties logs nothing — the rest test is a classification', () => {
+        // The experiments README's own example row. Each duty line logged "Extracted leading time …
+        // review table will show it" for a review row that never existed: four lines a member here,
+        // of the order of a hundred an upload, around the one line the import rule says to read first.
+        const cells = ['', 'RD', '06:20-14:20 | CEA 1', '06:20-14:20 | CEA 3', 'RD', '07:00-16:00 | CEA BL 1', '07:00-15:00 | CEA BL 4'];
+        const parsed = { memberName: 'G. Miller', Sunday: 'BLANK', Monday: 'RD', Tuesday: '06:20-14:20',
+            Wednesday: '06:20-14:20', Thursday: 'RD', Friday: '07:00-16:00', Saturday: '07:00-15:00' };
+        /** @type {any} */
+        let safe;
+        captureWarn(() => { safe = buildSafeEntries([parsed], DAY_LABELS, dates); });   // its reported-blank line is its own
+        const lines = captureWarn(() => {
+            reviewBlankReadsOfFilledCells(safe, [parsed], [{ memberName: 'G. Miller', cells }], dates);
+            reviewRestReadsOfEmptyCells(safe, [{ memberName: 'G. Miller', cells }], dates);
+        });
+        assert.deepEqual(lines, []);
+        assert.equal(safe[0].shifts[dates[2]], '06:20-14:20', 'and the read is untouched');
     });
 });
 

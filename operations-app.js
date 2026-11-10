@@ -13,7 +13,7 @@
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
-import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorLog } from './operations-errors.js';
 import { createAttentionStrip } from './operations-attention.js';
@@ -23,7 +23,6 @@ import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
@@ -41,6 +40,7 @@ import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './operations-tips.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
+import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
 
 
@@ -56,7 +56,7 @@ export function init() {
     reloadIfRestoredForSomeoneElse();
     // Register the service worker UNCONDITIONALLY, before the access gate — a signed-out (or
     // non-admin) visit returns early below and would otherwise never register/update the SW for
-    // that page load. Matches settings-app.js (module-scope registration). (v16.21)
+    // that page load (v16.21). Settings registers before its sign-in decision too.
     // Defer an SW-update reload while an admin is mid-way through a Weekly Roster Upload REVIEW —
     // the one piece of unsaved, in-flight work on this page (uncommitted review edits would be lost
     // on a reload). #rosterReviewSection carries `.visible` only while a review table is on screen;
@@ -67,15 +67,17 @@ export function init() {
     // Asked again at the moment of reloading (v24.61): the `{ once: true }` listener this replaced
     // reloaded on the FIRST hide whether or not the review, parse or upload had finished — and if it
     // had not, the one chance was spent and the page never reloaded for that release at all.
-    // And a write whose outcome is UNKNOWN holds it for good (v25.21; AUTH_AND_SESSIONS invariant
-    // 22): a roster import closes its review on one, and in a second tab Firestore holds the pending
-    // write in memory only, so a reload here could lose it. The reader was told to reload; that is
-    // theirs to do. Admin and Settings already held it; this page did not.
+    // And a WRITE still on its way holds it, read from the writes themselves (`writesInFlight`, as
+    // Admin and Settings do) rather than from the screen: a roster save in several parts whose review
+    // was dismissed is invisible to the three checks above, and a reload between parts strands the
+    // rest (Nov 2026 review). That count includes a write whose outcome is UNKNOWN, which holds the
+    // reload for good (v25.21; AUTH_AND_SESSIONS invariant 22): in a second tab Firestore keeps it in
+    // memory only, so a reload could lose it. The reader was told to reload; that is theirs to do.
     const _opsBusy = () =>
         !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
         || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
         || !!document.querySelector('[data-uploading]')
-        || hasUnconfirmedWrite();
+        || writesInFlight() > 0;
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_opsBusy), isBusy: _opsBusy });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
@@ -173,7 +175,9 @@ export function init() {
         currentIsAdmin: true,
         parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
         getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
-        loadOverrides,
+        // Nothing to re-read: this page has no Saved Changes list. Admin's loadOverrides returned at once
+        // here (no member picker), and importing it loaded a dozen Admin modules (Nov 2026 review).
+        loadOverrides: async () => {},
     });
 
     // Brand-styled date pickers over the four upload date fields. AFTER the card inits above,
@@ -191,13 +195,15 @@ export function init() {
     initCardCollapse('circularUploadToggleHeader',    'circularUploadBody',    'circularUploadChevron');
     initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
     initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
-    initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
+    const authSetupCard = initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
     // Account status collapse wired ONCE here (not inside initAccountStatus) — its _cardLoadError
     // retry re-invokes initAccountStatus, and initCardCollapse has no idempotency guard, so wiring it
     // there would add a duplicate listener per failed load (an even number of retries → dead toggle).
     initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
-    initCardCollapse('resetRequestsToggleHeader', 'resetRequestsBody', 'resetRequestsChevron');
-    initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
+    // A card this page opens BY CODE keeps its handle: `setOpen` is the one place a card's open state
+    // is written (card-collapse.js), and a hand-made second copy here could drift from what a tap does.
+    const resetRequestsCard = initCardCollapse('resetRequestsToggleHeader', 'resetRequestsBody', 'resetRequestsChevron');
+    const errorLogCard = initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
 
@@ -209,24 +215,24 @@ export function init() {
     // allowlist, so an arbitrary hash can never expand an unrelated card. Runs on load AND on
     // hashchange, because tapping the notification while Operations is already open re-navigates an
     // existing client (see the SW's notificationclick) and fires only hashchange.
-    /** @type {Record<string, [string, string, string]>} hash → [bodyId, chevronId, cardId] */
+    /** @type {Record<string, [{ setOpen(open: boolean): void }, string]>} hash → [collapse handle, cardId] */
     const DEEP_LINK_CARDS = {
-        '#reset-requests': ['resetRequestsBody', 'resetRequestsChevron', 'resetRequestsCard'],
-        '#error-log':      ['errorLogBody',      'errorLogChevron',      'errorLogCard'],
-        '#login-accounts': ['authSetupBody',     'authSetupChevron',     'authSetupCard'],
+        '#reset-requests': [resetRequestsCard, 'resetRequestsCard'],
+        '#error-log':      [errorLogCard,      'errorLogCard'],
+        '#login-accounts': [authSetupCard,     'authSetupCard'],
     };
     /** @param {string} [hash] defaults to location.hash — the strip passes its own so a repeat
      *  tap (same hash, no hashchange) still opens and scrolls. */
     function openDeepLinkedCard(hash) {
         const target = DEEP_LINK_CARDS[hash || location.hash];
         if (!target) return;
-        const [bodyId, chevronId, cardId] = target;
+        const [card, cardId] = target;
         // Only ever OPENS. Re-running on a repeat tap must not toggle a card the admin just closed.
-        openCard(bodyId, chevronId);
+        card.setOpen(true);
         document.getElementById(cardId)?.scrollIntoView({
             block: 'start',
-            // The app honours prefers-reduced-motion everywhere else; a notification tap is no place
-            // to start an exception.
+            // Under prefers-reduced-motion the jump is instant: a notification tap should not
+            // throw the page around for somebody who has asked for less motion.
             behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
         });
     }
@@ -261,32 +267,16 @@ export function init() {
     // read so a `const` declared below would happen to work, and "happens to work by timing" is not
     // a thing to leave in a file this long. The audit feeds the strip only when it ANSWERED:
     // admin-auth.js reports nothing on a failed or refused check, because an unreported item is
-    // UNKNOWN to the strip while an absent one reads as nothing to do.
+    // UNKNOWN to the strip while an absent one reads as nothing to do — and a check that fails after
+    // one that answered WITHDRAWS what that one reported, so the strip goes back to unknown with it.
     initAuthSetup({
         currentIsAdmin: true,
         onAttention: ({ setUp, leavers }) => {
             attention.report('accountSetup', setUp);
             attention.report('accountLeavers', leavers);
         },
+        onWithdraw: () => { attention.withdraw('accountSetup'); attention.withdraw('accountLeavers'); },
     });
-
-    /**
-     * Expand a collapsible card programmatically — idempotent, and never a toggle.
-     *
-     * `aria-expanded` is set alongside the class because opening a card by class ALONE leaves the
-     * chevron reporting "collapsed" to a screen reader until the first manual toggle
-     * (A11Y_BASELINE.md, v18.68) — the failure this helper exists to make unrepeatable.
-     *
-     * @param {string} bodyId @param {string} chevronId @returns {void}
-     */
-    function openCard(bodyId, chevronId) {
-        const body = document.getElementById(bodyId);
-        if (!body || body.classList.contains('open')) return;
-        body.classList.add('open');
-        const chev = document.getElementById(chevronId);
-        chev?.classList.add('open');
-        chev?.setAttribute('aria-expanded', 'true');
-    }
 
     // ============================================
     // ACCOUNT STATUS  (work email + password, per member)
@@ -324,13 +314,22 @@ export function init() {
         /** @type {HTMLElement} */ let summaryEl;
         /** @type {HTMLElement} */ let listEl;
 
+        /** A row button's words and its name change TOGETHER, and the name LEADS with the words (WCAG
+         *  2.5.3, Nov 2026 review): fixed names went on describing buttons whose words had changed —
+         *  "Cancel", "Confirm?", "Retry" — and "Set email" was named "Set work email for …", so a voice
+         *  user saying what they saw reached nothing. @param {Element} btn @param {string} text @param {string} name */
+        const say = (btn, text, name) => { btn.textContent = text; btn.setAttribute('aria-label', name); };
+        const sayEmail = (/** @type {Element} */ btn, /** @type {string} */ nm) => (emailMap.has(nm)
+            ? say(btn, 'Edit', `Edit email for ${nm}`) : say(btn, 'Set email', `Set email for ${nm}`));
+        const sayReset = (/** @type {Element} */ btn, /** @type {string} */ nm) => say(btn, 'Reset', `Reset ${nm}'s password to their surname default`);
+        const sayRemove = (/** @type {Element} */ btn, /** @type {string} */ nm) => say(btn, 'Remove', `Remove email for ${nm}`);
+
         // Close every open email form and restore each Set/Edit button to its resting label.
         function closeAllEmailForms() {
             listEl.querySelectorAll('.email-set-form').forEach(f => f.remove());
             listEl.querySelectorAll('.acct-row').forEach(r => {
-                const nm = /** @type {HTMLElement} */ (r).dataset.member || '';
                 const b = r.querySelector('.email-set-btn');
-                if (b) b.textContent = emailMap.has(nm) ? 'Edit' : 'Set email';
+                if (b) sayEmail(b, /** @type {HTMLElement} */ (r).dataset.member || '');
             });
         }
 
@@ -352,9 +351,9 @@ export function init() {
 
             // Head line: name · password posture · Reset (ALWAYS — v18.84). Reset used to render only
             // for a MIGRATED member ("a surname-default account has nothing to reset TO"), which quietly
-            // made the migration flag a security control. It isn't one: setOwnPassword deliberately
-            // tolerates the Firestore stamp failing after updatePassword has already succeeded (it
-            // returns statusRecorded:false and its own JSDoc calls the stamp "a monitoring signal, not
+            // made the migration flag a security control. It isn't one: changeOwnPassword deliberately
+            // tolerates the Firestore stamp failing after updatePassword has already succeeded (its
+            // stamp settles false and its own JSDoc calls the stamp "a monitoring signal, not
             // a security control"). A member whose stamp was lost therefore holds a REAL password while
             // this table reads "Surname default" — and with Reset hidden, the only in-app break-glass
             // path was gone: their surname no longer signs them in and recovery needed the Firebase
@@ -384,8 +383,7 @@ export function init() {
             const resetBtn = document.createElement('button');
             resetBtn.type = 'button';
             resetBtn.className = 'btn-acct-reset';
-            resetBtn.textContent = 'Reset';
-            resetBtn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname default`);
+            sayReset(resetBtn, m.name);
             resetBtn.addEventListener('click', () => doReset(m.name, resetBtn));
             head.appendChild(resetBtn);
             row.appendChild(head);
@@ -406,8 +404,7 @@ export function init() {
             const setBtn = document.createElement('button');
             setBtn.type = 'button';
             setBtn.className = 'email-set-btn';
-            setBtn.textContent = has ? 'Edit' : 'Set email';
-            setBtn.setAttribute('aria-label', `${has ? 'Edit' : 'Set'} work email for ${m.name}`);
+            sayEmail(setBtn, m.name);
             setBtn.addEventListener('click', () => toggleEmailForm(row, emailLine, m, setBtn));
             emailLine.appendChild(setBtn);
 
@@ -415,8 +412,7 @@ export function init() {
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.className = 'email-set-btn email-set-btn--remove';
-                removeBtn.textContent = 'Remove';
-                removeBtn.setAttribute('aria-label', `Remove email for ${m.name}`);
+                sayRemove(removeBtn, m.name);
                 removeBtn.addEventListener('click', () => removeEmail(m, removeBtn));
                 emailLine.appendChild(removeBtn);
             }
@@ -435,7 +431,7 @@ export function init() {
             const wasOpen = !!row.querySelector('.email-set-form');
             closeAllEmailForms();
             if (wasOpen) return;   // toggle: it was open, closeAll shut it — done
-            setBtn.textContent = 'Cancel';
+            say(setBtn, 'Cancel', `Cancel editing the email for ${m.name}`);
 
             const form = document.createElement('div');
             form.className = 'email-set-form';
@@ -483,7 +479,9 @@ export function init() {
                 }
                 saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; errorEl.textContent = '';
                 try {
-                    await saveStaffContact(m.name, email);
+                    // Every write on this page says when the server is slow to answer, as Admin's and
+                    // Settings' do (slow-save.js), rather than sitting on "Saving…" (Nov 2026 review).
+                    await withSlowSaveNotice(saveStaffContact(m.name, email));
                     emailMap.set(m.name, email);
                     renderForGrade(filterSelect.value);
                     focusGradeFilter();
@@ -499,7 +497,8 @@ export function init() {
 
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
-                if (e.key === 'Escape') { form.remove(); setBtn.textContent = emailMap.has(m.name) ? 'Edit' : 'Set email'; }
+                // Focus back to the button that opened the form, not to the page (Nov 2026 review).
+                if (e.key === 'Escape') { form.remove(); sayEmail(setBtn, m.name); setBtn.focus(); }
             });
         }
 
@@ -507,15 +506,16 @@ export function init() {
             // Two-tap confirm (no dialog — keeps the inline row flow); auto-reverts after 3s.
             if (removeBtn.dataset.confirm !== 'pending') {
                 removeBtn.dataset.confirm = 'pending';
-                removeBtn.textContent = 'Confirm?';
+                say(removeBtn, 'Confirm?', `Confirm? Press again to remove the email for ${m.name}`);
                 setTimeout(() => {
-                    if (removeBtn.dataset.confirm === 'pending') { removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove'; }
+                    if (removeBtn.dataset.confirm === 'pending') { removeBtn.dataset.confirm = ''; sayRemove(removeBtn, m.name); }
                 }, 3000);
                 return;
             }
-            removeBtn.disabled = true; removeBtn.textContent = 'Removing…';
+            // Disarmed as the delete starts, or the revert above fires into it ("Removing…" → "Remove").
+            removeBtn.dataset.confirm = ''; removeBtn.disabled = true; say(removeBtn, 'Removing…', `Removing the email for ${m.name}`);
             try {
-                await deleteStaffContact(m.name);
+                await withSlowSaveNotice(deleteStaffContact(m.name));
                 emailMap.delete(m.name);
                 renderForGrade(filterSelect.value);
                 focusGradeFilter();
@@ -523,7 +523,7 @@ export function init() {
                 console.error('[AccountStatus] email remove failed', e);
                 // It used to fail SILENTLY — the button just came back. Now it says which kind (v25.06).
                 const unknown = unconfirmedWriteLine(e, 'this removal', 'this list');
-                removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
+                removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; sayRemove(removeBtn, m.name);
                 const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: unknown || 'Couldn’t remove — check your connection and try again' });
                 msg.setAttribute('role', 'alert'); msg.dataset.removeError = '';
                 // Only ITS OWN earlier line (48-hour review): the first in the row was the open edit
@@ -543,10 +543,10 @@ export function init() {
                 confirmLabel: 'Reset', danger: true,
             });
             if (!ok) return;
-            btn.disabled = true; btn.textContent = 'Resetting…';
+            btn.disabled = true; say(btn, 'Resetting…', `Resetting ${name}'s password`);
             /** @type {any} */ let result;
             try {
-                result = await resetMemberPassword(name, { revoke: true });
+                result = await resetMemberPassword(name);
             } catch (e) {
                 console.warn('[Operations] resetMemberPassword failed:', e);
                 // A TIMEOUT IS NOT A FAILURE, and `fetch-timeout.js`'s header names THIS endpoint
@@ -563,7 +563,7 @@ export function init() {
                 // was the exception.
                 if (isFetchTimeout(/** @type {any} */ (e)?.cause)) {
                     // NOT "Retry": the button must not describe an outcome nobody knows.
-                    btn.disabled = false; btn.textContent = 'Reset';
+                    btn.disabled = false; sayReset(btn, name);
                     confirmDialog({
                         title: 'Couldn’t confirm the reset',
                         message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and their other devices already signed out.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
@@ -573,8 +573,23 @@ export function init() {
                 }
                 // A REFUSAL (4xx) names its reason and offers no Retry — retrying cannot change the answer (whole-app review).
                 const refused = serverRefusal(e);
-                btn.disabled = false; btn.textContent = refused ? 'Reset' : 'Retry';
-                if (refused) confirmDialog({ title: 'The reset was refused', message: refused.reason, confirmLabel: 'OK' }).catch(() => {});
+                btn.disabled = false;
+                if (refused) sayReset(btn, name); else say(btn, 'Retry', `Retry resetting ${name}'s password`);
+                // The endpoint refuses in JSON sentences written for the admin, all before it changes
+                // anything. A body that is MARKUP is not a reason (an HTML error page from in front of the
+                // function), so it is not shown as one (Nov 2026 review).
+                const why = refused && (/<[a-z!/]/i.test(refused.reason)
+                    ? `The server answered ${refused.status} without a reason this page can show. Nothing was reset.` : refused.reason);
+                if (why) confirmDialog({ title: 'The reset was refused', message: why, confirmLabel: 'OK' }).catch(() => {});
+                // A 503 is the server saying, BEFORE it changed anything, that it could not record the
+                // reset — no stamp, no reset (functions-core-2, Nov 2026). Retry is the right answer, and
+                // its sentence says nothing changed, so it is shown beside the button rather than lost.
+                const unrecorded = !refused && /^Server responded 503: ([\s\S]*)$/.exec(String(/** @type {any} */ (e)?.message ?? ''));
+                if (unrecorded) {
+                    let line = unrecorded[1].trim();
+                    try { const parsed = JSON.parse(line); line = typeof parsed?.error === 'string' ? parsed.error : ''; } catch { line = ''; }
+                    if (line && !/<[a-z!/]/i.test(line)) confirmDialog({ title: 'The reset didn’t go through', message: line, confirmLabel: 'OK' }).catch(() => {});
+                }
                 return;
             }
             // PARTIAL SUCCESS. The endpoint reports each stage separately (v21.86) because the
@@ -586,19 +601,18 @@ export function init() {
             // their other sessions were signed out" unconditionally — true on the only partial path
             // that existed then, and a flat untruth on the one this release added.
             const _revokeFailed = result && result.revokeFailed === true;
-            const _notStamped   = result && result.stamped === false;
             // v23.62: the member is now told on their OWN devices that their password was reset.
             // This is the one notification state worth a receipt — they were signed OUT and could
             // not be reached, so they are locked out with no explanation and the admin is the only
             // one who can close that gap. Deliberately NOT shown when the reset left their sessions
-            // running (the migration nudge): nobody is stranded, so there is nothing to act on.
+            // running: nobody is stranded, so there is nothing to act on.
             // `notified` is what HAPPENED, so a member with no push subscription lands here — which
             // is the point, since that is exactly who needs telling another way.
             // v24.57: an account registered from OUTSIDE the app was taken back rather than reset.
             // It holds no claim yet, so the member cannot use it until Set up accounts runs.
             const _takenBack    = result && result.takenBack === true;
             const _uninformed   = !_takenBack && !!(result && result.notified === false && result.revoked === true);
-            if (_revokeFailed || _notStamped || _uninformed || _takenBack) {
+            if (_revokeFailed || _uninformed || _takenBack) {
                 console.warn('[Operations] resetMemberPassword partial for', name,
                              { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified });
                 const parts = [`${name}'s password WAS reset to their surname.`];
@@ -608,9 +622,9 @@ export function init() {
                 } else {
                     parts.push('Their other sessions were signed out.');
                 }
-                if (_notStamped) {
-                    parts.push('The account-status stamp couldn\'t be saved, so the table below may still show "Own password".');
-                }
+                // No "couldn't be recorded" case here any more: since functions-core-2 (Nov 2026) the
+                // server stamps resetAt FIRST and refuses with a 503 when it cannot, so a reset that
+                // happened was always recorded — the 503 is handled above, beside Retry.
                 if (_takenBack) {
                     parts.push(`This account had been registered outside the app, so it was taken back: anyone signed in on it was signed out. Run Set up accounts next — until then ${name} cannot use the app on it. Then let them know their password is their surname.`);
                 }
@@ -619,11 +633,10 @@ export function init() {
                 }
                 parts.push('Resetting again is safe.');
                 confirmDialog({
-                    // Precedence, most actionable first: a live session somewhere is a security
-                    // state, a missing stamp is a wrong table, and an untold member is an errand.
+                    // Precedence, most actionable first: a live session somewhere is a security state; an
+                    // account taken back waits on Set up accounts; and an untold member is an errand.
                     title: _revokeFailed ? 'Password reset — other devices not signed out'
                          : _takenBack    ? 'Account taken back — run Set up accounts'
-                         : _notStamped   ? 'Password reset — status not updated'
                          :                 'Password reset — tell them yourself',
                     message: parts.join('\n\n'),
                     confirmLabel: 'OK',
@@ -632,14 +645,19 @@ export function init() {
             // Reset SUCCEEDED (member re-defaulted + signed out). The follow-up status re-read is
             // best-effort — if it fails, do NOT show "Retry"/"Reset failed" (that would prompt a
             // redundant second reset). Reflect the done state and let the next load reconcile the table.
+            const sayDone = (/** @type {Element} */ b) => say(b, 'Reset ✓', `Reset done for ${name} — press to reset their password again`);
             try {
                 const fresh = await withClaimRetry(getAllPasswordStatus);
                 statusMap = new Map(fresh.map(/** @param {any} s */ s => [s.memberName, s]));
+                // The re-draw destroys this button; focus that was on it (or had already fallen to the
+                // page, as it does from a disabled button) follows the row rather than vanishing.
+                const follow = document.activeElement === btn || document.activeElement === document.body;
                 renderForGrade(filterSelect.value);   // re-rendered — and a row on its default looks just as it did, so it says so (whole-app review)
-                [...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset')?.replaceChildren('Reset ✓');
+                const again = /** @type {HTMLElement|null|undefined} */ ([...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset'));
+                if (again) { sayDone(again); if (follow) again.focus(); }
             } catch (e) {
                 console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);
-                btn.textContent = 'Reset ✓';
+                sayDone(btn);
             }
         }
 
@@ -734,7 +752,7 @@ export function init() {
             }
             // Auto-open when there IS something to action — an outstanding request is time-sensitive
             // (someone is locked out right now) and this card is collapsed by default.
-            if (autoOpen) openCard('resetRequestsBody', 'resetRequestsChevron');
+            if (autoOpen) resetRequestsCard.setOpen(true);
             content.innerHTML = `<div class="rr-list">${requests.map(r => {
                 // escapeHtml even though the writer is server-validated (v18.94). The allowlist IS the
                 // control, but it sits three layers away with no test tying it to this render, and a
@@ -767,7 +785,7 @@ export function init() {
                     /** @type {HTMLButtonElement} */ (btn).disabled = true;
                     const row = btn.closest('.rr-row');
                     row?.querySelector('.rr-error')?.remove();
-                    try { await clearResetRequest(name); initResetRequests(); }
+                    try { await withSlowSaveNotice(clearResetRequest(name)); initResetRequests(); }
                     catch (e) {
                         // A gated write (Oct 2026 review): an outcome that is UNKNOWN is said so, and
                         // the button stays off — a second Clear would only be refused by the gate.
@@ -802,10 +820,10 @@ export function init() {
     }
     initResetRequests();
 
-    // Show a banner if Firebase Auth couldn't establish a real admin session.
-    // Anonymous fallback still resolves the Promise so the page renders, but
-    // Cloud Functions and Storage both require a valid admin token — they'll
-    // reject silently without this warning.
+    // A banner when this admin's named Firebase session could not be confirmed. The page renders
+    // either way, but the uploads, the reset and the Cloud Function reads all need a valid admin
+    // token, and each would otherwise fail on its own with less to say. (There is no anonymous
+    // fallback since v24.34: a refused session is simply not established.)
     sessionReady.then(ok => {
         if (!ok || getFirebaseAuthError()) {
             const main   = document.querySelector('.container');
@@ -828,8 +846,11 @@ export function init() {
             isAccepted: f => isPdfFile(f) || isDocxFile(f),
             rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
+            // doc-upload.js hands the date over in words ("6 Nov 2026"), as app copy writes one — formatted
+            // a second time here, it read "uploaded for —" (whole-app check, 10 Nov 2026).
             successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
             btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
+            whereToCheck: '☰ → Marylebone Newsletter',   // where a sign-out mid-upload is told to look
         });
     }
 
@@ -846,6 +867,7 @@ export function init() {
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
             successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
             btnLabel: 'Upload Circular', logPrefix: 'Circular',
+            whereToCheck: '☰ → Weekly Retail Circular',
         });
     }
 
@@ -879,10 +901,10 @@ export function init() {
     // ============================================
     // registerServiceWorker() moved to the top of init() (runs before the access gate) — v16.21.
     sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
-    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
-    // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
-    // sign-in path the module loaded signed-out and the identity is only refreshed inside
-    // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
+    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the sign-in's
+    // critical path, so it waits for the session. `currentUser` is right here: an in-place sign-in
+    // re-runs init() with the new session, and only that signed-in pass gets this far (Settings, which
+    // signs in without a re-run, is why the same line there must read the identity late).
     sessionReady.then(() => initPasswordForce(currentUser));
 
 }

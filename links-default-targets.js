@@ -11,16 +11,17 @@
  * so Generate works on a card nobody has touched. Both are one button apart on the card, because
  * a proposal wants both: measure today, design tomorrow.
  *
- * ── 26 LINES (v24.47): THE TABLE IS NOW THE SHORTLIST'S, NOT THE APP'S ────────────────────────
+ * ── FROM v24.47: THE TABLE IS THE SHORTLIST'S, NOT THE APP'S ──────────────────────────────────
  *
- * From 1 Oct 2026 the December link is 26 lines with FIVE cover weeks (owner), so 21 working lines
- * and a contract of 21 × 35h = 44,100 Monday-to-Saturday minutes. The rules every 26-line design is
- * judged against are `docs/links-26/RULES.md`, set by the owner — and this table is not invented
- * here any more. It is the duty table of **Short Run (SR-26-F1)**, on the owner's shortlist from 3 Oct
- * to 8 Nov 2026 and still in the pack — chosen on 3 Oct as Second Edition's (SE-26-F1), whose duties
- * Short Run shares exactly. The shortlist drawn on 8 Nov 2026 — Balanced V6, Level Crossing and Middle
- * Ground — staffs the same number of duties each day (15 every weekday, 14 on a Saturday, 10 on a Sunday)
- * at different times, so the table still fits it. A default that the owner's own designs already satisfy
+ * On 1 Oct 2026 the owner set the December link at 26 lines with FIVE cover weeks — the length this
+ * table was drawn for, and every figure below is at that length (`ROTATING_LINES` is the length now)
+ * — so 21 working lines and a contract of 21 × 35h = 44,100 Monday-to-Saturday minutes. The rules
+ * every design at that length is judged against are `docs/links-26/RULES.md`, set by the owner — and
+ * this table is not invented here any more. It is the duty table of **Short Run (SR-26-F1)**, on the
+ * owner's shortlist from 3 Oct to 8 Nov 2026 and still in the pack — chosen on 3 Oct as Second
+ * Edition's (SE-26-F1), whose duties Short Run shares exactly. The shortlist drawn on 8 Nov 2026 —
+ * Balanced V6, Level Crossing and Middle Ground — staffs the same number of duties each day (15 every
+ * weekday, 14 on a Saturday, 10 on a Sunday) at different times, so the table still fits it. A default that the owner's own designs already satisfy
  * is a better starting point than a table the app designed by itself, which is what the 24-line default
  * was (v21.00–v21.13). The table did not move with the shortlist: which design's duties the generator
  * starts from is a question of its own, for the owner, and nothing here answers it.

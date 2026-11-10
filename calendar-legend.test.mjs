@@ -67,6 +67,14 @@ describe('speaking for a month we have not got', () => {
         assert.equal(legendShown('render', false), 'render');
     });
 
+    test('a FIRST RUN hides it — the grid is a prompt, and the key would be the default member\'s', () => {
+        // 10 Nov 2026: leaving Team View un-hid the legend under "Choose your name". A known month
+        // does not change that: nobody has been chosen for the key to describe.
+        for (const v of ['render', 'stale']) assert.equal(legendShown(v, false, true), 'hide', `${v} on a first run`);
+        // Team View still owns the element on a first run — stand-down, not hide.
+        assert.equal(legendShown('render', true, true), 'stand-down');
+    });
+
     test('anything the rule does not recognise HIDES', () => {
         // Fail-closed: a display verdict added later that nobody wired through here must not
         // default into speaking. Silence is recoverable; a confident wrong key is not.

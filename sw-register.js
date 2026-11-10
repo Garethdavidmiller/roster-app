@@ -24,9 +24,13 @@ let _registered = false;
 // SECOND listener — each with its own beforeReload closure, firing a DOUBLE "reload?" confirm on the
 // next SW update (links/paycalc). The listener needs attaching exactly once per page life.
 let _controllerListenerAttached = false;
+// The same latch for the notification-tap `message` listener, and for the same reason: it is attached
+// before register() too, so a retry after a failed registration stacked a second one and one tap was
+// answered twice — two "Open it anyway?" dialogs, and cancelling one left the other up.
+let _tapListenerAttached = false;
 
 /** TEST-ONLY: reset the once-per-page-life guards between test cases. */
-export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _hiddenReloadArmed = false; _busyReloadArmed = false; _updateClaimed = false; }
+export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _tapListenerAttached = false; _hiddenReloadArmed = false; _busyReloadArmed = false; _updateClaimed = false; }
 
 // A newer release has taken control of this page (a genuine update, not the first-install claim).
 // While its reload is held — `deferWhileVisible`, a declined confirm — the new worker serves the
@@ -213,7 +217,7 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
     if (!('serviceWorker' in navigator)) return;
     if (_registered) return;
     _registered = true;
-    answerNotificationTaps(isBusy);
+    if (!_tapListenerAttached) { _tapListenerAttached = true; answerNotificationTaps(isBusy); }
     let reloadFired = false;
     // `deferWhileVisible` state: the update that is waiting for the member to look away, and
     // whether the one-shot listener that will run it has been attached.
@@ -278,10 +282,11 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                     // the old version until they navigate, which is the correct trade: the update is
                     // not urgent, and interrupting them is what caused the complaint.
                     //
-                    // OPT-IN, and the Calendar is the only caller. The pages that ask before
-                    // reloading (admin, operations, links) are asking because a member may have
-                    // unsaved work, and deferring THAT question until they background the app would
-                    // greet them with a confirm dialog on return. Their behaviour is untouched.
+                    // OPT-IN, and the Calendar is the only caller. The pages with work to lose decide
+                    // for themselves: Admin, Operations, Settings and Overtime wait for an idle moment
+                    // (`reloadWhenNotBusy`), and Links asks first while it holds unsaved edits —
+                    // holding THAT question until the app is backgrounded would greet the member with
+                    // a confirm dialog on return. The rest reload at once.
                     //
                     // Already hidden ⇒ run now: nobody is watching, which is the whole condition.
                     if (deferWhileVisible && document.visibilityState === 'visible') {
@@ -324,7 +329,10 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                 });
                 if (bfcache) {
                     window.addEventListener('pagehide', () => clearInterval(updateInterval));
-                    window.addEventListener('pageshow', () => {
+                    window.addEventListener('pageshow', (e) => {
+                        // A RESTORE only. An ordinary load fires pageshow too, and its navigation has
+                        // already made the browser check for an update — a second check there is waste.
+                        if (!(/** @type {PageTransitionEvent} */ (e)).persisted) return;
                         clearInterval(updateInterval);
                         // Check immediately on bfcache restore (mirrors the visibilitychange path) —
                         // otherwise a restored tab waits up to a full hour for the next check.

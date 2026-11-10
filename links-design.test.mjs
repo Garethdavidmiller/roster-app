@@ -103,6 +103,34 @@ test('startMinutes / endMinutes', () => {
     assert.equal(endMinutes('06:20-14:20'), 14 * 60 + 20);
     assert.equal(startMinutes('RD'), null);
     assert.equal(endMinutes('SPARE'), null);
+    assert.equal(endMinutes('15:30-00:00'), 0, 'a midnight finish is written 00:00, and is a real end');
+});
+
+test('runDesignChecks reads an EMPTY cell as rest, as every other rule does (whole-app fix, Nov 2026)', () => {
+    // Its private isWorked counted '' as worked while the shared isRest counts it as rest, so a line of
+    // empty cells was "designed" to the unfilled-lines row and "worked" to weekends off, while the run
+    // and balance rows beside them read it as rest. Only a hand-written document holds one.
+    const blank = Object.fromEntries(DAYS.map(d => [d, '']));
+    const r = runDesignChecks({ 1: blank, 2: blank }, 2);
+    assert.deepEqual(r.unfilledLines, [1, 2]);
+    assert.equal(r.weekendsOff, 2);
+});
+
+test('they read the WHOLE pair, so a malformed cell is not a time (whole-app fix, Nov 2026)', () => {
+    // Each read one END of the string and range-checked nothing, so a cell with a start at the front and
+    // an end at the back read as a duty whatever lay between — and that middle then reached the Design
+    // checks card as markup (links-analysis-4). Read whole, it is not a time, so it falls to 'night':
+    // the grid footer's visible "something here is wrong" count, out of the coverage and the turnarounds.
+    // One case per END of the pair and per half of each end, so loosening any one of the four is seen;
+    // `24:00` is refused as it is everywhere else in the app (clock-input.js) — midnight is `00:00`.
+    for (const bad of ['15:25-<img src=x>-23:55', '06:20-xx-14:20', '25:00-14:00', '07:75-15:30', '06:00-25:00',
+        '06:20-14:75', '16:00-24:00', '06:20-14:20 RDW', ' 06:20-14:20']) {
+        assert.equal(startMinutes(bad), null, bad);
+        assert.equal(endMinutes(bad), null, bad);
+        assert.equal(classifyShift(bad), 'night', bad);
+    }
+    const p = { 1: { sun: 'RD', mon: '15:25-<b>-23:55', tue: '06:20-14:20', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } };
+    assert.deepEqual(runDesignChecks(p, 1).turnarounds, [], 'a cell that is not a time has no turnaround to report');
 });
 
 // ---------- dayClass ----------
@@ -692,6 +720,19 @@ describe('canonical shift form', () => {
         assert.equal(canonicaliseShift(null), null);
         assert.equal(canonicaliseShift(undefined), undefined);
         assert.equal(canonicaliseShift(7), 7, 'a non-string passes through unharmed');
+    });
+
+    test('normalisePatterns turns a cell that is not a string into one, so a load cannot crash the grid', () => {
+        // canonicaliseShift passes a non-string through (pinned above), and the grid's label then
+        // called a string method on it and threw: one hand-written cell, and no grid at all (whole-app
+        // fix, Nov 2026). At the load boundary it becomes its string form, which reads as 'night' —
+        // the visible flag — and an absent value stays absent, which reads as rest everywhere already.
+        const out = normalisePatterns({ 1: { mon: 7, tue: { x: 1 }, wed: null, thu: 'RD' } });
+        assert.equal(out['1'].mon, '7');
+        assert.equal(typeof out['1'].tue, 'string');
+        assert.equal(out['1'].wed, null);
+        assert.equal(out['1'].thu, 'RD');
+        assert.equal(classifyShift(out['1'].mon), 'night');
     });
 
     test('normalisePatterns fixes a whole design and mutates nothing', () => {

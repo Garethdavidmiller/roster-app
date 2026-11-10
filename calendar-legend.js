@@ -105,12 +105,17 @@ export function onDispatcherRosterIn(member, year, month, resolve) {
  * the element. Leaving Team View calls `renderCalendar`, which comes back through here and settles
  * the real answer.
  *
+ * A FIRST RUN HIDES IT (10 Nov 2026): nobody has picked a name, so the grid is the choose-your-name
+ * prompt — a key there would describe the default member's month, which nobody chose.
+ *
  * @param {string} display   the `decideDisplay` verdict for the displayed month
  * @param {boolean} isTeamViewMode  Team View owns the legend while it is active
+ * @param {boolean} [firstRun]  no member chosen yet (`isFirstRun`, calendar-member.js)
  * @returns {'render'|'hide'|'stand-down'}
  */
-export function legendShown(display, isTeamViewMode) {
+export function legendShown(display, isTeamViewMode, firstRun = false) {
     if (isTeamViewMode) return 'stand-down';
+    if (firstRun) return 'hide';
     // Rule 3: a cached month is still a grid, and a grid gets its key.
     return (display === 'render' || display === 'stale') ? 'render' : 'hide';
 }
@@ -126,6 +131,7 @@ export function legendShown(display, isTeamViewMode) {
  * @param {(year: number) => Date} deps.computeEaster
  * @param {() => string} deps.displayVerdict   `decideDisplay(knowledgeOf(monthKey(...)))`
  * @param {() => boolean} deps.isTeamViewMode
+ * @param {() => boolean} [deps.isFirstRun]  no member chosen yet — the prompt has no key
  * @param {(member: any, date: Date) => any} [deps.resolveMemberRoster]  the roster in force on a date
  * @returns {{ update: () => void }}
  */
@@ -150,7 +156,7 @@ export function createLegend(deps) {
             if (elem) elem.style.display = on ? '' : 'none';
         }
 
-        const shown = legendShown(deps.displayVerdict(), deps.isTeamViewMode());
+        const shown = legendShown(deps.displayVerdict(), deps.isTeamViewMode(), !!deps.isFirstRun?.());
         if (shown === 'stand-down') return;                 // Team View owns it — write NOTHING.
         const legendEl = /** @type {HTMLElement|null} */ (document.querySelector('.legend'));
         if (legendEl) legendEl.style.display = shown === 'render' ? '' : 'none';

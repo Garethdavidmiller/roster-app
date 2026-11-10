@@ -63,6 +63,10 @@
  *   · **Three of six pages can be empty** (no text items at all). Skipped by CONTENT, never by
  *     page number.
  *
+ * One it has not met: the rules are read from the path's RAW coordinates and the text from pdfjs's
+ * TRANSFORMED ones, so a page drawn under a scaling `cm` puts its text beside its grid rather than in
+ * it. The corpus draws none; such a page places no row and fails open as `no-rows`.
+ *
  * pdfjs is PINNED to v4: this file reads `OPS.constructPath`'s argument shape directly, and pdfjs
  * changed that encoding at 5.1.91 (pdf.js PR 19689). MEASURED on 6.4.299 (4 Nov 2026), this code
  * does not throw there: every document reports `no-grid`, so the witness would stop SILENTLY, and
@@ -84,6 +88,7 @@
 'use strict';
 
 const { BLANK_CELL_TOKEN, reviewLabel } = require('./roster-parse-helpers');
+const { weekEndingsOnPage } = require('./roster-week-heading');
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -114,6 +119,11 @@ function rulesFromOperatorList(ops, OPS) {
         const [fns, args] = ops.argsArray[i];
         if (!fns || typeof fns[Symbol.iterator] !== 'function') continue;
         let a = 0, cx = 0, cy = 0, sx = 0, sy = 0;
+        // EVERY operator's operands must be stepped over, or each later point of the path is read
+        // from the wrong numbers: pdfjs v4 sends `v` and `y` (curveTo2/3) here with four, and
+        // skipping them turned one stroked curve into a phantom rule that rejected the page
+        // (import-server-7). A curve's end point is not taken as the current point — the corpus
+        // was measured that way (experiments/roster-pdf-geometry), and the rules are straight.
         for (const fn of fns) {
             if (fn === OPS.moveTo)      { cx = args[a]; cy = args[a + 1]; sx = cx; sy = cy; a += 2; }
             else if (fn === OPS.lineTo) {
@@ -123,6 +133,7 @@ function rulesFromOperatorList(ops, OPS) {
                 cx = nx; cy = ny;
             }
             else if (fn === OPS.curveTo)   { a += 6; }
+            else if (fn === OPS.curveTo2 || fn === OPS.curveTo3) { a += 4; }
             else if (fn === OPS.rectangle) { a += 4; }
             else if (fn === OPS.closePath) { cx = sx; cy = sy; }
         }
@@ -201,12 +212,13 @@ function assignRunsToGrid({ items, vx, hy }) {
 
 // ── 3. The adapter — the only code that touches pdfjs ───────────────────────────────────────────
 
-/** @typedef {{ available: boolean, reason?: string, rows: Array<{ name: string, cells: string[], occupancy: boolean[] }>, pagesRead: number, pagesRejected: number }} RosterGeometry */
+/** @typedef {{ available: boolean, reason?: string, rows: Array<{ name: string, cells: string[], occupancy: boolean[] }>, pagesRead: number, pagesRejected: number, weekEndings?: Array<{ printed: string, iso: string|null }> }} RosterGeometry */
 
 /**
  * Read the roster PDF's grid. NEVER THROWS — every failure is a `RosterGeometry` with
  * `available: false` (nothing usable) or with fewer pages, so the import proceeds as it did before
- * this witness existed.
+ * this witness existed. It also gathers the sheet's own `Week Ending:` headings (`weekEndings`) from
+ * every page with text, grid or not: the heading sits above the grid (roster-week-heading.js).
  *
  * @param {Buffer|Uint8Array} pdfBytes
  * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports pdfjs-dist v4
@@ -214,7 +226,7 @@ function assignRunsToGrid({ items, vx, hy }) {
  */
 async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOMETRY_WORK_BUDGET_MS, now = Date.now } = {}) {
     /** @type {RosterGeometry} */
-    const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0 };
+    const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [] };
     const deadline = now() + workBudgetMs;
     let pdfjs;
     try {
@@ -244,11 +256,10 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
                 const page = await doc.getPage(p);
                 const tc = await page.getTextContent();
                 if (!tc.items.length) continue;                       // an empty page is not a rejection
+                const items = tc.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
+                result.weekEndings.push(...weekEndingsOnPage(items)); // before the grid: it may reject the page
                 const { vx, hy } = rulesFromOperatorList(await page.getOperatorList(), pdfjs.OPS);
-                const rows = assignRunsToGrid({
-                    items: tc.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] })),
-                    vx, hy,
-                });
+                const rows = assignRunsToGrid({ items, vx, hy });
                 if (rows === null) { result.pagesRejected++; continue; }
                 result.pagesRead++;
                 result.rows.push(...rows);
@@ -265,7 +276,11 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
         try { if (task) await task.destroy(); } catch { /* nothing left to free */ }
     }
     result.available = result.rows.length > 0;
-    if (!result.available && !result.reason) result.reason = result.pagesRejected ? 'no-grid' : 'no-text';
+    // A page READ is a page with text and the nine-column grid, so when such a page placed no member
+    // row the honest reason is that — not `no-text`, which sent the reader to a scanned sheet.
+    if (!result.available && !result.reason) {
+        result.reason = result.pagesRead ? 'no-rows' : result.pagesRejected ? 'no-grid' : 'no-text';
+    }
     return result;
 }
 
@@ -414,14 +429,16 @@ function geometryCoverage(stats, reviewedNames) {
 }
 
 /**
- * How long the caller will WAIT for the witness once the model has answered — and the reason the
- * budget is on the wait rather than on the work.
+ * How long the caller will WAIT for the grid read, each time it waits — and the reason the budget
+ * is on the wait rather than on the work.
  *
- * The extraction starts before the model call and is awaited after it, so it normally runs for
- * free inside the model's own latency and costs the request nothing. What the reviewer's concern
- * is actually about (v22.39) is the tail: a pathological PDF where pdfjs never settles would hold
- * a finished parse until the Cloud Function's own 120s timeout — an OPTIONAL check extending the
- * critical path without bound, which contradicts the whole fail-open contract.
+ * Since phase 2 (v24.04) the read is awaited BEFORE the model call, because a usable grid decides
+ * which prompt is sent, so it sits on the critical path: under a second a document on the corpus,
+ * at most this budget. Only a wait that gave up is repeated after the model has answered
+ * (`settledGeometry`), so a pathological PDF costs two budgets at worst. That tail is what the bound
+ * is for (v22.39): a PDF where pdfjs never settles would otherwise hold a finished parse until the
+ * Cloud Function's own 120s timeout — an OPTIONAL check extending the critical path without bound,
+ * which contradicts the whole fail-open contract.
  *
  * **Stopping the wait is not stopping the work**, exactly as `fetch-timeout.js` says on the client
  * side. The extraction keeps running in the instance until it finishes or the instance goes; that
@@ -431,8 +448,8 @@ function geometryCoverage(stats, reviewedNames) {
  */
 const GEOMETRY_WAIT_BUDGET_MS = 8000;
 
-/** The absolute cap on the extraction itself, checked between pages. Generous: the whole point is
- *  that it normally runs concurrently with the model, and the corpus reads 12 documents in well
+/** The absolute cap on the extraction itself, checked between pages. Generous: a read that outlasts
+ *  the first wait goes on running through the model call, and the corpus reads 12 documents in well
  *  under a second each — this is for the pathological case, not the ordinary one. */
 const GEOMETRY_WORK_BUDGET_MS = 45000;
 

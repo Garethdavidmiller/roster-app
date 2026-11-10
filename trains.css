@@ -147,7 +147,7 @@ body {
     flex: 1;
     padding: 7px 8px;
     border: 1.5px solid var(--surface);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-button);   /* a TAB is a button (css-tokens.md), as Overtime's and New link's are */
     background: var(--surface);
     box-shadow: var(--shadow-1);
     color: var(--primary-blue);
@@ -276,7 +276,6 @@ white, a third recipe for one job. */
     line-height: 1.4;
     white-space: nowrap;
 }
-.tr-chip--same     { background: var(--surface-sunken); color: var(--text-mid); }
 /* Amber, not the warning red: --al-warning sits 3° of hue from --error-red, so "Times move" and
    "No longer runs" were the same pink with different text (v24.83). */
 .tr-chip--moved    { background: var(--orange-light); color: var(--orange-text); }
@@ -594,8 +593,9 @@ on the answer: the app's ring, not the browser's orange one. */
 @media (min-width: 1024px) {
     /* Fixed layout: the station column is set, every train column gets an equal share. */
     .tr-grid { width: 100%; table-layout: fixed; }
-    .tr-grid tbody tr:hover > * { background: var(--surface-sunken); }
 }
+/* The row under a mouse, and only a mouse: on a touch screen as wide, a tapped row kept the tint. */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .tr-grid tbody tr:hover > * { background: var(--surface-sunken); } }
 .tr-grid th, .tr-grid td { padding: 5px 6px; border-bottom: 1px solid var(--border-light); text-align: center; }
 .tr-grid thead th { vertical-align: bottom; color: var(--text-mid); font-weight: 600; }
 .tr-grid-min { display: block; color: var(--text-dark); font-size: var(--type-label); font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -618,7 +618,6 @@ on the answer: the app's ring, not the browser's orange one. */
    and the rest scroll sideways under the pinned names, with a touch-only line saying so. */
 @media (max-width: 480px) {
     .tr-grid th, .tr-grid td { padding: 5px 3px; }
-    .tr-grid-colbtn { padding: 5px 3px; }
     .tr-grid .tr-grid-st { min-width: 100px; max-width: 108px; padding-right: 6px; box-shadow: 1px 0 0 var(--border-light); }
     .tr-grid-end { white-space: normal; line-height: 1.15; }
 }
@@ -636,7 +635,6 @@ on the answer: the app's ring, not the browser's orange one. */
 .tr-grid-colbtn {
     display: block;
     width: 100%;
-    padding: 0;
     border: 0;
     border-radius: var(--radius-sm);
     background: none;
@@ -646,12 +644,15 @@ on the answer: the app's ring, not the browser's orange one. */
     cursor: pointer;
     touch-action: manipulation;
 }
-.tr-grid-colbtn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* Inset: the tallest head is flush with the top of the scroll box, which clipped an outside ring's top edge. */
+.tr-grid-colbtn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 /* The whole cell is the button (v24.96): the head's padding sits on the button, not the cell, so a
    thumb has the 51px cell rather than the 28px of text inside it — the one new control members are
    told to tap had the page's smallest target. */
 .tr-grid thead th.tr-grid-colhead { padding: 0; }
 .tr-grid-colbtn { padding: 5px 6px; }
+/* A phone's tighter cells, AFTER the rule above: in the ≤480px block further up it lost on source order. */
+@media (max-width: 480px) { .tr-grid-colbtn { padding: 5px 3px; } }
 .tr-grid .tr-col-on { background: var(--surface-sunken); }
 /* The chosen column: a light tint down the table so its times stay readable, and the page's colour on its
    heading's underline (v25.21 — the underline was navy, the old "chosen"). */
@@ -665,11 +666,11 @@ on the answer: the app's ring, not the browser's orange one. */
 .tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
 .tr-grid-focus .tr-more { margin: 0; }
 .tr-grid-tip { margin: 0 0 6px; }
-/* The two lines, named: a band row before each group, pinned left with the station names so the
-   label stays in view when the table is scrolled sideways. */
+/* The two lines, named: a band row before each group. Its LABEL is pinned left with the station names
+   so it stays in view when the table is scrolled sideways: the label's own span (trains-render.js),
+   because the cell spans every column, so it is the table's width and has nowhere to travel. */
+.tr-grid-band-label { position: sticky; left: 0; display: inline-block; }
 .tr-grid-band td {
-    position: sticky;
-    left: 0;
     padding: 12px 0 4px;
     background: var(--surface);
     text-align: left;
@@ -679,11 +680,11 @@ on the answer: the app's ring, not the browser's orange one. */
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
-/* THE COLUMN HEADS, KEPT IN VIEW (v24.92). A fixed picture of the header row that trains-app.js
+/* THE COLUMN HEADS, KEPT IN VIEW (v24.92). A fixed picture of the header row that trains-grid-mirror.js
    shows while the real one is above the screen and the table is not — 39 rows of dots were read up to
    600px below the minute and destination that give them meaning. Fixed, not sticky: the card and
    every ancestor clip their overflow, and a sticky element sticks to the nearest of those, never to
-   the screen. aria-hidden and inert; the real heads stay the controls. */
+   the screen. aria-hidden, and no pointer events (below); the real heads stay the controls. */
 .tr-grid-stick {
     position: fixed;
     top: env(safe-area-inset-top, 0px);   /* an installed iPhone's status bar; trains-grid-mirror.js reads this back */
@@ -734,8 +735,21 @@ on the answer: the app's ring, not the browser's orange one. */
     background: var(--primary-blue);
     vertical-align: middle;
 }
-.tr-dot--new { background: var(--success-green-bg); box-shadow: inset 0 0 0 3px var(--success-text); }
-.tr-dot--lost { background: transparent; box-shadow: inset 0 0 0 2px var(--error-text); }
+/* THE TWO CHANGES ARE TWO SHAPES (whole-app review, Nov 2026): a ring with a plus for a new stop, a ring
+   struck through for one that ends. As a green ring and a red one they were 1.04:1 apart in lightness,
+   so red-green colour blindness or a black-and-white printer left two identical rings meaning opposite
+   things, and the cells carry no words. The marks are backgrounds, so they print with the dots (below). */
+.tr-dot--new {
+    background: linear-gradient(var(--success-text), var(--success-text)) center / 6px 2px no-repeat,
+                linear-gradient(var(--success-text), var(--success-text)) center / 2px 6px no-repeat,
+                var(--success-green-bg);
+    box-shadow: inset 0 0 0 2px var(--success-text);
+}
+.tr-dot--lost {
+    background: linear-gradient(135deg, transparent calc(50% - 1px), var(--error-text) calc(50% - 1px) calc(50% + 1px),
+                transparent calc(50% + 1px));
+    box-shadow: inset 0 0 0 2px var(--error-text);
+}
 /* Some hours only: half filled. A column is every hour's train at that minute (stoppingGrid), and a
    station only some of them stop at is not a stop "every hour" (v24.83). */
 .tr-dot--some { background: linear-gradient(90deg, var(--primary-blue) 50%, transparent 50%); box-shadow: inset 0 0 0 2px var(--primary-blue); }
@@ -842,6 +856,10 @@ uppercase. */
     .tr-view[hidden] { display: none !important; }
     .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
+    /* The title and the page badge's words are white for the navy canvas, which paper does not have,
+       and both printed white on white: the title turns navy, the badge keeps its fill. */
+    .app-header h1 { color: var(--primary-blue); }
+    .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-grid-swipe, .tr-change-station { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }

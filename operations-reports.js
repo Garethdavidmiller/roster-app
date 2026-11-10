@@ -116,14 +116,17 @@ function _usageMonthLabel(/** @type {string} */ ym) {
     return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-/** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23".
+/** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun, 14:23".
  *  EXPORTED (v18.93) so the Password Reset Requests card in operations-app.js reads identically to the
  *  Error Log rows beside it — a second formatter would have drifted. */
 function _relativeTime(/** @type {Date} */ date) {
     const secs = Math.floor((Date.now() - date.getTime()) / 1000);
     const exact = `${formatDayMonth(date)}, ${formatClock(date)}`;
     let rel;
-    if (secs < 60)    rel = `${secs}s ago`;
+    // Both callers pass SERVER stamps, which run ahead of a device whose clock is slow — and "-90s ago"
+    // is not a time. Anything this device does not yet see as past reads "just now" (Nov 2026 review).
+    if (secs < 1)          rel = 'just now';
+    else if (secs < 60)    rel = `${secs}s ago`;
     else if (secs < 3600)  rel = `${Math.floor(secs / 60)}m ago`;
     else if (secs < 86400) rel = `${Math.floor(secs / 3600)}h ago`;
     else                   rel = `${Math.floor(secs / 86400)}d ago`;

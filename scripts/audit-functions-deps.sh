@@ -65,8 +65,12 @@ if [ -z "$report" ] || ! printf '%s' "$report" | jq -e 'has("metadata")' >/dev/n
     exit 0
 fi
 
-crit=$(printf '%s' "$report" | jq -r '.metadata.vulnerabilities.critical // 0')
-high=$(printf '%s' "$report" | jq -r '.metadata.vulnerabilities.high // 0')
+# NO DEFAULT for an absent count (whole-app check, 10 November 2026). These read `… // 0`, which
+# turned a MISSING count into zero: a report with `metadata` but no `metadata.vulnerabilities`
+# printed "critical=0 high=0" and exited 0 with a critical advisory in its own list. An absent
+# count is now `null`, which the integer guard below refuses.
+crit=$(printf '%s' "$report" | jq -r '.metadata.vulnerabilities.critical')
+high=$(printf '%s' "$report" | jq -r '.metadata.vulnerabilities.high')
 
 # A count that is not a plain integer means the report SHAPE moved under us. Left alone, `[ "$crit"
 # -gt 0 ]` errors, the `if` is false, and a report carrying real advisories exits 0 as though clean

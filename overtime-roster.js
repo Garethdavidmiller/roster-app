@@ -2,8 +2,9 @@
 /**
  * overtime-roster.js — what a member is actually rostered to do on each day of an Overtime week.
  *
- * Owns: one bounded Firestore read for one member over seven dates, and the honest four-state
- * answer about how well that read went. Does NOT own the override→display LADDER — that is
+ * Owns: the bounded override read for a window's seven dates — a member's own (`loadRosterContext`)
+ * or, for a reviewer, every participant's (`loadRosterForMembers`) — and the honest answer about
+ * how well that read went: `authoritative` or `error`. Does NOT own the override→display LADDER — that is
  * `resolveEffectiveShift` in `override-utils.js`, with Christmas leave on top (`resolveDayShift`,
  * christmas-leave.js, v25.37): the same resolution the calendar renderer, Team View and the month
  * legend all use, and reimplementing it here is how those three drifted apart before v16.48.
@@ -18,8 +19,10 @@
  * where a later-resolving staler read wiped overrides the calendar had just loaded.
  *
  * So this module reads its own seven dates and keeps its own answer. What it DOES share is the
- * pure decision vocabulary of `calendar-data-state.js` — the four knowledge states — because that
- * argument is general and was won once already.
+ * Calendar's RULES — the per-day winner (`collectOverrideRecords` + `shouldReplaceOverride`), the
+ * start-date guard and the display ladder — so a day here is the day the Calendar shows. Not
+ * `calendar-data-state.js`'s four knowledge states: a read here is `authoritative` or `error`,
+ * because options built on a possibly stale roster get submitted (see `loadRosterContext`).
  *
  * ── THE INVARIANT ───────────────────────────────────────────────────────────────────────────────
  *
@@ -34,7 +37,7 @@
 
 import { db, COLLECTIONS, collection, query, where, getDocs } from './firebase-client.js';
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, toOverrideRecord } from './override-utils.js';
+import { isRestShift, collectOverrideRecords, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { shiftSpanMinutes, rosterBadge } from './overtime-format.js';
 
@@ -81,12 +84,14 @@ export async function loadRosterContext(memberName, dates) {
         // cache on, an unreachable server does not throw — the cache answers, possibly with nothing
         // for a week it never read, which is the swallowed failure above wearing a success.
         if (snap?.metadata?.fromCache) return { knowledge: 'error', byDate: {} };
-        snap.forEach((/** @type {any} */ d) => {
-            const data = d.data();
-            // `toOverrideRecord` deliberately does NOT carry the date — it is the record shape the
-            // cache stores UNDER a key, so the date comes from the document itself.
-            if (data && typeof data.date === 'string') overrides[data.date] = toOverrideRecord(data);
-        });
+        // ONE WINNER PER DAY, THE CALENDAR'S (overtime-core-2, Nov 2026). A manual record and a
+        // roster import for one day coexist by design, and this kept whichever document the query
+        // returned LAST — Firestore's document-id order, so the answer hung on a random id. It now
+        // runs the Calendar's own pipeline: `collectOverrideRecords` (the shared validation), then
+        // `shouldReplaceOverride` per day, exactly as `reconcileRangeIntoCache` picks its winners.
+        for (const { date, record } of collectOverrideRecords(snap)) {
+            if (shouldReplaceOverride(overrides[date], record)) overrides[date] = record;
+        }
     } catch (_) {
         return { knowledge: 'error', byDate: {} };
     }
@@ -127,11 +132,11 @@ export async function loadRosterForMembers(memberNames, dates) {
             where('date', 'in', dates),
         ));
         if (snap?.metadata?.fromCache) return { knowledge: 'error', byMember: {} };   // as above
-        snap.forEach((/** @type {any} */ d) => {
-            const data = d.data();
-            if (!data || typeof data.date !== 'string' || typeof data.memberName !== 'string') return;
-            (byName[data.memberName] ||= {})[data.date] = toOverrideRecord(data);
-        });
+        // The same winner per member and day as the loader above — and as the Calendar.
+        for (const { memberName, date, record } of collectOverrideRecords(snap)) {
+            const days = (byName[memberName] ||= {});
+            if (shouldReplaceOverride(days[date], record)) days[date] = record;
+        }
     } catch (_) {
         return { knowledge: 'error', byMember: {} };
     }
@@ -163,9 +168,12 @@ function resolveWeek(member, dates, overrides) {
         // `getBaseShift` takes a DATE, not an ISO string — passing the string would skip the
         // Christmas rule and mis-key the roster lookup, silently, on exactly the weeks that matter
         // most. `parseISODate` is the app's own noon-anchored parse (DST-safe).
-        const base = getBaseShift(member, parseISODate(date));
-        const eff = resolveDayShift(overrides[date] || null, base, isSunday(date),
-            isChristmasLeaveDay(member, parseISODate(date)));
+        const day = parseISODate(date);
+        const base = getBaseShift(member, day);
+        // Before the member started there is no roster at all: `getBaseShift` already says rest,
+        // and a record must not undo it — the guard the Calendar, Team Week and the legend apply.
+        const override = isBeforeMemberStart(member, day) ? null : (overrides[date] || null);
+        const eff = resolveDayShift(override, base, isSunday(date), isChristmasLeaveDay(member, day));
         // The hours slot an override may carry (an RDW time, an Other day's actual times) is more
         // specific than the shift value, so it wins when present — the same precedence the calendar
         // renders from.
@@ -183,9 +191,9 @@ function resolveWeek(member, dates, overrides) {
             start,
             end,
             // How long the day's EFFECTIVE duty runs — including a timed RDW, i.e. extra already
-            // agreed. `modesFor` withholds the "Up to 12 hours" offer when this already reaches
-            // 720; a day with no times is 0, not null, because "rostered nothing" is a known
-            // length, where null is reserved for a day whose roster could not be read at all.
+            // agreed. `offersFullTwelve` (overtime-format.js) withholds the 12-hour tick when this
+            // already reaches 720; a day with no times is 0, not null, because "rostered nothing" is
+            // a known length, where null is reserved for a day whose roster could not be read at all.
             rosteredMinutes: timed ? shiftSpanMinutes(start, end) : 0,
         };
     }

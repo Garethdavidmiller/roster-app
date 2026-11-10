@@ -489,6 +489,23 @@ export function dateWords(iso, offset = 0, { short = false, weekday = false } = 
 }
 
 /**
+ * The holidays inside a window of dates, as the page names them: 'Christmas and New Year',
+ * 'Christmas', 'New Year' or ''. For the weeks after the change in which Chiltern says it will change
+ * times again (`FURTHER_CHANGES_UNTIL`): the note about them named Christmas in typed words while a
+ * generated date switched it on, so moving the dates for the next books would have had it talk of
+ * Christmas in May (whole-app fix, Nov 2026). Compared as ISO strings, which sort as dates.
+ * @param {string} from   'YYYY-MM-DD', the window's first day
+ * @param {string} until  'YYYY-MM-DD', its last
+ * @returns {string}
+ */
+export function holidaysWithin(from, until) {
+    const y = Number(from.slice(0, 4));
+    const inside = (/** @type {string} */ day) => from <= day && day <= until;
+    return [inside(`${y}-12-25`) && 'Christmas', (inside(`${y}-01-01`) || inside(`${y + 1}-01-01`)) && 'New Year']
+        .filter(Boolean).join(' and ');
+}
+
+/**
  * A current train's weekday exception, in words. '' when it runs every day of its kind.
  * @param {string} days
  * @returns {string}

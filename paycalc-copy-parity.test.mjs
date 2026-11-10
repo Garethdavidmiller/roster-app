@@ -60,6 +60,43 @@ function subtitleFor(title) {
     return sub[1].replace(/<[^>]+>/g, '').trim();
 }
 
+// ── A PICKER SHEET IS TITLED WITH ITS FIELD'S OWN LABEL (whole-app review, Nov 2026) ──────────────
+// The title heads the sheet AND is the trigger's accessible name (select-sheet.js → `${title}. …`),
+// so a title that is not the label is a control named one thing and read as another (WCAG 2.5.3,
+// Label in Name). The student-loan stop opened as "Paid off from which period?" — the "repaid"
+// wording paycalc.md rules out for a loan moved to direct debit with a balance still owed.
+describe('picker sheets carry their field\'s visible label', () => {
+    const app = readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8');
+    // A spec may carry more after its title (a `searchLabel`, shared-ui-5), so the match runs to the brace.
+    const specs = [...app.matchAll(/\{\s*id:\s*'(\w+)',\s*title:\s*'([^']+)'[^{}]*\}/g)].map(m => ({ id: m[1], title: m[2] }));
+    /** The `<label for=id>` text, without its `.note` aside. @param {string} id */
+    const labelFor = id => {
+        const m = new RegExp(`<label for="${id}">([\\s\\S]*?)</label>`).exec(html);
+        return m ? m[1].replace(/<span class="note">[\s\S]*?<\/span>/g, '').replace(/<[^>]+>/g, '').trim() : null;
+    };
+
+    test('fixture: the sheets are found, and the labelled ones have labels', () => {
+        assert.ok(specs.length >= 7, `initSelectSheets lists the page's dropdowns (${specs.length})`);
+        for (const id of ['pensionOptOutFrom', 'slPaidOffFrom', 'ytdSrcSelect', 'backPayPeriod']) {
+            assert.ok(specs.some(s => s.id === id), `${id} has a sheet`);
+            assert.ok(labelFor(id), `${id} has a visible label`);
+        }
+    });
+
+    test('every labelled field\'s sheet title contains its label, word for word', () => {
+        for (const { id, title } of specs) {
+            const label = labelFor(id);
+            if (!label) continue;   // the period picker has no visible label to carry
+            assert.ok(title.toLowerCase().includes(label.toLowerCase()),
+                `#${id}: the sheet is titled "${title}" but the field reads "${label}"`);
+        }
+    });
+
+    test('no sheet says a loan was repaid or paid off — only that deductions stopped', () => {
+        for (const { id, title } of specs) assert.ok(!/repaid|paid off/i.test(title), `#${id}: "${title}"`);
+    });
+});
+
 describe('Sunday vs Rest Day Working, at the point of use', () => {
     test('the Rest Day Working row sends a Sunday elsewhere', () => {
         // The row she was reading. Its Saturday sibling has always done this — "if you weren't
@@ -107,5 +144,62 @@ describe('Sunday vs Rest Day Working, at the point of use', () => {
         const guide = readFileSync(new URL('./paycalc-guide.html', import.meta.url), 'utf8');
         assert.match(guide, /Sunday vs RDW/,
             'the guide\'s "Sunday vs RDW" tip is the deep-dive layer for this distinction');
+    });
+});
+
+// ── A ROW OR A CARD SAYS WHAT IT IS FOR, AND ONLY THAT ──────────────────────────────────────────
+describe('a row or a card says what it is for, and only that', () => {
+    const guide = readFileSync(new URL('./paycalc-guide.html', import.meta.url), 'utf8');
+    const text = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+    test('peer training never reads as the training a member attends (paycalc-3-18)', () => {
+        // The Calendar calls a day a member ATTENDS training a Training day. A stepper row titled
+        // "Training Days", each press adding two hours' basic pay, invited a trainee to count their
+        // own. Peer training has no payslip line of its own (paycalc.md), so nothing ties it to that
+        // name — the row says what it is, in the form and in the guide.
+        const row = ROWS.find(chunk => chunk.includes('id="peerPlus"'));
+        assert.ok(row, 'the peer-training stepper row is missing from paycalc.html');
+        const title = text(row.slice(0, row.indexOf('</div>')));
+        assert.match(title, /peer|colleague/i, `the stepper row is titled "${title}"`);
+        const card = /<span class="pay-name">([^<]*)<span class="pay-rate">\+2 hrs<\/span>/.exec(guide);
+        assert.ok(card, 'the guide\'s "+2 hrs" pay type is missing');
+        assert.match(card[1], /peer|colleague/i, `the guide calls it "${card[1].trim()}"`);
+    });
+
+    test('no help tip offers "Clear all entries" as an undo (paycalc-3-11)', async () => {
+        // It empties the WHOLE payslip, and the figures a Replace overwrote do not come back — so the
+        // tip that paired it with "Replace … will overwrite them" sent a member to lose more, not less.
+        const { HELP_CONTENT } = await import('./paycalc-help.js');
+        const tips = Object.values(HELP_CONTENT).flatMap(h => h.tips).map(text);
+        assert.ok(tips.some(t => /Replace with calendar values/.test(t)), 'premise: the hours help explains Replace');
+        for (const t of tips) assert.doesNotMatch(t, /Clear all entries[^.]*undo|undo[^.]*Clear all entries/i, t.slice(0, 80));
+    });
+
+    test('the payslip comparison asks for the pay figure it compares: Taxable Pay (paycalc-1-15)', async () => {
+        // The table sets the payslip's Taxable Pay — after the pension — against the estimate's pay
+        // after the pension, and its row says so. The box it is typed into asked for "Total pay",
+        // placeholder "Gross": the figure BEFORE the pension, so a member reading it typed the wrong
+        // line and the row showed the whole pension as a difference.
+        const { buildActualComparison } = await import('./paycalc-breakdown.js');
+        const table = buildActualComparison({ actual: { gross: 1, pension: null, tax: null, ni: null, net: null },
+            estimate: { gross: 1, pension: 0, tax: 0, ni: 0, net: 0 } });
+        const row = /<th scope="row">([^<]+)<\/th>/.exec(table)?.[1];
+        assert.equal(row, 'Taxable Pay', 'premise: the comparison names the payslip\'s own line');
+        const box = /<label class="check-more-field">([^<]*)<span class="pfx">(?:(?!<\/label>)[\s\S])*?id="actualGrossInput"[^>]*placeholder="([^"]*)"/.exec(html);
+        assert.ok(box, 'the comparison\'s pay box is missing from paycalc.html');
+        assert.equal(text(box[1]), row, 'the box asks for one figure and the row compares another');
+        assert.equal(box[2], row, 'the placeholder names a different payslip line');
+    });
+
+    test('the guide promises only the conversion the converter makes (paycalc-3-10)', () => {
+        // The card has ONE input, a decimal from the payslip, and answers in hours and minutes. The
+        // guide said it converted "and back", so a member typed 7:30 to get a decimal — and read "7 hrs".
+        const card = html.slice(html.indexOf('id="decimalConverterCard"'), html.indexOf('id="payTransferCard"'));
+        assert.equal((card.match(/<input\b/g) || []).length, 1,
+            'the converter has gained a second input — the guide may now describe a reverse conversion');
+        const section = guide.slice(guide.indexOf('id="pg-decimal-hours-converter"'), guide.indexOf('id="pg-data-privacy"'));
+        assert.ok(section.length > 0, 'the guide\'s converter section is missing');
+        assert.doesNotMatch(text(section), /and back|both ways|either way|the other way/i,
+            'the guide promises a conversion the card does not make');
     });
 });
