@@ -1809,6 +1809,28 @@ test('admin: the before-start line is set like the Sunday line in the same week'
     expect(await look(page.locator('.day-row[data-date="2026-06-01"] .start-note'))).toEqual(sunday);
 });
 
+// …AND THE LEAVE CARD'S TWIN (whole-app check, 10 Nov 2026). Before the start date the base roster reads
+// as rest, so a range across it asked "Swapped — counts / Rest day — free" about days the member had not
+// joined for, and "Swapped" wrote leave the Calendar never shows and the allowance counted.
+test('admin: a leave range across a start date asks nothing about the days before it, and writes none', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-06-01T09:00:00Z'));
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('K. Jedlinski');   // starts Wed 3 Jun 2026
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-01"]').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-06-05"]').click();
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('3 days');
+    await expect(preview.locator('.swapday-row'), 'a question about a day before the start date').toHaveCount(0);
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect(page.locator('#alFeedback')).toContainText('Recorded');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).map((/** @type {any} */ w) => w.date).sort());
+    expect(written).toEqual(['2026-06-03', '2026-06-04', '2026-06-05']);
+});
+
 // THE FIRST READ WAITS FOR THE SESSION (whole-app check, Nov 2026). On an iPhone Firebase can restore no
 // user behind a valid local session (AUTH_AND_SESSIONS.md), and Admin then signs in silently. The boot
 // read went out first — with no credential, which the overrides rule refuses — and nothing retried it once

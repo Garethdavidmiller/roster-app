@@ -45,7 +45,7 @@
 // can name those days before the write instead of calling them "skipped" (whole-app check, 10 Nov 2026).
 
 import { projectAnnualLeaveOverage, parseISODate, isSunday, getBaseShift } from './roster-data.js';
-import { isRestShift } from './override-utils.js';
+import { isRestShift, isBeforeMemberStart } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
@@ -152,8 +152,9 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
             // `skipped` that is an ANSWER rather than a range rule — see the block comment above.
             if (answer !== true) { skipped.push(date); answeredFree.push(date); continue; }
             swapped = true;
-        } else if (!isWorkingDate(member, date, ovByDate)) {
-            // Not asked and not worked: a Sunday, or a rest day the record already settled.
+        } else if (isBeforeMemberStart(member, parseISODate(date)) || !isWorkingDate(member, date, ovByDate)) {
+            // Not asked and not worked: a Sunday, a rest day the record already settled, or a day before
+            // the member's start date, which the range writer never writes (`rangeWriteDates`).
             skipped.push(date);
             // A Christmas day is never asked because its answer is fixed — see `answeredFree` above.
             if (isChristmasClosureDate(date)) { answeredFree.push(date); christmas.push(date); }
