@@ -5,6 +5,7 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect } from './fixtures.js';
+import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
 
@@ -1021,6 +1022,63 @@ test('operations reset requests: a Clear waiting on the server says so', async (
     await expect(page.locator('#slowSaveNotice')).toBeVisible();
     await expect(page.locator('.rr-row .rr-error')).toHaveText(/Couldn.t clear/);
     await expect(page.locator('#slowSaveNotice')).toBeHidden();
+});
+
+// ── A ROW BUTTON'S NAME LEADS WITH ITS WORDS, IN EVERY STATE (WCAG 2.5.3, Nov 2026 review) ──────
+// The Account status buttons had FIXED names. "Set email" was named "Set work email for …", so somebody
+// driving by voice said what they saw and reached nothing; and "Cancel", "Confirm?", "Removing…",
+// "Resetting…" and "Retry" kept the name of the state before, so a screen reader was not told the
+// button had changed. axe's own containment rule, on this card only, in each state a row can be in.
+/** @param {import('@playwright/test').Page} page */
+const nameMismatches = async (page) => (await new AxeBuilder({ page }).include('#accountStatusCard')
+    .withRules(['label-content-name-mismatch']).analyze()).violations.flatMap(v => v.nodes.map(n => n.target.join(' ')));
+
+test('operations account status: every row button\'s name holds its visible words, in every state', async ({ page }) => {
+    await page.addInitScript((byPath) => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], failDeleteCode: 'unavailable', deleteDelayMs: 60_000, docsByPath: byPath };
+    }, ACCT_EMAIL_ROWS);
+    // Hermetic: with a stub user signed in, the audit and the sign-in counts would otherwise fetch.
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));
+    const plans = ['hold', 500, 200];   // the first reset never answers, the second fails, the third lands
+    await page.route('**/resetMemberPassword', route => {
+        const plan = plans.shift();
+        if (plan === 'hold') return;
+        return route.fulfill({ status: Number(plan), contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+            body: JSON.stringify(plan === 200 ? { revoked: true, stamped: true, notified: true } : { error: 'Reset failed' }) });
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    await expect(page.locator('.acct-row').first()).toBeVisible();
+    expect(await nameMismatches(page), 'resting: Set email · Edit · Remove · Reset').toEqual([]);
+
+    const plain = page.locator('.acct-row').filter({ hasNot: page.locator('.email-set-btn--remove') }).first();
+    await plain.locator('.email-set-btn').click();
+    await expect(plain.locator('.email-set-btn')).toHaveText('Cancel');
+    expect(await nameMismatches(page), 'the form open: Cancel').toEqual([]);
+
+    const remove = page.locator('.email-set-btn--remove').first();
+    await remove.click();
+    await expect(remove).toHaveText('Confirm?');
+    expect(await nameMismatches(page), 'Remove armed: Confirm?').toEqual([]);
+    await remove.click();
+    await expect(remove).toHaveText('Removing…');
+    expect(await nameMismatches(page), 'Remove under way: Removing…').toEqual([]);
+
+    const resetOn = async (/** @type {number} */ i) => {
+        await page.locator('.acct-row').nth(i).locator('.btn-acct-reset').click();
+        await page.locator('.lb-overlay.open .dialog-btn-confirm').click();   // an earlier, closed dialog is still in the DOM
+    };
+    await resetOn(0);
+    await expect(page.locator('.acct-row').nth(0).locator('.btn-acct-reset')).toHaveText('Resetting…');
+    expect(await nameMismatches(page), 'a reset under way: Resetting…').toEqual([]);
+    await resetOn(1);
+    await expect(page.locator('.acct-row').nth(1).locator('.btn-acct-reset')).toHaveText('Retry');
+    expect(await nameMismatches(page), 'a reset that failed: Retry').toEqual([]);
+    await resetOn(2);
+    await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveText('Reset ✓');
+    await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveAttribute('aria-label', /done/);
+    expect(await nameMismatches(page), 'a reset that landed: Reset ✓').toEqual([]);
 });
 
 test('operations account status: a failed Remove leaves the open edit form its own error line', async ({ page }) => {

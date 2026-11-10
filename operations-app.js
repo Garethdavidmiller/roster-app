@@ -309,13 +309,22 @@ export function init() {
         /** @type {HTMLElement} */ let summaryEl;
         /** @type {HTMLElement} */ let listEl;
 
+        /** A row button's words and its name change TOGETHER, and the name LEADS with the words (WCAG
+         *  2.5.3, Nov 2026 review): fixed names went on describing buttons whose words had changed —
+         *  "Cancel", "Confirm?", "Retry" — and "Set email" was named "Set work email for …", so a voice
+         *  user saying what they saw reached nothing. @param {Element} btn @param {string} text @param {string} name */
+        const say = (btn, text, name) => { btn.textContent = text; btn.setAttribute('aria-label', name); };
+        const sayEmail = (/** @type {Element} */ btn, /** @type {string} */ nm) => (emailMap.has(nm)
+            ? say(btn, 'Edit', `Edit email for ${nm}`) : say(btn, 'Set email', `Set email for ${nm}`));
+        const sayReset = (/** @type {Element} */ btn, /** @type {string} */ nm) => say(btn, 'Reset', `Reset ${nm}'s password to their surname default`);
+        const sayRemove = (/** @type {Element} */ btn, /** @type {string} */ nm) => say(btn, 'Remove', `Remove email for ${nm}`);
+
         // Close every open email form and restore each Set/Edit button to its resting label.
         function closeAllEmailForms() {
             listEl.querySelectorAll('.email-set-form').forEach(f => f.remove());
             listEl.querySelectorAll('.acct-row').forEach(r => {
-                const nm = /** @type {HTMLElement} */ (r).dataset.member || '';
                 const b = r.querySelector('.email-set-btn');
-                if (b) b.textContent = emailMap.has(nm) ? 'Edit' : 'Set email';
+                if (b) sayEmail(b, /** @type {HTMLElement} */ (r).dataset.member || '');
             });
         }
 
@@ -369,8 +378,7 @@ export function init() {
             const resetBtn = document.createElement('button');
             resetBtn.type = 'button';
             resetBtn.className = 'btn-acct-reset';
-            resetBtn.textContent = 'Reset';
-            resetBtn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname default`);
+            sayReset(resetBtn, m.name);
             resetBtn.addEventListener('click', () => doReset(m.name, resetBtn));
             head.appendChild(resetBtn);
             row.appendChild(head);
@@ -391,8 +399,7 @@ export function init() {
             const setBtn = document.createElement('button');
             setBtn.type = 'button';
             setBtn.className = 'email-set-btn';
-            setBtn.textContent = has ? 'Edit' : 'Set email';
-            setBtn.setAttribute('aria-label', `${has ? 'Edit' : 'Set'} work email for ${m.name}`);
+            sayEmail(setBtn, m.name);
             setBtn.addEventListener('click', () => toggleEmailForm(row, emailLine, m, setBtn));
             emailLine.appendChild(setBtn);
 
@@ -400,8 +407,7 @@ export function init() {
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.className = 'email-set-btn email-set-btn--remove';
-                removeBtn.textContent = 'Remove';
-                removeBtn.setAttribute('aria-label', `Remove email for ${m.name}`);
+                sayRemove(removeBtn, m.name);
                 removeBtn.addEventListener('click', () => removeEmail(m, removeBtn));
                 emailLine.appendChild(removeBtn);
             }
@@ -420,7 +426,7 @@ export function init() {
             const wasOpen = !!row.querySelector('.email-set-form');
             closeAllEmailForms();
             if (wasOpen) return;   // toggle: it was open, closeAll shut it — done
-            setBtn.textContent = 'Cancel';
+            say(setBtn, 'Cancel', `Cancel editing the email for ${m.name}`);
 
             const form = document.createElement('div');
             form.className = 'email-set-form';
@@ -486,7 +492,7 @@ export function init() {
 
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
-                if (e.key === 'Escape') { form.remove(); setBtn.textContent = emailMap.has(m.name) ? 'Edit' : 'Set email'; }
+                if (e.key === 'Escape') { form.remove(); sayEmail(setBtn, m.name); }
             });
         }
 
@@ -494,14 +500,14 @@ export function init() {
             // Two-tap confirm (no dialog — keeps the inline row flow); auto-reverts after 3s.
             if (removeBtn.dataset.confirm !== 'pending') {
                 removeBtn.dataset.confirm = 'pending';
-                removeBtn.textContent = 'Confirm?';
+                say(removeBtn, 'Confirm?', `Confirm? Press again to remove the email for ${m.name}`);
                 setTimeout(() => {
-                    if (removeBtn.dataset.confirm === 'pending') { removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove'; }
+                    if (removeBtn.dataset.confirm === 'pending') { removeBtn.dataset.confirm = ''; sayRemove(removeBtn, m.name); }
                 }, 3000);
                 return;
             }
             // Disarmed as the delete starts, or the revert above fires into it ("Removing…" → "Remove").
-            removeBtn.dataset.confirm = ''; removeBtn.disabled = true; removeBtn.textContent = 'Removing…';
+            removeBtn.dataset.confirm = ''; removeBtn.disabled = true; say(removeBtn, 'Removing…', `Removing the email for ${m.name}`);
             try {
                 await withSlowSaveNotice(deleteStaffContact(m.name));
                 emailMap.delete(m.name);
@@ -511,7 +517,7 @@ export function init() {
                 console.error('[AccountStatus] email remove failed', e);
                 // It used to fail SILENTLY — the button just came back. Now it says which kind (v25.06).
                 const unknown = unconfirmedWriteLine(e, 'this removal', 'this list');
-                removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
+                removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; sayRemove(removeBtn, m.name);
                 const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: unknown || 'Couldn’t remove — check your connection and try again' });
                 msg.setAttribute('role', 'alert'); msg.dataset.removeError = '';
                 // Only ITS OWN earlier line (48-hour review): the first in the row was the open edit
@@ -531,7 +537,7 @@ export function init() {
                 confirmLabel: 'Reset', danger: true,
             });
             if (!ok) return;
-            btn.disabled = true; btn.textContent = 'Resetting…';
+            btn.disabled = true; say(btn, 'Resetting…', `Resetting ${name}'s password`);
             /** @type {any} */ let result;
             try {
                 result = await resetMemberPassword(name, { revoke: true });
@@ -551,7 +557,7 @@ export function init() {
                 // was the exception.
                 if (isFetchTimeout(/** @type {any} */ (e)?.cause)) {
                     // NOT "Retry": the button must not describe an outcome nobody knows.
-                    btn.disabled = false; btn.textContent = 'Reset';
+                    btn.disabled = false; sayReset(btn, name);
                     confirmDialog({
                         title: 'Couldn’t confirm the reset',
                         message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and their other devices already signed out.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
@@ -561,7 +567,8 @@ export function init() {
                 }
                 // A REFUSAL (4xx) names its reason and offers no Retry — retrying cannot change the answer (whole-app review).
                 const refused = serverRefusal(e);
-                btn.disabled = false; btn.textContent = refused ? 'Reset' : 'Retry';
+                btn.disabled = false;
+                if (refused) sayReset(btn, name); else say(btn, 'Retry', `Retry resetting ${name}'s password`);
                 if (refused) confirmDialog({ title: 'The reset was refused', message: refused.reason, confirmLabel: 'OK' }).catch(() => {});
                 return;
             }
@@ -620,14 +627,16 @@ export function init() {
             // Reset SUCCEEDED (member re-defaulted + signed out). The follow-up status re-read is
             // best-effort — if it fails, do NOT show "Retry"/"Reset failed" (that would prompt a
             // redundant second reset). Reflect the done state and let the next load reconcile the table.
+            const sayDone = (/** @type {Element} */ b) => say(b, 'Reset ✓', `Reset done for ${name} — press to reset their password again`);
             try {
                 const fresh = await withClaimRetry(getAllPasswordStatus);
                 statusMap = new Map(fresh.map(/** @param {any} s */ s => [s.memberName, s]));
                 renderForGrade(filterSelect.value);   // re-rendered — and a row on its default looks just as it did, so it says so (whole-app review)
-                [...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset')?.replaceChildren('Reset ✓');
+                const again = [...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset');
+                if (again) sayDone(again);
             } catch (e) {
                 console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);
-                btn.textContent = 'Reset ✓';
+                sayDone(btn);
             }
         }
 
