@@ -210,6 +210,13 @@ async function resolveAccess() {
  *
  * Deliberately NOT time-limited. There is no instant after which a member's own restored identity
  * should stop being honoured, and the listener costs one closure.
+ *
+ * A STAFF-PIN SESSION THAT RESTORES LATE IS HONOURED TOO (cal-data-10, 10 Nov 2026) — a station PC
+ * reloading on a bad connection was shown the sign-in card for good, although the browser held a
+ * valid PIN session the boot decision would have granted. It is granted as what `decideAccess` says
+ * it is, the viewer, never as a member — and only once its token is seen to carry the claim, the
+ * check the unlock itself makes; and never during the PIN card's own exchange, which checks the
+ * claim and grants for itself (`_unlocking`).
  */
 function watchForLateNamedIdentity() {
     let off = /** @type {null | (() => void)} */ (null);
@@ -219,13 +226,34 @@ function watchForLateNamedIdentity() {
             // Only ever UPGRADES, and only from locked. A grant that already happened owns the
             // page; re-granting would run the workspace hooks a second time.
             if (_accessType !== 'none') { stop(); return; }
-            if (decideAccess({ session: getSession(), firebaseUser: u }) !== 'named') return;
+            const late = decideAccess({ session: getSession(), firebaseUser: u });
+            if (late === 'viewer' && !_unlocking) { grantLateViewer(u, stop); return; }
+            if (late !== 'named') return;
             stop();
             console.warn('[CalendarAccess] a named identity restored after the access decision — granting.');
             grant('named');
         }, () => stop());
     } catch { /* an auth layer that cannot be watched simply leaves the panel up */ }
     return stop;
+}
+
+/** True while the PIN card's exchange is signing the viewer in: it checks the claim and grants for
+ *  itself, and the watcher granting on that sign-in as well would grant twice. */
+let _unlocking = false;
+
+/**
+ * Grant a staff-PIN session that restored after the decision — see `watchForLateNamedIdentity`.
+ * Asked again after the token read, because the page may have moved on while it was out.
+ * @param {any} u the restored viewer @param {() => void} stop the watcher's own stop
+ */
+async function grantLateViewer(u, stop) {
+    /** @type {any} */ let claims;
+    try { claims = (await u.getIdTokenResult())?.claims; } catch { return; }
+    if (claims?.[CALENDAR_VIEWER_CLAIM] !== true) return;
+    if (_accessType !== 'none' || auth.currentUser !== u) return;   // granted, or signed out by an exchange, meanwhile
+    stop();
+    console.warn('[CalendarAccess] a staff-PIN session restored after the access decision — granting.');
+    grant('viewer');
 }
 
 /** Commit an access decision exactly once, and let the Calendar start. */
@@ -319,6 +347,10 @@ export async function unlockWithPin(pin) {
         return { ok: false, kind: f.kind, message: f.message };
     }
 
+    // A staff-PIN session restored late and was granted while this exchange was out (cal-data-10):
+    // there is nothing left to unlock, and signing it out to sign in again would rebuild a working gate.
+    if (_accessType !== 'none') return { ok: true };
+    _unlocking = true;   // this exchange grants for itself, after its claim check — see `grantLateViewer`
     try {
         // ── The persistence switch, in the one order that is safe ───────────────────────────────
         // Sign out anything already here FIRST. `setPersistence` migrates the CURRENT user into the
@@ -368,6 +400,8 @@ export async function unlockWithPin(pin) {
         try { await signOut(auth); } catch { /* noop */ }
         const f = classifyUnlockFailure({ code: /** @type {any} */ (e)?.code || 'auth-failed' });
         return { ok: false, kind: f.kind, message: f.message };
+    } finally {
+        _unlocking = false;
     }
 }
 

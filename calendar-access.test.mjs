@@ -38,6 +38,9 @@ let tokenClaims = { calendarViewer: true };
  *  as much as its claims are, and this is the seam that lets a test disagree with it.
  *  @type {any} */
 let tokenUser = undefined;
+/** The real SDK tells `onAuthStateChanged` subscribers about a custom-token sign-in at once, before
+ *  the unlock has checked the claim. Opt-in, so the tests written before cal-data-10 are unchanged. */
+let emitOnSignIn = false;
 let sessionValue = null;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
@@ -56,6 +59,7 @@ mock.module('./firebase-client.js', {
                 uid: 'calendar-viewer', isAnonymous: false,
                 getIdTokenResult: async () => ({ claims: tokenClaims }),
             };
+            if (emitOnSignIn) for (const cb of [...authSubs]) cb(currentUser);
             return { user: currentUser };
         },
         signOut: async () => {
@@ -344,6 +348,7 @@ beforeEach(async () => {
     currentUser = null;
     tokenClaims = { calendarViewer: true };
     tokenUser = undefined;
+    emitOnSignIn = false;
     sessionValue = null;
     signOutBehavior = 'ok';
     silentReauthSucceeds = false;
@@ -928,8 +933,77 @@ describe('initCalendarAccess', () => {
         sessionValue = { name: 'G. Miller' };
         emitAuth({ uid: 'anon', isAnonymous: true });
         assert.equal(getAccessType(), 'none');
-        emitAuth({ uid: 'calendar-viewer', isAnonymous: false });
-        assert.equal(getAccessType(), 'none', 'the viewer was granted a member\'s access');
+        emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
+        await new Promise(r => setTimeout(r, 0));
+        assert.notEqual(getAccessType(), 'named', 'the viewer was granted a member\'s access');
+    });
+
+    // cal-data-10 (10 Nov 2026, the owner's question with a decided default): a staff-PIN session
+    // that restored after the decision was ignored for the rest of the page load — a station PC on a
+    // bad connection showed the sign-in card although it held a session the boot would have granted.
+    describe('a STAFF-PIN session that restores late', () => {
+        const viewer = (/** @type {any} */ claims) => ({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims }) });
+
+        test('is honoured — as the viewer, the way a late member identity is honoured', async () => {
+            let started = 0;
+            assert.equal(await initCalendarAccess({ onGranted: () => { started++; } }), 'none');
+            emitAuth(viewer({ calendarViewer: true }));
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(getAccessType(), 'viewer', 'a PIN session the browser holds was ignored');
+            assert.equal(started, 1);
+        });
+
+        test('…only once its token carries the claim — the check the unlock itself makes', async () => {
+            assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
+            emitAuth(viewer({}));
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(getAccessType(), 'none', 'a token without the claim unlocked the Calendar');
+        });
+
+        test('…and never on the PIN card\'s own sign-in: that exchange checks the claim and grants ONCE', async () => {
+            globalThis.window.location.hash = '#staff-pin';
+            let grants = 0;
+            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
+            emitOnSignIn = true;                                  // the SDK announces the sign-in at once
+            const result = await unlockWithPin('1234');
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(result.ok, true);
+            assert.equal(getAccessType(), 'viewer');
+            assert.equal(grants, 1, 'the watcher granted on the exchange\'s sign-in as well — the gate was rebuilt twice');
+        });
+
+        test('…and an exchange still out when the restored session is granted stands down — no sign-out, no second grant', async () => {
+            globalThis.window.location.hash = '#staff-pin';
+            let grants = 0;
+            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
+            /** @type {(v: any) => void} */ let answer = () => {};
+            globalThis.fetch = (/** @type {any} */ _u, /** @type {any} */ opts) => (opts?.method === 'POST'
+                ? new Promise(r => { answer = r; })
+                : Promise.resolve({ ok: false, status: 405, json: async () => ({}) }));
+            const exchange = unlockWithPin('1234');               // the PIN typed; the exchange is slow
+            emitAuth(viewer({ calendarViewer: true }));           // …and the browser's own PIN session restores
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(getAccessType(), 'viewer', 'premise: the restored session was granted');
+            ops = [];
+            answer({ ok: true, status: 200, json: async () => ({ token: 'GOOD_TOKEN' }) });
+            assert.equal((await exchange).ok, true);
+            assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('signIn:')), [],
+                'the exchange signed a working session out to sign in again');
+            assert.equal(grants, 1);
+        });
+
+        test('…and one an exchange signed out while its claim was being read is not granted after', async () => {
+            globalThis.window.location.hash = '#staff-pin';
+            await initCalendarAccess({ onGranted: () => {} });
+            /** @type {(v: any) => void} */ let claimsLand = () => {};
+            emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: () => new Promise(r => { claimsLand = r; }) });
+            tokenClaims = {};                                     // the exchange that starts meanwhile is refused its claim
+            const result = await unlockWithPin('1234');
+            assert.equal(result.ok, false, 'premise: the exchange failed, and signed everybody out');
+            claimsLand({ claims: { calendarViewer: true } });     // the first session's slow check lands
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(getAccessType(), 'none', 'a session the exchange had signed out was granted');
+        });
     });
 
     test('a late emission with NO local session changes nothing', async () => {
