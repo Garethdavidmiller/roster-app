@@ -93,7 +93,9 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  *
  * Creates Firebase Auth accounts for all active roster members and optionally
  * disables accounts for anyone who has left. Run any time membership changes —
- * it is fully idempotent (existing accounts are skipped).
+ * it is idempotent: an existing, enabled account that already carries claims is
+ * re-claimed as it stands, and one that does not (registered from outside, or
+ * disabled as a leaver's) is reset to the member's default first.
  *
  * B4: the member + role (admin/manager/linksDesigner) lists are SERVER-OWNED — read from
  * roster-members.json (generated from roster-data.js by generate-roster-members.mjs), NOT the
@@ -115,9 +117,12 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  * Auth: Authorization: Bearer <Firebase ID token with admin custom claim>
  *
  * Response:
- *   { created, skipped, disabled, failed: string[],
+ *   { created, skipped, reclaimed, disabled, failed: string[],
  *     orphanSweepFailed?: true,
  *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
+ *   `reclaimed` names every member whose account this run put back on the surname default and
+ *   signed out — an account registered from outside (taken back) or a disabled one re-enabled.
+ *   The admin is the only person who can tell them, which is why they are named.
  */
 const setupRosterAuth = onRequest(
     {
@@ -220,7 +225,7 @@ const setupRosterAuth = onRequest(
                 if (err.code === 'auth/email-already-exists') {
                     // Fetch UID so we can still (re)apply claims, and re-enable
                     // if the account was previously disabled (returning staff member).
-                    let reclaiming = false;
+                    let reclaiming = false, reEnabling = false;
                     try {
                         const existing = await getAuth().getUserByEmail(email);
                         // The shared PIN account with this email linked to it: never adopted (the next unlock rebuilds it).
@@ -248,11 +253,33 @@ const setupRosterAuth = onRequest(
                             await getAuth().revokeRefreshTokens(uid);
                             reclaimed.push(name);
                             console.warn(`[setupRosterAuth] Reclaimed an account with no server claims: ${email}`);
-                        } else {
-                            if (existing.disabled) {
-                                await getAuth().updateUser(uid, { disabled: false });
-                                console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
+                        } else if (existing.disabled) {
+                            reEnabling = true;
+                            // A DISABLED ACCOUNT IS NEVER HANDED BACK AS IT WAS (lead-1, 10 Nov 2026).
+                            // It is a leaver's — disabled, not deleted, still holding its claims and
+                            // the password its holder chose. The same initial and surname back on the
+                            // roster (that person returning, or a new starter who shares them) derive
+                            // the same email, so enabling it as it stood let whoever knew the old
+                            // password sign in as today's member. So it is reset exactly as an admin
+                            // reset is (PASSWORD_DESIGN.md Track C): the stamp first, the surname
+                            // default, every session revoked; then its old push records go (the
+                            // previous holder's phones), and ONLY THEN is it enabled. Any failure
+                            // leaves it disabled, so the next run takes this path again rather than
+                            // adopting a half-reset account. Reported in `reclaimed`: the admin must
+                            // tell the member their password is their surname.
+                            await stampResetAt(name);
+                            await getAuth().updateUser(uid, { password, displayName: name, ...unlinkOtherProviders(existing) });
+                            await getAuth().revokeRefreshTokens(uid);
+                            try {
+                                const n = await releasePushForOwner(uid);
+                                if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) left on a re-enabled account: ${email}`);
+                            } catch (pushErr) {
+                                console.warn(`[setupRosterAuth] Could not remove push records on a re-enabled account (${email}): ${pushErr.message}`);
                             }
+                            await getAuth().updateUser(uid, { disabled: false });
+                            reclaimed.push(name);
+                            console.warn(`[setupRosterAuth] Re-enabled a disabled account on the default password, signed out: ${email}`);
+                        } else {
                             skipped.push(name);
                         }
                     } catch (lookupErr) {
@@ -260,7 +287,7 @@ const setupRosterAuth = onRequest(
                         // before the failing call). Stamping after a failed take-back would give the
                         // outsider the member's claims, and the next run would adopt it for good.
                         uid = undefined;
-                        const what = reclaiming ? 'reclaim-failed' : 'lookup-failed';
+                        const what = reclaiming ? 'reclaim-failed' : reEnabling ? 're-enable-failed' : 'lookup-failed';
                         failed.push(`${name} (${what}: ${lookupErr.message})`);
                         console.error(`[setupRosterAuth] ${what} for ${name}: ${lookupErr.message}`);
                     }

@@ -981,6 +981,65 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
 });
 
 
+// ── A DISABLED ACCOUNT IS NEVER HANDED BACK AS IT WAS (lead-1, whole-app fix, 10 Nov 2026) ─────
+// A leaver's account is DISABLED, not deleted, and keeps its claims and its password. When the same
+// initial and surname come back onto the roster — the leaver returning, or a new starter who shares
+// them — the derived email is the same account. Set up accounts used to re-enable it as it stood, so
+// whoever knew the leaver's password signed in as the member on the roster today. Now it is put back
+// on the surname default, signed out and stamped exactly as an admin reset is, its old push records
+// go, and only then is it enabled — and the admin is told, by name.
+describe('setupRosterAuth never re-enables an account on its old password', () => {
+    const disabledAccount = (name) => ({ uid: uidFor(name), email: emailFor(name), displayName: name, disabled: true,
+        customClaims: { name, member: name }, providerData: [{ providerId: 'password' }, { providerId: 'google.com' }] });
+
+    test('it is reset, signed out, stamped and its old push records released — and only THEN enabled', async () => {
+        const { eps, authOps, stamps, released } = build({ existingUsers: [disabledAccount(MEMBER)] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body.reclaimed, [MEMBER], 'reported by name — the admin must tell them their password is their surname');
+        assert.ok(!out.body.skipped.includes(MEMBER), 'not a benign "already existed"');
+
+        const ops = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        const reset = ops.find((o) => o.op === 'updateUser' && o.patch && 'password' in o.patch);
+        assert.ok(reset, 'the account came back on the password its previous holder chose');
+        assert.equal(reset.patch.password, 'springer', 'the surname default, as a new account would get');
+        assert.equal(reset.patch.disabled, undefined, 'not enabled in the step that resets it');
+        assert.deepEqual(reset.patch.providersToUnlink, ['google.com'], 'the previous holder\'s other way in goes');
+        const at = (pred) => ops.findIndex(pred);
+        const iReset  = at((o) => o === reset);
+        const iRevoke = at((o) => o.op === 'revokeRefreshTokens');
+        const iEnable = at((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === false);
+        const iClaims = at((o) => o.op === 'setCustomUserClaims');
+        assert.ok(iRevoke > iReset, 'every old session is revoked');
+        assert.ok(iEnable > iRevoke, 'enabled only once its credential and sessions are dealt with');
+        assert.ok(iClaims > iEnable, 'and claimed after that');
+        const stamp = stamps.find((s) => s.member === MEMBER);
+        assert.ok(stamp && stamp.at <= authOps.indexOf(reset), 'resetAt is stamped first — the previous holder\'s devices must type a password');
+        assert.deepEqual(released, [uidFor(MEMBER)], 'the previous holder\'s phones stop receiving this member\'s notices');
+    });
+
+    for (const step of ['updateUser', 'revokeRefreshTokens', 'stamp']) {
+        test(`if its ${step} fails the account stays DISABLED, gets no claims, and is reported`, async () => {
+            const opts = step === 'stamp' ? { stampFail: 'firestore down' } : { authFail: { [step]: 'boom' } };
+            const { eps, authOps } = build({ existingUsers: [disabledAccount(MEMBER)], ...opts });
+            const out = await call(eps.setupRosterAuth, asAdmin({}));
+            const ops = authOps.filter((o) => o.uid === uidFor(MEMBER));
+            assert.ok(!ops.some((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === false),
+                'enabled although a step failed — the next run would then adopt it as it stands');
+            assert.ok(!ops.some((o) => o.op === 'setCustomUserClaims'), 'claimed although a step failed');
+            assert.deepEqual(out.body.reclaimed, []);
+            assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (re-enable-failed`)), out.body.failed.join(' | '));
+        });
+    }
+
+    test('a push-record release that fails does not stop the re-enable', async () => {
+        const { eps } = build({ existingUsers: [disabledAccount(MEMBER)], releaseFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.reclaimed, [MEMBER]);
+        assert.ok(!out.body.failed.some((f) => f.startsWith(MEMBER)), out.body.failed.join(' | '));
+    });
+});
+
 // ── THE SHARED PIN ACCOUNT IS NEVER A MEMBER (Sep 2026 review) ─────────────────────────────────
 // Any PIN holder can link an email/password to the shared `calendar-viewer` account. Linking a
 // not-yet-provisioned member's DERIVED email made this endpoint's email-already-exists path find
