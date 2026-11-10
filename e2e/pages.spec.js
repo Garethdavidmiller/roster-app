@@ -436,6 +436,40 @@ test('drawer: the body fades at the fold only while there is more below it', asy
     await expect(body, 'a drawer that fits wears no fade').not.toHaveClass(/\bhas-more\b/);
 });
 
+// ── THE MENU BUTTON TAKES A 44px TAP (owner, 10 Nov 2026) ─────────────────────────────────────────
+// ☰ drew about 34×30px, under the 44px touch target, and it is the way into every other page. The
+// glyph stays as it was; an invisible square round it takes the tap. Hit-tested on every page, because
+// a header that clipped its overflow would quietly cut the square back down.
+test('the menu button ☰ takes a tap anywhere in a 44px square round its centre, on every page', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 375, height: 800 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    let checked = 0;
+    for (const p of APP_PAGES_LIST) {
+        await page.goto(p.url);
+        await waitForPageSettled(page);
+        const burger = page.locator('#navMenuBtn');
+        if (!(await burger.isVisible())) continue;   // a page that shows its sign-in card instead
+        const misses = await burger.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+            const out = [];
+            for (const [dx, dy] of [[-21, 0], [21, 0], [0, -21], [0, 21], [-21, -21], [21, 21], [-21, 21], [21, -21]]) {
+                const hit = document.elementFromPoint(cx + dx, cy + dy);
+                if (!hit || !(hit === el || el.contains(hit))) out.push(`${dx},${dy} → ${hit ? hit.tagName + (hit.id ? '#' + hit.id : '') : 'nothing'}`);
+            }
+            return out;
+        });
+        expect(misses, `${p.file}: a tap within 22px of ☰'s centre missed it`).toEqual([]);
+        checked++;
+    }
+    expect(checked, 'no page showed its menu button — the test checked nothing').toBeGreaterThan(5);
+});
+
 // ── A PAGE'S FIELD RULES STAY ON THE PAGE (css-admin-ops-1 and -5, Nov 2026) ────────────────────────
 // Admin and Operations style their fields BY ELEMENT, and those rules were unscoped, so they reached
 // the shared surfaces every page hosts and out-ranked those surfaces' own rules. Focused, the drawer's
