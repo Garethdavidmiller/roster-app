@@ -67,7 +67,7 @@ import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
-    isDeleted, canSoftDelete, sortByDeleted,
+    isDeleted, sortByDeleted,
 } from './links-deletion.js';
 
 
@@ -562,7 +562,7 @@ export function init() {
     const queuedIds = new Set();
     const _headerState = () => ({
         designs, activeId: activeDesignId, design, dirty, currentUser, saving: savingHere(),
-        canDelete: canSoftDelete(designs.length), proposals: PROPOSAL_ENTRIES, proposalId: activeProposalId,
+        proposals: PROPOSAL_ENTRIES, proposalId: activeProposalId,
         queued: !!activeDesignId && queuedIds.has(activeDesignId),
     });
 
@@ -910,12 +910,12 @@ export function init() {
      * Delete a design — a SOFT delete since v19.41: it moves to "Recently deleted", where it can be
      * restored, instead of being destroyed on the spot. It stays there until a designer removes it
      * for good; nothing expires it (automatic expiry was removed at v24.10 — see `links-deletion.js`).
-     * The last LIVE design can't be deleted — the ✕ button is disabled in that state, so this
-     * guard is just a backstop.
+     * The last saved design can be deleted too (links-app-23): the first shortlisted proposal opens
+     * in its place, as it does when Keep only the shortlist empties the list.
      * @param {any} id
      */
     async function deleteDesign(id) {
-        if (!canSoftDelete(designs.length) || deleting.has(id)) return;
+        if (deleting.has(id)) return;
         const d = designs.find(x => x.id === id);
         if (!d) return;
         deleting.add(id);
@@ -986,7 +986,9 @@ export function init() {
                     ? `“${d.name}” is in Recently deleted — ${String(deletedData?.deletedBy ?? '').trim() || 'someone'} had already deleted it.`
                     : `“${d.name}” is in Recently deleted.`;
             const wasOpen = id === activeDesignId;
-            const newActive = wasOpen && _contentKey() === before ? designs[0] : null;
+            // With no saved design left, the first shortlisted proposal opens, as after Keep only the
+            // shortlist (links-app-23): the picker always holds the proposals, so nothing is left empty.
+            const newActive = wasOpen && _contentKey() === before ? (designs[0] ?? PROPOSAL_ENTRIES[0] ?? null) : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
             // designs compare needs, OR the newly-promoted active design IS the current compare
             // target — otherwise a design would be compared against ITSELF (every cell "identical",
@@ -999,8 +1001,10 @@ export function init() {
             if (newActive) {
                 _activateDesign(newActive);
                 // Our own delete needs no line once the next design is open; one that found the design
-                // already deleted, or gone, is news.
+                // already deleted, or gone, is news — and so is the LAST design going, which leaves a
+                // read-only proposal where it was: the line says where the design went.
                 if (found !== 'deleted') _designActionStatus(outcome, '');
+                else if (isProposalId(newActive.id)) _designActionStatus(`${outcome} No saved design is left, so a shortlisted proposal is open.`, 'ok');
                 return;
             }
             // Edited while its own delete was in flight: the design is in the bin, and the edits are kept

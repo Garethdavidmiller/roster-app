@@ -281,7 +281,6 @@ export function proposeNewDesignName(currentUser, existing = [], now = new Date(
  * @property {{ name?: string }|null} design   the working copy, or null when nothing is open
  * @property {boolean} dirty
  * @property {boolean} [saving]
- * @property {boolean} [canDelete]  false while the bin rule forbids deleting the last design
  * @property {string} currentUser
  * @property {Date} [now]
  * @property {DesignEntry[]} [proposals]  built-in proposals (links-proposals.js), listed in their own group
@@ -393,7 +392,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
     /** @param {HeaderState} state */
     function render(state) {
-        const { designs, activeId, design, dirty, currentUser, saving = false, canDelete = true, now = new Date(),
+        const { designs, activeId, design, dirty, currentUser, saving = false, now = new Date(),
                 proposals = [], proposalId = null, queued = false } = state;
         const saved = !!activeId;
         const open  = !!design;
@@ -532,7 +531,8 @@ export function createDesignHeader(els, handlers, extra = {}) {
         // greyed in another reads as a bug in whichever the reader found first (v23.33).
         for (const b of els.renameButtons || []) if (b) b.disabled = !saved;
         if (els.renameMenuButton) els.renameMenuButton.disabled = !saved;
-        if (els.deleteButton) els.deleteButton.disabled = !saved || !canDelete;
+        // Delete needs a saved design, and nothing else: the last one may go too (links-app-23).
+        if (els.deleteButton) els.deleteButton.disabled = !saved;
     }
 
     return { render, viaSheet };

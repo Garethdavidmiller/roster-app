@@ -235,7 +235,7 @@ test('links: deleting the design you are editing does not silently bin your unsa
     // Every other path that can lose the working copy already asks: New design, switching design,
     // signing out, leaving the page. Delete was the one that did not, and the only one with no undo.
     await openLinksWithDesigns(page);
-    await expect(designOptions(page)).toHaveCount(2);   // canSoftDelete needs a second design
+    await expect(designOptions(page)).toHaveCount(2);   // so the delete leaves one saved design to count
 
     // Paint a real shift over a rest day. RD onto RD is deliberately not a change (v19.38), so the
     // brush has to be one the cell does not already hold or the design never goes dirty.
@@ -1220,10 +1220,10 @@ test('links: a design restored elsewhere survives a load whose snapshot says exp
     expect(deletes, 'a design the server says is live must never be destroyed by a load').toEqual([]);
 });
 
-// Zero live designs with a full bin is the state where restore matters most, and it is reachable
-// even though this client refuses to delete the last live design (two designers deleting the last
-// two at once; a device on an older build). The bin button lives inside the picker strip, so if
-// that strip is keyed on live designs alone the only way back is invisible.
+// Zero live designs with a full bin is the state where restore matters most, and it is an ordinary
+// one: the last saved design can be deleted (links-app-23), and Keep only the shortlist empties the
+// list on purpose. The bin button lives inside the picker strip, so if that strip is keyed on live
+// designs alone the only way back is invisible.
 test('links: the bin is still reachable when every design has been deleted', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
@@ -1243,6 +1243,34 @@ test('links: the bin is still reachable when every design has been deleted', asy
     await expect(page.locator('.bin-row-name')).toHaveText('Only design');
     await page.locator('.bin-restore').click();
     await expect(activeDesignName(page)).toHaveText('Only design');
+});
+
+// THE LAST SAVED DESIGN CAN BE DELETED (links-app-23, the lead's decided default). Its row was greyed
+// with no reason given, for a rule whose reason — an empty picker and a "no designs yet" page — no
+// longer held: the picker always carries the shortlisted proposals, and Keep only the shortlist empties
+// the saved list on purpose. Deleting the last one now does what that does: the first proposal opens.
+test('links: the only saved design can be deleted — it goes to the bin and a proposal opens', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Only design', patterns: {}, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(designOptions(page)).toHaveCount(1);
+    await expect(page.locator('#designDeleteBtn'), 'the row is live').toBeEnabled();
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveStatus')).toHaveText('“Only design” is in Recently deleted. No saved design is left, so a shortlisted proposal is open.');
+    await expect(designOptions(page)).toHaveCount(0);
+    await expect(activeDesignName(page)).toHaveText(PROPOSALS[0].name);
+    await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
+    await sheetAction(page, 'designBinBtn');
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
+    await page.locator('.bin-restore').click();
+    await expect(designOptions(page), 'and it comes back from the bin').toHaveCount(1);
+    await expect(designOptions(page).first()).toContainText('Only design');
 });
 
 // Saving a design a colleague deleted while you had it open must NOT put it back. An overwrite

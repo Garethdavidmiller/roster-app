@@ -129,8 +129,10 @@ list.
 - **`isDeleted` tests for the KEY, not a usable timestamp.** An unresolved `deletedAt` — what
   `serverTimestamp()` reads back as on the writing device — still counts as deleted, or the design
   sits in the picker on the device that just binned it.
-- **The last live design cannot be deleted** (`canSoftDelete`), and Delete is disabled on an unsaved
-  design.
+- **Delete is disabled on an unsaved design, and on nothing else.** The last saved design can be
+  deleted too (whole-app fix, Nov 2026 — links-app-23): the picker always carries the shortlisted
+  proposals, so deleting it opens the first of them, as Keep only the shortlist does, and the line
+  says so. The refusal it replaced (`canSoftDelete`) guarded an empty picker that can no longer occur.
 - **A save against a design someone else deleted does not resurrect it.** The store reports
   `deleted-elsewhere` and `saveChanges` offers "Save mine as new" — an overwrite would undo a
   colleague's delete without either of them seeing it.
@@ -263,8 +265,8 @@ design has no name until its first save; and the list is rebuilt only when its c
 - Beside the face: the initials badge and "Last saved by", the status pill (`statusCopy`), ONE primary
   Save, and **··· More** — Save a copy as…, Rename, Compare with…, New blank design, Import from a
   spreadsheet, Keep only the shortlist (the admin's, while an older design exists), Recently deleted
-  (only when the bin holds something) and Delete this design (disabled on an unsaved design and on the
-  last live one). Rename also has its own ✎ beside the face.
+  (only when the bin holds something) and Delete this design (disabled on an unsaved design). Rename
+  also has its own ✎ beside the face.
 - **A design fresh from the generator has NO NAME until its first save**: the face reads "Untitled
   design" and the button "Save as…", whose prompt pre-fills `proposeNewDesignName`. `saveButtonLabel`
   owns the button's words; do not write them at the call sites.

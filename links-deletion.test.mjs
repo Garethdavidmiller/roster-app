@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    tsMillis, isDeleted, deletedLabel, canSoftDelete, sortByDeleted,
+    tsMillis, isDeleted, deletedLabel, sortByDeleted,
 } from './links-deletion.js';
 
 const DAY = 86_400_000;
@@ -149,14 +149,6 @@ describe('sortByDeleted — the bin reads newest first', () => {
     test('empty / missing input is safe', () => {
         assert.deepEqual(sortByDeleted([]), []);
         assert.deepEqual(sortByDeleted(/** @type {any} */ (null)), []);
-    });
-});
-
-describe('canSoftDelete — the workspace always keeps one live design', () => {
-    test('counts LIVE designs, so a full bin never makes the last one disposable', () => {
-        assert.equal(canSoftDelete(0), false);
-        assert.equal(canSoftDelete(1), false);
-        assert.equal(canSoftDelete(2), true);
     });
 });
 

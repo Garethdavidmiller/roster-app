@@ -336,9 +336,13 @@ describe('render — what the masthead SAYS', () => {
         assert.equal(els.pickList.children[0].disabled, true, 'the unsaved row has no id to select by, so it is inert');
         assert.equal(rowName(els.pickList.children[0]), 'Untitled design');
     });
-    test('the last design cannot be deleted while the bin rule says so, and the row states why through disabled', () => {
+    // The last saved design may be deleted too (links-app-23): the row was greyed with no reason
+    // given, for a rule whose reason no longer held. Delete needs a saved design, and nothing else.
+    test('the only saved design can be deleted; an unsaved one cannot', () => {
         const { els, h } = harness();
-        h.render({ designs: DESIGNS.slice(0, 1), activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, canDelete: false, now: NOW });
+        h.render({ designs: DESIGNS.slice(0, 1), activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
+        assert.equal(els.deleteButton.disabled, false);
+        h.render({ designs: DESIGNS.slice(0, 1), activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
         assert.equal(els.deleteButton.disabled, true);
     });
     test('no design open: the face says so, the status is hidden, Save is disabled', () => {
