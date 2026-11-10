@@ -193,7 +193,8 @@ export function buildPensionFromSelect(timeline) {
   //
   // `currentPeriodNum()` READS THE PERIOD SELECT, which does not exist yet when loadSettings runs
   // at boot — it returns 0 there. Falling through to today's payslip keeps the control meaningful
-  // on that first paint instead of leaving it on a value no option carries.
+  // on that first paint: set to a value no option carries, a select is not left on that value — it
+  // selects nothing at all (selectedIndex −1, value '').
   const checked = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'))?.checked;
   const start   = checked ? optOutStartsAt(timeline) : null;
   offerRecordedPayslip(sel, start);
@@ -633,9 +634,10 @@ export function loadSettings() {
   if (sl)      /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value = sl;
   /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked = pgLoan === '1';
   // Loan-repaid cutover (v18.41). The coordinator builds the payslip options BEFORE calling
-  // loadSettings; a saved payslip that list no longer reaches is offered first, because a select set
-  // to a value no option carries selects NOTHING — which calculate() reads as "still deducted" and
-  // the next save writes back over the record (paycalc-3-8).
+  // loadSettings; a saved payslip that list no longer reaches is offered first, because the
+  // assignment below does NOT no-op on a value no option carries: it selects NOTHING (selectedIndex
+  // −1, value '' — measured in Chromium and WebKit), which calculate() reads as "still deducted", and
+  // which saveSettings therefore refuses to store over the record (paycalc-3-8).
   const _slPaidOff   = lsGet(SK.slPaidOff);
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
   if (_slPaidOffEl && _slPaidOff) {
