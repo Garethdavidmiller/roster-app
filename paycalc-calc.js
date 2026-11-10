@@ -365,16 +365,20 @@ export function getPensionForPeriod(grade, payday) {
  *   - periodCutoff is always at local noon (inherited from FIRST_PAYDAY in getPeriods()).
  *   - startDate must always be midnight local time: new Date(year, month-1, day).
  *   - The resulting 0.5-day offset means Math.round always resolves X.5 to X+1 (JS
- *     rounds .5 up), giving the correct calendar-day count regardless of timezone.
+ *     rounds .5 up), the same count in every timezone. That count is ONE MORE than the calendar
+ *     days from the start date to the cut-off inclusive (20 April → 2 May is 13 calendar days and
+ *     counts 14) — what the one payslip on record paid, a MONDAY start. Whether payroll counts the
+ *     same way for a start on any other weekday is not on record (paycalc-3-7, on hold for a
+ *     non-Monday joiner's payslip); the comment says what the code does, and changes nothing.
  *   - The difference is taken between WALL-CLOCK readings, not raw instants (`proRateDays`).
  *     A period containing the spring clock change is an hour short in real time, so a start date
  *     before the change measured X.458 days, rounded DOWN and lost the joiner a day (72-hour
  *     review). Reading both dates' local fields into UTC removes the hour without moving the
  *     half-day offset the rounding depends on.
  *
- * Example: a 20 April joiner, startDate = new Date(2026, 3, 20) = April 20 midnight.
+ * Example: a 20 April joiner (a Monday), startDate = new Date(2026, 3, 20) = April 20 midnight.
  *   raw = (May 2 noon − April 20 midnight) / msPerDay = 12.5
- *   Math.round(12.5) = 13 → daysEmployed = 14 → factor = 14/28 = 0.5 (50%)
+ *   Math.round(12.5) = 13, + 1 → daysEmployed = 14 → factor = 14/28 = 0.5 (50%)
  *   Verified against May 8 2026 payslip: London Allowance = £276.16 × 0.5 = £138.08. ✓
  *
  * DO NOT change startDate to noon — it would break the formula.

@@ -1489,9 +1489,9 @@ describe('calcProRateFactor', () => {
     assert.equal(calcProRateFactor(new Date(2026, 4, 5), p51start, p51cut), 0); // May 5
   });
 
-  test('startDate = cutoff day midnight → 1/28 (last day only)', () => {
-    // May 2 midnight → raw 0.5 → Math.round=1 → days=2 → 2/28 by the formula
-    // This edge case is noted: formula gives 2 days for a cutoff-day joiner.
+  test('startDate = cutoff day midnight → 2/28 by the formula (one calendar day, counted two)', () => {
+    // May 2 midnight → raw 0.5 → Math.round=1 → days=2 → 2/28 by the formula: the count is one more
+    // than the calendar days, as for every in-period start (the docstring; paycalc-3-7 is on hold).
     // In practice Chiltern would never start someone on the last day of a period.
     const factor = calcProRateFactor(new Date(2026, 4, 2), p51start, p51cut);
     assert.equal(factor, 2 / 28);
