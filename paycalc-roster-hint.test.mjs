@@ -243,6 +243,37 @@ describe('the estimate badge reaches the rendered row', () => {
         assert.match(html, /data-cat="rdw"/, 'premise: the RDW row rendered');
         assert.match(html, /Includes an 8h estimate/);
     });
+
+    // paycalc-3-2. The two cases above render with BLANK boxes — and that is not what a member sees:
+    // the page applies the suggestion by itself on view, so the row they read is the MATCHED one, and
+    // that state dropped the badge: "RDW 8h 1 day ✓" over a take-home holding 8 hours nobody recorded.
+    // The badge is a statement about the figure, not about the mismatch.
+    /** Apply `suggestion` as the page does on view, then render; return the rows' HTML. */
+    function renderApplied(/** @type {any} */ suggestion) {
+        setupDom(A);
+        for (const id of HM_IDS) _els[id] = input();
+        _els.rosterHintBar = { style: {} };
+        _els.rosterRows = { innerHTML: '' };
+        _suggestion = () => suggestion;
+        _applyRosterSuggestion(suggestion);
+        updateRosterHint();
+        return String(_els.rosterRows.innerHTML);
+    }
+
+    test('the estimate badge stays on the row once the estimate is in the boxes', () => {
+        const rdw = renderApplied({ rdwH: 8, rdwM: 0, rdwCount: 1, defaulted8h: { rdw: true }, defaulted7h: {} });
+        assert.match(rdw, /roster-row--matched/, 'premise: the row is in its matched state');
+        assert.match(rdw, /Includes an 8h estimate/, 'a matched row dressed the 8h default as a record');
+        const bh = renderApplied({ bhH: 7, bhM: 0, bhCount: 1, bhFromOv: false, defaulted7h: { bh: true }, defaulted8h: {} });
+        assert.match(bh, /roster-row--matched/);
+        assert.match(bh, /Includes a 7h estimate/, 'a matched row dressed the 7h default as a record');
+    });
+
+    test('CONTROL: a matched row with no default stays the calm ✓, with no chip', () => {
+        const html = renderApplied({ rdwH: 7, rdwM: 30, rdwCount: 1, defaulted8h: {}, defaulted7h: {} });
+        assert.match(html, /roster-row--matched/);
+        assert.doesNotMatch(html, /conf-badge/, 'only an ESTIMATE is worth repeating on a row that matches');
+    });
 });
 
 /** An <input> as the page has one: `value` is always a string, and its classList works. */

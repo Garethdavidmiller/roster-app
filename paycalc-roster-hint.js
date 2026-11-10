@@ -278,7 +278,8 @@ export function updateRosterHint() {
       const enteredMins = (hv === '' && mv === '') ? null
         : (parseInt(hv) || 0) * 60 + (parseInt(mv) || 0);
 
-      const conf     = _confBadge(r.cat, r.fromOv, s.defaulted8h?.[r.cat] ? 8 : s.defaulted7h?.[r.cat] ? 7 : 0);
+      const estimateH = s.defaulted8h?.[r.cat] ? 8 : s.defaulted7h?.[r.cat] ? 7 : 0;
+      const conf     = _confBadge(r.cat, r.fromOv, estimateH);
       const confHtml = conf ? `<span class="conf-badge ${conf.cls}">${conf.text}</span>` : '';
 
       // The meta column is a wrapping flex row (paycalc.css .roster-row-meta), so its text and the
@@ -301,7 +302,10 @@ export function updateRosterHint() {
       } else if (enteredMins === suggestMins) {
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
-        metaText  = `<span>${dayStr}</span>`;
+        // A figure that holds a DEFAULT says so here too (paycalc-3-2): matching the calendar does not
+        // make it a record, and this is the state the page reaches by itself on view. The other chips
+        // only describe a figure still to be checked against the calendar, so the calm ✓ drops them.
+        metaText  = `<span>${dayStr}</span>${estimateH ? confHtml : ''}`;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
         action    = 'matches your calendar';
       } else {
