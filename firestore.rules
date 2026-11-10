@@ -40,7 +40,15 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept v24.56 (Oct 2026, auth review): an `m_` override id must name the record it holds;
+// Last swept 10 Nov 2026 (the whole-app fix, on v25.64): a pushSubscriptions delete needs
+// `isKnownIdentity()` like its create/update, and may find the record already gone; `pv_`/`perf_`
+// months must be the present one or one either side; the `pv_` id list judges what a write adds or
+// changes, so retiring an id is safe; the three documents' `uploadedAt` is the server's clock;
+// `memberEmailFor` maps İ and the Kelvin sign as the app does. Changed between v24.56 and this
+// sweep without it: override provenance pinned, and a push record taken over by the same browser
+// (v24.68); the `trains` and `newlink` counter ids (v24.71, v25.06); deleting an override that is
+// already gone (v25.07); `leaveYear` (v25.18).
+// Prior sweep v24.56 (Oct 2026, auth review): an `m_` override id must name the record it holds;
 // clientErrors / pushSubscriptions / analytics writes need `isKnownIdentity()` (no anonymous
 // token); a legacy owner-less push record can be claimed only for its own endpoint.
 // Prior sweep v22.15 (Sep 2026): linkDesigns create/update accepts the optional `revision` int
@@ -266,11 +274,12 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         // hasOnly (not hasAll) — reject any field beyond the known override shape.
-        // The complete set written by every path is verified: all three write paths
-        // (manual save, AL/sick range writer, roster_import) write changedBy and
-        // createdAt. No path writes updatedAt/updatedBy. (Field PRESENCE of the six core
-        // fields is still enforced by the `is string` checks below — a missing field is
-        // null, and `null is string` is false.)
+        // Every write path builds its record with ONE builder, `buildOverrideWrite`
+        // (override-utils.js) — the week save, the leave/absence range, the leave-year move and
+        // the roster import — so all four write changedBy and createdAt, and none writes
+        // updatedAt/updatedBy. (Field PRESENCE of the six core fields is still enforced by the
+        // checks below — reading a missing field is an evaluation error, which refuses the write
+        // as surely as `false`.)
         request.resource.data.keys().hasOnly(
           ['date', 'memberName', 'type', 'value', 'note', 'source', 'createdAt', 'changedBy',
            'replacedType', 'leaveYear']
@@ -285,6 +294,9 @@ service cloud.firestore {
         // browser override writes reach Firestore directly, so on THIS path such a day is accepted at
         // the Rules boundary. Accepted low-risk integrity gap — the app's own date pickers can't emit
         // one; a leap-year algorithm in Rules (with emulator coverage) isn't worth it for this team.
+        // The YEAR is any four digits, also deliberately: the app's range (CONFIG.MIN_YEAR–MAX_YEAR)
+        // moves whenever MAX_YEAR is raised, and a copy here that lagged would refuse every save in
+        // the newly opened year. Keeping a save inside the app's years is the date controls' job.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.memberName is string &&
         request.resource.data.memberName.size() > 0 &&
@@ -416,7 +428,7 @@ service cloud.firestore {
       // Delete mirrors the same three-tier STRICT check against the EXISTING doc's
       // memberName (request.resource is null on delete). Previously any authenticated user
       // could delete any override — isolation on writes is moot without it.
-      // A MEMBER MAY DELETE A DOCUMENT THAT IS ALREADY GONE (v25.06, whole-app review) — a no-op. A
+      // A MEMBER MAY DELETE A DOCUMENT THAT IS ALREADY GONE (v25.07, whole-app review) — a no-op. A
       // member's replace deletes ids from their CACHED overrides, and a manager may have deleted one
       // a moment earlier: `resource` is then null, `resource.data` errored, and the WHOLE batch —
       // the member's own save included — was refused. Admin and manager already passed.
@@ -451,9 +463,7 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        // hasOnly prevents clients from writing arbitrary extra fields (e.g. injecting
-        // script into htmlContent beyond the 250 KB cap). uploadedAt must be a server
-        // timestamp so the display order is authoritative.
+        // hasOnly prevents clients from writing arbitrary extra fields.
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy', 'htmlContent']) &&
         request.resource.data.date is string &&
         // Bound the date to a real YYYY-MM-DD, matching circulars/newsletters. A malformed
@@ -487,7 +497,11 @@ service cloud.firestore {
         // The Cloud Function ingest path uses the Admin SDK and bypasses these rules.
         request.resource.data.fileType in ['pdf', 'docx'] &&
         request.resource.data.uploadedBy is string &&
-        request.resource.data.uploadedAt is timestamp &&
+        // THE SERVER'S CLOCK, not merely a timestamp (10 Nov 2026; the same pin on circulars and
+        // newsletters). `pruneOldDocs` (doc-retention.js) reads this back as the TRUSTED time for its
+        // six-month sweep, a destructive one, so a writer's own clock could have deleted current
+        // documents. The upload engine always sends serverTimestamp(), which is request.time here.
+        request.resource.data.uploadedAt == request.time &&
         // htmlContent is optional; when present it must be a string AND within the 250 KB cap.
         // Checking `is string` first guards .size() from being called on a non-string value.
         (!('htmlContent' in request.resource.data) ||
@@ -536,8 +550,8 @@ service cloud.firestore {
       // Create/update are SHAPE-VALIDATED (v17.02 — Finding #12): linkDesigns was the last
       // designer-writable collection with no schema check, so a designer/admin (or a bug on
       // their session) could write an arbitrary/oversized document. hasOnly rejects any field
-      // beyond the known four; the `is` checks reject wrong types AND a missing field (a
-      // missing key reads as null, and `null is string` is false). `patterns` is only
+      // beyond the known set; the `is` checks reject wrong types AND a missing field (reading a
+      // missing key is an evaluation error, which refuses the write). `patterns` is only
       // type-checked as a map — its nested {"1".."N":{sun..sat}} shape isn't practical to
       // validate in rules, and the 1 MB document limit already bounds its size. The rename
       // path's merge:true write still satisfies hasOnly because request.resource.data reflects
@@ -555,9 +569,10 @@ service cloud.firestore {
       // so a proposal can test a moved boundary (the live case is Sunday, where five December 2026
       // movements fall after the current 23:25 finish). OPTIONAL, like deletedAt/deletedBy: every
       // design predates it and reads as the app default. Type-checked as a map only — its
-      // {monSat,sun}:{start,end} shape is validated client-side by links-window.js's
-      // normaliseWindow, which is also the read path, so a malformed value can never reach the UI
-      // as anything but the default.
+      // {monSat,sun}:{start,end} shape is checked on the client by links-window.js's
+      // normaliseWindow, which is also the read path: a row it cannot read becomes the default, row
+      // by row, but a readable unpadded time ("6:20") passes through as stored. The editor always
+      // writes padded times.
       // `revision` is the v22.15 CONCURRENCY IDENTITY, and it ships here BEFORE any client writes
       // it — the three deploy workflows fire in parallel from one push with no ordering guarantee,
       // so a schema expansion must always land rules-first or every write in the window
@@ -642,10 +657,10 @@ service cloud.firestore {
     }
 
     match /staffContact/{memberName} {
-      // Each member can read and write only their own record.
-      // Admin can read all records (needed for future password recovery flows).
-      // Write requires the `name` JWT claim — set by setupRosterAuth. Anonymous
-      // fallback sessions lack this claim and cannot register contact details.
+      // Each member can read, write and delete only their own record (`memberName()`, a bound member
+      // identity). The admin can do all three for anyone: Operations → Account status lists every
+      // record and saves or removes a work email on a member's behalf. A manager cannot — staff are
+      // told that only they and the admin can see this email.
       allow read: if request.auth != null &&
         (memberName() == memberName || request.auth.token.admin == true);
       allow create, update: if
@@ -785,7 +800,7 @@ service cloud.firestore {
         // The pattern admits every path this app has ever written — `versionedDocPath`'s
         // `circulars/{date}-{id}.{ext}` and the pre-v13.99 `circulars/{date}.{ext}` — and nothing with a
         // second slash, so a nested or traversing path cannot be written in the first place.
-        // OPTIONAL, like htmlContent below — a pre-v13.99 document has no storagePath at
+        // OPTIONAL — a pre-v13.99 document has no storagePath at
         // all, and `legacyDocPath` is what finds its object. `is string` is checked first
         // so .matches() is never called on a non-string. Every write this app makes today
         // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
@@ -794,7 +809,8 @@ service cloud.firestore {
          (request.resource.data.storagePath is string &&
           request.resource.data.storagePath.matches('circulars/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&
         request.resource.data.fileType in ['pdf', 'docx'] &&
-        request.resource.data.uploadedAt is timestamp &&
+        // The server's clock — the trusted time `pruneOldDocs` sweeps by (see huddles above).
+        request.resource.data.uploadedAt == request.time &&
         request.resource.data.uploadedBy is string;
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
@@ -829,7 +845,7 @@ service cloud.firestore {
         // The pattern admits every path this app has ever written — `versionedDocPath`'s
         // `newsletters/{date}-{id}.{ext}` and the pre-v13.99 `newsletters/{date}.{ext}` — and nothing with a
         // second slash, so a nested or traversing path cannot be written in the first place.
-        // OPTIONAL, like htmlContent below — a pre-v13.99 document has no storagePath at
+        // OPTIONAL — a pre-v13.99 document has no storagePath at
         // all, and `legacyDocPath` is what finds its object. `is string` is checked first
         // so .matches() is never called on a non-string. Every write this app makes today
         // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
@@ -838,7 +854,8 @@ service cloud.firestore {
          (request.resource.data.storagePath is string &&
           request.resource.data.storagePath.matches('newsletters/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&
         request.resource.data.fileType in ['pdf', 'docx'] &&
-        request.resource.data.uploadedAt is timestamp &&
+        // The server's clock — the trusted time `pruneOldDocs` sweeps by (see huddles above).
+        request.resource.data.uploadedAt == request.time &&
         request.resource.data.uploadedBy is string;
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
@@ -856,15 +873,15 @@ service cloud.firestore {
         // subscription itself would sit on a shared machine pushing one person's Huddle to the mess
         // room with nobody able to turn it off. The client already declines to offer this in viewer
         // mode (calendar-app.js); this is the half that does not depend on the client being right.
-        // Written as `!= true` rather than requiring a `name` claim so a stale cached client still
-        // running the old anonymous bootstrap can keep renewing its subscription through the
-        // mixed-version window.
+        // It reads the BARE claim, not `isCalendarViewer()`: any token carrying it is refused here,
+        // however it signed in — the stricter of the two readings (see `isCalendarViewer` above).
         // The `in` guard is NOT optional. Reading an ABSENT custom claim is an evaluation ERROR in
         // Rules ("Property calendarViewer is undefined on object"), and inside an `&&` chain an
         // error denies the whole clause — so a bare `token.calendarViewer != true` broke every
-        // ordinary subscription write, member and anonymous alike. It survives inside an `||` chain
-        // (an error loses to a true branch), which is why the overrides READ rule above can use the
-        // shorter form and this one cannot. Caught by the emulator suite, invisible to static checks.
+        // ordinary subscription write, member and anonymous alike. An error is harmless inside an `||`
+        // chain (it loses to a true branch) or wherever it denies exactly what `false` would deny —
+        // which is why the bare `token.admin == true` reads in this file can use the shorter form,
+        // and this NEGATED one cannot. Caught by the emulator suite, invisible to static checks.
         (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
         // hasOnly prevents injecting extra fields (e.g. memberName, metadata). `owner` is
         // permitted (see below) but not required — older cached clients omit it.
@@ -914,7 +931,7 @@ service cloud.firestore {
       // and keeps the browser subscription, and only a signed-in Calendar load saves it again, so a
       // second sign-out from another page deleted nothing: `resource.data` on a null `resource` was
       // an error, the delete was refused, and `releaseDevicePush` (notif.js) took the refusal for
-      // "not the owner" and dropped the subscription. Same shape as the overrides delete (v25.06).
+      // "not the owner" and dropped the subscription. Same shape as the overrides delete (v25.07).
       allow delete: if request.auth != null && isKnownIdentity() &&
         // Same `in` guard as create/update above, for the same reason.
         (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
@@ -974,17 +991,18 @@ service cloud.firestore {
       // Page popularity lives in analytics/pv_<YYYY-MM> ({ month, counts{} }); active-
       // account counts live in analytics/activeAccounts ({ months{}, daily{} }). Uniqueness
       // is deduped client-side (usage-reporter.js) so the server only ever sees "+1".
-      // Read is admin-only. Any authenticated session may increment — a member's named session,
-      // or the shared staff-PIN viewer — which is why writes are not gated on a name/admin claim.
-      // (This said "including the calendar's anonymous Firebase session" until v21.63; that
-      // bootstrap was removed at v20.12, and the CALENDAR_PIN_ACCESS=false path that could still
-      // run it was retired v24.34, so it must not be cited as the reason the rule is loose.) The SHAPE is validated:
-      // pv_ docs are pinned to a pv_YYYY-MM id with month == the id suffix, counts keys are
-      // limited to the known page and open ids, and each count value must be an int; activeAccounts
-      // is pinned to that id with months/daily maps. Firestore rules still can't enforce
-      // increment-ONLY (a write could set an int to any value) or validate the date-keyed
-      // sub-map keys — App Check is the eventual integrity control; the data is non-sensitive
-      // aggregate counts. No client delete — daily-bucket pruning is a field-level update.
+      // Read is admin-only. Any KNOWN identity may increment (`isKnownIdentity`, v24.56) — a
+      // member, the admin, or the shared staff-PIN viewer, because usage from a station PC is real
+      // usage — so writes are not gated on a name claim; an anonymous token is refused. The SHAPE is
+      // validated: pv_ and perf_ docs are pinned to an id of the present month (or one either side)
+      // with month == the id suffix; the counts a pv_ write adds or changes must be known page and
+      // open ids, each an int; activeAccounts and origins are pinned to their ids with map fields.
+      // Firestore rules still can't enforce increment-ONLY (a write could set a count to any value),
+      // and the keys and values of the activeAccounts, origins and perf_ maps are checked no
+      // further than being maps (the App Speed card reads a perf_ value only when it is a whole
+      // number; the usage readers take a non-number as zero). App Check is the eventual integrity
+      // control; the data is non-sensitive aggregate counts. No client delete — daily-bucket
+      // pruning is a field-level update.
       allow read: if request.auth != null && request.auth.token.admin == true;
       // ── A COUNTER MONTH IS THE PRESENT ONE, OR ONE EITHER SIDE (10 Nov 2026) ─────────────────
       // `pv_` and `perf_` ids were pinned to a YYYY-MM SHAPE but not to the present, so any member

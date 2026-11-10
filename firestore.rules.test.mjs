@@ -26,10 +26,13 @@ import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
 import { monthKey, dayKey, originLabel } from './usage-stats.js';
 import { targetSetPayload, MAX_SET_NAME, MAX_SET_SLOTS, SPARE_WEEKS_CAP } from './links-target-sets.js';
+import { buildDocumentClient } from './documents-client.js';
+import { resolveUploadCommit } from './upload-commit.js';
+import { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath } from './storage-utils.js';
 import {
     setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
     collection, doc, serverTimestamp, increment, Timestamp,
-    query, where, limit, deleteField, FieldPath,
+    query, where, limit, deleteField, FieldPath, orderBy, onSnapshot, runTransaction,
 } from 'firebase/firestore';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -157,6 +160,28 @@ function realAnalyticsClient(/** @type {any} */ db, /** @type {Record<string, Fu
         },
         writeWithClaimRetry: (/** @type {any} */ fn) => fn(),
         appVersion: APP_VERSION,
+    });
+}
+
+/** The real documents-client.js upload engine on a test identity's Firestore, with the real SDK.
+ *  Storage is not what these rules judge, so it is a stand-in that keeps nothing and hands back a
+ *  URL; the Firestore write the engine builds is the real one. */
+function realDocumentClient(/** @type {any} */ db) {
+    return buildDocumentClient({
+        db,
+        collections: { huddles: 'huddles', circulars: 'circulars', newsletters: 'newsletters' },
+        fs: { doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, runTransaction, serverTimestamp },
+        getStorageSdk: async () => ({
+            storage: {},
+            ref: (/** @type {any} */ _s, /** @type {string} */ fullPath) => ({ fullPath }),
+            uploadBytes: async () => {},
+            getDownloadURL: async (/** @type {any} */ r) => `https://storage.example.com/${r.fullPath}`,
+            deleteObject: async () => {},
+        }),
+        uploadBytesWithClaimRetry: (/** @type {any} */ upload, /** @type {any} */ ref, /** @type {any} */ body, /** @type {any} */ meta) => upload(ref, body, meta),
+        utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath },
+        resolveUploadCommit,
+        pruneOldDocs: async () => {},
     });
 }
 
@@ -624,7 +649,7 @@ describe('overrides — per-member isolation (STRICT, B3)', () => {
         await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
         await assertFails(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', id)));
     });
-    test('named staff CAN delete an override that is already gone — a no-op (v25.06)', async () => {
+    test('named staff CAN delete an override that is already gone — a no-op (v25.07)', async () => {
         // The replace path deletes ids from the member's cached overrides; a manager may have deleted
         // one a moment earlier, and the null `resource` used to refuse the member's whole save.
         await assertSucceeds(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', goneId())));
@@ -694,6 +719,14 @@ describe('huddles', () => {
         await assertSucceeds(
             setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), htmlContent: '<p>Hello</p>' })
         );
+    });
+
+    test('admin cannot create with an uploadedAt of their own choosing — it is the server\'s clock', async () => {
+        // pruneOldDocs (doc-retention.js) takes this field as its TRUSTED clock for a destructive
+        // six-month sweep, and only `== request.time` makes it one (whole-app fix, 10 Nov 2026).
+        for (const at of [Timestamp.fromDate(new Date('2099-01-01')), Timestamp.fromDate(new Date('2020-01-01'))]) {
+            await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), uploadedAt: at }));
+        }
     });
 
     test('admin cannot create with uploadedAt as string', async () => {
@@ -959,6 +992,18 @@ describe('staffContact', () => {
     // Staff are told "only you and the admin can see this email", so a manager reading it is a broken promise.
     test("a manager cannot read a colleague's work email", async () => {
         await assertFails(getDoc(doc(managerDb('D. Watts'), 'staffContact', MEMBER)));
+    });
+
+    // ON A MEMBER'S BEHALF (whole-app fix, 10 Nov 2026). Operations → Account status saves a work
+    // email for a member through the same `saveStaffContact` merge, and nothing pinned the admin's
+    // WRITE — the rule's comment said only that the admin "can read all records", so tidying the rule
+    // to match it would have broken that save with every case here green. The manager stays out.
+    test("the admin CAN save and replace a member's work email on their behalf; a manager cannot", async () => {
+        const save = (/** @type {any} */ db, /** @type {string} */ workEmail) => setDoc(doc(db, 'staffContact', 'S. Boyle'),
+            { memberName: 'S. Boyle', workEmail, updatedAt: serverTimestamp() }, { merge: true });
+        await assertSucceeds(save(adminDb(), 's.boyle@chilternrailways.co.uk'));
+        await assertSucceeds(save(adminDb(), 'sam.boyle@chilternrailways.co.uk'));
+        await assertFails(save(managerDb('D. Watts'), 'someone@chilternrailways.co.uk'));
     });
 
     test('auth with name claim can create valid contact', async () => {
@@ -1416,6 +1461,12 @@ describe('circulars', () => {
         );
     });
 
+    test('admin cannot create with an uploadedAt of their own choosing — it is the server\'s clock', async () => {
+        for (const at of [Timestamp.fromDate(new Date('2099-01-01')), Timestamp.fromDate(new Date('2020-01-01'))]) {
+            await assertFails(setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), uploadedAt: at }));
+        }
+    });
+
     test('admin cannot create with uploadedAt as string', async () => {
         await assertFails(
             setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), uploadedAt: '2026-06-25' })
@@ -1609,6 +1660,12 @@ describe('newsletters', () => {
         );
     });
 
+    test('admin cannot create with an uploadedAt of their own choosing — it is the server\'s clock', async () => {
+        for (const at of [Timestamp.fromDate(new Date('2099-01-01')), Timestamp.fromDate(new Date('2020-01-01'))]) {
+            await assertFails(setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), uploadedAt: at }));
+        }
+    });
+
     test('admin cannot create with uploadedAt as string', async () => {
         await assertFails(
             setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), uploadedAt: '2026-06-25' })
@@ -1625,6 +1682,39 @@ describe('newsletters', () => {
         const id = uid();
         await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
         await assertFails(deleteDoc(doc(staffDb(), 'newsletters', id)));
+    });
+});
+
+// ── THE ADMIN'S REAL UPLOAD WRITER (whole-app fix, 10 Nov 2026) ──────────────────────────────
+// `uploadedAt` is pinned to the server's clock on all three document rules. The cases above write a
+// literal; this drives the real engine (documents-client.js) the Operations page uploads through, so
+// a field the engine gains, or a clock it stops taking from the server, fails here rather than as a
+// refused upload. Dates in 2025 keep these documents away from every other case's.
+describe('huddles / circulars / newsletters — the real upload writer', () => {
+    const pdf = () => new File([new TextEncoder().encode('%PDF-1.7 rules test')], 'doc.pdf', { type: 'application/pdf' });
+    const docx = () => new File([new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0x14, 0x00])], 'doc.docx',
+        { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+
+    test('every upload the admin can make is accepted, and stamped with the server\'s time', async () => {
+        const client = realDocumentClient(adminDb());
+        const before = Date.now();
+        await client.uploadHuddle('2025-03-03', pdf(), 'G. Miller');
+        await client.uploadHuddle('2025-03-04', docx(), 'G. Miller', '<p>The day plan</p>');
+        await client.uploadHuddle('2025-03-04', pdf(), 'G. Miller');   // a replacement: an UPDATE
+        await client.uploadCircular('2025-03-05', pdf(), 'G. Miller');
+        await client.uploadNewsletter('2025-03-06', docx(), 'G. Miller');
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            for (const [coll, date] of [['huddles', '2025-03-03'], ['huddles', '2025-03-04'],
+                ['circulars', '2025-03-05'], ['newsletters', '2025-03-06']]) {
+                const at = (await getDoc(doc(ctx.firestore(), coll, date))).data()?.uploadedAt;
+                assert.ok(at instanceof Timestamp && at.toMillis() >= before - 60_000,
+                    `${coll}/${date} carries the server's upload time`);
+            }
+        });
+    });
+
+    test('a non-admin\'s upload is still refused', async () => {
+        await assert.rejects(realDocumentClient(namedDb('S. Boyle')).uploadCircular('2025-03-07', pdf(), 'S. Boyle'));
     });
 });
 
@@ -1764,7 +1854,7 @@ describe('pushSubscriptions', () => {
     // that is not there: `resource` is null, `resource.data` was an error, the delete was refused, and
     // `releaseDevicePush` (notif.js) read the refusal as "not the owner" and dropped the browser
     // subscription — notifications off, with nobody having switched them off. Same shape, and same
-    // remedy, as deleting an override that is already gone (v25.06).
+    // remedy, as deleting an override that is already gone (v25.07).
     test('a member or the admin CAN delete a subscription that is already gone — a no-op', async () => {
         await assertSucceeds(deleteDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', goneId())));
         await assertSucceeds(deleteDoc(doc(adminDb(), 'pushSubscriptions', goneId())));

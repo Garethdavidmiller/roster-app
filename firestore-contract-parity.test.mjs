@@ -108,6 +108,21 @@ test('every guide in the nav drawer has an open counter, and every guide counter
         'guide open ids must not be matched from the href — see the substring trap above');
 });
 
+// The rules file's ONE maintained answer to "when did this last change" is its "Last swept" line,
+// and the 0.10 doc-stamp check does not cover the file, so the line is kept by hand. It read v24.56
+// while changes labelled v25.06 and v25.18 landed beneath it (whole-app fix, 10 Nov 2026). This
+// cannot see a change nobody labelled; it refuses a sweep line older than a version the file cites.
+test('the firestore.rules sweep line is not older than any version the file cites', () => {
+    const sweep = RULES.match(/^\/\/ Last swept [^\n]*?\bv(\d+)\.(\d{2})\b/m);
+    assert.ok(sweep, 'the "// Last swept … vNN.NN" line was not found in firestore.rules');
+    const rank = (/** @type {string} */ major, /** @type {string} */ minor) => Number(major) * 100 + Number(minor);
+    const swept = rank(sweep[1], sweep[2]);
+    const newer = [...new Set([...RULES.matchAll(/\bv(\d{2})\.(\d{2})\b/g)]
+        .filter(m => rank(m[1], m[2]) > swept).map(m => m[0]))];
+    assert.deepEqual(newer, [],
+        `firestore.rules cites ${newer.join(', ')} but its "Last swept" line says v${sweep[1]}.${sweep[2]} — re-read the file against its comments and restamp that line`);
+});
+
 // ── 2. The "Other" day-family flavour grammar ───────────────────────────────────────────────────
 // OTHER_FLAVOURS in override-utils.js is the documented single source (OTHER_DAYS.md → "grammar
 // single-source"), and the CLIENT already derives its own accept-set from it (v18.91). But the
