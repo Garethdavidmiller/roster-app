@@ -623,13 +623,34 @@ describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', 
         assert.match(out.body.error, /declined/);
     });
 
-    test('a request the API refuses is the AI service failing, not an unreadable answer', async () => {
-        buildWire({ status: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'refused on the wire' } } });
-        const out = await call(index.parseRosterPDF, rosterRequest());
-        assert.equal(out.code, 502);
-        assert.match(out.body.error, /Could not reach the AI service/);
-        assert.equal(wire.requests.length, 1, 'a 400 was retried, and the same request is refused every time');
-    });
+    // A REFUSAL IS NOT AN OUTAGE (cross-area lead, whole-app check 10 Nov 2026). A retired model id,
+    // a request the model will not take, a rejected key: each fails the same way every time, and
+    // "Could not reach the AI service — please try again in a moment" sent the admin round a retry
+    // that cannot work. roster-prompt.js names the case: a model that rejects a setting "would fail
+    // every upload as 'Could not reach the AI service'".
+    for (const [status, type] of [[400, 'invalid_request_error'], [401, 'authentication_error'],
+        [403, 'permission_error'], [404, 'not_found_error']]) {
+        test(`an HTTP ${status} is the AI service refusing, said so, and not worth a retry`, async () => {
+            buildWire({ status, body: { type: 'error', error: { type, message: 'refused on the wire' } } });
+            const out = await call(index.parseRosterPDF, rosterRequest());
+            assert.equal(out.code, 502);
+            assert.match(out.body.error, new RegExp(`refused the request \\(HTTP ${status}\\)`));
+            assert.doesNotMatch(out.body.error, /try again in a moment/, 'a permanent refusal told the admin to retry');
+            assert.doesNotMatch(out.body.error, /unreadable/, 'a refusal is not an unreadable answer');
+            assert.equal(wire.requests.length, 1, `a ${status} was retried, and the same request is refused every time`);
+        });
+    }
+
+    for (const [status, type] of [[529, 'overloaded_error'], [429, 'rate_limit_error']]) {
+        test(`a TRANSIENT HTTP ${status} is still "try again in a moment" — after the SDK's own retries`, async () => {
+            buildWire({ status, body: { type: 'error', error: { type, message: 'busy' } } });
+            const out = await call(index.parseRosterPDF, rosterRequest());
+            assert.equal(out.code, 502);
+            assert.match(out.body.error, /Could not reach the AI service — please try again in a moment/,
+                `a ${status} clears on its own, and was reported as a refusal`);
+            assert.equal(wire.requests.length, 3, 'retried twice before the admin is told');
+        });
+    }
 });
 
 describe('parseRosterPDF: a model that never answers gets the handler\'s answer, not the platform\'s kill', () => {

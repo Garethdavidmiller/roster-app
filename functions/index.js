@@ -580,6 +580,13 @@ columnScan: one key per column header; every staff member appears in every colum
                 res.status(502).json({ error: 'The AI returned an unreadable response — please try again' });
             } else if (modelDeadline && modelDeadline.aborted) {
                 res.status(502).json({ error: 'The AI service did not answer in time — please try again in a moment' });
+            } else if (Number.isInteger(err && err.status) && err.status >= 400 && err.status < 500
+                && ![408, 409, 429].includes(err.status)) {
+                // A REFUSAL IS NOT AN OUTAGE (whole-app check, 10 Nov 2026). A retired model id, a
+                // setting the model rejects, a bad key: each fails identically every time, so "try
+                // again in a moment" sent the admin round a retry that cannot work. The SDK does
+                // not retry these either; 408/409/429 are the 4xx it does, and they stay below.
+                res.status(502).json({ error: `The AI service refused the request (HTTP ${err.status}), so trying again will not help — the function log says why` });
             } else {
                 res.status(502).json({ error: 'Could not reach the AI service — please try again in a moment' });
             }
