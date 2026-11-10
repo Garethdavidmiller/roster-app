@@ -49,11 +49,8 @@
        Nov 2026 a hint 2px lower than every other page's. Nothing failed either time. */
 
     /* ── PRIMARY BUTTON ── Every primary here wears shared.css's `.btn-action` recipe, Save settings
-       included (its page-only copy went in Nov 2026). shared.css draws no disabled state for it. */
-    @media (hover: hover) and (pointer: fine) {
-      .btn-primary:hover { background: var(--primary-blue-dark); }
-    }
-    .btn-primary:active:not(:disabled) { transform: scale(var(--press-scale)); }
+       included (its page-only copy went in Nov 2026), and takes its hover and press from there too.
+       shared.css draws no disabled state for it. */
     .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
     /* ── PERIOD SELECTOR (controls card) ── */
