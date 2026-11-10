@@ -129,6 +129,39 @@ export function applyPensionOptOutUI(pObj) {
 }
 
 /**
+ * Make a "from which payslip?" select able to SHOW the payslip already on record (paycalc-3-8).
+ *
+ * The pension opt-out start and the student-loan stop each list the payslips the member can see
+ * (`visiblePeriods()`), and setting a select to a value no option carries selects nothing. So a
+ * recorded payslip the list no longer reaches — a start date added after the choice was made, or a
+ * tax year dropped from the grid at a rollover — came up blank, `calculate()` read the blank loan
+ * stop as "still deducted", and the next settings save wrote the blank back: erasing the loan stop
+ * and MOVING the opt-out start to the payslip on screen. Nothing said so.
+ *
+ * So the recorded payslip is offered ahead of the rest, in its own tax-year group and worded as every
+ * payslip list words one (`appendPayslipOptions`) — or, when the grid no longer generates it at all,
+ * as a plain "An earlier payslip", which is all that is still known about it. The record is then
+ * what the control shows, what `calculate()` reads and what a save writes back.
+ * @param {HTMLSelectElement} sel
+ * @param {number|null} num  the recorded payslip (internal `p.num`); nothing is added for none
+ */
+function offerRecordedPayslip(sel, num) {
+  if (!num || Array.from(sel.options).some(o => Number(o.value) === num)) return;
+  const p = getPeriods().find(/** @param {any} x */ x => x.num === num);
+  /** @type {Node} */ let node;
+  if (p) {
+    node = document.createDocumentFragment();
+    appendPayslipOptions(node, [p]);
+  } else {
+    const o = document.createElement('option');
+    o.value = String(num);
+    o.textContent = 'An earlier payslip, before this list starts';
+    node = o;
+  }
+  sel.insertBefore(node, sel.querySelector('optgroup'));
+}
+
+/**
  * Build (and set) the "not in the scheme from which payslip?" control.
  *
  * The same shape as the student-loan cutover select directly below it — one option per visible
@@ -160,6 +193,7 @@ export function buildPensionFromSelect(timeline) {
   // on that first paint instead of leaving it on a value no option carries.
   const checked = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'))?.checked;
   const start   = checked ? optOutStartsAt(timeline) : null;
+  offerRecordedPayslip(sel, start);
   sel.value = String(start ?? (currentPeriodNum() || todaysPeriodNum()));
   // Shown only while she is out of the scheme: it asks one question ("not in the scheme from which
   // payslip?") and that question has no answer once she is back in. A rejoin is dated by the
@@ -367,9 +401,11 @@ export function saveSettings() {
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
   // Loan-repaid cutover (v18.41): the p.num of the first payslip with no deduction, '' = still
-  // repaying. The select may not exist in old cached HTML — guard rather than throw.
+  // repaying. The select may not exist in old cached HTML — guard rather than throw. A select with
+  // NOTHING chosen states nothing, so it never overwrites the record ('' is "No — still deducted"
+  // only when that option is the one chosen) — paycalc-3-8.
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
-  if (_slPaidOffEl) lsSet(SK.slPaidOff, _slPaidOffEl.value);
+  if (_slPaidOffEl && _slPaidOffEl.selectedIndex !== -1) lsSet(SK.slPaidOff, _slPaidOffEl.value);
   // Out of the scheme — saved BEFORE the amount below, because getPensionDefault() reads it and
   // the amount's own fallback must see the state the member just chose.
   //
@@ -387,8 +423,13 @@ export function saveSettings() {
   if (_optOut) {
     const _fromEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('pensionOptOutFrom'));
     const _fromNum = parseInt(_fromEl?.value ?? '', 10);
-    const _from = Number.isFinite(_fromNum) ? _fromNum : currentPeriodNum();
     const _tl = getPensionTimeline();
+    // A select that names no payslip leaves a spell already ON RECORD where it began: falling back
+    // to the payslip on screen MOVED it there, and gave every payslip in between its deduction back
+    // (paycalc-3-8). With no spell yet — a first tick — or for a rejoin, the payslip on screen is
+    // what the control means anyway.
+    const _recorded = _optOut.checked ? optOutStartsAt(_tl) : null;
+    const _from = Number.isFinite(_fromNum) ? _fromNum : (_recorded ?? currentPeriodNum());
     savePensionTimeline(_optOut.checked ? withOptOutStartAt(_tl, _from) : withRejoinAt(_tl, _from));
   }
   // On a joining period the pension field shows the pro-rated amount.
@@ -566,10 +607,15 @@ export function loadSettings() {
   if (sl)      /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value = sl;
   /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked = pgLoan === '1';
   // Loan-repaid cutover (v18.41). The coordinator builds the payslip options BEFORE calling
-  // loadSettings, so the saved p.num resolves to a real option here (an unknown value no-ops).
+  // loadSettings; a saved payslip that list no longer reaches is offered first, because a select set
+  // to a value no option carries selects NOTHING — which calculate() reads as "still deducted" and
+  // the next save writes back over the record (paycalc-3-8).
   const _slPaidOff   = lsGet(SK.slPaidOff);
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
-  if (_slPaidOffEl && _slPaidOff) _slPaidOffEl.value = _slPaidOff;
+  if (_slPaidOffEl && _slPaidOff) {
+    offerRecordedPayslip(_slPaidOffEl, parseInt(_slPaidOff, 10));
+    _slPaidOffEl.value = _slPaidOff;
+  }
   let grade = lsGet(SK.grade);
   if (!grade || !GRADES[grade]) {
     // Auto-detect from the logged-in member's role. Via gradeForRole (v21.78) rather than an
