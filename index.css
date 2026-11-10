@@ -1434,7 +1434,9 @@
             position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
-            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
+            /* A TAB IS A BUTTON (owner, 10 Nov 2026; css-tokens.md → Corners): the 12px every other tab in
+               the app wears. It was a pill, which at this height reads as a tag, not a control. */
+            border-radius: var(--radius-button);
             font-size: var(--type-label);
             font-weight: 600;
             cursor: pointer;
@@ -2745,7 +2747,8 @@
             text-decoration: none;
             padding: 8px 16px;
             border: 1px solid rgba(255,255,255,0.5);
-            border-radius: var(--radius-pill);   /* a pill's token: --radius-xl drew the same shape at this height */
+            /* Two actions, so two buttons (owner, 10 Nov 2026): the 12px button corner, not a pill's. */
+            border-radius: var(--radius-button);
             transition: color var(--dur-med), border-color var(--dur-med), background var(--dur-med);
             cursor: pointer;
         }

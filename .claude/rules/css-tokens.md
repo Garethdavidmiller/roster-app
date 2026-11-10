@@ -216,7 +216,7 @@ would change meaning, not tidy it.
 
 | Token | Value | Use |
 |-------|-------|-----|
-| `--radius-button` | 12px | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`, Trains' `.tr-tab`); the Calendar's controls and Team View's arrows; Admin's week navigation |
+| `--radius-button` | 12px | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`, Trains' `.tr-tab`, Team View's `.grade-tab`); the Calendar's controls and Team View's arrows; the leave panel's two links (`.al-lb-link`); Admin's week navigation |
 | `--radius-field` | `= --radius-button` | every text field, select and picker trigger that sits on a card |
 | `--radius-xs` | 6px | dense inputs that sit in a ROW or a grid — the Links generator, the Operations email table, the navy member bar's picker |
 | `--field-border` | `2px solid var(--border-mid)` | the field's edge |
