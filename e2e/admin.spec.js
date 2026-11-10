@@ -1362,6 +1362,32 @@ test('admin: All 7 → Absent → Apply stages only the working days, and names 
     expect(written).toEqual(['2027-01-11 sick', '2027-01-12 sick', '2027-01-15 sick', '2027-01-16 sick']);
 });
 
+// "WORKING DAYS" IS THE WORKING DAYS THE CARDS WRITE BY (whole-app check, Nov 2026). The button read a
+// rest day the member had been swapped onto as a rest day, while `isWorkingDate` — the Annual Leave
+// card's rule — calls it worked: Working days → AL left the swapped-in day out, the card charged it.
+test('admin: Working days ticks a rest day with a swapped-in shift, and leaves a plain rest day and Sunday', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'swap-wed', memberName: 'G. Miller', date: '2027-01-13',
+            type: 'shift', value: '09:00-17:00', note: '', source: 'manual' }] };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('.day-row[data-date="2027-01-13"] .type-pill-btn[data-type="shift"]'),
+        'premise: the swap is on record').toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#bulkSelWorking').click();
+    const ticked = await page.evaluate(() => [...document.querySelectorAll('.day-row')]
+        .filter(r => /** @type {HTMLInputElement} */ (r.querySelector('.day-cb')).checked).map(r => /** @type {HTMLElement} */ (r).dataset.date));
+    // Wed 13 is a base rest day worked by swap; Thu 14 a plain rest day; Sun 10 never.
+    expect(ticked).toEqual(['2027-01-11', '2027-01-12', '2027-01-13', '2027-01-15', '2027-01-16']);
+});
+
 // ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
 //
 // Admin used to read the newest few thousand documents of the whole collection on every open and

@@ -758,14 +758,11 @@ function _initBulkBar() {
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const dateISO  = row.dataset.date ?? '';
-            const date     = parseISODate(dateISO);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
-            const base = member ? getBaseShift(member, date) : 'RD';
-            // Also respect recorded RD corrections so corrected days aren't re-selected
-            const ov    = selMemberDateMap?.get(dateISO) ?? null;
-            const isRD  = isRestShift(base) || (ov && isRestShift(ov.value));
-            if (!isRD) {
+            // The cards' rule (`isWorkingDate`): a saved rest-day correction makes a day rest, and a
+            // shift swapped onto a rest day makes it worked — the AL card charges that day, so this ticks it.
+            if (member && selMemberDateMap && isWorkingDate(member, dateISO, selMemberDateMap)) {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
