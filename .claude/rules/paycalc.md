@@ -82,7 +82,7 @@ keyed on `TAX_YEARS['2026/27'].londonAllowFrom`. The **arrears** back to 1 Apr 2
 
 **When the NEXT award is announced:** add its tax year to `TAX_YEARS` with `rateUnconfirmed: true`
 and add the announced figure to `PENDING_AWARD_PCT` under that year's label (`paycalc-backpay.js` —
-empty while no award is pending). When its payslip lands: bump `GRADES.rate` + labels, set the year's
+empty while no award is pending). When its payslip lands: bump `GRADES.rate`, set the year's
 `AWARD_RATES.rate`, add the following year with `pre` = this rate, set the year's
 `londonAllow`/`londonAllowPre`/`londonAllowFrom` on `TAX_YEARS`, drop `rateUnconfirmed`, and add the
 `PENSION_STEPS` step from the award payslip.
@@ -214,8 +214,9 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   Year to Date figure would then invent money.
 - **50% overriding limit (`computeTax`, PAYE reg 23) — K CODES ONLY:** the tax deducted in a period can
   never exceed 50% of the period's taxable pay, on both the cumulative and non-cumulative paths. For
-  every other code the cumulative path is bounded by the period's pay instead — a deduction never
-  exceeds what is paid.
+  every other code the cumulative path is bounded by what the period's pay leaves after National
+  Insurance and student loans — the deductions together never exceed what is paid, and the Income Tax
+  row says to check Year to Date figures that ask for more (`payLimited`).
 - **Cumulative PAYE needs BOTH Year to Date figures, and `0` is a figure** (`computeTax`'s
   `ytdPay != null && ytdTax != null`). `calculate()` reads the two boxes independently, so "Taxable Pay
   typed, Tax Paid still blank" is an ordinary mid-typing state; weakening the `&&` runs the recalc
@@ -451,7 +452,8 @@ coordinator gates the gross addition (`_bpThisPeriod`) on it.
   estimate" ("will land" once the award is confirmed; with the view-card link), so the estimate stays
   discoverable without inflating anyone's figure uninvited. Both carry a second line
   (`.bp-banner-note`, owner request Jul 2026): "For the best estimate, fill in your hours on each
-  payslip back to 1 April <award year>." (`paycalc-money-banner.js`) — the year derives from the award
+  payslip back to 1 April <award year>." (`paycalc-money-banner.js`) — except for a lump typed from the
+  payslip (manual mode), which hours cannot change, so it has no second line — the year derives from the award
   tax-year label, so it rolls forward untouched. Every surface labels an unconfirmed award via
   `_bpIsEstimate`. Once the award is confirmed the same flow computes the REAL lump (settled prefill +
   real payment period) with plain labels — still opt-in.
@@ -667,7 +669,9 @@ match the payslip box.
 
 **Year to Date figures are ANCHORED to their source payslip (owner request).** The card records which
 payslip the two totals were copied from (`ytdSrcKey(ty)`, a "From which payslip?" select auto-stamped
-to the latest PAID payslip on first entry, correctable).
+to the latest PAID payslip on first entry, moved to the payslip the take-home line names when figures
+already recorded against an older one are typed in again (`ytdSourceAfterRetype`) — never when typed
+into empty boxes, nor over a payslip picked in the select on this visit — correctable).
 - **Payslips are issued before payday**, so from the current payslip's cut-off the picker also offers
   it (`ytdSourceOffered`): a member copying from it picks it, and an anchor one payslip early would
   count its pay twice. The first-entry stamp keeps the standing rule (`ytdAutoSource`); do not replace
@@ -675,9 +679,9 @@ to the latest PAID payslip on first entry, correctable).
   stamped one payslip LATE on the first open after payday.
 - **The cumulative PAYE method in `calculate()` engages ONLY on the payslip immediately after the
   source** (`p.num === src + 1`); any other payslip nulls the Year to Date inputs and falls back to the
-  standard non-cumulative method. **That guard is one line and its regression is silent on screen**,
-  because `_updateYtdNote` derives the chip and the note from the same rule independently — without it
-  the header says "not in use" over a figure that is using them. `e2e/paycalc.spec.js` → "Year to Date
+  standard non-cumulative method. **That guard is one line and its regression is quiet on screen**:
+  the chip and the note follow `computeTax`'s `usingCumulative`, so without it they call the figures
+  "in use" on every payslip, beside a £ priced on stale totals. `e2e/paycalc.spec.js` → "Year to Date
   figures sharpen ONLY the payslip after their source" asserts the two together, probing the figures by
   their EFFECT (clear the boxes; the £ must move on source + 1 and must not move anywhere else).
 - Legacy figures with no recorded source are stamped on load with the app's old standing assumption
@@ -685,7 +689,7 @@ to the latest PAID payslip on first entry, correctable).
   is unchanged — outside the cut-off-to-payday window above, where nothing is guessed.
 - **`#ytdUptoNote`** states the position per payslip ("✓ … sharpen this payslip's estimate" / "uses
   the standard method — update from P__") and is EMPTY (hidden via `:empty`) while no source is
-  recorded, because the header hint, field labels and select label already carry the copy-and-pick
+  recorded or no figure entered, because the header hint, field labels and select label already carry the copy-and-pick
   instruction. The source select's placeholder is the short "— choose a payslip —"; the two £ inputs
   carry example-figure placeholders ("e.g. 21,758.94"), never the zero-like "0.00".
 - **The January-HPP pointer is PERIOD-GATED:** `#ytdJanHppHint` ("This is the January payslip your
@@ -693,7 +697,7 @@ to the latest PAID payslip on first entry, correctable).
   the viewed payslip is the January one that carries HPP (the same `_hppTy` match that gates the HPP
   take-home add); the year-round version is in the card's `?` help.
 - `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the year's paid payslips, newest first (plus,
-  from its cut-off, the one about to be paid).
+  from its cut-off, the one about to be paid), never one from before a mid-year joiner started.
 - **Header status chip:** `#ytdStatusChip` in the card header shows the in-use state even while the
   card is collapsed — green "✓ in use" when the figures sharpen the viewed payslip, neutral "not in
   use" otherwise, hidden when there is nothing to report (no figures, no source, or the year's first
@@ -711,6 +715,8 @@ opens the card at `#ytdPay`. It is quiet:
 - on the tax year's first payslip, where Year to Date starts again;
 - for a W1/M1/X or NT code, which the figures cannot change — read exactly as `computeTax` reads the
   code, and cross-checked against `computeTax` over twenty codes in `paycalc-periods.test.mjs`;
+- for a code `computeTax` does not recognise (`recognised: false`), whose estimate they make worse;
+- for a payslip from before a mid-year joiner started, which carries none of their figures;
 - while the figures are in use (`inUse` is `computeTax`'s `usingCumulative`, so one figure, or an
   unreadable one, is not in use) or come from this payslip or a later one;
 - until the payslip to copy from can be in hand (`payslipMayBeInHand`, from its cut-off);

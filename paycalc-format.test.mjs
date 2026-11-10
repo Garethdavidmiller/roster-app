@@ -45,7 +45,14 @@ test('fmt renders GBP with thousands separators and 2dp', () => {
     assert.equal(fmt(0), '£0.00');
     assert.equal(fmt(1234.5), '£1,234.50');
     assert.equal(fmt(1000000), '£1,000,000.00');
-    assert.equal(fmt(-42.1), '£-42.10');
+});
+
+test('fmt signs a negative before the pound sign, as the subtracting rows do — and never a minus on nothing', () => {
+    // It printed "£-500.00" beside rows reading "+£" and "−£" (whole-app review, Nov 2026).
+    assert.equal(fmt(-42.1), '−£42.10');
+    assert.equal(fmt(-1234.5), '−£1,234.50', 'the thousands separator survives the sign');
+    assert.equal(fmt(-0.001), '£0.00', 'a figure that rounds to nothing has no sign');
+    assert.equal(fmt(-0), '£0.00');
 });
 
 // Date formatters. fdLong was extracted (review item 21) from ~8 inline copies of the same

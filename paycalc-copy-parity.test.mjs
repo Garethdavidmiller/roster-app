@@ -60,6 +60,43 @@ function subtitleFor(title) {
     return sub[1].replace(/<[^>]+>/g, '').trim();
 }
 
+// ── A PICKER SHEET IS TITLED WITH ITS FIELD'S OWN LABEL (whole-app review, Nov 2026) ──────────────
+// The title heads the sheet AND is the trigger's accessible name (select-sheet.js → `${title}. …`),
+// so a title that is not the label is a control named one thing and read as another (WCAG 2.5.3,
+// Label in Name). The student-loan stop opened as "Paid off from which period?" — the "repaid"
+// wording paycalc.md rules out for a loan moved to direct debit with a balance still owed.
+describe('picker sheets carry their field\'s visible label', () => {
+    const app = readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8');
+    // A spec may carry more after its title (a `searchLabel`, shared-ui-5), so the match runs to the brace.
+    const specs = [...app.matchAll(/\{\s*id:\s*'(\w+)',\s*title:\s*'([^']+)'[^{}]*\}/g)].map(m => ({ id: m[1], title: m[2] }));
+    /** The `<label for=id>` text, without its `.note` aside. @param {string} id */
+    const labelFor = id => {
+        const m = new RegExp(`<label for="${id}">([\\s\\S]*?)</label>`).exec(html);
+        return m ? m[1].replace(/<span class="note">[\s\S]*?<\/span>/g, '').replace(/<[^>]+>/g, '').trim() : null;
+    };
+
+    test('fixture: the sheets are found, and the labelled ones have labels', () => {
+        assert.ok(specs.length >= 7, `initSelectSheets lists the page's dropdowns (${specs.length})`);
+        for (const id of ['pensionOptOutFrom', 'slPaidOffFrom', 'ytdSrcSelect', 'backPayPeriod']) {
+            assert.ok(specs.some(s => s.id === id), `${id} has a sheet`);
+            assert.ok(labelFor(id), `${id} has a visible label`);
+        }
+    });
+
+    test('every labelled field\'s sheet title contains its label, word for word', () => {
+        for (const { id, title } of specs) {
+            const label = labelFor(id);
+            if (!label) continue;   // the period picker has no visible label to carry
+            assert.ok(title.toLowerCase().includes(label.toLowerCase()),
+                `#${id}: the sheet is titled "${title}" but the field reads "${label}"`);
+        }
+    });
+
+    test('no sheet says a loan was repaid or paid off — only that deductions stopped', () => {
+        for (const { id, title } of specs) assert.ok(!/repaid|paid off/i.test(title), `#${id}: "${title}"`);
+    });
+});
+
 describe('Sunday vs Rest Day Working, at the point of use', () => {
     test('the Rest Day Working row sends a Sunday elsewhere', () => {
         // The row she was reading. Its Saturday sibling has always done this — "if you weren't

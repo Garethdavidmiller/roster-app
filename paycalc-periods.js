@@ -20,9 +20,13 @@ import { MONTH_ABB } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
-// ⚠️  TAX YEAR ROLLOVER: Each April, update ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET
-//     and the threshold tables in paycalc-calc.js.
-//     The anchor (13 Feb 2026) stays fixed as the offset reference point (internal num 48).
+// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js,
+//     and raise LAST_OFFSET to the new year's last payslip. That is ALL that moves here:
+//   · ANCHOR_DATE never moves. Every payslip a member saves is keyed by its number, `48 + offset`
+//     (getPeriods), so a new anchor would silently re-date every saved entry.
+//   · FIRST_OFFSET never rises in passing. The pension opt-out, the student-loan stop and the Year
+//     to Date source are stored as payslip numbers, and dropping a year from the list leaves those
+//     naming a payslip no list offers — retiring a year needs its own decision and a migration.
 //
 // NB: `num` below is an INTERNAL, monotonic offset id (37…62), NOT the number printed on the
 // payslip. The payslip counts weeks-into-the-tax-year (×4 per period, resetting each April):
@@ -92,6 +96,21 @@ export function payslipPeriodNum(p) {
 
 /** Earliest period num the current member may view; null = not set yet (no clamp). @type {number|null} */
 let _earliestVisiblePNum = null;
+/** The first payslip the current member was employed for; null = not set yet (the grid's first). @type {number|null} */
+let _firstEmployedPNum = null;
+
+/**
+ * The first payslip a member was employed for: the first period whose window ends on or after their
+ * start date — exactly where `calcProRateFactor` stops being 0. Anybody with no `startDate`, and a
+ * full-year `noProRate` secondment return, counts from the grid's first payslip.
+ * @param {any} member @returns {any} the period
+ */
+function _joinPeriod(member) {
+  const periods = getPeriods();
+  const start = member?.startDate;
+  if (!start || member?.noProRate) return periods[0];
+  return periods.find((/** @type {any} */ p) => start <= p.cutoff) || periods[periods.length - 1];
+}
 
 /**
  * The first period of the member's JOIN tax year — the earliest period they may view. Genuine new
@@ -102,19 +121,21 @@ let _earliestVisiblePNum = null;
  */
 export function computeEarliestVisiblePNum(member) {
   const floor = 48 + CONFIG.FIRST_OFFSET;
-  const start = member?.startDate;
-  if (!start || member?.noProRate) return floor; // no startDate, or full-year return → see everything
-  const periods = getPeriods();
-  // The tax year the member joined in = the tax year of the first period whose window ends on/after
-  // their start date (i.e. the first period they were employed for).
-  const joinP  = periods.find((/** @type {any} */ p) => start <= p.cutoff) || periods[periods.length - 1];
-  const joinTy = getTaxYearForOffset(joinP.num - 48);
+  const joinTy = getTaxYearForOffset(_joinPeriod(member).num - 48);
   return Math.max(floor, 48 + joinTy.first);
 }
 
-/** Store the current member's earliest visible period. Call once from init before building selects. */
+/** Store the current member's earliest visible period — and the first payslip they were employed
+ *  for, which the Year to Date rules below keep to (a payslip from before somebody started has no
+ *  figures of theirs on it). Call once from init before building selects. */
 export function setEarliestVisiblePeriod(/** @type {any} */ member) {
   _earliestVisiblePNum = computeEarliestVisiblePNum(member);
+  _firstEmployedPNum = _joinPeriod(member).num;
+}
+
+/** The first payslip the current member was employed for (the grid's first if unset). */
+function _firstEmployed() {
+  return _firstEmployedPNum ?? (48 + CONFIG.FIRST_OFFSET);
 }
 
 /** The stored earliest visible period num (the supported range's first period if unset). */
@@ -359,11 +380,13 @@ export function payslipMayBeInHand(p, now = new Date()) {
  * May `p` be picked as the source of `ty`'s Year to Date figures? Any of the year's PAID payslips —
  * and, from its cut-off, the payslip about to be paid, because it may already be in the member's hand.
  * (It read `p.num < today || p.cutoff <= now` until v24.87; the first half is implied by the second,
- * since a paid payslip's cut-off is behind it, so the shared rule is the same answer.)
+ * since a paid payslip's cut-off is behind it, so the shared rule is the same answer.) Never a payslip
+ * from before the member started: it carries no figures of theirs (whole-app review, Nov 2026).
  * @param {any} p @param {{ first:number, last:number }} ty @param {Date} [now]
+ * @param {number} [firstPNum] the member's first payslip — `setEarliestVisiblePeriod` records it
  */
-export function ytdSourceOffered(p, ty, now = new Date()) {
-  if (p.num < 48 + ty.first || p.num > 48 + ty.last) return false;
+export function ytdSourceOffered(p, ty, now = new Date(), firstPNum = _firstEmployed()) {
+  if (p.num < 48 + ty.first || p.num > 48 + ty.last || p.num < firstPNum) return false;
   return payslipMayBeInHand(p, now);
 }
 
@@ -388,41 +411,80 @@ export function ytdAutoSource(ty, now = new Date()) {
  * before sources were recorded are anchored to the app's old standing assumption (`ytdAutoSource`),
  * so a maintained member's next estimate does not move. A recorded '0' is the member deliberately
  * un-anchoring them (the blank placeholder) and is never re-stamped — or the next period change would
- * quietly re-engage the cumulative method on figures they had detached.
+ * quietly re-engage the cumulative method on figures they had detached. Nothing is recorded when that
+ * payslip is from before the member started — a joiner's first payslip has no earlier one of theirs.
  * @param {string|null} raw  what storage holds @param {boolean} hasFigures
  * @param {{ first:number, last:number }} ty @param {Date} [now]
+ * @param {number} [firstPNum] the member's first payslip — `setEarliestVisiblePeriod` records it
  * @returns {number|null}
  */
-export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date()) {
-  return raw == null && hasFigures ? ytdAutoSource(ty, now) : null;
+export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date(), firstPNum = _firstEmployed()) {
+  if (raw != null || !hasFigures) return null;
+  const src = ytdAutoSource(ty, now);
+  return src >= firstPNum ? src : null;
+}
+
+/**
+ * The source to MOVE `ty`'s Year to Date figures to as the member types them in again, or null to
+ * leave it (whole-app review, Nov 2026). The figures change on every payslip, so the take-home line
+ * asks for the latest ones each month — and the source used to be stamped on FIRST entry only. Typing
+ * the new totals over figures recorded from an older payslip left them anchored to that one: the line
+ * went on asking, the card said "update them", and the payslip after the old source ran the cumulative
+ * method on totals that already held its own pay (£628.80 of tax for £435.00 on 23 Oct 2026).
+ *
+ * So: when the recorded source is OLDER than the payslip the line names for the payslip on screen
+ * (`ytdCopyFrom` — the same rule), the figures being typed are taken to come from that payslip. The
+ * card's note names it and its picker corrects it, as for the first-entry stamp. A source never
+ * recorded is the stamp's business, a deliberate '0' (detached) stays detached, and a payslip already
+ * paid or a source at or after the one named is left alone.
+ * @param {string|null} raw  what storage holds
+ * @param {{ p: any, ty: { first: number }, now?: Date, firstPNum?: number }} a
+ * @returns {number|null}
+ */
+export function ytdSourceAfterRetype(raw, { p, ty, now = new Date(), firstPNum = _firstEmployed() }) {
+  const src = parseInt(raw ?? '', 10) || 0;
+  if (!src) return null;
+  const from = ytdCopyFrom({ p, ty, now, firstPNum });
+  return from && src < from.num ? from.num : null;
 }
 
 /**
  * What the Year to Date card says about its figures on payslip `p`: the note under its heading, and
- * the chip in its header that is readable while the card is shut. Both answer from the rule
- * calculate() applies — the figures sharpen ONLY the payslip straight after the one they were copied
- * from — and both are written together, so every path that refreshes one refreshes the other.
+ * the chip in its header that is readable while the card is shut. Both are written together, so every
+ * path that refreshes one refreshes the other.
+ *
+ * "IN USE" IS WHAT computeTax DID, NOT WHAT THE BOXES HOLD (whole-app review, Nov 2026). `inUse` is
+ * its `usingCumulative`, which calculate() hands over on every run. The card used to work it out for
+ * itself — "the payslip after the source, and either box has text" — and so said "✓ in use … they
+ * sharpen this payslip's tax estimate" with one box still blank, under a week 1 / month 1 code that
+ * never uses the figures, and with both boxes emptied, while the standard method ran each time.
  *  - The chip is '' when there is nothing to report: no figures, no source, or the year's first
  *    payslip, where Year to Date starts again.
- *  - The note is '' while no source is recorded: the card's hint, its field labels and the select's
- *    label all ask for one already, and a fourth asking was noise.
- *  - Otherwise it names the source payslip, date first, and offers the payslip before this one to
- *    update from once that one has been paid.
- * `noteLive` (the note's green) follows the source alone; the chip's also needs figures in the boxes.
- * @param {{ p: any, ty: { label: string, first: number }, src: number, hasFigures: boolean, now?: Date }} a
+ *  - The note is '' while no source is recorded or no figure is entered: the card's hint, its field
+ *    labels and the select's label all ask for them already, and a fourth asking was noise.
+ *  - Otherwise it names the source payslip, date first. On the payslip straight after it, figures not
+ *    in use say why (a code that works each payslip out alone, or a pair not yet complete); elsewhere
+ *    it offers the payslip before this one to update from once that one has been paid — never one
+ *    from before the member started.
+ * @param {{ p: any, ty: { label: string, first: number }, src: number, hasFigures: boolean,
+ *           inUse?: boolean, taxCode?: string, now?: Date, firstPNum?: number }} a
  * @returns {{ note: string, noteLive: boolean, chip: string, chipLive: boolean }}
  */
-export function ytdAnchorStatus({ p, ty, src, hasFigures, now = new Date() }) {
+export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode = '', now = new Date(), firstPNum = _firstEmployed() }) {
   const srcP = src ? getPeriods().find((/** @type {any} */ x) => x.num === src) : null;
   const next = !!srcP && p.num === src + 1;
   const first = (p.num - 48) - ty.first + 1 <= 1;   // 1-based HMRC period within the tax year
-  const out = { noteLive: next, chip: (!hasFigures || !srcP || first) ? '' : (next ? '✓ in use' : 'not in use'), chipLive: next && hasFigures };
+  const chip = (!hasFigures || !srcP || first) ? '' : (inUse ? '✓ in use' : 'not in use');
+  const out = { noteLive: inUse, chip, chipLive: inUse && !!chip };
   if (first) return { ...out, note: `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.` };
-  if (!srcP) return { ...out, note: '' };
+  if (!srcP || !hasFigures) return { ...out, note: '' };
   const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
-  if (next) return { ...out, note: `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.` };
+  if (inUse) return { ...out, note: `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.` };
+  if (next) return { ...out, note: _isNonCumulativeCode(taxCode)
+    ? `Your Year to Date figures are from ${from}, but a tax code ending in W1, M1 or X works out each payslip on its own, so this payslip uses the standard method.`
+    : `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> to sharpen this payslip's tax estimate.` };
   const prevP = getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1);
-  const upd = prevP && prevP.num < _todayAt(now).today
+  const upd = prevP && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
     ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
     : '';
   return { ...out, note: `Your Year to Date figures are from ${from}, so this payslip uses the standard method.${upd}` };
@@ -532,22 +594,48 @@ export function nextPeriod(onPeriodChange) {
  *    payslip's would undo the estimate the member is waiting on;
  *  - never on the tax year's first payslip, where Year to Date starts fresh;
  *  - never for a non-cumulative code (W1, M1, X) or NT, which the figures cannot change;
+ *  - never for a code the calculator does not recognise (`recognised` is computeTax's): it is priced
+ *    on the standard allowance, and Year to Date figures make a wrong code's estimate WORSE, which is
+ *    why the "Check against your payslip" line holds that advice back too;
  *  - never while the figures are IN USE (`inUse` is computeTax's `usingCumulative`, so a box holding
  *    something unreadable counts as not in use), nor when they come from this payslip or a later one;
+ *  - never for a payslip from before the member started (`firstPNum`), which carries none of theirs;
  *  - and only once the payslip to copy from can be in the member's hand (from its cut-off).
- * @param {{ p: any, ty: { first: number }, src: number, inUse: boolean, taxCode: string, now?: Date }} a
+ * Which payslip that is, is `ytdCopyFrom` — shared with the source a re-typed pair moves to.
+ * @param {{ p: any, ty: { first: number }, src: number, inUse: boolean, taxCode: string,
+ *           recognised?: boolean, now?: Date, firstPNum?: number }} a
  * @returns {any} the period to copy the figures from, or null
  */
-export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, now = new Date() }) {
+export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised = true, now = new Date(), firstPNum = _firstEmployed() }) {
+  if (!p) return null;
+  if (_isNonCumulativeCode(taxCode)) return null;
+  if (_normalCode(taxCode).replace(/^C/, '') === 'NT') return null;
+  if (recognised === false) return null;
+  if (inUse || (src && src >= p.num)) return null;
+  return ytdCopyFrom({ p, ty, now, firstPNum });
+}
+
+/** A tax code as computeTax reads it (paycalc-calc.js), so the two cannot disagree about one.
+ *  @param {string} taxCode */
+const _normalCode = taxCode => String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
+/** A week 1 / month 1 code (W1, M1, X): each payslip is taxed alone, so the figures never change it.
+ *  @param {string} taxCode */
+const _isNonCumulativeCode = taxCode => /[WM]1$|X$/.test(_normalCode(taxCode));
+
+/**
+ * The payslip whose Year to Date figures would sharpen the estimate for `p` — the one before it — or
+ * null where there is none to ask for: `p` already paid (the year keeps one pair of figures), the tax
+ * year's first payslip, a payslip from before the member started, or one not yet in their hand (from
+ * its cut-off). The ONE rule behind the take-home line (`ytdUpdateFrom`) and the source a re-typed
+ * pair moves to (`ytdSourceAfterRetype`), so the payslip the line names is the payslip recorded.
+ * @param {{ p: any, ty: { first: number }, now: Date, firstPNum: number }} a
+ * @returns {any}
+ */
+function ytdCopyFrom({ p, ty, now, firstPNum }) {
   const prevP = p ? getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1) : null;
   if (!prevP) return null;
   if (p.num < _todayAt(now).today) return null;
   if (p.num <= 48 + ty.first) return null;
-  // Read as computeTax reads it (paycalc-calc.js), so the two cannot disagree about a code: a
-  // non-cumulative code never uses the figures, and NT (or the Welsh CNT) has no tax to sharpen.
-  const code = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
-  if (/[WM]1$|X$/.test(code)) return null;
-  if (code.replace(/^C/, '') === 'NT') return null;
-  if (inUse || (src && src >= p.num)) return null;
+  if (prevP.num < firstPNum) return null;
   return payslipMayBeInHand(prevP, now) ? prevP : null;
 }
