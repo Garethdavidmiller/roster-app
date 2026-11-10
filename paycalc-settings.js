@@ -438,8 +438,8 @@ export function saveSettings() {
   // only when that option is the one chosen) — paycalc-3-8.
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
   if (_slPaidOffEl && _slPaidOffEl.selectedIndex !== -1) lsSet(SK.slPaidOff, _slPaidOffEl.value);
-  // Out of the scheme — saved BEFORE the amount below, because getPensionDefault() reads it and
-  // the amount's own fallback must see the state the member just chose.
+  // Out of the scheme. getPensionDefault() reads this timeline, so every repaint after this save —
+  // the lock, the field's default, the estimate — sees the state the member just chose.
   //
   // A CHANGE DATED TO A PAYSLIP, not a global flag (v21.78): the `from` select carries the payslip
   // to act on. With no select rendered — old cached HTML — that is the payslip being viewed, which
