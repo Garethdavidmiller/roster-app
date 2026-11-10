@@ -47,6 +47,8 @@
  * name, and the test will say whether the copy is faithful.
  */
 
+import { nameConflict } from './links-design-naming.js';
+
 /** @typedef {{ id: string, code: string, name: string, ref: string, patterns: Record<string, Record<string, string>> }} Proposal */
 
 const DAYS = /** @type {const} */ (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
@@ -176,13 +178,16 @@ export function proposalById(id) {
  * date and never the ref, plus "— copy", numbered if taken. A copy is a new design, and
  * carrying the fingerprint over would label an edited grid with the fingerprint of one it no longer
  * matches.
+ *
+ * "Taken" is `nameConflict`'s answer — the rule the save then applies — so the suggestion can never
+ * be one the page refuses. A rule of its own (trim and lower-case) missed a saved name with a double
+ * or no-break space in it, and the dialog pre-filled a name it then called a duplicate.
  * @param {Readonly<Proposal>} proposal
  * @param {Array<{ name?: string }>} existing
  */
 export function proposalCopyName(proposal, existing = []) {
     const base = proposal.name.split(' — ')[0].trim() + ' — copy';
-    const taken = new Set(existing.map(d => String(d.name || '').trim().toLowerCase()));
-    if (!taken.has(base.toLowerCase())) return base;
-    for (let n = 2; n < 1000; n++) if (!taken.has(`${base} ${n}`.toLowerCase())) return `${base} ${n}`;
+    if (!nameConflict(base, existing)) return base;
+    for (let n = 2; n < 1000; n++) if (!nameConflict(`${base} ${n}`, existing)) return `${base} ${n}`;
     return base;
 }
