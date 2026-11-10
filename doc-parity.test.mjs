@@ -45,6 +45,28 @@ const AI_MAP = read('./docs/AI_MAP.md');
 /** Strip fenced code and inline code so a name inside an example is not read as a listing. */
 const prose = (/** @type {string} */ s) => s.replace(/```[\s\S]*?```/g, ' ');
 
+/**
+ * Whether `text` names the file `name` WHOLE — not as the tail of a longer name. These checks were
+ * `text.includes(name)`, which any longer name satisfies: on the real AI_MAP, with every mention of
+ * `ls.js`, `overlay.js`, `session.js`, `guide-search.js` and `leave-year.js` removed, each was still
+ * "listed" by `override-utils.js`, `login-overlay.js`, `page-session.js`, `nav-guide-search.js` and
+ * `admin-leave-year.js` — and `page-session.test.mjs` in a script counted `session.test.mjs` as run
+ * (routed from shared-ui, whole-app check, 10 November 2026). The boundary is githooks/pre-commit's.
+ * @param {string} text @param {string} name
+ */
+const listed = (text, name) =>
+    new RegExp(`(^|[^A-Za-z0-9_.-])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_-])`, 'm').test(text);
+
+test('a file counts as listed only by its WHOLE name — guard the guard', () => {
+    assert.equal(listed('- `date-picker.js` — the date picker', 'picker.js'), false, 'a longer name satisfied a shorter one');
+    assert.equal(listed('test:unit runs page-session.test.mjs', 'session.test.mjs'), false);
+    assert.equal(listed('docs/AUTH_PLAN.md', 'PLAN.md'), false);
+    for (const [text, name] of [['### `ls.js`', 'ls.js'], ['├── ls.js ← wrappers', 'ls.js'], ["import from './ls.js'", 'ls.js'],
+        ['a.test.mjs session.test.mjs b.test.mjs', 'session.test.mjs'], ['[AUTH_PLAN.md](AUTH_PLAN.md)', 'AUTH_PLAN.md']]) {
+        assert.equal(listed(text, name), true, `a genuine listing was missed: ${text}`);
+    }
+});
+
 // ── CONTRACT 1: every module and test file is LISTED in both routing docs ──────────────────────
 //
 // The pre-commit hook enforces this for modules on a STAGED commit. It cannot see a file that was
@@ -112,15 +134,15 @@ test('KNOWN_LIMITATIONS.md headings state what is still true', () => {
 
 test('every root MODULE is listed in CLAUDE.md and AI_MAP.md', () => {
     const missing = modules
-        .filter(f => !ROUTING.includes(f) || !AI_MAP.includes(f))
-        .map(f => `${f} — missing from ${!ROUTING.includes(f) ? 'docs/FILE_INDEX.md' : ''}${!ROUTING.includes(f) && !AI_MAP.includes(f) ? ' + ' : ''}${!AI_MAP.includes(f) ? 'docs/AI_MAP.md' : ''}`);
+        .filter(f => !listed(ROUTING, f) || !listed(AI_MAP, f))
+        .map(f => `${f} — missing from ${!listed(ROUTING, f) ? 'docs/FILE_INDEX.md' : ''}${!listed(ROUTING, f) && !listed(AI_MAP, f) ? ' + ' : ''}${!listed(AI_MAP, f) ? 'docs/AI_MAP.md' : ''}`);
     assert.deepEqual(missing, [],
         'these modules are not routed from both docs, so nothing points a reader at them:\n  ' +
         missing.join('\n  '));
 });
 
 test('every runner config is listed in CLAUDE.md', () => {
-    const missing = rootFiles.filter(f => f.startsWith('playwright.') && !ROUTING.includes(f));
+    const missing = rootFiles.filter(f => f.startsWith('playwright.') && !listed(ROUTING, f));
     assert.deepEqual(missing, [], 'unlisted runner configs: ' + missing.join(', '));
 });
 
@@ -184,7 +206,7 @@ test('every root TEST file is listed in CLAUDE.md', () => {
     // The pre-commit hook covers modules on a STAGED commit. It cannot see a file added earlier and
     // never listed, and it does not look at tests at all — which is how `calendar-doc-viewer.test.mjs`
     // reached AI_MAP.md and not CLAUDE.md.
-    const missing = tests.filter(f => !ROUTING.includes(f));
+    const missing = tests.filter(f => !listed(ROUTING, f));
     assert.deepEqual(missing, [],
         'these test files exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
 });
@@ -207,7 +229,7 @@ test('every e2e spec is routed in CLAUDE.md', () => {
             .filter(f => f.endsWith('.spec.js')).sort();
     } catch { /* no e2e directory in this checkout */ }
     assert.ok(specs.length > 0, 'no e2e specs found — the guard would pass vacuously');
-    const missing = specs.filter(f => !ROUTING.includes(f));
+    const missing = specs.filter(f => !listed(ROUTING, f));
     assert.deepEqual(missing, [],
         'these e2e specs exist but CLAUDE.md does not list them:\n  ' + missing.join('\n  '));
 });
@@ -237,7 +259,7 @@ test('every root TEST file is actually RUN by one of the npm scripts', () => {
     const wired = Object.entries(scripts)
         .filter(([name]) => name.startsWith('test'))
         .map(([, cmd]) => cmd).join(' ');
-    const unrun = tests.filter(f => !RUNNER_EXEMPT.has(f) && !wired.includes(f));
+    const unrun = tests.filter(f => !RUNNER_EXEMPT.has(f) && !listed(wired, f));
     assert.deepEqual(unrun, [],
         'these test files exist but no npm script runs them — they pass by never executing:\n  ' +
         unrun.join('\n  '));
@@ -1416,7 +1438,7 @@ test('every doc is routed from ARCHITECTURE.md — the index cannot fall behind'
         .filter(f => f.endsWith('.md') && !f.endsWith('.local.md') && !INDEX_EXEMPT.has(f));
     assert.ok(mdFiles.length > 15, `found only ${mdFiles.length} docs — the scan is wrong`);
 
-    const missing = mdFiles.filter(f => !INDEX.includes(f));
+    const missing = mdFiles.filter(f => !listed(INDEX, f));
     assert.deepEqual(missing, [],
         'these documents exist and the index does not mention them, so nothing sends a reader to ' +
         'them:\n  ' + missing.join('\n  '));
