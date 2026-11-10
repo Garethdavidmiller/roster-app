@@ -38,10 +38,11 @@ import { dispatchAuth } from './auth-state.js';
 /**
  * Feed the auth STORE (AUTH_ARCHITECTURE.md Phase 2). This is a pure side-effect, wrapped so
  * a store error can NEVER break the auth path; `sessionReady` and every existing flow are
- * untouched (session.js still owns the Firebase lifecycle). The store IS now consumed: the 5
- * write coordinators read it at init via `getAuthSnapshot()` + `requirePage()` (auth-policy.js).
- * The full single-owner auth shell (live
- * subscriptions, `sessionReady` re-routed onto the store) is still future work.
+ * untouched (session.js still owns the Firebase lifecycle). The store IS consumed, once per page:
+ * every named page's `guardNamedSession` (page-session.js) and the Pay Calculator read it through
+ * `getAuthSnapshot()` + `requirePage()` (auth-policy.js), and the forced password overlay reads its
+ * status. The full single-owner auth shell (live subscriptions, `sessionReady` re-routed onto the
+ * store) is still future work.
  * @param {{ type: string, member?: string|null, error?: string|null }} event
  */
 function _feedAuth(event) {
@@ -160,14 +161,14 @@ let _fbIdentity = 'none';
 /** @type {string | undefined} The auth error code behind the last non-'named' outcome, for diagnostics. */
 let _fbAuthError;
 
+/** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
+export const AUTH_READY_TIMEOUT_MS = 20000;
 /** Monotonic auth-attempt generation (stale-completion guard, SECURITY_RELEASE_PLAN.md prep for B1/B3).
  *  `runNamedSignIn` time-boxes the auth promise but cannot CANCEL the underlying Firebase work, so a
  *  timed-out attempt can resolve LATE — after the user retried and a newer attempt already won. A
  *  superseded attempt (its captured gen ≠ this counter) must drop ALL its terminal writes so it can't
  *  clobber the shared `_fbIdentity`/auth-store to a stale value (which under B1 could cause a spurious
  *  re-login). Each `ensureNamedSession` bumps it; `ensureFirebaseSession` inherits or (direct call) bumps. */
-/** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
-export const AUTH_READY_TIMEOUT_MS = 20000;
 let _authGen = 0;
 /** The generation an explicit clearSession() took — see the late-landing check in ensureFirebaseSession. */
 let _clearedGen = -1;
@@ -305,7 +306,8 @@ const _noDefaultKey = (name) => _NO_DEFAULT_PREFIX + name;
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
- * Firestore Security Rules require `request.auth != null` for every write.
+ * Firestore Security Rules refuse every write that carries no claim — a member's own needs their
+ * bound name (AUTH_AND_SESSIONS.md 4, 9, 19), which only their own signed-in account has.
  * The login click handler signs in to Firebase — but a returning user with a
  * valid 60-day localStorage session skips that handler, so on a normal app open
  * the Firebase Auth session was never (re-)established.
@@ -593,7 +595,7 @@ function _worthRetrying() {
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300, password } = {}) {
     const gen = ++_authGen;   // generation guard — a superseded attempt must not publish a stale terminal state
     _genName = name;
-    _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
+    _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving
     _authStartStalled = false;
     let ok = await ensureFirebaseSession(name, gen, password);
     let attempt = 0;
@@ -756,7 +758,7 @@ export function clearSession() {
     // deleted (v24.59, calendar-snapshot.js). A shared device must not keep it past the session.
     lsDel(CALENDAR_SNAPSHOT);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
-    _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut (observing only — Phase 2)
+    _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut
 }
 
 /**
@@ -907,6 +909,10 @@ async function releasePushForEndingHold() {
     }
 }
 
+/** The whole access decision's deadline, in ms — the Calendar's (resolveAccess) and the PIN check's
+ *  (holdsStaffPin) alike. ONE constant since v24.96: calendar-access.js imports it from here. */
+export const ACCESS_DECISION_BUDGET_MS = 6500;
+
 /**
  * Does this browser hold the shared staff PIN — and KEEP it? (v24.84)
  *
@@ -927,10 +933,6 @@ async function releasePushForEndingHold() {
  * @param {number} [budgetMs]  the whole decision's deadline — the Calendar's, by default
  * @returns {Promise<boolean>}
  */
-/** The whole access decision's deadline, in ms — the Calendar's (resolveAccess) and the PIN check's
- *  (holdsStaffPin) alike. ONE constant since v24.96: calendar-access.js imports it from here. */
-export const ACCESS_DECISION_BUDGET_MS = 6500;
-
 export async function holdsStaffPin(budgetMs = ACCESS_DECISION_BUDGET_MS) {
     const started = Date.now();
     const remaining = () => Math.max(0, budgetMs - (Date.now() - started));

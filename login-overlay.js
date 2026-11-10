@@ -291,8 +291,8 @@ function fillAbout(overlay, about) {
  * @param {object} opts
  * @param {string} opts.pageLabel  Subtitle prefix, e.g. 'Admin', 'Settings', 'Operations'.
  * @param {(name: string) => (void | Promise<void>)} opts.onSuccess  Runs after a CONFIRMED named
- *   sign-in (surname matched AND, when B1 is on, the member's own Firebase session is active).
- *   Typically `() => window.location.reload()`; admin passes an inline email-check + reload.
+ *   sign-in: Firebase accepted the typed password, the member's own named session is active, and the
+ *   local session is saved. Typically the page's in-place start, with a reload as the fallback.
  * @param {HTMLElement|null} [opts.host]  Mount INLINE inside this element instead of as a fixed
  *   modal over the page (see the module header). No scroll lock, no focus trap, no Escape.
  * @param {{ label: string, hint?: string, onSelect: () => void }|null} [opts.alternative]  Replaces
@@ -755,10 +755,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 return;
             }
             _failCount = 0;   // a successful sign-in clears the wrong-password streak
-            // …and with it the stuck-member emphasis. The overlay is REUSED, not rebuilt
-            // (`initLoginOverlay` returns early when one exists), and in-place sign-in hides
-            // it without a reload — so a later re-show would otherwise open on a card still
-            // flagging failures that have since been resolved.
+            // …and with it the stuck-member emphasis, for a card that stays up after a success —
+            // `onSuccess` failing (below) asks the member to try again on this one. A dismissed card
+            // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
             resetResetRequest();
             // One-shot "a real sign-in just happened" marker for the forced set-password overlay
             // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written HERE — the one place every
@@ -795,7 +794,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (Date.now() >= _lockedUntil) {
                 _attempting = false;
                 // Belt-and-braces: an UNEXPECTED throw after the button was set to "Signing in…"
-                // (line ~298) but before any normal branch restored it would leave it stuck disabled
+                // (above) but before any normal branch restored it would leave it stuck disabled
                 // (a soft-lock). Every intended exit already restores the button — success left the
                 // page, failure/lockout branches reset it — so acting ONLY on the still-"Signing in…"
                 // text touches nothing but the genuinely-stuck case, and never the success/lockout label.

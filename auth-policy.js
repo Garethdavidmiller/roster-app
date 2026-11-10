@@ -278,13 +278,12 @@ export function overtimeEnabled() {
  * @returns {AuthDecision}
  */
 export function requirePage(snapshot, pageName) {
-    // Object.hasOwn: a bare index would also match Object.prototype members ('toString',
-    // 'constructor', …), returning a truthy FUNCTION as the "policy" — requirePageAuth would then
-    // see requireNamed undefined and ALLOW it as a public page, inverting the fail-closed
+    // An OWN-property lookup, never a bare index: that would also match Object.prototype members
+    // ('toString', 'constructor', …), returning a truthy FUNCTION as the "policy" — requirePageAuth
+    // would then see requireNamed undefined and ALLOW it as a public page, inverting the fail-closed
     // guarantee for exactly the misconfiguration class this guard exists for (v16.23).
-    // hasOwnProperty.call (not Object.hasOwn, which is Safari 15.4+) so page auth doesn't hard-throw
-    // on an iPhone stuck below iOS 15.4 — same anti-prototype-match intent (a bare index would match
-    // 'toString'/'constructor' etc.), just a wider-supported call.
+    // `hasOwnProperty.call` dates from when iPhones below iOS 15.4, which lack `Object.hasOwn`, were
+    // still served; the floor is 16.4 now, so either would do, and this one is left as it is.
     const policy = Object.prototype.hasOwnProperty.call(PAGE_POLICIES, pageName) ? PAGE_POLICIES[pageName] : null;
     const roles  = rolesFor(snapshot && snapshot.member);
     if (!policy) {

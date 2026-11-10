@@ -154,11 +154,13 @@ function _setMemberPersistence() {
 // PURE, and imported for the same reason session.js imports it: the question "is this identity the
 // shared Calendar viewer?" must have ONE answer, and the boot-persistence decision below is a place
 // where a second local copy of that predicate would be a second place a bypass could be introduced.
-// calendar-access-core.js imports nothing, so this adds no cycle (import-graph.test.mjs).
+// calendar-access-core.js imports only the pure auth-identity.js, so this adds no cycle
+// (import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
 
 /** Resolve the FIRST auth emission (the persisted-user restore), bounded at 8s; null on timeout.
- *  Local: the shared `restoreFirstAuthUser` is in session.js, which imports THIS module (a cycle).
+ *  The app's only subscription for that question: session.js's `restoreFirstAuthUser` delegates to
+ *  `currentUserAfterBoot` (below), which awaits the boot this feeds (v21.29).
  *  **It bounds the emission, NOT `authReady`** (measured, browser SDK build, Sep 2026): Auth's
  *  initialisation includes the stored user's `accounts:lookup`, and `setPersistence` queues behind
  *  it — so `authReady` settles when the lookup does, up to the SDK's 30s API timeout.
@@ -169,9 +171,8 @@ function _firstAuthUserAtBoot() {
         let unsub       = null;
         let settled     = false;
         let detachEarly = false;   // the listener fired before onAuthStateChanged returned
-        // Same TDZ-safe detach shape as session.js's restoreFirstAuthUser, for the same reason:
-        // Firebase does not emit synchronously, but a shape that would throw if it ever did does
-        // not belong on the one promise every page's boot awaits.
+        // A TDZ-safe detach: Firebase does not emit synchronously, but a shape that would throw if
+        // it ever did does not belong on the one promise every page's boot awaits.
         const detach = () => {
             if (unsub) { try { unsub(); } catch { /* already gone */ } unsub = null; }
             else detachEarly = true;
