@@ -2523,6 +2523,60 @@ test('paycalc desktop: a hidden setup banner or privacy note leaves no gap behin
     }
 });
 
+test('paycalc: at large text an open card is never cut short — Save settings stays reachable', async ({ page }, info) => {
+    // The open cards were capped at fixed pixel heights (1800px, the HPP note 400px) under
+    // `overflow: hidden`, sized against DEFAULT text. At Android's 1.3x a Settings card with a student
+    // loan and a pension opt-out measured 1916px at 360px wide, so its last 116px — Save settings —
+    // was clipped with no way to scroll to it. A card's height grows faster than its text (more
+    // lines AND taller ones), so the caps are in `em` now.
+    test.skip(!isTouchProject(info), 'a phone with its text scaled');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#settingsToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#settingsBody')).toHaveCSS('visibility', 'visible');
+    await page.evaluate(() => {   // the tallest ordinary Settings: a loan plan and the opt-out's dated question
+        const s = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
+        s.value = 'plan2'; s.dispatchEvent(new Event('change', { bubbles: true }));
+        const c = /** @type {HTMLInputElement} */ (document.getElementById('pensionOptOutCheck'));
+        if (!c.checked) c.click();
+    });
+    await expect(page.locator('#pensionOptOutField')).toBeVisible();
+    if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    }
+    await page.locator('#hppToggleBtn').click();
+    // Android's text scaling: every element's OWN size × 1.6, read first and written after, so an
+    // inherited size is scaled once (`scaleText` in helpers.js compounds them).
+    const scale = () => page.evaluate(() => {
+        const all = /** @type {[HTMLElement, number][]} */ ([...document.querySelectorAll('*')].map(el => [el, parseFloat(getComputedStyle(el).fontSize)]));
+        for (const [el, px] of all) if (px) el.style.fontSize = (px * 1.6) + 'px';
+    });
+    await scale();
+    const clip = (/** @type {string} */ sel) => page.locator(sel).evaluate(el =>
+        Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))).then(() => el.scrollHeight - el.clientHeight));
+    expect(await clip('#settingsBody'), 'Settings content hidden below its cap').toBeLessThanOrEqual(1);
+    expect(await clip('#hppNoteBody'), '"How is this calculated?" hidden below its cap').toBeLessThanOrEqual(1);
+    const inside = await page.evaluate(() => {
+        const save = /** @type {Element} */ (document.getElementById('saveSettingsBtn')).getBoundingClientRect();
+        const body = /** @type {Element} */ (document.getElementById('settingsBody')).getBoundingClientRect();
+        return save.bottom <= body.bottom + 0.5;
+    });
+    expect(inside, 'Save settings sits inside its open card').toBe(true);
+
+    // The Boxing Day banner (a 60px cap) wraps to a second line at this size: 88px of it.
+    await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));
+    await page.goto('/paycalc.html?payday=2027-01-08');
+    await expect(page.locator('.boxing-banner.visible')).toBeVisible();
+    await scale();
+    expect(await clip('.boxing-banner'), 'the Boxing Day banner hidden below its cap').toBeLessThanOrEqual(1);
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 

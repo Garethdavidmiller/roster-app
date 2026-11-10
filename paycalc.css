@@ -360,9 +360,9 @@
     .bd-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
     /* A FINITE cap so the open/close can animate (max-height: none cannot), well above the tallest
        real content: ≤ ~13 back-pay rows (one award year) or the ~20-line result breakdown, ~550–800px.
-       Print unclips it. Should a breakdown ever outgrow it, measure the height and drop the cap after
-       transitionend, rather than reach for a bigger number. */
-    .bd-body.open { max-height: 1400px; }
+       Print unclips it. In `em`, as every cap on this page is (see `.collapsible-body.open`): 1400px at
+       the 14px it is set in, and it grows with the text, which a pixel cap does not. */
+    .bd-body.open { max-height: 100em; }
     .bd-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 16px; border-bottom: 1px solid var(--border-light);
@@ -585,7 +585,7 @@
       transition: max-height var(--dur-slower) var(--ease-standard), opacity var(--dur-slower) var(--ease-standard), margin-bottom var(--dur-slower) var(--ease-standard), padding var(--dur-slower) var(--ease-standard);
     }
     .boxing-banner.visible {
-      max-height: 60px; opacity: 1;
+      max-height: 5em; opacity: 1;   /* 60px at its 12px; in em so a banner that wraps at large text still shows */
       padding: 8px 12px; margin-bottom: 10px;
     }
 
@@ -838,7 +838,9 @@
     .hpp-toggle-arrow { font-size: var(--type-micro); }   /* glyph-swapped, so never rotated (.show-more-arrow) */
     /* `position: relative` — a containing block, as `.bd-body`'s is. */
     .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
-    .hpp-note-body.open { max-height: 400px; }
+    /* 448px at the 14px it is set in (it was 400): about 216px of text at default size grew to 829px at
+       twice the size, faster than the text, because a narrow column wraps more lines. */
+    .hpp-note-body.open { max-height: 32em; }
 
     /* Actual HPP badge */
     .actual-badge {
@@ -1360,9 +1362,11 @@
   }
   .collapsible-body.open {
     /* A finite cap so the open/close can ANIMATE (max-height: none cannot tween). The tallest body,
-       #backPayBody with a full 13-period breakdown, MEASURED ~1404px; revisit only if one could
-       exceed 1800px. */
-    max-height: 1800px;
+       #backPayBody with a full 13-period breakdown, MEASURED ~1404px at default text. In `em`: 1800px
+       at the cards' 14px, growing with the text. As 1800px it clipped Settings at Android's 1.3x text
+       scale — a student loan and a pension opt-out put Save settings out of reach (measured 1916px
+       of content at 360px) — and a narrow card's height grows faster than its text. */
+    max-height: calc(1800em / 14);
     visibility: visible; transition-delay: 0s;
     padding-top: 8px !important; padding-bottom: 16px !important;
   }
