@@ -907,3 +907,120 @@ test('fip: an opened country card shows its checked date', async ({ page }) => {
     await expect(line).toBeVisible();
     await expect(line).toContainText(`Checked ${MONTHS[month - 1]} ${year}`);
 });
+
+// ── WHAT THE GUIDE STYLESHEETS OWE THE READER (whole-app fix, 10 Nov 2026) ───────────────────────────
+// Each a fault in a guide's own stylesheet, invisible to the behaviour tests above, and measured on the
+// rendered page. Larger text is modelled the way Android's setting works — every used font size
+// multiplied, the viewport left alone — reading every size before writing any, so nested text is
+// scaled once: `scaleText` (helpers.js) reads while it writes, and inherited sizes compound in it.
+
+/** Multiply every element's font size by `k`, once. @param {import('@playwright/test').Page} page @param {number} k */
+const scaleTextOnce = (page, k) => page.evaluate((k) => {
+    const els = [...document.querySelectorAll('*')];
+    const sizes = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+    els.forEach((e, i) => { if (sizes[i]) /** @type {HTMLElement} */ (e).style.fontSize = `${sizes[i] * k}px`; });
+}, k);
+
+for (const [guide, row, label] of [['rangers-guide', '.rr-row', '.rr-lbl'], ['railcard-guide', '.rc-layer', '.rc-layer-lbl']]) {
+    test(`${guide}: a row's label never runs into its value under larger text`, async ({ page }) => {
+        // The label columns were fixed in pixels, sized for the default text: on a phone set larger,
+        // DISCOUNTS ran 10px into its value at 1.3× and MARYLEBONE 3px into its sentence.
+        for (const w of [360, 390]) for (const k of [1, 1.3]) {
+            await page.setViewportSize({ width: w, height: 800 });
+            await page.goto(`/${guide}.html`);
+            await page.evaluate(() => document.fonts.ready);
+            if (k !== 1) await scaleTextOnce(page, k);
+            const worst = await page.evaluate(([row, label]) => {
+                let found = { over: -Infinity, text: '' };
+                for (const r of document.querySelectorAll(row)) {
+                    const l = r.querySelector(label), v = l?.nextElementSibling;
+                    if (!l || !v) continue;
+                    const range = document.createRange();
+                    range.selectNodeContents(l);
+                    const over = range.getBoundingClientRect().right - v.getBoundingClientRect().left;
+                    if (over > found.over) found = { over, text: (l.textContent || '').trim() };
+                }
+                return found;
+            }, [row, label]);
+            expect(worst.over, `${worst.text} into its value at ${w}px, ${k}× text`).toBeLessThanOrEqual(0);
+        }
+    });
+}
+
+test('guides: each side of the page takes its own safe-area inset', async ({ page, browserName }) => {
+    // `padding` runs top, right, bottom, left. The Rangers guide had the two side insets crossed, and
+    // both source banners used the left inset on both sides — so a phone held on its side with a
+    // cut-out on one edge padded the other. Only Chromium can emulate an inset (a DevTools call).
+    test.skip(browserName !== 'chromium', 'safe-area emulation is a Chromium DevTools call');
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, bottom: 0, right: 44 } });
+    for (const [guide, column] of [['rangers-guide', 'main'], ['railcard-guide', '.content'], ['fip-guide', '.content']]) {
+        await page.goto(`/${guide}.html`);
+        const [col, banner] = await page.evaluate((column) => [column, '.source-banner'].map(sel => {
+            const el = document.querySelector(sel);
+            if (!el) return null;
+            const cs = getComputedStyle(el);
+            return [cs.paddingLeft, cs.paddingRight];
+        }), column);
+        expect(col, `${guide}: the content column`).toEqual(['16px', '44px']);
+        if (banner) expect(banner, `${guide}: the source banner`).toEqual(['16px', '44px']);
+    }
+});
+
+test('fip: a focused country row shows its whole ring, inside the card that clips it', async ({ page }) => {
+    // The card clips its content (`overflow: hidden`) and the browser's own ring is drawn outside the
+    // row, so keyboard focus showed a hairline with its corners cut off.
+    await page.goto('/fip-guide.html');
+    const row = page.locator('#country-fr > summary');
+    await row.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    const m = await row.evaluate(s => {
+        const cs = getComputedStyle(s), card = getComputedStyle(/** @type {Element} */ (s.parentElement));
+        return { keyboard: s.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth),
+            offset: parseFloat(cs.outlineOffset), corner: cs.borderTopLeftRadius, cardCorner: card.borderTopLeftRadius,
+            clips: card.overflow };
+    });
+    expect(m.keyboard).toBe(true);
+    expect(m.clips, 'the card clips its row — why the ring must sit inside it').toBe('hidden');
+    expect(m.style).toBe('solid');
+    expect(m.width).toBeGreaterThanOrEqual(2);
+    expect(m.offset + m.width, 'the ring is drawn inside the row').toBeLessThanOrEqual(0);
+    expect(m.corner, 'the ringed row takes the card\'s corner, so the ring\'s own corners are not cut').toBe(m.cardCorner);
+});
+
+test('fip: the text link centres under its buttons, the no-match box keeps the column, and the note tag prints in colour', async ({ page }) => {
+    // `text-align` cannot centre an inline-flex item; the desktop reading measure caught the no-match
+    // <p>, a boxed callout; and the print rule that keeps the tags' colours left out `.tag-note`.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/fip-guide.html');
+    const gap = await page.locator('.btn-text-link').first().evaluate(a => {
+        const range = document.createRange();
+        range.selectNodeContents(a);
+        const t = range.getBoundingClientRect(), r = a.getBoundingClientRect();
+        return { left: t.left - r.left, right: r.right - t.right };
+    });
+    expect(Math.abs(gap.left - gap.right), 'the link text sits in the middle of its row').toBeLessThanOrEqual(2);
+    await page.locator('#countrySearch').fill('qwertyzzz');
+    await expect(page.locator('#countryNoMatch')).toBeVisible();
+    const [box, other] = await page.evaluate(() => [document.getElementById('countryNoMatch'), document.querySelector('.box')]
+        .map(e => /** @type {Element} */ (e).getBoundingClientRect().width));
+    expect(box, 'the no-match box is as wide as the page\'s other boxes').toBe(other);
+    await page.emulateMedia({ media: 'print' });
+    expect(await page.locator('.tag-note').first().evaluate(t => getComputedStyle(t).printColorAdjust)).toBe('exact');
+});
+
+test('staff guide: the badge grid stacks when its pair no longer fits, so larger text stays on the screen', async ({ page }) => {
+    // Two `1fr` tracks could not shrink below their widest badge, so under larger text the grid
+    // widened the whole column past the screen's edge — 19px at 1.5× on a 375px phone.
+    for (const [w, k] of [[360, 1], [375, 1.3], [375, 1.5], [412, 1.6]]) {
+        await page.setViewportSize({ width: w, height: 800 });
+        await page.goto('/staff-guide.html');
+        await page.evaluate(() => document.fonts.ready);
+        if (k !== 1) await scaleTextOnce(page, k);
+        const m = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: innerWidth,
+            columns: getComputedStyle(/** @type {Element} */ (document.querySelector('.badge-grid'))).gridTemplateColumns.split(' ').length }));
+        expect(m.scroll, `the page's width at ${w}px, ${k}× text`).toBeLessThanOrEqual(m.width);
+        if (k === 1) expect(m.columns, 'a phone keeps the pair at the default size').toBe(2);
+    }
+});

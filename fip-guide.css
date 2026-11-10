@@ -70,7 +70,6 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
     height: 2px;
     background: var(--gold);
 }
-.section-label:first-child { margin-top: 0; }
 /* Jump/finder links scroll to section + #country-* anchors — clearance for the sticky header +
    chip-bar. fip-guide.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
 .section-label[id], details[id], div[id] { scroll-margin-top: 100px; }
@@ -219,8 +218,6 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
     letter-spacing: 0.04em;
     color: var(--mid);
     background: var(--bg);
-    position: sticky;
-    top: 0;
 }
 .fip-table tbody tr:last-child td { border-bottom: 0; }
 .fip-table td:first-child { font-weight: 700; white-space: nowrap; }
@@ -316,6 +313,11 @@ summary .chevron {
 }
 details[open] > summary .chevron { transform: rotate(180deg); }
 details[open] > summary { border-bottom: 1px solid var(--border); }
+/* The ring is drawn INSIDE the row: the card's `overflow: hidden` clips anything outside it, which
+   left the browser's own ring a hairline with its corners cut off. While ringed, the row takes the
+   card's corners (the top two only, once open), so the ring's corners are not cut either. */
+summary:focus-visible { outline: 2px solid var(--navy); outline-offset: -3px; border-radius: 12px; }
+details[open] > summary:focus-visible { border-radius: 12px 12px 0 0; }
 
 .detail-body {
     padding: 14px;
@@ -406,6 +408,7 @@ details[open] > summary { border-bottom: 1px solid var(--border); }
 .btn-text-link {
     display: inline-flex;
     align-items: center;
+    justify-content: center;   /* `text-align` alone centres only a wrapped line; flex places the item */
     width: 100%;
     text-align: center;
     text-decoration: underline;
@@ -559,7 +562,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
    so does each country's "✓ Checked" line, whose hairline spans its card. The centred disclaimer
    stays centred. Screen only: print is as it was. */
 @media screen and (min-width: 1024px) {
-    main p:not(.country-reviewed), .rule-list li { max-width: 64ch; }
+    /* `.cf-nomatch` is a <p> but a boxed callout, so it keeps the column with the other boxes. */
+    main p:not(.country-reviewed):not(.cf-nomatch), .rule-list li { max-width: 64ch; }
     .foot-disclaimer { margin-inline: auto; }
 }
 
@@ -612,15 +616,6 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        means. */
     body[data-print-country] > .content > *:not(.is-print-country) { display: none !important; }
 
-    /* THE COUNTRY IS NAMED ON ITS OWN SHEET. `summary { display: none }` above is right for the
-       full print — 32 disclosure headings on an expanded guide are chrome, and the section labels
-       already carry the structure — and it is exactly wrong here: the first cut printed the banner
-       and then went straight into tag pills, so a France sheet and a Serbia sheet were told apart
-       only by reading the operator name in the body. That is the same "says nothing about what it
-       is" this section is for. The chevron goes: it is a disclosure affordance on paper. */
-    body[data-print-country] .is-print-country > summary { display: block !important; }
-    body[data-print-country] .is-print-country > summary .chevron { display: none; }
-
     body { background: white; font-size: 13px; }
 
     .content { max-width: 100%; padding: 0 0 16px; }
@@ -630,14 +625,21 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        without :not([hidden]) this, and a second rule that un-hid every country card, put all 32
        countries on the paper of a filtered guide (whole-app review, 10 Nov 2026). */
     details:not([hidden]) { display: block !important; box-shadow: none; border: 1px solid var(--border); }
-    summary { display: none !important; }
     .detail-body { display: block !important; }
+
+    /* EVERY CARD IS NAMED ON PAPER (decided 10 Nov 2026). The summary is the only place a card says
+       which country it is, and the full print hid every one: thirty country cards share one section
+       label, "European destinations", so France's card began at its tag row and Belgium's read
+       "Operator: SNCB/NMBS". The one-country sheet had been fixed for exactly that reason first. The
+       summary prints as the card's heading; the chevron, a disclosure affordance, does not. */
+    summary { display: block !important; padding: 7px 12px 5px; font-size: 14px; }
+    summary .chevron { display: none; }
 
     /* Remove box shadows throughout */
     .card { box-shadow: none; border: 1px solid var(--border); }
 
     /* Keep tag/box colours — they carry semantic meaning in a reference doc */
-    .tag-yes, .tag-no, .tag-warn,
+    .tag-yes, .tag-no, .tag-warn, .tag-note,
     .box-yellow, .box-red, .box-blue {
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }
@@ -653,7 +655,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        compared word for word. Nothing was ever clipped — the price was blank-bottomed pages, 27
        against the 24 the same content takes with no avoid at all, on a guide a traveller prints at
        a station before a trip. This lands at 25: two pages back, and the third deliberately spent
-       on the orphan rules below.
+       on the orphan rules below. Naming every card on paper (10 Nov 2026) costs two more: 27.
        So a COUNTRY may break (a reference entry running over a page is how every reference book
        works), while the small blocks that read as one unit — a callout, a summary card, a table
        row — still may not. `break-after: avoid` on the summary is what keeps that honest: a country

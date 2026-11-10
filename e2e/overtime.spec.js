@@ -1168,6 +1168,310 @@ test.describe('access and chrome', () => {
     });
 });
 
+// ── WHAT THE STYLESHEET OWES THE READER (whole-app fix, 10 Nov 2026) ───────────────────────────────
+// Each of these was a fault in overtime.css alone, invisible to the behaviour tests above: a print
+// that showed what it should not, a sheet that came out blank, a focused control under a pinned bar,
+// a ring the colour of the page, a fade below AA. Measured on the rendered page, never read off the CSS.
+test.describe('overtime.css — print, focus and contrast', () => {
+    const CREATED = { ...W, exists: true, state: 'created', canCreate: false, expected: 6, received: 4, noResponse: 2 };
+    const PEOPLE = ['L. Springer', 'A. Hared', 'M. Robson', 'J. Davies', 'I. Cooper', 'A. Panchal'];
+
+    /**
+     * The reviewer's sheet for one created week, with six people on it — two grades if asked, which
+     * is what puts the grade lens on the page. @param {any} page
+     */
+    async function reviewerSheet(page, weeks = [CREATED], { twoGrades = false } = {}) {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks });
+        const days = Object.fromEntries(weekDates(W.weekStart).map((d, i) => [d, { mode: i % 2 ? 'unavailable' : 'all_day' }]));
+        await page.addInitScript(({ people, days, at, twoGrades }) => {
+            window.__E2E = { ...(window.__E2E || {}), docsByPath: {
+                participants: people.map((id, i) => ({ id, grade: twoGrades && i % 2 ? 'CES' : 'CEA', rosterOrder: i + 1, createdAt: at })),
+                submissions: people.slice(0, 4).map(id => ({ id, currentRevision: 1, firstAcceptedAt: at, updatedAt: at, days })),
+                revisions: [],
+            } };
+        }, { people: PEOPLE, days, at: W.initialDeadlineAt - 3 * 86_400_000, twoGrades });
+    }
+
+    /** Reviewer day panels that get a box — an ancestor's `display: none` included. @param {any} page */
+    const shownDays = (page) => page.locator('.ot-day-panel[data-date]').evaluateAll(els =>
+        els.filter(e => e.getClientRects().length > 0).length);
+
+    test('with the sign-in up, the paper says sign in — never the sheet beneath the card', async ({ page }) => {
+        // A session can go mid-visit, and page-session.js lays the sign-in over the loaded workspace
+        // without clearing it. The card itself is chrome and hidden in print, so Ctrl+P on a shared PC
+        // printed the names and answers from under it (one sheet: the scroll lock pins the body).
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await expect(page.locator('#otWeekContent')).toContainText('L. Springer');
+        // Scrolled into the sheet, as a reviewer at work is — the sign-in's scroll lock keeps that offset.
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 8000 });
+
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.app'), 'nothing behind the sign-in prints').toBeHidden();
+        const { notice, top } = await page.evaluate(() => ({
+            notice: getComputedStyle(document.body, '::before').content,
+            top: document.body.getBoundingClientRect().top,
+        }));
+        expect(notice).toContain('Sign in to see overtime availability');
+        expect(top, 'the notice is drawn on the sheet, not at the old scroll offset above it').toBeGreaterThanOrEqual(0);
+    });
+
+    test('a collapsed "Who is available" still prints its sheet, and a view with no week says why', async ({ page }) => {
+        // The card's header does not print, so a card collapsed on screen printed one blank sheet. And a
+        // reviewer with no week open printed a blank sheet too — the horizon is hidden on paper.
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.locator('#otWeekChevron').click();
+        await expect(page.locator('#otWeekBody')).not.toHaveClass(/\bopen\b/);
+        expect(await shownDays(page), 'collapsed on screen').toBe(0);
+        await page.emulateMedia({ media: 'print' });
+        expect(await shownDays(page), 'the SHEET still carries the week').toBe(7);
+
+        await page.emulateMedia({ media: 'screen' });
+        await reviewerSheet(page, [{ ...W, exists: false, state: 'not-created', canCreate: true }]);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otHorizonContent .ot-week-row')).toHaveCount(1);
+        await expect(page.locator('#otWeekCard')).toBeHidden();
+        await page.emulateMedia({ media: 'print' });
+        expect(await page.evaluate(() => getComputedStyle(document.body, '::before').content))
+            .toContain('No week is open, so there is nothing to print');
+    });
+
+    /**
+     * Press Tab `presses` times from where focus is; for each control it lands on inside `scope`, the
+     * share of the control under `bar`. Real key presses, so the browser's own scroll-into-view runs.
+     * @param {any} page @param {{ bar: string, scope: string, presses: number }} o
+     */
+    async function underBar(page, { bar, scope, presses }) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const seen = [];
+        for (let i = 0; i < presses; i++) {
+            await page.keyboard.press('Tab');
+            const m = await page.evaluate(({ bar, scope }) => {
+                const a = document.activeElement, b = document.querySelector(bar);
+                if (!a || !b || !a.closest(scope) || b.contains(a)) return null;
+                const r = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+                const under = Math.max(0, Math.min(r.bottom, br.bottom) - Math.max(r.top, br.top));
+                return { what: (a.textContent || '').trim().slice(0, 30), covered: r.height ? Math.round(100 * under / r.height) : 0 };
+            }, { bar, scope });
+            if (m) seen.push(m);
+        }
+        return seen;
+    }
+
+    test('a Tab never leaves the focused answer under the pinned Submit bar', async ({ page }) => {
+        // Tab scrolls only to the window's edge, and the Submit bar is pinned over the bottom 55px of
+        // it — so the next day's options landed under the bar (100% at 1280×720 and at 390×844).
+        for (const [w, h] of [[1280, 720], [390, 844]]) {
+            await page.setViewportSize({ width: w, height: h });
+            await seedSession(page, 'G. Miller');
+            await stubOvertime(page, { windows: [openWindow()] });
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day').first().waitFor();
+            const seen = await underBar(page, { bar: '.ot-submit-bar', scope: '.ot-day', presses: 24 });
+            expect(seen.length, 'the walk reached the day rows').toBeGreaterThan(6);
+            expect(seen.filter(s => s.covered > 0), `focused and under the bar at ${w}×${h}`).toEqual([]);
+            // A line of feedback makes the bar ~97px, not 55px — the clearance has to grow with it. The
+            // refusal leaves focus in the first unanswered day, so the walk starts at the top of the form.
+            await page.locator('.ot-submit').click();
+            await expect(page.locator('.ot-submit-bar .ot-feedback')).toContainText('before submitting');
+            const later = await underBar(page, { bar: '.ot-submit-bar', scope: '.ot-day', presses: 20 });
+            await expect(page.locator('.ot-submit-bar .ot-feedback'), 'the message stayed up for the walk').toContainText('before submitting');
+            expect(later.filter(s => s.covered > 0), `under the taller bar at ${w}×${h}`).toEqual([]);
+        }
+    });
+
+    test('…and nothing the reviewer tabs to sits under the confirm bar', async ({ page }) => {
+        // The reviewer's bar is fixed, 173px tall on a phone and 81px on a desktop; its space is
+        // reserved at the page's foot, but a Tab still scrolled controls only to the window's edge.
+        for (const [w, h] of [[390, 844], [1280, 720]]) {
+            await page.setViewportSize({ width: w, height: h });
+            await reviewerSheet(page, [{ ...W, weekEnding: '2026-08-29', exists: false, state: 'not-created', canCreate: true }, CREATED]);
+            await page.route('**/createOvertimeWindow', r => r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, window: { ...W, weekEnding: '2026-08-29', expectedCount: 6 } }) }));
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day-panel').first().waitFor();
+            await page.locator('[data-create]').first().click();
+            await expect(page.locator('#otConfirmBar')).toBeVisible();
+            const seen = await underBar(page, { bar: '#otConfirmBar', scope: 'main.app', presses: 40 });
+            expect(seen.length, 'the walk reached the workspace').toBeGreaterThan(10);
+            expect(seen.filter(s => s.covered > 0), `focused and under the bar at ${w}×${h}`).toEqual([]);
+        }
+    });
+
+    /**
+     * WCAG contrast of `fg` composited over `bg`, both as the page computes them (any CSS colour —
+     * oklch, rgba — goes through a canvas to sRGB). @param {any} page @param {string} fg @param {string} bg
+     */
+    const contrastOn = (page, fg, bg) => page.evaluate(([fg, bg]) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        const px = (/** @type {string[]} */ ...layers) => {
+            ctx.clearRect(0, 0, 1, 1);
+            for (const c of layers) { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => v / 255);
+        };
+        const lum = (/** @type {number[]} */ c) => c.map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const [a, b] = [lum(px(bg, fg)), lum(px(bg))].sort((x, y) => y - x);
+        return (a + 0.05) / (b + 0.05);
+    }, [fg, bg]);
+
+    test('a tab panel, a Tab stop on the navy page, shows a ring that is not navy', async ({ page }) => {
+        // shared.css's fallback ring is navy, the canvas's own colour, so focus on a panel drew nothing.
+        await seedSession(page, 'G. Miller');   // a reviewer with a form of his own: the strip shows
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await expect(page.locator('#otTabs')).toBeVisible();
+        await page.locator('#otTabMine').focus();
+        await page.keyboard.press('Tab');
+        const ring = await page.evaluate(() => {
+            const a = /** @type {Element} */ (document.activeElement), cs = getComputedStyle(a);
+            return { id: a.id, visible: a.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth),
+                colour: cs.outlineColor, ground: getComputedStyle(document.body).backgroundColor };
+        });
+        expect(ring.id, 'Tab from the strip reaches the panel').toBe('otMinePanel');
+        expect(ring.visible).toBe(true);
+        expect(ring.style).toBe('solid');
+        expect(ring.width).toBeGreaterThanOrEqual(2);
+        expect(await contrastOn(page, ring.colour, ring.ground), 'the ring against the navy it is drawn on')
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    test('a past week is recessed, not faded — its chosen View keeps AA', async ({ page }) => {
+        // `opacity: 0.86` on the row multiplied every colour in it; once the chosen fill became the
+        // page's blue-violet (v25.16) a chosen past week's View measured 4.32:1. The row is still
+        // read and still opened, so css-tokens.md's rule applies: recess it, do not fade it.
+        await reviewerSheet(page);
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [CREATED],
+                retained: [{ ...W, weekEnding: '2026-08-08', finalDeadlineAt: Date.parse('2026-07-28T11:00:00Z') }] }),
+        }));
+        await page.goto('/overtime.html');
+        const past = page.locator('.ot-week-row--past');
+        await expect(past).toHaveCount(1);
+        const view = past.getByRole('button', { name: 'View' });
+        await view.click();
+        await expect(view).toHaveAttribute('aria-pressed', 'true');
+        await page.mouse.move(0, 0);
+        // The fill and ink move together over --dur-fast; measure the colours they arrive at.
+        await view.evaluate(b => Promise.all(b.getAnimations().map(a => a.finished)));
+        const m = await view.evaluate(b => {
+            let opacity = 1;
+            for (/** @type {Element|null} */ let n = b; n; n = n.parentElement) opacity *= Number(getComputedStyle(n).opacity);
+            const live = /** @type {Element} */ (document.querySelector('.ot-week-row:not(.ot-week-row--past)'));
+            return { opacity, ink: getComputedStyle(b).color, fill: getComputedStyle(b).backgroundColor,
+                past: getComputedStyle(/** @type {Element} */ (b.closest('.ot-week-row'))).backgroundColor,
+                live: getComputedStyle(live).backgroundColor };
+        });
+        expect(m.opacity, 'nothing on the way up fades it').toBe(1);
+        expect(await contrastOn(page, m.ink, m.fill), 'the chosen View').toBeGreaterThanOrEqual(4.5);
+        expect(m.past, 'a past week still reads as set apart from a live one').not.toBe(m.live);
+    });
+
+    test('the mouse over an answer tints an unchosen pill and leaves the chosen one as it is', async ({ page }) => {
+        // `opacity: 0.75` on hover took a chosen pill's white-on-green from 6.0:1 to 3.6:1 for as long
+        // as the mouse rested on it — the fade admin's identical pill dropped at v25.51.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        const day = page.locator('.ot-day').first();
+        await day.waitFor();
+        test.skip(!await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches),
+            'a hover is a mouse decision; the rule is gated on it');
+        const chosen = day.locator('.ot-mode--yes').first(), other = day.locator('.ot-mode--yes').nth(1);
+        await chosen.click();
+        await expect(chosen).toHaveAttribute('aria-checked', 'true');
+        /** @param {any} l */
+        const look = (l) => l.evaluate((/** @type {Element} */ p) => ({ opacity: getComputedStyle(p).opacity, fill: getComputedStyle(p).backgroundColor }));
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(250);    // past the fill's --dur-fast transition
+        const rest = await look(chosen);
+        await chosen.hover();
+        await page.waitForTimeout(250);
+        expect(await look(chosen), 'the chosen pill is not repainted under the mouse').toEqual(rest);
+        await other.hover();
+        await page.waitForTimeout(250);
+        const hovered = await look(other);
+        expect(hovered.opacity, 'nothing fades').toBe('1');
+        expect(hovered.fill, 'an unchosen pill answers the mouse with a tint').not.toBe('rgba(0, 0, 0, 0)');
+    });
+
+    test('on a phone the reviewer\'s small controls meet the compact touch tier', async ({ page }) => {
+        // The grade lens, Refresh, Copy summary and Stop asking measured 22–24px on a coarse pointer —
+        // smaller than the 31px tabs that started the tier. Touch only: a fine pointer would pass by
+        // not applying it, which is a guard that has quietly stopped guarding.
+        await reviewerSheet(page, [CREATED], { twoGrades: true });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        test.skip(!await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'the 36px floor is scoped to touch');
+        const controls = await page.locator('.ot-grade, .ot-refresh-btn, .ot-copy-btn, .ot-person-btn').evaluateAll(els => els
+            .filter(el => el.getBoundingClientRect().height > 0)
+            .map(el => ({ kind: el.classList[0], h: Math.round(el.getBoundingClientRect().height) })));
+        expect([...new Set(controls.map(c => c.kind))].sort(), 'all four kinds are on the page')
+            .toEqual(['ot-copy-btn', 'ot-grade', 'ot-person-btn', 'ot-refresh-btn']);
+        expect(controls.filter(c => c.h < 36)).toEqual([]);
+    });
+
+    test('Copy summary wears the recipe of the Refresh button beside it', async ({ page }) => {
+        // Two chips on one line, and the second (v22.05) invented its own look — the mistake the
+        // Refresh button's comment records — at 23px against its neighbour's 24px.
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        const look = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+            const cs = getComputedStyle(el);
+            return [cs.fontSize, cs.fontWeight, cs.padding, cs.borderTopColor, cs.backgroundColor, cs.color, cs.borderRadius];
+        });
+        expect(await look('.ot-copy-btn')).toEqual(await look('.ot-refresh-btn'));
+    });
+
+    test('the header shares the column at every width, and no text on the page is pure black', async ({ page }) => {
+        // The header was capped only from 768px, so between 581 and 767px its burger and badge hung
+        // outside the cards (94px each side at 767). And the body set no colour, so any text that did
+        // not set its own was pure black — every other card page gives its body --text-dark.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        for (const w of [375, 600, 700, 767, 900]) {
+            await page.setViewportSize({ width: w, height: 800 });
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day').first().waitFor();
+            const edges = await page.evaluate(() => [document.querySelector('.app-header'), document.querySelector('main.app')]
+                .map(e => { const r = /** @type {Element} */ (e).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; }));
+            expect(edges[0], `the header's edges are the column's at ${w}px`).toEqual(edges[1]);
+        }
+        // The page's own header and content; the drawer is shared chrome with its own palette.
+        const black = await page.evaluate(() => [...document.querySelectorAll('.app-header *, main.app *')]
+            .filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()))
+            .filter(e => e.getClientRects().length && getComputedStyle(e).color === 'rgb(0, 0, 0)')
+            .map(e => `${e.tagName.toLowerCase()}.${e.className}`));
+        expect(black, 'text in pure black').toEqual([]);
+    });
+
+    test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
+        // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
+        // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
+        // reset `.card-body`, which on this page is already 0 — the inset is the collapsible body's.
+        await page.setViewportSize({ width: 703, height: 1000 });
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.emulateMedia({ media: 'print' });
+        const m = await page.evaluate(() => ({
+            pad: getComputedStyle(/** @type {Element} */ (document.getElementById('otWeekBody'))).paddingLeft,
+            app: /** @type {Element} */ (document.querySelector('main.app')).getBoundingClientRect().width,
+        }));
+        expect(m.pad, 'no inset on the printed card').toBe('0px');
+        expect(m.app, 'the sheet spans the printable width').toBeGreaterThanOrEqual(700);
+    });
+});
+
 test.describe('opening a week — the press has to land', () => {
     /** Stub the dry run so it is still in flight when we look at the page. */
     async function stubSlowPreview(page, delayMs) {
