@@ -3150,6 +3150,30 @@ test('paycalc: a primary button and the secondary under it are drawn by one reci
     expect(save, '"Save settings" against "Download backup"').toBe(download);
 });
 
+// …and it keeps the gap a block button had (whole-app check, 10 Nov 2026). As a `.btn-action` it is an inline-flex
+// box, whose margin does not collapse into the field above, so its own 8px top margin was ADDED to the 14px every
+// field keeps below it: 22px. Measured at a phone and a desktop width.
+test('paycalc: Save settings sits one field gap under the field above it', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/paycalc.html');
+        if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+            await page.locator('#settingsToggle .card-toggle-arrow').click();
+        }
+        await expect(page.locator('#saveSettingsBtn')).toBeVisible();
+        const m = await page.locator('#saveSettingsBtn').evaluate(btn => {
+            let above = btn.previousElementSibling;
+            while (above && !above.getClientRects().length) above = above.previousElementSibling;
+            const field = /** @type {Element} */ (above);
+            return { gap: Math.round(btn.getBoundingClientRect().top - field.getBoundingClientRect().bottom),
+                     fieldGap: parseFloat(getComputedStyle(field).marginBottom) };
+        });
+        expect(m.gap, `at ${width}px, the gap above Save settings against the field's own`).toBe(m.fieldGap);
+    }
+});
+
 test('paycalc guide: the two bulleted lists keep their bullets on paper', async ({ page }) => {
     // Each bullet is a 5px gold dot drawn as a BACKGROUND (the list is `list-style: none`), and a
     // browser printing with background graphics off — the default — drops backgrounds unless

@@ -1678,7 +1678,6 @@
 
   /* The inline `display:none` left in paycalc.html on conditionally-shown elements stays there:
      it is the initial state the script flips. Everything else presentational lives here. */
-  #saveSettingsBtn { margin-top: 8px; }
   .settings-save-feedback {
     font-size: var(--type-small); color: var(--success-text);
     text-align: center; min-height: 18px; margin-top: 6px;
