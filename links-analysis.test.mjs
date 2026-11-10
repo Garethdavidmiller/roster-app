@@ -891,6 +891,26 @@ test('a gap inside the hour is named on the card and counted on the strip', () =
         'the strip does not count the hours with trains and nobody on');
 });
 
+// ── THE FATIGUE HEADING COUNTS EACH STATUS AS ITSELF (whole-app review, Nov 2026) ─────────────────
+// It read "23 clear" over thirteen clear factors and ten not applicable — on the always-visible,
+// printed line an assessing manager reads first, against the panel's own NOT-APPLICABLE ≠ CLEAR.
+test('the fatigue heading counts clear and not-applicable apart, and every status it names', async () => {
+    const { PROPOSALS } = await import('./links-proposals.js');
+    for (const patterns of [fullPatterns(), ...PROPOSALS.map(p => p.patterns)]) {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const head = (els.checksContent.innerHTML.match(/Fatigue factors <span[^>]*>[^<]*<\/span><\/span><span class="check-section-meta">([^<]*)</) || [])[1];
+        assert.ok(head, 'the fatigue heading did not render');
+        const by = (/** @type {string} */ s) => assessFatigue(patterns, ROTATING_LINES).results.filter(r => r.status === s).length;
+        const count = (/** @type {string} */ word) => Number((head.match(new RegExp(`(\\d+) ${word}`)) || [])[1] ?? 0);
+        assert.equal(count('present'), by('present'), head);
+        assert.equal(count('standing'), by('standing'), head);
+        assert.equal(count('clear'), by('clear'), head);
+        assert.equal(count('not applicable'), by('n/a'), head);
+        assert.ok(by('n/a') > 0, 'premise: the night family is not applicable here, so the split is exercised');
+    }
+});
+
 // ── SENTENCES THAT READ WRONGLY AT THE EDGES (whole-app review, Nov 2026) ─────────────────────────
 describe('sentences at the edges', () => {
     const text = (/** @type {string} */ html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');

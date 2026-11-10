@@ -683,12 +683,18 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // `clear` joins the headline counts (v19.57): the clear rows are now behind a disclosure, so
         // without it the heading would understate how much was actually checked — which is the exact
         // false-assurance failure running the other way.
-        const quietCount = fat.results.filter(r => r.status === 'clear' || r.status === 'n/a').length;
+        //
+        // …and NOT-APPLICABLE IS COUNTED AS ITSELF, never as clear (whole-app review, Nov 2026). The
+        // heading read "23 clear" over thirteen clear factors and ten that cannot apply — the night
+        // family among them — against this panel's own rule that the two are different answers.
+        const clearCount = fat.results.filter(r => r.status === 'clear').length;
+        const naCount = fat.results.filter(r => r.status === 'n/a').length;
         const meta = [
             `${fat.present} present`,
             fat.standing ? `${fat.standing} standing` : '',
             fat.confirmNeeded ? `${fat.confirmNeeded} to confirm` : '',
-            quietCount ? `${quietCount} clear` : '',
+            clearCount ? `${clearCount} clear` : '',
+            naCount ? `${naCount} not applicable` : '',
         ].filter(Boolean).join(' · ');
 
         // ── THE HARD LIMIT, ABOVE THE ADVISORY FACTORS AND VISIBLY NOT ONE OF THEM (v19.80) ──────
@@ -801,7 +807,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // The night-family rollup belongs INSIDE the disclosure, not beside it (v19.57). With it
         // outside, the heading counted 17 clear while the disclosure label said 10 — both true (the
         // other 7 were in the rollup) and impossible to reconcile by looking. Everything that reports
-        // "nothing to report" now lives in one place, so the two numbers agree.
+        // "nothing to report" now lives in one place, so the disclosure's count is the heading's clear
+        // and not-applicable counts together.
         const nightRolled = fat.results.filter(r => r.family === NIGHT_FAMILY);
         if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
             quietRows.push(
