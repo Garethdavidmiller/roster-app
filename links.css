@@ -650,9 +650,9 @@ body.auth-ready .container { display: grid; }
        768px  716 / 675  FITS
        769px  691 / 675  FITS   <- the tightest: the body gutter steps up from 10px here
        834px  752 / 675  FITS   <- iPad portrait
-      1024px  931 / 675  FITS
+      1024px  931 / 703  FITS   <- from here the totals keep one line, so the table needs 703
 
-   675 holds only because the totals' names and the days note may WRAP (`.col-total`,
+   675 holds only because, below 1024px, the totals' names and the days note may WRAP (`.col-total`,
    `.tot-avg-note`). Unwrapped, "Days worked" and "over 26 working lines" held that column at 96px:
    the table needed 703, ran up to 12px into the card's gutter from 769 to 782px, and at 1.3x text
    61px past the card's edge, cut off by its clip with no scroll. Left, measured: at 1.6x text (an
@@ -823,9 +823,7 @@ body.auth-ready .container { display: grid; }
 .links-grid th.col-total {
     background: var(--surface-sunken);
     line-height: 1.2;
-    /* The names may wrap, as the days note under them may: unbroken, they held the last column at
-       96px against the others' 68, which the table did not have from 769px (the 768px block above). */
-    white-space: normal;
+    white-space: nowrap;
     /* Sized to their content ("36h 20m" is the widest string) rather than sharing the table's
        spare width equally with the day columns — the day cells carry two lines of time and are
        what the designer is actually reading. */
@@ -883,7 +881,13 @@ body.auth-ready .container { display: grid; }
     font-size: 9px;
     font-weight: 400;
     color: var(--text-light);
-    white-space: normal;   /* "over 26 working lines" unbroken held the days column at 96px */
+}
+/* BELOW A DESKTOP the totals' names and the days note may wrap. Unbroken, "Days worked" and "over
+   26 working lines" held the last column at 96px against the others' 68 — 28px the table did not
+   have from 769px (the 768px block above has the figures). From 1024px there is room at every text
+   size measured (1.6x included), so the desktop keeps its two-line header. */
+@media (max-width: 1023px) {
+    .links-grid th.col-total, .tot-avg-note { white-space: normal; }
 }
 
 .btn-text-link {
