@@ -13,6 +13,7 @@
 import { TAX_YEARS, calcProRateFactor } from './paycalc-calc.js';
 import { teamMembers } from './roster-data.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsMove, lsSetVerified } from './ls.js';
+import { classifyPayKey } from './paycalc-inventory.js';
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
 // Keys use the myb_pc_ prefix (previously cea_ — migrated in _migrateCeaKeys below).
@@ -76,15 +77,26 @@ const _MEMBER_SLUGS = new Set(teamMembers.map(m => memberSlug(m.name)));
 
 /** The member slug that OWNS a paycalc key, or null when the key has no member-slug
  *  segment (i.e. genuinely unnamespaced legacy data). `myb_pc_<slug>_<tail>` belongs to
- *  <slug> only when <slug> is a real member; legacy keys (`myb_pc_rate`, `myb_pc_p43`,
+ *  <slug> when <slug> is a real member; legacy keys (`myb_pc_rate`, `myb_pc_p43`,
  *  `myb_pc_setup_2025_26`, `myb_pc_ytd_pay_2026_27`) have a non-member first segment (or
  *  none) and classify as null. This is what stops the ownership prompt from ever treating
  *  ANOTHER member's namespaced data as claimable legacy data (v14.27 review fix) — and, since the
  *  72-hour review, what stops a backup with its `slug` stripped passing as legacy (paycalc-transfer).
+ *
+ *  A slug the roster NO LONGER names owns its keys too (paycalc-3-5): a renamed member's data, or a
+ *  row removed outright. Hidden leavers stay on the roster, but nothing kept a rename's old slug
+ *  there, and its data was offered to the next person to sign in, re-keyed by "Yes, it's mine" to
+ *  `myb_pc_<new>_<old>_…` where nothing reads it, or deleted by another member's "start fresh". It is
+ *  told apart from legacy by what the key IS (`classifyPayKey`, the one authority on that —
+ *  invariant 15): the remainder after the slug is a pay key this app writes, which no legacy key's
+ *  remainder is (`myb_pc_ytd_pay_2026_27` leaves `pay_2026_27`; paycalc-migrations.test.mjs runs
+ *  every legacy shape).
  *  @param {string} key @returns {string|null} */
 export function keyOwnerSlug(key) {
     const m = key.match(/^myb_pc_([a-z0-9]+)_/);
-    return m && _MEMBER_SLUGS.has(m[1]) ? m[1] : null;
+    if (!m) return null;
+    if (_MEMBER_SLUGS.has(m[1])) return m[1];
+    return classifyPayKey(key.slice(m[0].length)).kind !== 'unknown' ? m[1] : null;
 }
 
 /** The active per-member key prefix. Every per-member paycalc key starts with this. */
