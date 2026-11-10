@@ -12,8 +12,8 @@
  *
  * `hasStagedEdits` is the reason a background refresh does not repaint over an admin mid-edit, and
  * it counts BOTH directions: a row given a type that is not an unchanged prefill (a staged change)
- * and a prefilled row un-ticked (a staged REMOVAL). Counting only the first is a defect that has
- * shipped here before — the refresh discarded staged removals while `userMadeChanges` stayed true,
+ * and a prefilled row with its type taken away (a staged REMOVAL). Counting only the first is a
+ * defect that has shipped here before — the refresh discarded staged removals while `userMadeChanges` stayed true,
  * which blocked the week swipe and left a phantom unsaved-changes warning behind.
  *
  * ── AN UNREAD MEMBER IS NOT A MEMBER WITH NO CHANGES ────────────────────────────────────────────
@@ -102,8 +102,8 @@ export function initWeekEditor(deps) {
 
 /** True when the week grid currently holds STAGED (unsaved) work — mirrors updateSaveBtn's
  *  save/delete counts so it catches BOTH a staged addition/change (a row with a chosen type that
- *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row unticked → existingId, no
- *  type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
+ *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row whose type was taken away →
+ *  existingId, no type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
  *  loadOverrides AND by the Saved-Changes delete paths (v16.82: deleting an unrelated saved change
  *  must not silently discard staged pills; the old active-pill-only check also missed staged
  *  removals). Exported so admin-app's period-delete path can apply the same guard. The row test is
@@ -379,9 +379,11 @@ export function buildWeekGridInto(container, dateStr) {
                     // Ticking stages nothing (the collector keys off dataset.type), so it is not a
                     // change — the v16.23 rule for the bulk tick buttons, missed here (review A17).
                 } else {
-                    const hadStaged = !!(row.dataset.type || row.dataset.existingId);
-                    row.classList.remove('prefilled-existing');
-                    _deactivateRow(row, checkbox, pills, startEl, endEl);
+                    // UNTICKING NEVER DELETES A SAVED CHANGE (owner, 10 Nov 2026): a day with a saved
+                    // record goes back to it, unticked; any other day is cleared. Removing a saved change
+                    // is its type selected again, or ✕ in Saved Changes.
+                    const hadStaged = isStagedRow(row);
+                    if (existing) prefillRow(row, existing); else _deactivateRow(row, checkbox, pills, startEl, endEl);
                     if (hadStaged) _markChanged();
                 }
                 updateSaveBtn();   // …which recounts the bulk bar too

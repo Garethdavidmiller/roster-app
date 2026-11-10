@@ -672,6 +672,18 @@ describe('prefillRow draws a row as its saved record', () => {
         assert.deepEqual([x.startEl.value, x.endEl.value], ['07:00', '15:00']);
         assert.equal(x.r.classList.contains('prefilled-existing'), true);
         assert.equal(isStagedRow(x.r), false, 'a saved record is not staged work');
+        assert.equal(x.r.querySelector('.day-cb').checked, false, 'nor a day ticked for Apply (owner, 10 Nov 2026)');
+    });
+
+    test('drawn again over an edit, a row is the saved record and nothing else', () => {
+        const x = draftRow();
+        prefillRow(x.r, { type: 'shift', value: '07:00-15:00' });
+        applyRowDraft(x.r, { date: '2026-12-08', type: 'other', flavour: 'TRG', start: '09:00', end: '12:00' });
+        prefillRow(x.r, { type: 'annual_leave', value: 'AL' });
+        assert.deepEqual(pressed(x), ['annual_leave']);
+        assert.deepEqual(chips(x), [], 'no flavour left over from the edit');
+        assert.deepEqual([x.startEl.value, x.endEl.value], ['', ''], 'nor its times');
+        assert.equal(isStagedRow(x.r), false);
     });
 
     test('a fixed type carries no times', () => {

@@ -147,7 +147,7 @@ export function _syncAlSwap(row) {
  * Sync a day-row's overwrite badge to its state, relative to the override it was loaded with:
  *   • prefilled-existing (loaded, untouched) → "✓ Saved"    — already recorded, no change staged
  *   • active with a type   (a change staged)  → "⚠ Updating" — will overwrite the saved one on Save
- *   • deactivated          (unticked)         → "⚠ Removing" — the saved override is deleted on Save
+ *   • deactivated          (type taken away)  → "⚠ Removing" — the saved override is deleted on Save
  * No-op on rows with no saved override (they have no .overwrite-badge).
  * @param {HTMLElement} row
  */
@@ -164,9 +164,13 @@ export function _syncOverwriteBadge(row) {
 
 /**
  * Draw a row in the state its saved record puts it in — the record's type, Other flavour, RDW tick and
- * times — marked as an untouched prefill. A Spare record shows as Other → Spare (v15.57: there is no
- * top-level Spare pill), and an Other day is read through its grammar: a naive `value.split('-')` would
- * shred 'TRG RDW 08:00-16:00'.
+ * times — marked as an untouched prefill, from a clean row, so it also puts back a row edited since.
+ * A Spare record shows as Other → Spare (v15.57: there is no top-level Spare pill), and an Other day is
+ * read through its grammar: a naive `value.split('-')` would shred 'TRG RDW 08:00-16:00'.
+ *
+ * UNTICKED (owner, 10 Nov 2026): a tick means the manager chose the day for "Apply to ticked days" on
+ * this visit, and a saved change is not that. A saved day opened ticked, so Apply re-typed it unasked,
+ * and the only way to leave it out — unticking — also staged its deletion.
  * @param {HTMLElement} row
  * @param {{ type: string, value?: string }} existing  the record that wins the day
  */
@@ -177,7 +181,11 @@ export function prefillRow(row, existing) {
     const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
     const isSpare  = existing.type === 'spare_shift';
     const meta     = TYPES[isSpare ? 'other' : existing.type];
+    _deactivateRow(row, checkbox, pills, startEl, endEl);
     _activateRow(row, checkbox, pills, startEl, endEl, isSpare ? 'other' : existing.type);
+    if (checkbox) checkbox.checked = false;
+    const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
+    if (rdHint) rdHint.hidden = true;
     row.classList.add('prefilled-existing');
     _syncAlSwap(row);         // a saved, untouched row is not being booked — not asked
     _syncOverwriteBadge(row); // loaded + untouched → "✓ Saved" (not "Updating")

@@ -187,6 +187,8 @@ export function init() {
                         // admin to a row where the pill they wanted would not respond.
                         { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong> and <strong>Rest Day</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW.' },
                         { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
+                        // Owner, 10 Nov 2026: a tick chooses a day for Apply, and never removes anything.
+                        { icon: '🗑️', html: 'To remove a saved change, select its type again — the day reads <strong>⚠ Removing</strong> — then <strong>Save changes</strong>. A tick only chooses a day for <strong>Apply</strong>.' },
                         // Both ways, for both pointers (desktop audit, Nov 2026): this said only "Swipe",
                         // which a mouse cannot do, and never named the arrows or Today.
                         { icon: '↔️', html: 'Move between weeks with <strong>‹</strong> and <strong>›</strong>, or swipe the week sideways on a phone. <strong>📍 Today</strong> brings you back to this week.' },

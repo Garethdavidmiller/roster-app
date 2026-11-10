@@ -1081,6 +1081,54 @@ test('admin: a change tapped while a save is still sending is refused, not taken
     await expect(page.locator('#saveBtn')).toBeEnabled();
 });
 
+// ── "APPLY TO TICKED DAYS" IS ONLY THE DAYS TICKED (owner, 10 Nov 2026) ─────────────────────────────
+// A day already holding a saved change opened TICKED, so Apply re-typed it unasked — and the one way to
+// leave it out, unticking, staged its deletion. A tick is now only ever the manager's own, and an untick
+// never removes anything: a saved day goes back to what is saved.
+test('admin: Apply changes only the days ticked — a saved day is left alone, and an untick never deletes it', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'ri-wed', memberName: 'G. Miller', date: '2026-12-09',
+            type: 'shift', value: '10:00-18:00', note: '', source: 'roster_import' }] };
+    });
+    await openAdminOnDecember(page);
+    const row  = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"]`);
+    const box  = (/** @type {string} */ d) => row(d).locator('.day-cb');
+    const pill = (/** @type {string} */ d, /** @type {string} */ t) => row(d).locator(`.type-pill-btn[data-type="${t}"]`);
+    const badge = row('2026-12-09').locator('.overwrite-badge');
+    await expect(pill('2026-12-09', 'shift'), 'premise: Wednesday shows its saved shift').toHaveAttribute('aria-pressed', 'true');
+    await expect(box('2026-12-09'), 'a saved day is not a ticked day').not.toBeChecked();
+    await expect(page.locator('#bulkSelCount')).toHaveText('');
+    await box('2026-12-10').click();
+    await box('2026-12-11').click();
+    await expect(page.locator('#bulkSelCount')).toHaveText('2 days selected');
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(pill('2026-12-10', 'annual_leave')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pill('2026-12-11', 'annual_leave')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pill('2026-12-09', 'shift'), 'Wednesday keeps its shift').toHaveAttribute('aria-pressed', 'true');
+    await expect(badge).toContainText('Saved');
+
+    // Ticked on purpose it counts; unticked again it is only unticked.
+    await box('2026-12-09').click();
+    await expect(page.locator('#bulkSelCount')).toHaveText('3 days selected');
+    await box('2026-12-09').click();
+    await expect(badge, 'an untick is not a removal').toContainText('Saved');
+    await expect(pill('2026-12-09', 'shift')).toHaveAttribute('aria-pressed', 'true');
+    // An edit unticked goes back to what is saved, not to a removal.
+    await pill('2026-12-09', 'rdw').click();
+    await expect(badge).toContainText('Updating');
+    await box('2026-12-09').click();
+    await expect(badge).toContainText('Saved');
+    await expect(pill('2026-12-09', 'shift')).toHaveAttribute('aria-pressed', 'true');
+
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('2 changes saved for G. Miller', { timeout: 10000 });
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
+    expect(written, 'only the two days ticked').toEqual(['2026-12-10 annual_leave', '2026-12-11 annual_leave']);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.batchDeletes || []), 'and nothing deleted').toEqual([]);
+});
+
 // ── A SAVE WHOSE ACCOUNT IS REVOKED ENDS, AND SAYS WHERE TO SIGN IN (v24.36 / v24.37) ─────────────
 //
 // Reported: a manager's or member's save sat on "Saving…" for good. A refused token refresh signs the
