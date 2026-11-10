@@ -2589,6 +2589,20 @@ describe('a name claim is believed only from the member\'s own account (v24.23)'
     test('a real member still cannot write somebody else\'s leave', async () => {
         await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), alFor('S. Silva')));
     });
+
+    // LETTERS OUTSIDE A–Z, not a person (whole-app fix, 10 Nov 2026). The roster holds plain A–Z
+    // names today (the case above), so nothing exercised them. The rules engine's lower() lowers A–Z
+    // only, while JavaScript's toLowerCase() is full Unicode, and in JavaScript exactly two letters
+    // lower to a plain one: İ (U+0130 → "i̇") and the Kelvin sign K (U+212A → "k"). `nameToEmail`
+    // lowers the SURNAME before stripping it, so it kept an "i" or "k" the rules dropped — "A. İnce"
+    // was locked out of everything. The initials pin the other half: both copies strip an initial to
+    // A–Z before the difference could matter.
+    test('the rules derive the email exactly as the app does, for letters outside A–Z too', async () => {
+        for (const name of ['İ. Test', 'K. Test', 'É. Test', 'A. İnce', 'A. Kay', 'A. Éclair']) {
+            await assertSucceeds(getDocs(collection(namedDb(name, 'uid_probe'), 'overrides')))
+                .catch(err => { throw new Error(`${name} (${nameToEmail(name)}) is locked out: ${err.message}`); });
+        }
+    });
 });
 
 // ── THE VIEWER CLAIM IS BELIEVED ONLY ON A PIN SESSION (Sep 2026 review) ─────────────────────────

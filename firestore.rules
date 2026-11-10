@@ -159,10 +159,18 @@ service cloud.firestore {
     //
     // `.get()` throughout, never a bare field: a token with no email or no provider must evaluate
     // to false, not to an error whose handling differs by operator.
+    //
+    // THIS ENGINE'S lower() LOWERS A–Z AND NOTHING ELSE (measured in the emulator, 10 Nov 2026);
+    // JavaScript's toLowerCase() is full Unicode. Exactly two letters outside A–Z lower to a plain
+    // one there — İ (U+0130) to "i̇" and the Kelvin sign K (U+212A) to "k" — so `nameToEmail`, which
+    // lowers the SURNAME before stripping it, keeps an "i" or a "k" this copy would drop. They are
+    // mapped by hand; without it a member named, say, "A. İnce" is locked out of everything. The
+    // initial needs nothing: both copies are left with A–Z alone before the result can differ.
     function memberEmailFor(n) {
       let parts = n.split(' ');
       return parts[0].lower().replace('[^a-z]', '')
-        + '.' + parts[1:parts.size()].join('').lower().replace('[^a-z]', '')
+        + '.' + parts[1:parts.size()].join('').replace('\\x{0130}', 'i').replace('\\x{212A}', 'k')
+          .lower().replace('[^a-z]', '')
         + '@myb-roster.local';
     }
     function isMember() {
