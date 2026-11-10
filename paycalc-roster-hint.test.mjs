@@ -110,6 +110,23 @@ describe('fillFromRoster — the period on screen when the fetch returns is the 
         assert.equal(_autosaves, 1, 'exactly one fill ran');
     });
 
+    test('a hint refresh during the fetch keeps the button busy (paycalc-3-13)', async () => {
+        // Any refresh — a keystroke in an hours box calls updateRosterHint — set `disabled` from the
+        // calendar alone, so the button read "Fill from calendar" again while a second tap on it was
+        // swallowed by the in-flight guard: the enabled control that does nothing.
+        setupDom(A);
+        for (const id of HM_IDS) _els[id] = input();
+        _els.rosterHintBar = { style: {} };
+        _els.rosterRows = { innerHTML: '' };
+        const run = fillFromRoster(autosave);
+        updateRosterHint();
+        assert.equal(_els.fillFromRosterBtn.disabled, true, 'the refresh re-enabled a button whose taps are swallowed');
+        _resolveFetch('loaded');
+        await run;
+        assert.equal(_els.fillFromRosterBtn.disabled, false, 'and it must come back once the fetch settles');
+        assert.equal(_autosaves, 1);
+    });
+
     test('CONTROL: the same payslip still on screen is filled and saved', async () => {
         setupDom(A);
         const run = fillFromRoster(autosave);

@@ -369,8 +369,12 @@ export function updateRosterHint() {
     // clear itself is scoped to, so the button can never promise a removal that will not happen.
     const clearable = _loaded && [...CLEARABLE_CATS].some(cat => _entered(cat) && _zeroInCalendar(cat));
     const hasEntries = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(_entered);
-    fillBtn.disabled = _loaded && !fillable && !clearable;
-    fillBtn.textContent = fillBtn.disabled ? 'Nothing to fill this payslip'
+    const nothing = _loaded && !fillable && !clearable;
+    // …and BUSY while a tap's own fetch is in flight (paycalc-3-13): a refresh meanwhile — every
+    // keystroke in an hours box asks for one — re-enabled the button, and the in-flight guard then
+    // swallowed the next tap without a word: the enabled control that no-ops, back again.
+    fillBtn.disabled = nothing || _fillInFlight;
+    fillBtn.textContent = nothing ? 'Nothing to fill this payslip'
       : hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
   }
 
