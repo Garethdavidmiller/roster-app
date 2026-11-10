@@ -156,15 +156,15 @@ body {
    390px screen, so it wrapped, and flex stretched BOTH tabs to match — a 63px double-height slab
    above a card, easily the largest control on the page and attached to the least important
    decision on it. The two changes are one fix: the app's tab size, and a label that fits on a line
-   at 320px. Colours stay their own, because this strip sits on the navy canvas rather than inside
-   a card, which is the one way it genuinely differs from `.ty-tab`. */
+   at 320px. The colours are the on-navy rung (css-tokens.md → Three-surface model), because this
+   strip sits on the navy canvas rather than inside a card — the one way it differs from `.ty-tab`. */
 .ot-tab {
     flex: 1;
     padding: 7px 8px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid var(--on-navy-hairline);
     border-radius: var(--radius-button);   /* with paycalc's .ty-tab, v25.12 — a tab is a button */
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.78);
+    background: var(--on-navy-raised);
+    color: var(--on-navy-muted);
     font-family: var(--font-sans);
     font-size: var(--type-small);
     font-weight: 700;
@@ -239,7 +239,7 @@ body {
 .member-context-bar label {
     font-size: var(--type-small);
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.65);
+    color: var(--on-navy-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     white-space: nowrap;
@@ -1513,10 +1513,9 @@ html:has(#otConfirmBar:not([hidden])) { --ot-confirm-clear: calc(212px + env(saf
    Measured after, same fixture: grey text 5.68:1, header 9.15:1. */
 /* MUTED MEANS DIMMER WHITE, NOT A LIGHT-SURFACE GREY (v21.51). This carried `--text-light` — a
    token for muted text ON A CARD — over the navy header bar, which measured 3.75:1 against the
-   4.5:1 AA floor. It is the only place on this page that puts anything but `white` on navy. The
-   fix is the drawer's idiom: muting on a dark surface is done with ALPHA, at values css-tokens.md
-   records as AA-calibrated (0.70 ≈ 7:1). */
-.ot-day-panel--muted .ot-day-panel-head { color: rgba(255, 255, 255, .72); }
+   4.5:1 AA floor. The fix is the drawer's idiom: muting on a dark surface is done with ALPHA, the
+   AA-calibrated `--on-navy-muted` (0.70 ≈ 7:1, css-tokens.md). */
+.ot-day-panel--muted .ot-day-panel-head { color: var(--on-navy-muted); }
 
 .ot-section-note {
     /* A bottom pad (polish pass): with none, the note's last line sat ON the first row's divider —
