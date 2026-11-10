@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote } from './al-entitlement.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote, isWorkingDate } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement, getBankHolidays, dispatcherBaseAL } from './roster-data.js';
 import { isRestShift, nextReplacedType, nextLeaveYear, buildOverrideCacheRecord } from './override-utils.js';
 import { rangeWriteDates, swapDecisionDates } from './al-swapped-days.js';
@@ -560,6 +560,20 @@ describe('a Dispatcher entitlement splits into the two things it is made of', ()
         // `dispatcherBreakdown` is reached by a Dispatcher in a year before they joined, and is
         // tested in 'a year before the member joined has no allowance on record' below.
         assert.equal(dispatcherBreakdown({ member: { name: 'M', role: 'Management' }, year: 2026, overrides: [] }), null);
+    });
+});
+
+// isWorkingDate's override map was documented as required while two callers treat it as optional
+// (projectAlBooking defaults it to null), and without one it threw on any ordinary day (whole-app
+// review, 10 Nov 2026). An absent map now means "no override", as it does for consumesEntitlement.
+describe('isWorkingDate without an override map', () => {
+    test('the base roster decides, rather than a crash', () => {
+        for (const map of [null, undefined]) {
+            assert.equal(isWorkingDate(MEMBER, WORKED[0], map), true);
+            assert.equal(isWorkingDate(MEMBER, RESTED[0], map), false);
+        }
+        assert.equal(isWorkingDate(MEMBER, WORKED[0], new Map([[WORKED[0], { value: 'RD' }]])), false,
+            'a map that is given is still read');
     });
 });
 

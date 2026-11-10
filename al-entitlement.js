@@ -379,12 +379,13 @@ export function winningEntriesOfType(overrides, memberName, type) {
  * Consolidating onto this (the save/write rule) fixes that drift.
  * @param {any} memberObj  teamMembers entry
  * @param {string} dateStr  YYYY-MM-DD
- * @param {Map<string, any>} ovByDate  from buildMemberDateMap
+ * @param {Map<string, any>|null} [ovByDate]  from buildMemberDateMap. Omit only where there are none to
+ *        hand — like `consumesEntitlement`'s, an absent map means "no override", never a crash.
  * @returns {boolean}
  */
-export function isWorkingDate(memberObj, dateStr, ovByDate) {
+export function isWorkingDate(memberObj, dateStr, ovByDate = null) {
     if (isSunday(dateStr)) return false;
-    const ov = ovByDate.get(dateStr);
+    const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(dateStr) : null;
     if (ov) return !isRestShift(ov.value);
     return !isRestShift(getBaseShift(memberObj, parseISODate(dateStr)));
 }

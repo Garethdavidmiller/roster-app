@@ -1241,7 +1241,7 @@ Which annual-leave days spend a member's entitlement, and where that leaves them
 - `leaveYearChoices({ overrides, member, todayStr })` — the January days the Admin panel may move between years, with both years' positions and `prevOpen`, the cap: "no more than the previous year has left".
 - `dispatcherBreakdown({ member, year, overrides })` → `{ base, lieu, boxingDay, proRated } | null` — the parts of a Dispatcher's figure, never `entitlement - 22` (the test pins `base + lieu + boxingDay === entitlementFor(...)`). `entitlementNote({ member, year, overrides })` — the one line explaining an entitlement, shared by the Admin AL banner and the Calendar's leave panel.
 - `winningEntriesOfType(overrides, memberName, type)` — resolve the winning record for each date FIRST, then ask its type; filtering the raw collection finds an old AL document under a newer shift.
-- `isWorkingDate(memberObj, dateStr, ovByDate)` — will this day be WRITTEN as leave (Sunday → override → base); re-exported by `admin-overrides.js`. `consumesEntitlement` asks the other half, whether it COSTS a day.
+- `isWorkingDate(memberObj, dateStr, ovByDate?)` — will this day be WRITTEN as leave (Sunday → override → base; no map means no override); re-exported by `admin-overrides.js`. `consumesEntitlement` asks the other half, whether it COSTS a day.
 - Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`. Grep for the import rather than trusting a list of callers.
 
 ### `christmas-leave.js`
