@@ -2362,6 +2362,21 @@ describe('the roster\'s leave or absence over a HAND-RECORDED swap is shown as w
         assert.equal(run('AL', manual('annual_leave', 'AL', { replacedType: 'shift' })).state, 'COVERED');
     });
 
+    // roster-core-5 (owner, 10 Nov 2026): leave over an Other day or a Spare turn on a base rest day is
+    // free, like plain RDW — so neither is a swap, and the review treats the roster's leave there as it
+    // treats leave over an RDW: the guarded rest day, not leave that costs a day.
+    for (const [type, value] of [['other', 'TRG'], ['other', 'MEET 10:00-14:00'], ['spare_shift', 'SPARE']]) {
+        for (const parsed of ['AL', 'SICK']) {
+            test(`PDF ${parsed} over a hand-recorded ${type} (${value}) on a rest day is handled like leave over an RDW`, () => {
+                const c = run(parsed, manual(type, value));
+                const rdw = run(parsed, manual('rdw', '06:00-14:00'));
+                assert.equal(c.guarded, 'rest-day', 'it was taken for a swapped-in working day');
+                assert.equal(c.displayShift, rdw.displayShift);
+                assert.equal(c.state, rdw.state);
+            });
+        }
+    }
+
     test('unchanged: a previous IMPORT under the day still asks, and a bare manual absence is still covered', () => {
         const imp = run('AL', [{ id: 'i1', memberName: name, date, type: 'shift', value: '23:00-06:00', source: 'roster_import' }]);
         assert.equal(imp.state, 'GUARDED');

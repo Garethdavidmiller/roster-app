@@ -332,8 +332,12 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // showed "New roster: Rest", hid the leave entirely, and "Use new roster" then deleted
                 // the swap and recorded a rest day. Written as the roster's own value, it carries the
                 // swap forward as `replacedType` (nextReplacedType at the save) and so displays.
+                // The day's BASE goes with the question (whole-app fix, Nov 2026): an Other day or a
+                // Spare turn on a base rest day is not contracted work (roster-core-5, owner: leave over
+                // one is free, like plain RDW), so it is not a swap, and the row is handled exactly as
+                // leave over an RDW is — the roster's leave shown as the rest day it costs nothing on.
                 const swappedIn = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK')
-                    && isContractedWorkOverride(contractEvidence(existing)) === true;
+                    && isContractedWorkOverride(contractEvidence(existing), baseShift) === true;
                 if (swappedIn) { displayValue = parsedShift; guarded = null; }
                 const incoming = swappedIn ? parsedShift : normParsed;
                 // A manual override exists — check if it already matches the PDF
