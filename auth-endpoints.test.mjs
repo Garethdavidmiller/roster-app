@@ -505,6 +505,15 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         } finally { mock.timers.reset(); }
     });
 
+    test('a request posted as a Buffer body is recorded like any other (functions-core-8)', async () => {
+        // The inline reader re-parsed only a body that was not an object — and a Buffer is one — so
+        // the same `{ member }` answered 200 as JSON or a string and 400 "Missing member" as bytes.
+        const { eps, db } = build();
+        const out = await call(eps.requestPasswordReset, reqWith(Buffer.from(JSON.stringify({ member: MEMBER }))));
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.ok(db._dump('resetRequests')[MEMBER], 'the request was not recorded');
+    });
+
     test('a push that throws cannot fail a request that was recorded', async () => {
         const { eps, db } = build({ pushFail: 'push service down' });
         const out = await call(eps.requestPasswordReset, reqFor(MEMBER));

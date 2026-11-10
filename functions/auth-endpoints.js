@@ -43,6 +43,7 @@ const {
     summariseAccountGaps,
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push');
+const { requireAdmin, readJsonBody } = require('./request-helpers');
 const { mustReclaim, claimedByAnotherMember } = require('./member-identity');
 
 /**
@@ -138,18 +139,8 @@ const setupRosterAuth = onRequest(
             return res.status(405).json({ error: 'Method not allowed' });
         }
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            // checkRevoked=true: this function re-provisions accounts, so a revoked/disabled admin's
-            // still-cached token must be rejected immediately, not honoured for up to ~1h (v17.42).
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict, matching parseRosterPDF — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        // This re-provisions accounts, so a revoked admin's cached token is refused at once (requireAdmin).
+        if (!(await requireAdmin(req, res))) return;
 
         // firebase-functions v2 auto-parses req.body only when Content-Type: application/json
         // is sent. Fall back to rawBody so callers that omit the header still work, and so
@@ -423,23 +414,9 @@ const resetMemberPassword = onRequest(
     async (req, res) => {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            // checkRevoked=true — a disabled/revoked admin's still-cached token must not reset accounts.
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        if (!(await requireAdmin(req, res))) return;   // a revoked admin's cached token must not reset accounts
 
-        // Body (raw-body fallback like setupRosterAuth): member name + optional revoke.
-        let body = req.body;
-        if (!body || typeof body !== 'object') {
-            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
-        }
+        const body = readJsonBody(req);   // member name + optional revoke, in whatever shape the body arrived
         const member = typeof body.member === 'string' ? body.member.trim() : '';
         const revoke = body.revoke !== false;   // default true
         if (!member) return res.status(400).json({ error: 'Missing member' });
@@ -754,10 +731,7 @@ const requestPasswordReset = onRequest(
         // roster. The client link is hidden separately by CONFIG.PASSWORD_RESET_REQUESTS.
         if (!RESET_REQUESTS_ENABLED) return res.status(503).json({ error: 'Reset requests are temporarily unavailable' });
 
-        let body = req.body;
-        if (!body || typeof body !== 'object') {
-            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
-        }
+        const body = readJsonBody(req);   // a Buffer body used to answer 400 "Missing member" (functions-core-8)
         const member = typeof body.member === 'string' ? body.member.trim() : '';
         if (!member) return res.status(400).json({ error: 'Missing member' });
 
@@ -910,16 +884,7 @@ const getSignInStats = onRequest(
     async (req, res) => {
         if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        if (!(await requireAdmin(req, res))) return;
 
         // An ALLOWLIST of the current roster, not a denylist of admins (v18.97, external review).
         // Excluding only admins counted every other enabled account in the project — a leaver whose
@@ -980,16 +945,7 @@ const getAccountSetupGaps = onRequest(
     async (req, res) => {
         if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
-        let decodedAuth;
-        try {
-            decodedAuth = await getAuth().verifyIdToken(bearer, true);
-        } catch (_) {
-            return res.status(401).json({ error: 'Unauthorised' });
-        }
-        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
-            return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
+        if (!(await requireAdmin(req, res))) return;
 
         const cfg = resolveRosterAuthConfig(rosterMembers);
         if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });

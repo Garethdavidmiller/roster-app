@@ -39,6 +39,7 @@ const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNE
 const { setupWebPush, fanOutPush, sendTargetedPush } = require('./push');
 const { memberNameFromClaims } = require('./member-identity');
 const { isViewerAccount } = require('./calendar-viewer-auth');
+const { bearerToken } = require('./request-helpers');
 
 /**
  * Build the document-domain endpoints. Called once from index.js with the shared infra.
@@ -882,7 +883,7 @@ const sendTimetableReminder = onSchedule(
         async (req, res) => {
             if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-            const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+            const bearer = bearerToken(req);
             let claims;
             try {
                 // checkRevoked — property 3 above.
@@ -896,7 +897,7 @@ const sendTimetableReminder = onSchedule(
 
             // kindFromBody, not `req.body.kind` — an unparsed body (no JSON Content-Type) would
             // otherwise be refused as an unknown kind, which is the one thing it is not.
-            const kind = resolveKind(kindFromBody(req.body));
+            const kind = resolveKind(kindFromBody(req.body, req.rawBody));
             if (!kind.ok) return res.status(400).json({ error: 'Unknown document kind' });
 
             // The LATEST of that kind — the same document the viewer is showing. The id is a date

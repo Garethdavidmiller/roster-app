@@ -130,21 +130,15 @@ function resolveKind(raw) {
  *
  * Malformed JSON is NOT an error here. It yields `undefined`, `resolveKind` refuses it, and the
  * caller gets the same 400 as any other unusable kind — there is nothing a caller could do
- * differently on being told which of the two it was.
+ * differently on being told which of the two it was. The reading itself is `jsonBodyOf`
+ * (request-helpers.js), the one copy every endpoint now shares (functions-core-8).
  *
- * @param {any} body  req.body, in any of the shapes the runtime may hand over
+ * @param {any} body      req.body, in any of the shapes the runtime may hand over
+ * @param {any} [rawBody] req.rawBody, read when the body itself carries nothing
  * @returns {any} the raw kind value, for `resolveKind` to accept or refuse
  */
-function kindFromBody(body) {
-    if (body && typeof body === 'object' && !Buffer.isBuffer(body)) return body.kind;
-    const text = Buffer.isBuffer(body) ? body.toString('utf8') : (typeof body === 'string' ? body : '');
-    if (!text) return undefined;
-    try {
-        const parsed = JSON.parse(text);
-        return parsed && typeof parsed === 'object' ? parsed.kind : undefined;
-    } catch (_) {
-        return undefined;
-    }
+function kindFromBody(body, rawBody) {
+    return jsonBodyOf(body, rawBody).kind;
 }
 
 /**
@@ -203,6 +197,7 @@ function isSignablePathForKind(kind, path) {
 }
 
 const { memberNameFromClaims } = require('./member-identity');
+const { jsonBodyOf } = require('./request-helpers');
 
 module.exports = {
     DOC_KINDS,

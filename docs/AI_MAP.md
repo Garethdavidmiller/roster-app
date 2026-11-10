@@ -575,6 +575,18 @@ Which member a verified ID token speaks for, or none — the server copy of `isM
   same person; `{ admin: true }` names nobody). `setupRosterAuth` does not adopt such an account and
   `resetMemberPassword` refuses it (409).
 
+### `functions/request-helpers.js`
+The request plumbing every endpoint shares — one copy, because the five inline copies had drifted (a
+Buffer body answered 400, a right PIN posted as a Buffer was charged as a guess, one gate wanted a
+case-exact "Bearer "). Requires nothing at load time: `requireAdmin` requires `firebase-admin/auth`
+when it runs, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`).
+- `jsonBodyOf(body, rawBody)` · `readJsonBody(req)` — the JSON body as an object whatever shape it
+  arrived in (object, Buffer, string, or the raw bytes beside an empty body); anything unusable is `{}`.
+- `bearerToken(req)` — the `Authorization: Bearer` token, the scheme in any case, or `''`.
+- `requireAdmin(req, res, logTag?)` — no token is a 401 before anything is verified; otherwise
+  `verifyIdToken(token, true)` (checkRevoked) and a strict `admin === true`. Answers 401/403 itself and
+  returns null. Used by parseRosterPDF and the four admin account endpoints.
+
 ### `functions/london-clock.js`
 An ISO calendar date, and the instant it names in London — machinery, not Overtime policy. **It requires
 nothing, and that is asserted** (`london-clock.test.mjs`), which is what keeps `overtime-core.test.mjs`

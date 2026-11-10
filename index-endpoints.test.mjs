@@ -653,6 +653,26 @@ describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', 
     }
 });
 
+describe('one copy of the request plumbing — the drifted copies\' answers, corrected (functions-core-8)', () => {
+    // The body reader and the admin gate were written out five times each and the copies drifted:
+    // a right PIN posted as a Buffer was charged as a wrong one, and parseRosterPDF alone refused a
+    // lower-case "bearer". request-helpers.js is now the one copy; these run it through the handlers.
+    test('a right PIN in a Buffer body unlocks — it is not read as a wrong guess', async () => {
+        const { ops } = build();
+        const req = withHelpers({ method: 'POST', headers: { origin: 'https://myb-roster.web.app', 'x-forwarded-for': STATION_IP },
+            body: Buffer.from(JSON.stringify({ pin: FIXTURE_PIN })) });
+        const out = await call(index.unlockCalendarViewer, req);
+        assert.equal(out.code, 200, `answered ${out.code}: ${JSON.stringify(out.body)}`);
+        assert.ok(minted(ops), 'no token was minted for the right PIN');
+    });
+
+    test('parseRosterPDF takes the bearer scheme in any case, as every other admin gate does', async () => {
+        build();
+        const out = await call(index.parseRosterPDF, rosterRequest({ auth: 'bearer tok' }));
+        assert.equal(out.code, 200, `a lower-case scheme answered ${out.code}`);
+    });
+});
+
 describe('parseRosterPDF: a model that never answers gets the handler\'s answer, not the platform\'s kill', () => {
     // functions-core-7 (whole-app check, 10 Nov 2026). The SDK gives a call like this ten minutes
     // per attempt and two retries, inside a function the platform ends at 120 s — so on a stall the

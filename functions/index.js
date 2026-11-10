@@ -57,6 +57,8 @@ const {
     viewerClaims,
     viewerAccountTamper,
 } = require('./calendar-viewer-auth');
+const { requireAdmin, readJsonBody } = require('./request-helpers');
+const { londonIsoDate }          = require('./london-clock');
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
 const { buildOvertimeEndpoints } = require('./overtime');
@@ -175,20 +177,13 @@ async function readRawBody(req, res, logTag) {
 }
 
 /**
- * Returns {year, month(0-based), day} in London local time, derived directly from
- * Intl.DateTimeFormat parts so the result is never dependent on the server's TZ setting.
+ * Today's London calendar date as {year, month (0-based), day}, never dependent on the server's TZ.
+ * From london-clock.js's `londonIsoDate` — one London-date derivation, not two (functions-core-8).
  * @returns {{ year: number, month: number, day: number }}
  */
 function nowInLondon() {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-    }).formatToParts(new Date());
-    return {
-        year:  +parts.find(p => p.type === 'year').value,
-        month: +parts.find(p => p.type === 'month').value - 1,
-        day:   +parts.find(p => p.type === 'day').value,
-    };
+    const [year, month, day] = londonIsoDate(Date.now()).split('-').map(Number);
+    return { year, month: month - 1, day };
 }
 
 // ============================================================================
@@ -261,30 +256,8 @@ exports.parseRosterPDF = onRequest(
             return;
         }
 
-        // ---- Auth: Firebase ID token with admin custom claim ----
-        // The browser sends the logged-in user's Firebase ID token.
-        // verifyIdToken checks the signature + expiry; the admin claim gates access
-        // so only Gareth's account can call this function. checkRevoked=true also rejects a
-        // token whose account has been disabled or had its refresh tokens revoked (leaver / a
-        // compromised admin), rather than trusting the ~1h-valid cached token (v17.42).
-        const authHeader = req.headers['authorization'] || '';
-        if (!authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ error: 'Unauthorised' });
-            return;
-        }
-        const idToken = authHeader.slice('Bearer '.length);
-        let decodedToken;
-        try {
-            decodedToken = await getAuth().verifyIdToken(idToken, true);
-        } catch (err) {
-            console.warn('[parseRosterPDF] Token verification failed:', err.message);
-            res.status(401).json({ error: 'Unauthorised' });
-            return;
-        }
-        if (decodedToken.admin !== true) {
-            res.status(403).json({ error: 'Forbidden — admin access required' });
-            return;
-        }
+        // ---- Auth: an admin's Firebase ID token, checked for revocation (request-helpers.js) ----
+        if (!(await requireAdmin(req, res, 'parseRosterPDF'))) return;
 
         // ---- Headers ----
         const weekEnding = (req.headers['x-week-ending']  || '').trim();
@@ -999,11 +972,9 @@ exports.unlockCalendarViewer = onRequest(
         }
 
         // ── Read the candidate ──────────────────────────────────────────────────────────────────
-        let body = req.body;
-        if (!body || typeof body !== 'object') {
-            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
-        }
-        const supplied = body && typeof body.pin === 'string' ? body.pin : null;
+        // readJsonBody: a right PIN in a Buffer body was charged as a wrong one (functions-core-8).
+        const body = readJsonBody(req);
+        const supplied = typeof body.pin === 'string' ? body.pin : null;
 
         // ONE branch for "wrong shape" and "wrong value" — see rule 2 in the header.
         const ok = isValidPinShape(supplied) && pinMatches(supplied, expected);
