@@ -29,6 +29,8 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      ".git/**",
+      "**/gha-creds-*.json",
       ".claude/**",
       ".github/**",
       "docs/**",

@@ -156,3 +156,62 @@ test('a change to firebase.json always deploys', () => {
         'config rather than a page, but it carries the CSP, the headers, the redirects and the exclusion\n' +
         'list itself — a change to it alone would merge and never reach Firebase Hosting.');
 });
+
+// ── THE DEPLOY FOLDER IS NOT THE APP (10 Nov 2026) ───────────────────────────────────────────
+//
+// Hosting's public directory is the repository root, so a deploy uploads whatever the RUNNER's
+// folder holds that the ignore list does not name — and the runner's folder holds two things the
+// repository does not. Measured on the live site on 10 Nov 2026, after the v25.63 release:
+//
+//     /.git/HEAD                       200   ← the deploy's own checkout (27–30 files, the whole tree)
+//     /gha-creds-<random>.json         200   ← the Google sign-in step's credentials file
+//
+// The second is the serious one. google-github-actions/auth writes that file INTO THE WORKSPACE (by
+// design, so container steps can read it) and the run log prints its name. It holds the address for
+// acting as the deploy account and the bearer token that asks GitHub for this run's identity; the
+// token is good for fifty minutes from the start of the job. Published, it is a handle on the
+// account that can replace the rules, the functions and the site. The action's own documentation
+// says to keep `gha-creds-*.json` out of every artefact a job produces.
+//
+// `**/.*` covered neither: it hides a dot-FILE, not what lies beneath a dot-directory (the gap the
+// `.claude/**` and `.github/**` entries above were added for), and the credentials file has no dot.
+//
+// Two locks, because the first is a list and a list is only as good as its last edit:
+//   1. the two entries below, in hosting.ignore;
+//   2. scripts/hosting-upload-check.mjs, run by the deploy between the sign-in and the upload, which
+//      asks firebase-tools' own lister what is about to go and refuses anything git does not track.
+const DEPLOY_FOLDER_ONLY = ['.git/**', '**/gha-creds-*.json'];
+
+test('the deploy checkout and the sign-in file are left out of the bundle', () => {
+    for (const entry of DEPLOY_FOLDER_ONLY) {
+        assert.ok(hostingIgnore.includes(entry),
+            `firebase.json's hosting.ignore must list "${entry}".\n\n` +
+            'Without it every Hosting deploy publishes that path on the staff site. For the sign-in\n' +
+            'file that means a credential for the deploy account, under a name the public run log prints.');
+    }
+});
+
+test('the deploy checks its upload list after signing in and before uploading', () => {
+    const signIn = deployWorkflow.indexOf('uses: google-github-actions/auth@');
+    const check  = deployWorkflow.indexOf('run: node scripts/hosting-upload-check.mjs');
+    const deploy = deployWorkflow.indexOf('run: npx firebase deploy --only hosting');
+    assert.ok(signIn !== -1 && deploy !== -1,
+        'could not find the sign-in step or the deploy step in deploy-hosting.yml — this guard has stopped reading the workflow');
+    assert.ok(check !== -1,
+        'deploy-hosting.yml no longer runs scripts/hosting-upload-check.mjs. It is what stops a file a tool\n' +
+        'dropped beside the app — a credential, a debug log — from being published with it.');
+    assert.ok(signIn < check && check < deploy,
+        'the upload check must run BETWEEN the sign-in and the deploy: before the sign-in the credentials\n' +
+        'file does not exist yet, so a pass would prove nothing about it; after the deploy it is too late.');
+});
+
+test('the upload check names exactly the files git does not track', async () => {
+    const { strayUploads, MIN_EXPECTED_FILES } = await import('./scripts/hosting-upload-check.mjs');
+    const tracked = new Set(['index.html', 'calendar-app.js', 'icons/icon-192.png']);
+    assert.deepEqual(
+        strayUploads(['index.html', '.git/HEAD', 'calendar-app.js', 'gha-creds-0123456789abcdef.json', 'icons/icon-192.png', 'firestore-debug.log'], tracked),
+        ['.git/HEAD', 'gha-creds-0123456789abcdef.json', 'firestore-debug.log'],
+        'every upload path git does not track is a stray, whatever it is called — the check is not a list of names');
+    assert.deepEqual(strayUploads(['index.html', 'calendar-app.js'], tracked), [], 'a bundle of committed files has no strays');
+    assert.ok(MIN_EXPECTED_FILES >= 50, 'the "listing has stopped working" floor must stay well above an empty answer');
+});
