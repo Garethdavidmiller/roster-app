@@ -13,8 +13,10 @@ import assert from 'node:assert/strict';
 // In-memory store backing the ls.js mock.
 const store = new Map();
 let _signOutCalled = false;
-/** When set, the signOut mock REJECTS with this code — the viewer-shed fail-closed tests. */
+/** When set, the signOut mock REJECTS with this code — the viewer-shed fail-closed tests. A function
+ *  of the call number gives each call its own answer ('ok' or a code). @type {string | ((n: number) => string)} */
 let _signOutBehavior = 'ok';
+let _signOutCalls = 0;
 /** Ordered log of member-persistence restores (see the mock below). */
 let _persistenceRestores = [];
 
@@ -109,7 +111,8 @@ mock.module('./firebase-client.js', {
         signInAnonymously:              async () => { _anonCalled = true; mockAuth.currentUser = { isAnonymous: true }; },
         signOut:                        async () => {
             _signOutCalled = true;
-            if (_signOutBehavior !== 'ok') { const e = new Error(_signOutBehavior); /** @type {any} */ (e).code = _signOutBehavior; throw e; }
+            const b = typeof _signOutBehavior === 'function' ? _signOutBehavior(++_signOutCalls) : _signOutBehavior;
+            if (b !== 'ok') { const e = new Error(b); /** @type {any} */ (e).code = b; throw e; }
             mockAuth.currentUser = null;
         },
         // v20.12: `shedCalendarViewer` re-arms the long-lived MEMBER persistence chain after
@@ -1456,6 +1459,42 @@ describe('shedCalendarViewer — fail closed, or the shared viewer goes long-liv
         assert.deepEqual(_persistenceRestores, [], 'and persistence is never re-armed');
         assert.equal(getFirebaseAuthError(), 'auth/viewer-shed-failed', 'the failure is named for what happened');
         assert.notEqual(getFirebaseIdentity(), 'named');
+    });
+});
+
+// ── A RESTORED ACCOUNT THIS BROWSER CANNOT SIGN OUT (sessions-4, Nov 2026) ──────────────────────
+// Before a member signs in, an account restored here that is not theirs — an old anonymous one,
+// another member's — is signed out. That one sign-out was the only one in the file left uncaught, so
+// when the browser could not delete the stored account (the SDK rethrows that as auth/internal-error)
+// `ensureNamedSession` REJECTED: and every write page hands that promise to `resolveSession()` with no
+// catch, so `sessionReady` rejected, no sign-in was offered and every await of it threw.
+describe('a restored account this browser cannot sign out', () => {
+    beforeEach(() => {
+        store.clear(); _resetAuthStateForTest();
+        _existingUser = { isAnonymous: false, email: nameToEmail('A. Panchal') };
+        _signInBehavior = 'ok'; _signInCalls = 0; _signOutCalls = 0;
+    });
+    afterEach(() => { _signOutBehavior = 'ok'; _existingUser = null; });
+
+    test('ends the attempt instead of rejecting, and presents no credential past it', async () => {
+        _signOutBehavior = 'auth/internal-error';
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 1 });   // must RESOLVE
+        assert.equal(ok, false);
+        assert.equal(_signInCalls, 0, 'nothing is signed in while the other account is still current');
+        assert.equal(getFirebaseAuthError(), 'auth/previous-user-shed-failed', 'named for what happened');
+        // A failed local sign-out says nothing about the member, so it is TRANSIENT: the page keeps the
+        // 60-day session and shows its sign-in without clearing it (terminalAuthEvent).
+        assert.equal(getAuthSnapshot().status, 'degraded');
+    });
+
+    test('and is retried: once the account is gone, the member is signed in', async () => {
+        // The SDK clears the account from memory before the storage delete that failed, so a retry
+        // normally finds nobody to sign out. Modelled here as the second sign-out going through.
+        _signOutBehavior = (n) => (n === 1 ? 'auth/internal-error' : 'ok');
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 1 });
+        assert.equal(ok, true);
+        assert.equal(_signInCalls, 1);
+        assert.equal(getAuthSnapshot().status, 'named');
     });
 });
 

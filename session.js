@@ -387,8 +387,8 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // `shedCalendarViewer` THROWS when it cannot confirm the viewer is gone (v20.35 — it used to
     // warn and carry on, which migrated the shared viewer into long-lived persistence on exactly
     // the path that must not). Convert that to a clean failed sign-in rather than letting it reject:
-    // four coordinators hand this promise straight to `resolveSession()` with no catch, so a
-    // rejection here would reject `sessionReady` app-wide and surface as unhandled. Returning
+    // every write page's coordinator hands this promise straight to `resolveSession()` with no catch,
+    // so a rejection here would reject `sessionReady` app-wide and surface as unhandled. Returning
     // 'none' keeps the security property (persistence untouched, no viewer promoted) AND keeps the
     // failure inside the sign-in flow, where the login overlay already reports it and offers a retry.
     try {
@@ -436,7 +436,20 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
     if (existing) {
-        await firebaseSignOut(auth);
+        // A sign-out the browser cannot complete ENDS this attempt; it must never reject it
+        // (sessions-4, Nov 2026) — every write page hands this promise to resolveSession() with no
+        // catch, so a rejection left sessionReady rejected and no sign-in offered. Nothing is signed
+        // in past it, as with the viewer above. The code is TRANSIENT: a stored account the browser
+        // could not delete (the SDK's auth/internal-error) says nothing about the member, and the SDK
+        // has already dropped it from memory, so ensureNamedSession's retry finds nobody to sign out.
+        try {
+            await firebaseSignOut(auth);
+        } catch (err) {
+            console.warn('[Auth] could not sign out the account restored here — sign-in attempt ended:',
+                /** @type {any} */ (err)?.code ?? /** @type {any} */ (err)?.message);
+            recordError('auth/previous-user-shed-failed');
+            return commit('none', false);
+        }
         // Re-check the generation AFTER the sign-out await (v16.69 review fix): an attempt
         // superseded DURING firebaseSignOut would otherwise resume and run the sign-in calls
         // below, replacing the WINNING attempt's freshly-established session on the shared
@@ -557,6 +570,9 @@ const _TRANSIENT_AUTH_CODES = new Set([
     // exactly as a blip on the sign-in itself always was; and NAMED, so a probe that has stopped
     // working in production shows in every place a sign-in error already surfaces.
     'auth/reset-check-unavailable',
+    // The account restored here could not be signed out before a member's sign-in (sessions-4) — the
+    // same storage failure the SDK itself reports as auth/internal-error, above; named for what happened.
+    'auth/previous-user-shed-failed',
 ]);
 
 /** @param {string|undefined} code @returns {boolean} */
