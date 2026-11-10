@@ -1412,6 +1412,24 @@ describe('parseRosterPDF: a left-shifted row is repaired or sent to review, neve
         assert.match(out.body.parsed[0].shifts[SUN], /^UNKNOWN\|05:30-11:30 was read for Sunday/,
             'a disputed Sunday the witness did not check must reach the admin, not be written either way');
     });
+
+    // import-server-3 (whole-app check, 10 Nov 2026). Whether the roster HAS a Sunday column was the
+    // one header test written out by hand — exactly "sun" or "sunday" — beside `headerToDayIndex`, the
+    // single source every other layer resolves headers through. Dated headers ("Sun 30/08") were mapped
+    // to the right days everywhere else, and the Sunday repair alone switched itself off.
+    test('the same drifted week with DATED headers is realigned too', async () => {
+        const dated = DAY_HEADERS.map((h, i) => `${h} ${String(30 + i > 31 ? 30 + i - 31 : 30 + i).padStart(2, '0')}/${30 + i > 31 ? '09' : '08'}`);
+        const relabel = (/** @type {Record<string, string>} */ row) =>
+            Object.fromEntries(Object.entries(row).map(([k, v]) => [dated[DAY_HEADERS.indexOf(k)], v]));
+        build({ aiReply: JSON.stringify({ columnHeaders: dated,
+            parsed: [{ memberName: 'L. Springer', ...relabel({ ...DRIFTED, Sat: 'BLANK' }) }],
+            sundayScan: { 'L. Springer': 'BLANK' } }) });
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        const s = out.body.parsed[0].shifts;
+        assert.deepEqual(['2026-08-30', '2026-08-31', '2026-09-03', '2026-09-05'].map(d => s[d]),
+            ['RD', '05:30-11:30', '05:30-11:30', 'RD'], `headers ${dated.join(', ')} switched the Sunday repair off`);
+    });
 });
 
 // ── EVERY ENDPOINT A BROWSER CALLS ANSWERS ONLY THE APP'S OWN ORIGINS (test audit, 7 Nov 2026) ─────

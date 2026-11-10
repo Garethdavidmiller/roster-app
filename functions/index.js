@@ -37,6 +37,7 @@ const {
     applyColumnScanCrossCheck,
     parseStrictIsoDate,
     fileSignatureMatches,
+    headerToDayIndex,
 } = require('./roster-parse-helpers');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
@@ -678,8 +679,10 @@ columnScan: one key per column header; every staff member appears in every colum
         // The geometry path has a Sunday column BY CONSTRUCTION — the cell table stamps all seven
         // day labels on every row — and its `sundayScan` is withheld above, so the correction below
         // returns at once there. Reading `parsed.columnHeaders` unguarded threw a TypeError before v24.12.
+        // Through headerToDayIndex, the one header rule every other layer uses (import-server-3): an
+        // exact "sun"/"sunday" test here switched the repair off for a dated header ("Sun 30/08").
         const hasSundayColumn = geometryPath
-            || parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
+            || parsed.columnHeaders.some(h => headerToDayIndex(h) === 0);
         // A Sunday it cannot repair is left for the grid below and settled after it (roster-sunday-repair.js).
         // The cross-check's picks go in too: a row the repair moves takes its picks with it.
         const disputedSundays = applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates, _ccStats.choices);
