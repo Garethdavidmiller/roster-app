@@ -105,20 +105,58 @@ test('every catalogue entry carries what a row needs — a half-declared id cann
 });
 
 // ── the DOM half, against a minimal fake document ───────────────────────────────────────────────
-// Enough DOM for render(): createElement with append/textContent/setAttribute, and `hidden`.
+// Enough DOM for render(): createElement with append/insertBefore/remove/textContent/setAttribute,
+// sibling and parent links (render inserts in catalogue order), and `hidden`.
 function fakeDocument() {
     const el = (tag) => ({
-        tag, children: /** @type {any[]} */ ([]), attrs: {}, className: '', hidden: false,
+        tag, children: /** @type {any[]} */ ([]), attrs: {}, className: '', hidden: false, parent: null,
         _text: '',
         set textContent(v) { this._text = v; this.children = []; },
         get textContent() { return this._text + this.children.map(c => typeof c === 'string' ? c : c.textContent).join(''); },
         setAttribute(k, v) { this.attrs[k] = v; },
         getAttribute(k) { return this.attrs[k]; },
-        append(...kids) { this.children.push(...kids); },
+        append(...kids) { for (const k of kids) { if (typeof k === 'object') k.parent = this; this.children.push(k); } },
+        insertBefore(k, ref) {
+            k.parent = this;
+            const at = ref ? this.children.indexOf(ref) : -1;
+            if (at === -1) this.children.push(k); else this.children.splice(at, 0, k);
+        },
+        get firstChild() { return this.children[0] ?? null; },
+        get nextSibling() { const s = this.parent?.children; return s ? (s[s.indexOf(this) + 1] ?? null) : null; },
+        remove() { const s = this.parent?.children; if (s) s.splice(s.indexOf(this), 1); this.parent = null; },
         addEventListener() {},
     });
     return { createElement: el, _el: el };
 }
+
+/** The strip's links, in order, read off the fake tree. @param {any} host */
+const linksOf = (host) => host.children.find((c) => c.tag === 'ul')?.children.map((li) => li.children[0]) ?? [];
+
+// THE STRIP IS UPDATED IN PLACE (Nov 2026 review). Every report wiped and redrew it, and reports keep
+// coming — one on every return to the tab — so a link a keyboard user had tabbed to was destroyed and
+// focus fell to the page. A link must outlive any report that keeps its item, and a new item must be
+// INSERTED where the catalogue puts it, because moving an existing link would drop its focus too.
+test('a report keeps the SAME link for an item it keeps, and inserts a new one in catalogue order', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('./operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    strip.report('resets', 2);
+    strip.report('errors', 1);
+    const [resets, errors] = linksOf(container);
+    strip.report('resets', 3);                                   // the tab came back: a re-report
+    strip.report('accountSetup', 1);                             // a new item, between the two in the catalogue
+    const after = linksOf(container);
+    assert.equal(after[0], resets, 'the resets link was rebuilt — a focused link would have been destroyed');
+    assert.equal(after[2], errors, 'an existing link moved, or was rebuilt, to make room');
+    assert.deepEqual(after.map((a) => a.attrs['aria-label']), ['Password resets: 3 waiting', 'Not set up: 1 member', 'Unresolved errors: 1']);
+    assert.match(resets.textContent, /3/, 'the kept link says the new count');
+    strip.withdraw('accountSetup');
+    assert.deepEqual(linksOf(container), [resets, errors], 'withdrawing one item leaves the others where they are');
+    assert.equal(container.children.filter((c) => c.tag === 'h2').length, 1, 'one heading, however many reports');
+});
 
 test('report(): an unknown id THROWS — a typo cannot report into the void', async (t) => {
     const doc = fakeDocument();

@@ -136,42 +136,63 @@ export function createAttentionStrip({ container, onJump }) {
         if (a) onJump?.(a.getAttribute('href') || '');
     });
 
+    // UPDATED IN PLACE, never rebuilt (Nov 2026 review). Every report used to wipe the strip and draw
+    // it again, and reports keep arriving — four over the first seconds, another on every return to
+    // the tab — so a link a keyboard user had tabbed to was destroyed under them and focus fell to the
+    // page. So the heading and list are made once, an item's link is kept for as long as its item is
+    // shown and only its words change, and a new item is INSERTED in catalogue order: an existing link
+    // is never moved, because moving a node drops its focus as surely as removing it.
+    /** @type {HTMLUListElement|null} */ let list = null;
+    /** @type {Map<string, { li: HTMLLIElement, a: HTMLAnchorElement, count: HTMLSpanElement }>} */
+    const shown = new Map();
+
     function render() {
         const items = buildAttentionItems(reports);
-        host.textContent = '';
+        for (const [id, row] of shown) {
+            if (!items.some(i => i.id === id)) { row.li.remove(); shown.delete(id); }
+        }
         if (!items.length) { host.hidden = true; return; }
 
-        // The heading speaks in the page's group-label voice (PUBLISH · MONITORING · …) — the
-        // strip is a fourth, CONDITIONAL group at the top, not a banner over the page.
-        const head = document.createElement('h2');
-        head.className = 'attn-head';
-        const glyph = document.createElement('span');
-        glyph.setAttribute('aria-hidden', 'true');
-        glyph.textContent = '⚠';
-        head.append(glyph, ' Needs attention');
+        if (!list) {
+            // The heading speaks in the page's group-label voice (PUBLISH · MONITORING · …) — the
+            // strip is a fourth, CONDITIONAL group at the top, not a banner over the page.
+            const head = document.createElement('h2');
+            head.className = 'attn-head';
+            const glyph = document.createElement('span');
+            glyph.setAttribute('aria-hidden', 'true');
+            glyph.textContent = '⚠';
+            head.append(glyph, ' Needs attention');
+            list = document.createElement('ul');
+            list.className = 'attn-items';
+            host.append(head, list);
+        }
 
-        const list = document.createElement('ul');
-        list.className = 'attn-items';
+        /** @type {{ li: HTMLLIElement }|null} */ let prev = null;
         for (const item of items) {
-            const li = document.createElement('li');
-            const a = document.createElement('a');
-            a.className = 'attn-item';
-            a.href = item.hash;
+            let row = shown.get(item.id);
+            if (!row) {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.className = 'attn-item';
+                a.href = item.hash;
+                const icon = document.createElement('span');
+                icon.setAttribute('aria-hidden', 'true');
+                icon.textContent = item.emoji;
+                const count = document.createElement('span');
+                count.className = 'card-year-chip errorlog-count-chip attn-count';
+                a.append(icon, ` ${item.short} `, count);
+                li.append(a);
+                list.insertBefore(li, prev ? prev.li.nextSibling : list.firstChild);
+                row = { li, a, count };
+                shown.set(item.id, row);
+            }
             // The pill shows the card-header ECHO (emoji · name · the same count chip the target
             // card's header wears), so what you tap looks like where you land; its accessible name
             // leads with those same words and then says what the count is of.
-            a.setAttribute('aria-label', item.text);
-            const icon = document.createElement('span');
-            icon.setAttribute('aria-hidden', 'true');
-            icon.textContent = item.emoji;
-            const count = document.createElement('span');
-            count.className = 'card-year-chip errorlog-count-chip attn-count';
-            count.textContent = item.badge;
-            a.append(icon, ` ${item.short} `, count);
-            li.append(a);
-            list.append(li);
+            row.a.setAttribute('aria-label', item.text);
+            row.count.textContent = item.badge;
+            prev = row;
         }
-        host.append(head, list);
         host.hidden = false;
     }
 

@@ -1719,6 +1719,27 @@ test('operations: resets alone show one item, and the strip never renders a zero
     await expect(strip.locator('a[href="#error-log"]')).toHaveCount(0);
 });
 
+// A keyboard user on a strip link KEEPS it when the strip updates (Nov 2026 review). Every report
+// rebuilt the strip, and one arrives on every return to the tab — so the link they had tabbed to was
+// destroyed and focus fell to the page. The strip now changes an item's words in place.
+test('operations: a strip link keeps keyboard focus when the strip updates under it', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { docs: [{ id: 'A. Hared', requestedAt: Date.now() - 60_000, count: 1, provisioned: true }] };
+    });
+    await page.goto('/operations.html');
+    const link = page.locator('#attentionStrip').getByRole('link', { name: 'Password resets: 1 waiting' });
+    await link.focus();
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs.push({ id: 'K. Jedlinski', requestedAt: Date.now(), count: 1, provisioned: true });
+        document.dispatchEvent(new Event('visibilitychange'));       // back to the tab: the queue re-reads
+    });
+    const updated = page.locator('#attentionStrip').getByRole('link', { name: 'Password resets: 2 waiting' });
+    await expect(updated).toBeVisible();
+    await expect(updated, 'the re-report destroyed the focused link').toBeFocused();
+});
+
 test('operations: no account-status name is truncated at phone width', async ({ page }) => {
     /*
      * The NAME is what identifies a row on a 51-row list, and at 375px it was the element being
