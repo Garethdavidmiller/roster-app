@@ -77,7 +77,9 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
         if (isChristmasClosureDate(date)) return false;
         const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
         // An override that answers the contract question — either way — settles the day. Read THROUGH
-        // leave and an absence to what they replaced (review A2), as `consumesEntitlement` does.
+        // leave and an absence to what they replaced (review A2), as `consumesEntitlement` does. (It
+        // also passes the base, which can only turn a yes into a no — so a rest-day Other day or Spare
+        // turn is settled here either way, and never asked: free, like RDW, 10 Nov 2026.)
         if (isContractedWorkOverride(contractEvidence(ov)) !== null) return false;
         // Nothing informative on the day: the base roster decides, and only a REST answer is a question.
         return isRestShift(getBaseShift(memberObj, parseISODate(date)));
@@ -93,8 +95,10 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
  * the type a swapped-in day would have had if anybody had recorded the swap.
  *
  * An existing chain that already names contracted work is kept rather than overwritten: it is a
- * stronger record than our reconstruction, and it may name `spare_shift` or `other`, which this must
- * not flatten.
+ * stronger record than our reconstruction (a retired `swap` or `allocated` stays itself). Kept only
+ * if it is contracted work ON A REST DAY, though, because a declared swap always is one — only a rest
+ * day is asked about. An Other day or a Spare turn is not, there (owner, 10 Nov 2026: leave over one
+ * is free, like RDW), so carrying `other` or `spare_shift` would leave the declared swap free.
  *
  * @param {any} existing the override currently on the date, if any
  * @param {string} newType the type being written (`annual_leave`)
@@ -102,7 +106,7 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
  */
 export function replacedTypeForSwap(existing, newType) {
     const carried = nextReplacedType(existing, newType);
-    if (carried && isContractedWorkOverride({ type: carried }) === true) return carried;
+    if (carried && isContractedWorkOverride({ type: carried }, 'RD') === true) return carried;
     return 'shift';
 }
 

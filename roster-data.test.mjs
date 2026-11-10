@@ -11,6 +11,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {
     getBankHolidays,
     isBankHoliday,
@@ -47,6 +48,10 @@ import {
     formatISO,
     CONFIG,
     fixedRoster,
+    weeklyRoster,
+    bilingualRoster,
+    cesRoster,
+    dispatcherRoster,
     isValidEmail,
     isChilternWorkEmail,
     workEmailLocalPart,
@@ -205,6 +210,40 @@ test('isBankHoliday: 3 Apr 2026 (Good Friday) is a bank holiday', () => {
 
 test('isBankHoliday: 4 Apr 2026 (Saturday before Easter) is not a bank holiday', () => {
     assert.equal(isBankHoliday(d(2026, 4, 4)), false);
+});
+
+// ── EVERY YEAR THE APP SHOWS, NOT ONLY 2026 (whole-app review, 10 Nov 2026) ───────────────────────
+//
+// Only 2026 was asserted, so the weekend-substitute branches — one of which has been wrong before
+// (calculateBankHolidays's own note) — could move a day with every suite green. The next two are near:
+// Christmas on a Saturday in 2027 (27 and 28 Dec) and New Year on a Saturday in 2028 (3 Jan); a moved
+// day would be marked on the Calendar, counted in a Dispatcher's lieu days and routed by the pay fill.
+// The England & Wales dates by the standing rules: 2024–2026 are the lists gov.uk published, 2027–2030
+// follow the same rules. A one-off announced for any of these years goes in SPECIAL_BANK_HOLIDAYS and
+// here together.
+const ENGLAND_AND_WALES = {
+    2024: ['01-01', '03-29', '04-01', '05-06', '05-27', '08-26', '12-25', '12-26'],
+    2025: ['01-01', '04-18', '04-21', '05-05', '05-26', '08-25', '12-25', '12-26'],
+    2026: ['01-01', '04-03', '04-06', '05-04', '05-25', '08-31', '12-25', '12-28'],
+    2027: ['01-01', '03-26', '03-29', '05-03', '05-31', '08-30', '12-27', '12-28'],
+    2028: ['01-03', '04-14', '04-17', '05-01', '05-29', '08-28', '12-25', '12-26'],
+    2029: ['01-01', '03-30', '04-02', '05-07', '05-28', '08-27', '12-25', '12-26'],
+    2030: ['01-01', '04-19', '04-22', '05-06', '05-27', '08-26', '12-25', '12-26'],
+};
+
+test('getBankHolidays: every year from MIN_YEAR to MAX_YEAR is the England & Wales list', () => {
+    const years = Object.keys(ENGLAND_AND_WALES).map(Number);
+    assert.deepEqual(years, Array.from({ length: CONFIG.MAX_YEAR - CONFIG.MIN_YEAR + 1 }, (_, i) => CONFIG.MIN_YEAR + i),
+        'the navigable range moved: add each new year\'s bank holidays here, and any one-off to SPECIAL_BANK_HOLIDAYS');
+    for (const year of years) {
+        assert.deepEqual(getBankHolidays(year).map(formatISO).sort(),
+            ENGLAND_AND_WALES[/** @type {keyof typeof ENGLAND_AND_WALES} */ (year)].map(md => `${year}-${md}`), `${year}`);
+    }
+});
+
+test('getBankHolidays: nothing past MAX_YEAR, where no year has been checked', () => {
+    const was = console.warn; console.warn = () => {};
+    try { assert.deepEqual(getBankHolidays(CONFIG.MAX_YEAR + 1), []); } finally { console.warn = was; }
 });
 
 // ---------------------------------------------------------------------------
@@ -441,6 +480,89 @@ describe('validateRosterPatterns: the Other family in a pattern', () => {
     });
     test('an unknown word is still refused', () => {
         assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRAINING' }))), 1);
+    });
+});
+
+// …and only what the app can DRAW and PAY (whole-app review, 10 Nov 2026). The time test was a shape
+// — two digits, a colon, two digits — so '24:00-08:00' and '29:99-99:99' passed to be drawn ❓ Unknown,
+// and '06:20-06:20' to be paid as a 24-hour turn. 'AL' and 'RDW' passed as keywords, though leave and
+// RDW are things that happen TO a day, as overrides, and RDW in a pattern is shown and never paid.
+describe('validateRosterPatterns: a pattern holds only what the app can draw and pay', () => {
+    const week = (/** @type {Record<string, string>} */ over) => ({ t: { 1: {
+        sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'OFF', thu: 'SPARE', fri: '15:30-00:30', sat: '22:00-07:00', ...over } } });
+    const quietly = (/** @type {() => number} */ fn) => {
+        const was = console.error; console.error = () => {};
+        try { return fn(); } finally { console.error = was; }
+    };
+    test('real ranges — overnight ones and a midnight finish included — and RD, OFF and SPARE pass', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({}))), 0);
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: '15:30-00:00' }))), 0);
+    });
+    for (const bad of ['24:00-08:00', '29:99-99:99', '06:20-06:20', 'AL', 'RDW', 'SICK', '6:20-14:20', '06:20-14:20-15:00']) {
+        test(`'${bad}' is refused`, () => {
+            assert.equal(quietly(() => validateRosterPatterns(week({ mon: bad }))), 1);
+        });
+    }
+});
+
+// ── A PATTERN IN FORCE IS NEVER EDITED IN PLACE (whole-app review, 10 Nov 2026) ─────────────────
+//
+// A pattern has no start date: getBaseShift reads one table for every date, past and future. So the
+// edit roster-cycle-data.js used to ask for — replace the table when a new base roster arrives —
+// redraws every day already worked and re-judges the leave recorded on them, and nothing errors.
+// Simulated for the January 2027 CEA link: 5,433 of the 6,573 base shifts the 21 main-link members
+// had between 1 Jan and 9 Nov 2026 came out different. A new base roster is a new table and roster
+// type, with each member moved onto it by a dated `rosterChanges` entry (roster-cycle-data.js).
+//
+// So every week that exists today is pinned, with the constants that place each cycle in time: a NEW
+// week or table passes untouched, and an EDITED one fails, naming the week. If an edit corrects a cell
+// that was ALWAYS wrong — so every past date was wrong too — update its digest and say so in the commit.
+describe('a pattern in force is never edited in place', () => {
+    const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    /** A week's seven cells, Sunday first. Eight hex characters are plenty to notice an edit. */
+    const digest = (/** @type {Record<string, string>} */ week) =>
+        createHash('sha256').update(DAYS.map(k => week[k]).join('|')).digest('hex').slice(0, 8);
+    /** @type {Record<string, Record<number, Record<string, string>>>} */
+    const TABLES = { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
+    /** Week 1 first. A week of Spare on all seven days digests to '1089a547' wherever it appears. */
+    const PINNED = {
+        weeklyRoster: ['1089a547', '1eabcfbc', 'baa733f8', '45a0efd8', 'b402c7d5', '4de0e2e6', '1089a547', 'b9e0c3bb', '3cc3f934', '2f2d51b0',
+                       '790b1ee8', '1089a547', 'da69c2a2', 'dbebf081', '078d038f', 'edc96eb1', '1089a547', 'e04d76a0', '4fb50022', '45adc273'],
+        bilingualRoster: ['1089a547', '45a0fabe', 'd8aabddb', '32db854e', '57d55631', '5a8850a7', '51b43c2c', '1089a547'],
+        fixedRoster: ['cc3c67d4', '036722bc', '005e3a19'],
+        cesRoster: ['5f974d01', 'abdac8bd', 'a72314b0', '1089a547', '7f51ec7e', '9b06e81f', '719872fb', 'efc75714', '1089a547', 'e6afee3f'],
+        dispatcherRoster: ['b5d10c52', 'ceeca403', '787c08de', '52f118ff', 'efd0ff79', 'f8b3ec7b', 'ec1a9db3', '1efb4600', '4e9ea548', '697433ff'],
+    };
+
+    test('every week in force reads as it did', () => {
+        const edited = [];
+        for (const [name, digests] of Object.entries(PINNED)) {
+            digests.forEach((want, i) => {
+                const week = TABLES[name][i + 1];
+                if (!week || digest(week) !== want) edited.push(`${name} week ${i + 1}`);
+            });
+        }
+        assert.deepEqual(edited, [],
+            `these weeks were edited in place, which redraws every past date they cover:\n  ${edited.join('\n  ')}\n`
+            + 'Bring a new base roster in as a NEW table and roster type, and move members onto it with a dated\n'
+            + 'rosterChanges entry (roster-cycle-data.js header). Update a digest only for a cell that was always wrong.');
+    });
+
+    test('and the constants that place each cycle in time are unchanged', () => {
+        const placed = Object.fromEntries(['MAIN', 'BILINGUAL', 'CES', 'DISPATCHER'].map(k => [k,
+            `${CONFIG[`${k}_ROSTER_WEEKS`]} weeks from ${formatISO(CONFIG[`${k}_ROSTER_REFERENCE_DATE`])}`]));
+        assert.deepEqual(placed, {
+            MAIN: '20 weeks from 2026-02-08', BILINGUAL: '8 weeks from 2026-02-15',
+            CES: '10 weeks from 2026-02-15', DISPATCHER: '10 weeks from 2026-02-01',
+        }, 'a cycle length or a reference Sunday moves every past date of every member on that cycle');
+    });
+
+    test('and each roster type still reads the table it always has', () => {
+        for (const [type, table] of /** @type {[string, any][]} */ ([['main', weeklyRoster], ['bilingual', bilingualRoster],
+            ['fixed', fixedRoster], ['ces', cesRoster], ['dispatcher', dispatcherRoster]])) {
+            assert.equal(getRosterForMember({ rosterType: type, currentWeek: 1 }).data, table,
+                `pointing '${type}' at another table redraws every past date of every member on it`);
+        }
     });
 });
 
@@ -950,15 +1072,19 @@ test('B. Khalil: RD before his 9 Jun 2026 start date', () => {
     assert.equal(getBaseShift(k, d(2026, 6, 8)), 'RD'); // 8 Jun — day before start
 });
 
+// His line is the one that was vacant when he arrived (anchor 4). These read 05:40-14:30 on 10 Jun and
+// 05:40-15:00 on 13 Jun until 10 Nov 2026 — G. Rotaru's turns, from the anchor his row wrongly shared
+// (roster-member-data.js). That week his own line is CES week 10; the early turns come a week later.
 test('B. Khalil: on the CES rotation (not a fixed line) from June', () => {
     const k = teamMembers.find(m => m.name === 'B. Khalil');
     assert.equal(getRosterForMember(k, d(2026, 6, 10)).type, 'ces'); // June already the CES roster
-    assert.equal(getBaseShift(k, d(2026, 6, 10)), '05:40-14:30');    // Wed 10 Jun — CES week-1 early shift
+    assert.equal(getBaseShift(k, d(2026, 6, 10)), 'SPARE');          // Wed 10 Jun — CES week 10
+    assert.equal(getBaseShift(k, d(2026, 6, 17)), '05:40-14:30');    // Wed 17 Jun — CES week-1 early shift
 });
 
 test('B. Khalil: works CES early shifts incl. some Saturdays (not a fixed 12:00-19:00 line)', () => {
     const k = teamMembers.find(m => m.name === 'B. Khalil');
-    assert.equal(getBaseShift(k, d(2026, 6, 13)), '05:40-15:00'); // Sat 13 Jun — CES week-1 works the Saturday
+    assert.equal(getBaseShift(k, d(2026, 6, 20)), '05:40-15:00'); // Sat 20 Jun — CES week-1 works the Saturday
 });
 
 test('B. Khalil: stays on the CES roster across the 1 July boundary', () => {
@@ -1036,6 +1162,22 @@ test('getALEntitlement: proRatedAL overrides standard entitlement for the joinin
     assert.ok(member, 'M. Okeke not found in teamMembers');
     assert.equal(getALEntitlement(member, 2026), 24, 'Expected pro-rated AL of 24 for joining year');
     assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
+});
+
+// A year that ended before the member joined has no allowance on record (whole-app review, 10 Nov
+// 2026). It read the full contract figure — 32 for a 2026 joiner's 2025, all of it remaining.
+test('getALEntitlement: nothing on record for a year before the member joined', () => {
+    const joiner = { role: 'CEA', rosterType: 'main', currentWeek: 1, startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 20 } };
+    assert.equal(getALEntitlement(joiner, 2024), null);
+    assert.equal(getALEntitlement(joiner, 2025), null);
+    assert.equal(getALEntitlement(joiner, 2026), 20, 'the joining year is unchanged');
+    assert.equal(getALEntitlement(joiner, 2027), 32, 'and so is every year after it');
+    // A return on full-year terms (`noProRate`) has its whole first year, and still nothing before it.
+    const back = { role: 'CES', rosterType: 'ces', currentWeek: 1, startDate: new Date(2026, 5, 9), noProRate: true };
+    assert.equal(getALEntitlement(back, 2025), null);
+    assert.equal(getALEntitlement(back, 2026), 34);
+    // A member with no start date is unaffected in any year.
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', currentWeek: 1 }, 2024), 32);
 });
 
 // ---------------------------------------------------------------------------
@@ -1148,6 +1290,31 @@ test('parseSmartFloat: a decimal COMMA is the point, and a thousands comma is un
     assert.equal(parseSmartFloat('21,758'), 21758, 'three digits after a comma is a thousands group');
     assert.equal(parseSmartFloat('£21,758.94'), 21758.94);
     assert.equal(parseSmartFloatOrNull('21758,94'), 21758.94);
+});
+
+// …and so is a comma with NO digit before it, or more than two after (whole-app review, 10 Nov 2026).
+// The rule above demanded a digit in front, so ",5" — the comma twin of ".5", typed for half an hour
+// — was stripped to 5 and priced as five hours; "7,5833" read as 75,833. A comma is a thousands
+// separator only where it sits like one: a leading group of one to three digits that does not start
+// with 0, then exactly three digits.
+test('parseSmartFloat: a decimal comma with no digit before it, or more than two after, is still the point', () => {
+    assert.equal(parseSmartFloat(',5'), 0.5, 'the comma twin of ".5"');
+    assert.equal(parseSmartFloat(',25'), 0.25);
+    assert.equal(parseSmartFloat('-,5'), -0.5);
+    assert.equal(parseSmartFloat('7,5833'), 7.5833);
+    assert.equal(parseSmartFloat('0,125'), 0.125, 'no thousands group starts with 0');
+    assert.equal(parseSmartFloat('1.234,567'), 1234.567, 'a dot in front makes the comma the point');
+    assert.equal(parseSmartFloatOrNull(',5'), 0.5);
+    assert.equal(parseSmartFloatOrNull('7,5833'), 7.5833);
+});
+
+test('parseSmartFloat: a comma placed like a thousands separator still is one', () => {
+    assert.equal(parseSmartFloat('1,234'), 1234);
+    assert.equal(parseSmartFloat('12,345'), 12345);
+    assert.equal(parseSmartFloat('123,456'), 123456);
+    assert.equal(parseSmartFloat('-1,234'), -1234);
+    assert.equal(parseSmartFloat('12,345,678'), 12345678);
+    assert.equal(parseSmartFloatOrNull('£1,500'), 1500);
 });
 
 test('parseSmartFloat: iOS smart minus is normalised so parseFloat succeeds', () => {
@@ -1499,6 +1666,51 @@ test('every rosterChanges entry has a valid rosterType and currentWeek', () => {
     assert.deepEqual(bad, [], `Invalid rosterChanges entries:\n  ${bad.join('\n  ')}`);
 });
 
+// ── NO TWO PEOPLE ON ONE LINE (whole-app review, 10 Nov 2026) ────────────────────────────────────
+//
+// A rotating line is one person's. Two rows that resolve to the same week of the same roster on the
+// same day means one carries the wrong anchor and is drawn somebody else's turns. B. Khalil's row sat
+// like that for five months: given anchor 5 because 5 DISPLAYED week 4 on 1 Jul (the reference-anchored
+// mistake .claude/rules/roster-data.md warns about), it shared G. Rotaru's line while the real vacancy,
+// anchor 4, stayed empty. The range checks above cannot see it — 5 is in range.
+//
+// One kind of sharing is legitimate, a SUCCESSION: a leaver's row is kept (hidden) so their past still
+// resolves, and somebody later takes the line. So, on every day: at most one current row per line, and
+// a hidden row may share only a line it was on BEFORE the current holder arrived. Fixed patterns are
+// shared by design and are not lines.
+test('no two rows hold one rotating line, except a leaver\'s line taken after them', () => {
+    const ROTATING = new Set(['main', 'bilingual', 'ces', 'dispatcher']);
+    const midnight = (/** @type {Date} */ x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    /** When a row came onto the line it holds on `day`: the later of its start and the move in force. */
+    const arrived = (/** @type {any} */ m, /** @type {Date} */ day) => Math.max(
+        m.startDate ? midnight(m.startDate) : -Infinity,
+        ...(m.rosterChanges ?? []).map((/** @type {any} */ c) => midnight(c.from)).filter((/** @type {number} */ f) => f <= midnight(day)));
+    /** @type {Map<string, string>} */
+    const shared = new Map();
+    for (let day = new Date(2024, 0, 1, 12); day <= new Date(2027, 11, 31, 12); day.setDate(day.getDate() + 1)) {
+        /** @type {Map<string, any[]>} */
+        const lines = new Map();
+        for (const m of teamMembers) {
+            if (m.managerOnly || (m.startDate && midnight(day) < midnight(m.startDate))) continue;
+            const type = resolveMemberRoster(m, day).rosterType;
+            if (!ROTATING.has(type)) continue;
+            const key = `${type} week ${getWeekNumberForDate(day, m)}`;
+            lines.set(key, [...(lines.get(key) ?? []), m]);
+        }
+        for (const [key, rows] of lines) {
+            if (rows.length < 2) continue;
+            const current = rows.filter(m => !m.hidden);
+            const firstCurrent = Math.min(...current.map(m => arrived(m, day)));
+            const ok = current.length <= 1 && rows.every(m => !m.hidden || arrived(m, day) < firstCurrent);
+            const who = rows.map(m => m.name).join(' + ');
+            if (!ok && !shared.has(who)) shared.set(who, `${who}: the same ${key.split(' ')[0]} line, from ${formatISO(day)}`);
+        }
+    }
+    assert.deepEqual([...shared.values()], [],
+        'two rows draw the same turns — one of them carries the wrong anchor. A `currentWeek` is the line at\n'
+        + 'the REFERENCE Sunday, not the week the line shows on the start date (.claude/rules/roster-data.md).');
+});
+
 // ── Pinned roster transitions (live roster facts — June/July 2026) ─────────────
 // Pin the exact K. Jedlinski / S. Boyle / B. Khalil transitions so a future roster-data
 // edit can't silently shift them. getBaseShift / resolveMemberRoster take Date objects
@@ -1586,7 +1798,7 @@ test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', (
     assert.equal(resolveMemberRoster(m, new Date(2026, 5, 9)).rosterType,  'ces');   // on start
     const jul = resolveMemberRoster(m, new Date(2026, 6, 1));                        // across 1 Jul — still CES
     assert.equal(jul.rosterType,  'ces');
-    assert.equal(jul.currentWeek, 5);
+    assert.equal(jul.currentWeek, 4, 'the anchor of the line that was vacant — 5 is G. Rotaru\'s');
 });
 
 
@@ -1656,6 +1868,28 @@ describe('every mid-year joiner says what their leave should be', () => {
         assert.deepEqual(notMidnight, [],
             `startDate must be midnight local — new Date(year, month-1, day):\n  ${notMidnight.join('\n  ')}`);
     });
+});
+
+// ── THE MEMBER TABLE SAYS NOTHING ABOUT ANYBODY'S ABSENCE OR HEALTH (whole-app review, 10 Nov 2026) ─
+//
+// roster-member-data.js is served to anyone, from both origins, with no sign-in (its own header). A
+// roster MOVE is public — it is on the station's printed rosters — but whether somebody is away, and
+// why, is not: absences sit behind a claim in Firestore, and their reason is never recorded anywhere.
+// A row's comment once said more than the move, and payroll-anonymity.test.mjs could not see it — it
+// matches a name and a term on the SAME line, and that comment put them lines apart. So this reads
+// every comment in the file, whichever line its name is on. A failure names line numbers only, so the
+// text it caught is not repeated into a CI log.
+test('the member table\'s comments say nothing about anybody\'s absence or health', () => {
+    const PERSONAL = /\babsen(ce|ces|t)\b|\bsick|\billness|\binjur|\bmedical|\bhealth|maternity|paternity|bereave|compassionate|pregnan|disabilit|\bGDPR\b|🪑|🤒/i;
+    const lines = readFileSync(new URL('./roster-member-data.js', import.meta.url), 'utf8').split('\n');
+    const hits = lines
+        .map((line, i) => ({ at: i + 1, comment: line.includes('//') ? line.slice(line.indexOf('//')) : '' }))
+        .filter(({ comment }) => PERSONAL.test(comment))
+        .map(({ at }) => `roster-member-data.js:${at}`);
+    assert.ok(lines.length > 100, 'the member table was not read — this test is checking nothing');
+    assert.deepEqual(hits, [],
+        'a comment in the WORLD-READABLE member table speaks of absence or health. Say only the roster '
+        + 'move (the line, the pattern, the date); anything about why belongs nowhere in a served file.');
 });
 
 // ── A DISPATCHER'S LIEU DAYS SURVIVE PRO-RATING (v22.50, owner decision 3 Sep 2026) ─────────────

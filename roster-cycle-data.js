@@ -2,7 +2,14 @@
 // MYB Roster — Shift Cycle Data
 // Pure data: the week-by-week shift patterns for each roster type.
 // No logic, no imports. Referenced by getRosterForMember() in roster-data.js.
-// Update this file when Chiltern issues a new base roster PDF.
+//
+// A PATTERN HAS NO START DATE. getBaseShift reads these tables for every date, past and future, so
+// editing a week in place — or a cycle's length or reference Sunday in CONFIG — redraws every day
+// already worked and re-judges the leave recorded on them, with nothing to say so. A NEW base roster
+// (the CEA link due in January 2027) is a NEW table: its own export here, its own length and
+// reference Sunday in CONFIG, its own roster type in roster-data.js, and each member moved onto it by
+// a dated `rosterChanges` entry (docs/OPERATIONS_REFERENCE.md → "When the new link starts"). Edit a
+// week in place only to correct a cell that was always wrong; roster-data.test.mjs pins every week.
 
 // 20-week rotating roster pattern (CEA — main).
 // SP weeks mean "Spare" — can be rostered ANY day, ANY shift during that week.
@@ -62,7 +69,7 @@ export const fixedRoster = {
 };
 
 // 10-week CES (Customer Experience Supervisor) roster — Marylebone.
-// Weeks 4 and 9 are spare weeks with guaranteed Sunday working.
+// Weeks 4 and 9 are Spare all week; weeks 5 and 10 open with a rostered Sunday, then Spare to Thursday.
 // Reference: F. Mohamed on Week 1 w/c 15 Feb 2026.
 export const cesRoster = {
     1:  { sun: 'RD',          mon: 'RD',          tue: 'RD',          wed: '05:40-14:30', thu: '06:20-15:30', fri: '05:40-14:30', sat: '05:40-15:00' },
