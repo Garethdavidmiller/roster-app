@@ -34,7 +34,9 @@ mock.module('./paycalc-periods.js', {
         currentPeriodNum: () => 60,
         todaysPeriodNum:  () => 60,
         isTaxYearVisible: () => true,
-        CONFIG:           { TAX_YEARS: [] },
+        // paycalc-hpp.js imports it for the prior-year box; its real rule, for completeness.
+        payslipMayBeInHand: (/** @type {any} */ p, now = new Date()) => p.cutoff <= now,
+        CONFIG:           { TAX_YEARS: [], PERIOD_DAYS: 28 },
     },
 });
 

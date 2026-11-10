@@ -14,7 +14,7 @@ import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible, payslipMayBeInHand } from './paycalc-periods.js';
 import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear, isPensionOptedOut } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
@@ -251,6 +251,27 @@ export function applyHppMode(mode = '') {
   const exactWrap = document.getElementById('hppExactWrap');
   if (ytdWrap)   ytdWrap.style.display   = m === 'ytd'   ? '' : 'none';
   if (exactWrap) exactWrap.style.display = m === 'exact' ? '' : 'none';
+}
+
+/**
+ * A tax year's saved amount source, read TOTALLY. Anything that is not a plain object — nothing
+ * stored, unreadable text, or JSON that is `null`, a number, a string or an array — is "no saved
+ * choice" (`mode: null`), and `damaged` says something WAS stored that could not be read. Only this
+ * app writes the blob (`saveHppState`, always an object), so a value of another shape came from a
+ * backup made elsewhere, and reading `.mode` off it must not throw during start-up.
+ * @param {any} ty
+ * @returns {{ mode: 'hours'|'ytd'|'exact'|null, exact: string, damaged: boolean }}
+ */
+export function readHppState(ty) {
+  const raw = ty ? lsGet(hppModeKey(ty)) : null;
+  if (raw == null || raw === '') return { mode: null, exact: '', damaged: false };
+  /** @type {any} */ let s;
+  try { s = JSON.parse(raw); } catch { s = undefined; }
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return { mode: null, exact: '', damaged: true };
+  const mode = s.mode === 'hours' || s.mode === 'ytd' || s.mode === 'exact' ? s.mode : null;
+  const exact = typeof s.exact === 'string' ? s.exact
+    : (typeof s.exact === 'number' && Number.isFinite(s.exact)) ? String(s.exact) : '';
+  return { mode, exact, damaged: false };
 }
 
 /** Persist the card's mode + the exact-figure input for a tax year (one JSON blob). The 'ytd' mode
@@ -574,6 +595,34 @@ export function commitPriorHppActual(ty, raw) {
 }
 
 /**
+ * Which amount source wrote a tax year's STORED premium: that year's own saved choice ('hours' when it
+ * never had one, as calcHPP then ran in hours mode), or 'unknown' when the saved choice is unreadable.
+ * @param {any} ty @returns {'hours'|'ytd'|'exact'|'unknown'}
+ */
+function _savedSourceOf(ty) {
+  const s = readHppState(ty);
+  return s.damaged ? 'unknown' : (s.mode ?? 'hours');
+}
+
+/**
+ * Last year's premium in the words its own card uses for it (paycalc-2-4). This is the figure that
+ * lands on the January payslip and can be ticked into its take-home, and it read "Estimated from your
+ * 2025/26 periods" over one payslip of thirteen, or over a figure the member typed themselves — while
+ * a partial estimate that "looks authoritative" is the support risk calcHPP's own count exists for.
+ * The count is a fact about what is saved, so it is stated as one ("N of M … entered").
+ * @param {any} priorTy @param {'hours'|'ytd'|'exact'|'unknown'} source @returns {string}
+ */
+function _priorSourcePhrase(priorTy, source) {
+  if (source === 'exact') return 'Entered by you';
+  if (source === 'ytd')   return `Rough estimate from your ${priorTy.label} Year to Date pay`;
+  if (source === 'hours') {
+    const h = _hoursEstimate(priorTy, getPeriods());
+    if (h.pCount > 0) return `${h.pCount} of ${h.total} ${priorTy.label} payslip${h.total !== 1 ? 's' : ''} entered`;
+  }
+  return `Estimated from your ${priorTy.label} payslips`;
+}
+
+/**
  * Update the prior-year HPP section of the HPP card.
  * @param {any} ty - Current tax year object from CONFIG.TAX_YEARS.
  */
@@ -602,6 +651,9 @@ export function updatePriorHpp(ty) {
   // from their payslip has confirmed it (v17.26). smart-parse so a pre-v16.84 raw "1,200" self-heals.
   const hasActual = actualRaw != null && actualRaw.trim() !== '';
   const actual    = hasActual ? Math.max(0, parseSmartFloat(actualRaw) || 0) : 0;
+  // A STORED figure is whatever that year's own amount source last wrote; one computed below is from
+  // the saved hours. The block says which (paycalc-2-4) — see _priorSourcePhrase.
+  const _fromStore = est > 0;
 
   // If no stored estimate yet, compute on the fly so the prior-year HPP section
   // is populated on first login even before the user has visited a prior-year period.
@@ -661,6 +713,14 @@ export function updatePriorHpp(ty) {
   const dueBadge = document.getElementById('priorHppDueBadge');
   if (dueBadge) dueBadge.classList.toggle('hidden', !isJanPayday || hasActual);
 
+  // The confirm box opens once the January payslip carrying the premium can be IN THE MEMBER'S HAND —
+  // from its cut-off, not its payday: payslips are issued before they pay, and `payslipMayBeInHand`
+  // is the app's one rule for that (v24.87), already obeyed by the Year to Date picker and the
+  // "Check against your payslip" box. On the payday proxy this box stayed locked for six days while
+  // the card above it said "enter the confirmed amount below" (paycalc-2-3). A stored actual keeps
+  // it open whatever the date: a wrong figure must never be locked in.
+  const inHand = !!(_carrier && payslipMayBeInHand(/** @type {any} */ (_carrier)));   // a full grid period
+
   const amtLabel = document.getElementById('priorHppAmtLabel');
   const amtEl    = document.getElementById('priorHppAmt');
   const basisEl  = document.getElementById('priorHppBasis');
@@ -670,11 +730,14 @@ export function updatePriorHpp(ty) {
     if (amtEl)    amtEl.textContent   = fmt(actual);
     if (basisEl)  basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
   } else if (est > 0) {
-    if (amtLabel) amtLabel.textContent = isJanPayday ? 'Expected on this payslip' : 'Estimated';
+    const source = _fromStore ? _savedSourceOf(priorTy) : 'hours';
+    const basis  = _priorSourcePhrase(priorTy, source);
+    if (amtLabel) amtLabel.textContent = isJanPayday ? 'Expected on this payslip' : source === 'exact' ? 'Your figure' : 'Estimated';
     if (amtEl)    amtEl.textContent    = fmt(est);
-    if (basisEl)  basisEl.textContent  = isJanPayday
-      ? `Check your January ${priorTy.hppPaidJan} payslip and enter the confirmed amount below`
-      : `Estimated from your ${priorTy.label} periods · due January ${priorTy.hppPaidJan}`;
+    // Never "enter the confirmed amount below" over a box that is still locked.
+    if (basisEl)  basisEl.textContent  = !isJanPayday ? `${basis} · due January ${priorTy.hppPaidJan}`
+      : inHand ? `${basis} — check your January ${priorTy.hppPaidJan} payslip and enter the confirmed amount below`
+      : `${basis} — enter the confirmed amount below once your January ${priorTy.hppPaidJan} payslip arrives`;
   } else {
     if (amtLabel) amtLabel.textContent = 'Estimated';
     if (amtEl)    amtEl.textContent    = '£–';
@@ -689,26 +752,24 @@ export function updatePriorHpp(ty) {
   }
 
   const input = document.getElementById('priorHppActualInput');
-  // The confirm input is DISABLED until the January payslip carrying the premium EXISTS
-  // (v18.51 — mirrors the back-pay manual-entry gate): there is no printed figure to copy from a
-  // payslip that hasn't been paid. First January payday of the due year = the earliest it can
-  // arrive; a stored actual (shouldn't exist pre-payday) still displays either way.
-  const _janPayday = _carrier?.payday;
-  const _janArrived = !!(_janPayday && _janPayday < new Date());
+  // DISABLED until that payslip can be in hand (`inHand`, above): there is no printed figure to copy
+  // before then. A stored actual keeps it enabled.
   if (input) {
     const stored = actualRaw || '';
     if (document.activeElement !== input) /** @type {HTMLInputElement} */ (input).value = stored;
-    /** @type {HTMLInputElement} */ (input).disabled = !_janArrived && !hasActual;
+    /** @type {HTMLInputElement} */ (input).disabled = !inHand && !hasActual;
   }
   // The entry apparatus must not go stale once a figure is confirmed (v17.99): the "enter when the
   // payslip arrives" note only shows while EMPTY, and the hint flips to how to undo.
   const actNote = document.getElementById('priorHppActualNote');
   if (actNote) actNote.classList.toggle('hidden', hasActual);
   const actHint = document.getElementById('priorHppActualHint');
+  // The premium joins a take-home only through the opt-in tick in that payslip's green note, so the
+  // hint says where that is rather than promising the take-home changes on its own (paycalc-2-1).
   if (actHint) actHint.innerHTML = hasActual
     ? 'Entered from your January payslip — clear the box to go back to the estimate.'
-    : _janArrived
-      ? `Find the <strong>Holiday Pay Premium</strong> line on your January ${priorTy.hppPaidJan} payslip and enter it here — it replaces the estimate above and updates your January take-home.`
+    : inHand
+      ? `Find the <strong>Holiday Pay Premium</strong> line on your January ${priorTy.hppPaidJan} payslip and enter it here — it replaces the estimate above. To count it in that payslip's take-home, tick the box in its green note.`
       : `Unlocks when your January ${priorTy.hppPaidJan} payslip arrives — the confirmed <strong>Holiday Pay Premium</strong> figure on it replaces the estimate above.`;
 
   section.classList.remove('hidden');

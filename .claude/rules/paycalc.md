@@ -133,7 +133,7 @@ runs.
   (calendar-filled ahead of time) the count reads "N paid and M upcoming payslips entered" (`paidCount`
   in `_hoursEstimate`), matching the Year to Date card's "N of N paid" frame.
 - **The prior-year confirm input is GATED:** `#priorHppActualInput` is disabled until the January
-  payslip carrying the premium exists (the first January payday of the due year has passed), with an
+  payslip carrying the premium can be in hand (from its cut-off — `payslipMayBeInHand`), with an
   "Unlocks when your January ⟨year⟩ payslip arrives" hint — EXCEPT when a stored actual already exists,
   which always keeps the input enabled (the repair path: a wrong figure must never be locked in). Its
   placeholder is an example figure ("e.g. 1,843.01"), never the zero-like "0.00".
@@ -400,8 +400,8 @@ on the 24 Oct 2025 payslip — the same date as `londonAllowFrom`).
 3. **The notice does not restate the paid-in payslip** whenever `bpP` is set (the story strip and hero
    eyebrow already name it, date-first + P-number) — it carries only the taxed-in-full fact (+ the
    missing-hours line).
-4. **"Enter the amount from your payslip" is DISABLED until the paid-in payslip exists**
-   (`payday < now`): there is no printed figure to copy from a future payslip. A restored manual
+4. **"Enter the amount from your payslip" is DISABLED until the paid-in payslip can be in hand**
+   (from its cut-off — `payslipMayBeInHand`): there is no printed figure to copy before then. A restored manual
    selection for a still-future payslip falls back to compute (`applyBpMode('compute')`, with the
    persisted state healed by `_saveBpState`). A prior/paid award keeps manual enabled and as default.
 

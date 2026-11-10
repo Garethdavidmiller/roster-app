@@ -497,3 +497,22 @@ describe('manual mode returns what the member typed, and nothing else', () => {
         assert.match(els.backPayNotice.textContent, /Select which payslip/);
     });
 });
+
+// ── WHEN THE PAYSLIP'S FIGURE CAN BE COPIED (paycalc-2-3) ───────────────────────────────────────
+// The one case here that moves the clock, and only inside itself: the gate is ABOUT the date.
+describe('"Enter the amount from your payslip" opens once that payslip can be in hand', () => {
+    const PAID = /** @type {any} */ (PERIODS.find(/** @param {any} p */ p => p.num === PAID_IN));
+
+    test('locked before the paid-in payslip\'s cut-off, open from it — days before its payday', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(PAID.cutoff.getTime() - 3600e3) });
+        openCard();
+        calcBackPay();
+        assert.equal(els.bpModeManual.disabled, true, 'no printed figure exists before the cut-off');
+
+        t.mock.timers.setTime(PAID.cutoff.getTime() + 3600e3);
+        assert.ok(new Date() < PAID.payday, 'precondition: payday is still ahead, so the payday proxy would lock it');
+        calcBackPay();
+        assert.equal(els.bpModeManual.disabled, false,
+            'payslips are issued before they pay: from the cut-off the member may hold it (payslipMayBeInHand)');
+    });
+});

@@ -1,21 +1,21 @@
 /**
- * Unit tests for the three pure exports of paycalc-hpp.js:
- *   isDataEmpty, _decodeHours, _varPayForPeriod
+ * Unit tests for paycalc-hpp.js: the pure exports (isDataEmpty, _decodeHours, _varPayForPeriod, …)
+ * and, against a fake `document`, the card itself — the prior-year block a member reads on the
+ * January payslip, and the amount-source state.
  *
  * Run: node --experimental-test-module-mocks --test paycalc-hpp.test.mjs
  *
- * DOM-dependent functions (calcHPP, updatePriorHpp) are not tested here;
- * they require a live DOM and belong in a Playwright smoke suite (item 7).
- *
  * Mock strategy:
- *   paycalc-periods.js   — mocked with controllable hasBankHoliday/hasBoxingDay flags
- *   paycalc-settings.js  — mocked: getEffectiveContr→140, getProRateFactor→1
+ *   paycalc-periods.js   — mocked: controllable hasBankHoliday/hasBoxingDay flags and the viewed
+ *                          period; the GRID, the tax years and `payslipMayBeInHand` are the REAL ones
+ *                          (loaded through `?real`), so a date a test pins is the app's own date
+ *   paycalc-settings.js  — mocked: getEffectiveContr→140, a controllable pro-rate, grade and rate
  *   ls.js / roster-data.js — mocked (no Firebase transitive deps)
- *   paycalc-calc.js / paycalc-migrations.js — imported real (pure, no Firebase)
+ *   paycalc-calc.js / paycalc-migrations.js / paycalc-hpp-schedule.js — imported real (pure)
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { RATE_125, RATE_150, RATE_300 } from './paycalc-calc.js';
+import { RATE_125, RATE_150, RATE_300, awardRatesFor } from './paycalc-calc.js';
 
 // ── Mock-controllable state ───────────────────────────────────────────────────
 
@@ -23,22 +23,33 @@ const _ls = new Map();
 let _hasBankHolidayVal = false;
 let _hasBoxingDayVal   = false;
 let _proRate           = 1;
+let _grade             = 'cea';
+/** The payslip on screen (`currentPeriodNum`). */
+let _viewPNum          = 48;
+/** The settled rate the settings module would derive (its real rule: AWARD_RATES by grade). */
+let _settledRate = (/** @type {any} */ ty) => awardRatesFor(_grade, ty?.label)?.rate ?? 20.74;
+
+// The real period module, so the grid, the tax years and the in-hand rule are the app's own. It
+// reaches Firebase only through the suggestion module, which is all this stands in for.
+mock.module('./paycalc-roster-suggestions.js', { namedExports: { bhsForYear: () => [] } });
+const _realPeriods = await import('./paycalc-periods.js?real');
 
 mock.module('./paycalc-periods.js', {
     namedExports: {
         hasBankHoliday:   () => _hasBankHolidayVal,
         hasBoxingDay:     () => _hasBoxingDayVal,
-        getPeriods:       () => [],
-        currentPeriodNum: () => 48,
-        todaysPeriodNum:  () => 48,
+        getPeriods:       () => _realPeriods.getPeriods(),
+        currentPeriodNum: () => _viewPNum,
+        todaysPeriodNum:  () => _realPeriods.todaysPeriodNum(),
         isTaxYearVisible: () => true,   // new-starter clamp — default visible; updatePriorHpp gates on it
-        CONFIG:           { TAX_YEARS: [] },
+        payslipMayBeInHand: _realPeriods.payslipMayBeInHand,
+        CONFIG:           _realPeriods.CONFIG,
     },
 });
 
 mock.module('./paycalc-settings.js', {
     namedExports: {
-        getGrade:          () => 'cea',
+        getGrade:          () => _grade,
         getLoggedMember:   () => null,
         getEffectiveContr: () => 140,
         // CONTROLLABLE (test audit, 7 Nov 2026). It was a constant 1, so multiplying any premium in
@@ -46,7 +57,7 @@ mock.module('./paycalc-settings.js', {
         // pro-rated for a joiner) had nothing behind it. The module still imports it for other work.
         getProRateFactor:  () => _proRate,
         getPensionDefault: () => 147.36,
-        getStoredRateForYear: () => 20.74,
+        getStoredRateForYear: (/** @type {any} */ ty) => _settledRate(ty),
         isPensionOptedOut: () => false,
     },
 });
@@ -81,8 +92,67 @@ mock.module('./roster-data.js', {
     },
 });
 
+// ── A fake document for the card ──────────────────────────────────────────────
+// Every id the card writes, as stubs that RECORD what they were given — a harness that discarded
+// writes could not tell "Estimated" from "Your figure", or a locked box from an open one.
+/** @type {Record<string, any>} */
+const _els = {};
+function _node(/** @type {string} */ id) {
+    return {
+        id, value: '', checked: false, disabled: false, hidden: false, style: /** @type {Record<string,string>} */ ({}),
+        _t: '', _h: '',
+        classList: {
+            _s: new Set(),
+            add(/** @type {string} */ c) { this._s.add(c); },
+            remove(/** @type {string} */ c) { this._s.delete(c); },
+            toggle(/** @type {string} */ c, /** @type {boolean|undefined} */ on) {
+                const want = on === undefined ? !this._s.has(c) : !!on;
+                if (want) this._s.add(c); else this._s.delete(c);
+                return want;
+            },
+            contains(/** @type {string} */ c) { return this._s.has(c); },
+        },
+        set textContent(v) { this._t = String(v); this._h = ''; },
+        get textContent() { return this._t || this._h.replace(/<[^>]+>/g, ''); },
+        set innerHTML(v) { this._h = String(v); this._t = ''; },
+        get innerHTML() { return this._h || this._t; },
+    };
+}
+const _CARD_IDS = [
+    'priorHppSection', 'priorHppTitle', 'currentHppTitle', 'priorHppDueBadge', 'priorHppAmtLabel',
+    'priorHppAmt', 'priorHppBasis', 'priorHppActualInput', 'priorHppActualNote', 'priorHppActualHint',
+    'hppLabel', 'hppNote', 'hppAmount', 'hppBasis', 'hppModeHoursAmt', 'hppModeYtdAmt', 'hppModeExactAmt',
+    'hppYtdWrap', 'hppExactWrap', 'hppExactAmt', 'ytdPay',
+];
+/** The three amount-source radios, as one group: checking one unchecks the others. */
+const _RADIOS = { hppModeHours: 'hours', hppModeYtd: 'ytd', hppModeExact: 'exact' };
+function _resetDom() {
+    for (const id of _CARD_IDS) _els[id] = _node(id);
+    for (const [id, value] of Object.entries(_RADIOS)) {
+        const n = _node(id);
+        let on = value === 'hours';
+        Object.defineProperty(n, 'checked', {
+            get: () => on,
+            set: (v) => { on = !!v; if (on) for (const o of Object.keys(_RADIOS)) if (o !== id) _els[o]._off(); },
+        });
+        n._off = () => { on = false; };
+        n.value = value;
+        _els[id] = n;
+    }
+}
+_resetDom();
+globalThis.document = /** @type {any} */ ({
+    activeElement: null,
+    getElementById: (/** @type {string} */ id) => _els[id] ?? null,
+    querySelector: (/** @type {string} */ sel) => (sel === 'input[name="hppMode"]:checked'
+        ? Object.keys(_RADIOS).map(id => _els[id]).find(n => n.checked) ?? null
+        : null),
+});
+
 const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
-        priorHppToStore } = await import('./paycalc-hpp.js');
+        priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState } = await import('./paycalc-hpp.js');
+const { periodKey, hppEstKey, hppActualKey, hppModeKey } = await import('./paycalc-migrations.js');
+const { getPeriods, CONFIG: PERIOD_CONFIG } = _realPeriods;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,7 +161,18 @@ function reset() {
     _hasBankHolidayVal = false;
     _hasBoxingDayVal   = false;
     _proRate           = 1;
+    _grade             = 'cea';
+    _viewPNum          = 48;
+    _resetDom();
 }
+
+/** The two tax years the grid holds, from the REAL table. */
+const TY25 = /** @type {any} */ (PERIOD_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2025/26'));
+const TY26 = /** @type {any} */ (PERIOD_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
+/** A period of the real grid by number. @param {number} n */
+const P = (n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+/** Save hours on a payslip of the real grid. @param {number} n @param {Record<string, number>} d */
+const saveHours = (n, d) => _ls.set(periodKey(n), JSON.stringify(d));
 
 /**
  * Period 50 (2026/27): payday Apr 10 2026.
@@ -392,5 +473,118 @@ describe('_varPayForPeriod — no joiner pro-rate (invariant 7)', () => {
             _proRate = f;
             assertPounds(_varPayForPeriod(makeP50(), d, RATE), full, `factor ${f.toFixed(3)}`);
         }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE PRIOR-YEAR BLOCK — what a member reads on the January payslip (paycalc-2-3, paycalc-2-4)
+// ─────────────────────────────────────────────────────────────────────────────
+// Driven through the REAL `updatePriorHpp` against the fake document and the real grid. Last year's
+// premium is the figure that lands on the January payslip and can be ticked into its take-home, so
+// what this block says about it — where it came from, and whether the box beneath it is open — is
+// what a member acts on in January.
+
+const { hppPayslipForTaxYear } = await import('./paycalc-hpp-schedule.js');
+/** The January payslip that carries 2025/26's premium — asked of the schedule, never written down. */
+const JAN = /** @type {any} */ (hppPayslipForTaxYear(TY25, getPeriods()));
+const HOUR = 3600e3;
+/** Paint the block for the payslip on screen at an instant. @param {any} t @param {Date} now */
+function paintAt(t, now, pNum = JAN.num) {
+    t.mock.timers.enable({ apis: ['Date'], now });
+    _viewPNum = pNum;
+    updatePriorHpp(TY26);
+}
+
+describe('the confirm box opens once the January payslip can be in hand (paycalc-2-3)', () => {
+    beforeEach(reset);
+
+    test('precondition: the carrier is a January payslip whose cut-off comes days before its payday', () => {
+        assert.ok(JAN, 'the grid reaches the January that carries 2025/26');
+        assert.equal(JAN.payday.getMonth(), 0);
+        assert.ok(JAN.payday - JAN.cutoff >= 5 * 24 * HOUR, 'cut-off and payday must be days apart, or this proves nothing');
+    });
+
+    test('locked before the cut-off, and the card does not ask for a figure it cannot take', (t) => {
+        saveHours(45, { otH: 20, otM: 0 });                  // a 2025/26 payslip → an estimate to show
+        paintAt(t, new Date(JAN.cutoff.getTime() - HOUR));
+        assert.equal(_els.priorHppActualInput.disabled, true);
+        assert.match(_els.priorHppActualHint.textContent, /Unlocks when your January \d{4} payslip arrives/);
+        assert.doesNotMatch(_els.priorHppBasis.textContent, /check your January \d{4} payslip and enter/,
+            'the basis line asked for the confirmed amount over a locked box');
+        assert.match(_els.priorHppBasis.textContent, /once your January \d{4} payslip arrives/);
+    });
+
+    test('OPEN from the cut-off, through the days before payday and the morning of payday itself', (t) => {
+        saveHours(45, { otH: 20, otM: 0 });
+        for (const [label, now] of [
+            ['an hour after the cut-off', new Date(JAN.cutoff.getTime() + HOUR)],
+            ['the day before payday', new Date(JAN.payday.getTime() - 24 * HOUR)],
+            ['07:30 on payday', new Date(JAN.payday.getFullYear(), 0, JAN.payday.getDate(), 7, 30)],
+        ]) {
+            t.mock.timers.reset();
+            _resetDom();
+            paintAt(t, /** @type {Date} */ (now));
+            assert.equal(_els.priorHppActualInput.disabled, false, `${label}: the payslip may be in hand, so the box must be open`);
+            assert.match(_els.priorHppActualHint.textContent, /Find the Holiday Pay Premium line/, String(label));
+            assert.match(_els.priorHppBasis.textContent, /check your January \d{4} payslip and enter the confirmed amount below/, String(label));
+        }
+    });
+
+    test('a stored figure keeps the box open whatever the date — a wrong figure is never locked in', (t) => {
+        _ls.set(hppActualKey(TY25), '100.00');
+        paintAt(t, new Date(JAN.cutoff.getTime() - 30 * 24 * HOUR), 58);
+        assert.equal(_els.priorHppActualInput.disabled, false);
+    });
+
+    test('the open hint says where the take-home choice is, rather than promising it moves by itself', (t) => {
+        saveHours(45, { otH: 20, otM: 0 });
+        paintAt(t, new Date(JAN.payday.getTime() + HOUR));
+        // The premium is OPT-IN: a confirmed figure changes the take-home only once ticked in.
+        assert.doesNotMatch(_els.priorHppActualHint.textContent, /updates your January take-home/);
+        assert.match(_els.priorHppActualHint.textContent, /tick the box in its green note/);
+    });
+});
+
+describe('last year\'s premium says what it was built from (paycalc-2-4)', () => {
+    beforeEach(reset);
+    const NOT_JAN = 58;                                       // a 2026/27 payslip that is not the carrier
+
+    test('from hours: the count of last year\'s payslips entered, not a bare "estimated from your periods"', (t) => {
+        saveHours(45, { sunH: 10, sunM: 0 });                 // ONE payslip of thirteen
+        paintAt(t, new Date(2026, 10, 10, 10), NOT_JAN);
+        assert.equal(_els.priorHppAmtLabel.textContent, 'Estimated');
+        assert.equal(_els.priorHppBasis.textContent, '1 of 13 2025/26 payslips entered · due January 2027');
+    });
+
+    test('a figure the member typed is labelled as theirs, never "Estimated"', (t) => {
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'exact', exact: '1500' }));
+        _ls.set(hppEstKey(TY25), '1500.00');
+        saveHours(45, { sunH: 10, sunM: 0 });                 // hours exist too — the TYPED figure is the one stored
+        paintAt(t, new Date(2026, 10, 10, 10), NOT_JAN);
+        assert.equal(_els.priorHppAmtLabel.textContent, 'Your figure');
+        assert.equal(_els.priorHppAmt.textContent, '£1,500.00');
+        assert.equal(_els.priorHppBasis.textContent, 'Entered by you · due January 2027');
+    });
+
+    test('a figure from the Year to Date card says it is the rough one', (t) => {
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'ytd', exact: '' }));
+        _ls.set(hppEstKey(TY25), '210.40');
+        paintAt(t, new Date(2026, 10, 10, 10), NOT_JAN);
+        assert.equal(_els.priorHppBasis.textContent, 'Rough estimate from your 2025/26 Year to Date pay · due January 2027');
+    });
+
+    test('an unreadable saved choice claims no source it cannot know', (t) => {
+        _ls.set(hppModeKey(TY25), '{"mode":"exa');
+        _ls.set(hppEstKey(TY25), '1500.00');
+        paintAt(t, new Date(2026, 10, 10, 10), NOT_JAN);
+        assert.equal(_els.priorHppAmtLabel.textContent, 'Estimated');
+        assert.equal(_els.priorHppBasis.textContent, 'Estimated from your 2025/26 payslips · due January 2027');
+    });
+
+    test('on the January payslip itself the basis survives beside the instruction', (t) => {
+        saveHours(45, { sunH: 10, sunM: 0 });
+        paintAt(t, new Date(JAN.payday.getTime() + HOUR));
+        assert.equal(_els.priorHppAmtLabel.textContent, 'Expected on this payslip');
+        assert.match(_els.priorHppBasis.textContent, /^1 of 13 2025\/26 payslips entered — check your January 2027 payslip/);
     });
 });

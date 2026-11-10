@@ -1381,6 +1381,8 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('change', () => {
       const curP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       commitPriorHppActual(taxYearForPeriod(curP), /** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value);
+      // The January take-home, its banner, chips and the year block all read the stored figure.
+      calculate();
     });
 
     // HPP opt-in tick — lives IN the January-payslip banner (#hppBannerTick). The per-year flag it

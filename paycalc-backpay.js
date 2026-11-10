@@ -19,7 +19,7 @@ import {
   RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, awardRatesFor, awardFromForYear, capHours,
 } from './paycalc-calc.js';
-import { CONFIG as PERIOD_CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect } from './paycalc-periods.js';
+import { CONFIG as PERIOD_CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
@@ -619,11 +619,13 @@ export function calcBackPay() {
   // ticked. The card still computes and shows the lump either way; the coordinator gates the gross.
   const bpIncluded = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked);
 
-  // "Enter the amount from your payslip" needs the paid-in payslip to EXIST (v18.48): until that
-  // payday has passed there is no printed figure to copy, so the option is disabled. A restored
-  // manual selection for a still-future payslip falls back to compute (applyBpMode also fixes the
-  // field-group visibility, and _saveBpState below heals the persisted mode).
-  const _payslipExists = !!(bpP && bpP.payday < new Date());
+  // "Enter the amount from your payslip" needs the paid-in payslip in the member's HAND (v18.48):
+  // before then there is no printed figure to copy, so the option is disabled. In hand from its
+  // CUT-OFF, not its payday — payslips are issued before they pay, and `payslipMayBeInHand` is the
+  // app's one rule for that (paycalc-2-3). A restored manual selection for a payslip not yet in
+  // hand falls back to compute (applyBpMode also fixes the field-group visibility, and
+  // _saveBpState below heals the persisted mode).
+  const _payslipExists = !!(bpP && payslipMayBeInHand(bpP));
   const _manualRadio   = /** @type {HTMLInputElement|null} */ (document.getElementById('bpModeManual'));
   if (_manualRadio) {
     _manualRadio.disabled = !_payslipExists;
