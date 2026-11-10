@@ -707,7 +707,7 @@ export function init() {
     function renderError(host, retry) {
         if (!host) return;
         host.innerHTML = `
-            <div class="ot-state ot-state--error">
+            <div class="ot-state ot-state--error" role="alert">
                 <span class="ot-state-icon" aria-hidden="true">⚠️</span>
                 Couldn't load overtime availability.
                 <div class="ot-state-actions">

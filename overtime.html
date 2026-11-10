@@ -136,7 +136,10 @@
             </div>
             <div class="card-collapsible-body open" id="otMineBody">
                 <div class="card-body">
-                    <div id="otMineContent" aria-live="polite"></div>
+                    <!-- NOT a live region (overtime-ui-13): the form inside is rebuilt on every answer, so
+                         a polite card handed a screen reader the whole week each time. What is worth
+                         hearing announces itself — the form's feedback line, and an error card (an alert). -->
+                    <div id="otMineContent"></div>
                     <!-- The identical phrasing to the ? panel's line — one fact, one sentence,
                          wherever it is stated. "Your submitted overtime availability" was the
                          mouthful version of "what you submit". -->

@@ -367,11 +367,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // NO ANSWER REQUIRED, unlike the willingness tick above — this asks about CONTRACTED
             // work, so it stands on its own. And it ANSWERS NOTHING: on a day with no availability
             // answer the working copy holds `{ releaseRequested: true }` with no mode, which
-            // `dayUnfinished` still counts as unanswered. Until v23.87 this line wrote
-            // `{ mode: 'unavailable' }` underneath, reasoning that it was "the honest mode for I have
-            // said nothing" — the one answer this feature must never invent, and the completeness
-            // check then stopped asking for the Sunday (external review of v23.85). The rules are
-            // overtime-answer.js's; this is only the wiring.
+            // `dayUnfinished` still counts as unanswered. Until v23.87 it wrote `{ mode: 'unavailable' }`
+            // underneath — the one answer this feature must never invent — and the completeness check
+            // stopped asking for the Sunday. The rules are overtime-answer.js's; this is the wiring.
             setAnswer(date, withRelease(answers[date], /** @type {HTMLInputElement} */ (box).checked));
             paintDays();
             focusRelease(date);
@@ -507,7 +505,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     function staleNote(date, a, c) {
         const next = c?.hasTime && modesFor(c).includes(a.mode) ? reanchored(a, c) : null;
         const words = next ? answerCopy({ mode: next.mode, until: next.until, from: next.from }).replace(/^Available /, '') : '';
-        return `<p class="ot-day-stale" role="status">Your shift has changed since you answered. Your answer
+        return `<p class="ot-day-stale">Your shift has changed since you answered. Your answer
             still says <strong>${esc(answerCopy(a))}</strong> — change it if that no longer suits.${next ? `
             <button type="button" class="ot-mode ot-mode--yes" data-reanchor="${esc(date)}">Change it to ${esc(words)}</button>` : ''}</p>`;
     }   // (the answer pills' recipe: it chooses an available answer, and takes their 44px touch target)
@@ -615,12 +613,13 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // one (now a rest day, or the roster unread) — as `fullTwelveRow` does (overtime-ui-6).
         if (!offersSundayRelease(date, c) && a?.releaseRequested !== true) return '';
         const on = a?.releaseRequested === true;
+        // The note is the tick's DESCRIPTION, not a live region re-announced at every repaint (overtime-ui-13).
         return `
             <label class="ot-release">
-                <input type="checkbox" class="ot-release-box" data-release="${esc(date)}"${on ? ' checked' : ''}>
+                <input type="checkbox" class="ot-release-box" data-release="${esc(date)}"${on ? ` checked aria-describedby="otReleaseSaid-${esc(date)}"` : ''}>
                 <span>${esc(SUNDAY_RELEASE_LABEL)}</span>
             </label>
-            ${on ? `<p class="ot-release-said" role="status">${esc(SUNDAY_RELEASE_ASKED)}</p>` : ''}`;
+            ${on ? `<p class="ot-release-said" id="otReleaseSaid-${esc(date)}">${esc(SUNDAY_RELEASE_ASKED)}</p>` : ''}`;
     }
 
     /** @param {string} date @param {any} a */

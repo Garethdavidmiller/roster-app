@@ -479,6 +479,64 @@ test.describe('member surface', () => {
         await expect(page.locator('.ot-day').nth(1).locator('.ot-day-stale'), 'one day at a time').toHaveCount(1);
     });
 
+    test('one answer is not a reading of the whole week to a screen reader (overtime-ui-13)', async ({ page }) => {
+        // The card was one polite live region holding the form, and every press rebuilds all seven
+        // days — measured: 15 nodes, the whole week's text, queued after a single answer, with every
+        // "Your shift has changed" note (each a role="status" of its own) re-inserted alongside.
+        await seedSession(page, 'G. Miller');
+        const dates = weekDates(W.weekStart);
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), docs: rows };
+        }, dates.map(d => ({ id: `G. Miller|${d}`, memberName: 'G. Miller', date: d,
+            type: 'shift', value: '12:00-20:00', note: '', source: 'manual' })));
+        const days = Object.fromEntries(dates.map(d => [d, { mode: 'after', from: '15:00' }]));
+        days[dates[0]] = { ...days[dates[0]], releaseRequested: true };   // a Sunday request, and its note
+        await stubOvertime(page, { windows: [openWindow({ submission: { currentRevision: 1, days } })] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day-stale')).toHaveCount(7);
+        await expect(page.locator('.ot-release-said')).toHaveCount(1);
+        await page.evaluate(() => {
+            const w = /** @type {any} */ (window);
+            w.__heard = [];
+            const ROLE_LIVE = /** @type {Record<string, string>} */ ({ status: 'polite', alert: 'assertive', log: 'polite' });
+            const liveRoot = (/** @type {Node} */ n) => {
+                for (let e = n.nodeType === 1 ? /** @type {Element} */ (n) : n.parentElement; e; e = e.parentElement) {
+                    const live = e.getAttribute('aria-live') || ROLE_LIVE[e.getAttribute('role') || ''];
+                    if (live) return live === 'off' ? null : e;
+                }
+                return null;
+            };
+            const say = (/** @type {Element} */ root, /** @type {Node} */ n) => {
+                if ((n.textContent || '').trim()) w.__heard.push(`${root.id || root.className}: ${(n.textContent || '').trim().slice(0, 60)}`);
+            };
+            new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) {
+                const root = liveRoot(n);
+                if (root) { say(root, n); continue; }
+                // …and a live region arriving INSIDE what was added: each is announced in its own right.
+                if (n.nodeType === 1) {
+                    for (const r of /** @type {Element} */ (n).querySelectorAll('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"], [role="log"]')) say(r, r);
+                }
+            } }).observe(document.body, { childList: true, subtree: true });
+        });
+        const third = page.locator('.ot-day').nth(3);
+        await third.getByRole('radio', { name: 'Not available' }).click();
+        await expect(third.locator('[role="radio"][aria-checked="true"]')).toHaveText('Not available');
+        expect(await page.evaluate(() => /** @type {any} */ (window).__heard), 'handed to a screen reader by one answer')
+            .toEqual([]);
+        // The Sunday's note is still READ: as its tick's description, whenever the keyboard is on it.
+        await expect(page.locator('.ot-release-box')).toHaveAccessibleDescription(/the roster team will decide/);
+    });
+
+    test('a form that cannot load says so to a screen reader, now the card is not a live region (overtime-ui-13)', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }));
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent [role="alert"]')).toContainText("Couldn't load overtime availability");
+    });
+
     test('opening another week runs the open routine ONCE, not once per list on the page', async ({ page }) => {
         // `wireWeekButtons` searched the whole card and was called twice — once for the open weeks,
         // once for the closed ones — so the second call re-wired the first list. One tap then ran
