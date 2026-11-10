@@ -173,10 +173,12 @@ export const teamMembers = [
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
-    // On the CES rotation from his 9 Jun 2026 start (currentWeek:5 anchors him from the
-    // 15 Feb CES reference so July lands on week 5).
+    // On the CES rotation from his 9 Jun 2026 start, on the line that was vacant until then — the
+    // `currentWeek: 4` the vacant row carried, REFERENCE-ANCHORED (.claude/rules/roster-data.md). It
+    // was 5 until 10 Nov 2026, chosen because 5 DISPLAYED week 4 on 1 Jul; but 5 is G. Rotaru's
+    // anchor, so the two rows drew the same turns every week while the real vacancy stayed empty.
     // noProRate: pay and AL are full-year (CES 34) despite the mid-year startDate.
-    { name: 'B. Khalil',               currentWeek: 5,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; CES week-5 line is a vacancy. Row kept so his past shifts and overrides still resolve
+    { name: 'B. Khalil',               currentWeek: 4,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; his line (currentWeek 4) is the CES vacancy. Row kept so his past shifts and overrides still resolve
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },

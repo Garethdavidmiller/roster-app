@@ -1016,15 +1016,19 @@ test('B. Khalil: RD before his 9 Jun 2026 start date', () => {
     assert.equal(getBaseShift(k, d(2026, 6, 8)), 'RD'); // 8 Jun — day before start
 });
 
+// His line is the one that was vacant when he arrived (anchor 4). These read 05:40-14:30 on 10 Jun and
+// 05:40-15:00 on 13 Jun until 10 Nov 2026 — G. Rotaru's turns, from the anchor his row wrongly shared
+// (roster-member-data.js). That week his own line is CES week 10; the early turns come a week later.
 test('B. Khalil: on the CES rotation (not a fixed line) from June', () => {
     const k = teamMembers.find(m => m.name === 'B. Khalil');
     assert.equal(getRosterForMember(k, d(2026, 6, 10)).type, 'ces'); // June already the CES roster
-    assert.equal(getBaseShift(k, d(2026, 6, 10)), '05:40-14:30');    // Wed 10 Jun — CES week-1 early shift
+    assert.equal(getBaseShift(k, d(2026, 6, 10)), 'SPARE');          // Wed 10 Jun — CES week 10
+    assert.equal(getBaseShift(k, d(2026, 6, 17)), '05:40-14:30');    // Wed 17 Jun — CES week-1 early shift
 });
 
 test('B. Khalil: works CES early shifts incl. some Saturdays (not a fixed 12:00-19:00 line)', () => {
     const k = teamMembers.find(m => m.name === 'B. Khalil');
-    assert.equal(getBaseShift(k, d(2026, 6, 13)), '05:40-15:00'); // Sat 13 Jun — CES week-1 works the Saturday
+    assert.equal(getBaseShift(k, d(2026, 6, 20)), '05:40-15:00'); // Sat 20 Jun — CES week-1 works the Saturday
 });
 
 test('B. Khalil: stays on the CES roster across the 1 July boundary', () => {
@@ -1606,6 +1610,51 @@ test('every rosterChanges entry has a valid rosterType and currentWeek', () => {
     assert.deepEqual(bad, [], `Invalid rosterChanges entries:\n  ${bad.join('\n  ')}`);
 });
 
+// ── NO TWO PEOPLE ON ONE LINE (whole-app review, 10 Nov 2026) ────────────────────────────────────
+//
+// A rotating line is one person's. Two rows that resolve to the same week of the same roster on the
+// same day means one carries the wrong anchor and is drawn somebody else's turns. B. Khalil's row sat
+// like that for five months: given anchor 5 because 5 DISPLAYED week 4 on 1 Jul (the reference-anchored
+// mistake .claude/rules/roster-data.md warns about), it shared G. Rotaru's line while the real vacancy,
+// anchor 4, stayed empty. The range checks above cannot see it — 5 is in range.
+//
+// One kind of sharing is legitimate, a SUCCESSION: a leaver's row is kept (hidden) so their past still
+// resolves, and somebody later takes the line. So, on every day: at most one current row per line, and
+// a hidden row may share only a line it was on BEFORE the current holder arrived. Fixed patterns are
+// shared by design and are not lines.
+test('no two rows hold one rotating line, except a leaver\'s line taken after them', () => {
+    const ROTATING = new Set(['main', 'bilingual', 'ces', 'dispatcher']);
+    const midnight = (/** @type {Date} */ x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    /** When a row came onto the line it holds on `day`: the later of its start and the move in force. */
+    const arrived = (/** @type {any} */ m, /** @type {Date} */ day) => Math.max(
+        m.startDate ? midnight(m.startDate) : -Infinity,
+        ...(m.rosterChanges ?? []).map((/** @type {any} */ c) => midnight(c.from)).filter((/** @type {number} */ f) => f <= midnight(day)));
+    /** @type {Map<string, string>} */
+    const shared = new Map();
+    for (let day = new Date(2024, 0, 1, 12); day <= new Date(2027, 11, 31, 12); day.setDate(day.getDate() + 1)) {
+        /** @type {Map<string, any[]>} */
+        const lines = new Map();
+        for (const m of teamMembers) {
+            if (m.managerOnly || (m.startDate && midnight(day) < midnight(m.startDate))) continue;
+            const type = resolveMemberRoster(m, day).rosterType;
+            if (!ROTATING.has(type)) continue;
+            const key = `${type} week ${getWeekNumberForDate(day, m)}`;
+            lines.set(key, [...(lines.get(key) ?? []), m]);
+        }
+        for (const [key, rows] of lines) {
+            if (rows.length < 2) continue;
+            const current = rows.filter(m => !m.hidden);
+            const firstCurrent = Math.min(...current.map(m => arrived(m, day)));
+            const ok = current.length <= 1 && rows.every(m => !m.hidden || arrived(m, day) < firstCurrent);
+            const who = rows.map(m => m.name).join(' + ');
+            if (!ok && !shared.has(who)) shared.set(who, `${who}: the same ${key.split(' ')[0]} line, from ${formatISO(day)}`);
+        }
+    }
+    assert.deepEqual([...shared.values()], [],
+        'two rows draw the same turns — one of them carries the wrong anchor. A `currentWeek` is the line at\n'
+        + 'the REFERENCE Sunday, not the week the line shows on the start date (.claude/rules/roster-data.md).');
+});
+
 // ── Pinned roster transitions (live roster facts — June/July 2026) ─────────────
 // Pin the exact K. Jedlinski / S. Boyle / B. Khalil transitions so a future roster-data
 // edit can't silently shift them. getBaseShift / resolveMemberRoster take Date objects
@@ -1693,7 +1742,7 @@ test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', (
     assert.equal(resolveMemberRoster(m, new Date(2026, 5, 9)).rosterType,  'ces');   // on start
     const jul = resolveMemberRoster(m, new Date(2026, 6, 1));                        // across 1 Jul — still CES
     assert.equal(jul.rosterType,  'ces');
-    assert.equal(jul.currentWeek, 5);
+    assert.equal(jul.currentWeek, 4, 'the anchor of the line that was vacant — 5 is G. Rotaru\'s');
 });
 
 
