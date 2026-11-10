@@ -63,11 +63,13 @@ export function fmtHrsMins(h) {
  * tax → NI → Student Loan → estimated take-home. `slLines` is the loan rows, from `buildLoanLines`.
  * `taxCode` and `taxCodeRecognised` are what `computeTax` read and whether it knew it: an unknown code
  * gets a line under Income Tax saying the figure is on the standard allowance (`taxCodeNotRecognised`).
+ * `taxPayLimited` is `computeTax`'s `payLimited`: the Year to Date figures asked for more tax than the
+ * payslip pays, which only a mistyped figure does, so the row says to check them.
  * @param {{
  *   _bpThisPeriod:number, _hppForPeriod:number, gross:number, grossWithBp:number,
  *   _bpIsEstimate:boolean, _hppIsEstimate:boolean, pension:number, sacGross:number,
  *   usingCumulative:boolean, tax:number, ni:number, slLines:string, net:number, taxRefund?:number,
- *   taxCode?:string, taxCodeRecognised?:boolean
+ *   taxCode?:string, taxCodeRecognised?:boolean, taxPayLimited?:boolean
  * }} d
  * @returns {string} innerHTML for #summary
  */
@@ -75,9 +77,10 @@ export function buildSummaryRows(d) {
     const {
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
         pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund = 0,
-        taxCode = '', taxCodeRecognised = true,
+        taxCode = '', taxCodeRecognised = true, taxPayLimited = false,
     } = d;
-    const codeNote = taxCodeRecognised === false ? `<span class="sum-net-sub">${taxCodeNotRecognised(taxCode).row}</span>` : '';
+    const codeNote = (taxCodeRecognised === false ? `<span class="sum-net-sub">${taxCodeNotRecognised(taxCode).row}</span>` : '')
+        + (taxPayLimited ? '<span class="sum-net-sub">Your Year to Date figures ask for more tax than this payslip pays, so this shows only what it can — check Taxable Pay and Tax Paid against your payslip.</span>' : '');
     return `
         ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
           ? `<div class="sum-row"><span class="lbl">Regular pay</span><span class="val">${fmt(gross)}</span></div>

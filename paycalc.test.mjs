@@ -539,10 +539,15 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
   //   Postgrad: £21,000 ÷ 13 = £1,615.38 (penny-floored) → (3,000 − 1,615.38) × 6% = £83.08 → £83
   // Tax and NI are inputs to these lines, not computed by them; round figures keep the sum readable.
   const SAC = 3000, TAX = 400, NI = 160;
-  const loans = (/** @type {Record<string, any>} */ over) => runAppLines('slUnder', 'net', {
-    computeSL, sacGross: SAC, thresholds: getThresholds('2026/27'), tax: TAX, ni: NI,
-    plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false, ...over,
-  }, ['slUnder', 'slPost', 'sl', 'net']);
+  // The loan lines, then the take-home line on what they made: since the tax was moved after the
+  // loans (it is bounded by what they leave), the two are no longer one run of statements.
+  const loans = (/** @type {Record<string, any>} */ over) => {
+    const r = runAppLines('slUnder', 'sl', {
+      computeSL, sacGross: SAC, thresholds: getThresholds('2026/27'),
+      plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false, ...over,
+    }, ['slUnder', 'slPost', 'sl']);
+    return { ...r, net: runAppLines('net', 'net', { sacGross: SAC, tax: TAX, ni: NI, sl: r.sl }, ['net']).net };
+  };
 
   test('a plan AND a Postgraduate Loan: both come off take-home', () => {
     const r = loans({ plan: 'plan2', pgLoan: true });
@@ -898,6 +903,34 @@ describe('computeTax', () => {
     assert.equal(computeTax(1200, '1257L', T25).refund, 0, 'the standard method knows nothing of the year');
     assert.equal(computeTax(3000, '1257LW1', T25, { ytdPay: 9000, ytdTax: 1800, periodN: 4 }).refund, 0,
       'a week-1/month-1 code is non-cumulative and never refunds the year');
+  });
+
+  // ── NEVER MORE THAN THE PAY LEAVES (whole-app review, Nov 2026) ──────────────────────────────
+  // Bounded by the pay alone, a Tax Paid typed as 348 for 3,480 took all of the pay and NI came off on
+  // top: a take-home of −£173.99 (−£252.99 with Plan 2). The bound is now what NI and loans leave, and
+  // `payLimited` says so, so the summary can say the figures look wrong.
+  const T2627 = getThresholds('2026/27');
+  const MISTYPED = { ytdPay: 8 * 3142.84, ytdTax: 348, periodN: 9 };
+  test('cumulative PAYE: the deductions together never exceed the pay — a mistyped Tax Paid', () => {
+    const ni = computeNI(3142.84, T2627.ni), sl = computeSL(3142.84, 'plan2', T2627.sl);
+    for (const other of [ni, ni + sl]) {
+      const r = computeTax(3142.84, '1257L', T2627, { ...MISTYPED, otherDeductions: other });
+      approx(r.tax, 3142.84 - other, 'the tax takes what is left, no more');
+      assert.equal(r.payLimited, true, 'and says the pay, not the year, set it');
+      assert.ok(3142.84 - r.tax - other >= -0.005, 'so the take-home is never below £0');
+    }
+  });
+
+  test('cumulative PAYE: an ordinary year, or a K code at its 50% limit, is not pay-limited', () => {
+    const ok = computeTax(3142.84, '1257L', T2627, { ytdPay: 8 * 3142.84, ytdTax: 8 * 435.4, periodN: 9, otherDeductions: 173.99 });
+    assert.equal(ok.payLimited, false);
+    approx(ok.tax, computeTax(3142.84, '1257L', T2627, { ytdPay: 8 * 3142.84, ytdTax: 8 * 435.4, periodN: 9 }).tax,
+      'the bound changes no ordinary figure', 0.005);
+    // HMRC's own 50% limit binds a K code first — that is the rule, not a mistyped figure.
+    const k = computeTax(3142.84, 'K500', T2627, { ...MISTYPED, otherDeductions: 173.99 });
+    approx(k.tax, 3142.84 * 0.5, 'the K-code overriding limit');
+    assert.equal(k.payLimited, false);
+    assert.equal(computeTax(3142.84, '1257L', T2627).payLimited, false, 'the standard method is never pay-limited');
   });
 
   // ── THE HALF-FILLED YEAR TO DATE PAIR ────────────────────────────────────────────────────────

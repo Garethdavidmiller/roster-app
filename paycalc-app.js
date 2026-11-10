@@ -745,27 +745,8 @@ export function init() {
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
       const sacGross   = Math.max(0, grossWithBp - pension);
 
-      // Income tax — cumulative PAYE when the Year to Date figures are given (W1/M1/X excluded). A
-      // blank or unparseable box passes NULL, never 0: computeTax needs BOTH figures, and "Taxable Pay
-      // typed, Tax Paid still blank" must read as incomplete, not as £0 of tax collected.
-      const ytdPayEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdPay'));
-      const ytdTaxEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdTax'));
-      let ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numValOr('ytdPay', null) : null;
-      let ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numValOr('ytdTax', null) : null;
-      // The cumulative method adds this payslip's pay to the totals entered, so it is VALID only on
-      // the payslip straight after the one they came from; any other payslip uses the standard
-      // method, or stale figures are silently treated as last-payslip totals and skew the tax.
-      const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
-      if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
-      const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
-      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown } = computeTax(
-        sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
-        { ytdPay: ytdP, ytdTax: ytdT, periodN },
-      );
-      paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
-      _updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed);     // "in use" is what computeTax did
-
-      // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases)
+      // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases), BEFORE the
+      // tax: neither depends on it, and the cumulative tax is bounded by what they leave (computeTax).
       const ni = computeNI(sacGross, thresholds.ni);
 
       // Plan 5 is not repayable before 2026/27 — disable the option on a 2025/26 period so it can't be
@@ -800,6 +781,26 @@ export function init() {
       const slUnder = slPaidOff ? 0 : computeSL(sacGross, plan, thresholds.sl, slSkip);
       const slPost  = (pgLoan && !slPaidOff) ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
       const sl = slUnder + slPost;
+
+      // Income tax — cumulative PAYE when the Year to Date figures are given (W1/M1/X excluded). A
+      // blank or unparseable box passes NULL, never 0: computeTax needs BOTH figures, and "Taxable Pay
+      // typed, Tax Paid still blank" must read as incomplete, not as £0 of tax collected.
+      const ytdPayEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdPay'));
+      const ytdTaxEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdTax'));
+      let ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numValOr('ytdPay', null) : null;
+      let ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numValOr('ytdTax', null) : null;
+      // The cumulative method adds this payslip's pay to the totals entered, so it is VALID only on
+      // the payslip straight after the one they came from; any other payslip uses the standard
+      // method, or stale figures are silently treated as last-payslip totals and skew the tax.
+      const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
+      if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
+      const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
+      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown, payLimited: taxPayLimited } = computeTax(
+        sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
+        { ytdPay: ytdP, ytdTax: ytdT, periodN, otherDeductions: ni + sl },
+      );
+      paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
+      _updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed);     // "in use" is what computeTax did
 
       const net = sacGross - tax - ni - sl;
 
@@ -863,7 +864,7 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = buildSummaryRows({
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
         pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund,
-        taxCode: taxCodeUsed, taxCodeRecognised: taxCodeKnown,
+        taxCode: taxCodeUsed, taxCodeRecognised: taxCodeKnown, taxPayLimited,
       });
 
       const bd = buildBreakdownRows({

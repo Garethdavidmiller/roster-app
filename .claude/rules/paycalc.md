@@ -213,8 +213,9 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   Year to Date figure would then invent money.
 - **50% overriding limit (`computeTax`, PAYE reg 23) — K CODES ONLY:** the tax deducted in a period can
   never exceed 50% of the period's taxable pay, on both the cumulative and non-cumulative paths. For
-  every other code the cumulative path is bounded by the period's pay instead — a deduction never
-  exceeds what is paid.
+  every other code the cumulative path is bounded by what the period's pay leaves after National
+  Insurance and student loans — the deductions together never exceed what is paid, and the Income Tax
+  row says to check Year to Date figures that ask for more (`payLimited`).
 - **Cumulative PAYE needs BOTH Year to Date figures, and `0` is a figure** (`computeTax`'s
   `ytdPay != null && ytdTax != null`). `calculate()` reads the two boxes independently, so "Taxable Pay
   typed, Tax Paid still blank" is an ordinary mid-typing state; weakening the `&&` runs the recalc

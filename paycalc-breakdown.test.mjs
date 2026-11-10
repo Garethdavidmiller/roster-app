@@ -125,6 +125,15 @@ test('buildSummaryRows: cumulative tax adds the "adjusted from payslip" note; sl
     assert.ok(html.includes(sl), 'pre-rendered slLines passed through unchanged');
 });
 
+test('buildSummaryRows: Year to Date figures asking for more tax than the payslip pays say to check them', () => {
+    // computeTax's `payLimited`: only a mistyped figure asks for that (whole-app review, Nov 2026).
+    const html = buildSummaryRows({ ...SUM_BASE, usingCumulative: true, taxPayLimited: true });
+    const taxRow = html.split('\n').find(l => l.includes('Income Tax')) ?? '';
+    assert.match(taxRow, /ask for more tax than this payslip pays/);
+    assert.match(taxRow, /check Taxable Pay and Tax Paid against your payslip/);
+    assert.ok(!/ask for more tax/.test(buildSummaryRows({ ...SUM_BASE, usingCumulative: true })), 'quiet otherwise');
+});
+
 // ── A TAX CODE THE CALCULATOR DOES NOT RECOGNISE (whole-app review, Nov 2026) ─────────────────────
 // computeTax prices it on the standard 1257L allowance and reports `recognised: false`. Only the
 // "Check against your payslip" line used to read that, and it is hidden until the payslip's cut-off:

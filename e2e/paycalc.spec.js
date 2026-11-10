@@ -1732,6 +1732,32 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
 // ── AN OVER-COLLECTED YEAR IS SAID, NOT HIDDEN BEHIND £0 (72-hour review) ────────────────────────
 // computeTax reports the over-collection it clamps to £0; this pins calculate() handing it to the
 // summary — the wiring a unit test of either half cannot see.
+// A Tax Paid typed one digit short (348 for 3,480) asked for nearly a year's tax at once. Bounded by the
+// pay alone, the tax took all of it and NI came off on top: a negative take-home (whole-app review,
+// Nov 2026). This pins calculate() handing NI and loans to computeTax, and the summary saying why.
+test('paycalc: a mistyped Tax Paid never makes the take-home negative, and the summary says to check it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_sl', 'plan2');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '25142.72');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '348');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#summary')).toContainText('ask for more tax than this payslip pays');
+    const net = await page.locator('#netDisplay').textContent();
+    expect(poundsOf(net), `the take-home reads ${net}`).toBeGreaterThanOrEqual(0);
+    expect(net ?? '', 'no minus sign on the take-home').not.toMatch(/[−-]/);
+    expect(errors).toHaveLength(0);
+});
+
 test('paycalc: Year to Date figures showing tax over-collected say a refund may be due', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));

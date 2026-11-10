@@ -441,15 +441,20 @@ export function computeGross(i) {
  * @param {number|null} [opts.ytdPay]    - YTD pay from last payslip; null = not provided
  * @param {number|null} [opts.ytdTax]    - YTD tax from last payslip; null = not provided
  * @param {number|null} [opts.periodN]   - HMRC 4-weekly period number 1–13 (required for cumulative)
- * @returns {{ tax: number, usingCumulative: boolean, refund: number, code: string, recognised: boolean }}
+ * @param {number} [opts.otherDeductions] - NI and student loans this payslip takes: the cumulative
+ *   tax is bounded by what they leave of the pay
+ * @returns {{ tax: number, usingCumulative: boolean, refund: number, code: string, recognised: boolean,
+ *   payLimited: boolean }}
  *   refund — tax the cumulative recalculation says was over-collected (>0 only on the cumulative
- *   path); never netted into `tax`. code — the code as this calculation READ it (upper case, no
+ *   path); never netted into `tax`. payLimited — the pay bound, not the year, set the tax: the Year to
+ *   Date figures ask for more than this payslip can pay, which is a mistyped figure.
+ *   code — the code as this calculation READ it (upper case, no
  *   spaces, 1257L when the box was blank). recognised — whether it is a code this engine knows.
  *   An unrecognised one ("OT" with a letter O, "1182" with no letter) is priced on the DEFAULT
  *   allowance, a fallback as old as the engine — so `code` is what was typed, not what was priced,
  *   and the "Check against your payslip" line must say so rather than quote it as applied (v24.89).
  */
-export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null } = {}) {
+export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null, otherDeductions = 0 } = {}) {
   // Spaces go BEFORE the default, so a box holding only spaces is blank — 1257L — rather than an
   // empty code the engine does not recognise (v24.89; it priced the same bar the cumulative +9).
   const rawCode    = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
@@ -541,14 +546,19 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // refunded by real cumulative PAYE. The estimate keeps the deduction at £0 — netting a refund
     // into take-home would let one mistyped Year to Date figure invent money — but REPORTS the
     // over-collection so the result can say a refund may be due, rather than a silently wrong £0.
-    // …AND NEVER MORE THAN THE PAY ITSELF (same-day bug check). The 50% cap used to bound a mistyped
+    // …AND NEVER MORE THAN THE PAY LEAVES (same-day bug check). The 50% cap used to bound a mistyped
     // Tax Paid figure for every code; now that it is K-code-only, a Tax Paid typed as 200 for 2000
-    // charged nearly the whole period. Real PAYE cannot deduct more than it pays, so neither can this.
-    return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit, Math.max(0, sacGross)), usingCumulative: true,
+    // charged nearly the whole period. Real PAYE cannot deduct more than it pays, so neither can this —
+    // and the bound is what National Insurance and loans LEAVE of the pay (whole-app review, Nov
+    // 2026): bounded by the pay alone, a Tax Paid typed as 348 for 3,480 took all of it, NI came off
+    // on top, and the take-home read −£173.99. `payLimited` lets the result say the figures look wrong.
+    const due = Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit);
+    const payLeft = Math.max(0, sacGross - otherDeductions);
+    return { tax: Math.min(due, payLeft), usingCumulative: true, payLimited: due > payLeft,
              refund: Math.max(0, ytdTax - cumTaxDue), code: rawCode, recognised };
   }
 
-  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, refund: 0, code: rawCode, recognised };
+  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, payLimited: false, refund: 0, code: rawCode, recognised };
 }
 
 /**
