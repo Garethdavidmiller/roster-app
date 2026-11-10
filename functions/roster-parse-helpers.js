@@ -52,11 +52,15 @@ const { isViewerAccount } = require('./calendar-viewer-auth');
  *   "MTG", "MEET" → "MEET"; "10:00-14:00 MTG" → "MEET 10:00-14:00"  (a meeting keeps its times, v25.38)
  *
  * @param {string} raw - Shift value from Claude AI
+ * @param {{ quiet?: boolean }} [opts] - `quiet` classifies without logging, for a caller that only
+ *   asks what a PRINTED cell says (`cellSaysRest`): there every worked cell's duty line logged a
+ *   warning about a review row that never exists, burying the lines worth reading (import-server-8)
  * @returns {string}   - Normalised shift value
  */
-function normaliseShift(raw) {
+function normaliseShift(raw, { quiet = false } = {}) {
     if (typeof raw !== 'string') return 'RD';
     const s = raw.trim().toUpperCase();
+    const warn = quiet ? () => {} : (/** @type {string} */ m) => console.warn(m);
 
     if (s.replace(/[./]/g, '') === 'SP') return 'SPARE';   // "SP" / "S.P." / "S/P"
 
@@ -149,7 +153,7 @@ function normaliseShift(raw) {
         // Bare 'RDW' means the AI omitted the required shift time. Return as-is so
         // the review table displays it for manual correction — the admin can see the
         // unusual value and fix it before approving the upload.
-        console.warn(`[parseRosterPDF] AI returned bare "RDW" with no time for "${raw}" — review table will flag it`);
+        warn(`[parseRosterPDF] AI returned bare "RDW" with no time for "${raw}" — review table will flag it`);
         return s;
     }
 
@@ -180,10 +184,10 @@ function normaliseShift(raw) {
         // the trailing token, so without this the RDW was dropped and the day saved as a plain `shift`
         // (normal pay) — the exact pay-loss rdwMatch guards, leaking through the annotated-time path (v16.19).
         if (/\bRDW\b/.test(s)) {   // word-boundaried so a stray substring (e.g. "…hARDWare…") can't force an RDW encode (v16.22)
-            console.warn(`[parseRosterPDF] Extracted leading RDW time from "${raw}" (trailing content ignored) — review table will show it`);
+            warn(`[parseRosterPDF] Extracted leading RDW time from "${raw}" (trailing content ignored) — review table will show it`);
             return `RDW|${time}`;
         }
-        console.warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
+        warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
         return time;
     }
 
@@ -213,7 +217,7 @@ function normaliseShift(raw) {
     // "PREFIX|value" decoding; capped so a pathological value can't bloat the payload.
     const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
     if (cleaned === '') return 'RD';   // was only pipes/whitespace — treat as blank
-    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — flagged UNKNOWN for review`);
+    warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — flagged UNKNOWN for review`);
     return `UNKNOWN|${cleaned}`;
 }
 

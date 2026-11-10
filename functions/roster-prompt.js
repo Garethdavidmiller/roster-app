@@ -262,13 +262,17 @@ OUTPUT FORMAT — return exactly this structure:
  * Does this printed cell say the day is a REST day? Asked through `normaliseShift`, the rule the
  * reply's own values are resolved by, so a cell is judged by the rules that would have read it.
  * `NA` and `NS` say rest on every day since v25.38; until then they were asked by the day, and this
- * took the column's index to do it.
+ * took the column's index to do it. Asked QUIETLY: it is a classification, not a reading anybody
+ * reviews, and its warnings ran to one per worked cell (import-server-8).
  * @param {string} text
  */
 function cellSaysRest(text) {
-    const v = normaliseShift(text);
+    const v = normaliseShift(text, { quiet: true });
     return v === 'RD' || v === 'OFF';
 }
+
+/** The printed text a review sentinel quotes, capped as `normaliseShift` caps its own. */
+const quoteCell = (/** @type {string} */ text) => (text.length > 40 ? `${text.slice(0, 39)}…` : text);
 
 /**
  * A day the model reported EMPTY, in a cell the grid shows holding a shift or a code, goes to the
@@ -328,8 +332,10 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
             // The same words for an empty read as buildSafeEntries: a "-" it made the day's blank
             // meaning, and a worked Sunday written as one would otherwise become a silent rest day.
             if (!isBlankReading(raw)) continue;
-            console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell holds "${text}" but was read as empty — sent to review`);
-            entry.shifts[dates[i]] = `UNKNOWN|the PDF has "${text}" in this cell, but it was read as empty — check the PDF`;
+            // The log quotes no cell (import-server-6): beside a name and a date, an absence's printed
+            // code is its REASON, which the app never stores. The admin holding the PDF sees the text.
+            console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell holds text on the PDF but was read as empty — sent to review`);
+            entry.shifts[dates[i]] = `UNKNOWN|the PDF has "${quoteCell(text)}" in this cell, but it was read as empty — check the PDF`;
             days.push(dates[i]);
         }
         if (days.length) sent.push({ memberName: entry.memberName, dates: days });

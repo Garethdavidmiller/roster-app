@@ -370,6 +370,19 @@ describe('normaliseShift', () => {
     test('UNKNOWN sentinel strips pipe chars from the raw text (so PREFIX|value stays decodable)', () => {
         assert.equal(normaliseShift('A|B|C'), 'UNKNOWN|A B C');
     });
+    test('it says what it did to a cell, unless the caller only classifies one (import-server-8)', () => {
+        const lines = [];
+        const real = console.warn;
+        console.warn = (...a) => lines.push(a.join(' '));
+        try {
+            normaliseShift('06:00-14:00 | CEA 1');
+            normaliseShift('TBC');
+            assert.equal(lines.length, 2, 'the model\'s answers keep both diagnostics');
+            assert.equal(normaliseShift('06:00-14:00 | CEA 1', { quiet: true }), '06:00-14:00', 'quiet answers the same');
+            assert.equal(normaliseShift('TBC', { quiet: true }), 'UNKNOWN|TBC');
+            assert.equal(lines.length, 2, 'and logs nothing');
+        } finally { console.warn = real; }
+    });
 });
 
 // ── functions/roster-other-days.js — the server's half of the Other-family grammar (v25.38) ─────

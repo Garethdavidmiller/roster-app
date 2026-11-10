@@ -280,6 +280,56 @@ describe('reviewBlankReadsOfFilledCells — the grid says what an empty read mis
         const { safe } = run(reply({ Sunday: 'BLANK', ...WEEK, Wednesday: 'BLANK' }), ['', ...CELLS.slice(1)]);
         assert.match(safe[0].shifts[dates[3]], /^UNKNOWN\|no Wednesday cell was read/);
     });
+
+    // WHAT THE PASS WRITES TO THE FUNCTIONS LOG (import-server-6, -8), which keeps what it is given.
+    /** Run `fn` with console.warn captured; returns the lines. @param {() => void} fn */
+    const captureWarn = (fn) => {
+        /** @type {string[]} */
+        const lines = [];
+        const real = console.warn;
+        console.warn = (...a) => lines.push(a.join(' '));
+        try { fn(); } finally { console.warn = real; }
+        return lines;
+    };
+
+    test('the log quotes no cell — beside a name and a date, an absence code is its reason', () => {
+        // An invented member, so the codes below are nobody's week.
+        for (const code of ['SC', 'HA', 'OD', 'ML', 'CL']) {
+            const parsed = { memberName: 'X. Test', Sunday: 'BLANK', ...WEEK, Monday: 'BLANK' };
+            const safe = buildSafeEntries([parsed], DAY_LABELS, dates);
+            const lines = captureWarn(() => reviewBlankReadsOfFilledCells(safe, [parsed],
+                [{ memberName: 'X. Test', cells: ['', code, ...CELLS.slice(2)] }], dates));
+            assert.equal(lines.length, 1, `one line for the one empty read: ${lines.join(' / ')}`);
+            assert.doesNotMatch(lines[0], new RegExp(`\\b${code}\\b`), `the log quoted the printed ${code}`);
+            assert.match(safe[0].shifts[dates[1]], new RegExp(`^UNKNOWN\\|the PDF has "${code}"`),
+                'the admin, who holds the PDF, is still told what the cell says');
+        }
+    });
+
+    test('the review quotes at most 40 characters of a cell, and says it was cut', () => {
+        const { sunday } = run(reply({ Sunday: 'BLANK', ...WEEK }), [`08:00-16:00 | ${'X'.repeat(300)}`, ...CELLS.slice(1)]);
+        const quoted = /the PDF has "([^"]*)"/.exec(sunday)?.[1] ?? '';
+        assert.ok(quoted.length > 0 && quoted.length <= 40, `quoted ${quoted.length} characters`);
+        assert.ok(quoted.endsWith('…'));
+    });
+
+    test('a correct read of a week of duties logs nothing — the rest test is a classification', () => {
+        // The experiments README's own example row. Each duty line logged "Extracted leading time …
+        // review table will show it" for a review row that never existed: four lines a member here,
+        // of the order of a hundred an upload, around the one line the import rule says to read first.
+        const cells = ['', 'RD', '06:20-14:20 | CEA 1', '06:20-14:20 | CEA 3', 'RD', '07:00-16:00 | CEA BL 1', '07:00-15:00 | CEA BL 4'];
+        const parsed = { memberName: 'G. Miller', Sunday: 'BLANK', Monday: 'RD', Tuesday: '06:20-14:20',
+            Wednesday: '06:20-14:20', Thursday: 'RD', Friday: '07:00-16:00', Saturday: '07:00-15:00' };
+        /** @type {any} */
+        let safe;
+        captureWarn(() => { safe = buildSafeEntries([parsed], DAY_LABELS, dates); });   // its reported-blank line is its own
+        const lines = captureWarn(() => {
+            reviewBlankReadsOfFilledCells(safe, [parsed], [{ memberName: 'G. Miller', cells }], dates);
+            reviewRestReadsOfEmptyCells(safe, [{ memberName: 'G. Miller', cells }], dates);
+        });
+        assert.deepEqual(lines, []);
+        assert.equal(safe[0].shifts[dates[2]], '06:20-14:20', 'and the read is untouched');
+    });
 });
 
 // THE REVERSE CASE (test audit, 7 Nov 2026). Monday to Saturday a blank cell is a question, never a
