@@ -15,7 +15,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAttentionItems, ATTENTION_CATALOGUE } from './operations-attention.js';
+import { buildAttentionItems, ATTENTION_CATALOGUE, attentionBadge } from './operations-attention.js';
 
 test('a zero count renders nothing, and an UNREPORTED card is absent — unknown is not clean', () => {
     assert.deepEqual(buildAttentionItems({}), []);
@@ -50,6 +50,33 @@ test('a truncated error backlog says 100+ in BOTH voices, never the capped numbe
     const [item] = buildAttentionItems({ errors: { count: 100, truncated: true } });
     assert.equal(item.text, 'Unresolved errors: 100+');
     assert.equal(item.badge, '100+');
+});
+
+// A TRUNCATED COUNT IS A FLOOR (Nov 2026 review). The Error Log's cap is shared with slow-save
+// diagnostics, which are listed and never counted, so "100+" stood over two real errors — and over a cap
+// holding none the chip was EMPTY while the strip said "100+". The count is how many errors were seen;
+// the "+" says entries were not loaded, and any of them may be an error.
+test('a truncated count says how many errors were SEEN, with "+" — never "100+" for two', () => {
+    const [two] = buildAttentionItems({ errors: { count: 2, truncated: true } });
+    assert.equal(two.badge, '2+');
+    assert.equal(two.text, 'Unresolved errors: 2+');
+    // None seen, more not loaded: still an item, because absence would read as "nothing to do".
+    const [none] = buildAttentionItems({ errors: { count: 0, truncated: true } });
+    assert.equal(none?.badge, '0+', 'a cap full of diagnostics is not a clean bill');
+});
+
+// The chip on the Error Log's header is spelled by the same function (operations-errors.js), so the
+// two voices are one rule rather than two copies that happen to agree.
+test('attentionBadge: empty only when known clean, a floor whenever entries were hidden', () => {
+    assert.equal(attentionBadge(0), '');
+    assert.equal(attentionBadge(3), '3');
+    assert.equal(attentionBadge(0, true), '0+');
+    assert.equal(attentionBadge(2, true), '2+');
+    assert.equal(attentionBadge(100, true), '100+');
+    for (const [count, truncated] of [[0, false], [3, false], [0, true], [2, true]]) {
+        const [item] = buildAttentionItems({ errors: { count, truncated } });
+        assert.equal(item?.badge ?? '', attentionBadge(count, truncated), `${count}/${truncated}: the strip and the chip disagree`);
+    }
 });
 
 test('the two voices state one fact: the badge is the count the sentence speaks', () => {

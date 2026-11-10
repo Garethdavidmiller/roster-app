@@ -1079,6 +1079,62 @@ test('operations attention: a retry after a failed load still reaches the strip'
     await expect(page.locator('#attentionStrip')).toContainText('Unresolved errors');
 });
 
+/**
+ * Serve the Error Log its rows from the page, and optionally hold or refuse each Resolve — by patching
+ * analytics-client.js as it is served, the shape `stubUsageReads` (helpers.js) uses. The harness's
+ * getDocs cannot do either: it answers BOTH of getClientErrors' queries with the same rows and ignores
+ * the cap, so it can neither keep resolved and unresolved apart nor say "truncated", and every write
+ * it makes lands at once. LOUD on a missing anchor, so a renamed function fails here, not silently.
+ * `window.__E2E.errorRows` replaces the rows for every later read; `resolveGate(id)` runs before each
+ * Resolve's write, so a test can hold one open or make it fail. No stub Firebase user: neither card
+ * needs one, and without it the account audit and the sign-in counts stop before they fetch anything.
+ * @param {import('@playwright/test').Page} page
+ * @param {Array<{id: string, message: string, resolved?: boolean}>} rows
+ * @param {{ truncated?: boolean }} [o]
+ */
+async function stubErrorLog(page, rows, { truncated = false } = {}) {
+    await page.addInitScript(({ rows, truncated }) => {
+        const w = /** @type {any} */ (window);
+        const ts = (/** @type {number} */ ms) => ({ toDate: () => new Date(ms), toMillis: () => ms });
+        w.__E2E = { ...(w.__E2E || {}), errorRows: rows,
+            errorLog: () => ({ truncated, errors: w.__E2E.errorRows.map((/** @type {any} */ r, /** @type {number} */ i) => ({
+                memberName: 'A. Hared', page: 'calendar', appVersion: '25.64', resolved: false, ...r,
+                timestamp: ts(Date.now() - (i + 1) * 60_000) })) }) };
+    }, { rows, truncated });
+    await page.route('**/analytics-client.js', async route => {
+        const res = await route.fetch();
+        let src = await res.text();
+        for (const [anchor, inject] of [
+            ['    async function getClientErrors() {', ' return globalThis.__E2E.errorLog();'],
+            ['    async function resolveClientError(id) {', ' if (globalThis.__E2E.resolveGate) await globalThis.__E2E.resolveGate(id);'],
+        ]) {
+            if (!src.includes(anchor)) throw new Error(`error-log fixture anchor no longer matches — "${anchor}" in analytics-client.js`);
+            src = src.replace(anchor, anchor + inject);
+        }
+        await route.fulfill({ response: res, body: src, contentType: 'text/javascript' });
+    });
+}
+
+// ── A CAPPED ERROR LOG COUNTS WHAT IT SAW, AS A FLOOR (Nov 2026 review) ─────────────────────────
+// Slow-save diagnostics are listed and never counted, but they take places in the 100-row cap like
+// anything else. The chip and the strip both read "100+" over two real errors, and over a cap holding
+// none the chip was EMPTY while the strip still said "100+" — two voices, two answers. Both are now
+// spelled by attentionBadge from one pair: how many errors were seen, and "+" for entries not loaded.
+const DIAG = (/** @type {string} */ id) => ({ id, message: 'Slow save (diagnostic) — 9s, token 40ms' });
+for (const [label, rows, badge] of [
+    ['two errors among the diagnostics read "2+", not "100+"', [DIAG('d1'), { id: 'e1', message: 'boom one' }, DIAG('d2'), { id: 'e2', message: 'boom two' }, DIAG('d3')], '2+'],
+    ['a cap of diagnostics alone reads "0+" in both voices, not an empty chip under "100+"', [DIAG('d1'), DIAG('d2'), DIAG('d3')], '0+'],
+]) {
+    test(`operations attention: ${label}`, async ({ page }) => {
+        await stubErrorLog(page, /** @type {any} */ (rows), { truncated: true });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html#error-log');
+        await expect(page.locator('#errorLogContent .error-truncation-note')).toContainText('3 of them slow-save diagnostics');
+        await expect(page.locator('#errorLogCountChip')).toHaveText(badge);
+        await expect(page.locator('#attentionStrip .attn-item')).toHaveText(new RegExp(`Unresolved errors\\s*${badge.replace('+', '\\+')}`));
+    });
+}
+
 // ── A REFUSED RESET SAYS WHY, AND OFFERS NO RETRY (whole-app review, Oct 2026) ──────────────────
 // A 404 "run Set up accounts first", a 409 "linked to the shared PIN" or a 403 all became a bare
 // "Retry" that could never succeed, with the server's sentence only in the console.

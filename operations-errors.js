@@ -13,12 +13,14 @@ import { _cardLoadError, _relativeTime } from './operations-reports.js';
 
 import { setStatus } from './status-text.js';
 import { isDiagnosticEntry } from './client-errors.js';
+import { attentionBadge } from './operations-attention.js';
 /**
  * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void, onWithdraw?: () => void}} [opts]
  *   `onWithdraw` (v25.06) — the count has become UNKNOWN (a refresh failed): the strip withdraws its
  *   item, exactly as the header chip clears. It kept "3 unresolved errors" above a failed panel.
  *   `onAttention` feeds the Needs-attention strip — called at the SAME moments the header count
- *   chip is set, so the strip and the chip cannot disagree. Deliberately NOT called when the card
+ *   chip is set, with the same pair the chip is spelled from (`attentionBadge`), so the strip and the
+ *   chip cannot disagree. Deliberately NOT called when the card
  *   load fails: the strip only claims what is known, and a reassuring zero from a failed read
  *   would be a lie (operations-attention.js header).
  *
@@ -54,13 +56,14 @@ async function initErrorLog(opts = {}) {
         errStatus.setAttribute('aria-live', 'polite');
         content.appendChild(errStatus);
 
-        // No-silent-caps: more than 100 unresolved errors exist; only the first 100 are
-        // shown. The card renders once on load and the Resolve button doesn't re-fetch, so
-        // tell the admin to reload after clearing some — don't imply they appear on their own.
+        // No-silent-caps: more than 100 unresolved ENTRIES exist and 100 are shown. "Resolve all
+        // shown" re-reads and pulls the next batch; a per-row Resolve does not, so the note says how
+        // the rest arrive. Entries, not errors: slow-save diagnostics share the cap and are not errors.
         if (truncated) {
             const note = document.createElement('p');
             note.className = 'error-truncation-note';
-            setStatus(note, '⚠ More than 100 unresolved errors — showing the first 100. Resolve these to load the rest.');
+            const diag = errors.filter(e => !e.resolved && isDiagnosticEntry(e)).length;
+            setStatus(note, `⚠ More than 100 unresolved entries — showing 100${diag ? `, ${diag} of them slow-save diagnostics` : ''}. Resolve these to load the rest.`);
             content.appendChild(note);
         }
 
@@ -69,15 +72,14 @@ async function initErrorLog(opts = {}) {
         // shown, then refreshes the card in place to pull the next batch (B3).
         let unresolvedShown = errors.filter(e => !e.resolved);
         // Header count chip (v18.17): the unresolved backlog at a glance while the card is collapsed.
-        // '100+' when the query cap hid the true total; empty (→ :empty hides it) at zero. Re-set on
-        // every render (resolve-all does a full refresh) and on each per-row resolve (via
+        // A floor ("2+") when the query cap hid entries; empty (→ :empty hides it) at a known zero.
+        // Re-set on every render (resolve-all does a full refresh) and on each per-row resolve (via
         // _syncResolveAllBtn below), so it never goes stale.
         const _countChip = document.getElementById('errorLogCountChip');
         const _setCountChip = () => {
             // Diagnostics are listed and resolvable, but never COUNTED as errors (v24.57).
             const n = unresolvedShown.filter(e => !isDiagnosticEntry(e)).length;
-            if (_countChip) _countChip.textContent = n
-                ? (truncated ? '100+' : String(n)) : '';
+            if (_countChip) _countChip.textContent = attentionBadge(n, truncated);
             onAttention?.(n, { truncated });
         };
         _setCountChip();

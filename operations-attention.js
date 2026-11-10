@@ -28,8 +28,8 @@
 /**
  * What can need attention, in display order. `after` is what the item's name says AFTER its count
  * ("waiting", "members"), or nothing; `truncated` (errors only) means the card's own query cap hid
- * the true total, so the number honestly becomes "100+" — the strip must not understate a backlog
- * its target card states.
+ * entries it could not read, so the number honestly becomes a floor — "2+" (`attentionBadge`) — and
+ * the strip must not understate a backlog its target card states.
  */
 export const ATTENTION_CATALOGUE = /** @type {const} */ ({
     resets: {
@@ -71,13 +71,30 @@ export const ATTENTION_CATALOGUE = /** @type {const} */ ({
 });
 
 /**
+ * The ONE spelling of a count, worn by the strip's badge AND the Error Log's header chip, so the two
+ * cannot disagree (Nov 2026 review). With `truncated` the card's query cap hid entries it could not
+ * read, so the count is a FLOOR and says "+". It said "100+" whatever the count was — but the cap is
+ * shared with slow-save diagnostics, which are listed and never counted (client-errors.js), so two
+ * real errors under a cap full of diagnostics read "100+", and a cap holding none read as an empty
+ * chip beside a strip saying "100+". "0+" is that last case said honestly: none of the entries shown
+ * is an error, and the ones not loaded may be. Empty means known clean: the chip's `:empty` hides it
+ * and the strip renders no item.
+ * @param {number} count @param {boolean} [truncated]
+ * @returns {string}
+ */
+export function attentionBadge(count, truncated = false) {
+    if (truncated) return `${count}+`;
+    return count > 0 ? String(count) : '';
+}
+
+/**
  * The pure decision: which items render, in catalogue order, saying what. `short` + `badge` are
  * the visual pill (the card-header echo — "Password resets ‹2›", where the badge matches the count
  * chip on the card the item opens), and `text`, the accessible name, is BUILT FROM THEM — "Password
  * resets: 2 waiting". It used to be a sentence of its own, "2 password resets waiting", which a
  * voice user could not say by reading the pill (WCAG 2.5.3 Label in Name; axe checks it from 4.14,
- * v25.27). `badge` honours the error log's 100+ truncation — the strip must never understate a
- * backlog its target card states.
+ * v25.27). `badge` is `attentionBadge`, so a truncated backlog reads as the floor it is — the strip
+ * must never understate a backlog its target card states.
  * @param {Record<string, {count: number, truncated?: boolean}>} reports
  * @returns {{id: string, hash: string, emoji: string, short: string, badge: string, text: string}[]}
  */
@@ -86,8 +103,8 @@ export function buildAttentionItems(reports) {
     for (const [id, entry] of Object.entries(ATTENTION_CATALOGUE)) {
         const r = reports[id];
         if (!r) continue;                                    // never reported — unknown, not zero
-        if (!(r.count > 0) && !r.truncated) continue;        // known clean — nothing to index
-        const badge = r.truncated ? '100+' : String(r.count);
+        const badge = attentionBadge(r.count, r.truncated);
+        if (!badge) continue;                                // known clean — nothing to index
         const after = entry.after(r.count);
         out.push({
             id, hash: entry.hash, emoji: entry.emoji, short: entry.short, badge,
