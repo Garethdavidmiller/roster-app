@@ -1775,9 +1775,9 @@ Asks the server for a SHORT-LIVED document url and decides what a refusal means.
 
 ### `functions/cell-day-rules.js`
 What a roster cell MEANS, given the day of the week it sits in. CommonJS, requires nothing; required by `roster-parse-helpers.js`, `roster-prompt.js` and `roster-sunday-repair.js`. The import's contract is `.claude/rules/roster-import.md`.
-- `isPhysicallyBlank(raw)` — a missing key, an empty string or the `BLANK` token · `blankCellMeaning(dayIndex, dayLabel)` — an EMPTY cell is `RD` on a Sunday (the uncontracted column) and an `UNKNOWN|…` review question Monday to Saturday. A per-cell normaliser cannot know which column it reads, so every caller asks this one function.
+- `isBlankReading(raw)` — a reading that says the cell was EMPTY: no answer, or one of `BLANK_READINGS` (nothing, `BLANK`, `EMPTY`, a lone dash), the one list the row read and both scans share · `isPhysicallyBlank(raw)` — the same less the dash, which the PDF grid sees as ink (`settleDisputedSundays`) · `blankCellMeaning(dayIndex, dayLabel)` — an EMPTY cell is `RD` on a Sunday (the uncontracted column) and an `UNKNOWN|…` review question Monday to Saturday. A per-cell normaliser cannot know which column it reads, so every caller asks this one function.
 - `isNotAvailable(raw)` (`NA`, `N/A`, `N.A.`) · `isNotAvailableSunday(raw)` (`NS`) — the recognisers, matched on the WHOLE cell, so `NAT` and a time are untouched. Both codes are rest days on every day (an owner decision; the header has the history), recorded as `RD` by `normaliseShift`. The Sunday scan repair asks the same recognisers before anything is normalised, so the two cannot disagree about a spelling.
-- `BLANK_CELL_TOKEN` · `NOT_AVAILABLE_TOKENS` · `NOT_AVAILABLE_SUNDAY_TOKENS` · `SUNDAY` — the tokens and the day index the predicates read.
+- `BLANK_CELL_TOKEN` · `BLANK_READINGS` · `NOT_AVAILABLE_TOKENS` · `NOT_AVAILABLE_SUNDAY_TOKENS` · `SUNDAY` — the tokens and the day index the predicates read.
 - The blank rule's history stays in `buildSafeEntries`. Tested through the coordinator by `roster-parse-helpers.test.mjs`, and through the whole handler by `index-endpoints.test.mjs`.
 
 ### `storage-utils.js`

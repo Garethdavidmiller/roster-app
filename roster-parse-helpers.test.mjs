@@ -47,7 +47,7 @@ const {
     shouldNotifyAdmin,
     summariseSignIns,} = require('./functions/roster-parse-helpers.js');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
-const { blankCellMeaning } = require('./functions/cell-day-rules.js');
+const { blankCellMeaning, isBlankReading } = require('./functions/cell-day-rules.js');
 const { applyGeometryWitness } = require('./functions/roster-geometry.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -1027,6 +1027,66 @@ describe('Case A — a left-shifted row whose empty Saturday arrives as BLANK', 
         const disputed = quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
         assert.deepEqual(week(safe[0]), before);
         assert.deepEqual(disputed, []);
+    });
+
+    test('an empty trailing Saturday the row read wrote as "-" is the empty slot too', () => {
+        // One list of empty words for every read (import-server-1), so the drift signature does not
+        // depend on which of them the model chose for the cell it ran out of.
+        const safe = read({ ...DRIFTED, Sat: '-' });
+        quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        assert.deepEqual(week(safe[0]), TRUE_WEEK);
+    });
+});
+
+// ── A ROW READ THAT WAS RIGHT IS NEVER MOVED (import-server-1, whole-app fix, Nov 2026) ─────────
+//
+// The clean right-shift fires when the Sunday scan saw an empty cell and the Sunday slot holds
+// anything but a rest day. Two things put something there that the row read never claimed: the
+// cross-check's own question, when the COLUMN scan misread an empty Sunday as a shift; and an empty
+// Sunday the row read wrote as "-" or "EMPTY", words only the two scans counted as empty. Either way
+// a correctly read week with an empty Saturday moved a day right, and Save wrote it a day late —
+// measured over 16,384 synthetic weeks, 4,092 of 372,736 single wrong scan cells did that, 924 of
+// them with the PDF grid watching. These drive the handler's own sequence from the model's shape.
+describe('a correctly read week is never moved by the Sunday repair', () => {
+    const DATES = buildWeekDates('2026-11-14');
+    const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const quiet = fn => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
+    /** Printed: Sunday and Saturday EMPTY, four worked days and a printed RD Wednesday. */
+    const ROW = { Sun: 'BLANK', Mon: '06:00-14:00', Tue: '07:00-15:00', Wed: 'RD', Thu: '08:00-16:00', Fri: '09:00-17:00', Sat: 'BLANK' };
+    const AS_PRINTED = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', blankCellMeaning(6, 'Saturday')];
+    /** buildSafeEntries → cross-check → Sunday repair, in index.js's order, with its picks passed. */
+    const run = (row, colSunday = 'BLANK') => quiet(() => {
+        const safe = buildSafeEntries([{ memberName: 'X. Test', ...row }], HEADERS, DATES);
+        const columnScan = Object.fromEntries(HEADERS.map(h => [h, { 'X. Test': h === 'Sun' ? colSunday : ROW[h] }]));
+        const { choices } = applyColumnScanCrossCheck(safe, columnScan, HEADERS, DATES);
+        const disputed = applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES, choices);
+        return { week: DATES.map(d => safe[0].shifts[d]), choices, disputed };
+    });
+
+    test('control: three reads that agree leave the week exactly as printed', () => {
+        assert.deepEqual(run(ROW).week, AS_PRINTED);
+    });
+
+    test('the COLUMN scan misread the empty Sunday as a shift: asked on the Sunday, the week not moved', () => {
+        const { week, choices, disputed } = run(ROW, '10:00-18:00');
+        assert.match(week[0], /^UNKNOWN\|Rest day or 10:00-18:00\? \(PDF unclear\)$/, 'asked, on the day it is about');
+        assert.deepEqual(week.slice(1), AS_PRINTED.slice(1), 'Monday to Saturday on their own days, not a day late');
+        assert.deepEqual(choices[`X. Test|${DATES[0]}`], ['RD', '10:00-18:00'], 'and the pick stays with its question');
+        assert.deepEqual(disputed, [], 'the row read made no Sunday claim to dispute');
+    });
+
+    for (const word of ['-', 'EMPTY', 'empty', ' - ']) {
+        test(`the row read wrote the empty Sunday as ${JSON.stringify(word)}: it is the empty cell it says`, () => {
+            assert.deepEqual(run({ ...ROW, Sun: word }).week, AS_PRINTED);
+        });
+    }
+
+    test('the words for an empty cell are one list for every read', () => {
+        for (const w of ['', 'BLANK', 'blank', 'EMPTY', '-', ' - ', undefined, null]) {
+            assert.equal(isBlankReading(w), true, `${JSON.stringify(w)} is an empty cell to the row read`);
+            if (w !== undefined && w !== null) assert.equal(normaliseScanValue(w), 'RD', `${JSON.stringify(w)} is one to the column scan`);
+        }
+        for (const w of ['RD', 'OFF', '--', 'AL', '06:00-14:00']) assert.equal(isBlankReading(w), false, `${w} is printed text`);
     });
 });
 
@@ -2388,13 +2448,25 @@ describe('a physically blank weekday never becomes a rest day', () => {
     test('isPhysicallyBlank treats "never mentioned" and "reported empty" as one fact', () => {
         // The two ways nothing arrives. Before the BLANK token they could not be told apart, which
         // is precisely why the day rule sat dead for six versions.
-        for (const v of [undefined, null, '', '   ', 'BLANK', 'blank', ' Blank ']) {
+        for (const v of [undefined, null, '', '   ', 'BLANK', 'blank', ' Blank ', 'EMPTY', 'empty']) {
             assert.equal(isPhysicallyBlank(v), true, `expected ${JSON.stringify(v)} to read as empty`);
         }
         for (const v of ['RD', 'AL', '06:00-14:00', 'SPARE', 'OFF']) {
             assert.equal(isPhysicallyBlank(v), false,
                 `${v} is printed text — treating it as empty would send real data to review`);
         }
+    });
+
+    test('a lone dash MEANS an empty cell, and is still ink in it (import-server-1, re-review R-A1)', () => {
+        // The vocabulary calls a dash-only cell blank, so the row read gives it the day's blank
+        // meaning; the PDF grid sees it as occupied, so a reading weighed against the grid does not.
+        assert.equal(isBlankReading(' - '), true);
+        assert.equal(isPhysicallyBlank(' - '), false);
+        const s = buildSafeEntries([{ memberName: 'S. Horsman', Sun: '-', Mon: '-', Tue: 'EMPTY', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],
+            HEADERS, DATES)[0].shifts;
+        assert.equal(s[SUN], 'RD', 'a dashed Sunday is the rest day a blank Sunday is');
+        assert.match(s[DATES[1]], /^UNKNOWN\|no Monday cell was read/, 'a dashed Monday is the question a blank Monday is');
+        assert.match(s[DATES[2]], /^UNKNOWN\|no Tuesday cell was read/, 'and so is one the model called EMPTY');
     });
 });
 

@@ -242,6 +242,16 @@ describe('reviewBlankReadsOfFilledCells — the grid says what an empty read mis
         assert.ok(run(reply({ ...WEEK }), CELLS).sunday.startsWith('UNKNOWN|'));
     });
 
+    test('and one it wrote as "-" or "EMPTY", which buildSafeEntries reads as an empty cell too', () => {
+        // The two readers share one list of empty words (import-server-1). Were this one to lag,
+        // a worked Sunday written as a dash would become the rest day a blank Sunday is, unseen.
+        for (const word of ['-', 'EMPTY', ' empty ']) {
+            const { sunday, sent } = run(reply({ Sunday: word, ...WEEK }), CELLS);
+            assert.match(sunday, /^UNKNOWN\|the PDF has "08:00-16:00 \| CEA 3"/, `${JSON.stringify(word)} became ${sunday}`);
+            assert.deepEqual(sent, [{ memberName: 'G. Miller', dates: [SUN] }]);
+        }
+    });
+
     test('a Sunday the grid shows EMPTY stays the rest day it is', () => {
         const { sunday, sent } = run(reply({ Sunday: 'BLANK', ...WEEK }), ['', ...CELLS.slice(1)]);
         assert.equal(sunday, 'RD');

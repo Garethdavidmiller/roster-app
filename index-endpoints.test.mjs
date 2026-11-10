@@ -1040,6 +1040,41 @@ describe('parseRosterPDF — the PDF path keeps a moved question answerable', ()
     });
 });
 
+// ── A CORRECTLY READ WEEK STAYS ON ITS OWN DAYS (import-server-1, whole-app fix, Nov 2026) ───────
+//
+// The Sunday repair moved a correctly read week a day right when the Sunday slot held something the
+// row read never claimed: the cross-check's question about a column scan that misread the empty
+// Sunday, or an empty Sunday the row read wrote as "-". roster-parse-helpers.test.mjs drives the
+// helpers in this handler's order; this drives the handler, so a call that stopped handing the
+// repair the cross-check's picks — the one record of what the row read gave — fails here. The fake
+// PDF fails the grid open, so no witness stands behind the repair: the worst case.
+describe('parseRosterPDF — a correctly read week comes back on its own days', () => {
+    const ROW = { memberName: 'L. Springer', Sun: 'BLANK', Mon: '05:30-11:30', Tue: '06:30-12:30', Wed: 'RD',
+        Thu: '07:30-13:30', Fri: '08:30-14:30', Sat: 'BLANK' };
+    const reply = (/** @type {any} */ row, /** @type {string} */ colSunday) => JSON.stringify({
+        columnHeaders: DAY_HEADERS, parsed: [row], sundayScan: { 'L. Springer': 'BLANK' },
+        columnScan: Object.fromEntries(DAY_HEADERS.map(h => [h, { 'L. Springer': h === 'Sun' ? colSunday : ROW[h] }])),
+    });
+    for (const [label, row, colSunday] of [
+        ['the column scan misread the empty Sunday as a shift', ROW, '10:00-18:00'],
+        ['the row read wrote the empty Sunday as "-"', { ...ROW, Sun: '-' }, 'BLANK'],
+    ]) {
+        test(`${label}: Monday to Saturday as printed`, async () => {
+            const warn = console.warn; console.warn = () => {};
+            let out;
+            try {
+                build({ aiReply: reply(row, colSunday) });
+                out = await call(index.parseRosterPDF, rosterRequest());
+            } finally { console.warn = warn; }
+            assert.equal(out.code, 200, JSON.stringify(out.body).slice(0, 300));
+            const week = out.body.dates.map((/** @type {string} */ d) => out.body.parsed[0].shifts[d]);
+            assert.deepEqual(week.slice(1, 6), ['05:30-11:30', '06:30-12:30', 'RD', '07:30-13:30', '08:30-14:30'],
+                'a day late — the Sunday repair moved a week the row read had right');
+            assert.match(week[6], /^UNKNOWN\|no Saturday cell was read/, 'the empty Saturday is still the question it was');
+        });
+    }
+});
+
 
 // ── A MEETING, AND "NOT AVAILABLE", THROUGH THE WHOLE HANDLER (v25.38) ──────────────────────────
 //

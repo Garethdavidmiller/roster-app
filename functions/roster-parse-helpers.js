@@ -23,13 +23,14 @@
 // correct and unreachable: five physically blank weekdays became five explicit Rest Days, and on
 // the duplicate-sheet case that proposes overwriting the shifts the primary roster just wrote.
 //
-// It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
-// `columnScan` cannot end up with three subtly different ideas of what empty looks like.
+// It is matched CASE-INSENSITIVELY, beside the EMPTY and lone dash a model also writes
+// (`BLANK_READINGS`, cell-day-rules.js): the row read and both scans ask that one list, so one model's
+// three reads cannot disagree about what an empty cell looks like (the row read did, until Nov 2026).
 //
 // Required at the top since v25.38, because `normaliseShift` asks it about NA and NS.
 const {
-    BLANK_CELL_TOKEN,
-    isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning,
+    BLANK_CELL_TOKEN, BLANK_READINGS,
+    isBlankReading, isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning,
 } = require('./cell-day-rules');
 const { readOtherDayCell, namesMeeting } = require('./roster-other-days');
 const { isViewerAccount } = require('./calendar-viewer-auth');
@@ -469,7 +470,8 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             // the model to REPORT an empty cell rather than interpret it, so "the model said this
             // was empty" and "the model never mentioned this day" are the same fact and must take
             // the same branch. Before that they could not be told apart, and this rule was dead.
-            const blank = isPhysicallyBlank(raw);
+            // So do EMPTY and a lone dash, which both scans already read as empty (import-server-1).
+            const blank = isBlankReading(raw);
 
             if (blank) {
                 (raw === undefined || raw === null ? absentKeys : blankKeys).push(header);
@@ -506,10 +508,11 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
 
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
-// Scan tokens that mean "this cell is empty" on ANY day. NA and NS are not listed: they are rest
-// codes rather than empty cells, and `normaliseShift` reads both as the rest day (v25.38). Until
-// then their meaning depended on the day, and this function took the column's day index to ask.
-const BLANK_SCAN_TOKENS = new Set([BLANK_CELL_TOKEN, '', 'RD', 'EMPTY', '-', 'OFF']);
+// Scan tokens that read as a rest day on ANY day: the row read's own words for an empty cell
+// (`BLANK_READINGS`) and the two printed rest codes. NA and NS are not listed: `normaliseShift`
+// reads both as the rest day (v25.38). Until then their meaning depended on the day, and this
+// function took the column's day index to ask.
+const BLANK_SCAN_TOKENS = new Set([...BLANK_READINGS, 'RD', 'OFF']);
 
 /**
  * Normalise a raw columnScan cell value to the same vocabulary as the row read,

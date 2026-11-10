@@ -46,7 +46,7 @@
 
 const { BLANK_CELL_TOKEN, normaliseShift } = require('./roster-parse-helpers');
 const { matchGeometryRow } = require('./roster-geometry');
-const { isPhysicallyBlank } = require('./cell-day-rules');
+const { isBlankReading } = require('./cell-day-rules');
 
 /** Sunday-first, matching `dates` everywhere in the import. `headerToDayIndex` accepts these. */
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -325,7 +325,9 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
             if (!text || cellSaysRest(text)) continue;
             const label = DAY_LABELS[i];
             const raw = reply[label] !== undefined ? reply[label] : byDay[label.slice(0, 3).toLowerCase()];
-            if (!isPhysicallyBlank(raw)) continue;
+            // The same words for an empty read as buildSafeEntries: a "-" it made the day's blank
+            // meaning, and a worked Sunday written as one would otherwise become a silent rest day.
+            if (!isBlankReading(raw)) continue;
             console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell holds "${text}" but was read as empty — sent to review`);
             entry.shifts[dates[i]] = `UNKNOWN|the PDF has "${text}" in this cell, but it was read as empty — check the PDF`;
             days.push(dates[i]);
