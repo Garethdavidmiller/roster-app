@@ -7,7 +7,7 @@
  * horizon lists weeks nobody has created.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession, signInThroughOverlay, trackEndpointUse, endpointUse, waitForReadsToLand } from './helpers.js';
+import { seedSession, signInThroughOverlay, trackEndpointUse, endpointUse, waitForReadsToLand, isTouchProject } from './helpers.js';
 import { APP_PAGES } from '../scripts/app-pages.mjs';
 
 // Overtime is PAUSED for everyone (CONFIG.OVERTIME_ENABLED, owner, Nov 2026). These tests switch it back on
@@ -1009,6 +1009,30 @@ test.describe('access and chrome', () => {
         await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
         for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
     });
+
+    // …and the header those controls sat in opens nothing either, so it offers a mouse no hand and no hover fill. The
+    // paused card had the hand taken away (keyed on the attribute only the paused path sets) and kept the fill; the
+    // card that is not open to this member kept both.
+    for (const [state, enabled, words] of /** @type {Array<[string, boolean, string]>} */ ([
+        ['paused', false, 'Overtime availability is paused'],
+        ['not open to this member', true, "isn't open to everyone yet"],
+    ])) {
+        test(`a card with no form, ${state}: its header offers a mouse no hand and no hover fill (overtime-ui-14)`, async ({ page }, info) => {
+            test.skip(isTouchProject(info), 'a cursor and a hover are a fine pointer\'s');
+            await page.addInitScript((on) => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: on }; }, enabled);
+            await stubOvertime(page, { windows: [openWindow()] });
+            await seedSession(page, 'S. Silva');
+            await page.goto('/overtime.html');
+            await expect(page.locator('#otMineContent')).toContainText(words);
+            const header = page.locator('#otMineToggleHeader');
+            const look = () => header.evaluate(h => `cursor ${getComputedStyle(h).cursor}, fill ${getComputedStyle(h).backgroundColor}`);
+            await page.mouse.move(0, 0);
+            const rest = await look();
+            expect(rest, 'a hand on a header that opens nothing').toMatch(/^cursor default,/);
+            await header.hover();
+            expect(await look(), 'the header answers a mouse').toBe(rest);
+        });
+    }
 
     test('a session lost over the reviewer\'s sheet takes the sheet with it (overtime-ui-4)', async ({ page }) => {
         // The sign-in that covers the page is hidden in print, and the week behind it printed: who
