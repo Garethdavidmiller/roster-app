@@ -4,7 +4,8 @@
  *
  * Owns: rosterOverridesCache, fetchedMonths, shiftTypesMonthCache,
  *   _initialFetchInProgress, monthKey, fetchOverridesForRange,
- *   ensureOverridesCached, getShiftTypesInMonth.
+ *   ensureOverridesCached, getShiftTypesInMonth, and the record of the months this device has read
+ *   whole (`_heldWhole`).
  * Does NOT own: rendering (calendar-app.js / calendar-renderer.js),
  *   member selection (calendar-member.js).
  * Edit here for: Firestore override query, cache invalidation, duplicate resolution.
@@ -16,6 +17,7 @@ import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { noteKnowledge, noteCheckFailed, knowledgeOf, forget as forgetKnowledge } from './calendar-data-state.js';
+import { lsGet, lsSet } from './ls.js';
 
 /** The error a month read answered by the OFFLINE CACHE is turned into (v24.48). */
 export const SERVED_FROM_CACHE = 'served-from-cache';
@@ -253,6 +255,54 @@ let _readSeq = 0;
 /** monthKey → the sequence number of the authoritative read that last wrote it. */
 const _monthOwner = new Map();
 
+// ── THE MONTHS THIS DEVICE HAS READ WHOLE (cal-data-3, 10 Nov 2026) ──────────────────────────────
+//
+// An offline range read is answered from EVERY document the device's Firestore cache holds that
+// matches, whichever query fetched it — the SDK's query engine says the result set is the same as a
+// full collection scan. The leave panel, Admin and the Pay Calculator fill that cache one MEMBER at a
+// time, so a month the Calendar had never loaded could come back holding one member's rows, be
+// recorded `cached`, and be drawn for everybody as a saved copy: a colleague's leave and absences,
+// never on this device, missing under "Saved copy" (and under no label at all in Team View). So a
+// month is a saved copy only where the Calendar's own every-member read of it once landed here.
+//
+// In localStorage, because the case is an OFFLINE OPEN — a new page load — and beside the cache it
+// describes (both are per origin, and are cleared together). A device with NO record predates it: its
+// cache was filled before anything was recorded, so the old rule (rows mean a copy) stands there
+// until its first whole read lands — no device loses its saved copy to the change itself.
+const WHOLE_MONTHS = 'myb_cal_whole_months';
+/** How many months the record keeps, newest first — far beyond the few the Calendar reads at once. */
+const WHOLE_MONTHS_KEPT = 48;
+
+/** The record: null for a device that has none yet. @returns {Set<string>|null} */
+function _wholeMonths() {
+    const raw = lsGet(WHOLE_MONTHS);
+    if (raw === null) return null;
+    // A record that cannot be read names no month: the cautious answer, until the next read rewrites it.
+    try { const a = JSON.parse(raw); return new Set(Array.isArray(a) ? a.filter(k => typeof k === 'string') : []); }
+    catch { return new Set(); }
+}
+
+/** May this device's cache answer for every member's rows in this month? @param {string} key */
+function _heldWhole(key) {
+    const whole = _wholeMonths();
+    return whole === null || whole.has(key);
+}
+
+/** Record the months a server read has just answered whole. @param {string[]} keys */
+function _noteHeldWhole(keys) {
+    if (!keys.length) return;
+    const whole = _wholeMonths() ?? new Set();
+    for (const key of keys) whole.add(key);
+    lsSet(WHOLE_MONTHS, JSON.stringify([...whole].sort().reverse().slice(0, WHOLE_MONTHS_KEPT)));
+}
+
+/** Whether a slice covers its whole month — every caller reads whole months, but the record must
+ *  never be told a month is held whole on the strength of part of it. @param {{key: string, from: string, to: string}} s */
+function _wholeSlice({ key, from, to }) {
+    const y = Number(key.slice(0, 4)), m = Number(key.slice(5, 7)) - 1;
+    return from === formatISO(new Date(y, m, 1)) && to === formatISO(new Date(y, m + 1, 0));
+}
+
 /**
  * Split a date range into per-month slices, each clamped to the range.
  * Exported as a test seam; ISO dates compare correctly as strings, which is what the clamps rely on.
@@ -326,7 +376,8 @@ export async function fetchOverridesForRange(startStr, endStr) {
         for (const { key, from, to } of _monthSlices(startStr, endStr)) {
             if (_monthOwner.has(key)) continue;
             reconcileRangeIntoCache(rosterOverridesCache, held.filter(r => r.date >= from && r.date <= to), from, to, { authoritative: false });
-            painted = painted || held.some(r => r.date >= from && r.date <= to);
+            // A copy only where this device once held the month whole — see `_heldWhole` (cal-data-3).
+            painted = painted || (_heldWhole(key) && held.some(r => r.date >= from && r.date <= to));
         }
         if (painted) shiftTypesMonthCache.clear();
         throw Object.assign(new Error('Override read was served from the offline cache'), { code: SERVED_FROM_CACHE, painted });
@@ -347,7 +398,8 @@ export async function fetchOverridesForRange(startStr, endStr) {
     // regardless of the range it was told to evict over — passing the whole set per month would write
     // the other months' rows back under a month that may not own them.
     let wrote = false;
-    for (const { key, from, to } of _monthSlices(startStr, endStr)) {
+    const slices = _monthSlices(startStr, endStr);
+    for (const { key, from, to } of slices) {
         if ((_monthOwner.get(key) || 0) > seq) continue;   // a newer read already owns this month
         _monthOwner.set(key, seq);
         reconcileRangeIntoCache(rosterOverridesCache, records.filter(r => r.date >= from && r.date <= to), from, to);
@@ -355,6 +407,8 @@ export async function fetchOverridesForRange(startStr, endStr) {
     }
     // New override data may change which shift types appear in a month.
     if (wrote) shiftTypesMonthCache.clear();
+    // The server answered for every member: this device's cache now holds these months whole.
+    _noteHeldWhole(slices.filter(_wholeSlice).map(s => s.key));
 }
 
 /**
@@ -381,7 +435,8 @@ export async function fetchOverridesForRange(startStr, endStr) {
  * answers for the whole range, and the boot window is three months — so one month with cached rows
  * marked all three `cached`, and a month this device never loaded was drawn from the bare base
  * roster as though it were known. `monthsWithRows`, when passed, receives the key of each month
- * whose slice held at least one cached row, and only those may be called known.
+ * whose slice held at least one cached row AND that this device once held whole (`_heldWhole`), and
+ * only those may be called known.
  *
  * @param {string} startStr - 'YYYY-MM-DD' inclusive start
  * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
@@ -422,7 +477,7 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
         for (const { key, from, to } of _monthSlices(startStr, endStr)) {
             if (_monthOwner.has(key)) continue;
             const slice = records.filter(r => r.date >= from && r.date <= to);
-            if (slice.length) monthsWithRows?.push(key);
+            if (slice.length && _heldWhole(key)) monthsWithRows?.push(key);   // see `_heldWhole` (cal-data-3)
             if (reconcileRangeIntoCache(rosterOverridesCache, slice, from, to,
                     { authoritative: false })) changed = true;
         }

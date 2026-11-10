@@ -1103,6 +1103,80 @@ describe('fetchOverridesForRangeFromCache', () => {
     });
 });
 
+// ── A SAVED COPY IS A MONTH THIS DEVICE ONCE HELD WHOLE (cal-data-3, 10 Nov 2026) ───────────────────
+// Offline, the device's Firestore cache answers a range read from every document it holds that
+// matches — including the rows the leave panel, Admin and the Pay Calculator read one MEMBER at a
+// time. So a month the Calendar had never loaded could come back with one member's rows, be called a
+// saved copy, and be drawn for everybody: a colleague's leave missing under "Saved copy". Every other
+// test in this file runs with no storage — a device with no record, where the old rule stands — so
+// these install one.
+describe('a saved copy is only a month this device once held whole', () => {
+    const KEY = 'myb_cal_whole_months';
+    /** @type {Map<string, string>} */ let storage;
+    const AL = (/** @type {string} */ date, member = 'A. Smith') => makeDoc('al-' + member + date, { memberName: member, date,
+        value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } });
+    beforeEach(() => {
+        storage = new Map([[KEY, JSON.stringify(['2070-01'])]]);   // this device has read SOME month whole
+        /** @type {any} */ (globalThis).localStorage = {
+            getItem: (/** @type {string} */ k) => (storage.has(k) ? storage.get(k) : null),
+            setItem: (/** @type {string} */ k, /** @type {string} */ v) => { storage.set(k, String(v)); },
+            removeItem: (/** @type {string} */ k) => { storage.delete(k); },
+        };
+        rosterOverridesCache.clear(); forgetKnowledge();
+        _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false; _getDocsFromCacheFlag = false;
+        setOverrideAccess(true);
+    });
+    afterEach(() => {
+        delete /** @type {any} */ (globalThis).localStorage;
+        _getDocsFromCacheFlag = false; _mockDocs = []; _mockCacheDocs = [];
+        forgetKnowledge(); setOverrideAccess(true);
+    });
+
+    test('a month never read whole, answered by the cache with one member\'s rows, is NOT a saved copy', async () => {
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-03-10')];   // offline; the leave panel cached A. Smith's March
+        await ensureOverridesCached(2070, 2, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 2)), 'error',
+            'one member\'s rows were called a saved copy of the month for everybody');
+    });
+
+    test('…nor does the first load\'s cache paint call it known', async () => {
+        _mockCacheDocs = [AL('2070-03-10')];
+        /** @type {string[]} */ const months = [];
+        await fetchOverridesForRangeFromCache('2070-03-01', '2070-03-31', months);
+        assert.deepEqual(months, [], 'the cache paint called a month known on the strength of one member\'s rows');
+    });
+
+    test('a month the Calendar HAS read whole stays a saved copy offline, on a later open', async () => {
+        _mockDocs = [AL('2070-04-10'), AL('2070-04-12', 'B. Jones')];
+        await ensureOverridesCached(2070, 3, () => {});                 // online: every member's April
+        assert.ok(JSON.parse(storage.get(KEY) ?? '[]').includes('2070-04'), 'the whole read was not recorded');
+        setOverrideAccess(true); forgetKnowledge();                     // a later open: nothing in this page's memory
+        /** @type {string[]} */ const months = [];
+        _mockCacheDocs = _mockDocs;
+        await fetchOverridesForRangeFromCache('2070-04-01', '2070-04-30', months);
+        assert.deepEqual(months, ['2070-04'], 'the cache paint refused a month this device holds whole');
+        _getDocsFromCacheFlag = true;
+        await ensureOverridesCached(2070, 3, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 3)), 'cached', 'offline, the saved copy was refused');
+    });
+
+    test('only a WHOLE month a SERVER answered is recorded — not part of one, not a cache answer', async () => {
+        await fetchOverridesForRange('2070-05-10', '2070-05-20');
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-06-10')];
+        await ensureOverridesCached(2070, 5, () => {});
+        const whole = JSON.parse(storage.get(KEY) ?? '[]');
+        assert.ok(!whole.includes('2070-05'), 'ten days of May were recorded as the whole month');
+        assert.ok(!whole.includes('2070-06'), 'a cache answer was recorded as a whole read');
+    });
+
+    test('a device with NO record keeps the old rule — no device loses its saved copy to the change', async () => {
+        storage.clear();
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2070-07-10')];
+        await ensureOverridesCached(2070, 6, () => {});
+        assert.equal(knowledgeOf(monthKey(2070, 6)), 'cached');
+    });
+});
+
 // ── A returning member's boot reads the cache ONCE, and for everyone ─────────────────────────
 //
 // The provisional paint (v22.97, retired 26 Sep 2026 by owner decision — DECISIONS.md) read ONE
