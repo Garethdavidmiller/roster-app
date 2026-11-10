@@ -10,7 +10,8 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
+import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml, parseISODate } from './roster-data.js';
+import { formatDayMonthYear } from './date-format.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -840,7 +841,8 @@ export function init() {
             isAccepted: f => isPdfFile(f) || isDocxFile(f),
             rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-            successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
+            // The date in words ("6 Nov 2026"), as app copy writes one — the input's value is ISO (Nov 2026 review).
+            successMsg: date => `Newsletter uploaded for ${formatDayMonthYear(parseISODate(date))} — staff can open it from ☰ → Marylebone Newsletter`,
             btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
         });
     }
@@ -856,7 +858,7 @@ export function init() {
             isAccepted: f => isPdfFile(f) || isDocxFile(f),
             rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-            successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
+            successMsg: date => `Circular uploaded for ${formatDayMonthYear(parseISODate(date))} — staff can open it from ☰ → Weekly Retail Circular`,
             btnLabel: 'Upload Circular', logPrefix: 'Circular',
         });
     }

@@ -1565,6 +1565,23 @@ test('operations: a reset whose server never answers is not reported as a failur
     await expect(row.locator('.btn-acct-reset')).not.toHaveText('Retry');
 });
 
+// The upload receipts printed the date input's raw value — "Circular uploaded for 2026-11-10" — where
+// app copy writes a date in words (CLAUDE.md; Nov 2026 review, cal-docs-18).
+for (const [card, file, words] of [['circularUpload', 'circularFileInput', 'Circular uploaded for'],
+                                   ['newsletterUpload', 'newsletterFileInput', 'Newsletter uploaded for']]) {
+    test(`operations: the ${card.replace('Upload', '')} receipt names its date in words, not as an ISO string`, async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await page.evaluate((id) => document.getElementById(`${id}Body`)?.classList.add('open'), card);
+        await page.setInputFiles(`#${file}`, { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+        await page.locator(`#${card === 'circularUpload' ? 'circular' : 'newsletter'}UploadBtn`).click();
+        const feedback = page.locator(`#${card === 'circularUpload' ? 'circular' : 'newsletter'}Feedback`);
+        await expect(feedback).toContainText(words);
+        await expect(feedback).toHaveText(new RegExp(`${words} \\d{1,2} [A-Z][a-z]{2} \\d{4} —`));
+        await expect(feedback).not.toHaveText(/\d{4}-\d{2}-\d{2}/);
+    });
+}
+
 // ── A tab left open past midnight can still pick today (v23.36) ─────────────────────────────────
 // `doc-upload.js` recomputes its date cap at init and on submit — the v16.23 stale-tab fix, written
 // before this picker existed. `date-picker.js` reads `min`/`max` at OPEN time, so an Operations tab
