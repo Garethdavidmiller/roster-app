@@ -302,6 +302,41 @@ for (const [guide, first, last] of /** @type {Array<[string, string, string]>} *
     });
 }
 
+// Whole-app review, Nov 2026: heading navigation on the Railcard guide stopped at the A–Z section —
+// reaching "Network" meant reading through eight cards — because a card's name was a plain span; two
+// Rangers headings announced their status pill as part of the title; and every FIP country was read
+// out with its flag and a "down-pointing triangle". Read from the accessibility tree, which is what a
+// screen reader is given, not from the markup.
+for (const [guide, cardSel, nameSel] of /** @type {Array<[string, string, string]>} */ ([
+    ['railcard-guide', '.rc[id]', '.rc-name'],
+    ['rangers-guide', '.rr-card[id], .rr-no-item[id]', '.rr-name, .rr-no-name'],
+])) {
+    test(`${guide}: every card is a level-3 heading by its own name, and no heading reads a status pill`, async ({ page }) => {
+        await page.goto(`/${guide}.html`);
+        const cards = page.locator(cardSel);
+        const count = await cards.count();
+        expect(count, 'the cards are where this test looks for them').toBeGreaterThan(5);
+        for (let i = 0; i < count; i++) {
+            const card = cards.nth(i);
+            const name = (await card.locator(nameSel).first().innerText()).replace(/\s+/g, ' ').trim();
+            const headings = card.getByRole('heading', { level: 3 });
+            await expect(headings, `${await card.getAttribute('id')} has one heading`).toHaveCount(1);
+            await expect(headings).toHaveAccessibleName(name);
+        }
+        await expect(page.getByRole('heading', { name: /checked ·|Source conflict|source not yet verified/i }),
+            'a heading whose name carries a status pill').toHaveCount(0);
+    });
+}
+
+test('fip: a country is announced by its name, not its disclosure triangle', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const snapshot = await page.locator('#sec-countries ~ details[id^="country-"]').first().ariaSnapshot();
+    expect(snapshot, 'the snapshot reads the card at all').toContain('France');
+    expect(snapshot).not.toContain('▾');
+    await expect(page.locator('summary .chevron')).not.toHaveCount(0);
+    await expect(page.locator('summary .chevron:not([aria-hidden="true"])'), 'a chevron a screen reader reads out').toHaveCount(0);
+});
+
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
