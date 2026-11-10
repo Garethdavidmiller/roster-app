@@ -30,10 +30,12 @@
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
          DAY_NAMES, MONTH_ABB, escapeHtml, parseISODate, isWorkedShift } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isWorkingDate } from './al-entitlement.js';
+import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
-import { bulkApplyWaitingFor } from './admin-bulk-apply.js';
+import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
@@ -618,12 +620,26 @@ function _updateBulkSelCount() {
     _bulkSay('');   // whatever a press refused, the bar has changed since
     const ticked = [...(document.getElementById('weekGrid')?.querySelectorAll('.day-cb:checked') ?? [])]
         .map(cb => /** @type {HTMLElement|null} */ (cb.closest('.day-row'))?.dataset.date ?? ''), n = ticked.length;
-    const why = bulkApplyWaitingFor(ticked, _bulkActiveType);
+    const why = bulkApplyWaitingFor(ticked, _bulkActiveType, _leftAloneBy(_bulkActiveType));
     const count = document.getElementById('bulkSelCount'), hint = document.getElementById('bulkApplyHint');
     const apply = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkApplyBtn'));
     if (count) count.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
     if (apply) apply.disabled = !!why;
     if (hint && hint.textContent !== why) hint.textContent = why;
+}
+
+/**
+ * Why Apply leaves a ticked day alone for `type`, beyond the Sunday rule (admin-bulk-apply.js names
+ * each): before the member's start date, or — for Absent — a rest day by `isWorkingDate`, the rule the
+ * Absence card writes by, so a swapped-in shift saved on a rest day counts as work here too.
+ * @param {string} type @returns {(date: string) => import('./admin-bulk-apply.js').LeftAlone}
+ */
+function _leftAloneBy(type) {
+    const name   = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value ?? '';
+    const member = teamMembers.find(m => m.name === name);
+    const map    = member && type === 'sick' ? buildMemberDateMap(name) : null;
+    return d => !member ? '' : isBeforeMemberStart(member, parseISODate(d)) ? 'start'
+        : map && !isWorkingDate(member, d, map) ? 'rest' : '';
 }
 
 // ── BULK BAR ──────────────────────────────────────────────────────────────────
@@ -773,14 +789,19 @@ function _initBulkBar() {
 
     bulkApplyBtn?.addEventListener('click', () => {
         if (!_bulkActiveType) { _bulkSay('Choose a type in step 2 first, then select Apply.'); return; }
-        const typeMeta = TYPES[_bulkActiveType];
-        let ticked = 0, applied = 0, sundaySkipped = 0;
+        const typeMeta = TYPES[_bulkActiveType], leftAlone = _leftAloneBy(_bulkActiveType);
+        let applied = 0;
+        /** @type {string[]} */ const ticked = [];
+        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'start' }>} */ const skipped = [];
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
-            ticked++;
-            if (isForbiddenOnSunday(_bulkActiveType) && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Layer 2 of the Sunday rule — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js).
+            const date = row.dataset.date ?? '';
+            ticked.push(date);
+            if (isForbiddenOnSunday(_bulkActiveType) && isSunday(date)) { skipped.push({ date, why: 'sunday' }); return; } // Layer 2 of the Sunday rule — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js).
+            const why = leftAlone(date);
+            if (why) { skipped.push({ date, why }); return; }   // Absent on a rest day; any day before the start date
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
@@ -795,11 +816,12 @@ function _initBulkBar() {
             }
         });
         // Backstops: Apply is greyed out for both of these before a press (admin-bulk-apply.js).
-        if (ticked === 0)  { _bulkSay('Tick some days first — use the buttons above, or tick days in the week below.'); return; }
-        if (applied === 0) { _bulkSay('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
+        if (!ticked.length) { _bulkSay('Tick some days first — use the buttons above, or tick days in the week below.'); return; }
+        if (applied === 0)  { _bulkSay(bulkApplyWaitingFor(ticked, _bulkActiveType, leftAlone) || 'Nothing applied.'); return; }
         _markChanged();
         updateSaveBtn();   // …and with it the bulk bar's count and Apply
-        // Tell the user when ticked Sundays were dropped, so "All 7 → 6 applied" isn't a surprise.
-        if (sundaySkipped > 0) _showSuccess(`Set ${applied} day${applied !== 1 ? 's' : ''} — Sunday skipped (not a contracted day).`);
+        // Name the ticked days left alone, so "All 7 → 4 applied" isn't a surprise.
+        const said = bulkSkippedLine(applied, skipped, formatDisplay);
+        if (said) _showSuccess(said);
     });
 }

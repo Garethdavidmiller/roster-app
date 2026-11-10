@@ -6,8 +6,8 @@
  */
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
-import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
-import { teamMembers, getBaseShift } from '../roster-data.js';
+import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
+import { teamMembers, getBaseShift, parseISODate } from '../roster-data.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -1243,11 +1243,13 @@ test('admin: a colleague signing in from another tab does not sign anybody out h
 /** The dates of the rendered week, keyed by weekday. The grid always runs Sunday→Saturday, but the
  *  assertions name the day rather than an index so a failure says which day it meant. */
 async function weekGridDates(page) {
-    return page.evaluate(() => Object.fromEntries(
-        [...document.querySelectorAll('.day-row')].map(r => {
+    return page.evaluate(() => Object.fromEntries([
+        ...[...document.querySelectorAll('.day-row')].map(r => {
             const iso = /** @type {HTMLElement} */ (r).dataset.date || '';
             return [['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date(iso + 'T12:00:00').getDay()], iso];
-        })));
+        }),
+        ['member', /** @type {HTMLSelectElement} */ (document.getElementById('fieldMember')).value],   // whose week it is
+    ]));
 }
 
 test('admin: the Sunday row offers no pill for anything that cannot be recorded on a Sunday', async ({ page }) => {
@@ -1306,9 +1308,13 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
             })));
         expect(staged[days.sun], `${type} must not stage on a Sunday`).toBe('');
         // The other six DID take it — the sweep is being filtered, not broken. Without this, a
-        // guard that skipped every row would pass the line above.
+        // guard that skipped every row would pass the line above. Absent also leaves a REST day alone
+        // (owner, 10 Nov 2026 — its own test below), so for Absent the six are the working ones.
+        const who = teamMembers.find(m => m.name === days.member);
         for (const key of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat']) {
-            expect(staged[days[key]], `${key} is a contracted day and must take ${type}`).toBe(type);
+            const restLeft = type === 'sick' && isRestShift(getBaseShift(who, parseISODate(days[key])));
+            expect(staged[days[key]], restLeft ? `${key} is a rest day, which Absent leaves alone`
+                : `${key} is a contracted day and must take ${type}`).toBe(restLeft ? '' : type);
         }
         // "All 7 → 6 applied" is a surprise unless it is stated. This is the only place the manager
         // is told, and it is what stops the drop reading as a lost tap.
@@ -1319,6 +1325,41 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
         await page.locator('#stagedDiscardBtn').click();
         await expect(page.locator('#saveBtn')).toBeDisabled();
     }
+});
+
+// ── A BULK ABSENT LEAVES A REST DAY ALONE, AND NAMES IT (owner, 10 Nov 2026: "Skip rest days") ──────
+// The Absence card and the roster import record no absence on a rest day. The bulk bar did — and the
+// Calendar then hid it, while Admin's Recorded Absence dates listed and counted it.
+test('admin: All 7 → Absent → Apply stages only the working days, and names the rest days it left alone', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    for (const d of ['2027-01-13', '2027-01-14']) {
+        await expect(page.locator(`.day-row[data-date="${d}"]`), `premise: ${d} is a rest day on this line`).toHaveAttribute('data-base-is-rd', '1');
+        await page.locator(`.day-row[data-date="${d}"] .day-cb`).click();
+    }
+    await page.locator('#bulkTypePills .pill-sick').click();
+    await expect(page.locator('#bulkApplyBtn'), 'only rest days ticked: nothing Absent could go on').toBeDisabled();
+    await expect(page.locator('#bulkApplyHint')).toHaveText('An absence isn’t recorded on a rest day — tick a working day');
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkApplyBtn').click();
+    const staged = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.day-row')]
+        .map(r => [/** @type {HTMLElement} */ (r).dataset.date, /** @type {HTMLElement} */ (r).dataset.type || ''])));
+    expect(staged).toEqual({ '2027-01-10': '', '2027-01-11': 'sick', '2027-01-12': 'sick', '2027-01-13': '',
+        '2027-01-14': '', '2027-01-15': 'sick', '2027-01-16': 'sick' });
+    await expect(page.locator('#formFeedback')).toContainText('Set 4 days — Sunday skipped (not a contracted day); '
+        + '13 Jan 2027 and 14 Jan 2027 skipped: rest days on the base roster, so nothing is recorded.');
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('4 changes saved for G. Miller', { timeout: 10000 });
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
+    expect(written).toEqual(['2027-01-11 sick', '2027-01-12 sick', '2027-01-15 sick', '2027-01-16 sick']);
 });
 
 // ── THE STAGED OVERRIDE LOAD (v21.38, external review) ──────────────────────────────────────────
