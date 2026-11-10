@@ -393,6 +393,22 @@ function seededWindow(extra = {}) {
     };
 }
 
+/**
+ * The seeded window, STORED under a timetable today's rule would not derive — invariant 7's fixture
+ * (contracts-b-1). Pick a clock between a stored deadline and its derived twin, and only a reader
+ * that uses the stored one gets the answer the window was published with.
+ * @param {{ initial?: number, final?: number }} stored
+ */
+function offRuleWindow({ initial = M.initialDeadlineAt, final = M.finalDeadlineAt } = {}) {
+    const seed = seededWindow();
+    Object.assign(seed[`overtimeWindows/${WEEK}`], {
+        initialDeadlineAt: { toMillis: () => initial },
+        finalDeadlineAt:   { toMillis: () => final },
+    });
+    return seed;
+}
+const DAY_MS = 86_400_000;
+
 // Every test runs against the frozen clock below unless it says otherwise.
 //
 // The REAL clock is captured once, at load, and put back after EVERY test (test audit, 7 Nov 2026).
@@ -886,6 +902,89 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
     });
 });
 
+describe('invariant 7 — every reader judges a window by the deadlines STORED on it', () => {
+    // The overview's row was the only reader pinned (contracts-b-1): submitting, the member's own
+    // state, withdrawing and the top-up could each be switched to freshly derived deadlines with
+    // every test green, because every other fixture stores exactly what today's rule derives. If
+    // the rule ever moves, such an edit re-times every window already open — a member told
+    // "Closes Tue 25 Aug" refused, or accepted, at another instant. Each case below stands between
+    // a stored deadline and its derived twin, where only the stored one gives the right answer.
+
+    test('a submission is accepted until the STORED final deadline, past the derived one', async () => {
+        freeze(M.finalDeadlineAt + DAY_MS);    // derived: CLOSED · stored: still FINAL_OPEN
+        const { eps } = build(offRuleWindow({ final: M.finalDeadlineAt + 2 * DAY_MS }));
+        const r = await call(eps.submitOvertimeAvailability, req({
+            weekEnding: WEEK, days: allDay(), ifRevision: 0, clientMutationId: 'stored-final-1' }));
+        unfreeze();
+        assert.equal(r.code, 200, `refused against a deadline the window never had: ${JSON.stringify(r.body)}`);
+        assert.equal(r.body.phase, 'FINAL_OPEN');
+    });
+
+    test('the member\'s own state names the STORED deadline and the phase it gives', async () => {
+        const stored = M.initialDeadlineAt + 2 * DAY_MS;
+        freeze(M.initialDeadlineAt + DAY_MS);  // derived: FINAL_OPEN · stored: still INITIAL_OPEN
+        const { eps } = build(offRuleWindow({ initial: stored }));
+        const r = await call(eps.getMyOvertimeState, req({}));
+        unfreeze();
+        const w = r.body.windows[0];
+        assert.equal(w.initialDeadlineAt, stored);
+        assert.equal(w.phase, 'INITIAL_OPEN');
+    });
+
+    test('withdrawal is refused once the STORED final deadline has passed, though the derived one has not', async () => {
+        freeze(M.finalDeadlineAt - DAY_MS);    // derived: still open · stored: CLOSED
+        const { db, eps } = build(offRuleWindow({ final: M.finalDeadlineAt - 2 * DAY_MS }));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'closed');
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/G. Miller`).withdrawn, undefined);
+    });
+
+    test('the top-up stops at the STORED first deadline, though the derived one is still ahead', async () => {
+        freeze(M.initialDeadlineAt - DAY_MS);  // derived: INITIAL_OPEN · stored: FINAL_OPEN
+        const { db, eps } = build(offRuleWindow({ initial: M.initialDeadlineAt - 2 * DAY_MS }),
+            { rosterMembers: { ...ROSTER, overtimeBeta: ['S. Silva'] } });
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.body.existed, true);
+        assert.deepEqual(r.body.added, [], 'nobody joins a week whose own first deadline has gone');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false);
+    });
+
+    test('a restore is judged against the STORED first deadline', async () => {
+        // Stood down between the derived first deadline and the stored one: against the window's own
+        // deadline that is BEFORE it, so the restore must be refused.
+        freeze(M.initialDeadlineAt + 3 * DAY_MS);
+        const seed = offRuleWindow({ initial: M.initialDeadlineAt + 2 * DAY_MS });
+        Object.assign(seed[`overtimeWindows/${WEEK}/participants/G. Miller`], {
+            withdrawn: true, withdrawnAt: { toMillis: () => M.initialDeadlineAt + DAY_MS }, withdrawnBy: 'H. Croft' });
+        const { eps } = build(seed);
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'restore-window-passed');
+    });
+
+    test('the deadline-morning reminder waits for the STORED first deadline\'s morning', async () => {
+        // Five hours before the derived deadline the derived rule says "due"; the window's own
+        // deadline is a day later, so nobody may yet be told their answers are due today.
+        /** @type {any[]} */
+        const sends = [];
+        freeze(M.initialDeadlineAt - 5 * 3600_000);
+        const { db, eps } = build(offRuleWindow({ initial: M.initialDeadlineAt + DAY_MS }), { notify: {
+            sendPush: async (/** @type {any} */ payload, /** @type {string[]} */ uids) => { sends.push(payload); return uids.length; },
+            uidForName: async () => 'uid-gm',
+        } });
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.equal(sends.filter(p => p.title.includes('due today')).length, 0);
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, undefined, 'and the morning is not claimed');
+    });
+});
+
 describe('withdrawal means the same thing to the member as to the reviewer (v21.20)', () => {
     // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────
     //
@@ -1055,6 +1154,37 @@ describe('withdrawOvertimeParticipant — the leaver who is chased every week', 
         unfreeze();
         assert.equal(r.code, 200);
         assert.deepEqual(db._store.get(PATH), before, 'and nothing was written');
+    });
+
+    // RESTORING IS NOT THE MIRROR OF WITHDRAWING (v21.26; contracts-b-2). The rule was unit-tested
+    // and the endpoint line that CALLS it was not: it could be deleted with every test green — and
+    // the client's `canRestoreNow` only hides a button, so this refusal is the protection.
+    const withdrawnAt = (/** @type {number} */ ms) => seededWindow({
+        [PATH]: { memberName: 'G. Miller', grade: 'CEA', rosterOrder: 2, uid: null,
+            withdrawn: true, withdrawnAt: { toMillis: () => ms }, withdrawnBy: 'H. Croft' },
+    });
+
+    test('somebody stood down BEFORE the first deadline cannot be put back after it', async () => {
+        // Restored, they would be expected for a deadline they were never asked about, and their
+        // first answer would read "submitted after the initial deadline" — false of the person.
+        freeze(M.initialDeadlineAt + 3600_000);
+        const { eps, db } = build(withdrawnAt(M.initialDeadlineAt - DAY_MS));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'restore-window-passed');
+        assert.equal(db._store.get(PATH).withdrawn, true, 'and the withdrawal stands');
+    });
+
+    test('but somebody stood down AFTER it is an ordinary undo — guard the guard', async () => {
+        freeze(M.initialDeadlineAt + 3600_000);
+        const { eps, db } = build(withdrawnAt(M.initialDeadlineAt + 1800_000));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(db._store.get(PATH).withdrawn, undefined);
     });
 
     test('a CLOSED week refuses, with a code the page can name', async () => {
