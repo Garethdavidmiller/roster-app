@@ -613,8 +613,10 @@ export async function fillFromRoster(autosave) {
     const _names = written.map(c => _CAT_LABELS[c] ?? c);
     const _what = _names.length > 3 ? `${written.length} categories` : _names.join(' + ');
     const _gone = cleared.map(c => _CAT_LABELS[c] ?? c).join(' + ');
+    // No undo is offered, because there is none: "Clear all entries" empties the WHOLE payslip, and
+    // what a Replace overwrote does not come back (paycalc-3-11).
     setStatus(hint, written.length > 0
-      ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''} — select "Clear all entries" to undo`
+      ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''}`
       : cleared.length > 0
         ? `✓ Cleared ${_gone} — your calendar shows none`
         : (getOverridesFetchState() === 'loaded'

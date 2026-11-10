@@ -129,6 +129,15 @@ describe('a row or a card says what it is for, and only that', () => {
         assert.match(card[1], /peer|colleague/i, `the guide calls it "${card[1].trim()}"`);
     });
 
+    test('no help tip offers "Clear all entries" as an undo (paycalc-3-11)', async () => {
+        // It empties the WHOLE payslip, and the figures a Replace overwrote do not come back — so the
+        // tip that paired it with "Replace … will overwrite them" sent a member to lose more, not less.
+        const { HELP_CONTENT } = await import('./paycalc-help.js');
+        const tips = Object.values(HELP_CONTENT).flatMap(h => h.tips).map(text);
+        assert.ok(tips.some(t => /Replace with calendar values/.test(t)), 'premise: the hours help explains Replace');
+        for (const t of tips) assert.doesNotMatch(t, /Clear all entries[^.]*undo|undo[^.]*Clear all entries/i, t.slice(0, 80));
+    });
+
     test('the guide promises only the conversion the converter makes (paycalc-3-10)', () => {
         // The card has ONE input, a decimal from the payslip, and answers in hours and minutes. The
         // guide said it converted "and back", so a member typed 7:30 to get a decimal — and read "7 hrs".

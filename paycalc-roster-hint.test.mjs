@@ -16,7 +16,7 @@
  * period switch inside the await. Everything else (the period grid, the snapshot key, storage
  * through `ls.js`) is the real module over an in-memory `localStorage`.
  */
-import { test, describe, beforeEach, mock } from 'node:test';
+import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 const _store = new Map();
@@ -273,6 +273,35 @@ describe('the estimate badge reaches the rendered row', () => {
         const html = renderApplied({ rdwH: 7, rdwM: 30, rdwCount: 1, defaulted8h: {}, defaulted7h: {} });
         assert.match(html, /roster-row--matched/);
         assert.doesNotMatch(html, /conf-badge/, 'only an ESTIMATE is worth repeating on a row that matches');
+    });
+});
+
+// ── THE FILL'S RECEIPT NEVER OFFERS AN UNDO THERE IS NOT (paycalc-3-11) ──────────────────────────
+// It used to end 'select "Clear all entries" to undo'. That button empties the WHOLE payslip — the
+// overtime typed from notes, a correction, a pension, the payslip check — and the figures a Replace
+// overwrote do not come back. A member who followed the receipt lost more than the fill.
+describe('the fill receipt says what happened, and nothing it cannot do', () => {
+    beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
+    afterEach(() => { mock.timers.reset(); });
+    /** A status line as setStatus writes one: a hidden glyph, then the words. */
+    function statusLine() {
+        /** @type {any[]} */ const parts = [];
+        return {
+            get textContent() { return parts.map(p => p.textContent ?? p.data ?? '').join(''); },
+            set textContent(v) { parts.length = 0; if (v) parts.push({ textContent: String(v) }); },
+            appendChild(/** @type {any} */ c) { parts.push(c); return c; },
+            ownerDocument: { createElement: () => ({ textContent: '', setAttribute() {} }), createTextNode: (/** @type {string} */ t) => ({ data: t }) },
+        };
+    }
+
+    test('a fill names what it filled, and does not send the member to "Clear all entries"', async () => {
+        setupDom(A);
+        _els.rosterHintText = statusLine();
+        _fetchState = 'loaded';                 // the recorded changes are in: no retry fetch
+        await fillFromRoster(autosave);
+        const said = _els.rosterHintText.textContent;
+        assert.match(said, /Filled Overtime/, 'premise: the receipt was written');
+        assert.doesNotMatch(said, /Clear all entries|undo/i, 'the receipt offers an undo that wipes the whole payslip');
     });
 });
 
