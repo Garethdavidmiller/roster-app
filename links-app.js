@@ -1308,7 +1308,9 @@ export function init() {
             if (emptyTitle) emptyTitle.textContent = state === 'loading' ? LOADING_COPY.title : state === 'failed' ? 'Couldn’t load your designs' : state === 'binned' ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = state === 'loading' ? LOADING_COPY.msg
                 : state === 'failed' ? `Check your connection and try again. Nothing has been lost — saved designs are kept on the server.`
-                : state === 'binned' ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
+                // No month: the new link starts in January 2027, not December, and the day is not set
+                // (owner, 8 Nov 2026 — newlink-config.js → STARTS). What is true whenever it is read is the length.
+                : state === 'binned' ? `The link is now ${TOTAL_POS} lines, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
                 : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) emptyActs.style.display = offers ? '' : 'none';
             // An installed app has no reload button, so "refresh the page" was advice with nothing to press.

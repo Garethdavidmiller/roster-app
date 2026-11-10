@@ -2354,6 +2354,9 @@ test('links: when EVERY design was a 24-line one, the empty page says where they
     await page.goto('/links.html');
     await expect(page.locator('#linksEmptyState .links-empty-title')).toHaveText('Your 24-line designs are in Recently deleted');
     await expect(page.locator('#linksEmptyMsg')).toContainText('the 2 designs drawn for 24 moved there. Restore one from Recently deleted');
+    // No month (links-app-12): the new link starts in January 2027, and the day is not set yet.
+    await expect(page.locator('#linksEmptyMsg')).toContainText(`The link is now ${ROTATING_LINES} lines, so`);
+    await expect(page.locator('#linksEmptyMsg')).not.toContainText('December');
     const created = await page.evaluate(() => (window.__E2E?.setWrites || []).filter(w => w.added));
     expect(created, 'the legacy grid was re-migrated into a new design').toEqual([]);
 });
