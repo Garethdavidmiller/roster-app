@@ -1,23 +1,21 @@
 // @ts-check
 /**
- * admin-app.js — Coordinator and primary feature file for admin.html.
+ * admin-app.js — the coordinator for admin.html.
  *
- * Owns: login/session, AL booking, absence recording, Change a Shift wiring,
- *   page coordinator wiring (initialises modules on load).
- * Does NOT own: override entry/week-grid/bulk-bar (admin-overrides.js),
- *   roster PDF upload/review (admin-roster-upload.js), huddle upload/notifications
- *   (huddle.js), staff Firebase Auth setup (admin-auth.js),
- *   Notifications card (settings-app.js),
- *   pay maths (paycalc-calc.js), calendar display (calendar-app.js), roster data (roster-data.js).
- * Edit here for: login, AL/absence forms, Change a Shift wiring.
- * Do not edit here for: shift override grid or forms, roster PDF pipeline,
- *   notifications, pay calculator, roster data structure, shared CSS.
+ * Owns: sign-in and the session, the member bar and week navigation, the unsaved-changes guard, the
+ *   Change a Shift Save collector and its over-limit bar, the AL banner and recorded-dates wiring, the
+ *   kept week draft, and initialising every card's module on load.
+ * Does NOT own: the week grid and bulk bar (admin-week-editor.js), what a save writes
+ *   (admin-overrides.js), the AL and Absence cards (admin-al.js, admin-sick.js, admin-range-booking.js),
+ *   pay maths, calendar display or roster data. The roster PDF review and staff account set-up are
+ *   Operations' (operations-app.js), not on this page.
+ * Edit here for: login, page wiring, the Save collector. Not here: the grid, a save's write, shared CSS.
  */
 
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { unconfirmedWriteLine } from './claim-retry.js';
+import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage } from './page-session.js';
 import { createDraftSlot, savedSignature, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -26,6 +24,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft } from './admin-week-row-state.js';
+import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
 import { setLeaveYear } from './admin-leave-year-save.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -44,7 +43,7 @@ import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from '.
 import { alPosition, consumesEntitlement, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
-import { createBookedPeriods } from './admin-booked-periods.js';
+import { createBookedPeriods, fadeFeedback, holdFeedback } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -129,7 +128,7 @@ export function init() {
                 // reloadOnSuccess is set on the B1 stale-session path (see the _adminAuth.then block in
                 // initAuthorised): initAuthorised() ALREADY ran optimistically there and resolved the
                 // one-shot sessionReady, which cannot be re-resolved — so re-initialising in place would
-                // leave feature modules (admin-overrides, huddle, admin-auth) gated on a stale/failed auth
+                // leave feature modules (admin-overrides, admin-override-store) gated on a stale/failed auth
                 // barrier. Reload for a fresh page life + fresh sessionReady, mirroring operations/settings/
                 // links' B1 handling. The normal not-signed-in path (initAuthorised never ran, sessionReady
                 // still pending) initialises in place as before, falling back to a reload if init throws.
@@ -187,6 +186,8 @@ export function init() {
                         // admin to a row where the pill they wanted would not respond.
                         { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong> and <strong>Rest Day</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW.' },
                         { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
+                        // Owner, 10 Nov 2026: a tick chooses a day for Apply, and never removes anything.
+                        { icon: '🗑️', html: 'To remove a saved change, select its type again — the day reads <strong>⚠ Removing</strong> — then <strong>Save changes</strong>. A tick only chooses a day for <strong>Apply</strong>.' },
                         // Both ways, for both pointers (desktop audit, Nov 2026): this said only "Swipe",
                         // which a mouse cannot do, and never named the arrows or Today.
                         { icon: '↔️', html: 'Move between weeks with <strong>‹</strong> and <strong>›</strong>, or swipe the week sideways on a phone. <strong>📍 Today</strong> brings you back to this week.' },
@@ -235,7 +236,7 @@ export function init() {
                         { icon: '🪑', html: 'You never say why. Only the dates are saved; the reason is not recorded anywhere in the app.' },
                     ]},
                     { heading: 'Good to know', items: [
-                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically.' },
+                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically. Sundays are never recorded as absence — a rostered Sunday in the range is set as a rest day, and the preview names it.' },
                         { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and everybody can see it, the same as annual leave. What they cannot see is why.' },
                     ]},
                 ],
@@ -325,8 +326,8 @@ export function init() {
 
     populateMemberDropdown(fieldMember);
 
-    // iOS Safari silently fails when setting .value on a <select> with <optgroup>s.
-    // Iterate options and set .selected directly instead.
+    // Selects `val` and returns true — or leaves the select as it was and returns false when no option carries it, where `.value` would empty it.
+    // (Written believing iOS Safari ignores `.value` with <optgroup>s; WebKit does not — measured 10 Nov 2026, see select-sheet.js.)
     /**
      * @param {any} sel
      * @param {any} val
@@ -368,7 +369,8 @@ export function init() {
     // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
     // This preserves the month the staff member was viewing when they tapped Admin.
     const _urlDate = new URLSearchParams(location.search).get('date');
-    fieldDate.value = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : formatISO(new Date());
+    fieldDate.value = linkableDate(_urlDate) ? /** @type {string} */ (_urlDate) : formatISO(new Date());
+    fieldDate.min = `${CONFIG.MIN_YEAR}-01-01`; fieldDate.max = `${CONFIG.MAX_YEAR}-12-31`;   // the configured years; the date picker greys out past them
     // Delegate to updateWeekNavLabel (admin-overrides.js) rather than rebuilding the same string
     // here (v18.90). The two copies had to agree on the format and didn't after the same-month
     // collapse landed — the init one changed, the one that actually runs on every week change did
@@ -477,6 +479,7 @@ export function init() {
      * @param {number} delta  Positive = forward, negative = back
      */
     function shiftWeek(delta) {
+        if (!weekStepAllowed(fieldDate.value, delta * 7)) return;   // the configured years (the arrow is disabled too)
         const go = () => {
             const d = parseISODate(fieldDate.value);
             d.setDate(d.getDate() + delta * 7);
@@ -513,14 +516,8 @@ export function init() {
     });
 
     // ============================================
-    // WEEK GRID — SWIPE GESTURE
-    // Lazy-capture: pointerdown only records the start position. Horizontal
-    // intent is confirmed in pointermove (dx > dy), at which point
-    // setPointerCapture is called and the carousel starts. This makes the
-    // entire grid surface swipeable — including overridden rows where
-    // .col-pills and .col-time expand to full width — while still letting
-    // taps on checkboxes, pills, and time inputs fire their click handlers.
-    // Safety guards: blocks if unsaved changes exist, blocks if no member/week loaded.
+    // WEEK GRID — SWIPE GESTURE. The gesture itself — lazy capture, the carousel, the cooldown — is
+    // admin-week-swipe.js; what a week change MEANS stays here. No swipe with unsaved changes or no member/week.
     // ============================================
     initAdminWeekSwipe({
         weekGrid: /** @type {HTMLElement} */ (weekGrid),
@@ -537,7 +534,7 @@ export function init() {
             updateSickBookedBox();
             userMadeChanges = false;
         },
-        onSettled: () => { resetBulkPills(); updateSaveBtn(); },
+        onSettled: (redrawn) => { if (redrawn) renderWeekGrid(); resetBulkPills(); updateSaveBtn(); },
         shiftWeek,
     });
 
@@ -619,6 +616,9 @@ export function init() {
         takenEl.textContent  = String(taken);
         bookedEl.textContent = String(booked);
         entEl.textContent    = String(entitlement);
+        // …AND WHICH YEAR (whole-app check, Nov 2026; admin-2-14): a save keeps the picker on the year it booked.
+        const entLbl = document.getElementById('alBannerLblEntitlement');
+        if (entLbl) entLbl.textContent = `${yearStr} entitlement`;
 
         // What the entitlement is made of — a Dispatcher's base and bank-holiday days, anybody's
         // Boxing Day in lieu (v25.37) — in ONE line shared with the Calendar's leave panel
@@ -650,12 +650,6 @@ export function init() {
                 + (remaining <= 0 ? ' balance-none' : remaining <= 5 ? ' balance-low' : '');
         }
     }
-
-    // ============================================
-    // WEEK GRID
-    // ============================================
-    // updateWeekNavLabel, renderWeekGrid, activateRow,
-    // deactivateRow, updateSaveBtn, updateBulkSelCount — imported from admin-overrides.js
 
     // ============================================
     // SAVE
@@ -817,6 +811,11 @@ export function init() {
         });
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
+        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day on Boxing Day.
+        // Here, not in the collector above, whose slice override-utils.test.mjs evaluates with fixed names.
+        const dayRules = checkDayRules({ toSave, member: teamMembers.find(m => m.name === memberName), formatDate: formatDisplay });
+        dayRules.failedDates.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
+        if (dayRules.errors.length)           return showError("Can't save — " + dayRules.errors.join(' · '));
         if (!toSave.length && !toDelete.length) return showError('No changes to save.');
 
         // Both the rest-gap validation below (validateShiftRules → getEffectiveShift reads _allOverrides
@@ -918,16 +917,10 @@ export function init() {
         name.textContent = who;
         row.hidden = !who;
     }
-    function syncMemberDisplay() {
-        const memberDisplay = document.getElementById('alMemberDisplay');
-        if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
-        _syncMemberFor('alMemberFor', 'alMemberForName');
-    }
-    function syncSickMemberDisplay() {
-        const memberDisplay = document.getElementById('sickMemberDisplay');
-        if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
-        _syncMemberFor('sickMemberFor', 'sickMemberForName');
-    }
+    // The two cards' read-only "Staff member" labels are gone from admin.html (whole-app check, Nov 2026 —
+    // hidden for good, still written to); "Recording for" is what each card says about its member now.
+    function syncMemberDisplay()     { _syncMemberFor('alMemberFor', 'alMemberForName'); }
+    function syncSickMemberDisplay() { _syncMemberFor('sickMemberFor', 'sickMemberForName'); }
 
     // Preview refreshers exposed by initALSection / initSickSection (assigned when those
     // run, further down). Called on member change so the AL/absence previews can't keep
@@ -1067,14 +1060,14 @@ export function init() {
 
     /** @type {any} */ let _toastTimer = null;
     /** @type {any} */ let _feedbackTimer = null;
-    /** Shows a success message in the week editor feedback area.  @param {string} msg */
     /**
      * @param {string} msg
      * @param {string[]} [lines] one per changed DAY — rendered as an expandable receipt (v21.38).
      *   Built with DOM nodes rather than markup: the lines carry member-entered times and notes, and
      *   textContent cannot be made to mean anything but text.
+     * @param {{ toast?: boolean }} [o] `toast: false` for STAGED days (Apply): the toast confirms a SAVE, and it covered the Unsaved bar.
      */
-    function showSuccess(msg, lines) {
+    function showSuccess(msg, lines, { toast = true } = {}) {
         clearTimeout(_feedbackTimer);
         formFeedback.className = 'feedback success';
         setStatus(formFeedback, '✓ ' + msg);
@@ -1097,7 +1090,7 @@ export function init() {
         if (!lines?.length) _feedbackTimer = setTimeout(hideFeedback, 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
-        showToast('✓ ' + msg);
+        if (toast) showToast('✓ ' + msg);
     }
 
     /**
@@ -1134,6 +1127,7 @@ export function init() {
     /** @type {any[]} */ let _alPendingDelete = [];
     /** @type {string[]} */ let _alPendingSkipped = [];   // staged days the projection leaves alone
     /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
+    /** @type {HTMLElement|null} */ let _alOpener = null;
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -1156,6 +1150,8 @@ export function init() {
         alConfirmMsg.textContent = msg;
         alConfirmSub.textContent = sub;
         alConfirmSaveBtn.disabled = false;   // re-arm (the click handler disables to block a double-tap)
+        const asker = document.activeElement;   // the Save that asked, which Cancel goes back to — on Safari, which focuses no button on a tap, this path's Save
+        _alOpener = asker && asker !== document.body ? /** @type {HTMLElement} */ (asker) : pendingSave ? saveBtn : document.getElementById('alSaveBtn');
         alConfirmBar.classList.add('visible');
         alConfirmSaveBtn.focus();
     }
@@ -1178,6 +1174,8 @@ export function init() {
         // already nulled by hideALConfirm and fall into the AL-booking branch — an unintended,
         // entitlement-unchecked AL write. Re-enabled by showALConfirm the next time the bar opens.
         if (alConfirmSaveBtn.disabled) return;
+        // ONE WRITE AT A TIME (v24.38), this button too (Nov 2026): a booking still sending holds the lock, which this save's end released.
+        if (_alPendingSave && isSaveInFlight()) return showError('Another change is still saving — try again when it has finished.');
         alConfirmSaveBtn.disabled = true;
         if (_alPendingSave) {
             // Week editor path — toSave is an array of override entries
@@ -1201,6 +1199,8 @@ export function init() {
         // is shared by the AL-BOOKING card too — force-enabling here on that path left a primary
         // action enabled with ZERO staged rows (clicking only yielded "No changes to save").
         updateSaveBtn();
+        // …and focus back to the Save that asked (whole-app check, Nov 2026): left here, it sat on a hidden button.
+        if (_alOpener?.isConnected && !(/** @type {any} */ (_alOpener)).disabled) _alOpener.focus();
     });
 
     // ============================================
@@ -1279,6 +1279,7 @@ export function init() {
         await sessionReady;
         if (!auth.currentUser) {
             if (feedbackEl) {
+                holdFeedback(feedbackEl);
                 setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
                 feedbackEl.className = 'feedback error';
             }
@@ -1301,6 +1302,7 @@ export function init() {
             updateALBanner();
             updateALBookedBox();
             updateSickBookedBox();
+            _refreshAlPreview?.(); _refreshSickPreview?.();   // a range already picked was drawn over the deleted days (admin-2-2)
             // Preserve unsaved staged week-grid edits across an AL/absence range delete (v16.82).
             if (fieldMember.value && fieldDate.value && !_hasStagedEdits()) renderWeekGrid();
             const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
@@ -1308,7 +1310,7 @@ export function init() {
             if (feedbackEl) {
                 setStatus(feedbackEl, said);
                 feedbackEl.className = 'feedback success';
-                setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
+                fadeFeedback(feedbackEl, 'feedback', 6000);   // the line's ONE fade, which a later message cancels (admin-2-7)
             }
             // The inline line above sits at the top of the card; the row that was just deleted can
             // be a screen below it. A destructive action whose confirmation lands off-screen is one
@@ -1317,12 +1319,14 @@ export function init() {
         } catch (err) {
             console.error('[Admin] Period delete failed:', err);
             if (feedbackEl) {
+                // Never blamed on the connection when it was a refusal (admin-2-10): `saveFailureMessage` words each cause.
                 const msg = (/** @type {any} */ (err)).code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
                     : (/** @type {any} */ (err)).code === 'unavailable'
                     ? '⚠ You appear to be offline — reconnect and try again.'
                     : unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                         ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-                        : '⚠ Delete failed — check your connection and try again.';
+                        : '⚠ ' + saveFailureMessage(err);
+                holdFeedback(feedbackEl);   // an earlier delete's fade must not take this error down (admin-2-7)
                 feedbackEl.textContent = msg;
                 feedbackEl.className = 'feedback error';
                 // An error has to be READ, so it stays inline rather than in a 4s toast — and is
@@ -1426,10 +1430,8 @@ export function init() {
         alMember.disabled     = true;
         _setSelectValue(sickMember, currentUser);
         sickMember.disabled   = true;
-        // Refresh the absence card's display label too (v16.23) — the module-scope restore may have
-        // stamped a COLLEAGUE's name into #sickMemberDisplay (myb_roster_selected_member follows
-        // whichever calendar the user last viewed), and with the select disabled no change event
-        // ever corrects it. The write targeted sickMember.value (self) — display-only, but alarming.
+        // And the absence card's member row (v16.23): with the select disabled no change event ever
+        // re-syncs it. (Its read-only label, which once showed a colleague's name here, is gone.)
         syncSickMemberDisplay();
         lsSet(SELECTED_MEMBER, currentUser);
 
@@ -1496,9 +1498,6 @@ export function init() {
     // Calendar to print your shifts" notice (admin.css @media print). The old
     // beforeprint week-grid header stamp was removed with it.
 
-    // ---- One-time work email check (shown once per device after login) ----
-
-    /** ~3-monthly work-email re-confirmation cadence (v14.77). */
     // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 6).
     // Admin's policy is "any named user" (role null) — staff get self-service; the admin/manager split
     // gates ACTIONS (applyPermissions below), NOT page access, so there is no 'forbidden' path here.
@@ -1533,8 +1532,8 @@ export function init() {
         // Returning user with a valid localStorage session never passes through the
         // login click handler, so re-establish the Firebase Auth session here.
         // Without this, auth.currentUser stays null and every Firestore write fails.
-        // resolveSession() fulfils sessionReady so feature modules (admin-auth.js,
-        // admin-overrides.js, huddle.js) can import sessionReady instead of window._mybSession.
+        // resolveSession() fulfils sessionReady so feature modules (admin-overrides.js, admin-override-store.js,
+        // admin-leave-year-save.js) can import sessionReady instead of window._mybSession.
         const _adminAuth = ensureNamedSession(currentUser);
         resolveSession(_adminAuth);
         // B1.2: a returning local session that can't be confirmed as this member's OWN Firebase
@@ -1630,6 +1629,14 @@ export function init() {
             await _draft.offer({ ask: confirmDialog, apply: async (kept) => {
                 showInChangeAShift(member, date);
                 await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft restore: the member did not load:', e));
+                // ONLY ON ITS OWN MEMBER AND WEEK (whole-app check, Nov 2026). With changes staged here the jump stops at
+                // "Discard or keep editing?", and the rows went onto the member on screen. Not put back: the slot keeps it.
+                if (fieldMember.value !== member || fieldDate.value !== date) {
+                    showError(hasUnsavedChanges()
+                        ? 'Your unsaved changes weren’t put back, because this week has changes of its own. Save or discard them, and yours will be offered again the next time you open Admin.'
+                        : 'Your unsaved changes weren’t put back, because a different member or week is on screen. They’ll be offered again the next time you open Admin.');
+                    return false;
+                }
                 const { put, left } = applyWeekDraft(weekGrid, kept.data.rows, _savedOn(member));
                 if (put) markChanged();
                 updateSaveBtn();
@@ -1638,6 +1645,8 @@ export function init() {
         };
         // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. (It also marked the
         // speed ladder's `rosterLive` rung until the App Speed review retired the ladder, Oct 2026.)
+        // Drawn FIRST, so the week says "Loading…" while it reads — not the page's "Select a staff member" (Nov 2026).
+        renderWeekGrid();
         loadOverrides().then(_offerDraft).catch((err) => console.error('[Admin] The unsaved-changes offer failed:', err));
         // AN INSTALLED APP STAYS OPEN FOR DAYS (iPhone audit, Nov 2026), and this week was read once, its "Today" stamped
         // as it drew. Back after five minutes away, with nothing staged and nothing sending, it is read and drawn again.

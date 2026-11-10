@@ -12,13 +12,13 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
+import { shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { db, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { saveFailureMessage } from './claim-retry.js';
 // The cache, what it knows, and the reads that fill it — see admin-override-store.js. Re-exported
 // below so admin-app.js and the tests keep one import site for the whole Change-a-Shift surface.
-import { TYPES, PILL_TYPES, WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
+import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
          resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight } from './admin-week-editor.js';
@@ -33,6 +33,7 @@ export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
+import { rangeSundayCorrections } from './admin-al-projection.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
@@ -40,10 +41,6 @@ import { formatDisplay } from './admin-period-dates.js';
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 let _currentUser      = '';
-let _currentIsAdmin   = false;
-// Managers have full access too (edit any member on their behalf). Both admin and manager
-// may view the "All staff" override list; a locked self-service user may not.
-let _currentIsManager = false;
 /** @type {(msg: string, lines?: string[]) => void} */
 let _showSuccess      = () => {};
 /** @type {(msg: string) => void} */
@@ -52,12 +49,6 @@ let _showError        = () => {};
 let _onAfterSave      = () => {};  // refresh AL/sick banners after any write
 /** @type {() => void} */
 let _markChanged      = () => {};
-/** @type {(e: MouseEvent) => void} */
-let _onEditRow        = () => {};  // handleEdit lives in admin-app.js; passed as callback
-
-// When true, renderTable shows all members instead of only the selected member.
-// Reset to false when the selected member changes.
-
 
 /**
  * Builds a Map<dateISO, override> for a specific member from the override cache.
@@ -100,13 +91,11 @@ export { isWorkingDate } from './al-entitlement.js';
 export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = false, showSuccess, showError,
                                  onAfterSave, markChanged, onEditRow }) {
     _currentUser    = currentUser;
-    _currentIsAdmin = currentIsAdmin;
-    _currentIsManager = currentIsManager;
     _showSuccess    = showSuccess;
     // The store owns the cache and the reads; it repaints through these. Injected rather than
     // imported back, which is what keeps the graph acyclic (import-graph.test.mjs).
     initWeekEditor({
-        currentIsAdmin, showSuccess,
+        canPickMember: currentIsAdmin || currentIsManager, showSuccess,
         markChanged: () => _markChanged(),
         memberDateMap: buildMemberDateMap,
     });
@@ -125,7 +114,6 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
     _showError      = showError;
     _onAfterSave    = onAfterSave;
     _markChanged    = markChanged;
-    _onEditRow      = onEditRow;
 
     // The once-only wiring guard lives with the LISTENERS, in `initWeekEditor` and
     // `initSavedChanges` (v21.94). It used to be an `if` with an empty body here, left behind when
@@ -183,7 +171,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // Disable the button BEFORE awaiting sessionReady (v16.23): a double-tap during a slow sign-in
     // passed the collector twice and wrote duplicates. Fixed ids (v24.48) now make a second run land on
     // the same documents, so this is a guard against a wasted write. The finally re-enables it.
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true);
+    // `grid`: the batch is the week as it stood at the press, and the week is redrawn when it lands —
+    // so the week is held still until then, rather than taking a change it would throw away.
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true, { grid: true });
 
     await sessionReady;
     // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial
@@ -284,32 +274,41 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         });
         _showSuccess(receipt.summary, receipt.lines);
 
-        // Only the view this save came from: a navigation while it waited drew rows nobody saved (A9).
-        const sameView = fieldMember?.value === memberName && fieldDate?.value === savedDate;
-        if (sameView) resetStagedRows();   // the row lifecycle belongs to the week editor (v21.38)
-
-        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` answers only
-        // for the BOOT load; a member switch, All staff or a Retry can be in flight at commit, and it
-        // would assign the cache from a pre-write snapshot — the saved day vanishing from Saved Changes
-        // while correct in Firestore, which reads as data loss. A FAILED load must not fail a committed save.
-        await whenLoadSettled().catch(() => {});
-        // …AND THE MERGE IS BY ID (v21.42, external review): waiting lets that load reach the server
-        // AFTER the batch, so its rows can already hold what was just written, and appending `newDocs`
-        // put one id in the cache twice. Firestore is untouched, but everything that COUNTS rows — Saved
-        // Changes, AL taken and booked, the entitlement a manager books against — read a day wrong.
+        // THE MERGE IS BY ID (v21.42, external review): a read can already hold what was just written,
+        // and appending `newDocs` put one id in the cache twice. Firestore is untouched, but everything
+        // that COUNTS rows — Saved Changes, AL taken and booked, the entitlement a manager books
+        // against — read a day wrong. `newIds` before `newDocs`: whatever a read brought back for these
+        // documents is the same document, so the write's own record replaces it rather than joining it.
         const newIds     = new Set(newDocs.map(d => d.id));
         const removedIds = new Set([...dropped].filter(id => !newIds.has(id)));
-        mutateCache(rows => {
-            // `newIds` before `newDocs`: whatever the read brought back for these documents is the
-            // same document, so the write's own record replaces it rather than joining it.
+        const merge = () => mutateCache(rows => {
             const kept = rows.filter(o => !removedIds.has(o.id) && !newIds.has(o.id));
             kept.push(...newDocs);
             kept.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
             return kept;
         });
+        // Only the view this save came from: a navigation while it waited drew rows nobody saved (A9).
+        // ASKED AT EACH REDRAW, not once before the wait below — a navigation can land inside it too.
+        const sameView = () => !!fieldMember?.value && !!fieldDate?.value
+            && fieldMember.value === memberName && fieldDate.value === savedDate;
+        // DRAWN AS SAVED NOW (whole-app check, Nov 2026). The rows used to be switched off here and
+        // redrawn only after the wait: while a load was running the day just saved showed nothing and
+        // the Unsaved bar still counted it — and a switched-off row with a saved record reads as a
+        // staged REMOVAL, so the kept-draft check found unsaved work in a week that had none.
+        merge();
+        if (sameView()) renderWeekGrid();
+
+        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` answers only
+        // for the BOOT load; a member switch, All staff or a Retry can be in flight at commit, and it
+        // assigns the cache from a snapshot that may predate this write — the saved day vanishing from
+        // Saved Changes while correct in Firestore, which reads as data loss. So the merge runs AGAIN
+        // once it has landed. A FAILED load must not fail a committed save.
+        await whenLoadSettled().catch(() => {});
+        merge();
         renderTable();
+        if (sameView()) renderWeekGrid();
+        // AFTER the redraw: its "saved — forget the kept draft" asks whether anything is still staged.
         _onAfterSave();
-        if (sameView && fieldMember?.value && fieldDate?.value) renderWeekGrid();
 
     } catch (err) {
         console.error('[Admin] Save failed:', err);
@@ -436,26 +435,12 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // Which dates are written: `rangeWriteDates` — an answered-"free" rest day never (review A2).
     const workingDates = rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates: [...swapped] });
 
-    // Sundays within the range that have a worked base shift need an explicit RD correction
-    // so the base roster shift doesn't still show on the calendar during the absence period.
-    const sundayCorrections = memberObj
-        ? dates.filter(dateStr => {
-            if (!isSunday(dateStr)) return false;
-            const base = getBaseShift(memberObj, parseISODate(dateStr));
-            if (isRestShift(base)) return false;
-            // Skip the RD correction when the existing override is already a rest shift (RD/OFF —
-            // nothing to correct, avoid churn) OR is a genuinely WORKED override that correction/RD
-            // would silently ERASE — WORKED_OVERRIDE_TYPES, the current rdw/shift/spare_shift. The
-            // three retired types (allocated/overtime/swap) are NOT in it: put back on 6 Nov 2026 as a
-            // defence, they left again on 7 Nov once no record of them was found (admin-shift-types.js
-            // says why). A NON-worked override that
-            // shouldn't be on a Sunday (sick/AL) still gets corrected to RD, preserving the v12.61
-            // masking behaviour for those. (v16.19)
-            const ov = ovByDate.get(dateStr);
-            if (ov && (isRestShift(ov.value) || WORKED_OVERRIDE_TYPES.has(ov.type))) return false;
-            return true;
-          })
-        : [];
+    // Sundays within the range that have a worked base shift need an explicit RD correction so the base
+    // roster shift doesn't still show on the calendar during the absence period — skipped where the day
+    // already holds a rest value, or a WORKED record (WORKED_OVERRIDE_TYPES) it would erase; a leave or
+    // absence record still gets corrected, the v12.61 masking (v16.19). ONE rule, which the range cards'
+    // preview and receipt name too (whole-app check, Nov 2026): `rangeSundayCorrections`, admin-al-projection.js.
+    const sundayCorrections = rangeSundayCorrections({ dates, memberObj, ovByDate });
 
     // No working days → record nothing (and report sundayCount:0 accurately). A Sunday RD
     // correction only makes sense ALONGSIDE an AL/absence booking (so a worked Sunday inside the
@@ -525,7 +510,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             // warn the user that some of the range may already have saved (v16.25). A first-chunk
             // SIGNED_OUT may still land; the write gate (claim-retry.js) refuses a retry until reload.
             if (newDocs.length || deletedIds.size) {
-                try { await loadOverrides({ member: memberName }); } catch { /* best-effort resync — of the BOOKED member, not the dropdown's (A14) */ }
+                try { await loadOverrides({ everyone: false, member: memberName }); } catch { /* best-effort resync — of the BOOKED member, not the dropdown's (A14); a capped re-read would not cover them */ }
                 /** @type {any} */ (err).partialCommit = true;
             }
             throw err;
