@@ -2131,7 +2131,11 @@ export function init() {
             // (v16.19 / v16.23 / v17.18) and which was reinstated by accident as recently as the
             // v21.86 audit. What remains below is the conversation with the designer.
             const confirmOverwrite = (/** @type {{by:string, at:any}} */ c) => {
-                const when = c.at?.toDate?.()?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
+                // The app's one clock face, `formatClock` — 24-hour, its hour cycle pinned. A bare
+                // toLocaleTimeString leaves the cycle to the locale data, and where that falls back to
+                // 12-hour the question said "at 4:40 pm" beside a save row saying 16:40.
+                const at = c.at?.toDate?.();
+                const when = at instanceof Date && !Number.isNaN(at.getTime()) ? formatClock(at) : '';
                 // Your OWN name here is another tab or device, or a rename that could not be
                 // checked — "replace their changes" would have you overwrite yourself unasked.
                 const mine = c.by === currentUser;

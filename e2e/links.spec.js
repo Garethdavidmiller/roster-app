@@ -3998,6 +3998,37 @@ test('links re-review: declining to replace your OWN other version is not worded
     await expect(dialog).not.toContainText('Their');
 });
 
+// THE CONFLICT QUESTION STATES ITS TIME ON THE APP'S ONE CLOCK FACE. It was a bare
+// toLocaleTimeString('en-GB', …), which leaves the hour cycle to the locale data; where that falls back
+// to 12-hour it read "at 08:53 am" beside a save row on the 24-hour clock. `formatClock` pins 24-hour.
+// The fallback is SIMULATED: any call that leaves the hour cycle unset is answered in 12-hour.
+test('links: the "this design changed" question states its time on the 24-hour clock', async ({ page }) => {
+    await page.addInitScript(() => {
+        const native = Date.prototype.toLocaleTimeString;
+        Object.defineProperty(Date.prototype, 'toLocaleTimeString', {
+            configurable: true, writable: true,
+            value(/** @type {any} */ locales, /** @type {any} */ options) {
+                const unset = options && options.hourCycle === undefined && options.hour12 === undefined;
+                return native.call(this, locales, unset ? { ...options, hourCycle: 'h12' } : options);
+            },
+        });
+    });
+    await openWindowDesign(page);
+    await page.evaluate(() => {   // this design was saved since, under this member's own name
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, updatedAt: 1760000000000, updatedBy: 'G. Miller', revision: 7 } : d);
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('This design changed');
+    const clock = await page.evaluate(() => new Date(1760000000000)
+        .toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
+    await expect(dialog).toContainText(`was saved at ${clock} after you opened this page`);
+});
+
 // ── UNSAVED WORK OUTLIVES THE PAGE (iPhone audit, Nov 2026) ─────────────────────────────────────
 // The grid and the window lived only in memory, and iOS discards a hidden page without asking. The
 // working copy is now kept whenever the page is hidden and offered on the next load (unsaved-draft.js)
