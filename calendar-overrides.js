@@ -15,7 +15,7 @@ import { isAccessFailure as _isAccessFailure } from './claim-retry.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
-import { noteKnowledge, noteCheckFailed, forget as forgetKnowledge } from './calendar-data-state.js';
+import { noteKnowledge, noteCheckFailed, knowledgeOf, forget as forgetKnowledge } from './calendar-data-state.js';
 
 /** The error a month read answered by the OFFLINE CACHE is turned into (v24.48). */
 export const SERVED_FROM_CACHE = 'served-from-cache';
@@ -102,9 +102,9 @@ const fetchedMonths        = new Set();
 // claimed). What `releaseStaleMonths` measures age from — see there.
 /** @type {Map<string, number>} */
 const _settledAt = new Map();
-// Months whose last RE-check failed while this device held the server's earlier answer — the ones
-// drawn as a labelled saved copy. `releaseStaleMonths` hands them back however recent the failure, so
-// the label clears itself the next time the page comes into view with a connection (10 Nov 2026).
+// Months a failed check left drawn as a labelled saved copy — see `_oweIfSavedCopy`. `releaseStaleMonths`
+// hands them back however recent the failure, so the label clears itself the next time the page comes
+// into view with a connection (10 Nov 2026).
 /** @type {Set<string>} */
 const _recheckOwed = new Set();
 // Memoised getShiftTypesInMonth() results. Key: "memberName|year|month".
@@ -144,10 +144,10 @@ export function clearFetchedMonth(key) { fetchedMonths.delete(key); _settledAt.d
  * catch in `ensureOverridesCached`). A month still IN FLIGHT is left alone, and nothing is released
  * while the initial fetch runs — it owns its months until it settles.
  *
- * A month whose last re-check failed is handed back too, WHATEVER ITS AGE (10 Nov 2026). It is
- * already unclaimed, so any render would re-read it — but nothing renders when a phone is simply
- * picked up again, and without this the "couldn't check for changes" label stayed until somebody
- * pressed Try again, long after the signal had returned.
+ * A month whose last check failed over a saved copy is handed back too, WHATEVER ITS AGE (10 Nov
+ * 2026). It is already unclaimed, so any render would re-read it — but nothing renders when a phone
+ * is simply picked up again, and without this the "couldn't check for changes" label stayed until
+ * somebody pressed Try again, long after the signal had returned.
  * @param {number} maxAgeMs
  * @param {number} [now]
  * @returns {string[]} the month keys the next render should read again
@@ -167,6 +167,23 @@ export function releaseStaleMonths(maxAgeMs, now = Date.now()) {
     for (const key of _recheckOwed) if (!fetchedMonths.has(key)) released.push(key);
     _recheckOwed.clear();
     return released;
+}
+
+/**
+ * Owe a re-check, on the next return to the page, to each of these months that is drawn as the
+ * SAVED COPY — for the first load, whose failure releases its three months unread (cal-data-4). A
+ * month with no copy is owed nothing; see `_oweIfSavedCopy`.
+ * @param {string[]} keys
+ */
+export function oweRecheck(keys) { keys.forEach(_oweIfSavedCopy); }
+
+/** A failed check owes a re-check where it left a saved copy on screen — the server's earlier answer,
+ *  or this device's cache when the FIRST check failed (cal-data-4, 10 Nov 2026: a phone opened in a
+ *  signal gap kept the copy and "Couldn't update" after the signal came back, because only a failed
+ *  RE-check was owed). A month with no copy is not: its failure panel and Try again are the recovery.
+ *  @param {string} key */
+function _oweIfSavedCopy(key) {
+    if (_monthOwner.has(key) || knowledgeOf(key) === 'cached') _recheckOwed.add(key);
 }
 
 // ── The failed-month repaint, exactly once (v20.40) ────────────────────────────────────────────
@@ -505,7 +522,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
             try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
             return;
         }
-        if (_monthOwner.has(key)) _recheckOwed.add(key);   // a saved copy: ask again when the page comes back
+        _oweIfSavedCopy(key);   // a saved copy: ask again when the page comes back
         console.error('[Firestore] Failed to fetch overrides for', key, err);
         // Tell the caller to repaint, so a withheld grid can show its failure panel instead of
         // waiting forever on a fetch that has already lost (v20.40). Once per claim — see

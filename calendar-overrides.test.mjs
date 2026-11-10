@@ -114,11 +114,11 @@ const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
-    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, SERVED_FROM_CACHE,
+    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, oweRecheck, SERVED_FROM_CACHE,
     READ_SUPERSEDED,
 } = await import('./calendar-overrides.js');
 // The REAL knowledge module — this suite is where a read's outcome becomes a claim about a month.
-const { knowledgeOf, decideDisplay, forget: forgetKnowledge } = await import('./calendar-data-state.js');
+const { knowledgeOf, noteKnowledge, decideDisplay, forget: forgetKnowledge } = await import('./calendar-data-state.js');
 
 // Open the Calendar access gate for this whole file (v20.12). Every read here refuses to run
 // without it — that is the point of the gate, and this suite is about what the reads DO once they
@@ -787,6 +787,27 @@ describe('a re-check that fails keeps the grid as the saved copy, never as curre
         await ensureOverridesCached(2058, 2, () => {});
         assert.ok(!releaseStaleMonths(HOUR, Date.now()).includes(monthKey(2058, 2)));
     });
+
+    // cal-data-4 (10 Nov 2026). The copy need not be the SERVER's: a phone opened in a signal gap
+    // draws the month from this device's cache, its FIRST check fails, and it is the same labelled
+    // saved copy — which stayed, with "Couldn't update", after the signal came back.
+    test('a month whose FIRST check failed over this device\'s own copy is owed a re-check too', async () => {
+        _getDocsFromCacheFlag = true; _mockDocs = [AL('2068-03-10')];   // no signal: the device's cache answers
+        await ensureOverridesCached(2068, 2, () => {});
+        const key = monthKey(2068, 2);
+        assert.equal(knowledgeOf(key), 'cached', 'premise: drawn as the saved copy');
+        assert.ok(releaseStaleMonths(HOUR, Date.now()).includes(key),
+            'a phone picked up once the signal was back never asked for the month again');
+    });
+
+    test('the first load owes a re-check only to its months that hold a copy (oweRecheck)', () => {
+        const [held, failed, never] = [monthKey(2069, 0), monthKey(2069, 1), monthKey(2069, 2)];
+        noteKnowledge(held, 'cached'); noteKnowledge(failed, 'error');
+        oweRecheck([held, failed, never]);
+        const released = releaseStaleMonths(HOUR, Date.now());
+        assert.ok(released.includes(held), 'a saved copy is asked for again on return');
+        assert.ok(!released.includes(failed) && !released.includes(never), 'a month with no copy keeps its failure panel and Try again');
+    });
 });
 
 // ── AN ANSWER BELONGS TO THE GRANT THAT ASKED (10 Nov 2026, external review F2) ─────────────────────
@@ -1226,6 +1247,7 @@ describe('the first load\'s failure chip and a month that then loads by itself',
     const OFFLINE = () => Object.assign(new Error('offline'), { code: 'unavailable' });
     /** @type {any} */ let savedDoc, savedObserver, header;
     /** @type {Function[]} */ let observers = [];
+    /** @type {Record<string, Function[]>} */ let listeners = {};
     const rebuildHeader = () => {
         if (header) for (const k of header.kids) k.isConnected = false;
         header = { kids: /** @type {any[]} */ ([]), appendChild(/** @type {any} */ c) { this.kids.push(c); c.isConnected = true; return c; } };
@@ -1237,13 +1259,14 @@ describe('the first load\'s failure chip and a month that then loads by itself',
     beforeEach(() => {
         savedDoc = /** @type {any} */ (globalThis).document;
         savedObserver = /** @type {any} */ (globalThis).MutationObserver;
-        observers = []; header = null;
+        observers = []; header = null; listeners = {};
         /** @type {any} */ (globalThis).document = {
             getElementById: () => null,
             querySelector: (/** @type {string} */ sel) => (sel === '.calendar-header' ? header : null),
             createElement: (/** @type {string} */ tag) => ({ tag, type: '', className: '', textContent: '', disabled: false, onclick: null,
                 isConnected: false, setAttribute() {}, remove() { this.isConnected = false; }, focus() {} }),
-            addEventListener: () => {}, body: {},
+            addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => { (listeners[type] ||= []).push(fn); },
+            hidden: false, body: {},
         };
         /** @type {any} */ (globalThis).MutationObserver = class {
             /** @param {Function} cb */ constructor(cb) { this.cb = cb; }
@@ -1260,7 +1283,7 @@ describe('the first load\'s failure chip and a month that then loads by itself',
         mock.timers.reset();
         /** @type {any} */ (globalThis).document = savedDoc;
         /** @type {any} */ (globalThis).MutationObserver = savedObserver;
-        _deferGetDocs = false; _releases.length = 0;
+        _deferGetDocs = false; _releases.length = 0; _mockDocs = []; _mockCacheDocs = []; _getDocsFromCacheFlag = false;
         setInitialFetchInProgress(false);
         forgetKnowledge();
         setOverrideAccess(true);
@@ -1280,5 +1303,30 @@ describe('the first load\'s failure chip and a month that then loads by itself',
         assert.equal(chip(), undefined, '"Couldn\'t update — try again" stood above a grid the server had just answered for');
         renderCalendar(); await _tick(30);
         assert.equal(chip(), undefined, 'and the next render does not put it back');
+    });
+
+    // cal-data-4: the same first load with NO signal at all — the device's cache answers every read —
+    // and then the phone is put away and taken out again once the signal is back.
+    test('opened in a signal gap, shown again with a signal: the month is asked for, and is current', async () => {
+        _mockCacheDocs = [makeDoc('al', { memberName: 'A. Smith', date: `${monthKey(y, m)}-10`, value: 'AL',
+            type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } })];
+        _mockDocs = _mockCacheDocs;
+        _getDocsFromCacheFlag = true;         // no signal: the server reads are answered by the cache
+        try {
+            initInitialFetch({ isTeamViewMode: () => false, renderCalendar, authReady: Promise.resolve() });
+            renderCalendar();
+            await _tick(30);
+            while (_releases.length) { _releases.shift()?.(); await _tick(30); }   // every read the boot makes, answered by the cache
+            assert.equal(knowledgeOf(monthKey(y, m)), 'cached', 'premise: the saved copy is on screen');
+            assert.ok(chip()?.className.includes('sync-chip-error'), 'premise: "Couldn\'t update" above it');
+        } finally { _getDocsFromCacheFlag = false; }   // the signal is back
+
+        for (const fn of listeners.visibilitychange || []) fn();   // the phone is taken out again
+        await _tick(30);
+        assert.equal(_releases.length, 1, 'coming back to the page asked the server for nothing');
+        _releases.shift()?.();
+        await _tick(30);
+        assert.equal(knowledgeOf(monthKey(y, m)), 'authoritative', 'the month is current again');
+        assert.equal(chip(), undefined, 'and nothing says it could not update');
     });
 });

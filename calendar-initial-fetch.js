@@ -8,7 +8,7 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration, hasOverrideAccess, READ_SUPERSEDED } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, oweRecheck, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration, hasOverrideAccess, READ_SUPERSEDED } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
 import { noteKnowledge, knowledgeOf } from './calendar-data-state.js';
 import { getDisplayMonth, getDisplayYear } from './calendar-state.js';
@@ -319,6 +319,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
         return;
       }
       noteKnowledge(_initialMonthKeys, 'error');
+      oweRecheck(_initialMonthKeys);   // a month still drawn as the saved copy is asked for again on return (cal-data-4)
       setChipState({
         text: '⚠ Couldn\'t update — try again',
         className: 'sync-chip sync-chip-error',
@@ -443,8 +444,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       }
       // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
       // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
-      // and the cached grid stays up behind the retry chip, which is the right answer there.
+      // and the cached grid stays up behind the retry chip, which is the right answer there — and it
+      // is asked for again the next time the page comes into view (cal-data-4; Team View included,
+      // whose failure repaint below reads nothing).
       noteKnowledge(_initialMonthKeys, 'error');
+      oweRecheck(_initialMonthKeys);
       // A renderCalendar() call between the fetch start and the catch (e.g. from visibilitychange)
       // rebuilds the calendar header, detaching the chip — setChipState re-creates it. When there
       // is NO header at all (first run, Team View) the state is still recorded and rendered the
@@ -462,8 +466,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // flag, the render and the button live in three different modules.
       setInitialFetchInProgress(false);
       // Repaint so a withheld grid moves from "Checking this month" to the failure panel (v20.40).
-      // The months were released just above, so this render re-fetches them once; the one-shot
-      // guard in calendar-overrides.js is what stops that becoming a fetch↔render loop.
+      // The months were released just above, so the month grid's render re-reads the month on screen
+      // once — the one-shot guard in calendar-overrides.js stops that becoming a fetch↔render loop.
+      // Team View's repaint reads nothing; its saved-copy months are owed the re-check above instead.
       if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     } finally {
       setInitialFetchInProgress(false);

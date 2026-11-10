@@ -28,6 +28,7 @@ let _clearMonthsHistory = []; // calls to clearFetchedMonth
 let _fakeFetchInProgress = false;
 let _cacheFetchImpl   = () => Promise.resolve(false);   // phase 1: local-cache paint
 let _releaseImpl      = () => [];   // releaseStaleMonths — which months the return-to-page released
+let _owedHistory      = [];   // calls to oweRecheck — the months a failed first load leaves owed a re-check
 
 mock.module('./calendar-overrides.js', {
     namedExports: {
@@ -36,6 +37,7 @@ mock.module('./calendar-overrides.js', {
         addFetchedMonths(keys)       { _addMonthsHistory.push([...keys]); },
         clearFetchedMonth(key)       { _clearMonthsHistory.push(key); },
         releaseStaleMonths:          (...args) => _releaseImpl(...args),
+        oweRecheck(keys)             { _owedHistory.push([...keys]); },
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
         fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),
@@ -157,6 +159,7 @@ beforeEach(() => {
     _progressHistory     = [];
     _addMonthsHistory    = [];
     _clearMonthsHistory  = [];
+    _owedHistory         = [];
     _fakeFetchInProgress = false;
     _fetchImpl           = () => Promise.resolve();
     _grantGen            = 0;
@@ -614,6 +617,33 @@ describe('a refused read re-locks; a failed one offers the retry', () => {
         assert.equal(lost, 0, 'a network failure on the retry was treated as lost access');
         assert.notEqual(chip._removed, true, 'the chip is still the way to try again');
         assert.equal(chip.textContent, "⚠ Couldn't update — try again");
+    });
+
+    // cal-data-4 (10 Nov 2026). A phone opened in a signal gap kept the saved copy and "Couldn't
+    // update" after the signal came back: the failure released the three months unread, so coming
+    // back to the page found nothing to hand back. calendar-overrides.js decides which of them hold a
+    // copy (only those are owed); this pins that the first load asks.
+    test('a boot read that FAILED for the network owes its three months a re-check on return', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        initInitialFetch({ isTeamViewMode: () => true, renderCalendar: () => {}, renderTeamView: () => {}, onAccessLost: () => {} });
+        await flushAsync();
+        assert.deepEqual(_owedHistory, [_addMonthsHistory[0]], 'the months a failed first load leaves on screen were never asked for again');
+    });
+
+    test('…and so does its retry; a REFUSED read owes nothing — the unlock card is the recovery', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => {} });
+        await flushAsync();
+        _fetchImpl = () => Promise.reject(OFFLINE());
+        getSyncChip()._fire('click');
+        await flushAsync();
+        assert.equal(_owedHistory.length, 2, 'the failed retry left the same months owed');
+        _fetchImpl = () => Promise.reject(DENIED());
+        getSyncChip()._fire('click');
+        await flushAsync();
+        assert.equal(_owedHistory.length, 2, 'a refusal owed a re-check to a Calendar that has just locked');
     });
 });
 
