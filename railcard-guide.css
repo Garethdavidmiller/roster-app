@@ -200,9 +200,11 @@ body {
     border-radius: 4px;
     overflow: hidden;
 }
+/* The label column in `em`, so it grows with the text: fixed at 84px, MARYLEBONE (73px at the
+   default 10px) ran 3px into its sentence at 1.3× text. 7.3em of the row's 11.5px is the old 84px. */
 .rc-layer {
     display: grid;
-    grid-template-columns: 84px 1fr;
+    grid-template-columns: 7.3em 1fr;
     gap: 8px;
     padding: 6px 9px;
     font-size: 11.5px;
@@ -394,7 +396,7 @@ a { color: var(--navy); text-underline-offset: 2px; }
 .source-banner {
     background: var(--amber-bg);
     border-bottom: 2px solid var(--amber);
-    padding: 12px max(16px, env(safe-area-inset-left));
+    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));   /* each side its own inset */
 }
 /* 728 = the 760px column less its 16px sides, so the banner's words start where the header's ←, the
    chips and the text do (desktop audit, Nov 2026); it was 16px left of all three. */
