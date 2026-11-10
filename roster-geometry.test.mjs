@@ -141,6 +141,73 @@ describe('rulesFromOperatorList — the drawn rules', () => {
     });
 });
 
+// ── The sheet's own week (roster-week-heading.js — import-server-2) ─────────────────────────────
+//
+// Measured on a real CEA roster (10 Nov 2026): page 1 prints the label "Week Ending:" and a
+// DD/MM/YYYY date above the grid, as two text runs on one line; continuation pages do not repeat it,
+// and the footer's "Print Date:" carries a date that is never the week. Every run below is
+// SYNTHETIC: no text from a real sheet is in this repository.
+
+const { weekEndingsOnPage, checkSheetWeek } = require('./functions/roster-week-heading.js');
+
+describe('the sheet\'s own week — read from its printed heading, never guessed', () => {
+    const run = (/** @type {string} */ str, /** @type {number} */ x, /** @type {number} */ y) => ({ str, x, y });
+
+    test('the label and the date are two runs on one line, as the real sheet prints them', () => {
+        assert.deepEqual(weekEndingsOnPage([run('A Roster Title', 25, 543.7), run('Week Ending:', 635, 544.7), run('05/09/2026', 712, 544.7)]),
+            [{ printed: '05/09/2026', iso: '2026-09-05' }]);
+    });
+
+    test('one run carrying both, in any case or spacing, reads the same', () => {
+        for (const s of ['Week Ending:  05/09/2026', 'WEEK ENDING 5/9/2026', 'week ending: 05 / 09 / 2026']) {
+            assert.deepEqual(weekEndingsOnPage([run(s, 600, 540)]).map(h => h.iso), ['2026-09-05'], s);
+        }
+    });
+
+    test('the footer\'s print date is never the week, and no other form is guessed at', () => {
+        for (const s of ['Print Date: 27/08/2026', 'Week Ending: 05.09.2026', 'Week Ending: 05/09/26', '05/09/2026']) {
+            assert.deepEqual(weekEndingsOnPage([run(s, 30, 40)]), [], s);
+        }
+        assert.deepEqual(weekEndingsOnPage([run('Week Ending:', 635, 544), run('05/09/2026', 712, 520)]), [],
+            'a label and a date on different lines are not one heading');
+    });
+
+    test('a date that is not a real Saturday is read, and marked unusable', () => {
+        assert.deepEqual(weekEndingsOnPage([run('Week Ending: 04/09/2026', 600, 540), run('Week Ending: 31/02/2026', 600, 500)]),
+            [{ printed: '04/09/2026', iso: null }, { printed: '31/02/2026', iso: null }]);
+    });
+
+    test('the week chosen passes; another week refuses, naming both in the app\'s date style', () => {
+        const geo = (/** @type {string[]} */ ...iso) => ({ weekEndings: iso.map(i => ({ printed: '', iso: i })), pagesRead: 1, pagesRejected: 0 });
+        assert.equal(checkSheetWeek(geo('2026-09-05'), '2026-09-05').status, 'match');
+        const c = checkSheetWeek(geo('2026-09-05'), '2026-09-12');
+        assert.equal(c.status, 'mismatch');
+        assert.equal(c.message, 'This roster is for the week ending Saturday 5 September 2026, but the week chosen is '
+            + 'Saturday 12 September 2026. Choose the matching week and upload it again.');
+        assert.equal(c.sheetWeek, '2026-09-05');
+        const two = checkSheetWeek(geo('2026-09-05', '2026-09-12'), '2026-09-12');
+        assert.equal(two.status, 'mismatch', 'a PDF holding two weeks is refused, even when one is the week chosen');
+        assert.match(two.message ?? '', /more than one week — the weeks ending Saturday 5 September 2026 and Saturday 12 September 2026/);
+    });
+
+    test('no heading read is NOT a refusal: the read goes on, and the log says why', () => {
+        /** @type {Array<[any, RegExp]>} */
+        const cases = [
+            [{ weekEndings: [], pagesRead: 1, pagesRejected: 0 }, /prints no "Week Ending: DD\/MM\/YYYY" heading/],
+            [{ weekEndings: [{ printed: '04/09/2026', iso: null }], pagesRead: 1, pagesRejected: 0 }, /04\/09\/2026\) is not a Saturday/],
+            [{ available: false, reason: 'no-text', rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [] }, /text was not read \(no-text\)/],
+            [{ available: false, reason: 'wait-timeout', rows: [], pagesRead: 0, pagesRejected: 0 }, /text was not read \(wait-timeout\)/],
+            [null, /text was not read/],
+        ];
+        for (const [geometry, why] of cases) {
+            const c = checkSheetWeek(geometry, '2026-09-05');
+            assert.equal(c.status, 'unread');
+            assert.equal(c.message, undefined, 'nothing for the admin to act on');
+            assert.match(c.note, why);
+        }
+    });
+});
+
 // ── Runs → cells ────────────────────────────────────────────────────────────────────────────────
 
 describe('assignRunsToGrid — every run lands in its physical cell', () => {
@@ -573,6 +640,22 @@ describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip
         const g = await extractRosterGeometry(buildPdf([['q 0.5 w 100 100 m 100 700 l S Q']]));
         assert.equal(g.available, false);
         assert.equal(g.reason, 'no-text');
+    });
+
+    test('the sheet\'s own week is read from above the grid, and a spill page changes no row (import-server-2)', async () => {
+        // Synthetic, in the measured shape: the heading's label and date as two runs on one line above
+        // the top rule, and a spill page — a few runs at the left margin, no drawn rules.
+        const page = rosterPage(ROSTER);
+        page.push('BT /F1 9 Tf 635 760 Td (Week Ending:) Tj ET', 'BT /F1 9 Tf 712 760 Td (05/09/2026) Tj ET');
+        const spill = ['BT /F1 9 Tf 23 400 Td (06:00) Tj ET', 'BT /F1 9 Tf 23 380 Td (14:00) Tj ET'];
+        const g = await extractRosterGeometry(buildPdf([page, spill]));
+        assert.deepEqual(g.weekEndings, [{ printed: '05/09/2026', iso: '2026-09-05' }]);
+        assert.deepEqual(g.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant'], 'the heading is no row, and the spill adds none');
+        assert.deepEqual([g.pagesRead, g.pagesRejected], [1, 1], 'the spill page has no grid, and is rejected by content');
+        // …and a heading on a page the grid read REJECTS is still read: the heading is not grid furniture.
+        const cover = ['BT /F1 9 Tf 300 600 Td (Week Ending: 12/09/2026) Tj ET'];
+        const g2 = await extractRosterGeometry(buildPdf([cover, rosterPage(ROSTER)]));
+        assert.deepEqual(g2.weekEndings.map(h => h.iso), ['2026-09-12']);
     });
 
     test('a stroked `v` or `y` curve beside the table does not cost the page its grid (import-server-7)', async () => {

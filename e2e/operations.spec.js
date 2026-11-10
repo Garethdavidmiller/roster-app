@@ -2166,6 +2166,28 @@ test('operations: "no changes needed" keeps the notes about the read', async ({ 
     await expect(page.locator('.roster-download-pdf')).toBeVisible();
 });
 
+// A member the read listed more than once keeps ONE row on the server, and only its log knew about
+// the other, so the review names each one (whole-app fix, Nov 2026). The second name is markup to
+// prove it is escaped like every other name the review shows.
+test('operations: a member the read listed twice is named, one escaped line each', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, duplicateMembers: ['G. Miller', '<b>Z. Test</b>'] });
+    const notes = page.locator('.roster-crosscheck-note', { hasText: 'appeared more than once in the read' });
+    await expect(notes).toHaveCount(2);
+    await expect(notes.nth(0)).toHaveText(
+        '⚠ G. Miller appeared more than once in the read; the first row that was not empty was used. Check it against the PDF.');
+    await expect(notes.nth(1)).toContainText('<b>Z. Test</b> appeared more than once in the read');
+    await expect(notes.nth(1).locator('b')).toHaveCount(0);
+});
+
+// An older Function sends no `duplicateMembers`, so either release order is safe: absent is none.
+test('operations: a read with no duplicate list, as an older Function sends, names nobody', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);   // ROSTER_REVIEW_PARSE has no duplicateMembers field
+    await expect(page.locator('.roster-crosscheck-note').first()).toBeVisible();
+    await expect(page.locator('#rosterChangeList')).not.toContainText('appeared more than once');
+});
+
 // Skip means "write nothing", so it must never wear the colour that means "this will be saved".
 // Asserted on computed style rather than by screenshot: --text-mid (L45%) and --success-green
 // (L48.5%) differ in HUE at near-equal luminance, and pixelmatch's delta is luminance-dominated, so
