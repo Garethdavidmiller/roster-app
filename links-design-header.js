@@ -82,7 +82,7 @@
  */
 
 import { avatarInitials, avatarHue } from './roster-data.js';
-import { formatDayMonth, formatDayMonthYear } from './date-format.js';
+import { formatDayMonth, formatDayMonthYear, formatClock } from './date-format.js';
 import { nameConflict } from './links-design-naming.js';
 
 /**
@@ -207,7 +207,7 @@ export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now
     if (dirty)   return { tone: 'dirty', long: 'Unsaved changes', short: 'Unsaved' };
     const when = toDate(updatedAt);
     if (!when) return { tone: 'saved', long: 'Saved', short: 'Saved' };
-    const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const time = formatClock(when);   // the app's one 24-hour clock — the save row beside it uses it too
     if (sameDay(when, now)) return { tone: 'saved', long: `Saved today at ${time}`, short: `Saved ${time}` };
     const date = shortDate(when, now);
     return { tone: 'saved', long: `Saved ${date} at ${time}`, short: `Saved ${date}` };

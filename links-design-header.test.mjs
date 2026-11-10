@@ -112,6 +112,21 @@ describe('the status pill — lying about saved state is the expensive direction
         const lastYear = statusCopy({ saved: true, dirty: false, updatedAt: at(new Date(2025, 8, 3, 9, 5).getTime()), now: NOW });
         assert.match(lastYear.long, /2025/);
     });
+    test('the time is the app\'s one 24-hour clock, even where the locale would reach 12-hour', () => {
+        // date-format.js's formatClock names the hour cycle because "a locale fallback can reach
+        // 12-hour"; the pill's own bare toLocaleTimeString did not, so there it read "Saved today at
+        // 12:05 am" beside a save row reading "00:05" (whole-app fix, Nov 2026). Simulated by a locale
+        // whose DEFAULT is 12-hour: a call that names its cycle is unaffected, as the real one is.
+        const real = Date.prototype.toLocaleTimeString;
+        Date.prototype.toLocaleTimeString = function (/** @type {any} */ _locale, /** @type {any} */ opts) {
+            return real.call(this, 'en-GB-u-hc-h12', opts);
+        };
+        try {
+            const at05 = new Date(2026, 8, 8, 0, 5);
+            assert.equal(statusCopy({ saved: true, dirty: false, updatedAt: at(at05.getTime()), now: at05 }).long, 'Saved today at 00:05');
+        } finally { Date.prototype.toLocaleTimeString = real; }
+    });
+
     test('a saved design whose timestamp has not resolved yet still says Saved, with no invented time', () => {
         const s = statusCopy({ saved: true, dirty: false, updatedAt: null, now: NOW });
         assert.equal(s.long, 'Saved');
