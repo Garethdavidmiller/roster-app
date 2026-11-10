@@ -268,27 +268,36 @@ test('every railcard/fip register row is referenced by at least one guide block 
 // value gets a parity guard; this one is user-facing accuracy, so it earns one more than most.
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+// EACH CARD IS BOUNDED BY THE NEXT CARD (whole-app review, 10 Nov 2026). This read
+// `data-guide-source="…" … </details>` lazily, which is right for a <details> card and wrong for the
+// two not-FIP <div> cards: Sweden's match ran on to the next </details> and swallowed Finland and the
+// North Sea ferry, so neither of their dates was ever compared (a stale Finland date passed,
+// measured). Every country and ferry card — <details> or <div> — now runs to the next card or
+// section heading, whichever comes first.
 test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed date', () => {
     const reviewedOf = new Map(rows.map(r => [r.ID, r.Reviewed]));
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
+    const opens = [...html.matchAll(/<(?:details|div)\b([^>]*\bid="(?:country|ferry)-[^"]+"[^>]*)>/g)];
     let checked = 0;
-    for (const file of Object.values(GUIDE_FILES)) {
-        const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
-        // Each <details> block that names a register row AND renders a Checked date.
-        for (const m of html.matchAll(/data-guide-source="([^"]+)"([\s\S]*?)<\/details>/g)) {
-            const dm = m[2].match(/Checked\s+([A-Z][a-z]{2})\s+(\d{4})/);
-            if (!dm) continue;
-            const id = m[1].trim().split(/\s+/)[0];
-            const mi = MONTHS.indexOf(dm[1]);
-            assert.ok(mi >= 0, `${file}: "${dm[1]}" is not a recognised month abbreviation`);
-            const shown = `${dm[2]}-${String(mi + 1).padStart(2, '0')}`;
-            assert.equal(shown, reviewedOf.get(id),
-                `${file}: the card for "${id}" shows "Checked ${dm[1]} ${dm[2]}" (${shown}) but its ` +
-                `register row says Reviewed ${reviewedOf.get(id)} — a freshness date staff rely on must ` +
-                `never be older or newer than the review that backs it`);
-            checked++;
-        }
-    }
-    assert.ok(checked >= 9, `expected the nine sourced FIP country cards to show a date, found ${checked}`);
+    opens.forEach((m, i) => {
+        const start = m.index ?? 0;
+        const nextCard = i + 1 < opens.length ? (opens[i + 1].index ?? html.length) : html.length;
+        const nextHead = html.indexOf('<h2', start);
+        const card = html.slice(start, Math.min(nextCard, nextHead === -1 ? html.length : nextHead));
+        const src = m[1].match(/data-guide-source="([^"]+)"/);
+        const dm = card.match(/Checked\s+([A-Z][a-z]{2})\s+(\d{4})/);
+        if (!src || !dm) return;          // presence is the next test's job
+        const id = src[1].trim().split(/\s+/)[0];
+        const mi = MONTHS.indexOf(dm[1]);
+        assert.ok(mi >= 0, `fip-guide.html: "${dm[1]}" is not a recognised month abbreviation`);
+        const shown = `${dm[2]}-${String(mi + 1).padStart(2, '0')}`;
+        assert.equal(shown, reviewedOf.get(id),
+            `fip-guide.html: the card for "${id}" shows "Checked ${dm[1]} ${dm[2]}" (${shown}) but its ` +
+            `register row says Reviewed ${reviewedOf.get(id)} — a freshness date staff rely on must ` +
+            `never be older or newer than the review that backs it`);
+        checked++;
+    });
+    assert.ok(checked >= 30, `expected every FIP country and ferry card to show a date, found ${checked}`);
 });
 
 // ── EVERY COUNTRY AND FERRY CARD SHOWS ITS EVIDENCE STATE (v20.31) ──────────────────────────────
@@ -414,20 +423,58 @@ test('FIP eligibility states the published one-year qualifying period, cited to 
     }
 });
 
-// Non-failing diagnostic: surface rows whose manual review is overdue. Deliberately NOT an
-// assertion — a today-driven failure would break unrelated commits (the same reason the whole
-// file is a structural guard, not a date tripwire). It just prints a reminder so the manual
-// cadence in GUIDE_SOURCES.md has a nudge in CI logs.
-test('review-cadence reminder (never fails; logs overdue high-risk rows)', () => {
-    const now = new Date();
+// Non-failing diagnostic: surface rows whose manual review is due. Deliberately NOT an assertion —
+// a today-driven failure would break unrelated commits (the same reason the whole file is a
+// structural guard, not a date tripwire). It just prints a reminder so the manual cadence in
+// GUIDE_SOURCES.md has a nudge in CI logs.
+//
+// IT SPEAKS BEFORE THE MONTH, NOT AFTER IT (whole-app review, 10 Nov 2026). It used to list only
+// rows whose Next month had already PASSED, so a row due this month printed nothing until the 1st
+// of the next — and 28 rows due in November 2026 would all have turned "overdue" on 1 December with
+// no earlier word. A reminder that arrives once the review is late is a record, not a reminder. So
+// it now names the rows due this month and next, beside the overdue ones.
+
+/**
+ * Which rows the reminder names on a given day: Next already past (overdue), or Next this month or
+ * the one after (due). Pure, so the window is testable on a fixed date.
+ * @param {Array<Record<string,string>>} regRows @param {Date} now
+ * @returns {{ overdue: Array<Record<string,string>>, due: Array<Record<string,string>> }}
+ */
+function reviewReminder(regRows, now) {
     const cur = now.getFullYear() * 12 + (now.getMonth() + 1); // 1-indexed month
-    const overdue = rows.filter(r => {
+    const monthOf = (/** @type {Record<string,string>} */ r) => {
         const [y, m] = r.Next.split('-').map(Number);
-        return y * 12 + m < cur;
-    });
+        return y * 12 + m;
+    };
+    return {
+        overdue: regRows.filter(r => monthOf(r) < cur),
+        due:     regRows.filter(r => monthOf(r) >= cur && monthOf(r) <= cur + 1),
+    };
+}
+
+test('the review reminder names a row in the month before it falls due, and in its own month', () => {
+    const fixture = [
+        { ID: 'due-this-month', Next: '2026-11' },
+        { ID: 'due-next-month', Next: '2026-12' },
+        { ID: 'due-later', Next: '2027-01' },
+        { ID: 'overdue', Next: '2026-10' },
+    ];
+    const { overdue, due } = reviewReminder(fixture, new Date(2026, 10, 10));   // 10 November 2026
+    assert.deepEqual(due.map(r => r.ID), ['due-this-month', 'due-next-month']);
+    assert.deepEqual(overdue.map(r => r.ID), ['overdue']);
+    // Across a year end: in December, January is next month.
+    assert.deepEqual(reviewReminder([{ ID: 'jan', Next: '2027-01' }], new Date(2026, 11, 31)).due.map(r => r.ID), ['jan']);
+});
+
+test('review-cadence reminder (never fails; logs due and overdue high-risk rows)', () => {
+    const { overdue, due } = reviewReminder(rows, new Date());
     if (overdue.length) {
         console.warn(`\n⏰ GUIDE_SOURCES review overdue for ${overdue.length} row(s) — re-check against source and re-stamp:`);
         for (const r of overdue) console.warn(`   • ${r.ID} (${r.Guide}) — Next was ${r.Next}`);
+    }
+    if (due.length) {
+        console.warn(`\n📅 GUIDE_SOURCES review due this month or next for ${due.length} row(s):`);
+        for (const r of due) console.warn(`   • ${r.ID} (${r.Guide}) — Next ${r.Next}`);
     }
     assert.ok(true); // always passes — this is a reminder, not a gate
 });
