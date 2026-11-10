@@ -62,8 +62,10 @@ paths:
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP
   (`script-src 'self'`) blocks them. All guide JS is in external files: `guide-back.js` and
   `guide-print.js` (loaded by every guide), plus `railcard-guide.js`, `rangers-guide.js` and
-  `fip-guide.js` (opens the target country `<details>` on jump/deep-link). **Only `guide-print.js`
-  prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
+  `fip-guide.js` (opens the target country `<details>` on jump/deep-link). `guide-back.js` also
+  measures the sticky header on a guide with no chip bar (the Staff and Pay Calculator guides), so
+  every id in `<main>` lands below it, and re-lands a deep link still landing — `railcard-guide.js`'s
+  rules. **Only `guide-print.js` prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
 - Back buttons link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
   when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and the guide
@@ -104,6 +106,9 @@ not redefine them.
   not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
 - **Chips:** desktop hover feedback (border-darken + soft shadow, colour-fade only — no transform) on
   the shared `.chip`, so a mouse gets an affordance as well as `:active`.
+- **With no script the chip bar is not sticky** (`@media (scripting: none)`): its `top` is the page
+  script's measurement, and no single fallback fits every header — the chips do nothing without script
+  either.
 - **Print:** `.page-header { position: static; print-color-adjust: exact }`, and `.btn-back`,
   `.btn-pdf`, `.chip-bar`, `.guide-back-link` and `.print-unavailable` are hidden. railcard/fip/rangers
   print the sticky header as their title banner; on staff-guide/paycalc-guide the header is
