@@ -164,14 +164,17 @@ export function signInDeps(name, typedPw) {
  * this to remove the overlay and reveal the now-rendered page. Safe to call when no overlay is present
  * (a normal already-signed-in load) — it then does nothing, so coordinators can call it unconditionally
  * on their authorised path. Only unlocks body scroll when an overlay actually existed, so it never
- * disturbs scroll state on a page that never showed the overlay.
+ * disturbs scroll state on a page that never showed the overlay — and only for the MODAL card, the one
+ * that locked it: an inline card (the Calendar's front door) never did, and releasing a lock for it
+ * would release somebody else's, a drawer's or a lightbox's still open over the page.
  * @returns {void}
  */
 export function dismissLoginOverlay() {
     const el = document.getElementById('loginOverlay');
     if (!el) return;
+    const lockedScroll = !el.classList.contains('login-overlay--inline');
     el.remove();
-    unlockBodyScroll();
+    if (lockedScroll) unlockBodyScroll();
 }
 
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in".

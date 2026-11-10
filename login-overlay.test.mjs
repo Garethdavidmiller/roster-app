@@ -56,7 +56,8 @@ mock.module('./ls.js', { namedExports: {
     lsSet: (/** @type {string} */ k, /** @type {any} */ v) => { store.set(k, String(v)); },
     lsDel: (/** @type {string} */ k) => { store.delete(k); },
 } });
-mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => {}, trapFocus: () => {}, createLightbox: () => ({ open() {}, close() {} }) } });
+let unlocks = 0;   // scroll-lock releases — see dismissLoginOverlay below
+mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => { unlocks++; }, trapFocus: () => {}, createLightbox: () => ({ open() {}, close() {} }) } });
 // The sign-in pickers go through the app's own sheet (v23.49). This suite is about `runNamedSignIn`
 // — what it commits and when — so the picker is stubbed to a no-op returning a no-op refresher
 // rather than driven here: its own behaviour is covered by select-sheet.test.mjs (the rules), the
@@ -65,7 +66,7 @@ mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBo
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {} } });
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
-const { runNamedSignIn, signInDeps, isAboutLinkAllowed } = await import('./login-overlay.js');
+const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay } = await import('./login-overlay.js');
 const { CALENDAR_VIEWER_UID } = await import('./calendar-access-core.js');
 
 /** Build a deps object with call-recording session helpers and sensible defaults. */
@@ -267,6 +268,48 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         const r = await attempt();
         assert.deepEqual(r, { ok: true });
         assert.equal(JSON.parse(store.get('myb_admin_session')).name, 'G. Miller');
+    });
+});
+
+// ── TAKING THE CARD DOWN RELEASES ONLY THE LOCK IT TOOK (cal-data-9's lead, Nov 2026) ─────────────
+// Eight pages call dismissLoginOverlay on their authorised path, and the Calendar is to call it when a
+// grant lands under its sign-in form. Only the MODAL card locks the page's scroll; the inline one (the
+// Calendar's front door) never does, and releasing a lock for it releases somebody else's — the scroll
+// lock is depth-counted, so a drawer or lightbox open over the page would lose its own.
+describe('dismissLoginOverlay', () => {
+    /** Serve `card` as #loginOverlay for the duration of `fn`. @param {any} card @param {() => void} fn */
+    function withCard(card, fn) {
+        const saved = /** @type {any} */ (globalThis).document;
+        /** @type {any} */ (globalThis).document = { getElementById: (/** @type {string} */ id) => (id === 'loginOverlay' ? card : null) };
+        try { fn(); } finally { /** @type {any} */ (globalThis).document = saved; }
+    }
+    /** @param {boolean} inline */
+    const card = (inline) => {
+        const c = { removed: false, remove() { c.removed = true; },
+            classList: { contains: (/** @type {string} */ cls) => inline && cls === 'login-overlay--inline' } };
+        return c;
+    };
+
+    test('a modal card is removed and its scroll lock released', () => {
+        unlocks = 0;
+        const c = card(false);
+        withCard(c, dismissLoginOverlay);
+        assert.equal(c.removed, true);
+        assert.equal(unlocks, 1);
+    });
+
+    test('an inline card is removed and NOTHING is released — it never locked the page', () => {
+        unlocks = 0;
+        const c = card(true);
+        withCard(c, dismissLoginOverlay);
+        assert.equal(c.removed, true);
+        assert.equal(unlocks, 0, 'an unbalanced release would free a drawer\'s or a lightbox\'s lock');
+    });
+
+    test('no card at all: nothing happens', () => {
+        unlocks = 0;
+        withCard(null, dismissLoginOverlay);
+        assert.equal(unlocks, 0);
     });
 });
 

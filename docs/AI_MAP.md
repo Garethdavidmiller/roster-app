@@ -859,8 +859,8 @@ designer-only Links) stays with each coordinator, after sign-in.
   session except this member's own (`keepsLocalSession`). The history is LOGIN_INCIDENT.md.
 - `signInDeps(name, typedPw)` — the core's dependencies for one attempt, as the card's submit builds them;
   exported so the unit suite drives that exact wiring through the real `session.js`.
-- `dismissLoginOverlay()` — removes the overlay and unlocks scroll; safe to call unconditionally on a
-  coordinator's authorised path, which runs in place.
+- `dismissLoginOverlay()` — removes the card, and releases the scroll lock only if it was the modal one
+  (an inline card never took it); safe to call unconditionally on a coordinator's authorised path.
 - `isAboutLinkAllowed(href)` — PURE: whether an `about` link may go on the card — a same-origin relative
   path (`./…`) only, never an absolute, protocol-relative or `javascript:` URL. `fillAbout` drops a refused
   link silently, so the rule is unit-tested rather than read (`login-overlay.test.mjs`).
