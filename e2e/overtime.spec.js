@@ -1244,6 +1244,52 @@ test.describe('overtime.css — print, focus and contrast', () => {
         expect(top, 'the notice is drawn on the sheet, not at the old scroll offset above it').toBeGreaterThanOrEqual(0);
     });
 
+    // An open panel locks the page by fixing the body, and the lock used to hold on paper too: the call sheet printed
+    // the one slice at the scroll offset (9 sheets came out as 1). shared.css lets the body flow on paper under any
+    // lightbox but a sign-in sheet; this is the page the fault was found on, counted off the real PDF.
+    test('printing with Tips open prints the whole call sheet, not the slice at the scroll', async ({ page, browserName }) => {
+        test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.evaluate(() => document.fonts.ready);
+        const sheets = async () => ((await page.pdf({ preferCSSPageSize: true, printBackground: true })).toString('latin1')
+            .match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+        const closed = await sheets();
+        expect(closed, 'premise: the call sheet runs to more than one sheet').toBeGreaterThan(1);
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.locator('#otAllPanel .btn-card-tips').first().click();
+        await expect(page.locator('#tipsLightbox')).toHaveClass(/\bopen\b/);
+        expect(await page.evaluate(() => document.body.classList.contains('lb-open')), 'premise: the page is scroll-locked').toBe(true);
+        expect(await sheets(), 'printed with Tips open').toBe(closed);
+    });
+
+    // The same over a member's own form. The reviewer's sheet is emptied when the session goes (overtime-ui-4), and
+    // an emptied page has no scroll left to lock, so that case hid this one: here the page stays long under the card,
+    // the sign-in locks it at the scroll it found, and shared.css keeps that lock on paper under a sign-in sheet. Only
+    // overtime.css's own `body:has(#loginOverlay) { position: static }` puts the notice on the sheet.
+    test('with the sign-in up over a member\'s form, the notice is on the sheet, not at the scroll the page was locked at', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.setViewportSize({ width: 390, height: 700 });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 8000 });
+        expect(await page.evaluate(() => getComputedStyle(document.body).top), 'premise: the sign-in locked the page part-way down')
+            .toMatch(/^-[1-9]\d*(\.\d+)?px$/);
+
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.app'), 'nothing behind the sign-in prints').toBeHidden();
+        const { notice, top } = await page.evaluate(() => ({
+            notice: getComputedStyle(document.body, '::before').content,
+            top: document.body.getBoundingClientRect().top,
+        }));
+        expect(notice).toContain('Sign in to see overtime availability');
+        expect(top, 'the notice is drawn on the sheet, not at the scroll above it').toBeGreaterThanOrEqual(0);
+    });
+
     test('a collapsed "Who is available" still prints its sheet, and a view with no week says why', async ({ page }) => {
         // The card's header does not print, so a card collapsed on screen printed one blank sheet. And a
         // reviewer with no week open printed a blank sheet too — the horizon is hidden on paper.
