@@ -25,8 +25,10 @@
     --page-bg: #eef1f6;   /* flat edge-to-edge guide background (rules/guide-pages.md) */
     --card:    #ffffff;
 
-    /* App shift-badge colours — kept in sync with shared.css by eye so the guide
-       reads as the same product. Solid fill, white text (night is the exception). */
+    /* The shift-badge colours. Their VALUES are the guides' own deeper, print-friendly shades, not copies
+       of the app's tokens (guide-colour-parity.test.mjs accepts that drift and checks the set is whole);
+       what each chip LOOKS like is the app's: a solid fill under white text — except Night, which the app
+       draws white with a dark outline, and so does the key (`.sb-night`, below). */
     --sb-early:  #b06316;   /* ☀️ Early  */
     --sb-late:   #2f6fb0;   /* 🌙 Late   */
     --sb-night:  #26304a;   /* 🦉 Night  */
@@ -196,7 +198,11 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
 }
 .sb-early  { background: var(--sb-early); }
 .sb-late   { background: var(--sb-late); }
-.sb-night  { background: var(--sb-night); }
+/* Night is the one OUTLINED badge in the app — white, with its colour as the words and a 2px edge (shared.css
+   `.badge-night`: it reads apart from a filled badge on a black-and-white printer). The key drew it filled, so a
+   reader learnt a Night badge the Calendar never shows (whole-app review, Nov 2026). The padding gives back the
+   border's 2px, so the chip stays the size of its neighbours in the key. */
+.sb-night  { background: white; color: var(--sb-night); border: 2px solid var(--sb-night); padding: 0 7px; }
 .sb-rest   { background: var(--sb-rest); }
 .sb-spare  { background: var(--sb-spare); }
 .sb-rdw    { background: var(--sb-rdw); }

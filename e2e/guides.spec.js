@@ -407,6 +407,31 @@ test('staff guide: each button it describes wears the real button\'s colours', a
     }
 });
 
+// NIGHT IS THE OUTLINED BADGE, IN THE KEY AS IN THE APP (whole-app review, Nov 2026). The app draws 🦉 Night white, with
+// its colour as the words and a 2px edge; the Staff Guide's key drew it filled, so a reader learnt a Night badge the
+// Calendar never shows. Read off the app's own badge — built from its classes on an app page — and off the key's.
+test('staff guide: the badge key draws Night as the app does — white, with an outline in its colour', async ({ page }) => {
+    const look = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(el => {
+        const c = getComputedStyle(el);
+        return { fill: c.backgroundColor, edge: `${c.borderTopStyle} ${c.borderTopWidth}`, wordsWearTheEdge: c.color === c.borderTopColor };
+    });
+    await page.goto('/settings.html');
+    await page.evaluate(() => {
+        const badge = document.createElement('span');
+        badge.className = 'shift-badge badge-night';
+        badge.id = 'appNight';
+        badge.textContent = '🦉 Night';
+        document.body.append(badge);
+    });
+    const app = await look('#appNight');
+    expect(app, 'premise: the app\'s Night badge is white, edged in its own colour').toEqual({ fill: 'rgb(255, 255, 255)', edge: 'solid 2px', wordsWearTheEdge: true });
+    await page.goto('/staff-guide.html');
+    expect(await look('.badge-grid .sb-night'), 'the key\'s Night badge').toEqual(app);
+    // …and it stays the size of the filled badges beside it: its padding gives back the edge.
+    const heights = await page.locator('.badge-grid .sb').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(heights).size, `the key's badges are one height: ${heights}`).toBe(1);
+});
+
 // THE BANNER'S TITLE HAS THE MARGIN ITS OWN RULE GIVES IT (whole-app review, Nov 2026). It is an h2 and the first of its
 // own wrapper, so the section headings' `h2:first-of-type { margin-top: 4px }` — the same weight, written later — beat
 // the banner's `margin: 0` on screen, and the Admin Guide banner stood 4px taller than written (paper zeroed both).
