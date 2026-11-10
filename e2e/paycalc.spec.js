@@ -2357,6 +2357,57 @@ test('paycalc: the "Includes an 8h estimate" chip wraps inside its row instead o
     expect(errors, 'Uncaught JS exceptions on the estimate chip').toHaveLength(0);
 });
 
+// The same card at 360px with the LONGEST label (the test above uses RDW, the shortest of the seven).
+// A "Bank holiday overtime" row whose hours differ needed ~56px more than the row had: nothing in it
+// could wrap, so the meta column was crushed to 0px and "Calendar: 8h 30m" and its chip painted over
+// the arrow and out of the row. An rdw change on the 31 Aug 2026 bank holiday makes that row.
+// Fitting is not enough on its own: a row that fits by SQUEEZING (the label broken over two lines,
+// the meta a narrow stack) or by letting the arrow wrap to a line of its own is the same defect drawn
+// differently. So the label keeps its one line and the arrow its place at the right edge, centred.
+test('paycalc: the calendar rows fit a 360px phone when the hours differ, longest label included', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'a narrow phone');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.clock.setFixedTime(new Date('2026-09-02T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'b1', memberName: 'G. Miller', date: '2026-08-31', type: 'rdw', value: '06:00-14:30', source: 'manual' }];
+    });
+    await page.goto('/paycalc.html?payday=2026-09-18');
+    await expect(page.locator('.roster-row[data-cat="bhOt"]')).toBeVisible({ timeout: 10000 });
+    for (const cat of await page.locator('.roster-row').evaluateAll(els => els.map(e => e.getAttribute('data-cat')))) {
+        await page.locator(`#${cat}H`).fill('16');
+        await page.locator(`#${cat}M`).fill('30');
+    }
+    await expect(page.locator('.roster-row:not(.roster-row--differs)')).toHaveCount(0);
+    const rows = await page.locator('.roster-row').evaluateAll(els => els.map(row => {
+        const r = row.getBoundingClientRect();
+        const out = [...row.children].filter(c => c.getClientRects().length && !c.classList.contains('visually-hidden'))
+            .filter(c => { const b = c.getBoundingClientRect(); return b.left < r.left - 0.5 || b.right > r.right + 0.5; })
+            .map(c => c.className);
+        const meta = /** @type {HTMLElement} */ (row.querySelector('.roster-row-meta'));
+        const label = document.createRange();
+        label.selectNodeContents(/** @type {Element} */ (row.querySelector('.roster-row-label')));
+        const arrow = /** @type {Element} */ (row.querySelector('.roster-cat-arrow, .roster-cat-match')).getBoundingClientRect();
+        return { cat: row.getAttribute('data-cat'), overflow: row.scrollWidth - row.clientWidth, out,
+                 metaSqueezed: meta.scrollWidth - meta.clientWidth,
+                 labelLines: new Set([...label.getClientRects()].map(l => Math.round(l.top))).size,
+                 arrowFromRight: r.right - arrow.right,
+                 arrowOffCentre: Math.abs((arrow.top + arrow.bottom) / 2 - (r.top + r.bottom) / 2) };
+    }));
+    expect(rows.map(r => r.cat), 'the premise: the longest label is among them').toContain('bhOt');
+    for (const r of rows) {
+        const { cat, overflow, out, metaSqueezed, labelLines } = r;
+        expect({ cat, overflow, out, metaSqueezed, labelLines }, `the ${cat} row`)
+            .toEqual({ cat, overflow: 0, out: [], metaSqueezed: 0, labelLines: 1 });
+        // 11px = the row's 1px border + the arrow's 10px inset.
+        expect(r.arrowFromRight, `the ${cat} row's arrow sits at its right edge`).toBeCloseTo(11, 0);
+        expect(r.arrowOffCentre, `the ${cat} row's arrow is centred on the row`).toBeLessThanOrEqual(1);
+    }
+});
+
 // ── THE STYLESHEET, READ LINE BY LINE (whole-app check, 10 Nov 2026) ─────────────────────────────
 // paycalc.css findings that only a rendered page shows: each test measures what a member sees.
 

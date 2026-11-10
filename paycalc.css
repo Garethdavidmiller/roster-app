@@ -1518,21 +1518,29 @@
   .roster-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
   /* The calendar's "none": shown only when a stale figure is waiting for Replace to clear it. */
   .roster-none-note { margin: 0; font-size: var(--type-small); color: var(--text-mid); line-height: 1.45; }
+  /* The row WRAPS: what does not fit moves to a second line instead of being squeezed. At 360px a
+     "Bank holiday overtime" row whose hours differ needed ~56px more than it had, and with nothing
+     allowed to wrap the meta column was crushed to 0 and painted over the arrow and past the row. */
   .roster-row {
-    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
-    padding: 8px 10px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; width: 100%; min-height: 44px;
+    position: relative; padding: 8px 29px 8px 10px;   /* the right 29px: the arrow's place, below */
     background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius);
     font-family: inherit; text-align: left;
     cursor: pointer; touch-action: manipulation; transition: background 0.12s, border-color 0.12s;
   }
   .roster-row-icon  { font-size: var(--type-body); flex-shrink: 0; width: 20px; text-align: center; }
-  .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); white-space: nowrap; flex-shrink: 0; }
+  .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); min-width: 0; }
   .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
   /* The meta column is a WRAPPING flex row: too narrow for its text ("3 days" / "Calendar: 8h")
      and the confidence chip together, the chip drops to its own line WHOLE. No " · " between them —
-     the chip's fill is the separator, and a typed one was left dangling at a line end. */
-  .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+     the chip's fill is the separator, and a typed one was left dangling at a line end. Its automatic
+     minimum (its longest word) stands: below that it takes the row's next line, never a 0px column. */
+  .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
   .roster-cat-arrow { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); flex-shrink: 0; }
+  /* The → or ✓ sits at the row's right edge, centred, out of the wrapping flow: as the last flex item
+     it was the one thing to wrap, alone, to the start of a line of its own. The row's 29px of right
+     padding is the 11px glyph and its 8px gap, so a one-line row draws exactly as before. */
+  .roster-row > :is(.roster-cat-arrow, .roster-cat-match) { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
   .roster-row:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
   .roster-row--matched { background: var(--row-matched-bg); }
   .roster-row--differs { background: var(--row-differs-bg); }
