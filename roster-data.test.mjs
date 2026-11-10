@@ -212,6 +212,40 @@ test('isBankHoliday: 4 Apr 2026 (Saturday before Easter) is not a bank holiday',
     assert.equal(isBankHoliday(d(2026, 4, 4)), false);
 });
 
+// ── EVERY YEAR THE APP SHOWS, NOT ONLY 2026 (whole-app review, 10 Nov 2026) ───────────────────────
+//
+// Only 2026 was asserted, so the weekend-substitute branches — one of which has been wrong before
+// (calculateBankHolidays's own note) — could move a day with every suite green. The next two are near:
+// Christmas on a Saturday in 2027 (27 and 28 Dec) and New Year on a Saturday in 2028 (3 Jan); a moved
+// day would be marked on the Calendar, counted in a Dispatcher's lieu days and routed by the pay fill.
+// The England & Wales dates by the standing rules: 2024–2026 are the lists gov.uk published, 2027–2030
+// follow the same rules. A one-off announced for any of these years goes in SPECIAL_BANK_HOLIDAYS and
+// here together.
+const ENGLAND_AND_WALES = {
+    2024: ['01-01', '03-29', '04-01', '05-06', '05-27', '08-26', '12-25', '12-26'],
+    2025: ['01-01', '04-18', '04-21', '05-05', '05-26', '08-25', '12-25', '12-26'],
+    2026: ['01-01', '04-03', '04-06', '05-04', '05-25', '08-31', '12-25', '12-28'],
+    2027: ['01-01', '03-26', '03-29', '05-03', '05-31', '08-30', '12-27', '12-28'],
+    2028: ['01-03', '04-14', '04-17', '05-01', '05-29', '08-28', '12-25', '12-26'],
+    2029: ['01-01', '03-30', '04-02', '05-07', '05-28', '08-27', '12-25', '12-26'],
+    2030: ['01-01', '04-19', '04-22', '05-06', '05-27', '08-26', '12-25', '12-26'],
+};
+
+test('getBankHolidays: every year from MIN_YEAR to MAX_YEAR is the England & Wales list', () => {
+    const years = Object.keys(ENGLAND_AND_WALES).map(Number);
+    assert.deepEqual(years, Array.from({ length: CONFIG.MAX_YEAR - CONFIG.MIN_YEAR + 1 }, (_, i) => CONFIG.MIN_YEAR + i),
+        'the navigable range moved: add each new year\'s bank holidays here, and any one-off to SPECIAL_BANK_HOLIDAYS');
+    for (const year of years) {
+        assert.deepEqual(getBankHolidays(year).map(formatISO).sort(),
+            ENGLAND_AND_WALES[/** @type {keyof typeof ENGLAND_AND_WALES} */ (year)].map(md => `${year}-${md}`), `${year}`);
+    }
+});
+
+test('getBankHolidays: nothing past MAX_YEAR, where no year has been checked', () => {
+    const was = console.warn; console.warn = () => {};
+    try { assert.deepEqual(getBankHolidays(CONFIG.MAX_YEAR + 1), []); } finally { console.warn = was; }
+});
+
 // ---------------------------------------------------------------------------
 // Christmas and Easter
 // ---------------------------------------------------------------------------
