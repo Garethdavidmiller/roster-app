@@ -2002,6 +2002,41 @@ test('operations: the review HANDS OVER the original PDF to check against', asyn
 });
 
 
+// ── CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026) ──
+// The rules are unit-tested (admin-roster-upload.test.mjs → "a Christmas-week import"). What only the
+// page shows is the row: unticked, saying why, asking no swap question — and a tick there written.
+test('operations: a Christmas-week roster leaves 25 and 26 December unticked, and a tick there is written', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    const me = teamMembers.find(m => m.name === 'G. Miller');
+    const dates = ['2026-12-20', '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25', '2026-12-26'];
+    const shifts = Object.fromEntries(dates.map(d => [d, getBaseShift(me, new Date(d + 'T12:00:00'))]));
+    shifts['2026-12-22'] = shifts['2026-12-22'] === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00';
+    shifts['2026-12-25'] = 'AL';
+    shifts['2026-12-26'] = '13:30-21:00';
+    await openRosterReview(page, { weekEnding: '2026-12-26', rosterType: 'cea', dates, crossCheck: 'complete',
+        missingMembers: [], choices: {}, geometry: { status: 'complete' }, parsed: [{ memberName: 'G. Miller', shifts }] },
+        { noSavedEntries: true });
+    const row = (/** @type {string} */ d) => page.locator(`.roster-change-row[data-key="G. Miller|${d}"]`);
+    const save = page.locator('#rosterApplyBtn');
+
+    await expect(row('2026-12-22').locator('.roster-tick')).toHaveAttribute('aria-pressed', 'true');
+    await expect(row('2026-12-26').locator('.roster-tick')).toHaveAttribute('aria-pressed', 'false');
+    await expect(row('2026-12-26')).toContainText('Not selected — the app’s Christmas leave decides 25 and 26 December.');
+    await expect(row('2026-12-25')).toContainText('The app’s Christmas leave decides 25 and 26 December, so nothing is recorded.');
+    await expect(row('2026-12-25').locator('[data-swap]'), 'no swapped-day question on Christmas Day').toHaveCount(0);
+    await expect(save).toHaveText(/Save 1 change$/);
+    await expect(page.locator('#rosterOutcome')).toContainText('1 day not selected — the app’s Christmas leave decides 25 and 26 December');
+
+    await row('2026-12-26').locator('.roster-tick').click();   // a Boxing Day really worked, ticked on purpose
+    await expect(save).toHaveText(/Save 2 changes/);
+    await save.click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 2 changes applied');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || [])
+        .map((/** @type {any} */ w) => [w.date, w.value]).sort());
+    expect(written).toEqual([['2026-12-22', shifts['2026-12-22']], ['2026-12-26', '13:30-21:00']]);
+});
+
 // ── A DAY THE IMPORT DECLINED TO RECORD MUST STILL APPEAR (v23.97) ────────────────────────────
 //
 // `computeCellStates` normalises leave or an absence on a base rest day to RD before it picks a

@@ -2216,3 +2216,109 @@ describe('a roster read that fails in transit says what happened', () => {
     });
 });
 
+
+// ── CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026) ───
+// The base roster makes both a rest day for everybody, and from 2026 the app SHOWS a member due at work
+// there on leave without recording anything (christmas-leave.js). The import knew none of it: a pattern
+// shift printed on either day was a pre-ticked DIFF — saved, it put the member at work on Christmas Day
+// and added the Boxing Day lieu day — and leave printed there asked "A rest day on the base roster. Was
+// it a swapped working day?" of a day the member was rostered to work. The owner's rule: never pre-tick
+// either day, say why on the row, ask no swap question there — and a manager can still tick one on
+// purpose (a Boxing Day really worked). Driven with the week ending Saturday 26 December 2026.
+describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
+    const { getPatternShift } = await import('./roster-data.js');
+    const rs = await import('./roster-review-states.js');
+    const ec = await import('./roster-entry-control.js');
+    const DATES = ['2026-12-20', '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25', '2026-12-26'];
+    const XMAS = '2026-12-25', BOXING = '2026-12-26';
+    const at = (/** @type {string} */ d) => new Date(d + 'T12:00:00');
+    const TIME = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+    // FOUND, not named: due at work on both days by pattern, and on an ordinary day of the week too.
+    const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && [XMAS, BOXING, '2026-12-22'].every(d => TIME.test(getPatternShift(x, at(d)))));
+    const shiftsWith = (/** @type {Record<string,string>} */ over) => ({
+        ...Object.fromEntries(DATES.map(d => [d, getBaseShift(m, at(d))])), ...over });
+    const states = (/** @type {Record<string,string>} */ over, /** @type {any[]} */ existing = []) =>
+        computeCellStates({ parsed: [{ memberName: m.name, shifts: shiftsWith(over) }], dates: DATES }, existing);
+    const other = (/** @type {string} */ d) => (getBaseShift(m, at(d)) === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00');
+
+    test('the fixture: a member the base roster rests on both days, and the pattern has at work', () => {
+        assert.ok(m, 'a member due at work on 25 and 26 December 2026 by pattern');
+        assert.equal(getBaseShift(m, at(XMAS)), 'RD');
+        assert.equal(getBaseShift(m, at(BOXING)), 'RD');
+    });
+
+    test('their pattern shift printed on 25 and 26 December is shown UNTICKED, and the rest of the week is not', () => {
+        const st = states({ [XMAS]: getPatternShift(m, at(XMAS)), [BOXING]: getPatternShift(m, at(BOXING)), '2026-12-22': other('2026-12-22') });
+        for (const d of [XMAS, BOXING]) {
+            const s = st.get(`${m.name}|${d}`);
+            assert.deepEqual([s.state, s.chosen, s.christmas], ['DIFF', false, true], `${d} is offered, never pre-ticked`);
+        }
+        const ordinary = st.get(`${m.name}|2026-12-22`);
+        assert.deepEqual([ordinary.state, ordinary.chosen, ordinary.christmas], ['DIFF', true, false], 'an ordinary day keeps its tick');
+        assert.deepEqual(collectRosterWrites(st).map(w => w.date), ['2026-12-22'], 'Save writes neither Christmas day');
+        const o = rs.reviewOutcome(st);
+        assert.deepEqual([o.updates, o.christmasHeld, o.heldBack], [1, 2, 0]);
+        assert.ok(rs.outcomeHtml(o).includes('<strong>2</strong> days not selected — the app’s Christmas leave decides 25 and 26 December'),
+            'the summary says what is withheld, and why');
+    });
+
+    test('a manager can still tick one on purpose — a Boxing Day really worked is written', () => {
+        const st = states({ [BOXING]: '13:30-21:00' });
+        st.get(`${m.name}|${BOXING}`).chosen = true;
+        assert.deepEqual(collectRosterWrites(st).map(w => [w.date, w.value]), [[BOXING, '13:30-21:00']]);
+    });
+
+    test('leave printed there asks no swap question and records nothing, whatever the answer says', () => {
+        const st = states({ [XMAS]: 'AL', [BOXING]: 'SICK' });
+        for (const d of [XMAS, BOXING]) {
+            const s = st.get(`${m.name}|${d}`);
+            assert.equal(s.state, 'GUARDED', `${d}: shown, not hidden as a MATCH`);
+            assert.equal(rs.swapQuestionApplies(s), false, `${d}: nothing is asked`);
+            const html = rs.guardedRowHtml({ key: `${m.name}|${d}`, s, dayName: 'Fri', dateStr: d, badgeHtml: 'AL', esc: (/** @type {string} */ v) => v });
+            assert.ok(!/swapped working day|data-swap/.test(html), `${d}: no question worded as if they were rostered there`);
+            assert.ok(html.includes('Christmas leave decides 25 and 26 December'), `${d}: says who decides`);
+            assert.ok(!html.includes('A rest day on the base roster'), `${d}: not called a rest day on their roster`);
+            s.chosen = 'swapped';
+            assert.deepEqual(rs.guardedWrites(s, m.name, d), [], `${d}: even a forced answer writes nothing`);
+        }
+    });
+
+    test('an earlier import there is an unticked "Clear old", never a question — and the same leave again is left alone', () => {
+        const imp = { id: 'i1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00', source: 'roster_import' };
+        const s = states({ [BOXING]: 'AL' }, [imp]).get(`${m.name}|${BOXING}`);
+        assert.deepEqual([s.state, s.chosen], ['REMOVE_IMPORT', false]);
+        const same = { ...imp, type: 'annual_leave', value: 'AL' };
+        assert.equal(states({ [BOXING]: 'AL' }, [same]).get(`${m.name}|${BOXING}`).state, 'COVERED');
+    });
+
+    test('the entry control asks nothing there either, and says why nothing is recorded', () => {
+        const key = `${m.name}|${XMAS}`;
+        const s = states({ [XMAS]: 'UNKNOWN|SEE CEM' }).get(key);
+        assert.deepEqual([s.state, s.christmas], ['UNREADABLE', true]);
+        for (const type of ['annual_leave', 'sick']) {
+            s.draft = { type, from: '', to: '', open: true, swap: 'yes' };
+            ec.commitEntry(s);
+            assert.deepEqual([s.entered, s.chosen], [null, null], `${type}: nothing is entered, even with a stale "yes"`);
+            const html = ec.entryControlHtml(key, s, XMAS);
+            assert.ok(!html.includes('Was it a swapped working day?'), `${type}: no swap question`);
+            assert.ok(html.includes('Christmas leave decides 25 and 26 December'), `${type}: the hint says why`);
+            assert.equal(ec.entryLeftAsRest(s), true, `${type}: an answer, not a cell nobody could read`);
+        }
+        s.draft = { type: 'shift', from: '13:30', to: '21:00', open: true };
+        ec.commitEntry(s);
+        assert.equal(s.chosen, 'entered', 'a shift entered on purpose is written');
+    });
+
+    test('other days and other years keep the question — the rule is the two days, from 2026', () => {
+        const rest = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+            && getBaseShift(x, at('2026-12-24')) === 'RD');
+        assert.ok(rest, 'a member resting on Christmas Eve');
+        const eve = computeCellStates({ parsed: [{ memberName: rest.name, shifts: { '2026-12-24': 'AL' } }], dates: ['2026-12-24'] }, [])
+            .get(`${rest.name}|2026-12-24`);
+        assert.equal(rs.swapQuestionApplies(eve), true, 'Christmas Eve is an ordinary rest day');
+        const old = computeCellStates({ parsed: [{ memberName: m.name, shifts: { '2025-12-25': 'AL' } }], dates: ['2025-12-25'] }, [])
+            .get(`${m.name}|2025-12-25`);
+        assert.equal(old.christmas, false, '2025 predates the Christmas leave (CHRISTMAS_LEAVE_FROM_YEAR)');
+    });
+});

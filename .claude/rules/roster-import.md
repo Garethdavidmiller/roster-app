@@ -79,7 +79,8 @@ never defaulted`) just because the fact arrived by PDF.
   PDF now says it is not a working day (`guardedWrites`, `deleteOnly`).
 - **Unanswered writes nothing** — asked, never defaulted — and **Skip all takes an answer back** (an
   answered swap is a write, so a skipped section must not still write it).
-- Sundays and breaker-refused reads ask nothing.
+- Sundays and breaker-refused reads ask nothing, and nor do 25 and 26 December from 2026: the app's
+  Christmas leave decides those days, so their rows start unticked and say so (owner, 10 Nov 2026).
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
 

@@ -16,7 +16,7 @@ import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -777,6 +777,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
                             <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
+                            ${s.christmas ? `<span class="roster-remove-note">${CHRISTMAS_NOTE}</span>` : ''}
                         </div>
                         <span class="roster-act act-update">Update</span>`;
                 } else if (s.state === 'REMOVE_IMPORT') {
@@ -794,7 +795,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${manualShiftDisplay(s)}</span>
                             <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.baseShift, date)}</span>
-                            <span class="roster-remove-note">no longer on the roster</span>
+                            <span class="roster-remove-note">${s.christmas ? CHRISTMAS_NOTE : 'no longer on the roster'}</span>
                         </div>
                         <span class="roster-act act-clear">Clear old</span>`;
                 } else if (s.state === 'GUARDED') {

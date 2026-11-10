@@ -76,6 +76,9 @@ const Q_SWAP = 'A rest day on the base roster. Was it a swapped working day?';
 const HINT_SWAP_ASK = 'Answer the question above \u2014 nothing is saved for this day until you do.';
 const HINT_SWAP_YES = '\u2713 this day will be saved, as a swapped working day';
 const HINT_SWAP_NO  = 'A rest day \u2014 nothing will be recorded for this day.';
+/** Leave or an absence entered on 25 or 26 December from 2026 is never asked about and never
+ *  recorded: the app's Christmas leave decides those days (owner, 10 Nov 2026). */
+const HINT_CHRISTMAS = 'The app\u2019s Christmas leave decides 25 and 26 December \u2014 nothing is recorded for this day.';
 
 /**
  * The in-place "enter it myself" control for an unreadable cell (v22.17).
@@ -306,6 +309,7 @@ function draftValue(d, st) {
  *  @param {any} d @param {any} st @returns {string} */
 function entryHint(d, st) {
     const { value, error } = draftValue(d, st);
+    if (value && st?.christmas && draftRestGuarded(d, st)) return HINT_CHRISTMAS;
     if (value && draftAsksSwap(d, st)) return d.swap === 'yes' ? HINT_SWAP_YES : d.swap === 'no' ? HINT_SWAP_NO : HINT_SWAP_ASK;
     if (value) return HINT_DONE;
     // `composeOtherValue`'s own "no flavour yet" message names Spare, because the week editor
@@ -356,9 +360,10 @@ export function commitEntry(s) {
     const n = normaliseCellValue(raw, s.baseShift, s.date);
     // Leave or an absence on a base rest day: written only when answered "swapped", and then as what
     // the admin entered, marked as covering a swapped-in working day (`swapped` → replacedType at the
-    // save, exactly as a GUARDED row's answer is). Unanswered or "rest day" writes nothing at all.
+    // save, exactly as a GUARDED row's answer is). Unanswered or "rest day" writes nothing at all —
+    // and neither does Christmas Day or Boxing Day, where nothing is asked (owner, 10 Nov 2026).
     if (n.guarded === 'rest-day') {
-        if (d.swap === 'yes') { s.entered = { value: raw, display: raw, guarded: null, swapped: true }; s.chosen = 'entered'; }
+        if (d.swap === 'yes' && !s.christmas) { s.entered = { value: raw, display: raw, guarded: null, swapped: true }; s.chosen = 'entered'; }
         else { s.entered = null; if (s.chosen === 'entered') s.chosen = null; }
         return;
     }
@@ -368,16 +373,23 @@ export function commitEntry(s) {
 
 /** Would the rest-day guard rewrite this draft's value — leave or an absence on a base rest day?
  *  @param {any} d the draft @param {any} st the cell state @returns {boolean} */
-function draftAsksSwap(d, st) {
+function draftRestGuarded(d, st) {
     const { value } = draftValue(d, st);
     return !!value && normaliseCellValue(value, st.baseShift, st.date).guarded === 'rest-day';
 }
 
+/** …and is the swapped-day question asked about it? Never on Christmas Day or Boxing Day.
+ *  @param {any} d the draft @param {any} st the cell state @returns {boolean} */
+function draftAsksSwap(d, st) {
+    return draftRestGuarded(d, st) && !st.christmas;
+}
+
 /**
- * Has the admin answered "Rest day — leave it" for this cell's entry? The row then says "Not
+ * Has the admin answered "Rest day — leave it" for this cell's entry — or entered leave or an
+ * absence on Christmas Day or Boxing Day, which records nothing either? The row then says "Not
  * recorded" — an answer, not a cell nobody could read — and the summary stops counting it as one.
  * @param {any} st an UNREADABLE cell state @returns {boolean}
  */
 export function entryLeftAsRest(st) {
-    return !!st?.draft && st.draft.swap === 'no' && draftAsksSwap(st.draft, st);
+    return !!st?.draft && draftRestGuarded(st.draft, st) && (!!st.christmas || st.draft.swap === 'no');
 }

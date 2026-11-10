@@ -29,7 +29,8 @@
  *
  *   1. THE DEFAULT IS NEVER "WRITE IT" where anything is in doubt. A drifted member's rows — and
  *      every row of a read the breaker has refused — start `chosen: false`; CONFLICT and UNREADABLE
- *      start `null`. Only DIFF and REMOVE_IMPORT are pre-ticked.
+ *      start `null`. Only DIFF and REMOVE_IMPORT are pre-ticked, and never on Christmas Day or Boxing
+ *      Day, which the app's Christmas leave decides (owner, 10 Nov 2026; `isChristmasClosureDate`).
  *   2. THE ALIGNMENT VERDICT IS TAKEN ONCE, HERE, because `chosen` is decided here. It used to be
  *      computed at render time, under a banner, while every change stayed ticked — reporting is
  *      not refusing (v22.16).
@@ -48,6 +49,10 @@ import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data
 import { shouldReplaceOverride, isContractedWorkOverride, contractEvidence } from './override-utils.js';
 import { normaliseCellValue } from './roster-cell-rules.js';
 import { assessRosterAlignment } from './roster-alignment.js';
+import { isChristmasClosureDate } from './christmas-leave.js';
+
+/** Why a Christmas Day or Boxing Day row starts unticked (owner, 10 Nov 2026) — the row's note. */
+export const CHRISTMAS_NOTE = 'Not selected — the app’s Christmas leave decides 25 and 26 December.';
 
 /** The review's internal marker for "this worked time is rest-day working". The value SAVED to
  *  Firestore is the bare time — the RDW-ness lives in the override's `type` — so this prefix
@@ -136,6 +141,12 @@ export function computeCellStates(parsedResult, existingOverrides) {
             const baseShift    = getBaseShift(member, parseISODate(date));
             const key          = `${entry.memberName}|${date}`;
             const existing     = overrideMap.get(key);
+            // CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026).
+            // The base makes both a rest day for everybody, so a pattern shift printed there was a
+            // pre-ticked DIFF — saved, it put the member at work and added the Boxing Day lieu day —
+            // and leave there asked the swapped-day question of a day nobody is rostered to work.
+            // Nothing is pre-ticked and nothing is asked; a manager can still tick a day on purpose.
+            const christmas    = isChristmasClosureDate(date);
 
             // Unreadable PDF value (normaliseShift couldn't parse it — see UNKNOWN_PREFIX). Surface
             // it as a skip-only UNREADABLE row so a garbled real shift isn't silently dropped, but
@@ -182,7 +193,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     // The DATE is carried on the state (v22.17). The in-place entry has to apply the
                     // Sunday guard, and deriving the date by splitting the Map key at the call site
                     // would be a second place that knows the key's shape.
-                    date,
+                    date, christmas,
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
@@ -276,8 +287,11 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     //    very same PDF. The same import again → COVERED. A different import there
                     //    (say, an old shift) → the question is asked again, and the answer replaces
                     //    or removes it — never a default.
-                    const asksSwap = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK');
-                    if (existing && asksSwap) state = normRest(existing.value) === parsedShift ? 'COVERED' : 'GUARDED';
+                    //  • On Christmas Day and Boxing Day nothing is asked, so a different import there
+                    //    is a "Clear old" row — unticked, as every row on those two days starts.
+                    const leaveOnRest = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK');
+                    if (existing && leaveOnRest && normRest(existing.value) === parsedShift) state = 'COVERED';
+                    else if (existing && leaveOnRest && !christmas) state = 'GUARDED';
                     else state = existing ? 'REMOVE_IMPORT' : (guarded ? 'GUARDED' : 'MATCH');
                 } else {
                     // PDF differs from base (a genuine change), OR a stale differing import must be
@@ -338,9 +352,11 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 manualDupIds: otherManualIds(key),
                 // FAIL CLOSED ON A SUSPECT ROW (v22.16): a member whose week looks a day out — or
                 // anyone at all once the breaker has tripped — starts UNTICKED, so the default
-                // action on a misread week stops being "save it".
+                // action on a misread week stops being "save it". So does a Christmas day (above).
                 chosen:      (drift || alignment.blocked) ? false
-                    : ((state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null),
+                    : ((state === 'DIFF' || state === 'REMOVE_IMPORT') ? !christmas : null),
+                /** 25 or 26 December from 2026: unticked, asked nothing, and the row says why. */
+                christmas,
                 // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
                 // 'chosen' for CONFLICT = 'manual' (default) or 'pdf'
                 /** 'left'/'right' when THIS member's row looks a day out; null otherwise. */
@@ -371,13 +387,20 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * admin can decide whether that rule fits this particular day.
  *
  * @param {'sunday'|'sunday-other'|'rest-day'|null} guard
+ * @param {boolean} [asks] the row asks the swapped-day question
+ * @param {boolean} [christmas] 25 or 26 December from 2026, which the app's Christmas leave decides
  * @returns {string}
  */
-export function guardCopy(guard, asks = false) {
+export function guardCopy(guard, asks = false, christmas = false) {
     // The row's own tag already says "Not recorded", so this is the REASON alone (v24.41) — it used
     // to end "— not recorded" too, and the row said it twice.
     if (guard === 'sunday') {
         return 'Sundays aren\u2019t contracted, so nothing is recorded on them.';
+    }
+    // Not "a rest day on the base roster": by pattern most of the roster is due at work on these two
+    // days, and the app shows them on leave there without anything being recorded (owner, 10 Nov 2026).
+    if (guard === 'rest-day' && christmas) {
+        return 'The app’s Christmas leave decides 25 and 26 December, so nothing is recorded.';
     }
     if (guard === 'sunday-other') {
         // Owner, 7 Nov 2026. "Stays as it is" covers all three cases: a rest Sunday, a rostered
@@ -401,13 +424,14 @@ export function guardCopy(guard, asks = false) {
  * day and wrong for a SWAPPED week, where the published roster moved the member's working day onto
  * it — which only the person reading the roster knows. So it is ASKED, exactly as booking leave on a
  * rest day is (v23.75), and never defaulted: unanswered, or answered "rest day", writes nothing.
- * Never on a Sunday (an absence can never be recorded there) and never on a read the circuit
- * breaker has refused (nothing on it may be written).
+ * Never on a Sunday (an absence can never be recorded there), never on a read the circuit
+ * breaker has refused (nothing on it may be written), and never on Christmas Day or Boxing Day,
+ * which the booking flows do not ask about either (al-swapped-days.js; owner, 10 Nov 2026).
  * @param {any} s a cell state
  * @returns {boolean}
  */
 export function swapQuestionApplies(s) {
-    return !!s && s.state === 'GUARDED' && s.guarded === 'rest-day' && !s.rosterBlocked
+    return !!s && s.state === 'GUARDED' && s.guarded === 'rest-day' && !s.rosterBlocked && !s.christmas
         && (s.parsedShift === 'SICK' || s.parsedShift === 'AL');
 }
 
@@ -518,7 +542,8 @@ export function collectRosterWrites(cellStates) {
  * @param {Map<string, any>} cellStates
  * @param {(st: any) => boolean} [answeredWithNothing]
  * @returns {{ blocked: boolean, updates: number, clears: number, conflictsTotal: number,
- *             conflictsSwitched: number, unreadable: number, heldBack: number, anySuspect: boolean }}
+ *             conflictsSwitched: number, unreadable: number, heldBack: number, christmasHeld: number,
+ *             anySuspect: boolean }}
  */
 export function reviewOutcome(cellStates, answeredWithNothing = () => false) {
     const all = [...cellStates.values()];
@@ -538,6 +563,10 @@ export function reviewOutcome(cellStates, answeredWithNothing = () => false) {
         // reach no count above, and the summary went silent about the one thing that had changed.
         // Only rows STILL unticked: one the admin has checked and ticked is counted as a write.
         heldBack: all.filter(st => st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length,
+        // A Christmas day withheld for its own reason (owner, 10 Nov 2026) — counted once, so a
+        // drifted row is never both "held back" and "not selected".
+        christmasHeld: all.filter(st => st.christmas && !st.drift
+            && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length,
         anySuspect: all.some(st => st.drift),
     };
 }
@@ -565,6 +594,10 @@ export function outcomeHtml(o) {
     if (o.heldBack > 0) {
         lines.push(line('ro-read', '⚠', o.heldBack,
             `day${o.heldBack !== 1 ? 's' : ''} held back — the week may be a day out, so nothing there is selected`));
+    }
+    if (o.christmasHeld > 0) {
+        lines.push(line('ro-read', '⚠', o.christmasHeld,
+            `day${o.christmasHeld !== 1 ? 's' : ''} not selected — the app’s Christmas leave decides 25 and 26 December`));
     }
     if (!lines.length) return '';
     const hint = (o.updates > 0 || o.clears > 0)
@@ -604,7 +637,7 @@ export function guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc }) {
         </div>
         <div class="roster-guard-said"><span class="roster-guard-lab">Roster</span><span class="roster-guard-val${recording ? ' is-recorded' : ''}">${badgeHtml}</span></div>
         ${held ? `<div class="roster-guard-said roster-guard-held"><span class="roster-guard-lab">Saved now</span><span class="roster-guard-val">${esc(held === 'SICK' ? 'Absent' : held)}</span></div>` : ''}
-        <p class="roster-guard-note">${guardCopy(s.guarded, asks)}</p>
+        <p class="roster-guard-note">${guardCopy(s.guarded, asks, !!s.christmas)}</p>
         ${asks ? `<div class="roster-pick roster-guard-pick" role="group" aria-label="Was this a swapped working day?">
             ${btn('yes', s.chosen === 'swapped', 'Swapped \u2014 record it')}${btn('no', s.chosen === 'free', 'Rest day \u2014 leave it')}
         </div>` : ''}`;
