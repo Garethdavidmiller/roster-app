@@ -143,7 +143,13 @@ function makeDb(seed = {}) {
     const db = {
         collection(name) {
             return {
-                doc: (id) => ({ id, _col: name, set: async (data) => merge(name, id, data) }),
+                doc: (id) => ({ id, _col: name, set: async (data) => merge(name, id, data),
+                    // Firestore's update() refuses a document that is not there (NOT_FOUND) — the
+                    // property a late write relies on to not re-create a row somebody cleared.
+                    update: async (data) => {
+                        if (!col(name).has(id)) { const e = new Error('NOT_FOUND'); e.code = 5; throw e; }
+                        merge(name, id, data);
+                    } }),
                 select: () => ({ get: async () => ({
                     size: col(name).size,
                     docs: [...col(name).keys()].map((id) => snapOf(name, id)),
@@ -157,6 +163,8 @@ function makeDb(seed = {}) {
             });
         },
         _dump: (name) => Object.fromEntries(col(name)),
+        /** What the admin's Operations card does when a reset is done: the row goes. */
+        _delete: (name, id) => { col(name).delete(id); },
     };
     return db;
 }
@@ -196,6 +204,7 @@ function build({
     pushAccepts = 1,
     pushFail = null,
     pushHangs = false,
+    pushDeferred = false,
     seed = {},
     authFail = {},
     token = { admin: true, name: ADMIN },
@@ -204,6 +213,10 @@ function build({
     existingUsers = null,
     usersPerPage = Infinity,
     releaseFail = null,
+    stampFail = null,
+    // The reset request's answer floor (functions-core-4). 0 keeps this suite fast; `null` builds the
+    // endpoint exactly as index.js does, with production's floor.
+    answerFloorMs = 0,
 } = {}) {
     const sends = [];
     /** Every `releasePushForOwner` call — the leaver's push records leaving with the account (H4). */
@@ -217,6 +230,23 @@ function build({
     const pushPath  = require.resolve('./functions/push.js');
     const db = makeDb(seed);
     const users = new Map((existingUsers || []).map((u) => [u.email, u]));
+    // Every passwordStatus write — the resetAt stamp — with `at`: how many Auth calls had been made
+    // when it was attempted. That is what puts the stamp and the credential change on ONE timeline,
+    // so a test can ask which came first (functions-core-2). `stampFail` makes the write refuse.
+    const stamps = [];
+    const plainCollection = db.collection.bind(db);
+    db.collection = (name) => {
+        const c = plainCollection(name);
+        if (name !== 'passwordStatus') return c;
+        return { ...c, doc: (id) => {
+            const d = c.doc(id);
+            return { ...d, set: async (data, opts) => {
+                stamps.push({ member: id, at: authOps.length });
+                if (stampFail) throw new Error(stampFail);
+                return d.set(data, opts);
+            } };
+        } };
+    };
 
     const firestore = () => db;
     firestore.FieldValue = { serverTimestamp: () => SERVER_TS, increment: (n) => ({ inc: n }) };
@@ -288,15 +318,18 @@ function build({
     const stub = (p, exports) => { require.cache[p] = { id: p, filename: p, loaded: true, exports }; };
     stub(authPath, { getAuth: () => auth });
     stub(firePath, { getFirestore: () => db, FieldValue: firestore.FieldValue });
+    /** Settles a `pushDeferred` send: the push service answers only when the test says so. */
+    let acceptDeferred = (_n) => {};
     require.cache[pushPath]  = { id: pushPath, filename: pushPath, loaded: true, exports: {
         setupWebPush: () => {},
-        sendTargetedPush: async (payload, uids, tag) => {
-            sends.push({ payload, uids, tag });
+        sendTargetedPush: async (payload, uids, tag, opts) => {
+            sends.push({ payload, uids, tag, opts });
             // Injectable failure, the same seam `authFail` gives the Auth calls. The reset endpoint
             // treats a push failure as a reportable stage rather than a failed reset, and that
             // branch is unreachable from a fake that can only succeed.
             if (pushFail) throw new Error(pushFail);
             if (pushHangs) return new Promise(() => {});
+            if (pushDeferred) return new Promise((resolve) => { acceptDeferred = resolve; });
             // The REAL sendTargetedPush returns how many subscriptions accepted the message, and
             // the reset endpoint acts on that number. A fake returning undefined would make every
             // "did it record that the admin was reached?" assertion vacuous.
@@ -323,8 +356,9 @@ function build({
         VAPID_PUBLIC_KEY: 'public',
         STAFF_SITE_URL: 'https://myb-roster.web.app',
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
+        ...(answerFloorMs === null ? {} : { resetRequestAnswerFloorMs: answerFloorMs }),
     });
-    return { eps, sends, db, authOps, users, released };
+    return { eps, sends, db, authOps, users, released, stamps, acceptPush: (n) => acceptDeferred(n) };
 }
 
 function makeRes() {
@@ -415,6 +449,36 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         assert.deepEqual(repeat, first, 'the two answers must not differ in anything a caller can read');
     });
 
+    // …NOR IN WHEN THEY ARRIVE (functions-core-4, 10 Nov 2026). The bodies were identical, but a
+    // throttled repeat answered after two round trips and a recorded request after four to six, so
+    // timing the public endpoint told the same story the body was written to hide.
+    test('a recorded request and a throttled repeat are both answered no sooner than the floor', async () => {
+        const FLOOR = 120;
+        const timed = async (world) => {
+            const t0 = Date.now();
+            const out = await call(world.eps.requestPasswordReset, reqFor(MEMBER));
+            return { out, ms: Date.now() - t0 };
+        };
+        const recorded = build({ answerFloorMs: FLOOR });
+        const throttled = build({ answerFloorMs: FLOOR, seed: { resetRequests: { [MEMBER]: { requestedAt: { toMillis: () => NOW } } } } });
+        const a = await timed(recorded);
+        const b = await timed(throttled);
+        assert.equal(recorded.sends.length, 1, 'fixture check: recorded');
+        assert.equal(throttled.sends.length, 0, 'fixture check: throttled');
+        for (const [what, r] of [['recorded', a], ['throttled', b]]) {
+            assert.equal(r.out.code, 200);
+            assert.ok(r.ms >= FLOOR - 2, `a ${what} answer arrived after ${r.ms} ms, inside the ${FLOOR} ms floor`);
+        }
+    });
+
+    test('production holds the answer for its own floor — the seam is not left at zero', async () => {
+        const { eps } = build({ answerFloorMs: null, seed: { resetRequests: { [MEMBER]: { requestedAt: { toMillis: () => NOW } } } } });
+        const t0 = Date.now();
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(out.code, 200);
+        assert.ok(Date.now() - t0 >= 1_900, `a throttled repeat was answered after ${Date.now() - t0} ms`);
+    });
+
     // THE ADMIN'S PUSH IS A COURTESY ON TOP OF THE ROW, and two protections keep it one (test audit,
     // 7 Nov 2026 — each could be deleted with every test green, because the push seam was only ever
     // exercised on `resetMemberPassword`). The row in Firestore is the doorbell: once it is written
@@ -441,12 +505,49 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         } finally { mock.timers.reset(); }
     });
 
+    test('a request posted as a Buffer body is recorded like any other (functions-core-8)', async () => {
+        // The inline reader re-parsed only a body that was not an object — and a Buffer is one — so
+        // the same `{ member }` answered 200 as JSON or a string and 400 "Missing member" as bytes.
+        const { eps, db } = build();
+        const out = await call(eps.requestPasswordReset, reqWith(Buffer.from(JSON.stringify({ member: MEMBER }))));
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.ok(db._dump('resetRequests')[MEMBER], 'the request was not recorded');
+    });
+
     test('a push that throws cannot fail a request that was recorded', async () => {
         const { eps, db } = build({ pushFail: 'push service down' });
         const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
         assert.equal(out.code, 200);
         assert.deepEqual(out.body, { ok: true });
         assert.ok(db._dump('resetRequests')[MEMBER], 'the row was written before the push was tried');
+    });
+
+    // WORK THAT OUTLIVES THE ANSWER (functions-core-6, 10 Nov 2026). The 10-second race stops the
+    // WAITING, not the work: a notify still running when the member is answered finishes whenever
+    // the instance next runs. By then the admin may have reset the member and cleared the row — and
+    // the old merge-write of `notifiedAt` brought it back, holding that one field, as a request
+    // nobody made (and started the five-minute quiet window at the wrong moment).
+    test('a notify that finishes after the admin cleared the row does not bring the row back', async () => {
+        const w = build({ pushDeferred: true });
+        const pending = call(w.eps.requestPasswordReset, reqFor(MEMBER));
+        for (let i = 0; i < 100 && w.sends.length === 0; i++) await new Promise(r => setImmediate(r));
+        assert.equal(w.sends.length, 1, 'fixture check: the admin push is in flight');
+        assert.ok(w.db._dump('resetRequests')[MEMBER], 'fixture check: the request was recorded');
+        w.db._delete('resetRequests', MEMBER);   // the admin resets the member and clears the row
+        w.acceptPush(1);                          // ...and only now does the push service accept
+        const out = await pending;
+        assert.equal(out.code, 200);
+        assert.equal(w.db._dump('resetRequests')[MEMBER], undefined,
+            'the cleared request came back as a row holding only notifiedAt');
+    });
+
+    test('the admin push is bounded well inside the endpoint\'s 10-second answer budget', async () => {
+        // With the transport's default 10 s per send and the lookups in front of it, a stalled push
+        // service always outlasted the budget — the case in which the work above outlives the answer.
+        const { eps, sends } = build();
+        await call(eps.requestPasswordReset, reqFor(MEMBER));
+        const t = sends[0].opts && sends[0].opts.timeoutMs;
+        assert.ok(Number.isFinite(t) && t > 0 && t <= 5_000, `the admin push went out bounded by ${t} ms`);
     });
 });
 
@@ -703,12 +804,15 @@ describe('resetMemberPassword does the whole job when it does proceed', () => {
         assert.equal(out.body.notified, false, 'and the outsider\'s devices are not sent the reset notice');
     });
 
-    test('revoke:false leaves working sessions alone', async () => {
-        // The migration-nudge path. Signing everyone out to prompt a password change would be a
-        // bigger interruption than the thing being prompted.
+    test('a reset signs the other devices out whatever the body says — revoke:false is retired', async () => {
+        // It existed for the Phase-2 migration nudge, which the forced overlay replaced; nothing
+        // sends it (Operations passes true), and a reset that left the lost phone signed in would
+        // not be the reset the admin pressed (functions-core-9).
         const { eps, authOps } = build();
-        await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, revoke: false }));
-        assert.equal(authOps.filter((o) => o.op === 'revokeRefreshTokens').length, 0);
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, revoke: false }));
+        assert.equal(out.code, 200);
+        assert.equal(authOps.filter((o) => o.op === 'revokeRefreshTokens').length, 1);
+        assert.equal(out.body.revoked, true);
     });
 
     test('a failed REVOCATION does not report the reset as failed either', async () => {
@@ -741,25 +845,30 @@ describe('resetMemberPassword does the whole job when it does proceed', () => {
         assert.equal(good.body.revokeFailed, undefined, 'and nothing is flagged when nothing failed');
     });
 
-    test('a failed Firestore stamp does not report the reset as failed', async () => {
-        // The password IS changed and the sessions ARE revoked by this point. Reporting 500 here
-        // told an admin "nothing changed" about an account that had just been reset — they would
-        // reasonably then tell the member their old password still works.
-        const { eps } = build();
-        // Break only the stamp: the passwordStatus doc refuses the write.
-        const { eps: eps2 } = (() => {
-            const built = build();
-            const orig = built.db.collection.bind(built.db);
-            built.db.collection = (name) => (name === 'passwordStatus'
-                ? { doc: () => ({ set: async () => { throw new Error('firestore down'); } }) }
-                : orig(name));
-            return { eps: built.eps };
-        })();
-        assert.ok(eps);   // the unbroken build is only here to prove the fixture itself is sound
+    // ── THE STAMP IS THE CONTROL, SO IT COMES FIRST (functions-core-2, 10 Nov 2026) ──────────────
+    // `resetAt` is what a forgotten device's silent sign-in is refused against (AUTH_AND_SESSIONS 23),
+    // and the reset has just made the surname — the very password that sign-in tries — valid again.
+    // Stamped AFTER the credential, a failed write was answered `200, stamped: false` and described as
+    // a table that might look wrong; the lost phone the admin was signing out then signed straight back
+    // in. Now no reset proceeds without its stamp.
+    test('resetAt is written BEFORE the password changes', async () => {
+        const { eps, authOps, stamps } = build();
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 200);
+        const reset = authOps.findIndex((o) => o.op === 'updateUser' && o.patch && 'password' in o.patch);
+        assert.ok(reset >= 0, 'the password was reset');
+        assert.equal(stamps.length, 1);
+        assert.ok(stamps[0].at <= reset, 'the stamp landed after the credential changed — a failure between them strands the reset');
+        assert.equal(out.body.stamped, true);
+    });
 
-        const out = await call(eps2.resetMemberPassword, asAdmin({ member: MEMBER }));
-        assert.equal(out.code, 200, 'the reset stands');
-        assert.equal(out.body.stamped, false, 'and says plainly that the flag did not get written');
+    test('a stamp that cannot be written stops the reset — nothing changes, and the admin is told to try again', async () => {
+        const { eps, authOps, sends } = build({ stampFail: 'firestore down' });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 503, 'a reset without its stamp would let the signed-out devices back in');
+        assert.match(out.body.error, /nothing was changed/);
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [], 'no credential, session or claim was touched');
+        assert.deepEqual(sends, [], 'and the member is not told of a reset that did not happen');
     });
 });
 
@@ -935,8 +1044,129 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
             assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (reclaim-failed`)), out.body.failed.join(' | '));
         });
     }
+
+    // functions-core-2: the stamp is what refuses a device that signed in on this account before the
+    // take-back, so it lands first — and a take-back that cannot stamp does not happen at all.
+    test('a take-back stamps resetAt BEFORE it resets the password', async () => {
+        const { eps, authOps, stamps } = build({ existingUsers: [outsiderAccount(MEMBER)] });
+        await call(eps.setupRosterAuth, asAdmin({}));
+        const reset = authOps.findIndex((o) => o.op === 'updateUser' && o.uid === uidFor(MEMBER));
+        const mine = stamps.filter((s) => s.member === MEMBER);
+        assert.equal(mine.length, 1);
+        assert.ok(reset >= 0 && mine[0].at <= reset, 'the account was reset before its stamp landed');
+    });
+
+    test('a take-back whose stamp fails touches nothing on the account and stamps no claims', async () => {
+        const { eps, authOps } = build({ existingUsers: [outsiderAccount(MEMBER)], stampFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(authOps.filter((o) => o.uid === uidFor(MEMBER) && AUTH_MUTATIONS.includes(o.op)), [],
+            'the outsider\'s account was changed without the stamp that keeps its old sessions out');
+        assert.deepEqual(out.body.reclaimed, []);
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (reclaim-failed`)), out.body.failed.join(' | '));
+    });
 });
 
+
+// ── A DISABLED ACCOUNT IS NEVER HANDED BACK AS IT WAS (lead-1, whole-app fix, 10 Nov 2026) ─────
+// A leaver's account is DISABLED, not deleted, and keeps its claims and its password. When the same
+// initial and surname come back onto the roster — the leaver returning, or a new starter who shares
+// them — the derived email is the same account. Set up accounts used to re-enable it as it stood, so
+// whoever knew the leaver's password signed in as the member on the roster today. Now it is put back
+// on the surname default, signed out and stamped exactly as an admin reset is, its old push records
+// go, and only then is it enabled — and the admin is told, by name.
+describe('setupRosterAuth never re-enables an account on its old password', () => {
+    const disabledAccount = (name) => ({ uid: uidFor(name), email: emailFor(name), displayName: name, disabled: true,
+        customClaims: { name, member: name }, providerData: [{ providerId: 'password' }, { providerId: 'google.com' }] });
+
+    test('it is reset, signed out, stamped and its old push records released — and only THEN enabled', async () => {
+        const { eps, authOps, stamps, released } = build({ existingUsers: [disabledAccount(MEMBER)] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body.reclaimed, [MEMBER], 'reported by name — the admin must tell them their password is their surname');
+        assert.ok(!out.body.skipped.includes(MEMBER), 'not a benign "already existed"');
+
+        const ops = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        const reset = ops.find((o) => o.op === 'updateUser' && o.patch && 'password' in o.patch);
+        assert.ok(reset, 'the account came back on the password its previous holder chose');
+        assert.equal(reset.patch.password, 'springer', 'the surname default, as a new account would get');
+        assert.equal(reset.patch.disabled, undefined, 'not enabled in the step that resets it');
+        assert.deepEqual(reset.patch.providersToUnlink, ['google.com'], 'the previous holder\'s other way in goes');
+        const at = (pred) => ops.findIndex(pred);
+        const iReset  = at((o) => o === reset);
+        const iRevoke = at((o) => o.op === 'revokeRefreshTokens');
+        const iEnable = at((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === false);
+        const iClaims = at((o) => o.op === 'setCustomUserClaims');
+        assert.ok(iRevoke > iReset, 'every old session is revoked');
+        assert.ok(iEnable > iRevoke, 'enabled only once its credential and sessions are dealt with');
+        assert.ok(iClaims > iEnable, 'and claimed after that');
+        const stamp = stamps.find((s) => s.member === MEMBER);
+        assert.ok(stamp && stamp.at <= authOps.indexOf(reset), 'resetAt is stamped first — the previous holder\'s devices must type a password');
+        assert.deepEqual(released, [uidFor(MEMBER)], 'the previous holder\'s phones stop receiving this member\'s notices');
+    });
+
+    for (const step of ['updateUser', 'revokeRefreshTokens', 'stamp']) {
+        test(`if its ${step} fails the account stays DISABLED, gets no claims, and is reported`, async () => {
+            const opts = step === 'stamp' ? { stampFail: 'firestore down' } : { authFail: { [step]: 'boom' } };
+            const { eps, authOps } = build({ existingUsers: [disabledAccount(MEMBER)], ...opts });
+            const out = await call(eps.setupRosterAuth, asAdmin({}));
+            const ops = authOps.filter((o) => o.uid === uidFor(MEMBER));
+            assert.ok(!ops.some((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === false),
+                'enabled although a step failed — the next run would then adopt it as it stands');
+            assert.ok(!ops.some((o) => o.op === 'setCustomUserClaims'), 'claimed although a step failed');
+            assert.deepEqual(out.body.reclaimed, []);
+            assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (re-enable-failed`)), out.body.failed.join(' | '));
+        });
+    }
+
+    test('a push-record release that fails does not stop the re-enable', async () => {
+        const { eps } = build({ existingUsers: [disabledAccount(MEMBER)], releaseFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.reclaimed, [MEMBER]);
+        assert.ok(!out.body.failed.some((f) => f.startsWith(MEMBER)), out.body.failed.join(' | '));
+    });
+});
+
+// ── AN ACCOUNT CLAIMED FOR SOMEBODY ELSE IS NOT ADOPTED (cross-area lead, 10 Nov 2026) ─────────
+// Set up accounts stamps the roster name's claims onto whatever account holds that name's email, and
+// adopted any account already carrying a claim. If an account provisioned for one member ever came to
+// hold a not-yet-provisioned colleague's address (an email change, wherever the project allows one),
+// the next run handed it that colleague's identity and tier — a manager's, say. The test is the
+// email: an account belongs here only if the member its claims name derives to this address. A
+// renamed member whose spelling still derives the same address passes, and so does `{ admin: true }`.
+describe('setupRosterAuth and the admin reset refuse an account whose claims name another member', () => {
+    const movedAccount = { uid: 'uid_moved', email: emailFor(MEMBER2), displayName: MEMBER, disabled: false,
+        customClaims: { name: MEMBER, member: MEMBER } };
+
+    test('Set up accounts reports it and stamps nothing on it', async () => {
+        const { eps, authOps } = build({ existingUsers: [movedAccount] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.code, 200);
+        assert.deepEqual(authOps.filter((o) => o.uid === 'uid_moved' && AUTH_MUTATIONS.includes(o.op)), [],
+            `${MEMBER}'s account was given ${MEMBER2}'s identity`);
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER2} (`) && f.includes(MEMBER)), out.body.failed.join(' | '));
+        assert.ok(!out.body.skipped.includes(MEMBER2) && !out.body.reclaimed.includes(MEMBER2));
+    });
+
+    test('a renamed member whose spelling still derives the same address IS adopted', async () => {
+        const renamed = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: 'l. SPRINGER', disabled: false,
+            customClaims: { name: 'l. SPRINGER', member: 'l. SPRINGER' } };
+        const { eps, authOps } = build({ existingUsers: [renamed] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.ok(out.body.skipped.includes(MEMBER), out.body.failed.join(' | '));
+        const stamp = authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER));
+        assert.equal(stamp && stamp.claims.member, MEMBER, 'the same person, re-stamped under the roster spelling');
+    });
+
+    test('the admin reset refuses it too — no password, no revocation, no notice', async () => {
+        const { eps, authOps, sends, stamps } = build({ existingUsers: [movedAccount] });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER2 }));
+        assert.equal(out.code, 409);
+        assert.match(out.body.error, new RegExp(MEMBER.replace('.', '\\.')));
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [], 'another member\'s account was reset');
+        assert.deepEqual(sends, []);
+        assert.deepEqual(stamps, [], 'and no reset was recorded against the member asked about');
+    });
+});
 
 // ── THE SHARED PIN ACCOUNT IS NEVER A MEMBER (Sep 2026 review) ─────────────────────────────────
 // Any PIN holder can link an email/password to the shared `calendar-viewer` account. Linking a

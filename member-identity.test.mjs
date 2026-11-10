@@ -63,3 +63,36 @@ test('the server\'s `member` stamp is not enough on its own — the provider and
 test('an email differing only in case is still the member (Firebase lower-cases emails)', () => {
     assert.equal(memberNameFromClaims({ ...real('G. Miller'), email: 'G.Miller@myb-roster.local' }), 'G. Miller');
 });
+
+// claimedByAnotherMember (whole-app check, 10 Nov 2026) — Set up accounts adopts an existing account
+// only when the member its claims name derives to that account's own address.
+test('an account whose claims name another member is somebody else\'s; this address\'s own is not', () => {
+    const { claimedByAnotherMember } = require('./functions/member-identity.js');
+    const at = (/** @type {string} */ owner, /** @type {any} */ customClaims) => ({ email: nameToEmail(owner), customClaims });
+    // every roster member's own account is their own — the same two derivations as above
+    for (const { name } of teamMembers) {
+        assert.equal(claimedByAnotherMember(at(name, { name, member: name })), null, `${name} refused on their own account`);
+    }
+    assert.equal(claimedByAnotherMember(at('A. Hared', { name: 'L. Springer', member: 'L. Springer' })), 'L. Springer');
+    assert.equal(claimedByAnotherMember(at('A. Hared', { name: 'L. Springer' })), 'L. Springer', 'a pre-`member` account too');
+    assert.equal(claimedByAnotherMember(at('L. Springer', { name: 'l. SPRINGER', member: 'l. SPRINGER' })), null,
+        'a respelling that derives the same address is the same person');
+    for (const c of [null, undefined, {}, { admin: true }, { stamped: true }]) {
+        assert.equal(claimedByAnotherMember(at('L. Springer', c)), null, `${JSON.stringify(c)} names nobody`);
+    }
+    assert.equal(claimedByAnotherMember({ email: undefined, customClaims: { name: 'L. Springer' } }), 'L. Springer',
+        'an account with no address is never assumed to be the claimed member\'s');
+});
+
+// unlinkOtherProviders (v24.56) — what a take-back or a re-enable removes beside the password. The
+// handler paths that use it are run by auth-endpoints.test.mjs; this pins the edges they do not reach.
+test('every sign-in method but the password is unlinked, and a password-only account is left alone', () => {
+    const { unlinkOtherProviders } = require('./functions/member-identity.js');
+    const methods = (/** @type {any[]} */ ids) => ({ providerData: ids.map(providerId => ({ providerId })) });
+    assert.deepEqual(unlinkOtherProviders(methods(['password', 'google.com', 'phone'])), { providersToUnlink: ['google.com', 'phone'] });
+    assert.deepEqual(unlinkOtherProviders(methods(['password'])), {}, 'nothing to remove is no field at all');
+    assert.deepEqual(unlinkOtherProviders(methods([])), {});
+    assert.deepEqual(unlinkOtherProviders({}), {}, 'an account record without providerData');
+    assert.deepEqual(unlinkOtherProviders(/** @type {any} */ ({ providerData: [null, { providerId: '' }, { providerId: 'google.com' }] })),
+        { providersToUnlink: ['google.com'] }, 'a malformed entry is skipped, never sent as a provider id');
+});

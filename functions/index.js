@@ -37,6 +37,7 @@ const {
     applyColumnScanCrossCheck,
     parseStrictIsoDate,
     fileSignatureMatches,
+    headerToDayIndex,
 } = require('./roster-parse-helpers');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
@@ -56,6 +57,8 @@ const {
     viewerClaims,
     viewerAccountTamper,
 } = require('./calendar-viewer-auth');
+const { requireAdmin, readJsonBody } = require('./request-helpers');
+const { londonIsoDate }          = require('./london-clock');
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
 const { buildOvertimeEndpoints } = require('./overtime');
@@ -117,6 +120,14 @@ const _RETRIABLE_FIRESTORE_CODES = new Set([
 /** @param {any} err */
 const _isRetriableFirestoreError = (err) => _RETRIABLE_FIRESTORE_CODES.has(err && err.code);
 
+// How long after a roster upload ARRIVES the model call must be over — every attempt, and the SDK's
+// waits between them (functions-core-7). The SDK's own default is ten minutes per attempt with two
+// retries, inside a function the platform ends at 120 s, so a stalled model was killed by the
+// PLATFORM: the admin saw the page's "Unexpected error" fallback instead of this handler's answer.
+// Sized to leave the post-model geometry re-wait (GEOMETRY_WAIT_BUDGET_MS) and the reply inside the
+// limit, and far above an ordinary read (~15 s). index-endpoints.test.mjs checks both directions.
+const PARSE_MODEL_DEADLINE_MS = 100_000;
+
 /**
  * Read the raw base64 plain-text request body (bypasses the JSON body-size limit), size-capped at
  * MAX_RAW_BODY_BYTES so an oversized upload is rejected DURING streaming rather than after buffering
@@ -166,20 +177,13 @@ async function readRawBody(req, res, logTag) {
 }
 
 /**
- * Returns {year, month(0-based), day} in London local time, derived directly from
- * Intl.DateTimeFormat parts so the result is never dependent on the server's TZ setting.
+ * Today's London calendar date as {year, month (0-based), day}, never dependent on the server's TZ.
+ * From london-clock.js's `londonIsoDate` — one London-date derivation, not two (functions-core-8).
  * @returns {{ year: number, month: number, day: number }}
  */
 function nowInLondon() {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-    }).formatToParts(new Date());
-    return {
-        year:  +parts.find(p => p.type === 'year').value,
-        month: +parts.find(p => p.type === 'month').value - 1,
-        day:   +parts.find(p => p.type === 'day').value,
-    };
+    const [year, month, day] = londonIsoDate(Date.now()).split('-').map(Number);
+    return { year, month: month - 1, day };
 }
 
 // ============================================================================
@@ -190,12 +194,13 @@ function nowInLondon() {
 // stays the COMPOSITION ROOT (the VAPID public key literal and STAFF_SITE_URL keep their
 // one guarded home in this file). The re-export names are the deploy contract — Firebase
 // discovers functions from THIS module's exports, so renaming or dropping one here
-// deletes it in production.
+// deletes it in production. The generated roster rides in for the pay reminder, which goes to
+// CEA and CES members only — an audience that may never come from a request.
 Object.assign(exports, buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     readRawBody, nowInLondon, isRetriableFirestoreError: _isRetriableFirestoreError,
     MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS,
-    ADMIN_FUNCTION_ORIGINS,
+    ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }));
 
 
@@ -205,9 +210,9 @@ Object.assign(exports, buildDocumentEndpoints({
 /**
  * POST /parseRosterPDF
  *
- * Called from admin.html when Gareth uploads a weekly roster PDF.
- * Extracts the text from the PDF, sends it to Claude AI with a structured
- * prompt, and returns each recognised staff member's shifts for the week.
+ * Called from the roster upload card on operations.html (admin-roster-upload.js). Sends the model the
+ * PDF itself or — where the PDF's own drawn grid places every member (roster-geometry.js) — those
+ * cells, already separated, and returns each recognised staff member's shifts for the week.
  *
  * This function does NOT write anything to Firestore. It just reads and
  * returns. The admin reviews the results in the browser, then approves them,
@@ -224,11 +229,12 @@ Object.assign(exports, buildDocumentEndpoints({
  *
  * Success response (200):
  *   {
- *     weekEnding:  "2026-04-05",
+ *     weekEnding:  "2026-04-04",
  *     rosterType:  "cea",
- *     dates:       ["2026-03-30", ..., "2026-04-05"],   // Sun → Sat
+ *     dates:       ["2026-03-29", ..., "2026-04-04"],   // Sun → Sat
+ *     crossCheck, missingMembers, choices, geometry, geometryRefused,   // the review's evidence — each explained where it is sent
  *     parsed: [
- *       { memberName: "L. Springer", shifts: { "2026-03-30": "05:30-11:30", ... } },
+ *       { memberName: "L. Springer", shifts: { "2026-03-29": "RD", "2026-03-30": "05:30-11:30", ... } },
  *       ...
  *     ]
  *   }
@@ -238,10 +244,12 @@ exports.parseRosterPDF = onRequest(
         secrets:        [ANTHROPIC_API_KEY],
         region:         'europe-west2',
         cors:           ADMIN_FUNCTION_ORIGINS,
-        timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
-        memory:         '512MiB',       // pdf-parse needs a little headroom
+        timeoutSeconds: 120,            // the model call is held to PARSE_MODEL_DEADLINE_MS inside this
+        memory:         '512MiB',       // a 20 MB PDF held as base64 and bytes, plus the pdfjs grid read
     },
     async (req, res) => {
+        // The model call's deadline counts from here (PARSE_MODEL_DEADLINE_MS).
+        const receivedAt = Date.now();
 
         // ---- Method check ----
         if (req.method !== 'POST') {
@@ -249,30 +257,8 @@ exports.parseRosterPDF = onRequest(
             return;
         }
 
-        // ---- Auth: Firebase ID token with admin custom claim ----
-        // The browser sends the logged-in user's Firebase ID token.
-        // verifyIdToken checks the signature + expiry; the admin claim gates access
-        // so only Gareth's account can call this function. checkRevoked=true also rejects a
-        // token whose account has been disabled or had its refresh tokens revoked (leaver / a
-        // compromised admin), rather than trusting the ~1h-valid cached token (v17.42).
-        const authHeader = req.headers['authorization'] || '';
-        if (!authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ error: 'Unauthorised' });
-            return;
-        }
-        const idToken = authHeader.slice('Bearer '.length);
-        let decodedToken;
-        try {
-            decodedToken = await getAuth().verifyIdToken(idToken, true);
-        } catch (err) {
-            console.warn('[parseRosterPDF] Token verification failed:', err.message);
-            res.status(401).json({ error: 'Unauthorised' });
-            return;
-        }
-        if (decodedToken.admin !== true) {
-            res.status(403).json({ error: 'Forbidden — admin access required' });
-            return;
-        }
+        // ---- Auth: an admin's Firebase ID token, checked for revocation (request-helpers.js) ----
+        if (!(await requireAdmin(req, res, 'parseRosterPDF'))) return;
 
         // ---- Headers ----
         const weekEnding = (req.headers['x-week-ending']  || '').trim();
@@ -517,9 +503,14 @@ columnScan: one key per column header; every staff member appears in every colum
         // there is no table left to read: the cells arrive already placed, as text.
 
         let parsed;
+        /** @type {AbortSignal|null} */
+        let modelDeadline = null;
         try {
             const { Anthropic } = require('@anthropic-ai/sdk'); // M8: lazy-loaded here only
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+            // ONE deadline for the whole call. The SDK checks the signal before each attempt, during
+            // it, and in its sleeps between retries, so quick failures are still retried — inside it.
+            modelDeadline = AbortSignal.timeout(Math.max(1_000, PARSE_MODEL_DEADLINE_MS - (Date.now() - receivedAt)));
 
             // HOW the model is asked (which model, thinking off, the effort) is MODEL_REQUEST in
             // roster-prompt.js, with its reasons; index-endpoints.test.mjs pins it through this call.
@@ -538,7 +529,8 @@ columnScan: one key per column header; every staff member appears in every colum
                     },
                     { type: 'text', text: prompt },
                 ];
-            const message = await client.messages.create({ ...MODEL_REQUEST, messages: [{ role: 'user', content }] });
+            const message = await client.messages.create(
+                { ...MODEL_REQUEST, messages: [{ role: 'user', content }] }, { signal: modelDeadline });
 
             // A decline is an HTTP 200 with no text. Reported as one: DECLINED_ERROR says why.
             if (message.stop_reason === 'refusal') {
@@ -561,6 +553,15 @@ columnScan: one key per column header; every staff member appears in every colum
             // Distinguish JSON parse errors (bad AI output) from API errors
             if (err instanceof SyntaxError) {
                 res.status(502).json({ error: 'The AI returned an unreadable response — please try again' });
+            } else if (modelDeadline && modelDeadline.aborted) {
+                res.status(502).json({ error: 'The AI service did not answer in time — please try again in a moment' });
+            } else if (Number.isInteger(err && err.status) && err.status >= 400 && err.status < 500
+                && ![408, 409, 429].includes(err.status)) {
+                // A REFUSAL IS NOT AN OUTAGE (whole-app check, 10 Nov 2026). A retired model id, a
+                // setting the model rejects, a bad key: each fails identically every time, so "try
+                // again in a moment" sent the admin round a retry that cannot work. The SDK does
+                // not retry these either; 408/409/429 are the 4xx it does, and they stay below.
+                res.status(502).json({ error: `The AI service refused the request (HTTP ${err.status}), so trying again will not help — the function log says why` });
             } else {
                 res.status(502).json({ error: 'Could not reach the AI service — please try again in a moment' });
             }
@@ -652,8 +653,10 @@ columnScan: one key per column header; every staff member appears in every colum
         // The geometry path has a Sunday column BY CONSTRUCTION — the cell table stamps all seven
         // day labels on every row — and its `sundayScan` is withheld above, so the correction below
         // returns at once there. Reading `parsed.columnHeaders` unguarded threw a TypeError before v24.12.
+        // Through headerToDayIndex, the one header rule every other layer uses (import-server-3): an
+        // exact "sun"/"sunday" test here switched the repair off for a dated header ("Sun 30/08").
         const hasSundayColumn = geometryPath
-            || parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
+            || parsed.columnHeaders.some(h => headerToDayIndex(h) === 0);
         // A Sunday it cannot repair is left for the grid below and settled after it (roster-sunday-repair.js).
         // The cross-check's picks go in too: a row the repair moves takes its picks with it.
         const disputedSundays = applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates, _ccStats.choices);
@@ -785,7 +788,6 @@ columnScan: one key per column header; every staff member appears in every colum
 );
 
 // ── Firebase Auth account setup ──────────────────────────────────────────────
-// ── Firebase Auth account setup ──────────────────────────────────────────────
 // The ACCOUNT-AND-CREDENTIAL domain — setupRosterAuth, resetMemberPassword,
 // requestPasswordReset, getSignInStats and getAccountSetupGaps — lives in ./auth-endpoints.js, built here
 // with the shared infrastructure (same composition-root reasoning as the documents
@@ -867,7 +869,7 @@ Object.assign(exports, rosterMembers.overtimeEnabled === false ? { purgeExpiredO
  * and it is why the token it mints carries no `name`, no `admin`, no `manager`, no `linksDesigner`,
  * and no write capability of any kind. Anything privileged still goes through a real member login.
  *
- * ── THE FOUR THINGS THIS HANDLER MUST KEEP DOING ────────────────────────────────────────────────
+ * ── THE FIVE THINGS THIS HANDLER MUST KEEP DOING ────────────────────────────────────────────────
  *
  * 1. **Never log, echo or store the submitted PIN.** Not in an error, not in a warning, not in a
  *    response body. The log line below records the OUTCOME and the hashed source, nothing else.
@@ -964,17 +966,17 @@ exports.unlockCalendarViewer = onRequest(
             return res.status(503).json({ error: 'Calendar access is temporarily unavailable' });
         }
         if (reserved.blocked) {
+            // Readable only by a caller that is not a browser (it is not CORS-exposed): it tells a script
+            // when the block lifts, a number calendar-access-core.js keeps off the page. The ceilings hold either way.
             res.set('Retry-After', String(reserved.blocked.retryAfterSec));
             console.warn('[unlockCalendarViewer] throttled', sourceKey);
             return res.status(429).json({ error: 'Too many attempts' });
         }
 
         // ── Read the candidate ──────────────────────────────────────────────────────────────────
-        let body = req.body;
-        if (!body || typeof body !== 'object') {
-            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
-        }
-        const supplied = body && typeof body.pin === 'string' ? body.pin : null;
+        // readJsonBody: a right PIN in a Buffer body was charged as a wrong one (functions-core-8).
+        const body = readJsonBody(req);
+        const supplied = typeof body.pin === 'string' ? body.pin : null;
 
         // ONE branch for "wrong shape" and "wrong value" — see rule 2 in the header.
         const ok = isValidPinShape(supplied) && pinMatches(supplied, expected);
