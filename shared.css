@@ -3770,9 +3770,12 @@ body.auth-ready .boot-placeholder { display: none; }
     border-radius: 8px;
     margin-top: 1px;
 }
-#tipsLightboxClose { color: rgba(0,0,0,0.35); }
+/* The panel's only visible way out, so it is read as text: `--text-light` is 6.0:1 on the white panel, the
+   date picker's ✕ beside it. It was black at 35% — 2.43:1, under the 3:1 floor for a control's own glyph as
+   well as the text floor — and only the mouse's hover ever lifted it (whole-app review, Nov 2026). */
+#tipsLightboxClose { color: var(--text-light); }
 @media (hover: hover) and (pointer: fine) {
-    #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
+    #tipsLightboxClose:hover { color: var(--text-dark); }
 }
 
 /* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----

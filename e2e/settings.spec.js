@@ -657,6 +657,36 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
     expect(errors, 'Uncaught JS exceptions on signed-in settings.html').toHaveLength(0);
 });
 
+// THE TIPS ✕ IS READ AS TEXT (whole-app review, Nov 2026). It is the panel's only visible way out, and it was
+// black at 35% on white — 2.43:1, under the 3:1 a control's own glyph needs as well as the text floor — with
+// only a mouse's hover ever lifting it. Shared by the six pages with a Tips panel; measured as painted: the
+// ✕'s colour laid over the panel's own, on a canvas, so a translucent colour is judged by what it shows.
+test('settings: the Tips panel\'s ✕ clears the text contrast floor on its panel', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/settings.html');
+    await page.locator('.btn-card-tips[data-card="work-email"]').click();
+    await expect(page.locator('#tipsLightbox')).toBeVisible();
+    const ratio = await page.evaluate(() => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string[]} layers */
+        const paint = (...layers) => {
+            ctx.clearRect(0, 0, 1, 1);
+            for (const c of layers) { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        };
+        /** @param {number[]} rgb */
+        const lum = (rgb) => {
+            const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const panel = getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('tipsLightboxContent'))).backgroundColor;
+        const glyph = getComputedStyle(/** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose'))).color;
+        const [hi, lo] = [lum(paint(panel, glyph)), lum(paint(panel))].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, `the ✕ is ${ratio.toFixed(2)}:1 on its panel`).toBeGreaterThanOrEqual(4.5);
+});
+
 // ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
 // The login overlay and the forced overlay both offer a reveal; this card asked for an 8+ character
 // password TWICE with no way to see either, which is where a mistyped password comes from.
