@@ -12,8 +12,8 @@
  * The v23.01 external review's observation, and it is exactly right: this repo proves iOS
  * BEHAVIOUR better than it proves iOS APPEARANCE. `npm run test:webkit` runs the whole smoke suite
  * under WebKit, so engine semantics, API availability and layout ASSERTIONS are covered — while
- * every pixel baseline is Chromium. A Safari-only rendering difference, in an app whose staff are
- * half on iPhones, had nothing looking at it.
+ * every pixel baseline is Chromium. A Safari-only rendering difference, in an app that serves iOS as
+ * fully as Android, had nothing looking at it.
  *
  * ── SEPARATE BASELINES, NOT SHARED ONES ─────────────────────────────────────────────────────────
  *
