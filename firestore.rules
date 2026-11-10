@@ -900,10 +900,17 @@ service cloud.firestore {
       // (older clients wrote none) — keeping those deletable so VAPID-rotation cleanup can't be
       // locked out. Orphans left by a uid change are swept server-side by fanOutPush's 410/404
       // cleanup, so nothing accumulates. (A5, F-SEC-5 — was `request.auth != null` for any id.)
-      allow delete: if request.auth != null &&
+      // The same known identity as create/update (10 Nov 2026): the v24.56 sweep missed this line,
+      // so an anonymous token could still delete an owner-less record.
+      // A RECORD ALREADY GONE may be deleted — a no-op (10 Nov 2026). Sign-out deletes the record
+      // and keeps the browser subscription, and only a signed-in Calendar load saves it again, so a
+      // second sign-out from another page deleted nothing: `resource.data` on a null `resource` was
+      // an error, the delete was refused, and `releaseDevicePush` (notif.js) took the refusal for
+      // "not the owner" and dropped the subscription. Same shape as the overrides delete (v25.06).
+      allow delete: if request.auth != null && isKnownIdentity() &&
         // Same `in` guard as create/update above, for the same reason.
         (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
-        (!('owner' in resource.data) || resource.data.owner == request.auth.uid);
+        (resource == null || !('owner' in resource.data) || resource.data.owner == request.auth.uid);
     }
 
     // ── viewerAttempts — the staff-PIN throttle store (v20.12) ─────────────────────────────────

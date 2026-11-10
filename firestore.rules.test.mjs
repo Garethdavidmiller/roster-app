@@ -55,6 +55,12 @@ after(async () => {
 function anonDb()                      { return testEnv.unauthenticatedContext().firestore(); }
 /** Authenticated staff — no custom claims. */
 function staffDb(uid = 'uid_staff')    { return testEnv.authenticatedContext(uid).firestore(); }
+/** A token from the ANONYMOUS provider, which is still enabled on the project: anybody holding the
+ *  public web API key can mint one. `staffDb` models a claim-less session in general; this is the
+ *  exact shape that provider issues. */
+function anonymousSessionDb(uid = 'uid_anon') {
+    return testEnv.authenticatedContext(uid, { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+}
 /** Authenticated admin (admin custom claim). */
 function adminDb()                     { return testEnv.authenticatedContext('uid_admin', { admin: true }).firestore(); }
 /** Authenticated user with a name claim (for staffContact + override isolation). */
@@ -125,6 +131,10 @@ const VALID_SUB = () => ({
 // ── Unique IDs (avoid cross-test interference) ────────────────────────────────
 let _seq = 0;
 function uid() { return `doc_${++_seq}`; }
+/** An id that no run has written — for a document that must NOT exist. `uid()` restarts at doc_1 in
+ *  every process, so against an emulator that outlived an earlier run its id may already be taken,
+ *  and an "already gone" case would quietly test a document that is there. */
+function goneId() { return `gone_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`; }
 
 // ── The REAL client writers (test audit, 7 Nov 2026) ──────────────────────────
 // Most cases in this file write a literal, so a field a client writer gained would pass all of them
@@ -617,11 +627,11 @@ describe('overrides — per-member isolation (STRICT, B3)', () => {
     test('named staff CAN delete an override that is already gone — a no-op (v25.06)', async () => {
         // The replace path deletes ids from the member's cached overrides; a manager may have deleted
         // one a moment earlier, and the null `resource` used to refuse the member's whole save.
-        await assertSucceeds(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', uid())));
+        await assertSucceeds(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', goneId())));
     });
     test('a session with no member name still CANNOT delete, even a missing override', async () => {
-        await assertFails(deleteDoc(doc(anonDb(), 'overrides', uid())));
-        await assertFails(deleteDoc(doc(staffDb(), 'overrides', uid())));
+        await assertFails(deleteDoc(doc(anonDb(), 'overrides', goneId())));
+        await assertFails(deleteDoc(doc(staffDb(), 'overrides', goneId())));
     });
     test('named staff CAN delete their OWN override', async () => {
         const id = uid();
@@ -1732,10 +1742,38 @@ describe('pushSubscriptions', () => {
         await assertFails(deleteDoc(doc(memberDb('uid_intruder'), 'pushSubscriptions', id)));
     });
 
-    test('legacy (no-owner) subscription stays deletable by any authed user (backward-compat escape)', async () => {
+    test('legacy (no-owner) subscription stays deletable by any member (backward-compat escape)', async () => {
         const id = uid();
         await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
         await assertSucceeds(deleteDoc(doc(memberDb('uid_other'), 'pushSubscriptions', id)));
+    });
+
+    // THE DELETE HALF OF THE v24.56 SWEEP (whole-app fix, 10 Nov 2026). Create and update asked for a
+    // known identity from v24.56; delete still asked only for a session, so a token from the
+    // anonymous provider (still enabled on the project) could delete any owner-less record by id.
+    test('an ANONYMOUS session cannot delete a legacy (no-owner) subscription', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await assertFails(deleteDoc(doc(anonymousSessionDb(), 'pushSubscriptions', id)));
+        await assertFails(deleteDoc(doc(staffDb(), 'pushSubscriptions', id)));
+    });
+
+    // A SIGN-OUT AFTER AN EARLIER SIGN-OUT (whole-app fix, 10 Nov 2026). Signing out deletes this
+    // device's record and keeps the browser subscription, and only a signed-in Calendar load saves the
+    // record again. A member who next signs in on another page and signs out again deletes a record
+    // that is not there: `resource` is null, `resource.data` was an error, the delete was refused, and
+    // `releaseDevicePush` (notif.js) read the refusal as "not the owner" and dropped the browser
+    // subscription — notifications off, with nobody having switched them off. Same shape, and same
+    // remedy, as deleting an override that is already gone (v25.06).
+    test('a member or the admin CAN delete a subscription that is already gone — a no-op', async () => {
+        await assertSucceeds(deleteDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', goneId())));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'pushSubscriptions', goneId())));
+    });
+
+    test('…but a session that could not delete a real one cannot delete a missing one either', async () => {
+        await assertFails(deleteDoc(doc(anonDb(), 'pushSubscriptions', goneId())));
+        await assertFails(deleteDoc(doc(anonymousSessionDb(), 'pushSubscriptions', goneId())));
+        await assertFails(deleteDoc(doc(viewerDb(), 'pushSubscriptions', goneId())));
     });
 
     test('owner can UPDATE their own owner-stamped subscription', async () => {
