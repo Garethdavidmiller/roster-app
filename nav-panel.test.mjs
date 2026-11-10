@@ -46,10 +46,12 @@ mock.module('./notif.js', {
 });
 /** Body-scroll unlocks the drawer asked for — a close it should not have made shows up here. */
 let scrollUnlocks = 0;
+/** The drawer's claim on a popstate, which overlay.js asks before it pops its own stack. @type {Array<() => boolean>} */
+const popInterceptors = [];
 mock.module('./overlay.js', {
     namedExports: {
         lockBodyScroll: () => {}, unlockBodyScroll: () => { scrollUnlocks += 1; },
-        suppressNextPop: () => {}, registerPopInterceptor: () => {},   // v16.23 pop-ownership hooks
+        suppressNextPop: () => {}, registerPopInterceptor: (/** @type {() => boolean} */ fn) => { popInterceptors.push(fn); },   // v16.23 pop-ownership hooks
         whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
         watchScrollFade: () => () => {},   // the body's "more below" fade — decoration; e2e/pages.spec.js tests it
     },
@@ -464,10 +466,14 @@ function mountLive() {
     ]);
     /** @type {Function[]} */
     const keydown = [];
+    /** @type {Function[]} */
+    const popstate = [];
     const page = {
         backs: 0,
         /** Every open `.lb-overlay` this page holds — what `_overlayAbove` reads. */
         openOverlays: () => [...els.values()].filter(e => e.classList.contains('lb-overlay') && e.classList.contains('open')),
+        /** A popstate reaching the drawer's own window listener. */
+        popstate: () => popstate.slice().forEach(fn => fn({})),
     };
     global.document = /** @type {any} */ ({
         activeElement: null,
@@ -480,9 +486,12 @@ function mountLive() {
         querySelectorAll: (/** @type {string} */ sel) => (sel === '.lb-overlay.open' ? page.openOverlays() : []),
         querySelector: (/** @type {string} */ sel) => (sel === '.lb-overlay.open' ? page.openOverlays()[0] ?? null : null),
     });
-    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }),
+    global.window = /** @type {any} */ ({
+        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { if (t === 'popstate') popstate.push(fn); },
+        removeEventListener() {}, matchMedia: () => ({ matches: false }),
         setTimeout: (/** @type {any[]} */ ...a) => setTimeout(...a), clearTimeout: (/** @type {any} */ t) => clearTimeout(t) });
-    global.history = /** @type {any} */ ({ pushState() {}, back() { page.backs += 1; } });
+    // `state` is the entry the page is ON — what the drawer reads to tell its own entry from another's.
+    global.history = /** @type {any} */ ({ state: null, pushState(/** @type {any} */ s) { this.state = s; }, back() { page.backs += 1; } });
     global.requestAnimationFrame = /** @type {any} */ ((/** @type {Function} */ fn) => { fn(); return 0; });
     resetNavPanel();   // the module keeps its flags between mounts — start each test from a closed drawer
     initNavPanel({ currentPage: 'links', memberName: 'A. Test', onSignOut: () => {} });
@@ -566,6 +575,24 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
             viewer.classList.remove('open');                    // the viewer closes; now this one is on top
             press('Escape');
             assert.equal($(lb.box).classList.contains('open'), false, 'and once on top, Escape reaches it again');
+        });
+
+        // …and Back: a dialog over it (the app-update question, the unsaved-work offer) owns its own Back,
+        // and the echo of its own Cancel. Both LAND on the drawer's entry, which the lightbox shares; it
+        // used to take every pop for its own while open — closing underneath, the dialog left standing.
+        test(`${lb.name}: a pop that lands on the drawer's entry is the dialog's above it — one that leaves it is its own`, () => {
+            const { $, openFromDrawer, page } = mountLive();
+            openFromDrawer(lb.link);
+            const own = history.state;
+            const claims = () => popInterceptors.some(fn => fn());
+            /** @type {any} */ (history).state = own;            // a dialog above was popped
+            assert.equal(claims(), false, 'the drawer claimed the dialog\'s Back: the dialog would stay on screen');
+            page.popstate();
+            assert.equal($(lb.box).classList.contains('open'), true, 'a pop above it closed the lightbox underneath');
+            /** @type {any} */ (history).state = null;           // Back with nothing above: the drawer's entry goes
+            assert.equal(claims(), true);
+            page.popstate();
+            assert.equal($(lb.box).classList.contains('open'), false, 'its own Back must still close it');
         });
     }
 });

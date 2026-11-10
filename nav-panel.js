@@ -159,6 +159,12 @@ let _historyPushed  = false;
  *  drawer (a dialog), so the drawer stays. Per opening, so a pre-reload leftover never passes for it. */
 let _navEntry = 0;
 const _landedOnOwnEntry = () => history.state?.mybNavPanel === _navEntry;
+/** Push the drawer's ONE entry — shared by the panel and its two lightboxes — with a fresh marker. */
+function _pushDrawerEntry() {
+    _navEntry = Date.now() + Math.random();
+    history.pushState({ mybNavPanel: _navEntry }, '');
+    _historyPushed = true;
+}
 let _comingSoonOpen = false;
 let _noticesOpen    = false;
 
@@ -168,7 +174,9 @@ let _noticesOpen    = false;
 // Week View while also closing the drawer (one press, two surfaces). Registered once at module
 // level (the flags are module-level too, so this survives resetNavPanel→initNavPanel cycles).
 // …unless the pop LANDED on the drawer's own entry: a dialog over it was popped, and it closes (v25.06).
-registerPopInterceptor(() => _historyPushed && (_comingSoonOpen || _noticesOpen || !_landedOnOwnEntry()));
+// The same holds while App Notices or the coming-soon panel is up: they share the entry, and a dialog
+// over one of them owns its own Back (whole-app check, Nov 2026 — they used to claim every pop).
+registerPopInterceptor(() => _historyPushed && !_landedOnOwnEntry());
 // The document keydown + window popstate handlers registered by initNavPanel — held at module
 // level so resetNavPanel() can remove them (they close over the injected panel; a stale copy
 // surviving a reset would consume the shared flags against a detached panel).
@@ -273,11 +281,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         panel.classList.add('open');
         burger.setAttribute('aria-expanded', 'true');
         lockBodyScroll();
-        if (!_historyPushed) {
-            _navEntry = Date.now() + Math.random();
-            history.pushState({ mybNavPanel: _navEntry }, '');
-            _historyPushed = true;
-        }
+        if (!_historyPushed) _pushDrawerEntry();
         _stopBodyFade(); _stopBodyFade = watchScrollFade(/** @type {HTMLElement|null} */ (panel.querySelector('.nav-panel-body')));
         // Permission/subscription can change between opens (toggled in admin, or
         // at OS level), so re-read the bell state every time the panel opens.
@@ -842,10 +846,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         document.addEventListener('keydown', _onComingSoonKey);
         // Reuse the panel's single history entry (normally already present, as
         // the lightbox opens from the open panel); push one only if missing.
-        if (!_historyPushed) {
-            history.pushState({ mybNavOverlay: true }, '');
-            _historyPushed = true;
-        }
+        if (!_historyPushed) _pushDrawerEntry();
         _comingSoonOpen = true;
         setTimeout(() => csClose?.focus(), 60);
     }
@@ -972,10 +973,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         noticesLightbox.classList.add('visible');
         requestAnimationFrame(() => noticesLightbox.classList.add('open'));
         document.addEventListener('keydown', _onNoticesKey);
-        if (!_historyPushed) {
-            history.pushState({ mybNavOverlay: true }, '');
-            _historyPushed = true;
-        }
+        if (!_historyPushed) _pushDrawerEntry();
         _noticesOpen = true;
         setTimeout(() => noticesClose?.focus(), 60);
     }
@@ -1069,10 +1067,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Stored in the module-level ref so resetNavPanel() can remove it (same stale-copy hazard
     // as the keydown handler above — Android Back is the primary close gesture on staff phones).
     _popstateHandler = () => {
+        if (!_historyPushed) return;
+        // What was popped sat ABOVE the drawer's entry — a dialog over the drawer or over one of its two
+        // lightboxes, by Back or by the echo of its own Cancel, which overlay.js absorbs but cannot stop
+        // reaching this listener too. It is the dialog's pop, not ours.
+        if (_landedOnOwnEntry()) return;
         if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
         if (_noticesOpen)   { _closeNoticesFromBack(); return; }
-        if (!_historyPushed) return;
-        if (_landedOnOwnEntry()) return;   // what was popped sat ABOVE the drawer (a dialog it opened)
         closePanelFromBack();
     };
     window.addEventListener('popstate', _popstateHandler);

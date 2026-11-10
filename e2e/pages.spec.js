@@ -233,6 +233,49 @@ test('drawer brand → About: Back closes About and stays on the page', async ({
     await expect(page).toHaveURL(/admin\.html/);
 });
 
+// A DIALOG OVER APP NOTICES ANSWERS ITS OWN CANCEL AND ITS OWN BACK (shared-ui-6). App Notices shares the
+// drawer's history entry, and while it was open the drawer took EVERY popstate for its own: the echo of a
+// dialog's Cancel closed App Notices underneath and stranded the drawer's entry, and a hardware Back
+// closed App Notices while the dialog on top of it stayed. A dialog can arrive by itself — the app-update
+// question, the unsaved-work offer — so this one is opened the way those are.
+test('drawer: a dialog over App Notices answers its own Cancel and Back, and App Notices waits for its own', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const notices = page.locator('#navNoticesLightbox');
+    const dialog = page.locator('.dialog-overlay.open');
+    const noticesThenDialog = async () => {
+        await page.locator('#navMenuBtn').click();
+        const toggle = page.locator('#navGuidesToggle');
+        if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+        await page.locator('.nav-panel-link--notices').click();
+        await expect(notices).toHaveClass(/\bopen\b/);
+        await page.evaluate(async () => {
+            const { confirmDialog } = await import('/overlay.js');
+            /** @type {any} */ (window).__answer = confirmDialog({ message: 'A new version is ready. Reload now?' });
+        });
+        await expect(dialog).toBeVisible();
+    };
+
+    await noticesThenDialog();
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toBeHidden();
+    await page.waitForTimeout(600);   // the dialog's Back echo has landed
+    await expect(notices, 'the dialog\'s Cancel closed App Notices underneath').toHaveClass(/\bopen\b/);
+    await page.evaluate(() => history.back());
+    await expect(notices, 'App Notices still holds the drawer\'s entry, so Back closes it').not.toHaveClass(/\bopen\b/);
+    await expect(page).toHaveURL(/admin\.html/);
+
+    await noticesThenDialog();
+    await page.evaluate(() => history.back());
+    await expect(dialog, 'Back left the dialog on screen').toBeHidden();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'Back is the dialog\'s Cancel').toBe(false);
+    await expect(notices, 'and closed App Notices beneath it instead').toHaveClass(/\bopen\b/);
+    await page.evaluate(() => history.back());
+    await expect(notices).not.toHaveClass(/\bopen\b/);
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
 // ── THE DRAWER SAYS THERE IS MORE BELOW (desktop audit, Nov 2026) ───────────────────────────────
 // On a laptop window (1366×625) an admin's drawer ended at "Marylebone Newsletter", with Reference —
 // the guides, their search and App Notices — below the fold and nothing to say it was there. The body
