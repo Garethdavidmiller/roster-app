@@ -14,7 +14,7 @@
 
 import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions } from './paycalc-periods.js';
-import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
+import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
 import { getSession } from './session.js';
 import { teamMembers, gradeForRole } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
@@ -239,18 +239,39 @@ export function wirePensionControls({ autosave }) {
   const _viewed = () => getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   const _amt = () => /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
 
+  // THE PAYSLIP'S OWN FIGURE SURVIVES BOTH CONTROLS (paycalc-3-3). A payslip that stores a pension of
+  // its own keeps it: an UNLOCKED field shows it, as loadPeriodData would — never the scheme default,
+  // which is what replaced it when a member corrected the date while viewing an earlier payslip, or
+  // ticked by mistake and unticked — and a LOCKED one leaves it dormant behind the lock's £0.00, which
+  // every surface prices at £0 (as every other payslip in an opt-out spell already does).
+  const _own = (/** @type {any} */ p) => (p ? readSavedPeriod(p.num).data?.pension : null) ?? null;
+  const _repaint = (/** @type {any} */ p) => {
+    const amt = _amt();
+    if (!amt || amt.disabled) return;
+    const own = _own(p);
+    amt.value = own != null ? String(own) : periodDefaultPension(p).toFixed(2);
+  };
+  // `autosave` persists the field and re-prices; the only re-price this module can reach. A locked
+  // field reads £0.00, which the round trip stores as "the default" — so the payslip's own figure is
+  // put back straight after, to lie dormant rather than be lost.
+  const _persist = () => {
+    const p = _viewed();
+    const own = _amt()?.disabled ? _own(p) : null;
+    autosave();
+    if (own != null) keepSavedPension(p.num, own);
+  };
+
   document.getElementById('pensionOptOutCheck')?.addEventListener('change', () => {
     buildPensionFromSelect(getPensionTimeline());
     saveSettings();
     buildPensionFromSelect(getPensionTimeline());
     const p = _viewed();
     applyPensionOptOutUI(p);
-    // Un-ticking must put the scheme figure back: the field is showing a £0.00 that is no longer
-    // anybody's default, and leaving it would persist as a real opt-out on the next save.
-    const amt = _amt();
-    if (amt && !amt.disabled) amt.value = periodDefaultPension(p).toFixed(2);
+    // Un-ticking must take the lock's £0.00 away: it is no longer anybody's figure, and leaving it
+    // would persist as a real opt-out on the next save.
+    _repaint(p);
     saveSettings();
-    autosave();
+    _persist();
   });
 
   // Moving the boundary re-prices both sides of it, so the field, the lock and the estimate are
@@ -262,10 +283,20 @@ export function wirePensionControls({ autosave }) {
     saveSettings();
     const p = _viewed();
     applyPensionOptOutUI(p);
-    const amt = _amt();
-    if (amt && !amt.disabled) amt.value = periodDefaultPension(p).toFixed(2);
-    autosave();
+    _repaint(p);
+    _persist();
   });
+}
+
+/**
+ * Put a payslip's own saved pension back after a write that replaced it (see `wirePensionControls`).
+ * Only into a payslip that can be read, and only when it now holds something else.
+ * @param {number} pNum @param {number} pension
+ */
+function keepSavedPension(pNum, pension) {
+  const { data } = readSavedPeriod(pNum);
+  if (!data || typeof data !== 'object' || data.pension === pension) return;
+  lsSet(periodKey(pNum), JSON.stringify({ ...data, pension }));
 }
 
 /** Full-period pension default for the current grade, period-aware.

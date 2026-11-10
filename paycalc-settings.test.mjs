@@ -576,12 +576,17 @@ function fakeSelect() {
         querySelector(/** @type {string} */ q) {
             return q === 'optgroup' ? (this.children.find((/** @type {any} */ c) => c.tagName === 'OPTGROUP') ?? null) : null;
         },
-        addEventListener() {},
+        /** @type {Record<string, Function[]>} */ listeners: {},
+        addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { (this.listeners[t] ||= []).push(f); },
+        fire(/** @type {string} */ t) { for (const f of this.listeners[t] || []) f({ target: this }); },
     };
     return sel;
 }
+/** An <input>: `value` is always a string, as the page's is. */
 const fakeInput = () => {
-    /** @type {any} */ const el = { value: '', checked: false, disabled: false, textContent: '', classList: classes(),
+    let v = '';
+    /** @type {any} */ const el = { checked: false, disabled: false, textContent: '', classList: classes(),
+        get value() { return v; }, set value(x) { v = String(x); },
         closest: () => null, setAttribute() {}, focus() {}, querySelector: () => null, style: {},
         /** @type {Record<string, Function[]>} */ listeners: {},
         addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { (this.listeners[t] ||= []).push(f); },
@@ -713,5 +718,79 @@ describe('a payslip on record that the list no longer offers is kept (paycalc-3-
         card.slPaidOffFrom.value = '';
         S.saveSettings();
         assert.equal(_ls.get(SK.slPaidOff), '', '"No — still deducted" must still clear the stop');
+    });
+});
+
+// ── THE PENSION CONTROLS NEVER WIPE A PAYSLIP'S OWN FIGURE (paycalc-3-3) ─────────────────────────
+//
+// A member whose contribution differs from the scheme's has typed their own figure on the payslip on
+// screen. Ticking "not in the pension scheme" by mistake and unticking it, or correcting the opt-out
+// date while looking at an earlier payslip she was still paying into, used to replace that figure
+// with the scheme default — in the box AND in storage, with no message. The guide promises the
+// opposite: "Everything before it keeps the pension it was actually paid with". A figure inside an
+// opt-out spell lies dormant behind the lock (priced at £0 by every surface), as every OTHER payslip
+// in the spell already does. `persist` below is the coordinator's `persistSetting(['pension'])`,
+// built from the REAL form-data functions it uses.
+describe('the pension controls keep a payslip\'s own figure (paycalc-3-3)', () => {
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    /** @type {any} */ let F = null;
+    before(async () => {
+        P = await import('./paycalc-periods.js');
+        S = await import('./paycalc-settings.js');
+        F = await import('./paycalc-form-data.js');
+    });
+    beforeEach(() => { beNobody(); _ls.clear(); _ls.set(SK.grade, 'cea'); _ls.set(SK.setup, '1'); });
+
+    const persist = () => {
+        const pNum = Number(card.periodSelect.value);
+        const p = getPeriods().find((/** @type {any} */ x) => x.num === pNum);
+        const w = F.settingFieldsWrite(_ls.get(periodKey(pNum)) ?? null,
+            F.readFormData({ adjNegative: false, periodDefaultPension: p ? S.periodDefaultPension(p) : null }), ['pension']);
+        if (w) _ls.set(periodKey(pNum), w);
+    };
+    /** Open payslip `pNum` holding `blob` the way loadPeriodData paints it, with the controls wired. */
+    async function open(/** @type {number} */ pNum, /** @type {any} */ blob) {
+        _ls.set(periodKey(pNum), JSON.stringify(blob));
+        await settingsCard(pNum);
+        S.loadSettings();
+        const p = getPeriods().find((/** @type {any} */ x) => x.num === pNum);
+        card.pensionAmt.value = blob.pension != null ? blob.pension : S.periodDefaultPension(p).toFixed(2);
+        S.applyPensionOptOutUI(p);
+        S.wirePensionControls({ autosave: persist });
+    }
+    const storedPension = (/** @type {number} */ pNum) => JSON.parse(String(_ls.get(periodKey(pNum)))).pension;
+
+    test('ticking "not in the scheme" by mistake and unticking it gives the payslip its figure back', async () => {
+        const V = P.todaysPeriodNum();
+        await open(V, { otH: 4, otM: 0, pension: 50 });
+        card.pensionOptOutCheck.checked = true; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, '0.00', 'premise: the lock shows £0.00');
+        assert.equal(card.pensionAmt.disabled, true);
+        assert.equal(storedPension(V), 50, 'the tick wrote the lock\'s £0.00 over the payslip\'s own figure');
+        card.pensionOptOutCheck.checked = false; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, '50', 'the untick painted the scheme default over her own figure');
+        assert.equal(storedPension(V), 50);
+    });
+
+    test('correcting the opt-out date while viewing an earlier payslip leaves its figure alone', async () => {
+        const V = P.todaysPeriodNum() - 4;
+        _ls.set(SK.pensionTimeline, JSON.stringify([{ from: V + 2, out: true }]));
+        await open(V, { otH: 4, otM: 0, pension: 50 });
+        assert.equal(card.pensionAmt.disabled, false, 'premise: she was still paying in on this payslip');
+        card.pensionOptOutFrom.value = String(V + 3); card.pensionOptOutFrom.fire('change');
+        assert.equal(card.pensionAmt.value, '50', 'a payslip the correction never touched lost its figure');
+        assert.equal(storedPension(V), 50);
+    });
+
+    test('CONTROL: a payslip holding no figure of its own still gets the scheme figure back on untick', async () => {
+        const V = P.todaysPeriodNum();
+        await open(V, { otH: 4, otM: 0 });
+        const def = S.periodDefaultPension(getPeriods().find((/** @type {any} */ x) => x.num === V)).toFixed(2);
+        card.pensionOptOutCheck.checked = true; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, '0.00');
+        card.pensionOptOutCheck.checked = false; card.pensionOptOutCheck.fire('change');
+        assert.equal(card.pensionAmt.value, def, 'a frozen £0.00 left behind would save as a real opt-out');
+        assert.equal(storedPension(V), null, 'the scheme default is stored as null, so it keeps following the table');
     });
 });
