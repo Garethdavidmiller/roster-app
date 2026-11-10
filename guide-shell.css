@@ -205,15 +205,14 @@ button, input, select, textarea { font-family: inherit; }
 
 /* ── Anchor landing under the sticky header ─────────────────────────────────
    A search hit or an in-page link lands on an id; without a scroll margin the heading sits UNDER
-   the sticky header. railcard/fip/rangers measure theirs in JS (header + chip bar, 121–138px at
-   375px) once the fonts are in; until that measurement arrives a deep link lands with this value or
-   the page's own fallback, both short of it. The two document guides have no JS for it, so this is
-   their value, and it holds at the DEFAULT TEXT SIZE ONLY: measured header 78px at ≥375px, 123px
-   at 320px where the subtitle wraps — plus a 12px gap. With the phone's text one step up the title
-   wraps as well (115–136px at 360–375px, 150px at 1.3×) and the heading lands under the header,
-   which no width query can see; only measuring the header, as the chip-bar guides do, follows it
-   (whole-app review, Nov 2026). :where() keeps it at zero specificity, so any page rule or the JS
-   inline value wins. */
+   the sticky header. Every guide measures its sticky stack in JS once the fonts are in, and re-lands
+   a deep link that is still landing: railcard/fip/rangers their header + chip bar (121–138px at
+   375px), the two document guides their header + 12px (guide-back.js). This is only the value a
+   deep link lands with before that measurement arrives, or with no script: the document guides'
+   header at the DEFAULT TEXT SIZE — 78px from 360px, 123px at 320px where the subtitle wraps — plus
+   the 12px gap. Larger text wraps the title too (115–136px at 360–375px, 150px at 1.3×), which no
+   width query can see, so only the measurement follows it (whole-app review, Nov 2026). :where()
+   keeps this at zero specificity, so any page rule or the JS inline value wins. */
 :where([id]) { scroll-margin-top: 90px; }
 @media (max-width: 359px) { :where([id]) { scroll-margin-top: 136px; } }
 
@@ -231,7 +230,7 @@ button, input, select, textarea { font-family: inherit; }
     top: 54px;   /* refined by the page's JS to the measured header height */
     z-index: 9;
     background: var(--bg);
-    padding: 7px max(12px, env(safe-area-inset-left)) 8px;
+    padding: 7px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
     display: flex;
     gap: 5px;
     overflow-x: auto;
@@ -240,6 +239,15 @@ button, input, select, textarea { font-family: inherit; }
     border-bottom: 1px solid var(--border);
 }
 .chip-bar::-webkit-scrollbar { display: none; }
+/* With no script the bar is not sticky (whole-app fix, 10 Nov 2026). Its `top` above is a guess the page's
+   script replaces with the measured header, and stuck at the guess the bar sat under the header's last
+   24–41px at 360–390px. No one figure fits every header (78px on FIP, 95px on Railcard and Rangers there,
+   up to 138px at 320px): one taller than FIP's pushes that bar, which sits straight under its header, down
+   over the page. With no script the chips do nothing either, so the bar keeps its place in the page. An
+   engine without the `scripting` feature drops the rule and keeps the guess. */
+@media (scripting: none) {
+    .chip-bar { position: static; }
+}
 /* The chips start where the text starts (polish round 2). The bar is full-bleed and the content
    column is not: every chip-bar guide centres a 760px column with 16px of inner padding, so at 1280
    the first chip sat at x=12 and the first line of text at x=276 — the quick-nav read as belonging

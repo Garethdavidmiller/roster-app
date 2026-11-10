@@ -332,7 +332,7 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
     const body = rowsOrder.map((crs) => {
         const b = bandOf(crs);
         const band = banded && b >= 0 && b !== lastBand
-            ? `<tr class="tr-grid-band"><td colspan="${grid.columns.length + 1}">${esc(bands[b].label)}</td></tr>` : '';
+            ? `<tr class="tr-grid-band"><td colspan="${grid.columns.length + 1}"><span class="tr-grid-band-label">${esc(bands[b].label)}</span></td></tr>` : '';
         if (b >= 0) lastBand = b;
         return band + `<tr><th scope="row" class="tr-grid-st">${esc(stations[crs] ?? crs)}</th>`
         + grid.columns.map((c, i) => {

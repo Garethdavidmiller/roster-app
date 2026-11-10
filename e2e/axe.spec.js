@@ -684,7 +684,10 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         }));
         await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
             status: 200, contentType: 'application/json',
-            body: JSON.stringify({ ok: true, serverNow: NOW, retained: [], planningWeeks: [
+            // A RETAINED week too (whole-app fix, 10 Nov 2026), so the scan reaches a past row — the one the
+            // horizon recesses — and the fade check below can see it.
+            body: JSON.stringify({ ok: true, serverNow: NOW, retained: [
+                { ...W, weekEnding: '2026-08-08', finalDeadlineAt: Date.parse('2026-07-28T11:00:00Z') }], planningWeeks: [
                 { ...W, exists: true, state: 'created', canCreate: false,
                   expected: 2, received: 1, noResponse: 1 },
                 { ...W, weekEnding: '2026-09-12', exists: false, state: 'not-created', canCreate: true },
@@ -694,16 +697,18 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // Both the horizon and the week detail, so the scan covers the whole reviewer surface.
         await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
         await expect(page.locator('.ot-day-panel--muted')).not.toHaveCount(0);
+        await expect(page.locator('.ot-week-row--past')).toHaveCount(1);
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
         // The muted panels recede by their HEADER colour, never by fading the panel (polish round 2).
         // A 0.9 group fade left the grey rows at 4.55:1 — passing, by 0.05 — and axe is no witness
-        // for a fade (see `faded` above), so the mechanism is checked directly.
-        const fadedMuted = await page.locator('.ot-day-panel--muted').evaluateAll(panels =>
+        // for a fade (see `faded` above), so the mechanism is checked directly. A past week's row
+        // recedes by its sunken surface the same way (its 0.86 fade took a chosen View to 4.32:1).
+        const fadedMuted = await page.locator('.ot-day-panel--muted, .ot-week-row--past').evaluateAll(panels =>
             panels.flatMap(p => [p, ...p.querySelectorAll('*')])
                 .filter(el => Number(getComputedStyle(el).opacity) < 1 && !(/** @type {any} */ (el).disabled))
                 .map(el => `${el.className} @${getComputedStyle(el).opacity}`));
-        expect(fadedMuted, 'a muted Overtime panel must not fade what the reviewer reads').toEqual([]);
+        expect(fadedMuted, 'a muted Overtime panel or a past week must not fade what the reviewer reads').toEqual([]);
     });
 
     test('links (designer, signed in)', async ({ page }) => {

@@ -654,7 +654,12 @@ describe('cal-docs-7 · the keyboard can scroll the Huddle', () => {
         const tag = html.match(/<div id="huddleViewerBody"[^>]*>/)?.[0] ?? '';
         assert.match(tag, /tabindex="0"/, 'the ✕ was the only Tab stop, so a long plan could not be scrolled');
         assert.match(tag, /role="group"/);
-        assert.match(tag, /outline-offset:\s*-\d/, 'a ring outside a box that meets the screen edges is drawn off-screen');
+        // The ring's offset has ONE home, index.css (whole-app fix, 10 Nov 2026): the markup carried the same value
+        // inline as well, which was two places to change and a style applied when nothing was focused.
+        assert.doesNotMatch(tag, /\sstyle=/, 'the markup styles the box itself; the ring is index.css\'s');
+        const css = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
+        assert.match(css, /#huddleViewerBody:focus-visible\s*\{[^}]*outline-offset:\s*-\d/,
+            'a ring outside a box that meets the screen edges is drawn off-screen');
     });
 });
 
