@@ -135,8 +135,12 @@ runs:
         "" \
         "1. Open the run above and find the step that failed, or the one still running when it was cut off." \
         "2. **If it is a flaky test** — this has happened (v19.94: one unit test of 1254, passing on" \
-        "   the same commit everywhere else) — re-run the workflow, or dispatch it from the Actions" \
-        "   tab. Both re-run the whole gate, so a genuine failure still cannot slip through." \
+        "   the same commit everywhere else) — open the Actions tab and choose **Run workflow** on" \
+        "   \`main\`. It starts from the newest work (main's latest commit, or for the Pages mirror the" \
+        "   latest release Hosting made) and runs every check again, so a genuine failure still" \
+        "   cannot slip through. **Re-run** is fine only while this is the newest run: it replays this" \
+        "   run's own commit, so once a newer one has run, a deploy re-run stops rather than put an" \
+        "   older version live." \
         "3. **If it is a real failure** — fix forward on a branch as usual. Do not weaken the gate." \
         "4. Close this issue once the live version matches." )
 

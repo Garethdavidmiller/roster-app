@@ -1,0 +1,65 @@
+name: Refuse a re-run that a newer deploy has overtaken
+description: >
+  A re-run deploys the commit its run first ran on. Once a newer run of the same workflow exists,
+  that commit may be older than what is live, so this stops the re-run and says what to do instead.
+
+# ── WHY THIS EXISTS (whole-app review, 10 Nov 2026) ─────────────────────────────────────────────
+#
+# Re-running a workflow run replays it exactly — the same commit and the same ref, up to 30 days
+# later. The deploy-failure notice used to say "re-run the workflow" after a flaky gate. So: release
+# A's deploy fails, release B merges and deploys, somebody re-runs A — and A's older tree goes live
+# over B, with a green run, because the re-run's own live check expects A's version. For Hosting the
+# hourly currency check notices an hour or so later. For Functions and Rules nothing notices at all,
+# and the rules that went back would be the SECURITY rules.
+#
+# FIRST attempts are left alone: the concurrency queue keeps them in order, and one that starts is
+# the newest of its workflow (a newer run would have displaced it while it waited). A re-run is not
+# queued behind anything newer — it can start long after. So on a re-run, and only then, this asks
+# whether a newer run of the same workflow exists on main, started by a push or by hand, whatever
+# became of it. If one does, this run's commit may be older than what is live, and it stops, naming
+# the way forward: Run workflow on main, which deploys main's newest commit through the whole gate.
+#
+# A NEWER RUN, NOT A NEWER COMMIT. main moves with every documentation or app commit, and most of
+# those start no Functions or Rules run; refusing every such re-run would refuse the common case for
+# nothing, because a re-run of the newest run deploys exactly the tree main holds for that target.
+#
+# One limit nothing here can lift: a re-run uses the workflow files of its own commit, so a run made
+# before this action existed is not protected by it.
+
+runs:
+  using: composite
+  steps:
+    - name: Stop a re-run that a newer run of this workflow has overtaken
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ATTEMPT: ${{ github.run_attempt }}
+        RUN_NUMBER: ${{ github.run_number }}
+        WORKFLOW_REF: ${{ github.workflow_ref }}
+        WORKFLOW: ${{ github.workflow }}
+      run: |
+        set -euo pipefail
+        if [ "$ATTEMPT" = "1" ]; then
+          exit 0
+        fi
+        # owner/repo/.github/workflows/<file>@<ref> → <file>
+        file="${WORKFLOW_REF#*/.github/workflows/}"
+        file="${file%%@*}"
+        if ! [[ "$file" =~ ^[A-Za-z0-9._-]+\.ya?ml$ ]]; then
+          echo "::error title=Cannot check this re-run::Could not tell which workflow this is, so this re-run cannot check whether a newer deploy has overtaken it. Use Run workflow on main instead."
+          exit 1
+        fi
+        # Asked one event at a time: a pull request's run, which anybody can start, is never a
+        # deploy, and must not be able to block one.
+        newest=0
+        for ev in push workflow_dispatch; do
+          n=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?branch=main&event=$ev&per_page=1" --jq '.workflow_runs[0].run_number // 0')
+          if [ "$n" -gt "$newest" ]; then
+            newest="$n"
+          fi
+        done
+        if [ "$newest" -gt "$RUN_NUMBER" ]; then
+          echo "::error title=A newer deploy has overtaken this run::This is a re-run of run #$RUN_NUMBER, and run #$newest of \"$WORKFLOW\" started after it. A re-run deploys the commit it first ran on, which may be older than what is live, so nothing was deployed. To deploy main as it is now: Actions tab, \"$WORKFLOW\", Run workflow, on main."
+          exit 1
+        fi
+        echo "Run #$RUN_NUMBER is still the newest run of \"$WORKFLOW\" on main, so this re-run deploys nothing older than what is live."

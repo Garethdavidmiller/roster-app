@@ -238,6 +238,20 @@ jobs:
           echo "::error::The Pages mirror did not serve v$VERSION within two minutes of the deploy."
           exit 1
 
+  # A RUN FROM ANOTHER BRANCH PUBLISHES NOTHING, AND SAYS SO (whole-app review, 10 Nov 2026). The
+  # plan runs only from main, but this run joined the queue first and may have replaced a waiting
+  # one; deploy-hosting.yml has the account.
+  not-main:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: The mirror publishes only from main
+        run: |
+          echo "::error title=Nothing was published::This workflow publishes only from main, and this run was started on $GITHUB_REF_NAME. If a run from main was waiting when it started, this run took its place in the queue and that release has not reached the mirror. To publish it: Actions tab, \"$GITHUB_WORKFLOW\", Run workflow, on main."
+          exit 1
+
   # A failure anywhere above — the plan, the layout check, the deploy or the live proof — opens or
   # updates the same deploy-failure issue the other deploys use. Its own job, for the reason
   # deploy-hosting.yml gives: a step-level reporter cannot run when the job died in setup. And it

@@ -729,14 +729,30 @@ describe('the deploy workflows serialise rather than race', () => {
 // displace a pending `main` B and leave production finishing on C while main holds the newer tree.
 //
 // The guard is one `if:` per workflow, which is exactly the kind of line a later edit removes
-// without noticing. Asserted here rather than trusted.
+// without noticing. Asserted here rather than trusted. It stops C DEPLOYING; it cannot stop C
+// displacing B, because a run joins the queue before any job's condition is read (10 Nov 2026
+// review). So each workflow also has a `not-main` job that turns such a run red and says what to do,
+// instead of letting it finish green having deployed nothing while B is lost.
 describe('deploy workflows only run from main', () => {
     for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml', 'deploy-mirror.yml']) {
         test(`${wf} gates its deploy job on refs/heads/main`, () => {
             const src = readFileSync(new URL(`.github/workflows/${wf}`, import.meta.url), 'utf8');
             assert.match(src, /if:\s*github\.ref == 'refs\/heads\/main'/,
                 `${wf} must gate its deploy job on main — without it a manual dispatch from a `
-                + 'branch can displace a pending main deploy and land production on that branch');
+                + 'branch deploys that branch to production');
+        });
+
+        test(`${wf}: a run from another branch fails and says what to do`, () => {
+            const src = readFileSync(join(WF_DIR, wf), 'utf8');
+            const start = src.search(/^ {2}not-main:[ \t]*$/m);
+            assert.ok(start > -1, `${wf}: no not-main job, so a branch run that displaced a waiting main deploy goes green`);
+            const rest = src.slice(start + 1);
+            const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+            const job = next === -1 ? rest : rest.slice(0, next);
+            assert.match(job, /^ {4}if: github\.ref != 'refs\/heads\/main'[ \t]*$/m, `${wf}: not-main must run exactly when the deploy does not`);
+            assert.match(job, /::error title=Nothing was (deployed|published)::[^\n]*Run workflow, on main/, `${wf}: not-main must say what to do`);
+            assert.match(job, /^\s+exit 1[ \t]*$/m, `${wf}: not-main must FAIL the run — a green run that did nothing is the silence it exists to end`);
+            assert.match(job, /^ {4}permissions: \{\}[ \t]*$/m, `${wf}: not-main needs no token at all`);
         });
     }
 });
@@ -967,6 +983,113 @@ describe('the Pages mirror publishes only a release this repository made', () =>
         assert.equal(r.status, 0, r.out);
         assert.deepEqual(r.outputs, { go: 'false' }, r.out);
         assert.ok(!r.calls.some(c => c.includes('/compare/')), 'the inert workflow must not gain a new way to fail');
+    });
+});
+
+// ── A RE-RUN NEVER PUTS AN OLDER TREE LIVE (whole-app review, 10 Nov 2026) ──────────────────────
+//
+// A re-run replays its run's own commit, up to 30 days later, and the deploy-failure notice used to
+// say "re-run the workflow". Release A fails, B deploys, A is re-run: A's older tree goes live over
+// B with a green run — and for Rules that is older SECURITY rules, with nothing watching. The three
+// deploys now call one action that stops a re-run once a newer run of the same workflow exists. Its
+// script is run here against a stubbed run list, and its wiring is held in each deploy job.
+describe('a re-run never puts an older tree live', () => {
+    const ACTION = '.github/actions/refuse-overtaken-rerun/action.yml';
+    const script = stepScript(readFileSync(ACTION, 'utf8'), 'Stop a re-run that a newer run of this workflow has overtaken');
+    const REF = 'owner/roster-app/.github/workflows/deploy-functions.yml@refs/heads/main';
+    const run = (/** @type {number} */ n, /** @type {string} */ event, branch = 'main') => ({ run_number: n, event, head_branch: branch,
+        status: 'completed', conclusion: 'failure', head_sha: String(n % 10).repeat(40) });
+
+    /**
+     * @param {Record<string, string>} env
+     * @param {object[]} runs newest first, as the API lists them
+     */
+    const check = (env, runs) => {
+        const dir = mkdtempSync(join(tmpdir(), 'rerun-'));
+        try {
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            writeGhStub(bin);
+            writeFileSync(join(dir, 'check.sh'), script);
+            writeFileSync(join(dir, 'fixture.json'), JSON.stringify({ runs, on_main: {} }));
+            writeFileSync(join(dir, 'calls'), '');
+            const vars = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_STUB: join(dir, 'fixture.json'), GH_LOG: join(dir, 'calls'),
+                GITHUB_REPOSITORY: 'owner/roster-app', GH_TOKEN: 'stub', ATTEMPT: '2', RUN_NUMBER: '44', WORKFLOW_REF: REF,
+                WORKFLOW: 'Deploy Firebase Functions', ...env };
+            let status = 0, out = '';
+            try {
+                out = execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', 'check.sh'], { cwd: dir, env: vars, encoding: 'utf8', stdio: 'pipe' });
+            } catch (/** @type {any} */ e) {
+                status = e.status;
+                out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+            }
+            return { status, out, calls: readFileSync(join(dir, 'calls'), 'utf8').split('\n').filter(Boolean) };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+
+    test('a first attempt passes straight through, asking nothing', () => {
+        const r = check({ ATTEMPT: '1' }, [run(45, 'push'), run(44, 'push')]);
+        assert.equal(r.status, 0, r.out);
+        assert.deepEqual(r.calls, [], 'the queue keeps first attempts in order; they need no question');
+    });
+
+    test('a re-run of the newest run deploys, asking about this workflow by file', () => {
+        const r = check({}, [run(44, 'push'), run(40, 'workflow_dispatch')]);
+        assert.equal(r.status, 0, r.out);
+        assert.match(r.out, /still the newest run/);
+        for (const ev of ['push', 'workflow_dispatch']) {
+            assert.ok(r.calls.includes(`repos/owner/roster-app/actions/workflows/deploy-functions.yml/runs?branch=main&event=${ev}&per_page=1`),
+                `expected a question about ${ev} runs of deploy-functions.yml, got:\n${r.calls.join('\n')}`);
+        }
+    });
+
+    test('a re-run that a newer push has overtaken stops, and says what to do', () => {
+        const r = check({}, [run(45, 'push'), run(44, 'push')]);
+        assert.equal(r.status, 1, `an overtaken re-run went ahead:\n${r.out}`);
+        assert.match(r.out, /::error title=A newer deploy has overtaken this run::This is a re-run of run #44, and run #45/);
+        assert.match(r.out, /Run workflow, on main/);
+    });
+
+    test('so does one that a newer run started by hand has overtaken', () => {
+        const r = check({}, [run(46, 'workflow_dispatch'), run(44, 'push')]);
+        assert.equal(r.status, 1, r.out);
+    });
+
+    test('runs on other branches, and a stranger\'s pull-request runs, overtake nothing', () => {
+        // A branch run deploys nothing; a pull-request run named like a deploy is anybody's to start,
+        // and must not be a way to block the owner's re-run.
+        const r = check({}, [run(48, 'pull_request'), run(47, 'workflow_dispatch', 'claude/branch'), run(44, 'push')]);
+        assert.equal(r.status, 0, r.out);
+    });
+
+    test('a re-run that cannot tell which workflow it is stops rather than guessing', () => {
+        const r = check({ WORKFLOW_REF: 'owner/roster-app/somewhere-else' }, [run(44, 'push')]);
+        assert.equal(r.status, 1, r.out);
+        assert.match(r.out, /Cannot check this re-run/);
+    });
+
+    for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml']) {
+        test(`${wf}: the check runs right after the checkout, before any credential, and can read the runs`, () => {
+            const src = readFileSync(join(WF_DIR, wf), 'utf8');
+            const deploy = src.slice(src.search(/^ {2}deploy:[ \t]*$/m), src.search(/^ {2}not-main:[ \t]*$/m));
+            const checkout = deploy.indexOf('uses: actions/checkout@');
+            const guard = deploy.indexOf('uses: ./.github/actions/refuse-overtaken-rerun');
+            const signIn = deploy.indexOf('uses: google-github-actions/auth@');
+            assert.ok(guard > -1, `${wf}: the deploy job no longer checks a re-run — an old run re-run would put its older tree live`);
+            assert.ok(checkout > -1 && checkout < guard && guard < signIn,
+                `${wf}: the re-run check must come after the checkout (it is a local action) and before the sign-in`);
+            assert.ok(!/- name:|- uses:/.test(deploy.slice(checkout + 1, deploy.lastIndexOf('- name:', guard))),
+                `${wf}: nothing may run between the checkout and the re-run check — a refused re-run should cost nothing`);
+            assert.match(deploy, /^ {6}actions: read\b/m, `${wf}: listing the workflow's runs needs actions: read, or the check fails every re-run`);
+        });
+    }
+
+    test('the failure notice no longer sends the reader to Re-run first', () => {
+        const action = readFileSync('.github/actions/report-deploy-failure/action.yml', 'utf8');
+        assert.match(action, /choose \*\*Run workflow\*\* on"/, 'step 2 must recommend Run workflow on main');
+        assert.match(action, /\*\*Re-run\*\* is fine only while this is the newest run/, 'and say when a re-run is safe');
     });
 });
 

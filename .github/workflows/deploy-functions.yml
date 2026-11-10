@@ -23,7 +23,7 @@ jobs:
   deploy:
     # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
     #
-    # `workflow_dispatch` above carries no branch restriction, and the concurrency group below
+    # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
     # QUEUES rather than cancels — but GitHub keeps only ONE pending run per group, so a newer
     # pending run displaces the previous one. That is safe for consecutive pushes to main, where
     # the later tree contains the earlier one. It is NOT safe across branches:
@@ -33,7 +33,11 @@ jobs:
     #
     # Production would then be running a branch while `main` holds the newer tree, and nothing
     # would say so. It takes a deliberate act by someone with write access, which is why this is
-    # hardening rather than a defect — but the guard costs one line and removes the whole class.
+    # hardening rather than a defect, and the guard costs one line. It stops C deploying. It does
+    # NOT stop C displacing B (10 Nov 2026 review): the run joins the queue before this condition
+    # is read, so B still never deploys and production stays on A. The `not-main` job below makes
+    # such a run fail and say so. Keeping branch runs out of the queue altogether would key the
+    # group on the ref, which deploy-hosting.yml's concurrency comment decides against.
     #
     # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
     # explicit input and widen this condition to name it. Do not simply delete the check.
@@ -42,11 +46,17 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read     # the re-run check below lists this workflow's runs
       id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A RE-RUN MUST NOT PUT OLDER FUNCTIONS LIVE (whole-app review, 10 Nov 2026) — the action's
+      # header has the account. A first attempt passes straight through.
+      - name: A re-run deploys only if no newer run has overtaken it
+        uses: ./.github/actions/refuse-overtaken-rerun
 
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -179,6 +189,19 @@ jobs:
             exit 0
           fi
           exit $code
+
+  # ── A RUN FROM ANOTHER BRANCH DEPLOYS NOTHING, AND SAYS SO (whole-app review, 10 Nov 2026) ───
+  # deploy-hosting.yml has the account.
+  not-main:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Deploys run only from main
+        run: |
+          echo "::error title=Nothing was deployed::This workflow deploys only from main, and this run was started on $GITHUB_REF_NAME. If a deploy from main was waiting when it started, this run took its place in the queue and that release has not gone out. To deploy main: Actions tab, \"$GITHUB_WORKFLOW\", Run workflow, on main."
+          exit 1
 
   # ── AND A FAILURE BEFORE THE FIRST STEP MUST NOT BE SILENT EITHER ───────────────────────────
   #
