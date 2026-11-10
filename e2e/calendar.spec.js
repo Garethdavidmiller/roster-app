@@ -3557,6 +3557,29 @@ test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
 });
 
+// The day plan is a Tab stop, so a keyboard can scroll it, and it is the box that clips, so its ring is drawn
+// inside it. One home for that: index.css (#huddleViewerBody:focus-visible) — the markup carried the same value as
+// an inline style as well, which is two places to change and a style the page applied when nothing was focused.
+test('huddle: the day plan\'s keyboard ring is drawn inside its box, from the stylesheet alone', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    const body = page.locator('#huddleViewerBody');
+    await expect(body).toContainText('No Daily Huddle has been uploaded yet');
+    expect(await body.getAttribute('style'), 'the markup styles the box itself').toBeNull();
+    await page.locator('#huddleViewerClose').focus();
+    await page.keyboard.press('Tab');   // a keyboard arrival, so :focus-visible draws the ring
+    const m = await body.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { focused: el === document.activeElement && el.matches(':focus-visible'), style: cs.outlineStyle, offset: cs.outlineOffset };
+    });
+    expect(m.focused, 'premise: Tab from the ✕ lands on the day plan').toBe(true);
+    expect(m.style, 'a ring is drawn').not.toBe('none');
+    expect(m.offset, 'inside the box that clips it').toBe('-2px');
+});
+
 // THE DRAWER TAKES ITS HISTORY ENTRY WITH IT (shared-ui-3; cal-docs-8, the drawer half). The Daily Huddle
 // link is a hash on this page, and the drawer only FORGOT the entry it had pushed rather than popping it,
 // so after reading the Huddle the first Back press landed on that entry: the same Calendar, nothing moved.
