@@ -2501,7 +2501,7 @@ test('operations: a fully provisioned roster says so, and still adds no strip it
 });
 
 // CONFIRMING THE LEAVER DISABLE KEEPS THE FIRST RUN'S REPORT (whole-app review, Oct 2026). The
-// confirm re-rendered the result box, wiping the "taken back — tell them" names that only the admin
+// confirm re-rendered the result box, wiping the "reset — tell them" names that only the admin
 // can act on. The confirm's own outcome is APPENDED, without the re-run's whole-roster "already
 // existed" list.
 test('operations: confirming the leaver disable keeps the first run\'s report', async ({ page }) => {
@@ -2524,7 +2524,9 @@ test('operations: confirming the leaver disable keeps the first run\'s report', 
     await page.locator('#authSetupOrphans').check();
     await page.locator('#authSetupBtn').click();
     const result = page.locator('#authSetupResult');
-    await expect(result).toContainText('Taken back and reset to the default password (1): S. Silva');
+    // Not "Taken back": `reclaimed` also names a disabled account re-enabled — a returning leaver —
+    // from whom nothing was taken (functions-core, 10 Nov 2026).
+    await expect(result).toContainText('Reset to the default password and signed out (1): S. Silva');
     await page.locator('#authConfirmOrphans').click();
     await expect(result).toContainText('Disabled leavers (1): B. Khalil');
     await expect(result, 'the names only the admin can act on must survive the confirm').toContainText('S. Silva — tell them their password is their surname');

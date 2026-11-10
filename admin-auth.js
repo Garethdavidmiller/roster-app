@@ -249,7 +249,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             /**
              * Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal.
              * `afterConfirm` APPENDS beneath the first run's report rather than replacing it (whole-app
-             * review, Oct 2026): the confirm used to wipe it, and with it the "taken back — tell them"
+             * review, Oct 2026): the confirm used to wipe it, and with it the "reset — tell them"
              * names the admin is the only person able to act on. The re-run's "already existed" list
              * is the whole roster again, so it is left out of the appended part.
              * @param {any} data @param {boolean} [afterConfirm]
@@ -260,10 +260,13 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                 const lines = [];
                 if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
                 if (skipped.length && !afterConfirm) lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
-                // v24.24: an account this server never stamped was taken back — its password is now the
-                // member's default and every session on it was signed out. The admin is the only person
-                // who can tell the member, so the names are the point of the line.
-                if (reclaimed.length) lines.push(`🔁 Taken back and reset to the default password (${reclaimed.length}): ${reclaimed.join(', ')} — tell them their password is their surname`);
+                // An account the server reset to the member's default password and signed out of every
+                // session: one it never stamped, taken back from whoever registered it (v24.24), or a
+                // DISABLED one it re-enabled — a returning leaver, from whom nothing was taken back. So
+                // the line says what happened to the account, which is true of both, and never "taken
+                // back" (functions-core, 10 Nov 2026). The admin is the only person who can tell the
+                // member, so the names are the point of the line.
+                if (reclaimed.length) lines.push(`🔁 Reset to the default password and signed out (${reclaimed.length}): ${reclaimed.join(', ')} — tell them their password is their surname`);
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
                 // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).
