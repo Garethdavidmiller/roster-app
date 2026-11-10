@@ -339,6 +339,19 @@ describe('a member namespace the roster no longer names is never claimable', () 
 
 // ── parseSavedPeriod — the shared saved-period decoder (back-pay + HPP) ────────
 
+// ── THE RATE IS NEVER STORED, SO NOTHING BUILDS ONE (invariant 8; contracts-b-6, paycalc-3-15) ─────
+// `runMigrations` still turned a legacy single `rate` into a per-tax-year `rates` key on every
+// device that had one — a key nothing has read since the rate became fixed by grade (v17.87), and one
+// every backup then carried as "your settings". A stale rate in storage is the failure class
+// invariant 8 exists to end; the app must not be manufacturing more of it.
+describe('the retired rate keys', () => {
+    test('a legacy rate is left alone: no per-year rates key is built from it', () => {
+        global.localStorage = makeLocalStorage({ 'myb_pc_rate': '19.99' });
+        runMigrations(deps(MEMBER));
+        assert.equal(global.localStorage.getItem('myb_pc_rates'), null, 'a stale rate was copied into a new key');
+    });
+});
+
 describe('parseSavedPeriod', () => {
     test('treats null / empty raw as "never saved", not an error', () => {
         assert.deepEqual(parseSavedPeriod(null),      { data: null, error: false });

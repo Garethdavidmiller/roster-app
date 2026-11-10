@@ -104,6 +104,42 @@ describe('getStoredRateForYear — delegates to awardRatesFor, with the grade de
     test('a year NOT on record falls back to the grade default rate (no throw)', () => {
         assert.equal(getStoredRateForYear({ label: '2099/00' }), GRADES.cea.rate);
     });
+
+    test('a stale rate left in storage is never read (invariant 8; contracts-b-6)', () => {
+        // The legacy `rate`/`rates` keys still sit on devices that had them. Read "as a fallback" by a
+        // later edit, they would price a member at a pre-award rate — the failure class invariant 8
+        // exists to end, and every case above runs with them absent, so none of them would notice.
+        _ls.set(SK.rate, '19.99');
+        _ls.set(SK.rates, JSON.stringify({ '2025/26': 19.99, '2026/27': 19.99 }));
+        try {
+            assert.equal(getStoredRateForYear({ label: '2026/27' }), awardRatesFor('cea', '2026/27').rate);
+            assert.equal(getStoredRateForYear({ label: '2025/26' }), awardRatesFor('cea', '2025/26').rate);
+            assert.equal(getStoredRateForYear({ label: '2099/00' }), GRADES.cea.rate);
+        } finally {
+            _ls.delete(SK.rate);
+            _ls.delete(SK.rates);
+        }
+    });
+});
+
+// ── NO MEMBER-LEVEL PENSION IS STORED (paycalc-3-15) ─────────────────────────────────────────────
+// `SK.pension` was written on every settings keystroke and read only into a field that the payslip's
+// own paint replaced in the same start-up — no figure ever came from it, but every backup carried it,
+// and the rules file described it as the default later payslips inherit. Each payslip keeps its own
+// figure; one with none takes its period default.
+describe('saveSettings stores no member-level pension', () => {
+    test('a save writes nothing under the retired pension key', async () => {
+        const { saveSettings } = await import('./paycalc-settings.js');
+        beNobody();
+        _ls.clear(); _ls.set(SK.grade, 'cea');
+        const els = /** @type {Record<string, any>} */ ({});
+        global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => (els[id] ??= { value: '', checked: false }) });
+        els.periodSelect = { value: String(getPeriods()[20].num) };
+        els.gradeSelect = { value: 'cea' };
+        els.pensionAmt = { value: '0.00' };
+        saveSettings();
+        assert.equal(_ls.get(SK.pension), undefined, 'a member-level pension default was written');
+    });
 });
 
 // ── periodRate — the rate a payslip was paid at, one answer for the rate field and the summary ───

@@ -66,7 +66,8 @@ export const PAY_DATA_GENERATION = 5;
 let _nsSeg = '';
 
 /** Slug a member name to a localStorage-safe segment: lowercase, alphanumerics only.
- *  'G. Miller' → 'gmiller'. teamMembers names are unique, so slugs do not collide. */
+ *  'G. Miller' → 'gmiller'. Two distinct names CAN share a slug ('Q. Example' and 'Q Example'), so
+ *  it is the roster that keeps namespaces apart — paycalc-migrations.test.mjs checks every row. */
 export function memberSlug(/** @type {string=} */ name) {
     return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -112,12 +113,16 @@ export const SK = {
 /** Recompute the SK key strings from the active namespace. */
 function _rebuildSK() {
     const p = pcPrefix();
+    // RETIRED, still declared: `rate` and `rates` are never read (the rate is fixed by grade —
+    // invariant 8) or written; legacy copies sit on devices, so the names stay for the cea_ rename.
     SK.rate    = `${p}rate`;
-    SK.rates   = `${p}rates`;   // JSON object: { '2025/26': 20.74, '2026/27': 21.49 }
+    SK.rates   = `${p}rates`;
     SK.code    = `${p}code`;
     SK.sl      = `${p}sl`;      // undergraduate plan: 'none'|'plan1'|'plan2'|'plan4'|'plan5'
     SK.pgLoan  = `${p}pg_loan`; // separate Postgraduate Loan flag ('1' | absent) — repayable ALONGSIDE a plan
     SK.slPaidOff = `${p}sl_paid_off`; // loan fully repaid: p.num of the FIRST payslip with no deduction ('' = still repaying). Once-ever fact → member-level, not per-tax-year (v18.41)
+    // RETIRED, still declared: a member-level pension default that nothing read (paycalc-3-15) — each
+    // payslip keeps its own figure, and one with none takes its period default.
     SK.pension = `${p}pension`;
     // NOT in the pension scheme at all (opted out / withdrawn from the RPS): '1' | absent.
     // A SEPARATE flag from the amount, deliberately. `SK.pension` is an amount, and every
@@ -182,9 +187,10 @@ export function hppEstKey(ty)     { return `${pcPrefix()}hpp_est_${ty.label.repl
 export function hppActualKey(ty)  { return `${pcPrefix()}hpp_actual_${ty.label.replace('/', '_')}`; }
 /** Per-tax-year opt-in flag ('1' = the member ticked "add my HPP to the January take-home"). @param {{ label:string }} ty @returns {string} */
 export function hppIncKey(ty)     { return `${pcPrefix()}hpp_inc_${ty.label.replace('/', '_')}`; }
-/** HPP amount-source state (mode + quick-YTD-extra + exact figure, one JSON blob) — PER TAX YEAR,
- *  keyed like hppIncKey. Lets the current-year estimate come from entered hours (default), a quick
- *  year-to-date extra-pay figure, or a hand-entered amount (v18.32). @param {{ label:string }} ty @returns {string} */
+/** HPP amount-source state — the mode and the member's own typed figure, one JSON blob
+ *  (`{ mode, exact }`, saveHppState) — PER TAX YEAR, keyed like hppIncKey. The current-year estimate
+ *  comes from entered hours (default), a rough figure from the Year to Date card's Taxable Pay, or
+ *  the member's own figure (v18.32). @param {{ label:string }} ty @returns {string} */
 export function hppModeKey(ty)    { return `${pcPrefix()}hpp_mode_${ty.label.replace('/', '_')}`; }
 /** Back-pay card state (rates/%/paid-in/mode/manual, one JSON blob) — PER TAX YEAR since v17.86 (the
  *  card follows the viewed payslip's award year), keyed like hppIncKey. @param {{ label:string }} ty @returns {string} */
@@ -424,15 +430,9 @@ export function resolveLegacyMigration(memberName, choice) {
 export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }) {
     _migrateCeaKeys({ getPeriods });
 
-    // Migration: legacy single rate → per-tax-year rates
-    if (!lsGet(SK.rates)) {
-        const legacyRate = lsGet(SK.rate);
-        if (legacyRate) {
-            const rates = /** @type {Record<string, number>} */ ({});
-            TAX_YEARS.forEach(ty => { rates[ty.label] = parseFloat(legacyRate); });
-            lsSet(SK.rates, JSON.stringify(rates));
-        }
-    }
+    // (The legacy single rate → per-tax-year `rates` migration is retired (paycalc-3-15): the rate is
+    // fixed by grade and never read from storage (invariant 8), so it only built a key nothing reads
+    // and every backup carried.)
 
     // Migration: legacy global YTD values (myb_pc_ytd_pay / ytd_tax) to per-year keys
     const legacyYtdPay = lsGet(SK.ytdPay);

@@ -223,14 +223,12 @@ export function periodDefaultPension(p) {
  * from (v21.78). Here rather than in the coordinator because everything they touch is here; the
  * coordinator injects only what it alone knows.
  *
- * ORDER MATTERS in the tick handler, twice. The date control is BUILT before the save, so a first
- * tick has a payslip to date itself from (`saveSettings` reads that control, and an unbuilt one
- * holds nothing) — and, since v21.80, so that an UN-tick is dated to the payslip on screen rather
- * than to the spell's own start, which is what turned every rejoin into an erasure. And
- * `saveSettings` runs a SECOND time at the end, after the field has been
- * rebuilt: the first call persists the change while the field still shows the old state's figure,
- * so without the second, un-ticking left the member-level default at '0.00' behind a box reading
- * "in the scheme" — which a pay-data backup then carries to her next device (v21.77).
+ * ORDER MATTERS in the tick handler. The date control is BUILT before the save, so a first tick has
+ * a payslip to date itself from (`saveSettings` reads that control, and an unbuilt one holds
+ * nothing) — and, since v21.80, so that an UN-tick is dated to the payslip on screen rather than to
+ * the spell's own start, which is what turned every rejoin into an erasure. (A second `saveSettings`
+ * at the end, there to re-save a member-level pension default after the field was rebuilt — v21.77 —
+ * went with that default, which nothing read: paycalc-3-15.)
  *
  * @param {{ autosave: () => void }} deps  the coordinator's persist-and-reprice — it owns what is saved
  *   (since Oct 2026, only the pension field, and only into a payslip that already has readable entries).
@@ -270,7 +268,6 @@ export function wirePensionControls({ autosave }) {
     // Un-ticking must take the lock's £0.00 away: it is no longer anybody's figure, and leaving it
     // would persist as a real opt-out on the next save.
     _repaint(p);
-    saveSettings();
     _persist();
   });
 
@@ -326,8 +323,8 @@ export function getPensionDefault(pObj) {
 }
 
 // ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
-// Loads the stored rate for the given tax year into the hourly rate field.
-// Falls back to the legacy single rate, then to the current grade's default.
+// Derived, never stored (invariant 8): the year's settled award rate, else the grade default. A
+// legacy `rate`/`rates` key left on a device is never read.
 /**
  * The hourly rate for a tax year (pure — no DOM). Since v17.87 the rate is FIXED BY GRADE and no
  * longer user-stored, so this derives it purely from AWARD_RATES (the year's confirmed settled rate)
@@ -463,13 +460,9 @@ export function saveSettings() {
     const _from = Number.isFinite(_fromNum) ? _fromNum : (_recorded ?? currentPeriodNum());
     savePensionTimeline(_optOut.checked ? withOptOutStartAt(_tl, _from) : withRejoinAt(_tl, _from));
   }
-  // On a joining period the pension field shows the pro-rated amount.
-  // Always write the full-period default to SK.pension so future full periods
-  // don't inherit the pro-rated value as their default.
-  const _pensionToSave = getProRateFactor(curP) < 1
-    ? getPensionDefault(curP)
-    : /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value;
-  lsSet(SK.pension, _pensionToSave);
+  // No member-level pension is stored (paycalc-3-15): each payslip keeps its own figure through the
+  // form round trip, and a payslip with none takes its period default. The `SK.pension` this wrote on
+  // every keystroke was read only into a field loadPeriodData repaints in the same init.
   lsSet(ytdPayKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdPay')).value);
   lsSet(ytdTaxKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdTax')).value);
 }
@@ -628,7 +621,6 @@ export function loadSettings() {
   const code    = lsGet(SK.code);
   let   sl      = lsGet(SK.sl);
   let   pgLoan  = lsGet(SK.pgLoan);
-  const pension = lsGet(SK.pension);
   const done    = lsGet(SK.setup);
   if (code)    /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value     = code.toUpperCase();
   // Migration (v17.17): the Student Loan select used to carry 'postgrad' as a plan option; it is now a
@@ -688,8 +680,10 @@ export function loadSettings() {
   const _optOutEl = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'));
   if (_optOutEl) _optOutEl.checked = optOutStartsAt(_tl) !== null;
   buildPensionFromSelect(_tl);
+  // Today's payslip's default, so the box is never left on the page's static text; the payslip on
+  // screen paints its own figure a moment later (loadPeriodData).
   /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value =
-    isPensionOptedOut(_curP) ? '0.00' : (pension ?? getPensionDefault(_curP));
+    isPensionOptedOut(_curP) ? '0.00' : periodDefaultPension(_curP).toFixed(2);
   applyPensionOptOutUI(_curP);
   // Settings card starts closed in HTML. Open it only for first-time users.
   if (!done) {

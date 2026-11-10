@@ -170,9 +170,10 @@ arrives. **The two are one door**: the refusal wears the sign-in card's panel (`
 shared do-this-first recipe), its "What it does" box and its "← Back to roster", centred over the page on
 desktop rather than parked in the work columns — `e2e/paycalc.spec.js` pins the width and the centring.
 
-`saveSettings` guards the pension default on joining periods — it writes `getPensionDefault(curP)`
-(full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining
-period corrupts the default for later periods.
+`saveSettings` stores no member-level pension: each payslip keeps its own figure through the form
+round trip, and a payslip with none takes its period default (`periodDefaultPension`, pro-rated on a
+joining period). The retired `SK.pension` was written on every save and read only into a field
+`loadPeriodData` repaints in the same init (paycalc-3-15).
 
 The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from the base roster +
 Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled fields turn gold.
