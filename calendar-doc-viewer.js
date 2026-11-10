@@ -3,9 +3,9 @@
  * calendar-doc-viewer.js — in-app viewer for the Weekly Retail Circular and the
  * Marylebone Newsletter on index.html.
  *
- * Owns: the #docViewer lightbox, opened from a notification deep link
- *   (#circular / #newsletter — see .claude/rules/notifications.md and the
- *   onCircularCreated / onNewsletterCreated Cloud Function triggers).
+ * Owns: the #docViewer lightbox, opened from a #circular / #newsletter deep link — a notification tap
+ *   (see .claude/rules/notifications.md and the onCircularCreated / onNewsletterCreated Cloud Function
+ *   triggers), or the drawer handing over to it when no new tab came back (nav-panel.js, v24.61).
  * Does NOT own: the Huddle viewer (calendar-huddle-viewer.js — the Huddle has its
  *   own full-bleed panel and DOCX inline-render path), uploads (operations-app.js),
  *   or the nav-drawer links (nav-panel.js still opens these in a new tab).
@@ -18,7 +18,7 @@
  * (.docx) document would download if opened directly, so it is routed through
  * Microsoft's Office Online viewer (officeViewerUrl) which renders it with images.
  */
-import { createLightbox } from './overlay.js';
+import { createLightbox, registerPopInterceptor, suppressNextPop, whenHistorySettled } from './overlay.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { recordOpen } from './usage-reporter.js';
 import { getSession } from './session.js';
@@ -41,6 +41,27 @@ const DOC_AUTH_WAIT_MS = 2000;
 /** Total deadline for the whole open, mirroring the nav-drawer document path's 8s race. */
 const DOC_FETCH_TIMEOUT_MS = 8000;
 
+/** A tap the LOCK was holding when the page unloaded, and how old it may be when the next load reads
+ *  it — calendar-huddle-viewer.js has the same pair, and the argument (`HELD_TAP_KEY`). */
+const HELD_DOC_KEY = 'myb_held_doc_tap';
+const HELD_DOC_CARRY_MS = 60_000;
+
+/**
+ * Take the held document tap this tab's last unload left, if it is recent enough. Read ONCE and
+ * removed whatever it says; sessionStorage can throw (iOS private mode), and then nothing is carried.
+ * @returns {string|null} 'circular' | 'newsletter'
+ */
+function _takeHeldDoc() {
+    try {
+        const raw = sessionStorage.getItem(HELD_DOC_KEY);
+        sessionStorage.removeItem(HELD_DOC_KEY);
+        if (!raw) return null;
+        const [at, key] = raw.split('|');
+        const age = Date.now() - Number(at);
+        return age >= 0 && age < HELD_DOC_CARRY_MS && Object.hasOwn(DOCS, key) ? key : null;
+    } catch { return null; }
+}
+
 /**
  * `p`, or `ms` from now, whichever comes first. The losing timer is CLEARED once `p` settles (test
  * audit, 7 Nov 2026): left armed, every open kept a 2s timer, and every page load an 8s one, alive for
@@ -62,7 +83,8 @@ function _orAfter(p, ms) {
  *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). A tap while it is shut shows
  *   what to do and issues NO read, cached or live; the tap is remembered and finished when access
  *   arrives, so a notification deep link that landed on the PIN card still opens the document once
- *   the PIN is in. Defaults to always-open. authReady — resolves once a Firebase session exists.
+ *   the PIN is in — or once the member signs in, which reloads the page and is carried across it.
+ *   Defaults to always-open. authReady — resolves once a Firebase session exists.
  *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
  *   accessDecided — settles once the Calendar has decided access, granted or locked. This viewer
  *   is wired BEFORE that decision, so a cold deep link finds the gate shut only because nothing is
@@ -78,6 +100,12 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     const titleEl  = /** @type {HTMLElement} */ (document.getElementById('docViewerTitle'));
     const bodyEl   = /** @type {HTMLElement} */ (document.getElementById('docViewerBody'));
     const closeBtn = /** @type {HTMLElement} */ (document.getElementById('docViewerClose'));
+    // ── THE OUTCOME IS SPOKEN (whole-app review, 10 Nov 2026) ─────────────────────────────────────────
+    // "Loading…" became "No … uploaded yet" or "Enter the staff PIN…" with no focus move and no live
+    // region, so a screen-reader user heard the dialog open and then nothing. Every message now goes
+    // into ONE status line that stays in the body (index.html), so the change itself is announced;
+    // a button follows it in the body, where focus already takes the reader.
+    const statusEl = /** @type {HTMLElement} */ (document.getElementById('docViewerStatus'));
 
     // Discards a superseded fetch: two rapid notification taps (#circular then #newsletter) each set
     // the title synchronously then await their fetch — if the first resolves LAST it would write its
@@ -105,10 +133,22 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
 
     const lb = createLightbox({
         overlay, content, closeBtn,
+        // ── OPENED OVER THE HUDDLE VIEWER, IT IS DRAWN OVER IT (whole-app review, 10 Nov 2026) ──────
+        // The Huddle viewer is a full-bleed panel in the notice band (index.css, `--z-notice`); this is
+        // an ordinary lightbox in the band below it. A document tap no longer closes the Huddle (the
+        // tap is not a Back press — the interceptor below), so opened while it is up this one would sit
+        // UNDERNEATH it while being the top of the overlay stack: the tap seeming to do nothing, and
+        // Escape and Tab going to a dialog nobody could see. Raised for that open only; opened the other
+        // way round, the Huddle viewer is already drawn over this.
+        onOpen: () => {
+            const huddleUp = !!document.getElementById('huddleViewer')?.classList.contains('visible');
+            overlay.style.zIndex = huddleUp ? 'calc(var(--z-notice) + 1)' : '';
+        },
         // Invalidate whatever is in flight. The existing `seq !== _openSeq` guards on BOTH the
         // success and failure paths then suppress every late DOM write and focus move. A held
         // locked tap is NOT dropped here — see `_pendingKey`.
         onClose: () => { _openSeq++; _viewing = null; },
+        afterClose: () => { overlay.style.zIndex = ''; },
     });
     /** The document on screen, read under access — so a lock can take it down. @type {string|null} */
     let _viewing = null;
@@ -131,13 +171,27 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         openDoc(key);
     });
 
-    /** Render a short message (no markup) into the viewer body. @param {string} text @param {string} cls */
+    // A TAP THE LOCK HELD SURVIVES A RELOAD (whole-app review, 10 Nov 2026). Both sign-ins on a locked
+    // Calendar reload the page, and the hash was consumed at the tap — so "or sign in" brought the
+    // member back to a Calendar with no document. The held tap is written down as the page unloads and
+    // taken back at the foot of this function; calendar-huddle-viewer.js has the same pair.
+    window.addEventListener('pagehide', () => {
+        try {
+            // Only a tap the LOCK holds has a key: a grant, or an open made with access, clears it.
+            if (_pendingKey) sessionStorage.setItem(HELD_DOC_KEY, `${Date.now()}|${_pendingKey}`);
+            else sessionStorage.removeItem(HELD_DOC_KEY);
+        } catch { /* no sessionStorage: the tap is not carried, as before */ }
+    });
+    window.addEventListener('pageshow', (e) => {
+        if (/** @type {PageTransitionEvent} */ (e).persisted) { try { sessionStorage.removeItem(HELD_DOC_KEY); } catch { /* noop */ } }
+    });
+
+    /** Say a message (no markup) in the status line, and take down any button the body held.
+     *  @param {string} text @param {string} cls */
     function showMessage(text, cls) {
-        bodyEl.textContent = '';
-        const p = document.createElement('p');
-        p.className = cls;
-        p.textContent = text;
-        bodyEl.appendChild(p);
+        for (const el of [...bodyEl.children]) if (el !== statusEl) el.remove();
+        statusEl.className = cls;
+        statusEl.textContent = text;
     }
 
     /** @param {string} key 'circular' | 'newsletter' */
@@ -145,7 +199,13 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         const d = DOCS[key];
         if (!d) return;
         const seq = ++_openSeq;
-        titleEl.textContent = `${d.emoji} ${d.label}`;
+        // The emoji is decoration: the dialog is NAMED by this title (aria-labelledby), and its name
+        // is the document's, not "Document" as it was whichever one was open.
+        const glyph = document.createElement('span');
+        glyph.setAttribute('aria-hidden', 'true');
+        glyph.textContent = `${d.emoji} `;
+        titleEl.textContent = '';
+        titleEl.append(glyph, d.label);
         // LOCKED: no read is attempted — not from the server, not from the cache the rules cannot
         // see — and the message says what unlocks it. The key is kept so the unlock can finish this.
         if (!docAccess.has()) {
@@ -207,7 +267,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 if (!resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType, storagePath: doc.storagePath })) {
                     showMessage(d.empty, 'doc-viewer-empty'); return;
                 }
-                bodyEl.textContent = '';
+                showMessage('', 'doc-viewer-loading');   // the button speaks for itself, and takes focus
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'doc-open-btn';
@@ -238,30 +298,53 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // A RETRY CONTROL, not just text (v19.08). "please try again" with nothing to press is a
             // dead end — and for a screen-reader user it is the only thing that ever replaces
             // "Loading…", so it has to be actionable.
-            bodyEl.textContent = '';
-            const msg = document.createElement('p');
-            msg.className = 'doc-viewer-empty';
-            msg.textContent = "Couldn't load this document.";
+            showMessage("Couldn't load this document.", 'doc-viewer-empty');
             const againBtn = document.createElement('button');
             againBtn.type = 'button';
             againBtn.className = 'doc-open-btn';
             againBtn.textContent = '↻ Try again';
             againBtn.addEventListener('click', () => openDoc(key));
-            bodyEl.appendChild(msg);
             bodyEl.appendChild(againBtn);
             againBtn.focus();
         }
     }
 
-    // A notification tap deep-links to #circular / #newsletter. Handle both a cold
-    // open (page loads on the hash) and a hash-only navigation of an already-open
-    // page (the SW navigates the existing window — fires hashchange, no reload).
-    function handleHash() {
+    // ── A TAP IS NOT A BACK PRESS, AND LEAVES NO DEAD ENTRY (whole-app review, 10 Nov 2026) ─────────
+    // A hash navigation fires `popstate` before `hashchange`, and overlay.js reads every popstate as
+    // Android Back — so a document tap closed whatever was open (the Huddle viewer included) and left
+    // that overlay's history entry behind it. Claimed here, the tap closes nothing. And the entry it
+    // pushed is taken back off the history once this has the key, rather than rewritten into a second
+    // copy of the page that a Back press would spend doing nothing. calendar-huddle-viewer.js does the
+    // same for `#huddle`, and its `_consumeHashEntry` has the argument; this is the same three steps.
+    registerPopInterceptor(() => /^#(circular|newsletter)$/.test(window.location.hash));
+    /** @param {() => void} then */
+    function consumeHashEntry(then) {
+        try {
+            history.back();
+            suppressNextPop();   // the echo is ours, not a Back press
+        } catch {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+        whenHistorySettled(then);
+    }
+
+    // A notification tap deep-links to #circular / #newsletter. Handle both a cold open (page loads
+    // on the hash: its entry is the page's own, so the hash is rewritten in place) and a hash-only
+    // navigation of an already-open page (the SW navigates the existing window — fires hashchange, no
+    // reload — and the tap's own entry is taken off again).
+    /** @returns {boolean} whether the page loaded on a document hash */
+    function handleColdHash() {
         const key = window.location.hash.slice(1);
-        if (key !== 'circular' && key !== 'newsletter') return;
+        if (key !== 'circular' && key !== 'newsletter') return false;
         // Clear the hash so a manual reload / Back doesn't re-open the viewer.
         history.replaceState(null, '', window.location.pathname + window.location.search);
         openDoc(key);
+        return true;
+    }
+    function handleHash() {
+        const key = window.location.hash.slice(1);
+        if (key !== 'circular' && key !== 'newsletter') return;
+        consumeHashEntry(() => openDoc(key));
     }
     // The decision settles: a tap still held on "Loading…" (same open, not closed or superseded)
     // now says what unlocks it. A grant got there first through `onChange` and cleared the key.
@@ -270,6 +353,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         const d = _pendingKey ? DOCS[_pendingKey] : null;
         if (d && !docAccess.has() && _waitingSeq === _openSeq) showMessage(lockedText(d), 'doc-viewer-empty');
     });
-    handleHash();
+    const held = _takeHeldDoc();
+    if (!handleColdHash() && held) openDoc(held);   // a tap the sign-in's reload carried — a cold deep link again
     window.addEventListener('hashchange', handleHash);
 }

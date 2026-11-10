@@ -511,26 +511,33 @@
         </div>
     </div>
 
-    <!-- Huddle DOCX viewer — full-screen in-app panel, populated by mammoth.js -->
+    <!-- Huddle DOCX viewer — full-screen in-app panel, populated by mammoth.js. The status line is
+         read out when a message replaces "Loading…" (focus goes to ✕, which says nothing of it). The
+         body is a Tab stop because it SCROLLS: the ✕ was the only stop, so a keyboard could not move
+         a long plan (axe's scrollable-region-focusable, as Team View and App Notices). Its ring is
+         drawn inside the box, which runs to the screen's edges. calendar-huddle-viewer.js. -->
     <div id="huddleViewer" role="dialog" aria-label="Daily Huddle" aria-modal="true">
         <div id="huddleViewerHeader">
             <span id="huddleViewerTitle">📋 Daily Huddle</span>
+            <p id="huddleViewerStatus" class="visually-hidden" role="status"></p>
             <button id="huddleViewerClose" type="button" class="lb-close" aria-label="Close">✕</button>
         </div>
-        <div id="huddleViewerBody">
+        <div id="huddleViewerBody" tabindex="0" role="group" aria-label="Daily Huddle" style="outline-offset: -2px">
             <p id="huddleViewerLoading">Loading…</p>
         </div>
     </div>
 
-    <!-- Circular / Newsletter viewer — a centred lightbox opened from a #circular /
-         #newsletter notification deep link (calendar-doc-viewer.js). Shows an "Open"
-         button (the Huddle's PDF pattern); a PDF opens directly, a Word doc via the
-         Office Online viewer so it renders instead of downloading. -->
-    <div id="docViewer" class="lb-overlay" role="dialog" aria-label="Document" aria-modal="true">
+    <!-- Circular / Newsletter viewer — a centred lightbox opened from a #circular / #newsletter deep
+         link: a notification tap, or the drawer handing over when no new tab came back
+         (calendar-doc-viewer.js). Shows an "Open" button (the Huddle's PDF pattern); a PDF opens
+         directly, a Word doc via the Office Online viewer so it renders instead of downloading. NAMED
+         BY ITS TITLE, not "Document" whichever was open; its messages go into the status line, so
+         the outcome of a tap is spoken. -->
+    <div id="docViewer" class="lb-overlay" role="dialog" aria-labelledby="docViewerTitle" aria-modal="true">
         <div id="docViewerContent" class="lb-content">
             <button id="docViewerClose" type="button" class="lb-close" aria-label="Close">✕</button>
             <div id="docViewerTitle" class="doc-viewer-title"></div>
-            <div id="docViewerBody" class="doc-viewer-body"></div>
+            <div id="docViewerBody" class="doc-viewer-body"><p id="docViewerStatus" class="doc-viewer-loading" role="status"></p></div>
         </div>
     </div>
 
