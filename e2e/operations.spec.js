@@ -1877,9 +1877,12 @@ test('operations: a roster read that looks a day out is refused, and writes noth
     await expect(remedy).toHaveText('Read the roster again');
     await expect(remedy).toHaveClass(/roster-cancel-btn--primary/);
 
-    // No per-row escape hatch: a tick on a refused read does nothing at all.
+    // No per-row escape hatch: a tick on a refused read does nothing at all — and SAYS so, disabled
+    // and off the Tab order like every control of a refused read (whole-app fix, Nov 2026).
     const firstTick = page.locator('.roster-tick').first();
-    await firstTick.click();
+    await expect(firstTick).toBeDisabled();
+    await expect(page.locator('.roster-person-section button:not([disabled])')).toHaveCount(0);
+    await firstTick.click({ force: true });
     await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
 
     // THE HARD GATE, ISOLATED. Everything above is satisfied by `chosen: false` alone — deleting
@@ -2415,11 +2418,85 @@ test('operations: an options row keeps its own words while an entry is half-fini
     await expect(tag).not.toHaveClass(/act-read/);
     await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
 
-    // A picked READING, then the entry un-finished beside it: still answered, and it says so.
+    // A picked READING, then the entry un-finished beside it: still answered, and it says so. Picking
+    // the reading closes the editor (whole-app fix, Nov 2026), so it is opened again to un-finish it.
     await row.locator('.roster-choice-btn[data-opt="0"]').click();
+    await btn.click();
     await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
     await expect(tag).toHaveClass(/act-choice/);
     await expect(tag).toHaveText('Your choice');
+});
+
+// Whole-app fix, Nov 2026 (import-client-2): an options row was patched in place by four paths that
+// each updated a different subset, so Skip stayed lit beside a finished entry, a picked reading stayed
+// lit while Save wrote the entry typed after it, and Skip left an editor saying "this day will be
+// saved". One painter now applies the render's rules on every path; what is lit is what Save writes.
+test('operations: an options row lights only the answer Save will write, and Skip closes the editor', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row[data-key="G. Miller|2026-08-07"]');   // readings: AL · Rest
+    const reading = row.locator('.roster-choice-btn[data-opt="0"]');
+    const skip = row.locator('.roster-choice-btn--skip');
+    const enter = row.locator('.roster-choice-btn--enter');
+    const lit = async (/** @type {string[]} */ on) => {
+        for (const [name, b] of /** @type {const} */ ([['reading', reading], ['skip', skip], ['enter', enter]])) {
+            await expect(b, name).toHaveAttribute('aria-pressed', String(on.includes(name)));
+        }
+    };
+    await lit(['skip']);
+
+    // (a) An entry finished: the entry is the answer, and Skip goes out.
+    await enter.click();
+    await row.locator('.roster-entry-pill', { hasText: /^Absent$/ }).click();
+    await lit(['enter']);
+    await expect(enter).toHaveText('Entered — change it');
+
+    // (d) A reading picked after it: the reading is the answer, and the editor beside it goes.
+    await reading.click();
+    await lit(['reading']);
+    await expect(row.locator('.roster-entry')).toHaveCount(0);
+    await expect(enter).toHaveText('Neither — enter it');
+
+    // (c) An entry finished after the reading: the reading goes out.
+    await enter.click();
+    await row.locator('.roster-entry-pill', { hasText: /^Absent$/ }).click();
+    await lit(['enter']);
+
+    // (b) Skip: nothing is the answer, and the editor closes as Skip all closes it.
+    await skip.click();
+    await lit(['skip']);
+    await expect(row.locator('.roster-entry')).toHaveCount(0);
+    await expect(enter).toHaveText('Neither — enter it');
+    await expect(row.locator('.roster-act')).toHaveText("Couldn't read");
+
+    // What is lit is what is written: the reading, once, and nothing else for the day.
+    await reading.click();
+    await page.locator('#rosterApplyBtn').click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 4 changes applied');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || [])
+        .filter((/** @type {any} */ w) => w.date === '2026-08-07').map((/** @type {any} */ w) => [w.type, w.value]));
+    expect(written).toEqual([['annual_leave', 'AL']]);
+});
+
+// Whole-app fix, Nov 2026 (import-client-14): the editor is redrawn on every press inside it, and the
+// pressed control was one of the elements replaced — so keyboard focus fell to the page body on every
+// pill, chip and answer. It now lands on the same control in the new editor.
+test('operations: a key press inside the entry editor keeps focus on the control pressed', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await row.locator('.roster-choice-btn--enter').focus();
+    await page.keyboard.press('Enter');
+    const pill = row.locator('.roster-entry-pill[data-entry-type="other"]');
+    await pill.focus();
+    await page.keyboard.press('Enter');
+    await expect(row.locator('.roster-entry-pill[data-entry-type="other"]')).toBeFocused();
+    const chip = row.locator('.roster-entry-flavour').first();
+    await chip.focus();
+    await page.keyboard.press('Space');
+    await expect(row.locator('.roster-entry-flavour').first()).toBeFocused();
+    await expect(row.locator('.roster-entry-flavour').first()).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('operations: App speed states the stored-copy share against the versions that can count it', async ({ page }) => {

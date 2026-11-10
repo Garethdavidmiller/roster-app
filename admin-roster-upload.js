@@ -14,7 +14,7 @@ import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp
 import { parseOtherValue, buildOverrideWrite, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
-import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
+import { entryControlHtml, paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
@@ -883,6 +883,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 }
                 section.appendChild(row);
             }
+            // A refused read's controls do nothing (v22.16), so they SAY so: disabled, and off the Tab
+            // order, rather than live-looking buttons that ignore a press (whole-app fix, Nov 2026).
+            if (alignment.blocked) section.querySelectorAll('button').forEach(b => { b.disabled = true; });
 
             changeList.appendChild(section);
             sectionsShown++;
@@ -996,14 +999,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             s.chosen = null;
                             s.entered = null;
                             s.draft = { type: null, from: '', to: '', open: false };
-                            rowEl.querySelector('.roster-entry')?.remove();
-                            rowEl.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
-                                const on = /** @type {HTMLElement} */ (b).dataset.opt === 'skip';
-                                b.classList.toggle('is-chosen', on);
-                                b.setAttribute('aria-pressed', String(on));
-                                b.classList.remove('is-open');
-                            });
-                            patchEntryRow(rowEl, false, s);
+                            paintUnreadableRow(rowEl, s);
                         }
                     }
                 });
@@ -1022,7 +1018,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 if (!s || !entryClick(entryHit, s)) return;
                 const pillRow = /** @type {any} */ (entryHit.closest('.roster-change-row'));
                 redrawEntry(pillRow, entryHit.dataset.key ?? '', s);
-                patchEntryRow(pillRow, s.chosen === 'entered' && !!s.entered, s);
+                paintUnreadableRow(pillRow, s);
                 refreshOutcome();
                 return;
             }
@@ -1050,7 +1046,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     if (raw === 'enter') {
                         // Toggling the editor SHUT does not discard the entry — a re-render would
                         // then wipe a value the admin had already committed, which is the one thing
-                        // a disclosure must never do. Only Skip un-chooses.
+                        // a disclosure must never do. Only Skip, or picking a reading, un-chooses.
                         // In place, never a re-render — `redrawEntry`'s header has the measurement.
                         const nowOpen = !s.draft?.open;
                         s.draft = { ...(s.draft || { type: null, from: '', to: '' }), open: nowOpen };
@@ -1058,18 +1054,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             choiceBtn, choiceBtn.dataset.key ?? '', s, nowOpen);
                         return;
                     }
+                    // A picked reading or Skip IS the answer, so the entry and its editor go with it: left
+                    // open, the editor said "this day will be saved" of a value Save no longer wrote.
                     s.chosen = raw === 'skip' ? null : Number(raw);
-                    if (raw === 'skip') { s.entered = null; s.draft = { type: null, from: '', to: '', open: false }; }
-                    const box = /** @type {any} */ (choiceBtn.closest('.roster-pick'));
-                    box.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
-                        const on = b.dataset.opt === raw;
-                        b.classList.toggle('is-chosen', on);
-                        b.setAttribute('aria-pressed', String(on));
-                    });
-                    const rowEl = /** @type {any} */ (choiceBtn.closest('.roster-change-row'));
-                    rowEl.classList.toggle('roster-change-unreadable', s.chosen === null);
-                    const act = rowEl.querySelector('.roster-act');   // one style until answered
-                    if (act) { act.textContent = s.chosen === null ? "Couldn't read" : 'Your choice'; act.className = `roster-act ${unreadableTagClass(s)}`; }
+                    s.entered = null; s.draft = { type: null, from: '', to: '', open: false };
+                    paintUnreadableRow(choiceBtn.closest('.roster-change-row'), s);
                     refreshOutcome();
                     return;
                 }
@@ -1112,7 +1101,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // input the admin is typing into. But leaving the row alone was worse than it looked:
             // the head still read "Not saved · couldn't read — check the paper roster" while the
             // summary above had already counted the entry, so the screen contradicted itself.
-            patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered, s);
+            paintUnreadableRow(el.closest('.roster-change-row'), s);
             refreshOutcome();
         };
         changeList.addEventListener('input', /** @param {any} e */ e => entryTime(e, formatClockInput));

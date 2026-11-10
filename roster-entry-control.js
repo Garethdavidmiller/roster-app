@@ -208,7 +208,18 @@ export function isoFromKey(key) {
  */
 export function redrawEntry(rowEl, key, st) {
     const el = rowEl?.querySelector('.roster-entry');
-    if (el) el.outerHTML = entryControlHtml(key, st, isoFromKey(key));
+    if (!el) return;
+    // FOCUS SURVIVES THE REDRAW (whole-app fix, Nov 2026). The pressed control is one of the elements
+    // replaced, so a keyboard or switch user's focus fell to the page body on every pill, chip, tick
+    // and answer. The same control is found again by what it IS — its type, flavour or answer.
+    const active = /** @type {HTMLElement|null} */ (el.ownerDocument?.activeElement ?? null);
+    const was = active && el.contains(active) ? active : null;
+    const same = !was ? '' : ['data-entry-type', 'data-entry-flavour', 'data-entry-swap']
+        .filter(a => was.hasAttribute(a)).map(a => `[${a}="${was.getAttribute(a)}"]`).join('')
+        || (was.classList.contains('roster-entry-rdw-cb') ? '.roster-entry-rdw-cb' : '');
+    el.outerHTML = entryControlHtml(key, st, isoFromKey(key));
+    if (was) /** @type {HTMLElement|null} */ ((same && rowEl.querySelector(`.roster-entry ${same}`))
+        || rowEl.querySelector('.roster-choice-btn--enter'))?.focus();
 }
 
 /**
@@ -282,6 +293,36 @@ export function patchEntryRow(rowEl, done, st) {
     if (hint) hint.textContent = st ? entryHint(st.draft || {}, st) : (done ? HINT_DONE : HINT_TODO);
     // The row's tint follows the chip: unanswered until something will be written.
     rowEl.classList.toggle('roster-change-unreadable', !left && cls === 'act-read');
+}
+
+/**
+ * Paint an UNREADABLE row's controls from its state — every one of them, by the render's own rules
+ * (whole-app fix, Nov 2026).
+ *
+ * Since v22.50 the row is patched in place, and the four paths that change it — a press inside the
+ * editor, a keystroke, a picked reading, Skip — each patched a different subset. So the lit buttons
+ * fell out of step with what Save writes: Skip stayed lit beside a finished entry, a picked reading
+ * stayed lit while Save wrote the entry typed after it, and Skip left the editor open saying "this
+ * day will be saved". One function now paints the lot, and every path calls it.
+ *
+ * The rules: a reading is lit when it is the answer; Skip when nothing is; the enter button when the
+ * entry is, and marked open while its editor is. A closed editor leaves the row.
+ * @param {Element|null|undefined} rowEl the `.roster-change-row` @param {any} st its cell state
+ */
+export function paintUnreadableRow(rowEl, st) {
+    if (!rowEl || !st) return;
+    const picked = typeof st.chosen === 'number' && !!st.options?.[st.chosen];
+    const entered = st.chosen === 'entered' && !!st.entered;
+    rowEl.querySelectorAll('.roster-pick .roster-choice-btn[data-opt]').forEach(b => {
+        const opt = /** @type {HTMLElement} */ (b).dataset.opt;
+        if (opt === 'enter') return;   // patchEntryRow's, below
+        const on = opt === 'skip' ? !picked && !entered : picked && Number(opt) === st.chosen;
+        b.classList.toggle('is-chosen', on);
+        b.setAttribute('aria-pressed', String(on));
+    });
+    if (!st.draft?.open) rowEl.querySelector('.roster-entry')?.remove();
+    rowEl.querySelector('.roster-choice-btn--enter')?.classList.toggle('is-open', !!st.draft?.open);
+    patchEntryRow(rowEl, entered, st);
 }
 
 /**
