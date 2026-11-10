@@ -235,14 +235,20 @@ test('promptDialog: a text selection dragged out onto the backdrop does not clos
     const card = /** @type {{ x: number, y: number, width: number, height: number }} */ (
         await page.locator('.dialog-overlay.open .dialog-lb-content').boundingBox());
     const y = field.y + field.height / 2;
+    // Halfway from the screen's edge to the card's: on the backdrop at every width. A fixed 24px out was
+    // off the screen on a phone, where the card is 90vw and leaves 20px a side — the drag then ended on
+    // nothing and passed without testing anything, and the tap closed nothing.
+    const x = card.x / 2;
+    expect(await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.matches('.dialog-overlay.open') ?? false, [x, y]),
+        'premise: the point the drag ends on, and the tap lands on, is the backdrop').toBe(true);
     await page.mouse.move(field.x + field.width - 6, y);
     await page.mouse.down();
-    await page.mouse.move(card.x - 24, y, { steps: 6 });   // out past the card's edge, onto the backdrop
+    await page.mouse.move(x, y, { steps: 6 });               // out past the card's edge, onto the backdrop
     await page.mouse.up();
     await page.waitForTimeout(400);
     await expect(input, 'the prompt closed under a text selection').toBeVisible();
 
-    await page.mouse.click(card.x - 24, y);                  // a real tap on the backdrop
+    await page.mouse.click(x, y);                            // a real tap on the backdrop
     await expect(page.locator('.dialog-overlay.open')).toHaveCount(0);
     expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'a backdrop tap is still a Cancel').toBe(null);
 });
