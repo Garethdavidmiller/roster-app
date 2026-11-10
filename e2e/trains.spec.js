@@ -483,6 +483,26 @@ test.describe('trains', () => {
         });
     });
 
+    // ── A PHONE'S COLUMN HEADS ARE AS TIGHT AS ITS CELLS (whole-app review, 10 Nov 2026) ───────────
+    // The heads' phone padding sat in the ≤480px block ABOVE the base rule for the same selector, so it
+    // lost on source order: every head kept the desktop's 6px a side, 42px across the weekday's seven
+    // trains, and a 393px phone showed three whole trains before swiping where it shows four.
+    for (const [width, side] of [[393, '3px'], [1280, '6px']]) {
+        test(`where they stop: a column head is padded like the cells beneath it at ${width}px`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 900 });
+            await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+            await seedSession(page, 'C. Reen');
+            await page.goto('/trains.html');
+            await page.locator('[data-view="grid"]').click();
+            await expect(page.locator('#trPattern .tr-grid-colbtn').first()).toBeVisible();
+            const pad = await page.evaluate(() => ({
+                head: getComputedStyle(/** @type {Element} */ (document.querySelector('#trPattern .tr-grid-colbtn'))).paddingLeft,
+                cell: getComputedStyle(/** @type {Element} */ (document.querySelector('#trPattern tbody td'))).paddingLeft,
+            }));
+            expect(pad).toEqual({ head: side, cell: side });
+        });
+    }
+
     // Every view at phone width, with the widest content each holds open. The basic-hour grid
     // scrolls inside its own box, and v24.74 shipped with its screen-reader words escaping that box
     // and stretching the PAGE to 444px on a 390px phone — the whole page scrolled sideways.

@@ -276,7 +276,6 @@ white, a third recipe for one job. */
     line-height: 1.4;
     white-space: nowrap;
 }
-.tr-chip--same     { background: var(--surface-sunken); color: var(--text-mid); }
 /* Amber, not the warning red: --al-warning sits 3° of hue from --error-red, so "Times move" and
    "No longer runs" were the same pink with different text (v24.83). */
 .tr-chip--moved    { background: var(--orange-light); color: var(--orange-text); }
@@ -618,7 +617,6 @@ on the answer: the app's ring, not the browser's orange one. */
    and the rest scroll sideways under the pinned names, with a touch-only line saying so. */
 @media (max-width: 480px) {
     .tr-grid th, .tr-grid td { padding: 5px 3px; }
-    .tr-grid-colbtn { padding: 5px 3px; }
     .tr-grid .tr-grid-st { min-width: 100px; max-width: 108px; padding-right: 6px; box-shadow: 1px 0 0 var(--border-light); }
     .tr-grid-end { white-space: normal; line-height: 1.15; }
 }
@@ -636,7 +634,6 @@ on the answer: the app's ring, not the browser's orange one. */
 .tr-grid-colbtn {
     display: block;
     width: 100%;
-    padding: 0;
     border: 0;
     border-radius: var(--radius-sm);
     background: none;
@@ -652,6 +649,8 @@ on the answer: the app's ring, not the browser's orange one. */
    told to tap had the page's smallest target. */
 .tr-grid thead th.tr-grid-colhead { padding: 0; }
 .tr-grid-colbtn { padding: 5px 6px; }
+/* A phone's tighter cells, AFTER the rule above: in the ≤480px block further up it lost on source order. */
+@media (max-width: 480px) { .tr-grid-colbtn { padding: 5px 3px; } }
 .tr-grid .tr-col-on { background: var(--surface-sunken); }
 /* The chosen column: a light tint down the table so its times stay readable, and the page's colour on its
    heading's underline (v25.21 — the underline was navy, the old "chosen"). */
@@ -665,11 +664,11 @@ on the answer: the app's ring, not the browser's orange one. */
 .tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
 .tr-grid-focus .tr-more { margin: 0; }
 .tr-grid-tip { margin: 0 0 6px; }
-/* The two lines, named: a band row before each group, pinned left with the station names so the
-   label stays in view when the table is scrolled sideways. */
+/* The two lines, named: a band row before each group. Its LABEL is pinned left with the station names
+   so it stays in view when the table is scrolled sideways: the label's own span (trains-render.js),
+   because the cell spans every column, so it is the table's width and has nowhere to travel. */
+.tr-grid-band-label { position: sticky; left: 0; display: inline-block; }
 .tr-grid-band td {
-    position: sticky;
-    left: 0;
     padding: 12px 0 4px;
     background: var(--surface);
     text-align: left;
