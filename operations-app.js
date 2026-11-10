@@ -545,7 +545,7 @@ export function init() {
             btn.disabled = true; say(btn, 'Resetting…', `Resetting ${name}'s password`);
             /** @type {any} */ let result;
             try {
-                result = await resetMemberPassword(name, { revoke: true });
+                result = await resetMemberPassword(name);
             } catch (e) {
                 console.warn('[Operations] resetMemberPassword failed:', e);
                 // A TIMEOUT IS NOT A FAILURE, and `fetch-timeout.js`'s header names THIS endpoint
@@ -580,6 +580,15 @@ export function init() {
                 const why = refused && (/<[a-z!/]/i.test(refused.reason)
                     ? `The server answered ${refused.status} without a reason this page can show. Nothing was reset.` : refused.reason);
                 if (why) confirmDialog({ title: 'The reset was refused', message: why, confirmLabel: 'OK' }).catch(() => {});
+                // A 503 is the server saying, BEFORE it changed anything, that it could not record the
+                // reset — no stamp, no reset (functions-core-2, Nov 2026). Retry is the right answer, and
+                // its sentence says nothing changed, so it is shown beside the button rather than lost.
+                const unrecorded = !refused && /^Server responded 503: ([\s\S]*)$/.exec(String(/** @type {any} */ (e)?.message ?? ''));
+                if (unrecorded) {
+                    let line = unrecorded[1].trim();
+                    try { const parsed = JSON.parse(line); line = typeof parsed?.error === 'string' ? parsed.error : ''; } catch { line = ''; }
+                    if (line && !/<[a-z!/]/i.test(line)) confirmDialog({ title: 'The reset didn’t go through', message: line, confirmLabel: 'OK' }).catch(() => {});
+                }
                 return;
             }
             // PARTIAL SUCCESS. The endpoint reports each stage separately (v21.86) because the
@@ -591,19 +600,18 @@ export function init() {
             // their other sessions were signed out" unconditionally — true on the only partial path
             // that existed then, and a flat untruth on the one this release added.
             const _revokeFailed = result && result.revokeFailed === true;
-            const _notStamped   = result && result.stamped === false;
             // v23.62: the member is now told on their OWN devices that their password was reset.
             // This is the one notification state worth a receipt — they were signed OUT and could
             // not be reached, so they are locked out with no explanation and the admin is the only
             // one who can close that gap. Deliberately NOT shown when the reset left their sessions
-            // running (the migration nudge): nobody is stranded, so there is nothing to act on.
+            // running: nobody is stranded, so there is nothing to act on.
             // `notified` is what HAPPENED, so a member with no push subscription lands here — which
             // is the point, since that is exactly who needs telling another way.
             // v24.57: an account registered from OUTSIDE the app was taken back rather than reset.
             // It holds no claim yet, so the member cannot use it until Set up accounts runs.
             const _takenBack    = result && result.takenBack === true;
             const _uninformed   = !_takenBack && !!(result && result.notified === false && result.revoked === true);
-            if (_revokeFailed || _notStamped || _uninformed || _takenBack) {
+            if (_revokeFailed || _uninformed || _takenBack) {
                 console.warn('[Operations] resetMemberPassword partial for', name,
                              { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified });
                 const parts = [`${name}'s password WAS reset to their surname.`];
@@ -613,12 +621,9 @@ export function init() {
                 } else {
                     parts.push('Their other sessions were signed out.');
                 }
-                if (_notStamped) {
-                    // NOT just a wrong table (Nov 2026 review): a signed-out device's silent sign-in is
-                    // refused only on a SAVED resetAt (session.js, AUTH_AND_SESSIONS 23). Without it the
-                    // lost phone signs itself back in with the surname this reset has just restored.
-                    parts.push('The reset couldn’t be recorded, so a device it signed out could sign itself back in with their surname — and the table below may still show “Own”. Reset again to retry that.');
-                }
+                // No "couldn't be recorded" case here any more: since functions-core-2 (Nov 2026) the
+                // server stamps resetAt FIRST and refuses with a 503 when it cannot, so a reset that
+                // happened was always recorded — the 503 is handled above, beside Retry.
                 if (_takenBack) {
                     parts.push(`This account had been registered outside the app, so it was taken back: anyone signed in on it was signed out. Run Set up accounts next — until then ${name} cannot use the app on it. Then let them know their password is their surname.`);
                 }
@@ -627,11 +632,9 @@ export function init() {
                 }
                 parts.push('Resetting again is safe.');
                 confirmDialog({
-                    // Precedence, most actionable first: a live session somewhere, and a missing stamp
-                    // that lets a signed-out device back in, are security states; an account taken back
-                    // waits on Set up accounts; and an untold member is an errand.
+                    // Precedence, most actionable first: a live session somewhere is a security state; an
+                    // account taken back waits on Set up accounts; and an untold member is an errand.
                     title: _revokeFailed ? 'Password reset — other devices not signed out'
-                         : _notStamped   ? 'Password reset — reset again'
                          : _takenBack    ? 'Account taken back — run Set up accounts'
                          :                 'Password reset — tell them yourself',
                     message: parts.join('\n\n'),

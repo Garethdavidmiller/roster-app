@@ -1563,19 +1563,41 @@ test('operations: a refusal that is an HTML page is not shown as the reason', as
     await expect(dialog).not.toContainText('<');
 });
 
-// A RESET WHOSE STAMP FAILED IS A SECURITY STATE, NOT A WRONG TABLE (Nov 2026 review). A device the
-// reset signed out keeps its 60-day session, and its next silent sign-in is refused only when the
-// SAVED resetAt says the session is older (AUTH_AND_SESSIONS 23) — so with no stamp, the lost phone
-// signs itself back in with the surname the reset has just restored. The dialog said only that "the
-// table below may still show Own password", and ranked it below a taken-back account.
-test('operations: a reset whose stamp failed tells the admin to reset again, first', async ({ page }) => {
+// A RESET THE SERVER COULD NOT RECORD CHANGED NOTHING, AND SAYS SO (whole-app fix, Nov 2026). A device
+// the reset signs out is kept out only by the SAVED resetAt (AUTH_AND_SESSIONS 23), so the server now
+// stamps it FIRST and answers 503 when it cannot — before the password changes (functions-core-2). The
+// page used to show only "Retry"; the sentence that says nothing was changed is shown beside it.
+test('operations: a reset the server could not record says nothing changed, and offers Retry', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 503, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ error: 'Could not record the reset, so nothing was changed — try again' }),
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').first();
+    await row.locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog).toContainText('The reset didn’t go through');
+    await expect(dialog).toContainText('nothing was changed');
+    await expect(row.locator('.btn-acct-reset')).toHaveText(/Retry/);
+});
+
+// AN ACCOUNT TAKEN BACK WAITS ON SET UP ACCOUNTS (v24.57). It holds no claim yet, so the dialog leads
+// with the step the admin must take next.
+test('operations: a reset that took an account back says to run Set up accounts', async ({ page }) => {
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
     });
     await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
     await page.route('**/resetMemberPassword', route => route.fulfill({
         status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
-        body: JSON.stringify({ revoked: true, stamped: false, notified: true, takenBack: true }),
+        body: JSON.stringify({ revoked: true, stamped: true, notified: true, takenBack: true }),
     }));
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
@@ -1583,9 +1605,8 @@ test('operations: a reset whose stamp failed tells the admin to reset again, fir
     await page.locator('.acct-row').first().locator('.btn-acct-reset').click();
     await page.locator('.dialog-btn-confirm').click();
     const dialog = page.locator('.lb-overlay.open');
-    await expect(dialog).toContainText('Password reset — reset again');
-    await expect(dialog).toContainText('could sign itself back in');
-    await expect(dialog).toContainText('Reset again to retry that');
+    await expect(dialog).toContainText('Account taken back — run Set up accounts');
+    await expect(dialog).toContainText('Run Set up accounts next');
 });
 
 // A FULLY SUCCESSFUL RESET SAYS SO (whole-app review, Oct 2026). The row re-renders, and a member
