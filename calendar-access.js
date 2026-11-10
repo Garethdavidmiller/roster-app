@@ -254,7 +254,7 @@ async function grantLateViewer(u, stop) {
     // SDK clears `currentUser` only when its own queue runs, so that one still reads as `u` here.
     if (_unlocking || _accessType !== 'none' || auth.currentUser !== u) return;
     stop();
-    console.warn('[CalendarAccess] a staff-PIN session restored after the access decision — granting.');
+    console.warn('[CalendarAccess] a viewer session restored after the access decision — granting.');
     grant('viewer');
 }
 
