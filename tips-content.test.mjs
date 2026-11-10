@@ -180,6 +180,29 @@ describe('settings — the ? panel names the notifications the card lists', () =
     });
 });
 
+// ── WHAT THE WORK EMAIL IS FOR (Nov 2026 review) ────────────────────────────────────────────────
+// CLAUDE.md's wording convention: the email is for "account recovery", and "Self-service recovery isn't
+// available yet. For now, ask the admin if you forget your password." The card says exactly that; its ?
+// panel kept the roadmap promise the convention replaced ("one day you can reset your own password by
+// email. That is not built yet"). The panel is held to the card's own sentence.
+describe('settings — the Work Email ? panel says what the card says the email is for', () => {
+    const html = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
+    const sentence = /Self-service recovery isn’t available yet\. For now, ask the admin if you forget your password/.exec(html)?.[0];
+    const tip = readCardTips('settings-app.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
+        .map((/** @type {any} */ i) => i.html.replace(/<[^>]+>/g, '')).join(' ');
+
+    test('premise: the card states the convention', () => {
+        assert.ok(sentence, 'settings.html: the Work Email card no longer carries the convention\'s sentence');
+    });
+    test('the panel names account recovery and carries the card\'s sentence', () => {
+        assert.match(tip, /account recovery/);
+        assert.ok(sentence && tip.includes(sentence), `the Work Email ? panel reads: ${tip}`);
+    });
+    test('and makes no roadmap promise', () => {
+        assert.doesNotMatch(tip, /one day|not built yet|coming soon/i);
+    });
+});
+
 for (const { js, html, scope } of PAGES) {
     describe(`${js} — tips content`, () => {
         const tips = readCardTips(js, scope);
