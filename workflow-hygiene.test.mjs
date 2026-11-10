@@ -2336,3 +2336,65 @@ console.error('stub gh: unexpected ' + a.join(' ')); process.exit(2);
     });
 });
 
+// ── A LANE UPLOADS THE FOLDER ITS OWN PLAYWRIGHT CONFIG WRITES (10 Nov 2026 review) ──────────────
+//
+// live-health.yml and offline.yml uploaded `playwright-report/` on failure, and their configs report
+// to the log only — only the html reporter writes that folder — so a failure left no artefact and
+// the traces `retain-on-failure` keeps in `test-results/` went with the runner. The rule, for every
+// job and every upload of Playwright output: `test-results/` is always written, `playwright-report/`
+// only by a config with the html reporter. Each lane's config is read from the npm script it runs,
+// and a config without a reporter of its own inherits one from the base it spreads.
+describe('a lane uploads the folder its own Playwright config writes', () => {
+    const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts;
+    /** The config an npm script runs Playwright with, or null for a script that does not. @param {string} name */
+    const configOf = (name) => {
+        const cmd = scripts[name] ?? '';
+        if (!/\bplaywright test\b/.test(cmd)) return null;
+        return /--config[= ](\S+?\.mjs)/.exec(cmd)?.[1] ?? 'playwright.config.mjs';
+    };
+    /** Whether a config writes the html report, itself or through the base it spreads. @param {string} file @returns {boolean} */
+    const writesHtml = (file) => {
+        const src = readFileSync(file, 'utf8');
+        const reporter = /^\s*reporter:[^\n]*$/m.exec(src);
+        if (reporter) return /'html'/.test(reporter[0]);
+        const base = /^import base from '\.\/(playwright[\w.-]*\.mjs)';/m.exec(src);
+        return base ? writesHtml(base[1]) : false;
+    };
+
+    test('the reading itself works: the smoke config writes html, the live one does not', () => {
+        assert.equal(configOf('test:e2e'), 'playwright.config.mjs');
+        assert.equal(configOf('test:live'), 'playwright.live.mjs');
+        assert.equal(writesHtml('playwright.config.mjs'), true);
+        assert.equal(writesHtml('playwright.webkit.mjs'), true, 'the WebKit config inherits the smoke config\'s reporter');
+        assert.equal(writesHtml('playwright.live.mjs'), false);
+    });
+
+    let uploads = 0;
+    for (const wf of readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f))) {
+        const src = readFileSync(join(WF_DIR, wf), 'utf8');
+        const body = src.slice(src.search(/^jobs:/m));
+        const starts = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)];
+        starts.forEach((s, i) => {
+            const job = body.slice(s.index, starts[i + 1]?.index ?? body.length);
+            const configs = [...new Set([...job.matchAll(/npm run (test:[\w:]+)/g)].map(m => configOf(m[1])).filter(c => c !== null))];
+            const steps = job.split(/\n(?= {6}- )/).filter(st => /uses: actions\/upload-artifact@/.test(st)
+                && /(playwright-report|test-results)\//.test(st));
+            for (const step of steps) {
+                uploads++;
+                test(`${wf} → ${s[1]}: its upload holds what ${configs.join(', ') || 'its config'} writes`, () => {
+                    assert.ok(configs.length, `${wf} → ${s[1]} uploads Playwright output but runs no Playwright lane`);
+                    if (/test-results\//.test(step)) return;
+                    const silent = configs.filter(c => !writesHtml(c));
+                    assert.deepEqual(silent, [],
+                        `${wf} → ${s[1]} uploads only playwright-report/, which ${silent.join(', ')} never writes — `
+                        + 'a failure would leave no artefact. Upload test-results/, where retain-on-failure keeps the traces.');
+                });
+            }
+        });
+    }
+
+    test('the uploads were found', () => {
+        assert.ok(uploads >= 8, `only ${uploads} Playwright uploads found across the workflows — the scan has stopped matching`);
+    });
+});
+
