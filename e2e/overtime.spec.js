@@ -1246,6 +1246,8 @@ test.describe('overtime.css — print, focus and contrast', () => {
         await page.goto('/overtime.html');
         const day = page.locator('.ot-day').first();
         await day.waitFor();
+        test.skip(!await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches),
+            'a hover is a mouse decision; the rule is gated on it');
         const chosen = day.locator('.ot-mode--yes').first(), other = day.locator('.ot-mode--yes').nth(1);
         await chosen.click();
         await expect(chosen).toHaveAttribute('aria-checked', 'true');
