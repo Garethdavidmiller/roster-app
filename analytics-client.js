@@ -35,6 +35,24 @@ import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys
 import { perfSampleKey, summarisePerf, createPerfBatcher } from './perf-stats.js';
 
 /**
+ * A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1, Nov 2026) — the rule
+ * overtime-data.js states, for every read the Operations cards paint: these three, and the three in
+ * firebase-client.js, which keeps the same guard. With the persistent cache, an unreachable server
+ * does not fail a read: once the SDK is offline it answers from this device's copy, as of whenever it
+ * last heard, empty included, and the cards showed that as current: "0/51", "✓ No errors recorded",
+ * and "✓ No outstanding requests" beside a member locked out since. It is thrown as `unavailable`,
+ * the SDK's own code for an offline read it cannot answer, so each card's existing "Couldn't load …
+ * Try again" path takes over, and withClaimRetry, which retries only `permission-denied`, re-throws it
+ * untouched. It is thrown before any prune, so no delete is decided on the cache's copy. Online the
+ * SDK waits for the server, so `fromCache` is false and nothing changes.
+ * @template T @param {T} snap @returns {T}
+ */
+function refuseCachedRead(snap) {
+    if (/** @type {any} */ (snap)?.metadata?.fromCache) throw Object.assign(new Error('Read was served from the offline cache'), { code: 'unavailable' });
+    return snap;
+}
+
+/**
  * @param {{
  *   db: any,
  *   collections: { clientErrors: string, analytics: string },
@@ -102,10 +120,12 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
         const [unresolvedSnap, resolvedSnap, expiredSnap] = await Promise.all([
             getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', false), limit(UNRESOLVED_CAP + 1))),
             getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', true),  limit(RESOLVED_CAP + 1))),
-            // The prune's own read. Caught: a prune must never take the Error Log down with it.
+            // The prune's own read. Caught: a prune must never take the Error Log down with it — and a
+            // cached answer is caught the same way, so the prune falls back to the resolved list below.
             getDocs(query(collection(db, collections.clientErrors),
-                where('resolvedAt', '<', new Date(now - CLIENT_ERROR_RETENTION_MS)), limit(PRUNE_BATCH))).catch(() => null),
+                where('resolvedAt', '<', new Date(now - CLIENT_ERROR_RETENTION_MS)), limit(PRUNE_BATCH))).then(refuseCachedRead).catch(() => null),
         ]);
+        for (const snap of [unresolvedSnap, resolvedSnap]) refuseCachedRead(snap);   // before the prune below
         // Pure truncation split (client-errors.capUnresolvedErrors, unit-tested — it caps any list):
         // show at most the cap; `truncated` only when the (cap+1)th row came back, i.e. > cap exist.
         const { shown: unresolvedDocs, truncated } = capUnresolvedErrors(unresolvedSnap.docs, UNRESOLVED_CAP);
@@ -258,6 +278,7 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
             getDoc(doc(db, collections.analytics, `perf_${m}`)),
             getDoc(doc(db, collections.analytics, `perf_${pm}`)),
         ]);
+        for (const snap of [thisSnap, lastSnap]) refuseCachedRead(snap);
         /** @param {any} snap @param {string} month @returns {PerfWindow} */
         const windowFor = (snap, month) => {
             const samples = (snap.exists() ? /** @type {any} */ (snap.data()) : {}).samples || {};
@@ -298,6 +319,10 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
             // Missing until the first write after v19.23 — an absent doc is the empty picture, not an error.
             getDoc(doc(db, collections.analytics, 'origins')).catch(() => null),
         ]);
+        // Origins too: a CACHED copy is not an absent document but an offline device, whose every figure
+        // here is as old as that copy — so it fails the card rather than reading "No opens recorded yet".
+        // Before the prunes below, so neither works from the cache's copy.
+        for (const snap of [pvSnap, pvPrevSnap, aaSnap, orgSnap]) refuseCachedRead(snap);
         const pv = pvSnap.exists() ? /** @type {any} */ (pvSnap.data()) : { counts: {} };
         const pvPrev = pvPrevSnap.exists() ? /** @type {any} */ (pvPrevSnap.data()) : { counts: {} };
         const aa = aaSnap.exists() ? /** @type {any} */ (aaSnap.data()) : { months: {}, daily: {} };
