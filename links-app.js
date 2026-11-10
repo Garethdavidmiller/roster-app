@@ -583,7 +583,15 @@ export function init() {
             sheetAvatar: $('designSheetAvatar'), sheetName: $('designSheetName'), sheetSub: $('designSheetSub'),
         }, { onSelect: selectDesign, onRename }, {
             moreButton: /** @type {HTMLButtonElement|null} */ ($('designMoreBtn')),
-            sheet:  { overlay: $('designMoreLb'),   content: $('designMoreContent'),   closeBtn: $('designMoreClose'),   initialFocus: $('dupDesignBtn'), create: createLightbox },
+            // First focus on the first row that can be USED (links-app-17). It was always Save a copy as…,
+            // which is disabled on a design not yet saved and on a proposal — and focusing a disabled
+            // button does nothing, so the sheet opened with focus left behind it. A function, so it is
+            // asked when the sheet opens, after the rows' states and the hidden rows are settled. (The
+            // header's SheetCfg types this as an element; createLightbox takes either.)
+            sheet:  { overlay: $('designMoreLb'),   content: $('designMoreContent'),   closeBtn: $('designMoreClose'),
+                      initialFocus: /** @type {any} */ (() => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('#designMoreContent .dm-menu-btn')])
+                          .find(b => !b.disabled && b.offsetParent !== null) ?? null),
+                      create: createLightbox },
             picker: { overlay: $('designPickerLb'), content: $('designPickerContent'), closeBtn: $('designPickerClose'), create: createLightbox },
             sheetActions: [
                 [$('dupDesignBtn'), once(duplicateDesign)], [$('designRenameMenuBtn'), once(onRename)], [$('compareBtn'), once(compare.toggleCompareMode)],
@@ -1449,8 +1457,11 @@ export function init() {
      *          unreadable: number, unfilled: boolean}|undefined} t
      */
     function _totalCells(t) {
-        const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ title = '') =>
-            `<td class="tot-cell${extra}"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${escapeHtml(text)}</td>`;
+        // The explanation ADDS to the figure (links-app-15). An author's name for a cell takes the place
+        // of its content, so a name holding the reason alone hid the total itself from a screen reader —
+        // a cover week read "Cover week — counted as the contracted week…" and never "35h 00m".
+        const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ why = '') =>
+            `<td class="tot-cell${extra}"${why ? ` aria-label="${escapeHtml(`${text === '—' ? 'Not known' : text}. ${why}`)}"` : ''}>${escapeHtml(text)}</td>`;
         if (!t || t.unfilled) return cell('—') + cell('—') + cell('—');
         if (t.assumed) {   // a timed Sunday overtime turn is real hours on top, and the footer counts it
             const h = hmFromHours(t.exSundayMinutes / 60), all = hmFromHours(t.allMinutes / 60);

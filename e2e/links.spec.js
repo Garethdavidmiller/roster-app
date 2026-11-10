@@ -1742,6 +1742,38 @@ test('links grid: a cover week with Sunday overtime counts that Sunday in its se
     await expect(cells).toHaveCount(3);
     await expect(cells.nth(0), 'Monday to Saturday: the contracted week').toHaveText('35h 00m');
     await expect(cells.nth(1), 'all seven days: the week plus its 8½-hour Sunday').toHaveText('43h 30m');
+    // The explanation is ADDED to the figure, never put in its place (links-app-15): an author's name for
+    // a cell replaces its content, so a reason alone hid the total from a screen reader.
+    await expect(cells.nth(0)).toHaveAccessibleName('35h 00m. Cover week — counted as the contracted week; it carries no stored times');
+    await expect(cells.nth(2)).toHaveAccessibleName('Not known. A cover week does not record which days it works');
+});
+
+// Two controls a screen reader met with no name, and a sheet that opened with focus left behind it
+// (whole-app fix, Nov 2026). Each number box sits inside its tick box's <label>, which names only its
+// FIRST control (links-app-14); the paint bar's label sat on a div with no role, where it names nothing
+// (links-app-16); and ··· More asked to focus Save a copy as…, which is disabled on a proposal and on a
+// design not yet saved, so focus stayed on the ··· button behind the dialog (links-app-17).
+test('links: the line-order boxes and the paint bar are named, and ··· More opens on a row it can use', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await expect(page.locator('#objBlockTarget')).toHaveAccessibleName('Vary the shift type: at most this many weeks in a row');
+    await expect(page.locator('#objMaxRunTarget')).toHaveAccessibleName('Most shifts in a row: at most this many days');
+    await expect(page.locator('#objLongTarget')).toHaveAccessibleName('Long weekends: at least this many across the rotation');
+    await expect(page.getByRole('group', { name: 'Paint mode: select a shift to paint cells' })).toBeVisible();
+
+    // A shortlisted proposal open: Save a copy as… and Rename are disabled, and focus lands on a row it can use.
+    await openDesignPicker(page);
+    await proposalOptions(page).first().click();
+    await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
+    await page.locator('#designMoreBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#designMoreLb.visible')).toBeVisible();
+    await expect(page.locator('#dupDesignBtn')).toBeDisabled();
+    const focused = page.locator('#designMoreContent .dm-menu-btn:focus');
+    await expect(focused, 'focus is on a row of the sheet, not behind it').toHaveCount(1);
+    await expect(focused).toBeEnabled();
 });
 
 // ── THE GRID ON A DESKTOP, BY MOUSE AND BY KEYBOARD (desktop audit, Nov 2026) ────────────────────
