@@ -26,6 +26,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import { GUIDE_PAGES, REDIRECT_PAGES } from './scripts/app-pages.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SW_SRC = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
@@ -78,14 +79,20 @@ function makeCaches(seed) {
     };
 }
 
+/** An older release's cache, as a device mid-transition holds one. */
+const OLDER_CACHE = 'myb-roster-v1.00';
+
 /**
- * Boot the real worker in a sandbox and send it one navigation.
- * @param {{ cached?: Record<string, string>, network: (req: Request, signal?: AbortSignal) => Promise<Response>,
- *           preload?: Promise<Response|undefined>, path: string }} o
+ * Boot the real worker in a sandbox and send it one navigation. `older` seeds an older release's cache.
+ * @param {{ cached?: Record<string, string>, older?: Record<string, string>, network: (req: Request, signal?: AbortSignal) => Promise<Response>,
+ *           preload?: Promise<Response|undefined>, path: string, mode?: string, destination?: string }} o
  */
 async function navigate(o) {
     // The completion marker is always present: no warm-up starts, so "nothing cached" stays true.
-    const { stores, api } = makeCaches({ [CACHE]: { './__precache-complete': 'ok', ...(o.cached || {}) } });
+    const { stores, api } = makeCaches({
+        ...(o.older ? { [OLDER_CACHE]: o.older } : {}),
+        [CACHE]: { './__precache-complete': 'ok', ...(o.cached || {}) },
+    });
     /** @type {Record<string, Function>} */
     const listeners = {};
     const fetches = /** @type {string[]} */ ([]);
@@ -195,16 +202,17 @@ describe('service worker — a preload that lands AFTER the 2 s race (v25.06, wh
     test('still stores the worker\'s own fresh fetch, not nothing', async () => {
         // The store fetch reused `freshReq`, whose signal the race had just aborted — so it rejected at
         // once and the "a late one still refreshes the cache" promise in the header was not kept.
+        // The fallback is the guide's copy in an OLDER release's cache: a race needs something to serve.
         const { body, stores } = await navigate({
             path: '/staff-guide.html',
-            cached: { './index.html': '<h1>cached roster</h1>' },
+            older: { './staff-guide.html': '<h1>last release\'s guide</h1>' },
             preload: after(250, () => ok('<h1>late preload</h1>')),
             network: async (_req, signal) => {
                 if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
                 return ok('<h1>fresh guide</h1>');
             },
         });
-        assert.match(body, /cached roster/, 'the race serves the fallback');
+        assert.match(body, /last release's guide/, 'the race serves the fallback');
         await new Promise(r => setTimeout(r, 600));   // the preload lands, the store runs
         const stored = await stores.get(CACHE)?.get(`${ORIGIN}/staff-guide.html`)?.clone().text();
         assert.match(String(stored), /fresh guide/, 'the late answer must reach the cache for the next open');
@@ -228,17 +236,26 @@ describe('service worker — a navigation with a FALLBACK cached', () => {
         let aborted = false;
         const t0 = Date.now();
         const { res, body } = await navigate({
-            // A page with no fallback of its own (not one of the six in PAGE_FALLBACKS) falls back to
-            // the root. NOT paycalc.html: its fallback is ./paycalc.html, so with only index.html
-            // cached it has none and correctly waits for the network — case 1 above.
-            path: '/staff-guide.html',
-            cached: { './index.html': '<h1>cached roster</h1>' },
+            // The page is missing from THIS release's cache, and an older release still holds it —
+            // the transition fallback, served at the race rather than after a hung network.
+            path: '/settings.html',
+            older: { './settings.html': '<h1>cached settings</h1>' },
             network: (_req, signal) => new Promise((_r, j) => signal?.addEventListener('abort', () => { aborted = true; j(new Error('aborted')); })),
         });
-        assert.match(body, /cached roster/);
+        assert.match(body, /cached settings/);
         assert.equal(res.status, 200);
         assert.ok(Date.now() - t0 < 1500, 'served at the race, not after a long wait');
         assert.equal(aborted, true, 'the worker\'s own fetch is cancelled at the race');
+    });
+
+    test('a page whose only fallback is the ROOT still races to it — an unknown page is the app', async () => {
+        // The default in the table: a page that is none of the app's own falls back to the Calendar.
+        const { body } = await navigate({
+            path: '/no-such-page.html',
+            cached: { './index.html': '<h1>cached roster</h1>' },
+            network: (_req, signal) => new Promise((_r, j) => signal?.addEventListener('abort', () => j(new Error('aborted')))),
+        });
+        assert.match(body, /cached roster/);
     });
 
     test('a network that FAILS outright serves the fallback at once, not after the race', async () => {
@@ -252,6 +269,44 @@ describe('service worker — a navigation with a FALLBACK cached', () => {
         assert.match(body, /cached admin/);
         assert.ok(Date.now() - t0 < 2000 / SPEED, 'a failed fetch does not wait out the race');
     });
+
+    // ── A GUIDE NEVER GETS THE CALENDAR (Nov 2026, the owner's decision) ─────────────────────────
+    // A first install's warm-up reaches the guides last, and a guide had no entry in the [keyword,
+    // page] table — so its fallback was the Calendar, and on a slow but WORKING connection the race
+    // served the Calendar under the guide's address: the drawer link appeared to do nothing. Every
+    // guide, and each legacy stub, is checked from the page list the suites share.
+    for (const { file } of GUIDE_PAGES) {
+        test(`${file} missing from the cache waits for a slow network — never the Calendar in its place`, async () => {
+            const { body } = await navigate({
+                path: `/${file}`,
+                cached: { './index.html': '<h1>cached roster</h1>' },
+                network: () => after(3000 / SPEED, () => ok(`<h1>${file}</h1>`)),
+            });
+            assert.doesNotMatch(body, /cached roster/, 'the Calendar was served under a guide\'s address');
+            assert.match(body, new RegExp(file.replace('.', '\\.')));
+        });
+    }
+
+    test('offline, a guide with no copy of its own says so by NAME rather than opening the Calendar', async () => {
+        const { body } = await navigate({
+            path: '/fip-guide.html',
+            cached: { './index.html': '<h1>cached roster</h1>' },
+            network: () => Promise.reject(new TypeError('Failed to fetch')),
+        });
+        assert.match(body, /The FIP Travel Guide is not available offline/);
+    });
+
+    for (const { file, to } of REDIRECT_PAGES) {
+        test(`the legacy stub ${file} with no copy of its own falls back to the guide it leads to`, async () => {
+            const guide = to.replace(/^\.\//, '');
+            const { body } = await navigate({
+                path: `/${file}`,
+                cached: { './index.html': '<h1>cached roster</h1>', [`./${guide}`]: `<h1>cached ${guide}</h1>` },
+                network: (_req, signal) => new Promise((_r, j) => signal?.addEventListener('abort', () => j(new Error('aborted')))),
+            });
+            assert.match(body, new RegExp(`cached ${guide.replace('.', '\\.')}`));
+        });
+    }
 
     test('a page whose own fallback is missing does NOT borrow another page\'s', async () => {
         // paycalc.html with only index.html cached: no fallback, so it waits for the network

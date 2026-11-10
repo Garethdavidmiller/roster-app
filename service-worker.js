@@ -692,10 +692,21 @@ self.addEventListener("fetch", event => {
             ['trains',     './trains.html',     'Trains is not available offline. Please reconnect and reload.'],
             ['newlink',    './newlink.html',    'The new link page is not available offline. Please reconnect and reload.'],
             ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
+            // THE GUIDES FALL BACK TO THEMSELVES (Nov 2026, owner's decision). Through the default below,
+            // a guide missing from the cache — a first install's warm-up reaches them last — was answered
+            // with the CALENDAR at the 2 s race on a slow but working connection, so the drawer link
+            // seemed to do nothing. A legacy stub falls back to the guide it leads to.
+            ['staff-guide',    './staff-guide.html',    'The Staff &amp; Admin Guide is not available offline. Please reconnect and reload.'],
+            ['paycalc-guide',  './paycalc-guide.html',  'The Pay Calculator Guide is not available offline. Please reconnect and reload.'],
+            ['railcard-guide', './railcard-guide.html', 'The Railcard Guide is not available offline. Please reconnect and reload.'],
+            ['rangers-guide',  './rangers-guide.html',  'The Rangers &amp; Rovers Guide is not available offline. Please reconnect and reload.'],
+            ['fip-guide',      './fip-guide.html',      'The FIP Travel Guide is not available offline. Please reconnect and reload.'],
+            ['guide',          './staff-guide.html',    'The Staff &amp; Admin Guide is not available offline. Please reconnect and reload.'],
+            ['fip',            './fip-guide.html',      'The FIP Travel Guide is not available offline. Please reconnect and reload.'],
         ];
         // Match the page by its exact path segment, not a substring — path.includes('admin') would mis-route
         // a future '/admin-report.html' to the wrong fallback (the class of the historical /admin-app.js MIME bug).
-        const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`) || path.endsWith(`/${seg}`));
+        const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`));
         const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
         const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
         // CURRENT-version cache first — the global caches.match() prefers the OLDEST
