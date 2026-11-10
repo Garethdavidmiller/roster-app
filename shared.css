@@ -510,7 +510,8 @@
                              the save toast and slow-save notice 7500, the AL confirm bar 7600), which
                              at 300 covered its footer and with it Sign out (v24.52); below every
                              lightbox, dialog and sheet, which the drawer itself opens */
-    --z-lightbox: 8000;   /* .lb-overlay base (About, Tips, dialogs, the date picker, one-time notices) */
+    --z-lightbox: 8000;   /* .lb-overlay base (About, Tips, dialogs, the date picker, one-time notices);
+                             a confirm dialog opened over a higher layer lifts above it (overlay.js) */
     --z-notice:   8500;   /* above that, below login: the Huddle viewer, Pay's help sheet and YTD notice */
     --z-login:    9000;   /* login overlay — must sit above content and notices */
     --z-picker:   9100;   /* the app's own select sheet — see .picker-sheet-overlay below */
