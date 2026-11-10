@@ -136,7 +136,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-result-headline.js', 'paycalc-money-banner.js', 'paycalc-guide.html',
     'fip-guide.html', 'staff-guide.html',
     'railcard-guide.html', 'rangers-guide.html',
-    'railcard-guide.js', 'rangers-guide.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'guide-shell.css',
+    'railcard-guide.js', 'rangers-guide.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'legacy-redirect.js', 'guide-shell.css',
     'staff-guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'rangers-guide.css', 'fip-guide.css', 'guide-doc.css',
     'purify.es.mjs',
 ];
@@ -368,6 +368,8 @@ const SUPPLEMENTARY_ASSETS = [
     // asset that does not exist. It caught it immediately, which is the system working.)
     "./guide.html",
     "./fip.html",
+    // The one script the two stubs carry: it keeps the fragment and query of an old bookmark (10 Nov 2026).
+    "./legacy-redirect.js",
     "./railcard-guide.js",
     "./rangers-guide.js",
     "./guide-print.js",

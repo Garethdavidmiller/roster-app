@@ -1186,6 +1186,37 @@ test.describe('guides with JavaScript off', () => {
             }
         }
     });
+
+    // The no-script half of the old addresses' redirect (below): the meta refresh still lands, at the top
+    // of the guide, because a fixed URL is all it can carry. That is the floor the script raises.
+    test('an old guide address still reaches its guide, at the top', async ({ page }) => {
+        await page.goto('/fip.html?from=paycalc.html#country-de');
+        await page.waitForURL(/\/fip-guide\.html$/);
+        await page.goto('/guide.html#sg-getting-around');
+        await page.waitForURL(/\/staff-guide\.html$/);
+    });
+});
+
+// ── THE OLD ADDRESSES KEEP THE COUNTRY (owner, 10 Nov 2026) ────────────────────────────────────────
+// guide.html and fip.html are stubs. Firebase's 301 keeps a bookmark's #fragment and ?query; the Pages
+// mirror serves no redirects, so there the stub IS the redirect, and its meta refresh dropped both — an
+// old fip.html#country-de opened the guide at the top with Germany shut. legacy-redirect.js carries them.
+// The dev server serves no redirects either, so this is the mirror's path.
+test('guides: an old address keeps its country, its query and the back arrow, and leaves no stub in history', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const script = page.waitForResponse(r => r.url().endsWith('/legacy-redirect.js'));
+    await page.goto('/fip.html?from=paycalc.html#country-de');
+    expect((await script).status(), 'the stub fetched its script').toBe(200);
+    await page.waitForURL(/\/fip-guide\.html\?from=paycalc\.html#country-de$/);
+    await expect(page.locator('#country-de'), 'the bookmarked country is opened').toHaveAttribute('open', '');
+    await expect(page.locator('.btn-back'), '?from= still points the back arrow').toHaveAttribute('href', './paycalc.html');
+    // Replaced, not pushed: Back must not land on the stub, which would send the reader forward again.
+    expect(await page.evaluate(() => history.length), 'the stub left an entry of its own in the history').toBe(2);
+
+    await page.goto('/guide.html?from=trains.html#sg-getting-around');
+    await page.waitForURL(/\/staff-guide\.html\?from=trains\.html#sg-getting-around$/);
+    await expect(page.locator('.btn-back')).toHaveAttribute('href', './trains.html');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
 test('fip: a focused country row shows its whole ring, inside the card that clips it', async ({ page }) => {

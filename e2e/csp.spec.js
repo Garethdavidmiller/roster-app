@@ -67,8 +67,8 @@ const isIgnorable = (/** @type {{ blocked: string, directive: string }} */ v) =>
 /**
  * Every app page and guide, from scripts/app-pages.mjs (v24.52). This list was HAND-MAINTAINED, and
  * `overtime.html` shipped without being added — so the one run that applies the REAL firebase.json
- * header never visited the app's newest page. The redirect stubs are left out as before: they load
- * nothing a policy could refuse.
+ * header never visited the app's newest page. The redirect stubs are left out as before: they load one
+ * same-origin script (legacy-redirect.js, which `script-src 'self'` allows) and leave at once.
  */
 const PAGES = [...APP_PAGES, ...GUIDE_PAGES].map(p => p.url);
 

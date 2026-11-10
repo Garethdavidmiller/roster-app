@@ -265,6 +265,7 @@ roster-app/
 ├── service-worker.js       ← single SW for all pages; cache name includes APP_VERSION
 ├── manifest.json           ← PWA manifest for all pages
 ├── guide.html · fip.html ← the two LEGACY guide URLs, kept as redirect stubs: `firebase.json` 301s both, but the GitHub Pages mirror serves no redirects, so the redirect is in the HTML too. page-contract-parity's LEGACY_REDIRECTS gives them their own contract; they go when the mirror does
+├── legacy-redirect.js      ← the one script those two stubs carry (classic, no exports): to the stub's canonical link with the #fragment and ?query kept, which the mirror's meta refresh drops
 ├── staff-guide.html / paycalc-guide.html / railcard-guide.html / fip-guide.html / rangers-guide.html ← printable guides (via nav panel)
 ├── rangers-guide.js / rangers-guide.css ← the Rangers & Rovers guide — the area passes staff accept or refuse at the gateline — a dialect of the railcard guide. Every card carries `data-myb-validity` AND `data-chiltern-validity`, and **neither may be inferred from the other**; evidence is per CLAIM. Full design: `.claude/rules/guide-pages.md`; evidence: GUIDE_SOURCES.md
 ├── railcard-guide.js       ← JS for railcard-guide.html: the chip bar and scrollspy, the sticky offsets and the deep-link landing (print is guide-print.js). **The Network AREA ends at Banbury — do not "correct" it.** Design and the source audit: `.claude/rules/guide-pages.md`

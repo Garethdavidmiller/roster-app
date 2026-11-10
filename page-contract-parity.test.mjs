@@ -795,8 +795,11 @@ test('a legacy redirect page is a redirect, and points somewhere real', () => {
      *   2. the destination EXISTS, so a second rename cannot leave a redirect pointing at nothing;
      *   3. the URL is RELATIVE, or it breaks under the mirror's `/roster-app/` sub-path — the one
      *      origin the file is written for;
-     *   4. it stays a stub: no scripts, no stylesheet links, nothing that gives it a module graph
-     *      and an opinion. The moment one grows those it is an app page wearing an exemption.
+     *   4. it stays a stub: no stylesheet links, and nothing that gives it a module graph and an
+     *      opinion. The moment one grows those it is an app page wearing an exemption.
+     *   5. ONE script, and only the shared one (owner, 10 Nov 2026): `legacy-redirect.js`, which
+     *      carries the #fragment and the ?query the meta refresh drops. A classic script, after the
+     *      canonical link it reads, so it has run before the page finishes and the refresh fires.
      */
     assert.ok(LEGACY_REDIRECTS.size > 0, 'no legacy redirects declared — drop the category too');
 
@@ -819,7 +822,13 @@ test('a legacy redirect page is a redirect, and points somewhere real', () => {
         assert.equal(canonical?.[1], target,
             `${page}'s canonical link must name the same destination as its refresh`);
 
-        assert.ok(!/<script/i.test(html), `${page} has a <script> — a redirect stub carries none`);
+        const scripts = [...html.matchAll(/<script\b[^>]*>/gi)].map(m => m[0]);
+        assert.deepEqual(scripts, ['<script src="./legacy-redirect.js">'],
+            `${page} carries ${JSON.stringify(scripts)} — a redirect stub carries exactly one script, the shared ` +
+            'legacy-redirect.js, as a classic script (a module would wait for the parse, and the refresh with it)');
+        assert.ok(html.indexOf('<script src="./legacy-redirect.js">') > html.indexOf('<link rel="canonical"'),
+            `${page} loads legacy-redirect.js before its canonical link, which is where the script reads the ` +
+            'destination from — it would find nothing and leave the page to its refresh');
         assert.ok(!/<link[^>]+rel="stylesheet"/i.test(html),
             `${page} links a stylesheet — a redirect stub styles itself inline or not at all`);
     }

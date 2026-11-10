@@ -54,8 +54,10 @@ paths:
 - **The two OLD guide URLs are still served, as redirect stubs.** `guide.html` → `staff-guide.html`
   and `fip.html` → `fip-guide.html`: `firebase.json` 301s both, but that covers only the canonical
   origin. The GitHub Pages mirror serves no redirect rules and is where most staff open the app, so
-  the redirect is also written into the HTML, which both origins carry. The stubs hold no content, no
-  script and no stylesheet, and they are NOT guides: they are declared as `REDIRECT_PAGES` in
+  the redirect is also written into the HTML, which both origins carry. The stubs hold no content and
+  no stylesheet, and ONE script, the shared `legacy-redirect.js` (owner, 10 Nov 2026): a meta refresh
+  goes to a fixed URL, so it dropped a bookmark's `#country` and `?from=`, and the script carries both,
+  with the refresh kept as the no-script fallback. They are NOT guides: they are declared as `REDIRECT_PAGES` in
   `scripts/app-pages.mjs`, and `page-contract-parity.test.mjs` gives them a contract of their own
   (`LEGACY_REDIRECTS`). **A future guide rename needs the same pair of things** — the Firebase
   redirect and the stub — or it breaks old links for the larger half of the staff.

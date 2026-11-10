@@ -102,6 +102,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
 | A deep link or in-page jump on the Staff and Pay Calculator guides landing below the sticky header | `guide-back.js` |
+| An old guide address (`guide.html`, `fip.html`) keeping its `#fragment` and `?query` on the Pages mirror | `legacy-redirect.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (every guide) | `guide-shell.css` |
 | Page-specific styles for staff-guide.html | `staff-guide.css` |
 | Page-specific styles for paycalc-guide.html | `paycalc-guide.css` |
@@ -2011,6 +2012,9 @@ The ⤓ PDF button on every guide, and the FIP guide's per-country buttons — a
 
 ### `guide-back.js`
 Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>` when it opens a guide, and this rewrites the arrow's `href` and `aria-label` to match. `from` is resolved through the `DESTINATIONS` allowlist of the app's own pages and never used as a url, so a crafted value cannot make an off-site link; an unknown or absent `from` leaves the authored href alone. The allowlist is hand-kept, and `page-contract-parity.test.mjs` fails when a page is missing from it. The header says why the arrow needs retargeting at all. A second block, on a guide with no chip bar (the Staff and Pay Calculator guides), measures the sticky header after `document.fonts.ready` and on a `ResizeObserver`, gives every id in `<main>` a `scrollMarginTop` of its height + 12px, and re-lands a deep link the header covers while the page is still landing — railcard-guide.js's rules: until it has loaded with its fonts or the reader touches, clicks, wheels or types, and never on a reload or Back/Forward. A chip-bar guide measures its whole stack in its own script, so the block leaves it alone.
+
+### `legacy-redirect.js`
+The one script the two legacy guide addresses (`guide.html`, `fip.html` — `REDIRECT_PAGES`) carry: a classic script, no exports, owner decision of 10 Nov 2026. Firebase's 301 keeps a bookmark's `#fragment` and `?query`; the Pages mirror serves no redirects, so there the stub's meta refresh was the redirect and dropped both. This goes to the stub's own `<link rel="canonical">` with both kept, by `location.replace`, so Back does not return to the stub. The meta refresh stays as the no-script fallback; it cannot overtake this (measured on Chromium and WebKit — the header says how). `page-contract-parity.test.mjs` allows a stub this one script, as a classic script after its canonical link, and nothing else; `e2e/guides.spec.js` follows an old address to its country and its back arrow.
 
 ### `ls.js`
 Safe `localStorage` wrappers — iOS Safari's private mode throws on any access. **Never call `localStorage` directly** in the page coordinators (CLAUDE.md); use these. Tested by `ls-persist.test.mjs`.
