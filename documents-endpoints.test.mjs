@@ -78,12 +78,13 @@ function makeDb(seed = {}) {
     const store = new Map(Object.entries(seed));
     const deletes = /** @type {string[]} */ ([]);
     /** @type {Error|null} */ let txError = null;
-    const snapFor = (/** @type {string} */ path) => ({
-        exists: store.has(path),
-        id: path.split('/')[1],
-        data: () => store.get(path),
-        ref: refFor(path),
-    });
+    /** @type {Error|null} */ let latestReadError = null;
+    // A snapshot holds the data AS READ, like Firestore's: a lazy `() => store.get(path)` would show a
+    // transaction the write it made after reading, which the real SDK never does.
+    const snapFor = (/** @type {string} */ path) => {
+        const data = store.get(path);
+        return { exists: store.has(path), id: path.split('/')[1], data: () => data, ref: refFor(path) };
+    };
     const refFor = (/** @type {string} */ path) => ({
         path,
         get: async () => snapFor(path),
@@ -103,6 +104,7 @@ function makeDb(seed = {}) {
                     .sort((a, b) => String((store.get(b) || {})[field])
                         .localeCompare(String((store.get(a) || {})[field])));
                 const page = (/** @type {number} */ n) => {
+                    if (latestReadError) throw latestReadError;
                     const docs = sorted().slice(0, n).map(snapFor);
                     return { empty: docs.length === 0, docs };
                 };
@@ -127,7 +129,8 @@ function makeDb(seed = {}) {
             });
         },
     };
-    return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; } };
+    return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; },
+        failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; } };
 }
 
 /** @param {string[]} existingObjects  Storage paths that already exist */
@@ -495,6 +498,82 @@ describe('the create triggers — who notifies, and the halves of the double-pus
         assert.equal(b.sends[0].payload.tag, 'circular');
         assert.equal(b.sends[1].payload.title, '🗞️ Latest Marylebone Newsletter');
         assert.equal(b.sends[1].payload.tag, 'newsletter');
+    });
+});
+
+// ── "Latest" means the latest — and a hand upload never silences the automatic one ──────────────
+//
+// Whether staff were told used to be decided by "was a document CREATED for this date". Two real
+// sequences break that (functions-core-1, whole-app check 10 Nov 2026):
+//  · The card files a hand upload under TODAY; the automatic flow files the evening Huddle under the
+//    day it was RECEIVED — also today. So a Huddle uploaded by hand in the morning made that
+//    evening's automatic Huddle a "re-send", and nobody was told the next day's plan had arrived.
+//  · A back-filled OLDER document was announced as "Latest …", and the tap opened the newer one
+//    staff had already read.
+// The re-send guard keeps its real job: the automatic flow arriving on its OWN earlier upload (a
+// retry, or two concurrent runs) stays silent.
+describe('a notice says "Latest" only of the latest, and a hand upload never silences the automatic Huddle', () => {
+    const snapEvent = (/** @type {string} */ date, /** @type {any} */ data) =>
+        ({ params: { date }, data: data === undefined ? undefined : { data: () => data } });
+
+    test('the automatic Huddle that lands on a hand-uploaded date IS announced', async () => {
+        const b = build({
+            seed: { 'huddles/2026-08-30': { date: '2026-08-30', storagePath: 'huddles/2026-08-30-man1.pdf', fileType: 'pdf', uploadedBy: 'G. Miller' } },
+            objects: ['huddles/2026-08-30-man1.pdf'],
+        });
+        const out = await ingest(b.eps, { date: '2026-08-30' });
+        assert.equal(out.code, 200);
+        assert.equal(b.store.get('huddles/2026-08-30').uploadedBy, 'power-automate');
+        assert.equal(b.sends.length, 1, 'a Huddle uploaded by hand this morning silenced this evening\'s automatic one');
+        assert.equal(b.sends[0].payload.tag, 'huddle');
+    });
+
+    test('the automatic flow arriving on its OWN earlier upload stays silent (a retry, a double run)', async () => {
+        const b = build({
+            seed: { 'huddles/2026-08-30': { date: '2026-08-30', storagePath: 'huddles/2026-08-30-pa1.pdf', fileType: 'pdf', uploadedBy: 'power-automate' } },
+            objects: ['huddles/2026-08-30-pa1.pdf'],
+        });
+        assert.equal((await ingest(b.eps, { date: '2026-08-30' })).code, 200);
+        assert.equal(b.sends.length, 0);
+    });
+
+    test('an automatic Huddle OLDER than the latest is stored, and not announced as "Latest"', async () => {
+        const b = build({ seed: { 'huddles/2026-08-31': { date: '2026-08-31', storagePath: 'huddles/2026-08-31-x.pdf', fileType: 'pdf', uploadedBy: 'G. Miller' } } });
+        const out = await ingest(b.eps, { date: '2026-08-30' });
+        assert.equal(out.code, 200);
+        assert.ok(b.store.has('huddles/2026-08-30'), 'the back-filled Huddle is still kept');
+        assert.equal(b.sends.length, 0, 'a tap on "Latest Huddle" would have opened the 31st, which staff already had');
+    });
+
+    for (const [name, collection, older, newer] of [
+        ['onCircularCreated', 'circulars', '2026-10-30', '2026-11-06'],
+        ['onNewsletterCreated', 'newsletters', '2026-09-01', '2026-10-01'],
+        ['onHuddleCreated', 'huddles', '2026-08-29', '2026-08-30'],
+    ]) {
+        test(`${name}: a back-filled older document is not announced; the newest still is`, async () => {
+            const doc = (/** @type {string} */ d) => ({ date: d, storagePath: `${collection}/${d}-a.pdf`, fileType: 'pdf', uploadedBy: 'G. Miller' });
+            const b = build({ seed: { [`${collection}/${older}`]: doc(older), [`${collection}/${newer}`]: doc(newer) } });
+            await b.eps[name].run(snapEvent(older, doc(older)));
+            assert.equal(b.sends.length, 0, `${older} was announced as the latest while ${newer} is`);
+            await b.eps[name].run(snapEvent(newer, doc(newer)));
+            assert.equal(b.sends.length, 1, 'the newest document must still be announced');
+        });
+    }
+
+    test('when the latest cannot be read, the arrival is still announced — silence is the failure nobody sees', async () => {
+        const b = build({ seed: { 'circulars/2026-11-06': { date: '2026-11-06', storagePath: 'circulars/2026-11-06-a.pdf' } } });
+        b.failLatestRead(Object.assign(new Error('unavailable'), { code: 14 }));
+        await b.eps.onCircularCreated.run(snapEvent('2026-11-06', { date: '2026-11-06' }));
+        assert.equal(b.sends.length, 1);
+    });
+
+    test('an ingest dated after London\'s tomorrow is refused before Storage — it would shadow every later Huddle', async () => {
+        const b = build();                                           // now = 30 Aug 2026
+        const out = await ingest(b.eps, { date: '2026-09-01' });
+        assert.equal(out.code, 400);
+        assert.equal(b.saved.length, 0);
+        assert.equal(b.store.size, 0);
+        assert.equal((await ingest(b.eps, { date: '2026-08-31' })).code, 200, 'tomorrow is a real date for a Huddle, as on the card');
     });
 });
 

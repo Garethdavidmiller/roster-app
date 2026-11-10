@@ -66,6 +66,36 @@ function buildDocumentEndpoints({
     // (mis-recorded at the time as "the site is down"). To pause again: set true, redeploy.
     const HUDDLE_PUSH_PAUSED = false;
 
+    /**
+     * Is the document just written under `date` the one a tap would now open — the LATEST of its
+     * kind? Every arrival notice says "Latest …" and every viewer opens the newest `date`, so a
+     * back-filled older document announced as "Latest" sent staff to the newer one they had already
+     * read (functions-core-1). Asked with the viewer's own query, so the two cannot disagree.
+     *
+     * A read that FAILS answers true — announce, as before. A missed arrival is the failure nobody
+     * sees; a wrongly-announced back-fill is one extra buzz.
+     * @param {string} collectionName  'huddles' | 'circulars' | 'newsletters'
+     * @param {string} date            YYYY-MM-DD — the document just written
+     * @returns {Promise<boolean>}
+     */
+    async function isLatestOfKind(collectionName, date) {
+        try {
+            const snap = await getFirestore().collection(collectionName).orderBy('date', 'desc').limit(1).get();
+            if (snap.empty) return true;
+            const newest = (snap.docs[0].data() || {}).date;
+            return !(typeof newest === 'string' && newest > date);
+        } catch (err) {
+            console.warn(`[${collectionName}] could not read the latest document — announcing ${date} anyway:`, err && err.message);
+            return true;
+        }
+    }
+
+    /** London's tomorrow as YYYY-MM-DD — the latest date a Huddle may be filed under, as on the card. */
+    function londonTomorrowIso() {
+        const { year, month, day } = nowInLondon();
+        return new Date(Date.UTC(year, month, day + 1)).toISOString().slice(0, 10);
+    }
+
 /**
  * POST /ingestHuddle
  *
@@ -126,6 +156,14 @@ const ingestHuddle = onRequest(
         const parsedDate = parseStrictIsoDate(date);
         if (!parsedDate) {
             res.status(400).json({ error: 'Invalid date — expected a real YYYY-MM-DD calendar date' });
+            return;
+        }
+        // No later than London's tomorrow, the bound the manual card holds. The flow dates a Huddle
+        // by the day its email was received, so this never refuses a real one — but a far-future
+        // date would be "the latest" for every Huddle after it: shown in their place, and silencing
+        // every notice (isLatestOfKind) until somebody deleted it.
+        if (date > londonTomorrowIso()) {
+            res.status(400).json({ error: 'Date is in the future — a Huddle is filed under the day it was received' });
             return;
         }
 
@@ -265,15 +303,15 @@ const ingestHuddle = onRequest(
                 uploadedBy: 'power-automate',
             };
             if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
-            // Write the metadata AND decide create-vs-re-send ATOMICALLY (Finding #6). The old flow read
+            // Write the metadata AND learn what it replaced ATOMICALLY (Finding #6). The old flow read
             // the doc up front (check) then, separately, notified when that read said 'absent' (act) —
             // a check-then-act race: two concurrent Power Automate runs for the same date both read
             // "absent" before either wrote, so BOTH fanned out a push. A transaction serialises them —
-            // whichever commits first sees `!exists` and owns the notify; the other sees the doc and
-            // suppresses. The transaction's own retry replaces the manual commit-ambiguous re-issue (the
-            // set is idempotent, so an internal retry recomputes createdNew against the latest committed
-            // state — if a concurrent run created the doc meanwhile, createdNew flips false and we don't
-            // double-notify, consistent with "a missed notification is safer than spamming staff").
+            // whichever commits first sees what was there before it and owns the notify; the other
+            // sees the first one's upload and suppresses. The transaction's own retry replaces the
+            // manual commit-ambiguous re-issue (the set is idempotent, so an internal retry recomputes
+            // against the latest committed state — if a concurrent run wrote the doc meanwhile, the
+            // retry sees ITS upload and we don't double-notify).
             //
             // READ THAT NARROWLY (v22.13). What makes the retry safe is that it happens INSIDE the
             // transaction, which re-reads and recomputes; idempotence alone does not make a rewrite
@@ -282,13 +320,16 @@ const ingestHuddle = onRequest(
             // re-issued outside any transaction, and an equally idempotent `set` then overwrote a
             // competing upload's file reference. Same operation, no transaction, real data loss.
             // Do not cite this comment when reasoning about a write that is not in one.
-            let createdNew = false;
+            /** @type {{ existed: boolean, replacedBy: any }} */
+            let written = { existed: false, replacedBy: null };
             const huddleRef = getFirestore().collection('huddles').doc(date);
             try {
-                createdNew = await getFirestore().runTransaction(async tx => {
+                written = await getFirestore().runTransaction(async tx => {
                     const snap = await tx.get(huddleRef);
+                    // WHO wrote what this replaces is what separates a re-send from a new arrival.
+                    const before = { existed: snap.exists, replacedBy: snap.exists ? (snap.data() || {}).uploadedBy : null };
                     tx.set(huddleRef, firestoreDoc);
-                    return !snap.exists;   // true ⇒ this run created the date's doc → a genuine first upload
+                    return before;
                 });
             } catch (metaErr) {
                 if (isRetriableFirestoreError(metaErr)) {
@@ -325,20 +366,31 @@ const ingestHuddle = onRequest(
             // it skips Power Automate uploads (uploadedBy === 'power-automate') to avoid
             // double-notifying. This direct call is the authoritative path for PA uploads.
             //
-            // Notify only on a genuine CREATE for this date (createdNew from the atomic transaction
-            // above). onHuddleCreated is create-only, so a MANUAL re-upload never re-notifies; without
-            // this guard a Power Automate RE-SEND — or a concurrent double-run — for a date that already
-            // had a huddle still fanned out a second push to everyone. Matching the manual path's
-            // convention means an accidental duplicate can't spam staff; a genuine correction still
-            // updates the huddle silently (the in-app viewer has a live subscription and refreshes).
-            if (createdNew) {
+            // WHETHER TO ANNOUNCE (functions-core-1, 10 Nov 2026). Two questions, both needed:
+            //
+            //  1. Is this a NEW arrival? Yes for a first upload under the date. No when it replaces
+            //     this flow's OWN earlier upload — a retry, or a concurrent double-run — which used to
+            //     fan out a second push to everyone for one Huddle. But YES when it replaces a HAND
+            //     upload: the card files under today and this flow files under the day received, so a
+            //     Huddle uploaded by hand this morning shares its date with tonight's automatic one —
+            //     the next day's plan, which nobody would otherwise be told about. The price is one
+            //     extra buzz on the rare day the flow delivers late a Huddle already uploaded by hand
+            //     (the shared tag replaces the first notice rather than stacking). An unknown writer —
+            //     a document with no `uploadedBy` — stays silent, as before.
+            //  2. Is it the LATEST? A back-filled older date is kept, and announcing it as "Latest
+            //     Huddle" would open the newer one staff already had (isLatestOfKind).
+            const newArrival = !written.existed
+                || (typeof written.replacedBy === 'string' && written.replacedBy !== '' && written.replacedBy !== 'power-automate');
+            if (!newArrival) {
+                console.log(`[ingestHuddle] Re-send / concurrent duplicate of this flow's own upload for ${date} — not re-notifying`);
+            } else if (!(await isLatestOfKind('huddles', date))) {
+                console.log(`[ingestHuddle] ${date} is older than the latest Huddle — stored, not announced as "Latest"`);
+            } else {
                 try {
                     await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
                 } catch (pushErr) {
                     console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
                 }
-            } else {
-                console.log(`[ingestHuddle] Re-send / concurrent duplicate for existing date ${date} — not re-notifying (matches the manual re-upload path)`);
             }
 
             // Bound the collection: huddles are daily and would otherwise grow without limit.
@@ -366,10 +418,11 @@ const ingestHuddle = onRequest(
 /**
  * Fires whenever a new document is created in the `huddles` collection —
  * i.e. the first upload for a given date, whether from Power Automate or
- * from the manual upload card in admin.html.
+ * from the manual upload card on operations.html. It announces only a hand
+ * upload, and only when that date is now the latest Huddle (isLatestOfKind).
  *
  * Re-uploads for the same date (setDoc overwrite) are UPDATE events, not
- * CREATE events, so staff are only notified once per huddle date.
+ * CREATE events, so a hand correction never re-notifies.
  */
 const onHuddleCreated = onDocumentCreated(
     {
@@ -398,7 +451,12 @@ const onHuddleCreated = onDocumentCreated(
             return;
         }
 
-        // Manual admin upload — fire push from here (ingestHuddle is not involved).
+        // Manual admin upload — fire push from here (ingestHuddle is not involved), unless it is a
+        // back-fill: an older date announced as "Latest Huddle" would open the newer one.
+        if (!(await isLatestOfKind('huddles', date))) {
+            console.log(`[onHuddleCreated] ${date} is older than the latest Huddle — not announced as "Latest"`);
+            return;
+        }
         console.log(`[onHuddleCreated] Manual upload by "${uploadedBy}" for ${date} — fanning out push`);
         try {
             await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
@@ -414,7 +472,8 @@ const onHuddleCreated = onDocumentCreated(
 // Circulars and newsletters are browser-upload-only today, so unlike the Huddle there
 // is no double-send concern — the create trigger is the single notification source.
 // Fires on CREATE only, so re-uploading a correction to the same date (setDoc overwrite
-// = UPDATE) does not re-notify.
+// = UPDATE) does not re-notify; and a back-filled OLDER date is not announced, because
+// "Latest …" would open the newer one (isLatestOfKind).
 //
 // FUTURE — Power Automate automation: this trigger fires on doc CREATE regardless of
 // WHO writes it (Firestore triggers fire for Admin SDK writes too). So a future
@@ -435,6 +494,10 @@ const onCircularCreated = onDocumentCreated(
     { document: 'circulars/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
     async event => {
         const date = event.params.date;
+        if (!(await isLatestOfKind('circulars', date))) {
+            console.log(`[onCircularCreated] ${date} is older than the latest Circular — not announced as "Latest"`);
+            return;
+        }
         console.log(`[onCircularCreated] ${date} — fanning out push`);
         try {
             await sendDocPushNotifications('circular', "Tap to read this week's retail update.", VAPID_PRIVATE_KEY);
@@ -448,6 +511,10 @@ const onNewsletterCreated = onDocumentCreated(
     { document: 'newsletters/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
     async event => {
         const date = event.params.date;
+        if (!(await isLatestOfKind('newsletters', date))) {
+            console.log(`[onNewsletterCreated] ${date} is older than the latest Newsletter — not announced as "Latest"`);
+            return;
+        }
         console.log(`[onNewsletterCreated] ${date} — fanning out push`);
         try {
             await sendDocPushNotifications('newsletter', 'Tap to read the latest newsletter.', VAPID_PRIVATE_KEY);
