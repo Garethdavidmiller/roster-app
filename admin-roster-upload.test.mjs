@@ -100,29 +100,29 @@ const MON = '2026-06-15';
 
 describe('shiftValueToOverrideType — existing vocabulary (regression)', () => {
     test('AL → annual_leave; SICK → sick; SPARE → spare_shift', () => {
-        assert.equal(shiftValueToOverrideType('AL', 'RD', MON), 'annual_leave');
-        assert.equal(shiftValueToOverrideType('SICK', 'RD', MON), 'sick');
-        assert.equal(shiftValueToOverrideType('SPARE', 'RD', MON), 'spare_shift');
+        assert.equal(shiftValueToOverrideType('AL', MON), 'annual_leave');
+        assert.equal(shiftValueToOverrideType('SICK', MON), 'sick');
+        assert.equal(shiftValueToOverrideType('SPARE', MON), 'spare_shift');
     });
 
     test('RD / OFF → correction', () => {
-        assert.equal(shiftValueToOverrideType('RD', '06:00-14:00', MON), 'correction');
-        assert.equal(shiftValueToOverrideType('OFF', '06:00-14:00', MON), 'correction');
+        assert.equal(shiftValueToOverrideType('RD', MON), 'correction');
+        assert.equal(shiftValueToOverrideType('OFF', MON), 'correction');
     });
 
     test('pipe-encoded RDW and bare RDW → rdw', () => {
-        assert.equal(shiftValueToOverrideType('RDW|14:30-22:00', 'RD', MON), 'rdw');
-        assert.equal(shiftValueToOverrideType('RDW', 'RD', MON), 'rdw');
+        assert.equal(shiftValueToOverrideType('RDW|14:30-22:00', MON), 'rdw');
+        assert.equal(shiftValueToOverrideType('RDW', MON), 'rdw');
     });
 
     test('plain time → shift on a weekday, rdw on a Sunday (Sundays uncontracted)', () => {
-        assert.equal(shiftValueToOverrideType('06:30-14:30', 'RD', MON), 'shift');
-        assert.equal(shiftValueToOverrideType('06:30-14:30', 'RD', SUN), 'rdw');
+        assert.equal(shiftValueToOverrideType('06:30-14:30', MON), 'shift');
+        assert.equal(shiftValueToOverrideType('06:30-14:30', SUN), 'rdw');
     });
 
     test('Sunday AL / SICK → correction (the Sunday block)', () => {
-        assert.equal(shiftValueToOverrideType('AL', 'RD', SUN), 'correction');
-        assert.equal(shiftValueToOverrideType('SICK', 'RD', SUN), 'correction');
+        assert.equal(shiftValueToOverrideType('AL', SUN), 'correction');
+        assert.equal(shiftValueToOverrideType('SICK', SUN), 'correction');
     });
 });
 
@@ -130,20 +130,20 @@ describe('shiftValueToOverrideType — training (OTHER_DAYS.md)', () => {
     test('every training grammar form → training', () => {
         for (const v of ['TRG', 'IND', 'ASSESS', 'MEET', 'TRG RDW', 'IND RDW', 'ASSESS RDW', 'MEET RDW',
                          'TRG 08:00-16:00', 'TRG RDW 08:00-16:00']) {
-            assert.equal(shiftValueToOverrideType(v, 'RD', MON), 'other', v);
+            assert.equal(shiftValueToOverrideType(v, MON), 'other', v);
         }
     });
 
     test('Sunday training → correction (layer 1 of the Sunday block — never written as training)', () => {
         for (const v of ['TRG', 'TRG RDW', 'IND', 'ASSESS']) {
-            assert.equal(shiftValueToOverrideType(v, 'RD', SUN), 'correction', v);
+            assert.equal(shiftValueToOverrideType(v, SUN), 'correction', v);
         }
     });
 
     test('a training value never falls through to rdw/shift on its RDW substring', () => {
         // 'TRG RDW' contains 'RDW' — the training check must classify it before the
         // RDW checks could ever see it.
-        assert.equal(shiftValueToOverrideType('TRG RDW', '06:00-14:00', MON), 'other');
+        assert.equal(shiftValueToOverrideType('TRG RDW', MON), 'other');
     });
 });
 
@@ -835,7 +835,7 @@ describe('computeCellStates — review state machine', () => {
         test('with nothing saved, it is a ticked Update that writes rest-day working', () => {
             const c = st(`RDW|${base}`);
             assert.deepEqual([c.state, c.chosen], ['DIFF', true]);
-            assert.equal(shiftValueToOverrideType(collectRosterWrites(new Map([[`${who.name}|${MONDAY}`, c]]))[0].value, base, MONDAY), 'rdw');
+            assert.equal(shiftValueToOverrideType(collectRosterWrites(new Map([[`${who.name}|${MONDAY}`, c]]))[0].value, MONDAY), 'rdw');
         });
         test('over an earlier PLAIN import it replaces it rather than clearing it; over an RDW one it is covered', () => {
             assert.equal(st(`RDW|${base}`, record({ type: 'shift', source: 'roster_import' })).state, 'DIFF');
@@ -1194,7 +1194,7 @@ describe('computeCellStates — a timed meeting on a Sunday is Sunday work, neve
         const st = stateFor(m);
         assert.equal(st.state, 'DIFF');
         assert.equal(st.chosen, true);
-        assert.equal(shiftValueToOverrideType(st.displayShift, st.baseShift, SUNDAY), 'rdw');
+        assert.equal(shiftValueToOverrideType(st.displayShift, SUNDAY), 'rdw');
     });
 
     test('a ROSTERED Sunday: the meeting\'s times, never a correction that makes it a rest day', () => {
@@ -1202,7 +1202,7 @@ describe('computeCellStates — a timed meeting on a Sunday is Sunday work, neve
         assert.ok(m, 'needs a member rostered that Sunday');
         const st = stateFor(m);
         assert.notEqual(st.displayShift, 'RD');
-        assert.equal(shiftValueToOverrideType(st.displayShift, st.baseShift, SUNDAY), 'rdw');
+        assert.equal(shiftValueToOverrideType(st.displayShift, SUNDAY), 'rdw');
     });
 
     test('a re-upload over a week imported before v25.38 keeps its rest-day working', () => {
@@ -2325,7 +2325,7 @@ describe('the roster\'s leave or absence over a HAND-RECORDED swap is shown as w
         assert.equal(c.guarded, null);
         // "Use new roster" writes this value; replacing the manual shift, nextReplacedType carries
         // 'shift' forward, so the leave costs a day and displays on the rest-day base.
-        assert.equal(shiftValueToOverrideType(c.displayShift, c.baseShift, date), 'annual_leave');
+        assert.equal(shiftValueToOverrideType(c.displayShift, date), 'annual_leave');
     });
 
     test('PDF Absent over a hand-recorded shift likewise', () => {

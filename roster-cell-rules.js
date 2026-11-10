@@ -100,12 +100,18 @@ export function normaliseCellValue(rawShift, baseShift, date) {
  * Module-scope + exported (v15.34) so the classification is unit-testable —
  * it is pure (uses only isSunday and the module's value helpers).
  *
+ * The base shift is NOT a parameter (whole-app fix, Nov 2026): it was passed by every caller and read
+ * by none. A caller still passing it would hand a shift where the date belongs and silently lose the
+ * Sunday rule, so anything that is not an ISO date there is refused loudly instead.
+ *
  * @param {string} value     - e.g. "05:30-11:30", "SPARE", "AL", "SICK", "RD", "TRG RDW"
- * @param {string} baseShift - the base roster shift for that day (e.g. "RD", "06:00-12:00")
  * @param {string|null} date - ISO date string "YYYY-MM-DD" — used to detect Sunday
  * @returns {string}  override type
  */
-export function shiftValueToOverrideType(value, baseShift, date = null) {
+export function shiftValueToOverrideType(value, date = null) {
+    if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+        throw new TypeError(`shiftValueToOverrideType: "${date}" is not an ISO date — the base shift is no longer an argument`);
+    }
     // Layer 4 of the Sunday rule — the transformation is `sundaySafeValue` (override-utils.js).
     // A value it rewrites to RD becomes a correction rather than the type it claimed to be.
     const isSun = date !== null && isSunday(date);

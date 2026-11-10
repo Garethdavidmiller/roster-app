@@ -153,7 +153,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
         try {
         await withSlowSaveNotice(writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
-            for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom, swapped, alsoDelete } of chunk) {
+            for (const { memberName, date, value, replaceId, deleteOnly, replacedFrom, swapped, alsoDelete } of chunk) {
                 const dropDuplicates = () => { for (const id of alsoDelete ?? []) batch.delete(doc(db, COLLECTIONS.overrides, id)); };
                 if (deleteOnly) {
                     // REMOVE_IMPORT — delete the stale import doc and write nothing.
@@ -176,7 +176,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                 // Map shift value to override type — pass date so Sunday shifts are correctly
                 // saved as 'rdw' and an explicit RDW| prefix is honoured. (value is a real string
                 // here — deleteOnly items, the only ones with a null value, continued above.)
-                const type = shiftValueToOverrideType(/** @type {string} */ (value), baseShift, date);
+                const type = shiftValueToOverrideType(/** @type {string} */ (value), date);
                 // Strip the internal "RDW|" encoding before saving — Firestore stores the plain
                 // time as the value (e.g. "14:30-22:00"), type field carries 'rdw'.
                 let savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
