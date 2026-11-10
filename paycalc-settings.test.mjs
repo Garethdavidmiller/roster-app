@@ -757,6 +757,51 @@ describe('a payslip on record that the list no longer offers is kept (paycalc-3-
     });
 });
 
+// ── A ONE-TIME LEGACY MIGRATION RUNS FOR LEGACY DATA ONLY (paycalc-3-16) ────────────────────────
+// Two steps in loadSettings call themselves one-time legacy migrations and did not ask whether the
+// data in front of them was legacy. (1) The per-year setup stamp ran for EVERY member on their second
+// load, marking every tax year in the table confirmed — so a 2026/27 joiner's backup claimed "Tax
+// years 2025/26 and 2026/27", and nobody was ever asked to check their settings for a year they had
+// not set up. (2) The retired opt-out flag was dated from the first payslip of TODAY's tax year; it
+// could only ever have been set in 2026/27, and from the 2027/28 rollover "today" would have put a
+// pension deduction back on the 2026/27 payslips the member was out of the scheme for.
+describe('the one-time legacy migrations run for legacy data only (paycalc-3-16)', () => {
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    before(async () => { P = await import('./paycalc-periods.js'); S = await import('./paycalc-settings.js'); });
+    beforeEach(() => { beNobody(); _ls.clear(); _ls.set(SK.grade, 'cea'); _ls.set(SK.setup, '1'); });
+    const Y = (/** @type {string} */ label) => ({ label });
+    const MIGRATED = () => `${SK.setup}_years_migrated`;
+
+    test('a member who confirmed one tax year is not stamped confirmed for the others', async () => {
+        _ls.set(S.settingsKey(Y('2026/27')), '1');                   // what Save settings writes
+        await settingsCard(P.todaysPeriodNum());
+        S.loadSettings();
+        assert.equal(_ls.get(S.settingsKey(Y('2025/26'))), undefined, 'a year never set up was stamped confirmed');
+        assert.equal(_ls.get(MIGRATED()), '1', 'the step is still recorded as done, so it never runs again');
+    });
+
+    test('CONTROL: a member from before per-year tracking still has every year confirmed', async () => {
+        await settingsCard(P.todaysPeriodNum());                     // `setup`, and no per-year flag at all
+        S.loadSettings();
+        for (const ty of PERIOD_CONFIG.TAX_YEARS) assert.equal(_ls.get(S.settingsKey(ty)), '1', ty.label);
+    });
+
+    test('the retired opt-out flag is dated to 2026/27, whatever the clock says', async () => {
+        const ty = PERIOD_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27');
+        const first2627 = 48 + ty.first;
+        _ls.set(SK.pensionOptOut, '1');
+        mock.timers.enable({ apis: ['Date'], now: new Date(2026, 0, 15) });   // a clock in another tax year
+        try {
+            assert.notEqual(P.todaysPeriodNum() - 48 >= ty.first, true, 'premise: "today" is outside 2026/27');
+            await settingsCard(P.todaysPeriodNum());
+            S.loadSettings();
+        } finally { mock.timers.reset(); }
+        assert.equal(_ls.get(SK.pensionTimeline), JSON.stringify([{ from: first2627, out: true }]),
+            'the flag was dated by the clock, not by the one tax year it can have been set in');
+    });
+});
+
 // ── THE PENSION CONTROLS NEVER WIPE A PAYSLIP'S OWN FIGURE (paycalc-3-3) ─────────────────────────
 //
 // A member whose contribution differs from the scheme's has typed their own figure on the payslip on

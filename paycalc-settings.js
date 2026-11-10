@@ -81,6 +81,9 @@ export function getProRateFactor(p) {
   return calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
 }
 
+/** The one tax year the retired v21.64–v21.77 opt-out flag can have been set in (see loadSettings). */
+const LEGACY_OPT_OUT_YEAR = '2026/27';
+
 /** The member's pension-status timeline, read fresh (it is small, and a stale copy is how a
  *  Settings save and the next recompute disagree). @returns {import('./paycalc-pension.js').PensionChange[]} */
 export function getPensionTimeline() {
@@ -654,23 +657,18 @@ export function loadSettings() {
   // ── PENSION STATUS: migrate the retired boolean, then paint the controls ──────────────────────
   //
   // The v21.64 flag carried no date, so no migration can recover the real one. It becomes a change
-  // dated to the FIRST PAYSLIP OF THE CURRENT TAX YEAR — the feature shipped 23 Aug 2026, so
-  // anybody holding the flag set it in 2026/27 — and the property that makes that safe is
+  // dated to the FIRST PAYSLIP OF 2026/27 — the feature shipped 23 Aug 2026 and was retired at
+  // v21.78, so anybody holding the flag set it in 2026/27 — and the property that makes that safe is
   // directional: every payslip it moves, it moves from a wrongly-imposed £0 back to the scheme
   // default. It can not impose a £0 on a payslip that did not already have one. Persisted at once
   // so the result is stable and correctable in the control below, rather than recomputed on each
   // load; the timeline key's EXISTENCE is what ends the migration, so an emptied one stays empty.
-  // todaysPeriodNum(), NOT currentPeriodNum(): this runs before buildPeriodSelect(), so the period
-  // select does not exist and currentPeriodNum() returns 0. The migration then failed SAFE (an
-  // undatable change records nothing) and so never ran at all — caught by its own e2e. Today's
-  // payslip is the right anchor regardless: the tax year being asked for is the one the retired
-  // flag could first have been set in.
+  // The YEAR IS NAMED, NOT TODAY'S (paycalc-3-16): "the current tax year" was 2026/27 only until the
+  // 2027/28 rollover, after which a device first running this would have dated the opt-out from
+  // 2027/28 and put a deduction back on every 2026/27 payslip the member was out of the scheme for.
   const _curP = getPeriods().find(/** @param {any} x */ x => x.num === todaysPeriodNum());
   if (lsGet(SK.pensionTimeline) === null && lsGet(SK.pensionOptOut) === '1') {
-    const _curTy = _curP ? taxYearForPeriod(_curP) : null;
-    const _firstOfYear = _curTy
-      ? (getPeriods().find(/** @param {any} x */ x => taxYearForPeriod(x)?.label === _curTy.label)?.num ?? null)
-      : null;
+    const _firstOfYear = getPeriods().find(/** @param {any} x */ x => taxYearForPeriod(x)?.label === LEGACY_OPT_OUT_YEAR)?.num ?? null;
     savePensionTimeline(migrateLegacyOptOut(true, _firstOfYear));
   }
   const _tl = getPensionTimeline();
@@ -699,11 +697,15 @@ export function loadSettings() {
     // a period in it. Pay rates change every April, so silently carrying the old year's
     // rate into a new one risked a stale-rate calculation with no prompt to review it.
     // (Re-running on every load was what defeated the banner the UI copy already promises.)
+    //
+    // And only for a member who IS legacy — `setup` with no per-year flag at all (paycalc-3-16).
+    // Save settings writes both, so everybody since then has one; stamping them too marked years
+    // they never set up as confirmed, a joiner's backup included.
     const migratedKey = `${pcPrefix()}setup_years_migrated`;
     if (!lsGet(migratedKey)) {
-      CONFIG.TAX_YEARS.forEach(ty => {
-        if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
-      });
+      if (!CONFIG.TAX_YEARS.some(ty => lsGet(settingsKey(ty)))) {
+        CONFIG.TAX_YEARS.forEach(ty => lsSet(settingsKey(ty), '1'));
+      }
       lsSet(migratedKey, '1');
     }
   }
