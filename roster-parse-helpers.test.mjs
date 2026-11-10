@@ -1712,9 +1712,16 @@ describe('applyColumnScanCrossCheck', () => {
     /** Build a columnScan where this member's column values are the 7 given (raw scan grammar). */
     const scanOf = vals => Object.fromEntries(HEADERS.map((h, i) => [h, { 'G. Miller': vals[i] }]));
 
-    // The TRUE week used throughout: blank Wednesday mid-week (the cell the row read drops).
-    const TRUE_ROW  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', 'RD'];
-    const TRUE_SCAN = ['blank', '06:00-14:00', '07:00-15:00', 'blank', '08:00-16:00', '09:00-17:00', 'blank'];
+    // The TRUE week used throughout, as an honest row read gives it since v22.25: an EMPTY Sunday (a
+    // rest day) and an EMPTY Wednesday (the unread-cell question) — the cell a drifting row read drops
+    // — with the other days off PRINTED. Until Nov 2026 these fixtures wrote both empty cells as RD,
+    // the shape from before the BLANK token, which is how a repair writing the dropped Wednesday as a
+    // rest day passed for correct (import-server-4).
+    const TRUE_ROW  = ['RD', '06:00-14:00', '07:00-15:00', blankCellMeaning(3, 'Wednesday'), '08:00-16:00', '09:00-17:00', 'RD'];
+    const TRUE_SCAN = ['blank', '06:00-14:00', '07:00-15:00', 'blank', '08:00-16:00', '09:00-17:00', 'RD'];
+    // The row read that dropped the empty Wednesday: Thursday on, one day left, and the slot it ran out
+    // of reported empty — the Saturday question.
+    const DRIFTED   = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', blankCellMeaning(6, 'Saturday')];
 
     test('full agreement → row untouched', () => {
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(TRUE_ROW) }];
@@ -1722,21 +1729,67 @@ describe('applyColumnScanCrossCheck', () => {
         assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW));
     });
 
-    test('mid-week LEFT drift (blank Wednesday dropped) is repaired to the column scan', () => {
-        // The row read skipped the blank Wed: Thu/Fri values slid one day left, Sat empty.
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
-        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+    test('mid-week LEFT drift (blank Wednesday dropped) is repaired to the honest read — the dropped cell a question', () => {
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
         applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
         assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW),
-            'the right-shift repair must restore the true week');
+            'the right-shift repair must restore the true week, its empty Wednesday a question and not a rest day');
     });
 
     test('RIGHT drift is repaired too (the direction the Sunday pass never caught)', () => {
-        // Row misaligned right: every value one day late; Sunday slot shows RD, Monday shows nothing… build it:
+        // A ghost Monday pushed every value a day late. The true Saturday is EMPTY, so the vacated
+        // Saturday is the question an honest read gives — never the rest day the scan's "blank" became.
+        const honest  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', blankCellMeaning(6, 'Saturday')];
+        const scan    = ['blank', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', 'blank'];
         const drifted = ['RD', 'RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00'];
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
-        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
-        assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW));
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(honest));
+    });
+
+    // THE VACATED SLOT (import-server-4). A repair leaves one cell with no row reading at all — the
+    // dropped one, or the Saturday a ghost cell pushed off the end — and fills it from the column scan,
+    // whose "blank" is already RD by then. A scan blank is not a printed rest day, so Monday to Saturday
+    // the slot takes the question an honest read of an empty cell gives; a printed code stays what it says.
+    for (const blank of ['blank', 'BLANK', '-', 'EMPTY', '']) {
+        test(`a dropped weekday the scan read as ${JSON.stringify(blank)} comes back as the question, not a rest day`, () => {
+            const scan = [...TRUE_SCAN]; scan[3] = blank;
+            const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
+            applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+            assert.match(entries[0].shifts[DATES[3]], /^UNKNOWN\|no Wednesday cell was read/);
+            assert.equal(entries[0].shifts[DATES[4]], '08:00-16:00', 'and the rest of the week is realigned');
+        });
+    }
+
+    test('a dropped weekday the scan read as a PRINTED rest code stays a rest day', () => {
+        for (const printed of ['RD', 'OFF', 'NA', 'NS']) {
+            const scan = [...TRUE_SCAN]; scan[3] = printed;
+            const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
+            applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+            assert.equal(entries[0].shifts[DATES[3]], 'RD', `a Wednesday printed ${printed}`);
+        }
+    });
+
+    test('the ghost-cell repair\'s vacated Saturday: a question when the scan saw it empty, a rest day when printed', () => {
+        const drifted = ['RD', 'RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00'];
+        const satAfter = (/** @type {string} */ sat) => {
+            const scan = ['blank', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', sat];
+            const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+            applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+            return entries[0].shifts[DATES[6]];
+        };
+        assert.match(satAfter('BLANK'), /^UNKNOWN\|no Saturday cell was read/);
+        assert.equal(satAfter('RD'), 'RD');
+    });
+
+    test('a dropped SUNDAY is the rest day a blank Sunday is — the vacated slot follows the day rule', () => {
+        // The classic full-row drift with a worked Saturday, so the cross-check itself can realign it.
+        const honest  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00'];
+        const scan    = ['BLANK', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00'];
+        const drifted = ['06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00', blankCellMeaning(6, 'Saturday')];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(honest));
     });
 
     test('an isolated single-cell disagreement is flagged UNREADABLE, not repaired or overwritten', () => {
@@ -1761,7 +1814,7 @@ describe('applyColumnScanCrossCheck', () => {
     });
 
     test('fail-open: no columnScan / missing member / unreadable scan values → row untouched', () => {
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
+        const drifted = DRIFTED;
         const a = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
         applyColumnScanCrossCheck(a, undefined, HEADERS, DATES);
         assert.deepEqual(a[0].shifts, shiftsOf(drifted));
@@ -1776,8 +1829,7 @@ describe('applyColumnScanCrossCheck', () => {
     });
 
     test('too few signalled days (<5) never auto-repairs — flags instead (conservative)', () => {
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
-        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
         // Only 3 columns carry a signal for this member.
         const partial = { 'Wed': { 'G. Miller': 'blank' }, 'Thu': { 'G. Miller': '08:00-16:00' }, 'Fri': { 'G. Miller': '09:00-17:00' } };
         applyColumnScanCrossCheck(entries, partial, HEADERS, DATES);
@@ -1792,11 +1844,14 @@ describe('applyColumnScanCrossCheck', () => {
     // thresholds left every suite green.
     test('ONE disagreement on a Saturday is a question — never silently "repaired" to a rest day', () => {
         // Saturday is the one place a lone disagreement CAN verify as a shift (nothing follows it), so
-        // with the "two" lowered to one, a worked Saturday the scan read as blank is rewritten to RD —
-        // a MATCH where the base Saturday is a rest day, so nothing at all appears in the review.
-        const row = [...TRUE_ROW]; row[6] = '10:00-18:00';
+        // with the "two" lowered to one, a worked Saturday the scan read as blank is rewritten — once to
+        // RD, a MATCH on a rest-day base that the review never shows, and since import-server-4 to the
+        // unread-cell question — and either way the shift that was read is gone. The week has no unread
+        // cell of its own, because a question agrees with nothing and would stop any repair verifying.
+        const row  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', '10:00-18:00'];
+        const scan = ['blank', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', 'blank'];
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
-        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
         const sat = entries[0].shifts[DATES[6]];
         assert.ok(sat.startsWith('UNKNOWN|'), `a worked Saturday was resolved without asking: "${sat}"`);
         assert.ok(sat.includes('10:00-18:00'), 'the admin must see the shift that was read');
@@ -1805,12 +1860,13 @@ describe('applyColumnScanCrossCheck', () => {
     test('FOUR signalled days are still too few to repair, even when a shift would verify', () => {
         // Under a floor of four this exact read IS repaired (the suffix shift from Wednesday agrees on
         // all four columns), which is how the boundary shows: five is the line, four is under it.
-        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
-        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        // A repaired Wednesday is a question too since import-server-4, so the assertion names the
+        // DISAGREEMENT question, which only flagging writes.
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(DRIFTED) }];
         const four = { 'Wed': { 'G. Miller': 'blank' }, 'Thu': { 'G. Miller': '08:00-16:00' },
                        'Fri': { 'G. Miller': '09:00-17:00' }, 'Sat': { 'G. Miller': 'blank' } };
         applyColumnScanCrossCheck(entries, four, HEADERS, DATES);
-        assert.ok(entries[0].shifts[DATES[3]].startsWith('UNKNOWN|'), 'Wed must be flagged, not repaired to RD');
+        assert.match(entries[0].shifts[DATES[3]], /^UNKNOWN\|08:00-16:00 or Rest day\?/, 'Wed must be flagged, not repaired');
         assert.ok(entries[0].shifts[DATES[4]].startsWith('UNKNOWN|'), 'Thu must be flagged too');
     });
 

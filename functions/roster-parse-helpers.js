@@ -596,15 +596,19 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
     if (!Array.isArray(columnHeaders) || dates.length < 7) return stats;
 
     for (const entry of safeEntries) {
-        // Build this member's column-read map: date → normalised value (signalled cells only).
+        // Build this member's column-read map: date → normalised value (signalled cells only), and
+        // which of those the scan read as an EMPTY cell rather than a printed rest code.
         const colRead = Object.create(null);
+        const scanBlank = new Set();
         for (const header of columnHeaders) {
             const dayIndex = headerToDayIndex(header);
             if (dayIndex === undefined) continue;
             const colObj = columnScan[header];
             if (!colObj || typeof colObj !== 'object') continue;
             const v = normaliseScanValue(colObj[entry.memberName]);
-            if (v !== null) colRead[dates[dayIndex]] = v;
+            if (v === null) continue;
+            colRead[dates[dayIndex]] = v;
+            if (isBlankReading(colObj[entry.memberName])) scanBlank.add(dates[dayIndex]);
         }
 
         // ── WHY THE COLUMN SCAN IS NOT A WITNESS TO BLANKNESS (tried and refused, 1 Sep 2026) ──
@@ -667,10 +671,10 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         // Provable realignment. A dropped blank cell shifts only the SUFFIX of the row after it
         // (a drop at Sunday = the classic full-row drift; a drop mid-week leaves the head aligned).
         // Anchor at the FIRST disagreeing day k and try both one-day suffix shifts:
-        //   delta +1 (undo a DROPPED cell): days after k take the row value one slot earlier;
-        //            day k itself takes the column scan's value (the dropped cell's true content).
-        //   delta -1 (undo an INSERTED/ghost cell): days from k take the row value one slot later;
-        //            Saturday takes the column scan's value.
+        //   delta +1 (undo a DROPPED cell): days after k take the row value one slot earlier, and
+        //            day k — VACATED, no row value left for it — takes the column scan's reading.
+        //   delta -1 (undo an INSERTED/ghost cell): days from k take the row value one slot later,
+        //            and the vacated Saturday takes the column scan's reading.
         // Adopt ONLY if the repaired row then agrees with the column scan on EVERY signalled day —
         // i.e. two-source consensus on the realigned row (a non-drift disagreement scrambles the
         // agreeing tail under either shift and fails this verification).
@@ -680,15 +684,16 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             for (const delta of [1, -1]) {
                 const shifted = Object.create(null);
                 for (let i = 0; i < 7; i++) shifted[dates[i]] = entry.shifts[dates[i]];
-                if (delta === 1) {
-                    for (let i = 6; i >= k + 1; i--) shifted[dates[i]] = entry.shifts[dates[i - 1]];
-                    shifted[dates[k]] = colRead[dates[k]] ?? 'RD';
-                } else {
-                    for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
-                    // Unread by both passes, so a question — never a rest day (v22.19).
-                    shifted[dates[6]] = colRead[dates[6]] ?? blankCellMeaning(6, DAY_LABELS[6]);
-                }
+                const vacated = delta === 1 ? k : 6;
+                if (delta === 1) for (let i = 6; i >= k + 1; i--) shifted[dates[i]] = entry.shifts[dates[i - 1]];
+                else for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
+                shifted[dates[vacated]] = colRead[dates[vacated]];
                 if (signalDates.every(d => cellsAgree(shifted[d], colRead[d]))) {
+                    // What is WRITTEN in the vacated slot is what an honest read of that cell gives
+                    // (import-server-4): a scan "blank" was already RD above, and Monday to Saturday a
+                    // blank is a question, never a rest day (v22.19) — as is a slot no scan read.
+                    const d = dates[vacated];
+                    if (colRead[d] === undefined || scanBlank.has(d)) shifted[d] = blankCellMeaning(vacated, DAY_LABELS[vacated]);
                     for (let i = 0; i < 7; i++) entry.shifts[dates[i]] = shifted[dates[i]];
                     console.warn(`[parseRosterPDF] ${entry.memberName}: row read disagreed with the column scan on ${disagree.length} day(s) and realigns exactly under a one-day suffix ${delta > 0 ? 'RIGHT' : 'LEFT'}-shift from ${dates[k]} — day-drift repaired (repaired row matches the column scan everywhere)`);
                     repaired = true;
