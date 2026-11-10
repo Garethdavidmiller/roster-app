@@ -2005,6 +2005,85 @@ test('admin: an armed Saved Changes delete says so in its accessible name, and s
     await expect(btn).not.toHaveClass(/confirming/);
 });
 
+// ── A DELETE FROM THE KEYBOARD HANDS FOCUS ON (whole-app check, 10 Nov 2026) ─────────────────────
+// Both lists re-render on a delete and destroy the ✕ that held focus, and a focused element that is
+// removed hands focus to <body>: a keyboard user's next Tab began again at the burger. Focus now goes
+// to the ✕ that took the deleted one's place, and when none is left, to the line that says what
+// happened. One test per list, each through the real delete.
+test('admin: a Recorded dates ✕ pressed from the keyboard hands focus on, never to the top of the page', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    const me = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const works = (/** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(getBaseShift(me, d));
+    // Two single days a week apart, with working days between them, so they are two periods.
+    const firstWorked = (/** @type {Date} */ from) => { const d = new Date(from); while (!works(d)) d.setDate(d.getDate() + 1); return d; };
+    const a = firstWorked(new Date(2026, 2, 2));
+    const days = [iso(a), iso(firstWorked(new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7)))];
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((ds) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            authUser: true,
+            docs: ds.map((/** @type {string} */ date, /** @type {number} */ i) => ({ id: 'k' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })),
+        });
+    }, days);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    const dels = page.locator('#alBookedBody .btn-period-delete');
+    await expect(dels, 'premise: two periods, two ✕').toHaveCount(2);
+
+    await dels.first().focus();
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Confirm?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(1);
+    await expect(dels.first(), 'the ✕ that took its place').toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Confirm?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(0);
+    // No ✕ left, but the list stays — it still shows the year's Christmas leave — so focus goes to
+    // the year chip it is showing. (A list that empties and hides hands it to #alFeedback instead:
+    // admin-booked-periods.test.mjs, where no Christmas row keeps the box open.)
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active'), 'none left: the year the list is showing').toBeFocused();
+});
+
+test('admin: a Saved Changes ✕ pressed from the keyboard hands focus on, never to the top of the page', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            authUser: true,
+            docs: [
+                { id: 's1', memberName: 'G. Miller', date: '2026-09-01', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 's2', memberName: 'G. Miller', date: '2026-09-08', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#overridesToggleHeader').click();
+    const dels = page.locator('#overrideTableBody .btn-delete');
+    await expect(dels, 'premise: two rows, two ✕').toHaveCount(2);
+
+    await dels.first().focus();
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Delete?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(1);
+    await expect(dels.first(), 'the ✕ that took its place').toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Delete?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(0);
+    await expect(page.locator('#listFeedback'), 'none left: the line that says what happened').toBeFocused();
+});
+
 test('admin: a Saved Changes row is one row — controls side by side, under 64px', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
