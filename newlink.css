@@ -460,6 +460,112 @@ body {
     .nl-tile, .nl-tab, .nl-file, .nl-name, .nl-back { transition: none; }
 }
 
+/* ── THE IN-APP PDF VIEWER (pdf-viewer.js) ─────────────────────────────────────────────────────────────────────────
+   The pack's files open here, full screen, with a ✕ — the Huddle viewer's shape: a navy bar over the document. An app
+   installed from the github.io address opened them in its own window, where an iPhone has no way back (pdf-viewer-core.js).
+   Built on .lb-overlay for the lifecycle (createLightbox); none of the dim, blur or centring a card lightbox wears. */
+.pdf-viewer {
+    align-items: stretch;
+    background: var(--surface-canvas);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    cursor: auto;
+}
+.pdf-viewer-panel { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+/* Focused by createLightbox on open (tabindex="-1"), never a Tab stop — a ring here would circle the whole screen. */
+.pdf-viewer-panel:focus, .pdf-viewer-panel:focus-visible { outline: none; }
+.pdf-viewer-bar {
+    flex: none;
+    display: grid;
+    gap: 2px;
+    padding: 8px max(8px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+    padding-top: max(10px, calc(env(safe-area-inset-top) + 6px));
+    background: var(--primary-blue);
+    color: white;
+    border-bottom: 1px solid var(--on-navy-hairline);
+}
+.pdf-viewer-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pdf-viewer-title {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--type-medium);
+    font-weight: 700;
+    line-height: 1.3;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+}
+/* THE NOTCH FIX, as #huddleViewerClose: the shared .lb-close is absolutely placed for a centred card, which on a full-bleed
+   panel puts it under the iPhone's notch. Static returns it to the bar's row, inside the safe-area padding. */
+.pdf-viewer-close { position: static; flex: none; color: var(--on-navy-muted); }
+.pdf-viewer-meta { flex: 1; min-width: 0; margin: 0; font-size: var(--type-small); color: var(--on-navy-muted); }
+.pdf-viewer-zoom { flex: none; display: flex; align-items: center; gap: 4px; }
+.pdf-viewer-zoom-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 1px solid var(--on-navy-hairline);
+    border-radius: var(--radius-button);
+    background: var(--on-navy-raised);
+    color: white;
+    font: inherit;
+    font-size: var(--type-large);
+    line-height: 1;
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+.pdf-viewer-zoom-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
+/* A natively disabled control — the one dim WCAG exempts (css-tokens.md → opacity). Its colour, not an opacity. */
+.pdf-viewer-zoom-btn:disabled { color: var(--on-navy-faint); background: transparent; cursor: default; }
+.pdf-viewer-zoom-level {
+    min-width: 4ch;
+    text-align: center;
+    font-size: var(--type-small);
+    font-variant-numeric: tabular-nums;
+    color: var(--on-navy-muted);
+}
+.pdf-viewer-pages {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+/* As wide as the widest page and never narrower than the box: zoomed pages scroll from their LEFT edge — a centred flex
+   column would push their left side out of reach, where no scroll can bring it back. */
+.pdf-viewer-sheet { width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+/* The hairline is for a DARK page: the presentations open on a navy title slide, which on this navy ground had no edge at
+   all — a gold badge floating in the dark (screenshot, 10 Nov 2026). A shadow cannot draw it; dark on dark is nothing. */
+.pdf-viewer-page { position: relative; flex: none; background: white; box-shadow: var(--shadow-2); outline: 1px solid var(--on-navy-hairline); }
+.pdf-viewer-page canvas { display: block; width: 100%; height: 100%; }
+.pdf-viewer-status { max-width: 32em; margin: 24px auto 0; text-align: center; color: var(--on-navy-muted); font-size: var(--type-body); }
+.pdf-viewer-status:empty { display: none; }
+.pdf-viewer-retry {
+    display: block;
+    min-height: 44px;
+    margin: 16px auto 0;
+    padding: 0 24px;
+    border: none;
+    border-radius: var(--radius-button);
+    background: white;
+    color: var(--primary-blue);
+    font: inherit;
+    font-size: var(--type-button);
+    font-weight: 700;
+    cursor: pointer;
+}
+.pdf-viewer-retry[hidden], .pdf-viewer-foot[hidden] { display: none; }
+.pdf-viewer-foot { margin: 20px 0 0; text-align: center; color: var(--on-navy-muted); font-size: var(--type-small); }
+.pdf-viewer-foot a { color: white; }
+/* On navy, the fallback ring (navy) is invisible: gold, as on the drawer and the navy sheets. */
+.pdf-viewer-close:focus-visible, .pdf-viewer-zoom-btn:focus-visible, .pdf-viewer-retry:focus-visible,
+.pdf-viewer-foot a:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+.pdf-viewer-pages:focus-visible { outline: var(--focus-outline-gold); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+    .pdf-viewer-close:hover { color: white; }
+    .pdf-viewer-zoom-btn:hover:not(:disabled) { background: var(--on-navy-raised-strong); }
+}
+
 /* A FORCED-COLOURS theme (Windows high contrast) repaints every fill and shadow. A chosen tile or tab is stated by
    shared.css's one rule for every chosen control (v25.21; this block carried its own until then); the best figure's
    box is this page's alone. A `var(--…)` here would be forced away too. */
@@ -486,4 +592,7 @@ body {
     .nl-fig .nl-best b, .nl-best-key { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .nl-file-meta { color: black; }
     .nl-file, .nl-name { box-shadow: none; }
+    /* A drawing of a PDF at screen resolution is a poor print of it, and would cover the page being printed. The
+       viewer's "Open the PDF on its own" is the way to print a file. */
+    .pdf-viewer { display: none !important; }
 }

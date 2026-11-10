@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -50,6 +50,33 @@
         <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">🔁</span> New link</div>
         <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
+    </div>
+</div>
+
+<!-- The pack's PDFs open HERE, in a panel with a ✕ (pdf-viewer.js): an app installed from the github.io address opened
+     them in its own window, where an iPhone has no way back. -->
+<div id="pdfViewer" class="lb-overlay pdf-viewer" role="dialog" aria-modal="true" aria-labelledby="pdfViewerTitle">
+    <div id="pdfViewerPanel" class="pdf-viewer-panel">
+        <div class="pdf-viewer-bar">
+            <div class="pdf-viewer-row">
+                <div id="pdfViewerTitle" class="pdf-viewer-title"></div>
+                <button id="pdfViewerClose" type="button" class="lb-close pdf-viewer-close" aria-label="Close">✕</button>
+            </div>
+            <div class="pdf-viewer-row">
+                <p id="pdfViewerMeta" class="pdf-viewer-meta"></p>
+                <div class="pdf-viewer-zoom" role="group" aria-label="Zoom">
+                    <button id="pdfViewerZoomOut" type="button" class="pdf-viewer-zoom-btn" aria-label="Zoom out">−</button>
+                    <span id="pdfViewerZoomLevel" class="pdf-viewer-zoom-level" aria-live="polite">100%</span>
+                    <button id="pdfViewerZoomIn" type="button" class="pdf-viewer-zoom-btn" aria-label="Zoom in">+</button>
+                </div>
+            </div>
+        </div>
+        <div id="pdfViewerPages" class="pdf-viewer-pages" tabindex="0" aria-label="Pages">
+            <div id="pdfViewerSheet" class="pdf-viewer-sheet"></div>
+            <p id="pdfViewerStatus" class="pdf-viewer-status" role="status"></p>
+            <button id="pdfViewerRetry" type="button" class="pdf-viewer-retry" hidden>Try again</button>
+            <p id="pdfViewerFoot" class="pdf-viewer-foot" hidden><a id="pdfViewerOutside" href="./" target="_blank" rel="noopener noreferrer">Open the PDF on its own</a> to print or save it.</p>
+        </div>
     </div>
 </div>
 

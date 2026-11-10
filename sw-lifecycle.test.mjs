@@ -22,6 +22,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
+import v8 from 'node:v8';
+
+// A garbage collection on demand, without a command-line flag (the runner passes none): turning the
+// flag on in-process and reading `gc` from a fresh context is Node's documented route to it.
+v8.setFlagsFromString('--expose-gc');
+const collectGarbage = /** @type {() => void} */ (vm.runInNewContext('gc'));
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SW_SRC = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
@@ -96,6 +102,15 @@ function boot(o) {
     /** @type {Record<string, Function>} */
     const listeners = {};
     const fetched = /** @type {string[]} */ ([]);
+    // Every Request the worker hands to fetch, kept for the life of this worker. A real fetch holds
+    // its Request until the response and its body are done; Node's Request makes `request.signal`
+    // FOLLOW the worker's signal only while the Request object is alive (undici keeps the inner
+    // AbortController behind a WeakRef otherwise). Let go of it here and the first garbage
+    // collection silently unhooks the worker's 30 s abort from the body it was meant to stop — the
+    // warm-up then hangs forever, exactly the defect the stall test below exists to catch. Measured
+    // 10 Nov 2026: one more precache entry moved a collection into that window, and the warm-up
+    // stalled at 80 fetches with nothing aborted, every run.
+    const held = /** @type {any[]} */ ([]);
     let skipped = false;
     // A worker resolves a relative URL against its own location; Node's Request has no base.
     const Req = class extends Request {
@@ -115,6 +130,7 @@ function boot(o) {
         fetch: (/** @type {any} */ req) => {
             const url = typeof req === 'string' ? new URL(req, SCOPE).href : req.url;
             fetched.push(url);
+            if (typeof req !== 'string') held.push(req);
             return o.network(url, typeof req === 'string' ? undefined : req.signal);
         },
         setTimeout: (/** @type {Function} */ fn, /** @type {number} */ ms) => setTimeout(fn, (ms || 0) / SPEED),
@@ -220,12 +236,15 @@ describe('service worker — a warm-up body that stalls after its headers', () =
             : okAsset());
         const w = boot({ seed: { [CACHE]: {}, [OLD_CACHE]: { './index.html': 'old release' } }, network: stallOne, readBodies: true });
         // 1,500 s of worker time — fifty times the timeout. A healthy run finishes in well under a second;
-        // 3 s ran out on a machine busy with browser suites (twice, 10 Nov 2026), and a warm-up that
+        // 3 s ran out twice on 10 Nov 2026, put down to a busy machine at the time — more likely the
+        // garbage collection described at `held` in boot(), which no deadline cures. A warm-up that
         // never finishes fails at any deadline, so the margin costs only the wait when it does.
         const deadline = Date.now() + 15000;
         while (!w.fetched.length && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));   // it has started
         assert.ok(w.warming(), 'premise: a warm-up is running');
-        while (w.warming() && Date.now() < deadline) await new Promise(r => setTimeout(r, 15));
+        // A collection on every turn of the wait, so the harness's own hazard (`held`, in boot) fails
+        // here on every run rather than whenever the heap happens to collect at the wrong moment.
+        while (w.warming() && Date.now() < deadline) { collectGarbage(); await new Promise(r => setTimeout(r, 15)); }
         assert.equal(w.warming(), false, 'the warm-up never finished — one stalled body held it for the life of the worker');
         assert.ok(aborted > 0, 'the stalled body is aborted by the timeout, not left open');
         assert.ok(w.stores.get(CACHE)?.has(`${ORIGIN}/fip-guide.css`), 'files after the stalled batch are still cached');

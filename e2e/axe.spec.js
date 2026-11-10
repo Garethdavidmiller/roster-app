@@ -662,6 +662,30 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // THE PACK'S PDF VIEWER (pdf-viewer.js, v25.67): a dialog over the page, its pages drawings a screen reader cannot read —
+    // so each page is a named group carrying its words, and the scroll box is a named tab stop. Scanned open on a drawn
+    // file, then on the failure state with its Try again.
+    test('newlink — the pack\'s PDF viewer, open on a file and then failed', async ({ page }) => {
+        let fail = false;
+        await page.route('https://garethdavidmiller.github.io/roster-app/docs/links-26/**', (route) => fail
+            ? route.abort('internetdisconnected')
+            : route.fulfill({ path: decodeURIComponent(new URL(route.request().url()).pathname.replace('/roster-app/', '')),
+                contentType: 'application/pdf', headers: { 'access-control-allow-origin': '*' } }));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        await page.locator('#nlPackList a.nl-file').last().click();
+        await expect(page.locator('#pdfViewerSheet .pdf-viewer-page canvas').first()).toBeVisible({ timeout: 20_000 });
+        let v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+        await page.locator('#pdfViewerClose').click();
+        await expect(page.locator('#pdfViewer')).not.toHaveClass(/\bvisible\b/);
+        fail = true;
+        await page.locator('#nlPackList a.nl-file').first().click();
+        await expect(page.locator('#pdfViewerRetry')).toBeVisible();
+        v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('overtime — member form (signed in)', async ({ page }) => {
         // Scanned with the FORM RENDERED, not the empty shell: seven day groups of mode buttons is
         // the only state on this page with any structure to get wrong.

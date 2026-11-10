@@ -468,7 +468,10 @@ const CAPS = {
     // `paycalc-role-card.js`. Every module the app serves must be in CORE_ASSETS or it is missing
     // offline, the list is one entry per line, and nothing else in the worker grew — so there is no
     // logic to extract and no room kept for the next addition.
-    'service-worker.js':       1096,
+    // 1096 → 1097 at v25.67, a RAISE of exactly one line: the comment on the docs/ pass-through. The rule itself rides on
+    // the same-origin line; the New link pack's PDFs, which the in-app viewer reads, must reach the network rather than
+    // sit in the release's cache, and nothing else in the worker grew.
+    'service-worker.js':       1097,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

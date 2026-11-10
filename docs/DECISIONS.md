@@ -555,6 +555,34 @@ iPhone is answered with this entry rather than a patch.
 **What would reopen it:** a member of staff who cannot replace a phone below 16.4 and depends on the
 app — that is an owner conversation, not a code one.
 
+## The New link pack's PDFs open in the app, drawn by PDF.js (owner, 10 Nov 2026)
+
+Reported by the owner: "The pdfs on the new links page don't have a close button like the huddle pdf
+does. This is particularly an issue on iphone." The pack is served by the GitHub Pages mirror, so for
+an app installed from that address the files are inside the app's own scope, and iOS opens an
+in-scope link in the app's window — which on an iPhone has no Back and no toolbar. The Huddle escapes
+only because its file is on Firebase Storage, outside every install's scope, where iOS gives it its own
+viewer with a Done button. A redirect cannot borrow that: iOS sends a navigation that returns to the
+scope back into the app's window.
+
+**Two fixes were put to the owner:** draw the PDFs in the app (`pdf-viewer.js`, a panel with a ✕,
+PDF.js vendored in `pdfjs/`), or serve the pack from Firebase as well and link each address to the
+other so every phone used its own viewer. **The owner chose the first.** The second would have undone
+two deliberate rules — Firebase serves nothing under `docs/` and no PDF at all (firebase.json `ignore`,
+held by hosting-ignore-parity.test.mjs) — and made every pack-only update need an app deploy, and its
+one critical behaviour could not be tested off a real phone. The viewer works the same on every phone
+and both addresses, and CI drives it in Chromium and WebKit.
+
+**What it costs, knowingly:** a new runtime library (about 1.8 MB, fetched only when a file is first
+opened, never precached), and the phone's own PDF tools — printing and sharing — are one step away, on
+"Open the PDF on its own", which the viewer offers only where that cannot strand the reader
+(`canOpenOutside`). On an iPhone installed from the mirror the offer is withheld, so a file cannot be
+printed from there; the canonical address, where the install notice already sends staff, can.
+
+**What would reopen it:** the pack moving to a host outside every install's scope, at which point the
+phone's own viewer is available everywhere without a library; or PDF.js proving too heavy for the
+oldest phones staff carry.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

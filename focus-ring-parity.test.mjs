@@ -72,6 +72,9 @@ const NO_INDICATOR_EXEMPT = [
     // Programmatically focused panel wrapper — never a Tab target (see overlay.js).
     '.lb-content:focus',
     '.lb-content:focus-visible',
+    // The PDF viewer's panel (newlink.html): the same programmatically focused wrapper, tabindex="-1".
+    '.pdf-viewer-panel:focus',
+    '.pdf-viewer-panel:focus-visible',
     // #hourlyRate is the only .pfx--readonly field and carries tabindex="-1".
     '.pfx--readonly input:not([type="checkbox"]):not([type="radio"]):focus',
     // The option ROWS carry the ring (`:has(input:focus-visible)` on the row) because the row is
@@ -221,6 +224,7 @@ const BASE_OUTLINE_DECORATIONS = {
     '.ddm-chip': 'the day panel\'s marker chip: a <span> (calendar-al-lightbox.js); its outline is a whisper of gold',
     '.dm-avatar': 'the Links masthead\'s initials badge: an aria-hidden <span> (links.html)',
     '.cell-diff .shift-cell-btn': 'a compare-mode cell that differs: a <span> since v22.60 (links-compare.js), never pressed',
+    '.pdf-viewer-page': 'the PDF viewer\'s page: a <div role="group"> holding a canvas (pdf-viewer.js), no tabindex; its hairline edges a dark page on the navy ground',
 };
 
 /**

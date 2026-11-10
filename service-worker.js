@@ -24,7 +24,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '25.67';
+const APP_VERSION = '25.68';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -122,7 +122,7 @@ const NETWORK_FIRST_FILES = [
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notice-archive.js', 'nav-guide-search.js', 'guide-search.js', 'guide-index.js', 'install-prompt.js', 'calendar-notif-prompt.js', 'calendar-doc-access.js', 'calendar-lock-slot.js', 'calendar-snapshot.js', 'text-scale.js', 'notif.js',
     'admin-roster-upload.js', 'roster-alignment.js', 'roster-cell-rules.js', 'roster-review-states.js', 'admin-period-dates.js', 'roster-entry-control.js', 'admin-overrides.js', 'admin-override-store.js', 'admin-override-coverage.js', 'override-id.js', 'admin-shift-types.js', 'admin-week-editor.js', 'admin-saved-changes.js', 'admin-shift-rules.js', 'admin-save-receipt.js', 'slow-save.js', 'admin-rangepicker.js', 'admin-deep-link.js',
     'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'christmas-leave.js', 'leave-year.js', 'admin-leave-year.js', 'admin-leave-year-save.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js', 'admin-time-inputs.js', 'admin-bulk-apply.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-tips.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-tips.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'pdf-viewer.js', 'pdf-viewer-core.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
     'links-design-naming.js', 'links-design-header.js', 'links-proposals.js', 'links-shortlist.js', 'links-generator-targets.js', 'links-design-store.js', 'links-design-library.js', 'links-import.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-compare-analysis.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js', 'links-grid-input.js',
     'overlay.js', 'card-collapse.js', 'select-sheet.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
@@ -201,7 +201,7 @@ const CORE_ASSETS = [
     "./overtime-roster.js",
     "./overtime-manager.js",
     "./overtime-review-controller.js", "./trains.html", "./trains.css", "./trains-app.js", "./trains-boot.js", "./trains-change.js", "./trains-data.js", "./trains-tips.js", "./trains-stations.js", "./trains-render.js", "./trains-grid-mirror.js",
-    "./newlink.html", "./newlink.css", "./newlink-app.js", "./newlink-boot.js", "./newlink-config.js", "./newlink-data.js", "./newlink-render.js",
+    "./newlink.html", "./newlink.css", "./newlink-app.js", "./newlink-boot.js", "./newlink-config.js", "./newlink-data.js", "./newlink-render.js", "./pdf-viewer.js", "./pdf-viewer-core.js",
     "./calendar-app.js",
     "./calendar-state.js",
     "./calendar-swipe.js",
@@ -639,7 +639,8 @@ self.addEventListener("fetch", event => {
         );
         return;
     }
-    if (url.origin !== self.location.origin) return;
+    // …and docs/ (the New link pack, read by pdf-viewer.js) is a document: to the network, never kept for a release (v25.67).
+    if (url.origin !== self.location.origin || url.pathname.startsWith(`${SCOPE_PATH}docs/`)) return;
 
     const path = url.pathname;
     // HTML documents and JS/CSS are both served instantly from this version's cache (v16.10) and
@@ -647,10 +648,6 @@ self.addEventListener("fetch", event => {
     const isDoc          = path === '/' || path.endsWith('/') || path.endsWith('.html');
     // Scope-relative so JS/CSS match under a sub-path (/roster-app/) too, not just root.
     const relPath        = path.startsWith(SCOPE_PATH) ? path.slice(SCOPE_PATH.length) : path.replace(/^\//, '');
-    // docs/ IS THE NETWORK'S (Nov 2026): the Pages mirror serves the whole repository, and the branch
-    // below kept each New link pack PDF a colleague opened — unchanged after the pack was republished,
-    // until the next release. Nothing precaches them, and the page says they need a connection.
-    if (relPath.startsWith('docs/')) return;
     const isManagedAsset = NETWORK_FIRST_FILES.includes(relPath);
 
     if (isDoc) {

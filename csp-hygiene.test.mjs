@@ -38,7 +38,8 @@ test('the Google sign-in helper hosts stay out of the policy', () => {
 /** The runtime source files whose network calls the CSP must permit. */
 // Every app page from scripts/app-pages.mjs (v24.52). The hand-kept copy listed six of the seven and
 // never overtime.html, so that page's own network origins were never held to the CSP.
-const APP_SOURCES = ['firebase-client.js', 'service-worker.js', 'huddle.js', 'notif.js', ...APP_PAGES.map(p => p.file)]
+// newlink-config.js joined at v25.67: it holds PACK_BASE, the mirror address the in-app PDF viewer reads the pack from.
+const APP_SOURCES = ['firebase-client.js', 'service-worker.js', 'huddle.js', 'notif.js', 'newlink-config.js', ...APP_PAGES.map(p => p.file)]
     .map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n');
 
 /** The same sources WITHOUT each page's mirrored `<meta>` CSP (test audit, 7 Nov 2026). That meta
@@ -93,6 +94,7 @@ test('every remote origin the app loads is permitted by the CSP', () => {
         'securetoken.googleapis.com',      // Auth token refresh
         'firebasestorage.googleapis.com',  // Storage downloads
         'europe-west2-myb-roster.cloudfunctions.net', // Cloud Functions
+        'garethdavidmiller.github.io',     // the New link pack's PDFs, fetched by the in-app viewer (pdf-viewer.js)
     ];
     const covered = (host) =>
         csp.includes(`//${host}`) ||                             // verbatim

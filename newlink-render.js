@@ -381,16 +381,18 @@ export function renderWeeksTabs(proposals, chosen) {
 }
 
 /**
- * The pack's colleague files, a group per proposal A to Z, then what applies to all three. Each opens in a new tab: a PDF
- * is a document to read or print, not a page of the app.
+ * The pack's colleague files, a group per proposal A to Z, then what applies to all three. Each OPENS ON THIS PAGE, in the
+ * app's PDF viewer with a ✕ (pdf-viewer.js, wired by newlink-app.js through `data-file`): opened as a link, an app
+ * installed from the github.io address showed the PDF in its own window, where an iPhone has no way back (owner, 10 Nov
+ * 2026). The link stays a real link to the file, so a Ctrl-, Cmd- or middle-click still gives a desktop reader a tab.
  * @param {ReadonlyArray<PackFile>} pack @param {string} base  where docs/links-26/ is served
  */
 export function renderPack(pack, base) {
-    const link = (/** @type {PackFile} */ f) => `<li><a class="nl-file" href="${esc(base + f.path)}" target="_blank" rel="noopener noreferrer">
-        <span class="nl-file-icon" aria-hidden="true">📄</span><span class="nl-file-name"><span class="visually-hidden">${esc(f.design ?? 'For all three')}: </span>${esc(f.label)}</span><span class="nl-file-meta">PDF · ${f.pages} ${f.pages === 1 ? 'page' : 'pages'}<span class="visually-hidden">, opens in a new tab</span></span></a></li>`;
+    const link = (/** @type {PackFile} */ f) => `<li><a class="nl-file" href="${esc(base + f.path)}" data-file="${esc(f.path)}" aria-haspopup="dialog" target="_blank" rel="noopener noreferrer">
+        <span class="nl-file-icon" aria-hidden="true">📄</span><span class="nl-file-name"><span class="visually-hidden">${esc(f.design ?? 'For all three')}: </span>${esc(f.label)}</span><span class="nl-file-meta">PDF · ${f.pages} ${f.pages === 1 ? 'page' : 'pages'}</span></a></li>`;
     const designs = [...new Set(pack.filter(f => f.design).map(f => /** @type {string} */ (f.design)))];
     const groups = designs.map(d => `<h3 class="nl-sub">${esc(d)}</h3><ul class="nl-files">${pack.filter(f => f.design === d).map(link).join('')}</ul>`);
     const common = pack.filter(f => !f.design);
     if (common.length) groups.push(`<h3 class="nl-sub">For all three</h3><ul class="nl-files">${common.map(link).join('')}</ul>`);
-    return groups.join('') + '<p class="nl-note">The files open in a new tab, and need a connection.</p>';
+    return groups.join('') + '<p class="nl-note">The files open on this page, and need a connection.</p>';
 }
