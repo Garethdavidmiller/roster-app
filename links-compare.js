@@ -14,7 +14,7 @@
  * design collection + a few render callbacks and local helpers (all defined in links-app.js).
  */
 import { escapeHtml } from './roster-data.js';
-import { DAYS, ROTATING_LINES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
+import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 import { compareDesigns } from './links-compare-analysis.js';
@@ -22,6 +22,13 @@ import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { describeHours } from './links-demand.js';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * What compare mode calls the ACTIVE design while it has no name yet — a design fresh from the
+ * generator is untitled until its first save. One label, read by this module's column header and by
+ * the sticky summary strip (`links-analysis.js`), so the strip names the column its figures are for.
+ */
+export const COMPARE_ACTIVE_FALLBACK = 'Design A';
 // The rotation length, IMPORTED (v19.98). It was a local literal `28` — the fourth copy of a
 // number links-design.js had already been made the single declaration of at v19.38, and the one
 // the earlier sweep missed. When the rotation went 28 -> 22 this module alone kept rendering 28
@@ -52,11 +59,11 @@ export function initLinksCompare(deps) {
     /**
      * Show only the lines where the two designs differ (v22.77, external review).
      *
-     * The rotation is `ROTATING_LINES` lines and a real proposal changes three or four of them, so the
-     * reader's job was to find those four among a grid of cells that agree. It is a VIEW, never a filter on the
-     * comparison itself: every figure in the strip above is still computed over the whole design,
-     * and the cover row still totals every line — which is why the strip says so while this is on.
-     * A count you cannot see the basis of is the thing this app most often gets wrong.
+     * A real proposal changes three or four lines of the rotation (`ROTATING_LINES` of them), so the
+     * reader's job was to find those four among every other line's cells of agreement. It is a VIEW,
+     * never a filter on the comparison itself: every figure in the strip above is still computed over
+     * the whole design, and the cover row still totals every line — which is why the strip says so
+     * while this is on. A count you cannot see the basis of is the thing this app most often gets wrong.
      *
      * Session-scoped, like `compareMode` itself. It survives switching the compared design on
      * purpose — a designer works through several in a row — but see `_filterActive`: it is not
@@ -126,7 +133,16 @@ export function initLinksCompare(deps) {
             return;
         }
         const other = getDesigns().find(x => x.id === compareDesignId);
-        if (!other) { wrap.classList.remove('compare-mode-active'); return; }
+        // THE COMPARED DESIGN HAS GONE (whole-app review, Nov 2026) — binned from another device, or
+        // passed over by Keep only the shortlist, and this page re-read its lists. Hiding the two
+        // columns and leaving compare mode ON left `body.links-compare-on` hiding the main grid too,
+        // so no grid was on screen at all. Leave compare mode properly, as "Stop comparing" does.
+        if (!other) {
+            wrap.classList.remove('compare-mode-active');
+            dearmBrush(); resetCompare();
+            renderDesignPicker(); renderGrid(); renderBrushBar();
+            return;
+        }
 
         const headA = document.getElementById('compareHeadA');
         const headB = document.getElementById('compareHeadB');
@@ -140,7 +156,7 @@ export function initLinksCompare(deps) {
             el.innerHTML = `${escapeHtml(name)}` +
                 `<span class="compare-window${differ ? ' compare-window--differs' : ''}">${escapeHtml(formatWindow(win))}</span>`;
         };
-        head(headA, design.name || 'Design A', design.window);
+        head(headA, design.name || COMPARE_ACTIVE_FALLBACK, design.window);
         head(headB, other.name   || 'Design B', other.window);
 
         // ORDER IS LOAD-BEARING: the strip computes `_diffLines`, and both the filter control and
@@ -158,7 +174,7 @@ export function initLinksCompare(deps) {
      * A -> B in the figures a designer is actually choosing between (v22.60, external review).
      *
      * Compare mode put two grids side by side and outlined the differing cells gold, which is a
-     * PICTURE of the difference: reading it meant holding 336 cells in your head and doing the
+     * PICTURE of the difference: reading it meant holding both grids' cells in your head and doing the
      * comparison privately. This does the arithmetic — how many cells differ and across how many
      * lines, then the four figures that decide which design is better.
      *
@@ -174,7 +190,7 @@ export function initLinksCompare(deps) {
         let cells = 0;
         const lines = new Set();
         // The SAME walk the grids will filter on, done once and shared — two passes over the same
-        // 336 cells could disagree about which lines differ, and then the strip would state a
+        // cells could disagree about which lines differ, and then the strip would state a
         // number of lines the grid below it does not show.
         for (let pos = 1; pos <= TOTAL_POS; pos++) {
             const p = a.patterns[String(pos)] || emptyPattern();
@@ -211,7 +227,7 @@ export function initLinksCompare(deps) {
             `<ul class="compare-sum-list">` +
             row('Hours a week (excl. Sunday)', hrs(ha), hrs(hb)) +
             row('Full weekends off', ca.weekendsOff, cb.weekendsOff) +
-            row('Rest under 12 hours', ca.turnarounds.length, cb.turnarounds.length) +
+            row(`Rest under ${MIN_REST_MINUTES / 60} hours`, ca.turnarounds.length, cb.turnarounds.length) +
             row('ORR factors present', fa.present, fb.present) +
             `</ul>`;
     }
@@ -423,7 +439,7 @@ export function initLinksCompare(deps) {
                 const diff  = shift !== other ? ' cell-diff' : '';
                 // A SPAN, NOT A BUTTON (v22.60, external review). These cells cannot be operated —
                 // `.links-grid--compare` sets `pointer-events: none` and every one carried
-                // `tabindex="-1"` — so rendering them as buttons announced 336 controls to a screen
+                // `tabindex="-1"` — so rendering them as buttons announced hundreds of controls to a screen
                 // reader that do nothing when reached. The class stays, because it is what carries
                 // the shift colouring; `role` and `tabindex` go, because there is nothing to press.
                 return `<td class="shift-cell${diff}">` +

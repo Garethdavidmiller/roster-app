@@ -32,16 +32,17 @@
  * sheet. Not keyed on the section's name — a section that renamed itself would slip a hardcoded
  * list while making the identical claim.
  */
-import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks,
+import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
-    demandAt, demandBucket, peakCars, peakHours, summariseDemand, describeHours, describeMovements,
+    demandAt, demandBucket, peakCars, peakHours, dutySpans, summariseDemand, describeHours, describeMovements,
 } from './links-demand.js';
 import { escapeHtml } from './roster-data.js';
+import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
@@ -50,6 +51,8 @@ import { escapeHtml } from './roster-data.js';
 // which would have made all three wrong in three different ways.
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = ROTATING_LINES;
+/** The minimum rest in words, from the generator's own gate figure — never typed as "12". */
+const MIN_REST_HOURS = `${MIN_REST_MINUTES / 60} hours`;
 
 /**
  * The ORR family whose rows this panel ROLLS UP into one line while they are all not-applicable.
@@ -71,6 +74,11 @@ const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
 
 /** "17:00" from an hour index. */
 const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
+
+/** Rest between two duties, in words. Below zero it is an OVERLAP (imported data can run a duty past
+ *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. */
+const restWords = (/** @type {number} */ m) => (m < 0
+    ? `overlapping by ${Math.floor(-m / 60)}h ${-m % 60}m` : `${Math.floor(m / 60)}h ${m % 60}m rest`);
 
 /**
  * @param {object} deps
@@ -120,9 +128,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // the prose. Two calls would be two chances for the cells and the sentence under them to
         // disagree about the very comparison the card exists to make.
         const sum = summariseDemand({
-            profile: DEC_2026_DEMAND,
             movements: DEC_2026_MOVEMENTS,
-            hourly,
+            spans: dutySpans(design.patterns, TOTAL_POS),
             days: DAYS,
             windowFor: (day) => rowMinutes(windowForDay(win, day)),
         });
@@ -173,10 +180,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `<tbody>${rows}</tbody>` +
             demandBody(sum, minH, maxH) +
             `</table></div>` +
-            `<p class="cov-heat-note">Each cell shows how many people are on duty during that hour — darker means more. ` +
+            `<p class="cov-heat-note">Each cell counts everyone on duty at any point in that hour — darker means more. ` +
             `Red 0 = the station is open and nobody is on. Grey = outside the staffed window. ` +
             `SP = spares on standby (no fixed time). Peak this week: ${maxCount}.${gapNote}${outNote}</p>` +
-            demandNote(sum, minH, maxH);
+            demandNote(sum, minH, maxH, hourly);
     }
 
     /**
@@ -232,22 +239,29 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      * The prose under the table: what the demand rows mean, the two things that are not visible as
      * cells, and where the figures came from.
      *
-     * The provenance line is not optional. These simplifiers are base files that will be revised and
-     * the weekday one is not marked final, so a demand curve printed with no version on it is the
-     * undated-printed-sheet defect (v19.45) all over again — right when it was made, unverifiable
-     * afterwards.
+     * The provenance line is not optional. These simplifiers are base files that will be revised, so
+     * a demand curve printed with no version on it is the undated-printed-sheet defect (v19.45) all
+     * over again — right when it was made, unverifiable afterwards.
      *
      * @param {ReturnType<typeof summariseDemand>} sum
      * @param {number} minH
      * @param {number} maxH
+     * @param {Record<string, {hours: number[]}>} hourly - the cells above, to say when a gap is inside one
      */
-    function demandNote(sum, minH, maxH) {
-        // A FINDING: the station is open, trains are running, nobody is on.
+    function demandNote(sum, minH, maxH, hourly) {
+        // A FINDING: the station open, a train running, nobody on — asked train by train to the minute
+        // (`summariseDemand`), named by clock hour. A gap INSIDE an hour leaves its cell showing who was
+        // on for the rest of it, so the sentence says so, or it and the table read as a contradiction.
         const nUnc = sum.uncovered.length;
+        const inside = sum.uncovered.filter(e => (hourly?.[e.day]?.hours?.[e.hour] ?? 0) > 0).length;
+        const insideNote = !inside ? ''
+            : `${inside === nUnc ? (nUnc === 1 ? 'That hour shows' : 'Those hours show') : `${inside} of them show`} ` +
+              `people on duty in the table above: the gap is inside the hour, and a cell counts everyone on at any point in it. `;
         const uncovered = nUnc
-            ? `<span class="dem-finding">Trains run in ${nUnc} staffed hour${nUnc === 1 ? '' : 's'} ` +
-              `with nobody on duty</span> (${escapeHtml(describeHours(sum.uncovered))}). `
-            : `Every staffed hour with trains in it has someone on duty. `;
+            ? `<span class="dem-finding">Trains run with nobody on duty in ${nUnc} staffed hour${nUnc === 1 ? '' : 's'}</span> ` +
+              `(${escapeHtml(describeHours(sum.uncovered))}): ${sum.uncoveredMv} train movement${sum.uncoveredMv === 1 ? '' : 's'} a week. ` +
+              insideNote
+            : `Every train inside the staffed window has someone on duty when it arrives or departs. `;
 
         // A FACT, never a finding — see links-demand.js. The last trains and the 05:5x first
         // departure are like this on every design there has ever been, so an amber flag here would
@@ -259,13 +273,16 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // Split before/after: an early start and a late finish are different business decisions,
         // and the pre-opening set is three times bigger AND permanent, so one combined list ordered
         // by time puts every unmovable movement ahead of the five Sunday ones this exists to show.
-        const clause = (/** @type {any[]} */ entries, /** @type {string} */ phrase, cap = 5) => (entries.length
-            ? `${entries.length} ${phrase} (${escapeHtml(describeMovements(entries, cap))}). `
-            : '');
+        // Each clause has its own noun unless it follows the other, and "Both" means two (whole-app
+        // review, Nov 2026): it read "12 run before the day's start … Both are stated", with neither.
+        const nAfter = sum.outsideAfter.length, nBefore = sum.outsideBefore.length;
+        const trains = (/** @type {number} */ n) => `${n} train movement${n === 1 ? ' runs' : 's run'}`;
+        const listed = (/** @type {any[]} */ entries, cap = 5) => ` (${escapeHtml(describeMovements(entries, cap))}). `;
         const outside = sum.outside.length
-            ? clause(sum.outsideAfter, `train movement${sum.outsideAfter.length === 1 ? ' runs' : 's run'} after the day's finish`, 8)
-              + clause(sum.outsideBefore, `run${sum.outsideBefore.length === 1 ? 's' : ''} before the day's start`)
-              + `Both are stated, not scored: where the window sits is a business decision, not a design fault. `
+            ? (nAfter ? `${trains(nAfter)} after the day's finish${listed(sum.outsideAfter, 8)}` : '')
+              + (nBefore ? `${nAfter ? `${nBefore} run${nBefore === 1 ? 's' : ''}` : trains(nBefore)} before the day's start${listed(sum.outsideBefore)}` : '')
+              + `${nAfter && nBefore ? 'Both are' : sum.outside.length === 1 ? 'It is' : 'They are'} stated, not scored: `
+              + `where the window sits is a business decision, not a design fault. `
             : '';
 
         // Movements the table cannot show. The span is the window plus whatever is worked, so
@@ -328,12 +345,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         el.hidden = false;
 
         const checks = runDesignChecks(design.patterns, ROTATING_LINES);
-        const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
         const win = normaliseWindow(design.window);
         const sum = summariseDemand({
-            profile: DEC_2026_DEMAND,
             movements: DEC_2026_MOVEMENTS,
-            hourly,
+            spans: dutySpans(design.patterns, TOTAL_POS),
             days: DAYS,
             windowFor: (day) => rowMinutes(windowForDay(win, day)),
         });
@@ -355,10 +370,12 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // options still wants the live analysis of the one they are editing, and hiding it would
         // take that away to fix a labelling problem. The chip is dropped entirely when not
         // comparing, so the ordinary view is unchanged.
+        // An UNNAMED design is named too, as its compare column is (whole-app review, Nov 2026):
+        // generate-then-compare left the strip unlabelled in exactly the case this exists for.
         const unfilled = checks.unfilledLines.length;
         el.innerHTML =
-            (isComparing() && design.name
-                ? `<span class="sum-chip sum-chip--who">${escapeHtml(design.name)}</span>`
+            (isComparing()
+                ? `<span class="sum-chip sum-chip--who">${escapeHtml((design.name || '').trim() || COMPARE_ACTIVE_FALLBACK)}</span>`
                 : '')
             + (unfilled
                 ? chip('bad', '✗', unfilled, unfilled === 1 ? 'line undesigned' : 'lines undesigned')
@@ -377,10 +394,12 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // The fix is to say what the number IS rather than to add a chip. The strip is width-
             // bound (the note below measures what a fourth costs), so the fatigue chip carries both
             // figures in one label when there is a second figure to carry.
+            // "WITH TRAINS" is in both forms (whole-app review, Nov 2026): the card's red 0s count
+            // every staffed hour with nobody on, and "No gaps in staffed hours" once sat above one.
             + (sum.uncovered.length
                 ? chip('bad', '⛔', sum.uncovered.length,
-                    sum.uncovered.length === 1 ? 'staffed hour with no cover' : 'staffed hours with no cover')
-                : chip('ok', '✓', 'No', 'gaps in staffed hours'))
+                    sum.uncovered.length === 1 ? 'staffed hour with trains and nobody on' : 'staffed hours with trains and nobody on')
+                : chip('ok', '✓', 'No', 'staffed hours with trains and nobody on'))
             + (fat.present
                 ? chip('warn', '⚠', fat.present,
                     `to act on${fat.standing ? ` · ${fat.standing} standing` : ''}`)
@@ -457,10 +476,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // app's own opinion. Everything below is attributed (company policy, ORR p3, today's link);
         // an assessing manager reading the top of the card could not tell where these came from.
         rows.push(
-            // No modifier class: `.check-section-head:first-child` already drops the top margin and
-            // rule, and `links-analysis.test.mjs` fails on any class this module emits that no
-            // stylesheet defines — which is exactly how ~15 rows once shipped on a `check-info`
-            // class nothing styled.
+            // No modifier class: below the triage block this is not the first child, so it keeps the
+            // ordinary margin and rule (links.css's `:first-child` rule for it matches nothing now).
+            // `links-analysis.test.mjs` fails on any class this module emits that no stylesheet
+            // defines — exactly how ~15 rows once shipped on a `check-info` class nothing styled.
             `<div class="check-section-head"><span>This design ` +
             `<span class="check-note">shape of the week — this app's own checks</span></span>` +
             `<span class="check-section-meta">${escapeHtml(`${totalWeeks}-line rotation`)}</span></div>`
@@ -499,20 +518,22 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (turnarounds.length === 0) {
             rows.push(
                 `<div class="check-row check-good">` +
-                `${tick}<div class="check-body"><strong>Rest between shifts</strong> — always 12 hours or more</div>` +
+                `${tick}<div class="check-body"><strong>Rest between shifts</strong> — always ${MIN_REST_HOURS} or more</div>` +
                 `</div>`
             );
         } else {
             const cap = turnarounds.slice(0, 4);
             const more = turnarounds.length - cap.length;
+            // The times are pieces of the STORED cell, so escaped like all design text here: the time
+            // readers anchor one end each, so `15:25-<anything>-23:55` reads as a duty.
             rows.push(
                 `<div class="check-row check-bad">` +
                 `${cross}<div class="check-body">` +
-                `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than 12 hours rest` +
+                `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than ${MIN_REST_HOURS} rest` +
                 `<ul class="check-list">${cap.map((/** @type {any} */ t) =>
-                    `<li>Line ${t.fromLine} ${t.fromDay} (ends ${t.fromShift.split('-')[1] || ''}) → ` +
-                    `Line ${t.toLine} ${t.toDay} (starts ${t.toShift.split('-')[0] || ''}) — ` +
-                    `${Math.floor(t.restMinutes / 60)}h ${t.restMinutes % 60}m rest</li>`
+                    `<li>Line ${t.fromLine} ${t.fromDay} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
+                    `Line ${t.toLine} ${t.toDay} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
+                    `${restWords(t.restMinutes)}</li>`
                 ).join('')}${more > 0 ? `<li>…and ${more} more</li>` : ''}</ul>` +
                 `</div></div>`
             );
@@ -617,7 +638,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                         : `<strong>${hm(off)} a week over contract.</strong> The surplus has to be paid as overtime or absorbed by adding lines.`}</div>`) +
                 `<div class="check-sub">Individual weeks vary — the average is what the contract asks for. ` +
                 `Sundays are not contracted, so they are left out of it` +
-                (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday duties, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
+                (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday dut${wh.sundayDuties === 1 ? 'y' : 'ies'}, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
                 `.` +
                 (wh.coverLines
                     ? ` The ${wh.coverLines} cover week${wh.coverLines === 1 ? ' counts' : 's count'} as a full `
@@ -652,12 +673,16 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // `clear` joins the headline counts (v19.57): the clear rows are now behind a disclosure, so
         // without it the heading would understate how much was actually checked — which is the exact
         // false-assurance failure running the other way.
-        const quietCount = fat.results.filter(r => r.status === 'clear' || r.status === 'n/a').length;
+        // …and NOT-APPLICABLE is counted as itself, never as clear (whole-app review, Nov 2026): the
+        // heading read "23 clear" over 13 clear and 10 that cannot apply, against this panel's rule.
+        const clearCount = fat.results.filter(r => r.status === 'clear').length;
+        const naCount = fat.results.filter(r => r.status === 'n/a').length;
         const meta = [
             `${fat.present} present`,
             fat.standing ? `${fat.standing} standing` : '',
             fat.confirmNeeded ? `${fat.confirmNeeded} to confirm` : '',
-            quietCount ? `${quietCount} clear` : '',
+            clearCount ? `${clearCount} clear` : '',
+            naCount ? `${naCount} not applicable` : '',
         ].filter(Boolean).join(' · ');
 
         // ── THE HARD LIMIT, ABOVE THE ADVISORY FACTORS AND VISIBLY NOT ONE OF THEM (v19.80) ──────
@@ -770,7 +795,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // The night-family rollup belongs INSIDE the disclosure, not beside it (v19.57). With it
         // outside, the heading counted 17 clear while the disclosure label said 10 — both true (the
         // other 7 were in the rollup) and impossible to reconcile by looking. Everything that reports
-        // "nothing to report" now lives in one place, so the two numbers agree.
+        // "nothing to report" lives in one place: its count is the heading's clear plus not applicable.
         const nightRolled = fat.results.filter(r => r.family === NIGHT_FAMILY);
         if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
             quietRows.push(
@@ -824,7 +849,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         /** @type {{fix: string[], discuss: string[]}} */
         const triage = { fix: [], discuss: [] };
         if (unfilledLines.length) triage.fix.push(`${unfilledLines.length} of ${totalWeeks} lines not yet designed`);
-        if (turnarounds.length)   triage.fix.push(`${turnarounds.length} transition${turnarounds.length === 1 ? '' : 's'} with under 12 hours rest`);
+        if (turnarounds.length)   triage.fix.push(`${turnarounds.length} transition${turnarounds.length === 1 ? '' : 's'} with under ${MIN_REST_HOURS} rest`);
         if (limits.breaches)      triage.fix.push(`${limits.breaches} ${POLICY_SOURCE_CONFIRMED ? 'company limit' : 'configured limit'}${limits.breaches === 1 ? '' : 's'} breached`);
         // THE AMBER ROWS BELONG HERE TOO. The first cut read only the red rows and the fatigue
         // counts, so a design short of contract, or with a third of the weekends off, produced
