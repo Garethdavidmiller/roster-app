@@ -393,6 +393,9 @@ export function updateJoinerNotice(p) {
   if (member.startDate > p.cutoff) { el.style.display = 'none'; return; }
   // The same count the pay factor uses (clock-change-safe) — never a second copy of it.
   const { daysEmployed, totalDays } = proRateDays(member.startDate, p.start, p.cutoff);
+  // Nothing was scaled — a start the count treats as the whole period (the Monday after the period's
+  // opening Sunday) — so there is nothing to explain; it read "140 of 140 … 28 of 28 days" (paycalc-3-12).
+  if (daysEmployed >= totalDays) { el.style.display = 'none'; return; }
   const proRated     = getEffectiveContr(p);
   const base         = getContr();
   const startFmt     = fdLong(member.startDate);

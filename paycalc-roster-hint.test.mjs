@@ -44,7 +44,9 @@ let _suggestion = null;
 /** @type {string} */ let _fetchState = 'base-only';
 /** @type {number} */ let _fetchCalls = 0;
 /** @type {(v: string) => void} */ let _resolveFetch = () => {};
-mock.module('./session.js', { namedExports: { getSession: () => ({ name: 'G. Miller' }) } });
+/** Who is signed in — G. Miller unless a test needs a joiner. */
+let _sessionName = 'G. Miller';
+mock.module('./session.js', { namedExports: { getSession: () => ({ name: _sessionName }) } });
 mock.module('./paycalc-roster-suggestions.js', {
     namedExports: {
         bhsForYear: () => [],
@@ -59,7 +61,12 @@ mock.module('./paycalc-roster-suggestions.js', {
     },
 });
 
-const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge, updateRosterHint, recordCalendarFigures } = await import('./paycalc-roster-hint.js');
+const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion, _confBadge, updateRosterHint, recordCalendarFigures,
+    updateJoinerNotice } = await import('./paycalc-roster-hint.js');
+// The REAL roster array and period grid, for the joiner-notice block (a synthetic joiner is pushed
+// for one case and popped straight after).
+const { teamMembers } = await import('./roster-data.js');
+const { getPeriods } = await import('./paycalc-periods.js');
 // The REAL form writer, for the blocks that replay a page load (loadPeriodData's order).
 const { writeFormData } = await import('./paycalc-form-data.js');
 const { periodKey } = await import('./paycalc-migrations.js');
@@ -302,6 +309,41 @@ describe('the fill receipt says what happened, and nothing it cannot do', () => 
         const said = _els.rosterHintText.textContent;
         assert.match(said, /Filled Overtime/, 'premise: the receipt was written');
         assert.doesNotMatch(said, /Clear all entries|undo/i, 'the receipt offers an undo that wipes the whole payslip');
+    });
+});
+
+// ── THE JOINER NOTICE APPEARS ONLY WHEN SOMETHING WAS SCALED (paycalc-3-12) ──────────────────────
+// A member who starts on the Monday after a period's opening Sunday works a whole period by the
+// pay count (28 of 28), so nothing is pro-rated — and the notice said so as if it were news:
+// "contracted hours 140 of 140, London Allowance and pension contribution scaled to 28 of 28 days".
+describe('the joiner notice', () => {
+    /** Sign in as a synthetic joiner starting on `startDate`, and run the notice for period `num`. */
+    function noticeFor(/** @type {Date} */ startDate, /** @type {number} */ num) {
+        const p = getPeriods().find((/** @type {any} */ x) => x.num === num);
+        teamMembers.push({ name: 'X. Joiner', role: 'CEA', currentWeek: 3, rosterType: 'main', startDate });
+        _sessionName = 'X. Joiner';
+        try {
+            setupDom(String(num));
+            _els.joinerNotice = { style: {}, textContent: '' };
+            updateJoinerNotice(p);
+            return { shown: _els.joinerNotice.style.display !== 'none', text: _els.joinerNotice.textContent };
+        } finally {
+            teamMembers.pop();
+            _sessionName = 'G. Miller';
+        }
+    }
+    const P52 = 52;   // 3 May – 30 May 2026: opens on Sunday 3 May
+
+    test('a start the pay counts as the whole period says nothing about scaling', () => {
+        const r = noticeFor(new Date(2026, 4, 4), P52);           // Monday 4 May
+        assert.equal(r.shown, false, `it announced a pro-rate that changed nothing: "${r.text}"`);
+    });
+
+    test('CONTROL: a part-period start still explains the scaling', () => {
+        const r = noticeFor(new Date(2026, 4, 18), P52);          // Monday 18 May
+        assert.equal(r.shown, true);
+        assert.match(r.text, /scaled to \d+ of 28 days/);
+        assert.doesNotMatch(r.text, /28 of 28/);
     });
 });
 
