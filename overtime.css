@@ -190,6 +190,10 @@ body {
 }
 
 .ot-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+/* The two panels are Tab stops while the strip names them (`setTabStrip`, overtime-app.js), and they
+   sit on the navy canvas, where shared.css's fallback ring is navy: focus on a panel showed nothing.
+   The tabs' light ring (css-tokens.md → "Never leave a Tab stop with no indicator"). */
+.app > [role="tabpanel"]:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
 
 /* ── The two touch tiers this page had skipped (v21.15) ──────────────────────
    v20.77 raised `.ot-mode` from 36px to 44px with the argument that copying

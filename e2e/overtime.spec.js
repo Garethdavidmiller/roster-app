@@ -1164,6 +1164,45 @@ test.describe('overtime.css — print, focus and contrast', () => {
         }
     });
 
+    /**
+     * WCAG contrast of `fg` composited over `bg`, both as the page computes them (any CSS colour —
+     * oklch, rgba — goes through a canvas to sRGB). @param {any} page @param {string} fg @param {string} bg
+     */
+    const contrastOn = (page, fg, bg) => page.evaluate(([fg, bg]) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        const px = (/** @type {string[]} */ ...layers) => {
+            ctx.clearRect(0, 0, 1, 1);
+            for (const c of layers) { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => v / 255);
+        };
+        const lum = (/** @type {number[]} */ c) => c.map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const [a, b] = [lum(px(bg, fg)), lum(px(bg))].sort((x, y) => y - x);
+        return (a + 0.05) / (b + 0.05);
+    }, [fg, bg]);
+
+    test('a tab panel, a Tab stop on the navy page, shows a ring that is not navy', async ({ page }) => {
+        // shared.css's fallback ring is navy, the canvas's own colour, so focus on a panel drew nothing.
+        await seedSession(page, 'G. Miller');   // a reviewer with a form of his own: the strip shows
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await expect(page.locator('#otTabs')).toBeVisible();
+        await page.locator('#otTabMine').focus();
+        await page.keyboard.press('Tab');
+        const ring = await page.evaluate(() => {
+            const a = /** @type {Element} */ (document.activeElement), cs = getComputedStyle(a);
+            return { id: a.id, visible: a.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth),
+                colour: cs.outlineColor, ground: getComputedStyle(document.body).backgroundColor };
+        });
+        expect(ring.id, 'Tab from the strip reaches the panel').toBe('otMinePanel');
+        expect(ring.visible).toBe(true);
+        expect(ring.style).toBe('solid');
+        expect(ring.width).toBeGreaterThanOrEqual(2);
+        expect(await contrastOn(page, ring.colour, ring.ground), 'the ring against the navy it is drawn on')
+            .toBeGreaterThanOrEqual(3);
+    });
+
     test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
         // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
         // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
