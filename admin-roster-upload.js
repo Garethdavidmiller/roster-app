@@ -11,7 +11,7 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { parseOtherValue, buildOverrideWrite, nextReplacedType, nextLeaveYear } from './override-utils.js';
+import { parseOtherValue, buildOverrideWrite, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
@@ -131,14 +131,8 @@ export function manualShiftDisplay(s) {
  */
 export async function _saveOverrideBatches(toWrite, currentUser) {
     const refused = toWrite.filter(w => !w.deleteOnly && typeof w.value === 'string' && isZeroLengthRange(w.value)).length;
-    // Batches cap at 500 ops: an item is a delete + a set + a delete per `alsoDelete`, so chunk by OPS.
-    const chunks = /** @type {typeof toWrite[]} */ ([]); let cur = /** @type {typeof toWrite} */ ([]), ops = 0;
-    for (const w of toWrite) {
-        const n = 2 + (w.alsoDelete?.length ?? 0);
-        if (cur.length && ops + n > 450) { chunks.push(cur); cur = []; ops = 0; }
-        cur.push(w); ops += n;
-    }
-    if (cur.length) chunks.push(cur);
+    // Batches cap at 500 writes: an item is a delete + a set + a delete per `alsoDelete` (override-utils.js).
+    const chunks = chunkByWrites(toWrite, w => 2 + (w.alsoDelete?.length ?? 0));
     let _committedChunks = 0;
     for (const chunk of chunks) {
         try {
@@ -240,7 +234,7 @@ export async function fetchOverridesForWeek(dates) {
 
 /**
  * Initialise the weekly roster upload pipeline.
- * Wires up all DOM event listeners for the Roster Upload card in admin.html.
+ * Wires up all DOM event listeners for the Roster Upload card in operations.html.
  *
  * @param {object}   opts
  * @param {string}   opts.currentUser    - Logged-in member name (written to changedBy on saves)
@@ -568,7 +562,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
     /**
      * Render the post-parse review UI as a list of per-person cards.
-     * Only people with at least one DIFF or CONFLICT are shown.
+     * Only people with a row to show — a change, a question, or a day the app declined to record.
      * Uses event delegation on changeList so no listener accumulation on re-render.
      *
      * @param {any} parsedResult
@@ -874,9 +868,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             ${s.draft?.open ? entryControlHtml(key, s, date) : ''}
                         </div>`;
                 } else if (s.state === 'UNREADABLE') {
-                    // Skip-only: the PDF cell couldn't be parsed. No tick and no write — just surfaces
-                    // the unreadable value so it isn't silently lost. The admin fixes the PDF and
-                    // re-uploads, or records the shift via Change a Shift.
+                    // No readings to offer: the cell couldn't be parsed. No tick, and nothing is written
+                    // unless the admin enters the day below (roster-entry-control.js).
                     row.classList.add('roster-change-unreadable', 'roster-change-row--stacked');
                     // The head keeps the ordinary day/value pairing side by side; the ROW becomes a
                     // column so the entry control sits underneath at full width. Without the wrapper
@@ -1062,10 +1055,6 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             }
 
             // ---- The in-place entry for an unreadable cell (v22.17) ----
-            // Every change here re-renders the whole table rather than patching the row in place.
-            // The row's shape depends on the pill (times appear only for Shift/RDW), so a patch
-            // would have to rebuild it anyway — and the draft lives on the state, so a full render
-            // cannot lose a half-typed time the way reading values back off the DOM could.
             // Any control INSIDE the entry editor: a type pill, an Other flavour, the RDW tick.
             // `entryClick` owns which of those exist and what each does to the draft; this only
             // redraws the control — never the list, see `redrawEntry`'s header for the measurement.
