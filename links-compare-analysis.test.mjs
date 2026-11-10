@@ -187,6 +187,17 @@ test('the weekday row is the FEWEST on duty on any weekday — never Monday stan
     assert.equal(wk.days, 5);
 });
 
+test('the hours are called a floor when either design has a spare day, and only then', () => {
+    // The flag was the constant `true`, so two designs with no spare day were told every hours figure
+    // was "a floor, not an estimate" (whole-app review, Nov 2026).
+    const plain = weekdayDesign('06:00-14:00', '06:00-14:00');
+    const spare = structuredClone(plain);
+    spare.patterns['2'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+    assert.equal(compareDesigns(plain, plain).fatigue.hoursAreFloor, false);
+    assert.equal(compareDesigns(plain, spare).fatigue.hoursAreFloor, true);
+    assert.equal(compareDesigns(spare, plain).fatigue.hoursAreFloor, true);
+});
+
 test('a factor that moved carries its threshold and its "to confirm" flag, as the card does', () => {
     const r = compareDesigns(PT, FT);
     const byKey = new Map(assessFatigue(FT.patterns).results.map(x => [x.code + '|' + x.title, x]));

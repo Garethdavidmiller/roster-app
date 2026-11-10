@@ -75,8 +75,9 @@
  *    definition is unagreed, unlabelled, is the false-assurance failure in miniature.
  *
  * Hours caveat: SPARE days carry no times, so they contribute ZERO to any hours total here. A
- * standby day is worked time, so every hours figure this module produces is a FLOOR, not an
- * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
+ * standby day is worked time, so on a design with a spare day every hours figure this module
+ * produces is a FLOOR, not an estimate. `hoursAreFloor` says whether that is so, so the UI can say
+ * it rather than imply precision — and not say it of a design whose totals are exact.
  */
 
 import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour, isRest } from './links-design.js';
@@ -461,6 +462,11 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     patterns = patterns || {};
     const seq = toSequence(patterns, lines);
     const timed = seq.filter(x => startMinutes(x.shift) !== null);
+    // Hours are a FLOOR only where a spare day is counted at zero (the header's caveat). This was the
+    // constant `true`, so a design with no spare day at all was told its "real totals are higher" on
+    // the panel and the compare card, when they are exact (whole-app review, Nov 2026). A worked cell
+    // with no readable time also counts zero; the hours row names those, and an import refuses them.
+    const hoursAreFloor = seq.some(x => x.shift === 'SPARE');
 
     /** @type {FatigueResult[]} */
     const results = [];
@@ -568,7 +574,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     const hrs = maxHoursInAny7Days(seq);
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 55 hours worked in any 7-day period',
         status: over55 ? 'present' : 'clear', value: over55 && hrs <= 55 ? Math.round(mins7 / 0.6) / 100 : hrs, threshold: 55,
-        detail: 'Spare days carry no times and count as zero hours, so this figure is a floor — the real total is higher.' });
+        detail: hoursAreFloor
+            ? 'Spare days carry no times and count as zero hours, so this figure is a floor — the real total is higher.'
+            : undefined });
 
     // ── THE TWO ROWS THAT WERE MISSING (v21.97) ─────────────────────────────
     // Added when the ORR source was read for the first time. It carries FOUR MRSF rows in this
@@ -746,6 +754,6 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         // combined total would say that it was.
         standing: results.filter(r => r.status === 'standing').length,
         confirmNeeded: results.filter(r => r.confirm).length,
-        hoursAreFloor: true,
+        hoursAreFloor,
     };
 }

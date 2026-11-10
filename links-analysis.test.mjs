@@ -91,17 +91,29 @@ test('designed state renders the coverage heat map + the checks panel', () => {
     assert.match(els.checksContent.innerHTML, /Shift balance/);
 });
 
-test('the panel states that its hours figures are a FLOOR', () => {
+test('the panel states that its hours figures are a FLOOR — when a spare week makes them one', () => {
     // `assessFatigue` has returned `hoursAreFloor` since v19.46 with a comment saying it exists "so
     // the UI can say so" — and for thirteen versions the UI did not. It matters more since v19.58
     // made spare a whole WEEK: a spare line carries no times, so it contributes seven worked days
     // and ZERO hours, and every hours figure understates by a standby week per spare line.
     // Under-reporting hours is the FLATTERING direction, which is the one thing this panel exists
     // not to do quietly.
-    resetDom();
-    const a = initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) });
-    a.renderDesignChecks();
-    assert.match(els.checksContent.innerHTML, /floor, not an estimate/);
+    //
+    // …and only then (whole-app review, Nov 2026). The flag was the constant `true`, so a design
+    // with no spare day was told its "real totals are higher" when they are exact.
+    const withSpare = fullPatterns();
+    withSpare['4'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+    for (const [label, patterns, floor] of /** @type {[string, any, boolean][]} */ ([
+        ['a design with a spare week', withSpare, true],
+        ['a design with no spare day', fullPatterns(), false],
+    ])) {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        assert.equal(/floor, not an estimate/.test(html), floor, `${label}: the panel's floor line`);
+        assert.equal(/this figure is a floor/.test(html), floor, `${label}: the 55-hour row's floor line`);
+        assert.equal(assessFatigue(patterns, ROTATING_LINES).hoursAreFloor, floor, `${label}: the flag itself`);
+    }
 });
 
 test('getDesign is read lazily — a later design change is reflected on the next render', () => {
