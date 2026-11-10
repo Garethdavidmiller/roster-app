@@ -2796,6 +2796,48 @@ test('paycalc: every transition on the page takes its timing from the motion tok
     expect(found?.off, 'a timing written out by hand').toEqual([]);
 });
 
+test('paycalc: a card header is the shared header — edge, padding and hint as on Settings', async ({ page }) => {
+    // paycalc.css kept a copy of the header (padding and divider, the same values) and of the hint,
+    // plus a 2px margin no other page has: Pay's hints sat 2px under their titles, every other card
+    // page's at 0 (measured on Settings, Operations, Admin, Trains and Links). A page-local copy is
+    // what keeps the old look when the shared header changes (css-tokens.md).
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    const header = () => page.locator('.card-header:has(.hint)').first().evaluate(h => {
+        const t = /** @type {Element} */ (h.querySelector('h2')).getBoundingClientRect();
+        const hint = /** @type {Element} */ (h.querySelector('.hint'));
+        const cs = getComputedStyle(h), hs = getComputedStyle(hint);
+        return { padding: cs.padding, divider: `${cs.borderBottomWidth} ${cs.borderBottomStyle} ${cs.borderBottomColor}`,
+                 step: Math.round(hint.getBoundingClientRect().top - t.bottom), hint: `${hs.fontSize} ${hs.color}` };
+    });
+    await page.goto('/settings.html');
+    await expect(page.locator('.card-header:has(.hint)').first()).toBeVisible();
+    const shared = await header();
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    expect(await header(), 'the Pay Calculator against Settings').toEqual(shared);
+});
+
+test('paycalc: the rate badges print in their own colours, RDW included', async ({ page }) => {
+    // Every fill prints here (the print block's `*` keeps them), so the seven badges need no print
+    // rules of their own — except RDW: the calendar's shift badge shares the name, and shared.css's
+    // print rule for it would paint Pay's pale chip solid navy-teal with white words.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const paint = () => page.locator('.rate-badge').evaluateAll(els => els.map(el => {
+        const cs = getComputedStyle(el); return `${el.className}: ${cs.backgroundColor} / ${cs.color}`;
+    }));
+    const screen = await paint();
+    expect(screen.some(s => s.includes('badge-rdw')), 'the premise: the RDW badge is on the page').toBe(true);
+    await page.emulateMedia({ media: 'print' });
+    const paper = await paint();
+    await page.emulateMedia({ media: null });
+    expect(paper).toEqual(screen);
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 

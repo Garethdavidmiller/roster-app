@@ -53,19 +53,9 @@
        bottom margin (admin uses a grid gap). */
     .app-header { margin-bottom: 4px; }
 
-    /* ── CARD HEADER — deliberately FLAT here (padding + divider only), NOT the shared flex row.
-       The cards use it as `card-header--row` (one static header) and `card-header-toggle` (the
-       collapsible ones, which add their own flex + chevron rules); a flex base would fight both.
-       The FILL and the TITLE are NOT restated: a copy of shared.css's is exactly what stops
-       matching — this page once kept a grey band and a 13px title alone, and nothing failed. */
-    .card-header {
-      padding: 11px 16px;
-      border-bottom: 1px solid var(--border-light);
-    }
-    .hint {
-      font-size: var(--type-small); color: var(--text-light);
-      display: block; margin-top: 2px;
-    }
+    /* ── CARD HEADER — shared.css's, whole: padding, divider, fill, title and hint. A copy here is
+       what stops matching: this page kept a grey band and a 13px title alone once, and until
+       Nov 2026 a hint 2px lower than every other page's. Nothing failed either time. */
 
     /* ── PRIMARY BUTTON ── Save settings is the one primary without .btn-action. A button wearing
        both takes shared.css's recipe whole: this one, reaching them, gave each pair two shapes. */
@@ -1177,7 +1167,7 @@
       .bd-btn, .show-more-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,
       #payTransferCard,
-      .field-hint, .net-hint, .net-ytd, .check-actual, .prov-chips:empty,
+      .field-hint, .net-hint, .net-ytd, .check-actual,
       .privacy-note-standalone, .guide-footer-link,
       #rosterHintBar, .joiner-notice, #stickyTotal,
       #payBreakBar, #payBreakLegend { display: none !important; }
@@ -1245,7 +1235,6 @@
       }
       .hhmm-lbl { font-size: var(--type-micro) !important; color: var(--text-light) !important; }
       .stepper { display: flex !important; align-items: center !important; }
-      .stepper button { display: none !important; }
       .stepper-val { font-weight: 700 !important; font-size: var(--type-label) !important; }
       .disclaimer {
         box-shadow: none !important; font-size: var(--type-micro) !important;
@@ -1269,14 +1258,10 @@
       /* Controls that do nothing on paper: the year card's fill button and a card's collapse
          arrow ("▲" printed beside "Your Settings"). */
       #fillYearBtn, .yearso-fill, .card-toggle-arrow { display: none !important; }
-      /* Rate badge colours — ensure they print with background */
-      .badge-sat  { background: var(--orange-light)    !important; color: var(--orange-text)   !important; }
-      .badge-bh   { background: var(--al-light)        !important; color: var(--al-text)  !important; }
-      .badge-ot   { background: var(--ot-light)        !important; color: var(--ot)       !important; }
-      .badge-rdw  { background: var(--rdw-light)       !important; color: var(--rdw-text) !important; }
-      .badge-sun  { background: var(--blue-light)      !important; color: var(--blue-sky) !important; }
-      .badge-box  { background: var(--boxing-day-bg)   !important; color: var(--boxing-day-text) !important; }
-      .badge-peer { background: var(--green-light)     !important; color: var(--green)    !important; }
+      /* The rate badges print their screen colours (the `*` rule above keeps every fill on paper) —
+         except RDW, whose name the calendar's shift badge shares: shared.css's print rule would paint
+         this pale chip solid with white words, so it is restated here, after it. */
+      .badge-rdw  { background: var(--rdw-light) !important; color: var(--rdw-text) !important; }
     }
 
     /* ── YTD NOTICE LIGHTBOX ─────────────────────────────────────────── */
@@ -1288,10 +1273,8 @@
     #noticeYtdContent strong { color: rgba(255,255,255,0.9); }
 
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
+    /* The lightboxes are shared.css's (.lb-overlay, .lb-content), and stop there. */
     @media (prefers-reduced-motion: reduce) {
-      #iconLightbox, #iconLightboxContent,
-      #noticeYtdLightbox, #noticeYtdContent,
-      #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body, .hpp-note-body,
       .card-toggle-arrow,
       .save-status, .stepper button, .pbb-seg {
