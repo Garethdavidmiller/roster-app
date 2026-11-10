@@ -180,7 +180,7 @@
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>If the week is wider than your screen, swipe the table sideways</span></div>
                 <div class="lightbox-tip"><span>Select CEA, CES or Dispatcher to switch grade</span></div>
-                <div class="lightbox-tip"><span>Open ☰ → Daily Huddle for the latest day plan</span></div>
+                <div class="lightbox-tip"><span>Open <span class="nav-path">☰ → Daily Huddle</span> for the latest day plan</span></div>
                 <div class="lightbox-tip"><span>Select 📍, or Back to this week under the dates, to return to the current week</span></div>
             </div>
             <div class="lightbox-print-wrap">
@@ -608,9 +608,12 @@
             <button type="button" class="top-prompt-dismiss" id="installPromptDismiss" aria-label="Dismiss">×</button>
         </div>
 
-        <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled -->
+        <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled. Both of its
+             lines live here, as the install strip's do: the offer, and what it says when the system
+             said yes but notifications still could not be switched on (calendar-notif-prompt.js). -->
         <div id="notifPrompt" class="top-prompt" role="region" aria-label="Notifications" style="display:none">
-            <span class="top-prompt-text"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle, documents and pay reminders</span>
+            <span class="top-prompt-text" id="notifPromptOffer"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle, documents and pay reminders</span>
+            <span class="top-prompt-text" id="notifPromptFailed" hidden><span aria-hidden="true">🔔</span> <span id="notifPromptFailedLine">Couldn’t turn notifications on. Check your connection and tap Enable to try again, or later in <span class="nav-path">☰ → Settings</span>.</span></span>
             <button type="button" class="top-prompt-action" id="notifPromptEnable">Enable</button>
             <button type="button" class="top-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
         </div>
