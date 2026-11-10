@@ -649,6 +649,23 @@ describe('reorderLines attempts', () => {
             assert.ok(sp.minGap > 1, `attempt ${a}: two cover weeks adjacent`);
         }
     });
+
+    test('the spread is a FILTER as well as a weight — a start the search cannot repair is refused', () => {
+        // The sweep above passes on the weight alone at this rotation length: the 2-opt finds an even
+        // spread every time, so deleting the filter changed nothing it could see (whole-app review,
+        // Nov 2026). With no improvement passes a shuffled start is scored as it lies, and a random
+        // arrangement of the cover weeks is almost never even, so only the filter can keep the
+        // promise. Each refused attempt falls back to the canonical design, and says so (`attempt` 0).
+        let fellBack = 0;
+        for (let a = 1; a <= 6; a++) {
+            const r = reorderLines(real, { on: every, maxRunTarget: DEFAULT_MAX_RUN, attempt: a, passes: 0 });
+            if (r.attempt === 0) fellBack++;
+            const p = applyOrder(real, r.order);
+            const sp = spareSpread(p, r.order.map((_, i) => String(i + 1)));
+            assert.equal(sp.excess, 0, `attempt ${a}, no passes: cover weeks uneven — gaps ${sp.gaps.join(',')}`);
+        }
+        assert.ok(fellBack > 0, 'premise: some attempt had no even start, so the filter is what decided it');
+    });
 });
 
 // ── MINIMUM REST SURVIVES THE REORDER (v25.06) ──────────────────────────────────────────────────
