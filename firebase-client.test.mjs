@@ -175,41 +175,6 @@ describe('the password stamp', () => {
 
 // ── credentials ───────────────────────────────────────────────────────────────────────────────
 
-describe('setting your own password', () => {
-    test('changes the password, then stamps it', async () => {
-        signIn({ uid: 'uid_springer' });
-        const out = await fc.setOwnPassword(MEMBER, 'a-new-passphrase');
-        assert.deepEqual(out, { statusRecorded: true });
-        assert.deepEqual(state.authOps.find((o) => o.op === 'updatePassword'), { op: 'updatePassword', uid: 'uid_springer', pw: 'a-new-passphrase' });
-        assert.equal(writes('passwordStatus/').length, 1);
-    });
-
-    test('a failed stamp NEVER reports the change as failed — the password already changed', async () => {
-        // Rejecting here would tell the member to retry with a password that no longer exists.
-        signIn();
-        state.failNext.set('passwordStatus/', 'unavailable');
-        const out = await fc.setOwnPassword(MEMBER, 'a-new-passphrase');
-        assert.deepEqual(out, { statusRecorded: false });
-        assert.equal(state.authOps.filter((o) => o.op === 'updatePassword').length, 1);
-    });
-
-    test('a password change that FAILS writes no stamp — the stamp follows the change, never leads it', async () => {
-        // The ordering is the whole contract: a stamp written first would mark the member migrated
-        // (no Settings nudge) while their password is still the surname default. Nothing held the
-        // order until v24.26 — rewriting it stamp-first, swallowing the stamp's error, left 35 green.
-        signIn();
-        state.reauthRejects.set('update:a-new-passphrase', 'auth/requires-recent-login');
-        await assert.rejects(fc.setOwnPassword(MEMBER, 'a-new-passphrase'), /requires-recent-login/);
-        assert.deepEqual(writes('passwordStatus/'), [], 'no passwordSetAt for a password that did not change');
-    });
-
-    test('signed out, nothing is attempted', async () => {
-        await assert.rejects(fc.setOwnPassword(MEMBER, 'x'), /Not signed in/);
-        assert.equal(state.authOps.filter((o) => o.op === 'updatePassword').length, 0);
-        assert.deepEqual(writes('passwordStatus/'), []);
-    });
-});
-
 describe('every member\'s password status (the admin\'s table)', () => {
     test('a row is named by its document id — a stored `memberName` field can never rename it', async () => {
         // The id is what the rules bind and what the table acts on; getResetRequests put the id last
@@ -249,6 +214,12 @@ describe('changing your own password, with the stamp left to finish on its own',
         state.failNext.set('passwordStatus/', 'unavailable');
         const out = await fc.changeOwnPassword(MEMBER, 'a-new-passphrase');
         assert.equal(await out.stamp, false);
+    });
+
+    test('signed out, nothing is attempted', async () => {
+        await assert.rejects(fc.changeOwnPassword(MEMBER, 'x'), /Not signed in/);
+        assert.equal(state.authOps.filter((o) => o.op === 'updatePassword').length, 0);
+        assert.deepEqual(writes('passwordStatus/'), []);
     });
 
     test('a password change that fails rejects, and starts no stamp', async () => {

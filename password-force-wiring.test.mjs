@@ -36,9 +36,6 @@ mock.module('./firebase-client.js', { namedExports: {
         if (setCalls === 1) throw Object.assign(new Error('stale'), { code: 'auth/requires-recent-login' });
         return { stamp: Promise.resolve(true) };
     },
-    // The call the overlay made until settings-ops-2: it waits for the migration stamp too, and a stamp
-    // the server has not acknowledged keeps it waiting — modelled as never settling.
-    setOwnPassword: () => new Promise(() => {}),
     reauthenticateWithPassword: async () => { reauthCalls++; },
 } });
 mock.module('./auth-state.js', { namedExports: { getAuthSnapshot: () => ({ status: authStatus }) } });

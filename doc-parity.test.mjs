@@ -714,6 +714,9 @@ function locatableDocs(dir = '.', out = []) {
     for (const e of entries) {
         if (e.name === 'node_modules' || e.name === '.git') continue;
         const p = dir === '.' ? e.name : `${dir}/${e.name}`;
+        // Agent worktrees (gitignored) are whole other checkouts, each with its own docs at its own
+        // point in history: read here, every stale copy failed this checkout (10 Nov 2026).
+        if (p === '.claude/worktrees') continue;
         if (e.isDirectory()) locatableDocs(p, out);
         else if (e.name.endsWith('.md') && !PAST_DOCS.test(p)) out.push(p);
     }

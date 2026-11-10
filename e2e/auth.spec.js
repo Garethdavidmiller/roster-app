@@ -445,10 +445,10 @@ test('forced password overlay: rejects a short or mismatched password and stays 
 // offers a way out, so after repeated auth-layer failures an escape appears and genuinely closes it.
 //
 // The hermetic stub makes this easy to drive: `getAuth()` returns `{ currentUser: null }` by default,
-// so setOwnPassword rejects with 'Not signed in' every time. The HAPPY path needs the opt-in signed-in
+// so changeOwnPassword rejects with 'Not signed in' every time. The HAPPY path needs the opt-in signed-in
 // user (window.__E2E.authUser, plus authUserEmail where re-authentication runs) — e2e/settings.spec.js
 // drives it on both password surfaces. The password RULES are unit-tested (auth-identity.test.mjs) and
-// the write path is the same setOwnPassword the shipped Settings card uses.
+// the write path is the same changeOwnPassword the shipped Settings card uses.
 test('forced password overlay: offers a way out after repeated save failures', async ({ page }) => {
     await forcePasswordSet(page);
     await page.goto('/settings.html');

@@ -692,17 +692,6 @@ export async function changeOwnPassword(memberName, newPassword) {
     return { stamp };
 }
 
-/**
- * `changeOwnPassword`, then WAIT for the stamp — so a deadline on this times the stamp too. The
- * Settings card's call (settings-ops-2 is to move it to `changeOwnPassword`).
- * @param {string} memberName @param {string} newPassword
- * @returns {Promise<{ statusRecorded: boolean }>} false when the password changed but the stamp did not persist
- */
-export async function setOwnPassword(memberName, newPassword) {
-    const { stamp } = await changeOwnPassword(memberName, newPassword);
-    return { statusRecorded: await stamp };
-}
-
 /** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
  *  and stamps `passwordStatus.resetAt` (server-side). Mirrors admin-auth.js's setupRosterAuth caller:
  *  a FRESH admin ID token as a Bearer header on every call. */

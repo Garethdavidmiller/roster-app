@@ -88,7 +88,7 @@ const SAVE_TIMEOUT_MS = 8000;
  * call in the feature was already time-boxed (the ready barrier, the status read, sign-in itself);
  * this one wasn't.
  * EXPORTED (v18.95) so the Settings Password card can reuse it rather than grow a second copy — it
- * makes the same `setOwnPassword` call and had the same gap. Its consequence is milder (a stuck card,
+ * made the same password-change call and had the same gap. Its consequence is milder (a stuck card,
  * not a trap, because Settings is dismissible) but identical in kind: `finally` never runs on a
  * promise that never settles, so the button stayed disabled on "Saving…" until a reload.
  *
@@ -331,7 +331,7 @@ function _show(member) {
                 if (res.status === 'pending') { onIndeterminate(res.settled); return; }
                 if (res.status === 'failed')  throw res.error;
                 // The password IS changed at this point. A missing migration stamp is a soft note
-                // (setOwnPassword's contract, in firebase-client.js), never a failure — do not re-prompt.
+                // (changeOwnPassword's contract, in firebase-client.js), never a failure — do not re-prompt.
                 onWriteConfirmed();
             } catch (e) {
                 failures++;

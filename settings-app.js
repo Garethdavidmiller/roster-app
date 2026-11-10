@@ -9,7 +9,7 @@
 
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom } from './roster-data.js';
 import { formatDayMonthYear } from './date-format.js';
-import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
+import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection, validateNewPassword } from './auth-identity.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -677,14 +677,21 @@ export function init() {
         let _pwIndeterminate = false;
 
         /** The write completed. Shared by the in-time and the LATE success paths.
-         *  @param {any} res the setOwnPassword result ({ statusRecorded }) */
+         *  @param {any} res the changeOwnPassword result ({ stamp }) — the password HAS changed; its
+         *  migration stamp may still be on its way (settings-ops-2) */
         const onWriteConfirmed = (res) => {
             // Only now tell the password manager, before the fields clear: earlier, a wrong CURRENT password
             // left Keychain offering a new password that was never set (the submit itself is cancelled).
             form?.requestSubmit();
-            setFeedback(res && res.statusRecorded === false
-                ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
-                : '✓ Password updated. Use it the next time you sign in.', 'ok');
+            const done = '✓ Password updated. Use it the next time you sign in.';
+            setFeedback(done, 'ok');
+            // The stamp finishes on its own. One that FAILS is a soft note, never "it failed" — the
+            // password changed either way — and it only ever amends this line, never a newer one.
+            res?.stamp?.then((/** @type {boolean} */ recorded) => {
+                if (!recorded && feedback?.textContent === done) {
+                    setFeedback('✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)', 'ok');
+                }
+            });
             // NOTHING TO RETIRE ON THE CALENDAR ANY MORE (v21.84). This used to write the `pw-own-2026`
             // done-flag; that notice's replacement is addressed to the SIGNED-OUT only, so it retires
             // itself once this member has a session (the audience is re-checked on every load) — one
@@ -767,11 +774,15 @@ export function init() {
                 // The WRITE may NOT (v18.97, external review). Promise.race stops WAITING; it does not
                 // CANCEL — so a slow updatePassword can land after we would have reported failure, and
                 // the member would then sign in with an old password that no longer works.
-                const outcome = await settleOrTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                // The deadline times the password change ALONE (settings-ops-2, as the forced overlay
+                // does): its migration stamp, a Firestore write that can be slow where the change was
+                // not, goes on in the background, and waited for here it turned a changed password
+                // into "we couldn't confirm".
+                const outcome = await settleOrTimeout(changeOwnPassword(member, next), SAVE_TIMEOUT_MS);
                 if (outcome.status === 'pending') { onIndeterminate(outcome.settled); return; }
                 if (outcome.status === 'failed')  throw outcome.error;
-                // The password DID change (setOwnPassword only rejects if reauth/updatePassword failed).
-                // A missing migration stamp is a soft note, never "it failed" — see setOwnPassword.
+                // The password DID change (changeOwnPassword only rejects if updatePassword failed).
+                // A missing migration stamp is a soft note, never "it failed" — see changeOwnPassword.
                 onWriteConfirmed(outcome.value);
             } catch (e) {
                 const code = /** @type {any} */ (e)?.code || '';

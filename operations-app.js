@@ -350,9 +350,9 @@ export function init() {
 
             // Head line: name · password posture · Reset (ALWAYS — v18.84). Reset used to render only
             // for a MIGRATED member ("a surname-default account has nothing to reset TO"), which quietly
-            // made the migration flag a security control. It isn't one: setOwnPassword deliberately
-            // tolerates the Firestore stamp failing after updatePassword has already succeeded (it
-            // returns statusRecorded:false and its own JSDoc calls the stamp "a monitoring signal, not
+            // made the migration flag a security control. It isn't one: changeOwnPassword deliberately
+            // tolerates the Firestore stamp failing after updatePassword has already succeeded (its
+            // stamp settles false and its own JSDoc calls the stamp "a monitoring signal, not
             // a security control"). A member whose stamp was lost therefore holds a REAL password while
             // this table reads "Surname default" — and with Reset hidden, the only in-app break-glass
             // path was gone: their surname no longer signs them in and recovery needed the Firebase
