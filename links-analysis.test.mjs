@@ -829,3 +829,20 @@ describe('the hard-limit summaries', () => {
     });
 });
 
+// ── A STORED CELL IS TEXT, NEVER MARKUP (whole-app review, Nov 2026) ─────────────────────────────
+// The short-turnaround row quotes the two times it measured, cut from the stored cell. The time
+// readers anchor one END of the string each (`^HH:MM-`, `-HH:MM$`), so `15:25-<anything>-23:55` reads
+// as a duty, `normalisePatterns` keeps it, and the rules check `patterns` only as a map. Its middle
+// reached `innerHTML` raw: the one place on this card where a design's own text did.
+test('a stored shift string reaches the turnaround row as text, never as markup', () => {
+    resetDom();
+    const patterns = fullPatterns();
+    patterns['1'].sat = '15:25-<img src=x onerror=alert(1)>-23:55';
+    patterns['2'].sun = '06:20-14:20';   // 6h 25m after that 23:55 finish
+    initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+    const html = els.checksContent.innerHTML;
+    assert.match(html, /Short turnarounds/, 'premise: the hostile cell reads as a duty and produces a turnaround');
+    assert.doesNotMatch(html, /<img/i, 'a fragment of a stored cell was written into the page as markup');
+    assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/, 'the fragment is still shown, as text');
+});
+

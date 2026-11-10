@@ -505,13 +505,16 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         } else {
             const cap = turnarounds.slice(0, 4);
             const more = turnarounds.length - cap.length;
+            // The two times are pieces of the STORED cell, so they are escaped like every other
+            // piece of a design on this card. The time readers anchor one end of the string each,
+            // so `15:25-<anything>-23:55` reads as a duty and its middle arrives here.
             rows.push(
                 `<div class="check-row check-bad">` +
                 `${cross}<div class="check-body">` +
                 `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than 12 hours rest` +
                 `<ul class="check-list">${cap.map((/** @type {any} */ t) =>
-                    `<li>Line ${t.fromLine} ${t.fromDay} (ends ${t.fromShift.split('-')[1] || ''}) → ` +
-                    `Line ${t.toLine} ${t.toDay} (starts ${t.toShift.split('-')[0] || ''}) — ` +
+                    `<li>Line ${t.fromLine} ${t.fromDay} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
+                    `Line ${t.toLine} ${t.toDay} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
                     `${Math.floor(t.restMinutes / 60)}h ${t.restMinutes % 60}m rest</li>`
                 ).join('')}${more > 0 ? `<li>…and ${more} more</li>` : ''}</ul>` +
                 `</div></div>`
