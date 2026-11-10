@@ -58,7 +58,7 @@ export function init() {
     reloadIfRestoredForSomeoneElse();
     // Register the service worker UNCONDITIONALLY, before the access gate — a signed-out (or
     // non-admin) visit returns early below and would otherwise never register/update the SW for
-    // that page load. Matches settings-app.js (module-scope registration). (v16.21)
+    // that page load (v16.21). Settings registers before its sign-in decision too.
     // Defer an SW-update reload while an admin is mid-way through a Weekly Roster Upload REVIEW —
     // the one piece of unsaved, in-flight work on this page (uncommitted review edits would be lost
     // on a reload). #rosterReviewSection carries `.visible` only while a review table is on screen;
@@ -231,8 +231,8 @@ export function init() {
         card.setOpen(true);
         document.getElementById(cardId)?.scrollIntoView({
             block: 'start',
-            // The app honours prefers-reduced-motion everywhere else; a notification tap is no place
-            // to start an exception.
+            // Under prefers-reduced-motion the jump is instant: a notification tap should not
+            // throw the page around for somebody who has asked for less motion.
             behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
         });
     }
@@ -815,10 +815,10 @@ export function init() {
     }
     initResetRequests();
 
-    // Show a banner if Firebase Auth couldn't establish a real admin session.
-    // Anonymous fallback still resolves the Promise so the page renders, but
-    // Cloud Functions and Storage both require a valid admin token — they'll
-    // reject silently without this warning.
+    // A banner when this admin's named Firebase session could not be confirmed. The page renders
+    // either way, but the uploads, the reset and the Cloud Function reads all need a valid admin
+    // token, and each would otherwise fail on its own with less to say. (There is no anonymous
+    // fallback since v24.34: a refused session is simply not established.)
     sessionReady.then(ok => {
         if (!ok || getFirebaseAuthError()) {
             const main   = document.querySelector('.container');
@@ -893,10 +893,10 @@ export function init() {
     // ============================================
     // registerServiceWorker() moved to the top of init() (runs before the access gate) — v16.21.
     sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
-    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
-    // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
-    // sign-in path the module loaded signed-out and the identity is only refreshed inside
-    // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
+    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the sign-in's
+    // critical path, so it waits for the session. `currentUser` is right here: an in-place sign-in
+    // re-runs init() with the new session, and only that signed-in pass gets this far (Settings, which
+    // signs in without a re-run, is why the same line there must read the identity late).
     sessionReady.then(() => initPasswordForce(currentUser));
 
 }
