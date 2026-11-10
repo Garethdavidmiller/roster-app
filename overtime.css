@@ -1215,6 +1215,25 @@ body[data-ot-paused] #otMineToggleHeader { cursor: default; }
     border-radius: 0 0 var(--radius-lg) var(--radius-lg); /* match the card's own corner */
 }
 
+/* KEYBOARD FOCUS LANDS CLEAR OF WHICHEVER BAR IS PINNED (whole-app fix, Nov 2026). A Tab scrolls only
+   as far as the window's edge, and the Submit bar is pinned over the bottom of it: the next day's
+   options landed under the bar, 100% covered, and Space answered a day the member could not see.
+   The root's scroll padding is what a scroll into view keeps clear, as admin's staged bar and the
+   Pay Calculator's total already do. The figures are the bars' measured heights with a margin — the
+   Submit bar 55px, 97px with a line of feedback; the reviewer's confirm bar 173px below 600px, where
+   it wraps, 81–117px from there. Clearing more than a bar needs only scrolls a little further. */
+html { scroll-padding-bottom: max(var(--ot-submit-clear, 0px), var(--ot-confirm-clear, 0px)); }
+html:has(#otMinePanel:not([hidden]) #otMineBody.open .ot-submit-bar) {
+    --ot-submit-clear: calc(64px + env(safe-area-inset-bottom));
+}
+html:has(#otMinePanel:not([hidden]) #otMineBody.open .ot-submit-bar .ot-feedback:not(:empty)) {
+    --ot-submit-clear: calc(120px + env(safe-area-inset-bottom));
+}
+html:has(#otConfirmBar:not([hidden])) { --ot-confirm-clear: calc(212px + env(safe-area-inset-bottom)); }
+@media (min-width: 600px) {
+    html:has(#otConfirmBar:not([hidden])) { --ot-confirm-clear: calc(132px + env(safe-area-inset-bottom)); }
+}
+
 .ot-feedback {
     margin: var(--space-3) 0;
     font-size: var(--type-small);

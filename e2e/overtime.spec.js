@@ -1102,6 +1102,68 @@ test.describe('overtime.css — print, focus and contrast', () => {
             .toContain('No week is open, so there is nothing to print');
     });
 
+    /**
+     * Press Tab `presses` times from where focus is; for each control it lands on inside `scope`, the
+     * share of the control under `bar`. Real key presses, so the browser's own scroll-into-view runs.
+     * @param {any} page @param {{ bar: string, scope: string, presses: number }} o
+     */
+    async function underBar(page, { bar, scope, presses }) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const seen = [];
+        for (let i = 0; i < presses; i++) {
+            await page.keyboard.press('Tab');
+            const m = await page.evaluate(({ bar, scope }) => {
+                const a = document.activeElement, b = document.querySelector(bar);
+                if (!a || !b || !a.closest(scope) || b.contains(a)) return null;
+                const r = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+                const under = Math.max(0, Math.min(r.bottom, br.bottom) - Math.max(r.top, br.top));
+                return { what: (a.textContent || '').trim().slice(0, 30), covered: r.height ? Math.round(100 * under / r.height) : 0 };
+            }, { bar, scope });
+            if (m) seen.push(m);
+        }
+        return seen;
+    }
+
+    test('a Tab never leaves the focused answer under the pinned Submit bar', async ({ page }) => {
+        // Tab scrolls only to the window's edge, and the Submit bar is pinned over the bottom 55px of
+        // it — so the next day's options landed under the bar (100% at 1280×720 and at 390×844).
+        for (const [w, h] of [[1280, 720], [390, 844]]) {
+            await page.setViewportSize({ width: w, height: h });
+            await seedSession(page, 'G. Miller');
+            await stubOvertime(page, { windows: [openWindow()] });
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day').first().waitFor();
+            const seen = await underBar(page, { bar: '.ot-submit-bar', scope: '.ot-day', presses: 24 });
+            expect(seen.length, 'the walk reached the day rows').toBeGreaterThan(6);
+            expect(seen.filter(s => s.covered > 0), `focused and under the bar at ${w}×${h}`).toEqual([]);
+            // A line of feedback makes the bar ~97px, not 55px — the clearance has to grow with it. The
+            // refusal leaves focus in the first unanswered day, so the walk starts at the top of the form.
+            await page.locator('.ot-submit').click();
+            await expect(page.locator('.ot-submit-bar .ot-feedback')).toContainText('before submitting');
+            const later = await underBar(page, { bar: '.ot-submit-bar', scope: '.ot-day', presses: 20 });
+            await expect(page.locator('.ot-submit-bar .ot-feedback'), 'the message stayed up for the walk').toContainText('before submitting');
+            expect(later.filter(s => s.covered > 0), `under the taller bar at ${w}×${h}`).toEqual([]);
+        }
+    });
+
+    test('…and nothing the reviewer tabs to sits under the confirm bar', async ({ page }) => {
+        // The reviewer's bar is fixed, 173px tall on a phone and 81px on a desktop; its space is
+        // reserved at the page's foot, but a Tab still scrolled controls only to the window's edge.
+        for (const [w, h] of [[390, 844], [1280, 720]]) {
+            await page.setViewportSize({ width: w, height: h });
+            await reviewerSheet(page, [{ ...W, weekEnding: '2026-08-29', exists: false, state: 'not-created', canCreate: true }, CREATED]);
+            await page.route('**/createOvertimeWindow', r => r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, window: { ...W, weekEnding: '2026-08-29', expectedCount: 6 } }) }));
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day-panel').first().waitFor();
+            await page.locator('[data-create]').first().click();
+            await expect(page.locator('#otConfirmBar')).toBeVisible();
+            const seen = await underBar(page, { bar: '#otConfirmBar', scope: 'main.app', presses: 40 });
+            expect(seen.length, 'the walk reached the workspace').toBeGreaterThan(10);
+            expect(seen.filter(s => s.covered > 0), `focused and under the bar at ${w}×${h}`).toEqual([]);
+        }
+    });
+
     test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
         // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
         // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
