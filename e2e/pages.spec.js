@@ -605,6 +605,38 @@ test.describe('touch-only on a touch screen', () => {
     });
 });
 
+// A LINK IN PROSE IS THE APP'S LINK (whole-app review, Nov 2026). Nothing styled a link in a Tips panel or in a
+// card's explainer, so Trains' two journey-planner links were the browser's own blue, and purple once followed:
+// the one in its Tips today, and the one in the line that says both timetables have ended, from 16 May 2027. Each
+// is read in its own state, so each has its own clock.
+test.describe('a link in a Tips panel or a card explainer', () => {
+    const navy = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+        const probe = document.body.appendChild(document.createElement('span'));
+        probe.style.color = 'var(--primary-blue)';
+        const c = getComputedStyle(probe).color;
+        probe.remove();
+        return c;
+    });
+    const look = (/** @type {import('@playwright/test').Locator} */ link) => link.evaluate(a => {
+        const s = getComputedStyle(a);
+        return { colour: s.color, weight: s.fontWeight };
+    });
+    for (const { when, at, open, link } of [
+        { when: 'in Trains\' Tips', at: '2026-11-10T09:00:00Z', open: '.btn-card-tips[data-card="overview"]', link: '#tipsLightboxContent a' },
+        { when: 'once both timetables have ended', at: '2027-05-20T09:00:00Z', open: null, link: '#trEnded a' },
+    ]) {
+        test(`wears the app's navy, not the browser's blue — ${when}`, async ({ page }) => {
+            await page.clock.setFixedTime(new Date(at));
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            if (open) await page.locator(open).click();
+            const a = page.locator(link, { hasText: 'the journey planner' });
+            await expect(a).toBeVisible();
+            expect(await look(a)).toEqual({ colour: await navy(page), weight: '600' });
+        });
+    }
+});
+
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
 // registered the service worker only after their sign-in gate, so a release landing while somebody
 // sat on the sign-in screen left them working on the old release under the new worker. Operations

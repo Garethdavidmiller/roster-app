@@ -3608,6 +3608,10 @@ body.auth-ready .boot-placeholder { display: none; }
     line-height: 1.55;
     margin-bottom: 12px;
 }
+/* A link in prose — an explainer or a Tips panel. Nothing styled one, so Trains' two journey-planner links
+   were the browser's own blue, purple once followed (Nov 2026). Navy at 600, as the guides' links are. */
+#tipsLightboxContent a, .card-explainer a { color: var(--primary-blue); font-weight: 600; text-underline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { #tipsLightboxContent a:hover, .card-explainer a:hover { text-decoration-thickness: 2px; } }
 
 /* Uppercase micro field label (GRADE, TAX CODE, …) — the app's field-label convention. */
 .field-eyebrow {
