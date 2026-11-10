@@ -184,23 +184,35 @@ describe('a live document must never point at a file that is not there', () => {
             'the OLD file survives — the old document still points at it');
     });
 
-    test('a commit-AMBIGUOUS final failure leaves the file, because the document may name it', async () => {
+    test('a commit-AMBIGUOUS final failure leaves the file, because the document may name it — and is reported UNCONFIRMED', async () => {
         // Both attempts fail with a retriable code and the post-failure read says nothing is live.
         // Deleting here would 404 the document if the write lands late. An orphan is the cheap way
         // to be wrong; this is the asymmetry the whole rollback rule turns on.
+        //
+        // And what the admin is TOLD must match it (whole-app review, 10 Nov 2026): the engine keeps
+        // the file because the document may be live, so the error it hands the card is
+        // `upload/unconfirmed` — the "couldn't confirm" line — never the raw `unavailable`, which the
+        // card reads as "Upload failed — please try again". The original rides on `cause`.
         const h = harness({ setDocFails: () => 'unavailable', liveAfterFailure: null });
-        await assert.rejects(() => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G'), /boom/);
+        await assert.rejects(() => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G'),
+            (e) => /** @type {any} */ (e).code === 'upload/unconfirmed' && /** @type {any} */ (e).cause?.code === 'unavailable');
+        assert.deepEqual(h.log, ['setDoc-fail:unavailable', 'tx-fail:unavailable'],
+            'it is the compare-and-set RETRY that ended retriable — the state cal-docs-12 is about');
         assert.deepEqual(h.deleted, [], 'the new object is LEFT in place');
         assert.equal(h.uploaded.length, 1);
     });
 
-    test('signed out mid-commit (v24.39): UNCONFIRMED, not a hang, and the new file is kept', async () => {
+    test('signed out mid-commit (v24.39): a SIGN-OUT, not a hang, and the new file is kept', async () => {
         // The commit's account went, so Firestore will never answer it — the watcher rejects in its
         // place. The write may still land when that admin signs back in, so nothing is rolled back.
+        //
+        // It keeps its own code (whole-app review, 10 Nov 2026). Renamed `upload/unconfirmed`, the
+        // card said "the connection dropped mid-save" to somebody who needed to sign in again, and
+        // the page's write gate — which counts only SIGNED_OUT_CODE — never heard of it.
         const { SIGNED_OUT_CODE } = await import('./claim-retry.js');
         const h = harness({ guardCommit: () => Promise.reject(Object.assign(new Error('gone'), { code: SIGNED_OUT_CODE })) });
         await assert.rejects(() => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G'),
-            (e) => /** @type {any} */ (e).code === 'upload/unconfirmed');
+            (e) => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
         assert.deepEqual(h.deleted, [], 'the new object is LEFT — the document may yet name it');
         assert.equal(h.uploaded.length, 1);
     });
