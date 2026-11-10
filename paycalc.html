@@ -563,21 +563,25 @@
       </div>
 
       <!-- No section heading here (v21.70). "PEER TRAINING" was an uppercase divider announcing
-           ONE row whose own title already reads "Training Days" — a heading that says nothing the
-           thing beneath it does not, while claiming the visual rank of the two real groups above.
-           A divider earns its keep by separating things; with a single member it only adds a line
-           to scroll past. Restore it if a second peer-training row is ever added. -->
+           ONE row whose own title says the same — a heading that says nothing the thing beneath it
+           does not, while claiming the visual rank of the two real groups above. A divider earns
+           its keep by separating things; with a single member it only adds a line to scroll past.
+           Restore it if a second peer-training row is ever added.
+           THE TITLE IS "PEER TRAINING", NOT "TRAINING DAYS" (paycalc-3-18): the Calendar calls a day
+           a member ATTENDS training a Training day, and a trainee meeting "Training Days" with a +
+           button could count their own. No payslip line is called either — peer training shows as
+           extra basic pay (paycalc.md) — so the row says what it is. -->
 
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title"><span aria-hidden="true">🎓</span> Training Days</div>
+          <div class="h-title"><span aria-hidden="true">🎓</span> Peer Training</div>
           <span class="rate-badge badge-peer">+2 hrs pay</span>
           <div class="h-sub">Each day you trained a colleague adds 2 hours' pay at your basic rate. <span class="h-payslip">Shows as extra basic pay on your payslip.</span></div>
         </div>
         <div class="stepper">
-          <button type="button" id="peerMinus" aria-label="Decrease peer-training sessions">−</button>
-          <div class="stepper-val" id="peerVal" role="status" aria-live="polite" aria-label="Peer-training sessions">0</div>
-          <button type="button" id="peerPlus"  aria-label="Increase peer-training sessions">+</button>
+          <button type="button" id="peerMinus" aria-label="Decrease peer-training days">−</button>
+          <div class="stepper-val" id="peerVal" role="status" aria-live="polite" aria-label="Peer-training days">0</div>
+          <button type="button" id="peerPlus"  aria-label="Increase peer-training days">+</button>
         </div>
       </div>
 

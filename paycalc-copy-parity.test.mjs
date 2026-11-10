@@ -109,3 +109,35 @@ describe('Sunday vs Rest Day Working, at the point of use', () => {
             'the guide\'s "Sunday vs RDW" tip is the deep-dive layer for this distinction');
     });
 });
+
+// ── A ROW OR A CARD SAYS WHAT IT IS FOR, AND ONLY THAT ──────────────────────────────────────────
+describe('a row or a card says what it is for, and only that', () => {
+    const guide = readFileSync(new URL('./paycalc-guide.html', import.meta.url), 'utf8');
+    const text = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+    test('peer training never reads as the training a member attends (paycalc-3-18)', () => {
+        // The Calendar calls a day a member ATTENDS training a Training day. A stepper row titled
+        // "Training Days", each press adding two hours' basic pay, invited a trainee to count their
+        // own. Peer training has no payslip line of its own (paycalc.md), so nothing ties it to that
+        // name — the row says what it is, in the form and in the guide.
+        const row = ROWS.find(chunk => chunk.includes('id="peerPlus"'));
+        assert.ok(row, 'the peer-training stepper row is missing from paycalc.html');
+        const title = text(row.slice(0, row.indexOf('</div>')));
+        assert.match(title, /peer|colleague/i, `the stepper row is titled "${title}"`);
+        const card = /<span class="pay-name">([^<]*)<span class="pay-rate">\+2 hrs<\/span>/.exec(guide);
+        assert.ok(card, 'the guide\'s "+2 hrs" pay type is missing');
+        assert.match(card[1], /peer|colleague/i, `the guide calls it "${card[1].trim()}"`);
+    });
+
+    test('the guide promises only the conversion the converter makes (paycalc-3-10)', () => {
+        // The card has ONE input, a decimal from the payslip, and answers in hours and minutes. The
+        // guide said it converted "and back", so a member typed 7:30 to get a decimal — and read "7 hrs".
+        const card = html.slice(html.indexOf('id="decimalConverterCard"'), html.indexOf('id="payTransferCard"'));
+        assert.equal((card.match(/<input\b/g) || []).length, 1,
+            'the converter has gained a second input — the guide may now describe a reverse conversion');
+        const section = guide.slice(guide.indexOf('id="pg-decimal-hours-converter"'), guide.indexOf('id="pg-data-privacy"'));
+        assert.ok(section.length > 0, 'the guide\'s converter section is missing');
+        assert.doesNotMatch(text(section), /and back|both ways|either way|the other way/i,
+            'the guide promises a conversion the card does not make');
+    });
+});
