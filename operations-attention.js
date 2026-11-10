@@ -12,7 +12,11 @@
  *  - IT DISAPPEARS WHEN CLEAN. No "all clear" state, no empty frame: when nothing needs attention
  *    the strip does not exist, so its mere presence is the signal. (An item a card has not
  *    reported yet is likewise simply absent — the strip only ever claims what it has been told,
- *    and a failed card load reports nothing rather than a reassuring zero.)
+ *    and a failed card load reports nothing rather than a reassuring zero.) ONE exception, the
+ *    owner's (10 Nov 2026): a reset queue that could not be read says "couldn't check"
+ *    (`unchecked()`). Its card stays closed, so an absent item read from outside exactly like
+ *    "nothing outstanding" — a member waiting on a reset is the one backlog the admin cannot
+ *    infer from anywhere else.
  *  - IT OWNS NO NAVIGATION. Items are plain hash anchors into the page's existing deep-link
  *    machinery (DEEP_LINK_CARDS — the same route the reset-request push notification takes), plus
  *    an `onJump` callback so a repeat tap still opens and scrolls when the hash has not changed.
@@ -95,35 +99,47 @@ export function attentionBadge(count, truncated = false) {
  * voice user could not say by reading the pill (WCAG 2.5.3 Label in Name; axe checks it from 4.14,
  * v25.27). `badge` is `attentionBadge`, so a truncated backlog reads as the floor it is — the strip
  * must never understate a backlog its target card states.
- * @param {Record<string, {count: number, truncated?: boolean}>} reports
- * @returns {{id: string, hash: string, emoji: string, short: string, badge: string, text: string}[]}
+ * An `unchecked` report renders as "couldn't check" in place of a count: a load that FAILED, said
+ * out loud (`unchecked()` below), which is not the same thing as a count of none.
+ * @param {Record<string, {count: number, truncated?: boolean, unchecked?: boolean}>} reports
+ * @returns {{id: string, hash: string, emoji: string, short: string, badge: string, text: string, unchecked: boolean}[]}
  */
 export function buildAttentionItems(reports) {
     const out = [];
     for (const [id, entry] of Object.entries(ATTENTION_CATALOGUE)) {
         const r = reports[id];
         if (!r) continue;                                    // never reported — unknown, not zero
+        if (r.unchecked) {
+            out.push({
+                id, hash: entry.hash, emoji: entry.emoji, short: entry.short, badge: UNCHECKED,
+                text: `${entry.short}: ${UNCHECKED}`, unchecked: true,
+            });
+            continue;
+        }
         const badge = attentionBadge(r.count, r.truncated);
         if (!badge) continue;                                // known clean — nothing to index
         const after = entry.after(r.count);
         out.push({
             id, hash: entry.hash, emoji: entry.emoji, short: entry.short, badge,
-            text: `${entry.short}: ${badge}${after ? ` ${after}` : ''}`,
+            text: `${entry.short}: ${badge}${after ? ` ${after}` : ''}`, unchecked: false,
         });
     }
     return out;
 }
 
+/** What a failed check says in place of a count — in the pill and in its accessible name alike. */
+const UNCHECKED = 'couldn’t check';
+
 /**
  * Wire the strip. Renders into `container` (kept `hidden` until an item exists).
  *
  * @param {{container: HTMLElement|null, onJump?: (hash: string) => void}} cfg
- * @returns {{report: (id: string, count: number, extra?: {truncated?: boolean}) => void, withdraw: (id: string) => void}}
+ * @returns {{report: (id: string, count: number, extra?: {truncated?: boolean}) => void, withdraw: (id: string) => void, unchecked: (id: string) => void}}
  */
 export function createAttentionStrip({ container, onJump }) {
-    /** @type {Record<string, {count: number, truncated?: boolean}>} */
+    /** @type {Record<string, {count: number, truncated?: boolean, unchecked?: boolean}>} */
     const reports = {};
-    if (!container) return { report: () => {}, withdraw: () => {} };
+    if (!container) return { report: () => {}, withdraw: () => {}, unchecked: () => {} };
     // Re-bound after the guard so the closures below see a non-null type (narrowing does not
     // survive into a nested function).
     const host = container;
@@ -191,6 +207,8 @@ export function createAttentionStrip({ container, onJump }) {
             // leads with those same words and then says what the count is of.
             row.a.setAttribute('aria-label', item.text);
             row.count.textContent = item.badge;
+            // A failed check is not a count, so it does not wear the count's alarm colour.
+            row.count.classList.toggle('attn-count--unchecked', item.unchecked);
             prev = row;
         }
         host.hidden = false;
@@ -214,6 +232,19 @@ export function createAttentionStrip({ container, onJump }) {
          */
         withdraw(id) {
             delete reports[id];
+            render();
+        },
+        /**
+         * A load that FAILED, said out loud: the item stays on the strip and reads "couldn't
+         * check". Only the reset queue uses it (owner, 10 Nov 2026 — see the header); every other
+         * card's failure still withdraws.
+         * @param {string} id
+         */
+        unchecked(id) {
+            if (!(id in ATTENTION_CATALOGUE)) {
+                throw new Error(`[attention] unknown id "${id}" — add it to ATTENTION_CATALOGUE`);
+            }
+            reports[id] = { count: 0, unchecked: true };
             render();
         },
     };

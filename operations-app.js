@@ -809,7 +809,10 @@ export function init() {
             // Clear the chip: leaving the previous count above an error panel told the admin "5
             // outstanding" while showing no list (v18.94).
             if (chip) chip.textContent = '';
-            attention.withdraw('resets');   // the strip's count is as stale as the chip's was (whole-app review)
+            // The strip's count is as stale as the chip's was (whole-app review), and an absent item
+            // read as "nothing outstanding" from outside the closed card — so it says it couldn't
+            // check (owner, 10 Nov 2026).
+            attention.unchecked('resets');
             _cardLoadError(content, 'Couldn’t load the password reset requests — check your connection.', () => initResetRequests());
         } finally {
             _rrLoading = false;
