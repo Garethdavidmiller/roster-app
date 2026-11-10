@@ -236,6 +236,35 @@ test('the status says when the new link starts, apart from the timetable, and wh
 
 // THE LINE FOLLOWS THE DATE (test audit, 7 Nov 2026). It had no date logic, so once the link's start had come it would still
 // have said the link "starts on" it and that the timetable "comes first, in December".
+test('"Have your say by" goes once the closing date has passed, and not before (owner, 9 Nov 2026)', () => {
+    const at = (/** @type {string|null} */ today, /** @type {string|null} */ closes = '2026-11-27') => renderStatus({ proposals: PROPOSALS, closes, today });
+    const SAY = /<button type="button" class="nl-inline" data-open-card="nlSay">Have your say<\/button> by <strong>Friday 27 November<\/strong>\./;
+    assert.match(at('2026-11-20'), SAY, 'a week before');
+    assert.match(at('2026-11-27'), SAY, 'the closing day is the last day for views, so the line still stands on it');
+    for (const today of ['2026-11-28', '2027-03-01']) {
+        assert.doesNotMatch(at(today), /Have your say|by <strong>/, `on ${today} the date has gone, so the line goes`);
+        assert.match(at(today), /<p class="nl-lead">Nothing on this page changes your roster\.<\/p>/, 'and the sentence before it ends cleanly');
+    }
+    // no date set, or one that cannot be read: "a date to be agreed", whatever the day — it never passes
+    for (const closes of [null, '2026-02-30', 'soon']) assert.match(at('2027-06-01', closes), /Have your say<\/button> by <strong>a date to be agreed<\/strong>/);
+    // and with no day given (the page always gives one) the line stands, as it did before the date was known
+    assert.match(at(null), SAY);
+});
+
+test('every long word in a figure heading has a place to break, with a hyphen (the large-text check, 9 Nov 2026)', () => {
+    // With a phone's text at 1.3 times, "BALANCED" was wider than its column at 360px and ran into the next heading.
+    // newlink.css breaks a heading anywhere as a last resort; a soft hyphen makes the break a word's own. A design renamed
+    // into a long new word fails here until HEADING_BREAKS (newlink-render.js) gives it one.
+    const head = renderFigures(PERSONAS[0], COLUMNS).match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? '';
+    const words = [...new Set(COLUMNS.flatMap(c => c.match(/[A-Za-z]{7,}/g) ?? []))];
+    assert.ok(words.length > 0, 'premise: the headings hold long words');
+    for (const w of words) {
+        const shown = head.match(new RegExp(w.split('').join('\u00ad?')))?.[0];
+        assert.ok(shown?.includes('\u00ad'), `"${w}" has no soft hyphen in its heading`);
+        assert.equal(shown?.replace(/\u00ad/g, ''), w, `"${w}" is spelt as it was`);
+    }
+});
+
 test('the status line keeps its tense as the dates pass, and says nothing once the link may have started', () => {
     const at = (/** @type {string} */ today, starts = '2027-01') => renderStatus({ proposals: PROPOSALS, closes: null, starts, timetable: '2026-12-13', today });
     assert.match(at('2026-11-07'), /today’s link carries on until then\. The new timetable comes first, in December\./);

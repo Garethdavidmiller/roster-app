@@ -246,6 +246,9 @@ body {
     text-transform: uppercase;
     text-align: center;
     line-height: 1.25;
+    /* The last resort, after the soft hyphens a heading's long words carry (newlink-render.js → headingText): a word that
+       has none still breaks rather than running into the next heading. Wherever a word fits, nothing breaks. */
+    overflow-wrap: anywhere;
 }
 .nl-fig thead th.nl-today { background: color-mix(in oklch, var(--primary-blue) 72%, white); }
 .nl-fig thead th:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
@@ -324,8 +327,19 @@ body {
     font-size: var(--type-small);
     font-weight: 700;
 }
-.nl-weeks-wrap { padding: 6px; border: 1.5px dashed var(--border-mid); border-radius: var(--radius-md); background: white; }
-.nl-weeks { width: 100%; border-collapse: separate; border-spacing: 2px; table-layout: fixed; font-variant-numeric: tabular-nums; }
+/* THE GRID IS NEVER NARROWER THAN ITS TIMES (the large-text check, 9 Nov 2026). With a phone's text at 1.3 times, a time was
+   wider than its day's column at 360px and 375px and ran into the next day's (at 320px it did at the normal size). A time
+   cannot break, so the grid scrolls sideways inside its frame instead. The floor is set in the times' own em (the table's
+   font-size), so it grows with the text and nothing else: seven times of 2.86em ("15:45", Inter 600, tabular: 31.4px at
+   11px) and a pixel each of their borders, the week column (2.4em of its 10px heading, 2.2em here) and the nine 2px gaps.
+   A time may reach half a pixel into the gap beside it, never the next day's. Measured: at the normal size nothing moves
+   from 360px up, nor at 1.15 times from 375px, nor at 1.3 times at 412px. The frame is a tab stop, so a keyboard can
+   scroll it (renderWeeks; Team View's week table is the same, axe scrollable-region-focusable), and `contain` keeps a
+   sideways swipe at its edge from passing to the page. It is
+   `position: relative` so the hidden " to " in each cell (.visually-hidden, absolutely placed) scrolls inside it: with no
+   placed ancestor those escaped the frame and widened the document by the grid's overflow (39px at 320px and 1.3 times). */
+.nl-weeks-wrap { padding: 6px; border: 1.5px dashed var(--border-mid); border-radius: var(--radius-md); background: white; overflow-x: auto; overscroll-behavior-x: contain; position: relative; }
+.nl-weeks { width: 100%; min-width: calc(22.2em + 25px); border-collapse: separate; border-spacing: 2px; table-layout: fixed; font-size: var(--type-badge); font-variant-numeric: tabular-nums; }
 .nl-weeks caption {
     padding: 2px 2px 6px;
     color: var(--primary-blue);
@@ -376,7 +390,11 @@ body {
 
 /* ── The pack ─────────────────────────────────────────────────────────────────────────────────── */
 /* Each file a white raised row, like every other thing on the page a reader can press. */
-.nl-files { display: grid; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
+/* `minmax(0, 1fr)`, never the implicit track (css-tokens.md → "A grid track is only as narrow as its widest child ALLOWS"):
+   at 320px with a phone's text at 1.3 times, a row's "PDF · 15 pages" tag widened the track past the card, whose clip cut
+   the row off by 18px (the large-text check, 9 Nov 2026). The name gives way instead, breaking a word only if even that
+   is too long for its line; wherever the row fits, nothing moves. */
+.nl-files { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
 .nl-file {
     display: flex;
     align-items: center;
@@ -393,7 +411,7 @@ body {
 }
 .nl-file:active { transform: scale(var(--press-scale)); }
 .nl-file-icon { flex: 0 0 auto; font-size: var(--type-medium); }
-.nl-file-name { flex: 1 1 auto; min-width: 0; }
+.nl-file-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .nl-file-meta {
     flex: 0 0 auto;
     padding: 2px 8px;
@@ -463,6 +481,8 @@ body {
     .btn-burger, .nl-tiles, .nl-tabs, .nl-back-row { display: none !important; }
     /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
     .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
+    /* Paper does not scroll: a grid wider than its frame (very large text) prints whole rather than clipped. */
+    .nl-weeks-wrap { overflow: visible; }
     .nl-inline { color: inherit; text-decoration: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); break-inside: avoid; }
     .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side { print-color-adjust: exact; -webkit-print-color-adjust: exact; }

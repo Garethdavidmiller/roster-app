@@ -189,6 +189,14 @@ const lo = (xs) => Math.min(...xs), hi = (xs) => Math.max(...xs);
 // pounds; the notes say they are not ranked. WITHIN ONE SATURDAY DUTY'S HOURS since 8 Nov 2026: Balanced V6 and Middle Ground are
 // 7.5 hours a year apart, about £50 at the premium, and the notes say so; a wider gap stops the sheet
 claim('no overtime: the three within one Saturday duty’s hours a year of each other, so the rows are not ranked', hi(C.map(c => c.sat)) - lo(C.map(c => c.sat)) < 8.5);
+// NOT RANKED: your share of Sundays (the New link page's bug check, 9 Nov 2026: the rows carried no mark and nothing said why;
+// owner: "Fix"). Where a link pays a Sunday worker more, it is for more weekend hours at work — exactly, Balanced V6 £202 less
+// a year than today for 405 Saturday and Sunday hours, Level Crossing £211 for 404, Middle Ground £339 for 395 — so a green on
+// the pay would call more weekend work the better for everyone who works their Sundays. The notes say so. Exact pounds, not
+// the row's £50 steps, which round Balanced V6 and Level Crossing to the same £200
+const sunPay = c => (Q * (c.sat - TC.sat) + SUN * (c.sun - TC.sun)) * RATE, weekendHours = c => c.sat + c.sun;
+claim('your share of Sundays: of any two of the three, the one that pays more has more weekend hours, so the rows are not ranked',
+  C.every(a => C.every(b => a === b || (sunPay(a) > sunPay(b)) === (weekendHours(a) > weekendHours(b)))));
 // ── THE TABLE ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 // a row: label, and for today and each design the printed text and a number to rank by; `better` picks the best of the
 // three for THAT person (bold green), or null where nothing is better — today is for scale, never ranked. Left unranked on
@@ -245,7 +253,7 @@ const GROUPS = [
 ];
 
 // ── WHICH CELL IS THE CLEAR BEST ──────────────────────────────────────────────────────────────────────────────────────
-/** Is cell `i` of row `r` the clear best of the three for that person (bold green)? Today (i = 0) never is, nor any cell of a
+/** Is cell `i` of row `r` the best of the three for that person (bold green), however small its lead? Today (i = 0) never is, nor any cell of a
  *  row ranked by nothing, a row with a figure missing, or a row where all three agree. A tie at the top marks both. */
 export const isBest = (r, i) => { const c = r.cells[i]; if (i === 0 || !r.better) return false;
   const ns = r.cells.slice(1).map(x => x.n); if (ns.some(x => x == null) || ns.every(x => x === ns[0])) return false;

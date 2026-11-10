@@ -71,6 +71,20 @@ test('six ways of working, each a sentence and rows of four figures, and only a 
     }
 });
 
+test('a way of working with no green mark says why in the notes (the bug check, 9 Nov 2026)', () => {
+    // The Sunday rows carried no mark and the notes named only the swap and no-overtime rows, so a reader could not tell a
+    // deliberate "not ranked" from a missing figure. Each unmarked band names itself in the notes, in the notes' own words
+    const SAID = { swap: /The swap rows are not marked:/, 'no-overtime': /Nor are the no-overtime rows:/, sundays: /Nor are the Sunday rows:/ };
+    const notes = NOTES.join(' ').replace(/\u00a0/g, ' ');
+    const unmarked = PERSONAS.filter(p => p.rows.every(r => r.cells.every(c => !c.best)));
+    assert.ok(unmarked.length > 0, 'premise: some ways of working are left unranked');
+    for (const p of unmarked) {
+        const said = SAID[/** @type {keyof typeof SAID} */ (p.id)];
+        assert.ok(said, `${p.chip} carries no mark, and nothing here says how the notes explain it — add it to SAID and to the notes`);
+        assert.match(notes, said, `${p.chip} carries no mark, and the notes do not say why`);
+    }
+});
+
 test('what all three share comes as gains AND costs, never one without the other', () => {
     assert.ok(GAINS.length >= 3 && COSTS.length >= 3);
     assert.ok(CHANGES.length >= 3, 'the drafted "what has changed" lines');

@@ -7708,7 +7708,29 @@ Four things were fixed:
 3. **"Until then" pointed at December.** It closed the timetable's sentence, so it could be read as today's link ending
    with the timetable. It now sits in the link's own sentence.
 4. **"The clear best" became "the best".** The marks keep no margin: 8h 06m is marked beside 8h 07m. The What it means
-   sheet's key still says "clear", and that PDF is left as it is.
+   sheet's key said "clear" too; the follow-ups below changed it.
+
+**The follow-ups (9 Nov 2026, in the same v25.61 release)** (owner, on the check's five questions: "1. Yes 2. Yes 3. Yes 4. OK 5. Fix").
+1. **The What it means sheet says "the best" too.** It was re-rendered, the pack zip rebuilt, and the sheet still fits its
+   page, with 3px to spare.
+2. **"Have your say by …" goes once a set closing date has passed.** It still shows on the closing day itself. With no date
+   set it reads "a date to be agreed" and never goes. The Have your say card carries no date, so it stays.
+3. **"Nothing is decided." stays,** on the owner's word.
+4. **Larger text no longer runs anything together.** Measured at 320–412px, at the normal size and at 1.15 and 1.3 times:
+   - The figure headings break at soft hyphens ("BAL-ANCED", "CROSS-ING"). A long word without one still breaks rather than
+     spilling, and `newlink-render.test.mjs` fails until a renamed design's long word gets its own.
+   - The 26 weeks are never narrower than their times (a floor in the times' own em). Where they do not fit, they scroll
+     sideways inside their frame, which is a named tab stop, as Team View's week table is.
+   - From 360px up at the normal size, nothing moves; nor at 1.15 times from 375px, nor at 1.3 times at 412px. At 320px the
+     grid scrolls 15px, where its times used to touch.
+   - The frame is `position: relative`. Without it, each cell's hidden " to " escaped the frame and widened the whole page.
+   - The pack's rows sit on a `minmax(0, 1fr)` track. At 320px and 1.3 times, a row's "PDF · 15 pages" had pushed past the
+     card, whose clip cut it off by 18px.
+5. **The notes say why the Sunday rows are unmarked:** "where a link pays a Sunday worker more, it is for more weekend
+   hours at work, which suits one person and not another". The exact figures prove it, and `what-it-means-data.mjs`
+   asserts it: Balanced V6 £202 less a year than today for 405 Saturday and Sunday hours, Level Crossing £211 for 404,
+   Middle Ground £339 for 395. A green on the pay would call more weekend work the better. The sheet's notes say the same,
+   and `newlink-data.test.mjs` now fails for any way of working left unmarked without a note saying why.
 
 ## Notes for the whole set
 

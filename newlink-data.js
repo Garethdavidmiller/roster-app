@@ -309,7 +309,7 @@ export const NOTES = deepFreeze([
     "One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
     "Pounds are gross, before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
     "A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
-    "Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year.",
+    "Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.",
     "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail."
 ]);
 

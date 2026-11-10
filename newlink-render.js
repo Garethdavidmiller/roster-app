@@ -106,11 +106,17 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
     // timetable comes first, in December, and today's link carries on until then" — where the nearest "then" is December, so
     // it could be read as today's link ending with the timetable. It belongs to the link's start, in the link's sentence.
     const when = from && !reached(starts) ? ` The new link starts ${esc(from).replace(/^(in|on) (\S+) /, '$1 $2\u00a0')}, and today’s link carries on until then. ${timetableLine}.` : '';
+    // "BY" A DAY THAT HAS GONE IS UNTRUE (owner, 9 Nov 2026: "Yes" to hiding it once the date has passed). The closing date
+    // is the last day for views, so the line shows on it and goes from the day after; with no date set — or one that cannot
+    // be read, which closesWords words the same way — it reads "a date to be agreed" and never goes. The Have your say card
+    // below carries no date, so it stays.
+    const passed = closesWords(closes) !== closesWords(null) && !!today && today > /** @type {string} */ (closes);
+    const say = passed ? '' : ` <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.`;
     return `<p class="nl-callout"><strong>Nothing is decided.</strong>${when}
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
     ${weeksShape(proposals)}
-    <p class="nl-lead">Nothing on this page changes your roster. <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.</p>`;
+    <p class="nl-lead">Nothing on this page changes your roster.${say}</p>`;
 }
 
 /**
@@ -155,6 +161,21 @@ export function renderCommon({ gains, costs }) {
 export const ifYou = (who) => `If you ${who.replace(/^…/, '')}`;
 
 /**
+ * Where a column heading's long words may break, with a hyphen (the large-text check, 9 Nov 2026). With a phone's text at
+ * 1.3 times, "BALANCED" was wider than its column at 360px and 375px and ran into the next heading. A soft hyphen is drawn
+ * only where the line breaks, so wherever a word fits nothing changes. A long word not listed here still cannot spill —
+ * newlink.css lets a heading break anywhere as a last resort — but it breaks with no hyphen, so a new design's long word
+ * belongs here. e2e/newlink.spec.js measures every heading at 1.3 times the text.
+ * @type {Readonly<Record<string, string>>}
+ */
+const HEADING_BREAKS = Object.freeze({ Balanced: 'Bal\u00adanced', Crossing: 'Cross\u00ading', Middle: 'Mid\u00addle' });
+
+/** A column heading, escaped, with its listed words given their soft hyphens. @param {string} text */
+function headingText(text) {
+    return esc(text).replace(/[A-Za-z]+/g, w => HEADING_BREAKS[w] ?? w);
+}
+
+/**
  * A figure's words, escaped, with each run its no-break spaces hold together ("£140 more", "8h 06m") kept as ONE unit that
  * can still fit a narrow cell (bug check, 9 Nov 2026). The no-break spaces keep "£140" and "more" on one line wherever they
  * fit, but a no-break space is never a place to break: at 320px, or with a phone's text made larger, "£140 more" ran into
@@ -174,7 +195,7 @@ function figureText(text) {
  */
 export function renderFigures(p, columns) {
     const col = (/** @type {number} */ i) => `nl-${p.id}-c${i}`;
-    const head = `<thead><tr>${columns.map((c, i) => `<th scope="col" id="${col(i)}"${i === 0 ? ' class="nl-today"' : ''}>${esc(c)}</th>`).join('')}</tr></thead>`;
+    const head = `<thead><tr>${columns.map((c, i) => `<th scope="col" id="${col(i)}"${i === 0 ? ' class="nl-today"' : ''}>${headingText(c)}</th>`).join('')}</tr></thead>`;
     const body = p.rows.map((r, ri) => {
         const rid = `nl-${p.id}-r${ri}`;
         const cells = r.cells.map((c, i) => {
@@ -269,7 +290,7 @@ export function renderWeeks(p) {
         }).join('')}</tr>`;
     }).join('');
     return `<p class="nl-flag"><span aria-hidden="true">⚠️</span> A proposal — not your roster</p>
-    <div class="nl-weeks-wrap"><table class="nl-weeks">
+    <div class="nl-weeks-wrap" tabindex="0" role="group" aria-label="${esc(designName(p))}’s ${weeks.length} weeks"><table class="nl-weeks">
         <caption>${esc(designName(p))} <span class="nl-ref">${esc(p.ref)}</span></caption>
         ${head}<tbody>${rows}</tbody>
     </table></div>`;

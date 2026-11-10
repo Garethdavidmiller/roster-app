@@ -159,12 +159,14 @@ const NOTES = [
   `Pounds are gross, before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.`,
   'A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.',
   // "THE BEST", NOT "THE CLEAR BEST" (the bug check, 9 Nov 2026): isBest marks the best however small the lead — 8h 06m beside
-  // 8h 07m is marked — so "clear" promised a margin the marks do not keep. The sheet's own key still says "clear"
-  'Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year.',
+  // 8h 07m is marked — so "clear" promised a margin the marks do not keep. The sheet's key says the same since v25.61. AND THE
+  // SUNDAY ROWS SAY WHY THEY ARE UNMARKED (owner: "Fix"), with the sheet's own sentence: what-it-means-data.mjs asserts it
+  'Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.',
   '“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail.',
 ].map(t);
 claim('the swap rows are left unranked, as the notes say', GROUPS[2].rows.every(r => !r.better));
 claim('the no-overtime rows are left unranked, as the notes say', GROUPS.find(g => /no overtime at all/.test(g.who)).rows.every(r => !r.better));
+claim('the Sunday rows are left unranked, as the notes say', GROUPS.find(g => /share of Sundays/.test(g.who)).rows.every(r => !r.better));
 
 // ── THE FULL PACK — what a colleague is handed, nothing more ──────────────────────────────────────────────────────────
 // Not the shortlist sheet or the What it means sheet, whose comparison this page already is, and not the managers' decks.
