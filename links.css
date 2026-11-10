@@ -2572,6 +2572,9 @@ body.auth-ready .container { display: grid; }
         justify-content: center;
         min-height: 30px;
     }
+    /* Compare mode's "Compare with:" names, 22.5px drawn: the same floor. A <button> centres its own
+       words, so no flex here — that would cost the name its ellipsis. */
+    .design-chip-name { min-height: 30px; }
 }
 
 /* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.77) ════════════════════════════════════════════════

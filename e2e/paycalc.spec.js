@@ -2819,6 +2819,40 @@ test('paycalc: a card header is the shared header — edge, padding and hint as 
     expect(await header(), 'the Pay Calculator against Settings').toEqual(shared);
 });
 
+test('paycalc: a banner\'s "view … card" link is a thumb-sized target, and takes no tap meant for the tick', async ({ page }, info) => {
+    // A real button styled as a link, 12px on a line of its own: ~15px tall, under the app's 24px
+    // floor, and the gate never sees it — it loads the page with no banner up. The other small text
+    // controls already had an invisible hit area; this one was left out.
+    test.skip(!isTouchProject(info), 'a thumb');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-08-20T09:00:00Z'));   // the award payslip offers the lump
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    await page.locator('#bpBannerViewLink').evaluate(el => el.scrollIntoView({ block: 'center' }));
+    const m = await page.locator('#bpBannerViewLink').evaluate(el => {
+        const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const reach = (/** @type {number} */ dx, /** @type {number} */ dy) => {
+            let n = 0;
+            for (let i = 1; i <= 30; i++) {
+                const hit = document.elementFromPoint(cx + dx * i, cy + dy * i);
+                if (!hit || (hit !== el && !el.contains(hit))) break;
+                n = i;
+            }
+            return n;
+        };
+        const banner = /** @type {Element} */ (el.parentElement);
+        const label = /** @type {Element} */ (banner.querySelector('.banner-optin')).getBoundingClientRect();
+        const atTick = document.elementFromPoint(label.left + 40, label.bottom - 1);
+        return { drawn: Math.round(r.height), height: reach(0, -1) + reach(0, 1) + 1,
+                 tickKeepsItsEdge: !!atTick?.closest('.banner-optin') };
+    });
+    expect(m.height, `the tap target (drawn ${m.drawn}px)`).toBeGreaterThanOrEqual(24);
+    expect(m.tickKeepsItsEdge, 'the opt-in above keeps its own bottom edge').toBe(true);
+});
+
 test('paycalc: the rate badges print in their own colours, RDW included', async ({ page }) => {
     // Every fill prints here (the print block's `*` keeps them), so the seven badges need no print
     // rules of their own — except RDW: the calendar's shift badge shares the name, and shared.css's

@@ -2006,6 +2006,23 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
     expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
 });
 
+test('links compare: a "Compare with:" name is a thumb-sized target on a phone', async ({ page }, info) => {
+    // A 12px label with 4px padding, ~22.5px tall — under the app's 24px floor, beside paint chips and
+    // set buttons that carry a 30px one. The tap-target gate loads Links with one design, so compare
+    // mode, and these names, never exist when it measures.
+    test.skip(!isTouchProject(info), 'a thumb');
+    await openMixedDesign(page, { width: 390, height: 844 });
+    await page.locator('#designMoreBtn').click();
+    await page.getByRole('button', { name: /Compare with/ }).click();
+    const names = page.locator('#compareChips .design-chip-name');
+    await expect(names.first()).toBeVisible();
+    // The BOX, not a walk outward from the centre: nothing widens these with a pseudo-element, and the
+    // walk's half-pixel rounding reads the old 23px name as 24 — the reason a 1px probe let it pass.
+    const heights = await names.evaluateAll(els => els.map(el => el.getBoundingClientRect().height));
+    expect(heights.length, 'the premise: names to measure').toBeGreaterThan(0);
+    for (const h of heights) expect(h, 'a name\'s tap target').toBeGreaterThanOrEqual(24);
+});
+
 test('links compare: a differing cell\'s outline clears 3:1 against every cell fill', async ({ page }) => {
     // The diff marker was the brand gold, 1.2-1.4:1 against the cells it outlines — the pairing
     // css-tokens.md rules out for a focus ring for the same reason. Five differing Mondays cover the

@@ -314,6 +314,13 @@
       cursor: pointer; touch-action: manipulation;
     }
     .banner-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* The invisible hit area the other small text controls have (above), ~15px drawn. It reaches 5px
+       up — the opt-in tick sits 6px above, and a tap meant for it must not open the card — and 9px
+       down, over the note line, which takes no tap. Coarse pointers only. */
+    @media (pointer: coarse) {
+      .banner-link { position: relative; }
+      .banner-link::after { content: ''; position: absolute; inset: -5px -6px -9px; }
+    }
     /* Accuracy / confirm-your-payslip note line; hidden when its text is empty. */
     .bp-banner-note { margin-top: 4px; font-weight: 400; }
     .bp-banner-note:empty { display: none; }
