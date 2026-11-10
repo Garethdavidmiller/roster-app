@@ -146,6 +146,11 @@ function _currentPageFile() {
     return window.location.pathname.split('/').pop() || 'index.html';
 }
 
+/** Is this document the Calendar — the app's root, as a directory or as `index.html`? Where a `./#…`
+ *  link is only a hash change, so the drawer must not let it navigate (`./#…` from an explicit
+ *  /index.html resolves to `/#…`: a path change and a full reload where a hash change was meant). */
+const _onCalendarPage = () => /(^|\/)(index\.html)?$/.test(window.location.pathname);
+
 let _panelOpen      = false;
 // A single shallow history entry, shared by the panel and any lightbox that
 // opens from inside it — so Android Back pops exactly one entry.
@@ -461,10 +466,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                     // and keeps the app around it. On the Calendar that is a hash change under a
                     // drawer that has to close FIRST, so the hash lands after its Back echo; on any
                     // other page it is a navigation, and the drawer's entry goes with the page.
-                    if (_panelOpen && /(^|\/)(index\.html)?$/.test(location.pathname)) {
+                    if (_panelOpen && _onCalendarPage()) {
                         closePanel();
-                        // The hash alone: `./#…` from an explicit /index.html resolves to `/#…`, a PATH
-                        // change and a full reload where a hash change was meant (24-hour review).
+                        // The hash alone, never `./#…` (24-hour review) — see `_onCalendarPage`.
                         whenHistorySettled(() => { location.hash = docId; });
                     } else {
                         // THROUGH THE DRAWER'S OWN LINK PATH (v25.06): `location.href` skipped the unsaved-work
@@ -582,10 +586,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 window.addEventListener('popstate', _cancelNav);
                 return;
             }
-            // Modifier/middle click (desktop "open in new tab") or no pushed entry: default anchor path.
-            // Nothing is deferred or cancellable here, so the open is committed — count it.
+            // Modifier click (desktop "open in new tab") or no pushed entry: default anchor path.
+            // Nothing is deferred or cancellable here, so the open is committed — count it. A new tab
+            // leaves THIS page where it is, so the drawer closes properly and pops its own entry;
+            // only forgetting it left a dead same-URL entry that swallowed the next Back press.
             _countGuideOpen();
-            closePanelForNavigation();
+            if (plainGuideClick) closePanelForNavigation(); else if (_panelOpen) closePanel();
             return;
         }
         // Same-tab page navigation (pills, Settings, real info links). The drawer pushed a history
@@ -595,21 +601,35 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // plain left-click on a real cross-page link, REPLACE that throwaway entry with the destination
         // via location.replace — no race (unlike history.back()+nav, the reason closePanel() isn't used
         // here) and single-Back behaviour is unchanged: Back still lands on the page you were on before
-        // opening the drawer, just without the dead duplicate. Hash links (#huddle — the Daily Huddle
-        // same-doc nav, whose viewer owns its own history) and modifier / new-tab clicks keep the
-        // default <a> path. (v16.87)
+        // opening the drawer, just without the dead duplicate. (v16.87)
+        //
+        // THE OTHER TWO WAYS OUT POP THE ENTRY INSTEAD. A `./#…` link on the Calendar (the Daily Huddle)
+        // is a hash change under this document, not a navigation: the drawer closes properly and the
+        // hash is set once that close's Back echo has landed — the document hand-off's pattern above.
+        // A click that leaves this page where it is — a new tab, or the inert "you are here" pill —
+        // closes it properly too. Both used to forget the entry, which left a Back press that did
+        // nothing behind every Huddle opened from the drawer (whole-app check, Nov 2026).
         const navTarget = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-pill, .nav-panel-link'));
         if (navTarget) {
             const anchor  = navTarget.tagName === 'A' ? /** @type {HTMLAnchorElement} */ (navTarget) : null;
             const rawHref = anchor?.getAttribute('href') || '';
             const plainClick = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
-            if (anchor && _historyPushed && plainClick && rawHref && !rawHref.includes('#') && anchor.target !== '_blank') {
+            const navigatesHere = !!anchor && !!rawHref && plainClick && anchor.target !== '_blank';
+            if (navigatesHere && rawHref.startsWith('./#') && _onCalendarPage()) {
                 e.preventDefault();
-                closePanelForNavigation();      // clear _historyPushed + visually close (no history.back)
-                location.replace(anchor.href);  // overwrite the drawer's same-URL entry with the destination
+                if (_panelOpen) closePanel();
+                whenHistorySettled(() => { location.hash = rawHref.slice(2); });
                 return;
             }
-            if (_panelOpen) closePanelForNavigation();   // a hand-off click can come with the drawer shut
+            if (navigatesHere && _panelOpen && _historyPushed) {
+                e.preventDefault();
+                closePanelForNavigation();      // clear _historyPushed + visually close (no history.back)
+                location.replace(/** @type {HTMLAnchorElement} */ (anchor).href);   // overwrite the drawer's same-URL entry with the destination
+                return;
+            }
+            if (!_panelOpen) return;            // a hand-off click can come with the drawer shut
+            if (navigatesHere) closePanelForNavigation();   // no entry of ours to replace: the <a> navigates
+            else closePanel();                  // this page stays: pop the entry, as ✕ does
             return;
         }
     });

@@ -268,7 +268,10 @@ function mountDrawer(/** @type {any} */ opts) {
         createElement: () => fakeEl(), body: fakeEl(),
         addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
     });
-    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout });
+    // A page that is not the Calendar, so a `./#…` link is a navigation (`_onCalendarPage`).
+    const location = { pathname: '/links.html', hash: '', replace() {} };
+    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, location });
+    /** @type {any} */ (global).location = location;
     global.history = /** @type {any} */ ({ pushState() {}, back() {} });
     initNavPanel({ currentPage: 'links', memberName: 'A. Test', ...opts });
     return els.get('navSignOutBtn');
@@ -353,6 +356,62 @@ describe('a drawer-link click with the drawer SHUT closes nothing (48-hour revie
         /** @type {any} */ (document.getElementById('navMenuBtn')).on.click();   // open it
         click();
         assert.equal(scrollUnlocks, 1, 'open, the same click closes it for the navigation');
+    });
+});
+
+// ── EVERY WAY OUT OF THE DRAWER TAKES ITS HISTORY ENTRY WITH IT (whole-app check, Nov 2026) ──────────
+// The drawer pushes one entry when it opens. A page pill REPLACES it with the destination; everything
+// else that left by a link only FORGOT it, so a same-URL entry stayed behind and the next Back press did
+// nothing: every Daily Huddle opened from the drawer, every guide or page opened in a new tab.
+describe('every way out of the drawer takes its history entry with it', () => {
+    /** The drawer on a page at `pathname`, opened, and a click on one of its links. @param {string} pathname */
+    function openDrawerAt(pathname) {
+        // The module keeps its flags between mounts: clear them against an empty page.
+        global.document = /** @type {any} */ ({ getElementById: () => null, addEventListener() {}, removeEventListener() {} });
+        resetNavPanel();
+        mountDrawer({ onSignOut: () => {} });
+        const did = { backs: 0, replaced: /** @type {string[]} */ ([]), prevented: false };
+        const location = { pathname, hash: '', replace: (/** @type {string} */ to) => { did.replaced.push(to); } };
+        Object.assign(/** @type {any} */ (global.window), { location });
+        /** @type {any} */ (global).location = location;
+        global.history = /** @type {any} */ ({ pushState() {}, back() { did.backs += 1; } });
+        /** @type {any} */ (document.getElementById('navMenuBtn')).on.click();   // open: the drawer pushes its entry
+        /** @param {{ href?: string, tagName?: string, ctrlKey?: boolean, guide?: boolean }} link */
+        const click = ({ href = '', tagName = 'A', ctrlKey = false, guide = false }) => {
+            const el = { tagName, target: '', href: `https://example.test/${href.replace(/^\.\//, '')}`, dataset: {},
+                getAttribute: (/** @type {string} */ a) => (a === 'href' ? href : null) };
+            const wanted = guide ? '.nav-panel-link--guide' : '.nav-panel-pill, .nav-panel-link';
+            /** @type {any} */ (document.getElementById('navPanel')).on.click({
+                target: { closest: (/** @type {string} */ sel) => (sel === wanted ? el : null) },
+                button: 0, ctrlKey, preventDefault: () => { did.prevented = true; } });
+            return did;
+        };
+        return { click, location };
+    }
+
+    for (const path of ['/', '/index.html', '/roster-app/']) {
+        test(`the Daily Huddle on the Calendar (${path}) pops the drawer's entry, then sets the hash`, () => {
+            const { click, location } = openDrawerAt(path);
+            const did = click({ href: './#huddle' });
+            assert.equal(did.backs, 1, 'the entry was forgotten, not popped — Back then does nothing once');
+            assert.equal(location.hash, '#huddle', 'a hash change under this page, not a navigation');
+            assert.deepEqual(did.replaced, [], '`./#huddle` from /index.html would be a path change and a reload');
+            assert.equal(did.prevented, true);
+        });
+    }
+
+    test('from any other page it REPLACES the drawer\'s entry with the Calendar, as a page pill does', () => {
+        const did = openDrawerAt('/settings.html').click({ href: './#huddle' });
+        assert.deepEqual(did.replaced, ['https://example.test/#huddle']);
+        assert.equal(did.backs, 0, 'the page is leaving — nothing to pop');
+    });
+
+    test('a click that leaves this page where it is pops the entry: a new tab, the "you are here" pill, a guide', () => {
+        assert.equal(openDrawerAt('/settings.html').click({ href: './admin.html', ctrlKey: true }).backs, 1, 'a page opened in a new tab');
+        assert.equal(openDrawerAt('/settings.html').click({ tagName: 'SPAN' }).backs, 1, 'the inert pill for this page');
+        assert.equal(openDrawerAt('/settings.html').click({ href: './fip-guide.html', ctrlKey: true, guide: true }).backs, 1, 'a guide in a new tab');
+        const pill = openDrawerAt('/settings.html').click({ href: './admin.html' });
+        assert.deepEqual([pill.backs, pill.replaced.length], [0, 1], 'and a plain pill still replaces it, unchanged');
     });
 });
 

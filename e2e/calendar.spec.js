@@ -3077,6 +3077,59 @@ test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
 });
 
+// THE DRAWER TAKES ITS HISTORY ENTRY WITH IT (shared-ui-3). The Daily Huddle link is a hash on this page,
+// and the drawer only FORGOT the entry it had pushed rather than popping it — so the entry sat under the
+// viewer, and Android Back did nothing for one press afterwards, every time the Huddle was opened.
+// Read off each entry's own state, so the viewer's separate leftover (calendar-huddle-viewer.js) is not
+// what this counts.
+test('huddle: opened from the drawer, it leaves no drawer entry behind in the history', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    // Mark the entry the Calendar loaded on, so the walk back below stops there and never leaves the page.
+    await page.evaluate(() => history.replaceState({ ...(history.state ?? {}), e2eBase: true }, ''));
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    // Walk back through this page's own entries, one popstate at a time, and keep each one's state.
+    const states = await page.evaluate(async () => {
+        /** @type {any[]} */ const seen = [];
+        for (let i = 0; i < 6 && !history.state?.e2eBase; i++) {
+            await new Promise(r => {
+                const t = setTimeout(r, 1000);
+                addEventListener('popstate', () => { clearTimeout(t); r(undefined); }, { once: true });
+                history.back();
+            });
+            seen.push(history.state);
+        }
+        return seen;
+    });
+    expect(states.filter(s => s && typeof s === 'object' && 'mybNavPanel' in s),
+        'an entry the drawer abandoned: a Back press that does nothing').toEqual([]);
+});
+
+// …and from any OTHER page the link loads the Calendar, so the drawer's entry is REPLACED, as a page
+// pill's is: Back from the Calendar lands where the member was before opening the drawer.
+test('huddle: opened from another page\'s drawer, Back returns to that page past no drawer entry', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await expect(page.locator('#navMenuBtn[data-nav-panel-init]')).toBeAttached({ timeout: 15_000 });
+    await page.evaluate(() => history.replaceState({ ...(history.state ?? {}), e2eBase: true }, ''));
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet', { timeout: 15_000 });
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    for (let i = 0; i < 4 && !page.url().includes('/settings.html'); i++) await page.goBack();
+    expect(page.url()).toContain('/settings.html');
+    expect(await page.evaluate(() => history.state), 'Back landed on the drawer\'s leftover entry, not the page')
+        .toEqual(expect.objectContaining({ e2eBase: true }));
+});
+
 test('huddle: a tap on a Huddle that could not be read offers Try again, which re-reads', async ({ page }) => {
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleError: true }; });
     await seedMemberSession(page, 'G. Miller');
