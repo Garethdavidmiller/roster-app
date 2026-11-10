@@ -3185,7 +3185,8 @@
             border-radius: var(--radius-pill);
             padding: 3px 9px;
         }
-        @media print { .calendar-snapshot-note { display: none; } }
+        /* It PRINTS, like the stale note below: a sheet printed from the copy is the copy, and the label
+           is what stops it being read as the live roster (CALENDAR_DATA.md 17). */
 
         /* ---- A month drawn from this device's cache, outside the first load (whole-app review) ----
            calendar-renderer.js. `stale` is the grid "labelled as possibly out of date, with a retry"
@@ -3225,7 +3226,10 @@
             outline-offset: 2px;
         }
         .calendar-container:has(.sync-chip) .calendar-stale-note { display: none; }
-        @media print { .calendar-stale-note { display: none; } }
+        /* ON PAPER THE WORDS STAY AND ONLY THE BUTTON GOES. Hiding the whole note printed a month from
+           this device's saved copy with nothing on the sheet to say it may be out of date
+           (CALENDAR_DATA.md 18); a sheet cannot be tapped, so Try again is all that paper drops. */
+        @media print { .calendar-stale-retry { display: none; } }
 
         /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */
         @keyframes shimmer {

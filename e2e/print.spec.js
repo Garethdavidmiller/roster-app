@@ -491,6 +491,74 @@ test('a printed Team View is not headed with one member\'s name @print', async (
     expect(await inPrint(page, headerAfter), 'a grade printed under one colleague\'s name').toBe('none');
 });
 
+// ── A SAVED COPY IS LABELLED ON PAPER TOO (whole-app review, 10 Nov 2026) ───────────────────────
+// Both labels that say a month is drawn from a saved copy were `display: none` in print, so the sheet
+// carried the copy's shifts and nothing to say they might be out of date: "Saved copy — couldn't check
+// for changes" (CALENDAR_DATA.md 18) and the member's own stored copy's "Checking for changes…" (17).
+// The words print; only Try again, which paper cannot press, does not. Measured on the real PDF first:
+// the sheet's text held no "Saved copy" at all.
+/** What the sheet shows of a copy's label, read under print media.
+ *  @param {import('@playwright/test').Page} page @param {string} sel */
+async function printedLabel(page, sel) {
+    await page.emulateMedia({ media: 'print' });
+    try {
+        return await page.evaluate((s) => {
+            const n = document.querySelector(`#calendarDisplay ${s}`);
+            if (!n) return null;
+            const b = n.querySelector('.calendar-stale-retry');
+            return { shown: getComputedStyle(n).display !== 'none' && n.getBoundingClientRect().height > 0,
+                     words: (n.querySelector('[role="status"]') ?? n).textContent,
+                     retryShown: !!b && getComputedStyle(b).display !== 'none' };
+        }, sel);
+    } finally { await page.emulateMedia({ media: null }); }
+}
+
+test('a month drawn from this device\'s cache keeps its "Saved copy" label on paper, without Try again @print', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'nov', memberName: 'G. Miller', date: '2026-11-11', type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    // November is outside the first load's window, so a read the cache answers is labelled by the note.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('.calendar-stale-note'), 'premise: the month is the saved copy').toBeVisible();
+    await expect(page.locator('.calendar-stale-retry'), 'premise: with its Try again').toBeVisible();
+
+    const label = await printedLabel(page, '.calendar-stale-note');
+    expect(label?.shown, 'the sheet says the month is a saved copy').toBe(true);
+    expect(label?.words).toBe('Saved copy — couldn\'t check for changes');
+    expect(label?.retryShown, 'a button paper cannot press is left off').toBe(false);
+});
+
+test('the member\'s own stored copy keeps its "Checking for changes…" label on paper @print', async ({ page }) => {
+    test.setTimeout(60_000);
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(([m]) => {
+        if (sessionStorage.getItem('__e2e_snapshot_seeded')) return;
+        sessionStorage.setItem('__e2e_snapshot_seeded', '1');
+        localStorage.setItem('myb_cal_snapshot', JSON.stringify({ v: 1, member: 'G. Miller',
+            months: { [m]: { savedAt: Date.now(), days: { [`${m}-02`]: { type: 'annual_leave', value: 'AL' } } } } }));
+        // The live read is held, so the month on screen is the stored copy for the whole test.
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, docsDelayMs: 30_000 });
+    }, [month]);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay .calendar-snapshot-note'), 'premise: the copy is on screen')
+        .toBeVisible({ timeout: 20_000 });
+
+    const label = await printedLabel(page, '.calendar-snapshot-note');
+    expect(label?.shown, 'the sheet says the month is the stored copy').toBe(true);
+    expect(label?.words).toBe('Checking for changes…');
+});
+
 // ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────────────────────────
 // The print review, item 1 (ROADMAP_HISTORY.md): "Most readers want France, not the book." The guide is 25 sheets and a
 // traveller checking one coupon before a trip needs one card.
