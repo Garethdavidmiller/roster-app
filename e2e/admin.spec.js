@@ -2645,6 +2645,39 @@ test('admin: a read landing during a week swipe leaves one week, the one the dat
     }
 });
 
+// THE CONFIGURED YEARS ARE THE EDGE OF THE WEEK GRID (whole-app check, Nov 2026). The arrows, the swipe and
+// `?date=` walked on past CONFIG.MAX_YEAR, into weeks with no bank holiday marked where nothing saved could be
+// opened on the Calendar; and a `?date=` of 30 February emptied the field, so ‹ › then made NaN-NaN-NaN of it.
+test('admin: the week grid stops at the configured years, and a ?date= that is not a real day opens today', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html?date=2026-02-30');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await expect(page.locator('#fieldDate'), 'not a real day: today').toHaveValue('2026-08-27');
+    await page.locator('#nextWeekBtn').click();
+    await expect(page.locator('#fieldDate'), 'and the arrows work from it').toHaveValue('2026-09-03');
+
+    const [min, max] = await page.evaluate(async () => { const { CONFIG } = await import('./roster-data.js'); return [CONFIG.MIN_YEAR, CONFIG.MAX_YEAR]; });
+    expect(await page.locator('#fieldDate').evaluate(el => [/** @type {HTMLInputElement} */ (el).min, /** @type {HTMLInputElement} */ (el).max]),
+        'the date picker greys out the days past them').toEqual([`${min}-01-01`, `${max}-12-31`]);
+    await page.goto(`/admin.html?date=${max}-12-24`);
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#nextWeekBtn').click();
+    await expect(page.locator('#fieldDate')).toHaveValue(`${max}-12-31`);
+    await expect(page.locator('#nextWeekBtn'), 'no arrow into the year after').toBeDisabled();
+    await expect(page.locator('#prevWeekBtn')).toBeEnabled();
+    // And the step itself is refused, should an arrow's state ever be stale.
+    await page.locator('#nextWeekBtn').evaluate(b => { /** @type {HTMLButtonElement} */ (b).disabled = false; });
+    await page.locator('#nextWeekBtn').click();
+    await expect(page.locator('#fieldDate'), 'nor a stale arrow').toHaveValue(`${max}-12-31`);
+    await dragWeek(page, 'next');
+    await page.waitForFunction(() => document.querySelectorAll('.week-carousel-panel').length === 0, null, { timeout: 5000 });
+    await expect(page.locator('#fieldDate'), 'nor a swipe').toHaveValue(`${max}-12-31`);
+    await page.locator('#prevWeekBtn').click();
+    await expect(page.locator('#fieldDate')).toHaveValue(`${max}-12-24`);
+    await expect(page.locator('#nextWeekBtn')).toBeEnabled();
+});
+
 // A MOUSE SWIPES WITH ITS MAIN BUTTON, AND ONLY WHILE IT IS HELD (whole-app check, Nov 2026). A right-click opens
 // the menu on the press and a Mac never hands the page its release, and a press released outside the grid is
 // never heard either; the grid stayed armed, and the next bare movement over it slid the week under the cursor.

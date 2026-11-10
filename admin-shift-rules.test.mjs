@@ -19,7 +19,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours, checkDayRules, isBoxingDay } from './admin-shift-rules.js';
+import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours, checkDayRules, isBoxingDay, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
+import { CONFIG } from './roster-data.js';
 import { TYPES } from './admin-shift-types.js';
 
 /** A harness with no neighbours unless the test supplies them. */
@@ -214,5 +215,38 @@ describe('checkDayRules — before the start date, and an Other day on Boxing Da
         assert.equal(isBoxingDay('2026-12-26'), true);
         assert.equal(isBoxingDay('2026-12-25'), false);
         assert.equal(isBoxingDay('2026-06-26'), false);
+    });
+});
+
+// ── THE CONFIGURED YEARS ARE THE EDGE OF THE WEEK GRID (whole-app check, Nov 2026) ─────────────────
+describe('weekStepAllowed / linkableDate — the week grid stays inside CONFIG.MIN_YEAR–MAX_YEAR', () => {
+    const [MIN, MAX] = [CONFIG.MIN_YEAR, CONFIG.MAX_YEAR];
+
+    test('a week inside the years moves either way; one step past an edge is refused', () => {
+        assert.equal(weekStepAllowed(`${MAX}-12-24`, 7), true, 'the last whole week of the last year');
+        assert.equal(weekStepAllowed(`${MAX}-12-26`, 7), false, 'into the next year');
+        assert.equal(weekStepAllowed(`${MAX}-12-26`, -7), true);
+        assert.equal(weekStepAllowed(`${MIN}-01-08`, -7), true);
+        assert.equal(weekStepAllowed(`${MIN}-01-03`, -7), false, 'into the year before');
+        assert.equal(weekStepAllowed(`${MIN}-01-03`, 7), true);
+    });
+
+    test('a week already outside (an old record’s ✎ Edit) may always step back towards the years', () => {
+        assert.equal(weekStepAllowed(`${MAX + 1}-06-10`, -7), true);
+        assert.equal(weekStepAllowed(`${MAX + 1}-06-10`, 7), false);
+        assert.equal(weekStepAllowed(`${MIN - 1}-06-10`, 7), true);
+        assert.equal(weekStepAllowed(`${MIN - 1}-06-10`, -7), false);
+    });
+
+    test('a ?date= is a real day inside the years, or it is not used', () => {
+        assert.equal(linkableDate(`${MIN}-02-28`), true);
+        assert.equal(linkableDate(`${MAX}-12-31`), true);
+        assert.equal(linkableDate('2026-02-30'), false, '30 February: the date field empties it, and the arrows made NaN of it');
+        assert.equal(linkableDate('2026-13-01'), false);
+        assert.equal(linkableDate(`${MAX + 1}-01-01`), false);
+        assert.equal(linkableDate(`${MIN - 1}-12-31`), false);
+        assert.equal(linkableDate('2026-1-5'), false);
+        assert.equal(linkableDate(null), false);
+        assert.equal(linkableDate(''), false);
     });
 });

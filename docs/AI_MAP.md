@@ -1444,6 +1444,7 @@ The two rules a shift change must not break — maximum length and minimum rest 
 - `checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFor, formatDate, shiftDate })` → `{ errors, failedDates }`; `failedDates` is deduplicated, so a row breaking both neighbours is marked once while both sentences are still said. The neighbouring day comes from the INJECTED `resolveShift`, because a missed rest gap and an unloaded cache look identical from inside.
 - `constrainingTime(value, baseShiftFor)` — what an adjacent day constrains by; `null` means "does not constrain", which is not "constrains by nothing". An Other day has three cases (timed, untimed RDW, untimed on the base shift), set out in the header.
 - `checkDayRules({ toSave, member, formatDate })` → `{ errors, failedDates }` — the days that take no change at all: before the member's start date (the Calendar never shows it) and an Other day on Boxing Day (owner, Jul 2026). The Save's backstop, run by `admin-app.js` AFTER the collector; the grid refuses both at the pills first. `isBoxingDay(iso)`.
+- `weekStepAllowed(iso, days)` — may the week grid move that far? Never further outside `CONFIG.MIN_YEAR`–`MAX_YEAR`, always back towards them; asked by the arrows' disabled state (`updateWeekNavLabel`), `shiftWeek` and the swipe's adjacent panel. `linkableDate(s)` — a `?date=` that is a real day inside those years.
 - `MAX_SHIFT_MINS` / `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours`. Tested by `admin-shift-rules.test.mjs`.
 
 ### `admin-deep-link.js`

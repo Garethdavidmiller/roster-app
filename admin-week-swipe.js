@@ -38,6 +38,7 @@
 
 import { SWIPE_THRESHOLD, SWIPE_VELOCITY, formatISO, parseISODate } from './roster-data.js';
 import { buildWeekGridInto } from './admin-week-editor.js';
+import { weekStepAllowed } from './admin-shift-rules.js';
 
 /**
  * Wire the week-grid swipe and the week arrows (they share its cooldown, so one gesture and one
@@ -78,6 +79,7 @@ export function initAdminWeekSwipe({
     // Build a fully-functional adjacent week panel offset off-screen by delta weeks.
     /** @param {any} delta */
     function buildAdjPanel(delta) {
+        if (!weekStepAllowed(fieldDate.value, delta * 7)) return null;   // past the configured years: nothing to slide in
         const d = parseISODate(fieldDate.value);
         d.setDate(d.getDate() + delta * 7);
         const panel = document.createElement('div');

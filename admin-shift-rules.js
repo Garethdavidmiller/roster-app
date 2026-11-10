@@ -43,11 +43,14 @@
  * training/Other days" (owner, Jul 2026). Both are refused at the grid's pills as a Sunday's are;
  * this is the backstop at Save, for a row that reaches it another way.
  *
+ * And the weeks the grid may be moved to at all — the configured years (`weekStepAllowed`,
+ * `linkableDate`), below.
+ *
  * Pure — no DOM, no Firebase. Tested by admin-shift-rules.test.mjs.
  */
 
 import { parseOtherValue, isRestShift, isBeforeMemberStart } from './override-utils.js';
-import { parseISODate } from './roster-data.js';
+import { CONFIG, formatISO, parseISODate } from './roster-data.js';
 
 /** Maximum length of a single shift. */
 export const MAX_SHIFT_MINS = 12 * 60;
@@ -167,6 +170,28 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
 
 /** Is the ISO date Boxing Day, 26 December, in any year? @param {string} iso @returns {boolean} */
 export function isBoxingDay(iso) { return /^\d{4}-12-26$/.test(iso); }
+
+// ── THE CONFIGURED YEARS ARE THE EDGE OF THE WEEK GRID (whole-app check, Nov 2026) ─────────────────
+// The Calendar and Team Week stop at CONFIG.MIN_YEAR–MAX_YEAR, and so do the bank-holiday tables. Admin's
+// arrows, swipe, date picker and `?date=` did not, so they walked on into weeks with no bank holidays
+// marked, where anything saved could never be opened on the Calendar — and without any sign.
+
+/** May the week grid move `days` from `iso`? Never further outside the configured years; always back
+ *  towards them, so a week reached some other way (an old record's ✎ Edit) is not a dead end.
+ *  @param {string} iso @param {number} days @returns {boolean} */
+export function weekStepAllowed(iso, days) {
+    const d = parseISODate(iso);
+    d.setDate(d.getDate() + days);
+    return days < 0 ? d.getFullYear() >= CONFIG.MIN_YEAR : d.getFullYear() <= CONFIG.MAX_YEAR;
+}
+
+/** A `?date=` Admin may open on: a REAL day (not 30 February, which the date field empties and the
+ *  arrows then turn into NaN), inside the configured years. @param {string|null} s @returns {boolean} */
+export function linkableDate(s) {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s) || formatISO(parseISODate(s)) !== s) return false;
+    const y = Number(s.slice(0, 4));
+    return y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR;
+}
 
 /**
  * The staged changes that may not be saved on their day at all — see the header. Same shape as

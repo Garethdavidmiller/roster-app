@@ -36,7 +36,7 @@ import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
-import { isBoxingDay } from './admin-shift-rules.js';
+import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
@@ -165,6 +165,8 @@ export function updateWeekNavLabel(dateStr) {
         todaySun.setDate(todaySun.getDate() - todaySun.getDay());
         label.classList.toggle('is-current-week', sunday.toDateString() === todaySun.toDateString());
     }
+    // NO ARROW INTO A WEEK OUTSIDE THE CONFIGURED YEARS (whole-app check, Nov 2026) — `weekStepAllowed`.
+    for (const [id, n] of /** @type {Array<[string, number]>} */ ([['prevWeekBtn', -7], ['nextWeekBtn', 7]])) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = !weekStepAllowed(dateStr, n); }
 }
 
 /**

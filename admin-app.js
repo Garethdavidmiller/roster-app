@@ -24,7 +24,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft } from './admin-week-row-state.js';
-import { checkDayRules } from './admin-shift-rules.js';
+import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
 import { setLeaveYear } from './admin-leave-year-save.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -369,7 +369,9 @@ export function init() {
     // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
     // This preserves the month the staff member was viewing when they tapped Admin.
     const _urlDate = new URLSearchParams(location.search).get('date');
-    fieldDate.value = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : formatISO(new Date());
+    fieldDate.value = linkableDate(_urlDate) ? /** @type {string} */ (_urlDate) : formatISO(new Date());
+    // The configured years bound the date picker too (it greys out a day past min/max) — admin-shift-rules.js.
+    fieldDate.min = `${CONFIG.MIN_YEAR}-01-01`; fieldDate.max = `${CONFIG.MAX_YEAR}-12-31`;
     // Delegate to updateWeekNavLabel (admin-overrides.js) rather than rebuilding the same string
     // here (v18.90). The two copies had to agree on the format and didn't after the same-month
     // collapse landed — the init one changed, the one that actually runs on every week change did
@@ -478,6 +480,7 @@ export function init() {
      * @param {number} delta  Positive = forward, negative = back
      */
     function shiftWeek(delta) {
+        if (!weekStepAllowed(fieldDate.value, delta * 7)) return;   // the configured years (the arrow is disabled too)
         const go = () => {
             const d = parseISODate(fieldDate.value);
             d.setDate(d.getDate() + delta * 7);
