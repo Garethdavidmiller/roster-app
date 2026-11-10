@@ -57,19 +57,17 @@ import { unconfirmedWriteLine } from './claim-retry.js';
  * @property {() => boolean} hasOpenDesign   is any design open? (a restore into an empty workspace opens it)
  * @property {() => void} renderPicker       repaint the design picker
  * @property {() => Promise<void>} refreshLists  re-read both lists from the server
- * @property {(msg: string, kind?: 'ok'|'err') => void} actionStatus  the workspace's status line
+ * @property {(msg: string, kind?: 'ok'|'err'|'') => void} actionStatus  the workspace's status line;
+ *   `''` is its neutral voice, neither a success nor a failure (a write queued in this browser)
  * @property {() => any} getHeader           the masthead, once built (the bin opens from its ··· sheet)
  * @property {(ids: Set<string>) => void} removeDesigns  drop these from the live list; if one was open,
  *   open the next live design, else the first of the shortlist (Keep only the shortlist)
+ * @property {(id: string) => void} markQueued  this design's last write is only in THIS BROWSER's queue
+ *   (a create the store returned `queued`) — the coordinator's record, which the masthead's pill reads
  * @property {() => (string|null)} [activeId]  the open SAVED design's id — null for a proposal's copy
  *   or an unsaved design. Without it, Keep only the shortlist cannot tell whether the open design is
  *   among those moving, and warns about unsaved work whenever there is any
  */
-
-/** The workspace status line's third voice — neither success nor error — as a queued save uses it:
- *  the coordinator renders an empty tone as the bare class. Its `actionStatus` names only 'ok' and
- *  'err' so far, hence the cast. */
-const NEUTRAL = /** @type {any} */ ('');
 
 /** What a write still in this browser's queue is called — `saveChanges`'s words for a queued save. */
 const IN_THIS_BROWSER = 'Saved in this browser — it uploads the next time Links is open here with a connection.';
@@ -206,6 +204,10 @@ export function createDesignLibrary(ctx) {
                            { updatedBy: ctx.currentUser, updatedAt: serverTimestamp() }));
             const d = restoredEntryFrom({ id: importedId, name, patterns, window: null }, { updatedAt: ts, updatedBy: ctx.currentUser, revision: impBase.loadedRevision });
             ctx.addDesign(d);
+            // Recorded BEFORE the open or the repaint below, which draws the masthead's pill: unrecorded,
+            // a queued import's pill said "Saved" under a line saying "in this browser" (whole-app fix,
+            // Nov 2026).
+            if (queued) ctx.markQueued(importedId);
             // OPENED ONLY FROM THE PANEL IT WAS SAVED FROM (whole-app fix, Nov 2026). An online create
             // waits for the server's answer, and on a weak connection the designer can close the panel
             // and go back to their design meanwhile; opening the import when it landed replaced
@@ -219,7 +221,7 @@ export function createDesignLibrary(ctx) {
             ctx.actionStatus([`Imported “${name}”.`,
                 queued ? IN_THIS_BROWSER : '',
                 stillShowing ? '' : 'It is in the design list, not opened, because the import panel was closed while it saved.',
-                'Check it against the sheet it came from.'].filter(Boolean).join(' '), queued ? NEUTRAL : 'ok');
+                'Check it against the sheet it came from.'].filter(Boolean).join(' '), queued ? '' : 'ok');
         } catch (err) {
             console.error('[Links] Import failed:', err);
             _importStatus(unconfirmedWriteLine(err, 'this design', 'the design list') ?? 'Couldn’t save the design — check your connection and try again.', 'bad');

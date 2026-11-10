@@ -373,9 +373,10 @@
     --radius-field:  var(--radius-button);
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
     --radius-xl:    20px;   /* large lightbox/panel cards (v17.72 — was a hardcoded 20px in ~20 places) */
-    /* The app has TWO overlay families and they carry different corners on purpose: compact white
-       DIALOGS (month-jump, team info, login, work-email check, Tips, confirm/prompt) at --radius-xl,
-       and full navy GLASS SHEETS (About, notices, day detail, AL) at 24px. The six glass panels each
+    /* The app has TWO overlay families and they carry different corners on purpose: compact DIALOGS at
+       --radius-xl — white ones (month-jump, login, work-email check, Tips, confirm/prompt, the Calendar's
+       Circular/Newsletter viewer) and the Calendar's see-through team info — and full navy GLASS SHEETS
+       (About, notices, day detail, AL) at 24px. The six glass panels each
        restated `border-radius: 24px`, so that rule lived nowhere — naming it fixed that (v18.87).
        CORRECTION (v18.90): that pass documented two families while the code actually had three —
        four white panels (login/work-email/Tips/dialog) were on --radius-lg, i.e. the CARD radius,

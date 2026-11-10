@@ -7,8 +7,8 @@
 import { test, expect, withLinksDesigners } from './fixtures.js';
 import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject, waitForReadsToLand } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
-// a module import is not available, so those loops carry the literal 22 — and `links: the rotation
-// length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
+// a module import is not available, so those loops carry the length as a literal — and `links: the
+// rotation length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES } from '../links-design.js';
@@ -2364,6 +2364,24 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
     expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
 });
 
+// THE LEGEND'S WORDS NAME WHAT ITS SAMPLE DRAWS (whole-app fix, Nov 2026). The floor sample draws
+// "Orange+" — its "+" is the cells' own `::after` — and the words named the orange alone, so the mark a
+// reader meets in the grid was the one thing the legend did not explain. The mark is read off the
+// sample rather than typed here, so the words and the drawing cannot part again.
+test('links grid: the totals legend names the mark its floor sample draws', async ({ page }) => {
+    await openWindowDesign(page);
+    const legend = await page.locator('.tot-legend').evaluate(el => {
+        const sample = /** @type {Element} */ (el.querySelector('.lg-uncertain'));
+        const drawn = getComputedStyle(sample, '::after').content;   // `"+" / ""` where alt text is supported
+        const range = document.createRange();   // the entry's words: after the sample, up to the next "·"
+        range.selectNodeContents(el);
+        range.setStartAfter(sample);
+        return { mark: /^"([^"]+)"/.exec(drawn)?.[1] ?? '', words: range.toString().split('·')[0] };
+    });
+    expect(legend.mark, 'premise: the floor sample draws a mark after its word').not.toBe('');
+    expect(legend.words, 'the floor entry names the mark its sample draws').toContain(`“${legend.mark}”`);
+});
+
 test('links compare: a "Compare with:" name is a thumb-sized target on a phone', async ({ page }, info) => {
     // A 12px label with 4px padding, ~22.5px tall — under the app's 24px floor, beside paint chips and
     // set buttons that carry a 30px one. The tap-target gate loads Links with one design, so compare
@@ -3680,6 +3698,18 @@ test('links: editing a grid cell uses the app sheet, and cancelling changes noth
     await expect(cellBtn).toHaveText('SP');
 });
 
+// THE SHEET'S SEARCH BOX SAYS WHAT IT SEARCHES (whole-app fix, Nov 2026 — shared-ui-5, lead-5). The
+// sheet's title is the CELL, "Line 1 · Sun", which names a place rather than the list, so the box was
+// called "Search line 1 · sun" and then, by the shared rule for a title that is not plain words, just
+// "Search". The coordinator knows what the list holds, and names the box itself.
+test('links: the shift sheet\'s search box is called "Search shift times"', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.locator('tr[data-pos="1"] .shift-cell-btn').first().click();
+    const box = page.locator('.picker-sheet .picker-search-input');
+    await expect(box, 'premise: the shift list is long enough to be given a search box').toBeVisible();
+    await expect(box).toHaveAccessibleName('Search shift times');
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.
@@ -4472,6 +4502,25 @@ test('links: a copy made offline says it is saved in this browser, not "Saved"',
     await expect(page.locator('#designStatus')).toHaveClass(/dm-status--queued/);
     await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
     await expect(page.locator('#designStatusShort')).toHaveText('Saved here');
+    await context.setOffline(false);
+});
+
+// AN IMPORT MADE OFFLINE is only in this browser's queue too. Its line said so (links-design-8), and the
+// masthead's pill still said "Saved", as though a colleague could already open it: the coordinator keeps
+// the queued designs for the pill, and the import panel never told it about one.
+test('links: an import made offline says it is saved in this browser, in the pill as well as the line', async ({ page, context }) => {
+    await openWindowDesign(page);
+    await context.setOffline(true);
+    await sheetAction(page, 'importDesignBtn');
+    await page.locator('#linksImportText').fill('1\tNA\t06:20-13:50\tRD\tRD\t06:20-13:50\t06:20-13:50\t06:20-14:20');
+    await page.locator('#linksImportCheck').click();
+    await page.locator('#linksImportName').fill('Offline import');
+    await page.locator('#linksImportSave').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(activeDesignName(page)).toHaveText('Offline import');
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
+    await expect(page.locator('#designStatusShort')).toHaveText('Saved here');
+    await expect(page.locator('#designStatus')).toHaveClass(/dm-status--queued/);
     await context.setOffline(false);
 });
 
