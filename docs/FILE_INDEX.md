@@ -314,7 +314,7 @@ roster-app/
 ├── githooks/
 │   └── pre-commit          ← the enforced pre-commit hook (module/export doc rules, the 0.10 stamps of all five versioned docs, staged-JS ESLint, single-SDK-version check — see CLAUDE.md → "Same-commit rule")
 ├── robots.txt              ← staff-only, and deliberately ALLOWS crawling: the de-index control is `noindex` (the `X-Robots-Tag` header and a `<meta name="robots">` on every page, the mirror's only signal), and a crawler barred from a page can never read its noindex. **Do not change it to Disallow.** (SECURITY_RELEASE_PLAN "E0")
-├── .nojekyll               ← empty marker — makes GitHub Pages skip its Jekyll build (do NOT delete; see CLAUDE.md → Workflows)
+├── .nojekyll               ← empty marker that makes a BRANCH-built GitHub Pages site skip Jekyll. The mirror is published by deploy-mirror.yml now, whose artifact leaves dot-files out, so it matters only if the branch build returns; whether to keep it: CLAUDE.md → Workflows
 ├── operations-attention.test.mjs ← the strip's pure decision, by the two ways an index lies: claiming too LITTLE (absence must be earned) and claiming too MUCH (a zero rendered, an unreported card presented as known). Part of test:hygiene
 ├── guide-search.test.mjs ← the pure search rules, by what a wrong answer costs: laundered doubt (a provisional state lost on the way to a result row), an unfindable answer, and a doubled one. Part of test:hygiene
 ├── guide-index-parity.test.mjs ← the generated index is TRUE of the guide pages: regenerated from the HTML and diffed, result ids landing on real anchors, the marker vocabulary pinned to guide-sources.test.mjs, and the wiring (the delegated row class, the LAZY import). Part of test:hygiene

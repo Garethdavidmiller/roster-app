@@ -650,7 +650,8 @@ five things it protects. Feature design: `OVERTIME_AVAILABILITY.md`.
   creation, and stored) · `storedMilestones` (how every reader gets them back) · `toMillis` ·
   `phaseFor` / `isOpenPhase` (half-open: 12:00:00 belongs to the later phase) ·
   `validateWeekEnding` · `planningWeekEndings` · `weeksNeedingWindows` (the same filter as the Create
-  button) · `windowRowState` (a missed week stays visible until its Saturday) · `lastSchedulerRun`.
+  button) · `windowRowState` (a missed week stays visible until its Saturday; a week past the
+  roster's last year has its own state, `not-created-beyond-roster`) · `lastSchedulerRun`.
 - **Who was asked:** `isEligibleForWeek` · `selectParticipants` (narrows the generated list, never widens
   it; a `restricted` audience with no names selects nobody) · `canChangeParticipation` ·
   `canRestoreParticipant` · `isWithdrawn` · `isSafeDocId`.
@@ -1619,7 +1620,7 @@ Which figure is the headline, and what it is called. Two branches — a confirme
 
 ### `paycalc-money-banner.js`
 The two opt-in money banners on the result card, back pay and Holiday Pay Premium. **A banner may say "Includes" only when the sum is in the figure above it**, and a figure not yet confirmed says so on both paths (header).
-- `backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear })` · `hppBannerCopy({ forPeriod, amount, isEstimate })` → `{ text, note }` — PURE. The tick's own state decides the sentence; availability only decides whether there is anything to offer. The notes differ on purpose: back pay always says how to improve the estimate, while HPP prompts only when opted in to a figure that is still an estimate.
+- `backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, fromPayslip? })` · `hppBannerCopy({ forPeriod, amount, isEstimate })` → `{ text, note }` — PURE. The tick's own state decides the sentence; availability only decides whether there is anything to offer. The notes differ on purpose: back pay says how to improve a lump worked out from hours (never one typed from the payslip, `fromPayslip`), while HPP prompts only when opted in to a figure that is still an estimate.
 - `paintBanner({ rootId, textId, tickId, noteId, available, included, copy, tickYear? })` — hides by `display` and touches nothing else, so a hidden banner cannot come back carrying the previous payslip's number. The arithmetic gate behind the words is guarded by the rendered £ in `e2e/paycalc.spec.js`.
 
 ### `paycalc-lightboxes.js`
@@ -2146,7 +2147,7 @@ The COMPOSITION ROOT of the Cloud Functions. **Its exports are the deploy surfac
 Drives the two handlers `functions/index.js` keeps — `parseRosterPDF` and `unlockCalendarViewer` — for real: their rules were exemplary while nothing asked whether the handler calls them, in order, and acts on the answer (CLAUDE.md → "The rule tested, the wiring not"). Organised by what a wrong answer costs: every refusal of the roster parser asserts the MODEL WAS NOT ASKED, and the PIN tests cover the uncounted guess, both throttle ceilings, concurrent guesses, a rebuilt tampered viewer account and the minted token's single claim. It also pins `MODEL_REQUEST` through the real SDK against a local server. The fakes enter `require.cache` before `index.js` is required, and every fake RECORDS. Runs in `npm run test:functions`; its header names the mutations it was checked against.
 
 ### `functions/documents.js`
-The document-and-notification domain. `buildDocumentEndpoints(deps)` — a factory taking the shared infrastructure from `index.js` (secrets, the VAPID public key, `STAFF_SITE_URL`, `readRawBody`, `nowInLondon`, the caps); `index.js` re-exports what it returns under the same names, and a handler not re-exported there does not exist to Firebase.
+The document-and-notification domain. `buildDocumentEndpoints(deps)` — a factory taking the shared infrastructure from `index.js` (secrets, the VAPID public key, `STAFF_SITE_URL`, `readRawBody`, `nowInLondon`, the caps, and `rosterMembers`, the server-owned roster the pay reminder reads its audience from); `index.js` re-exports what it returns under the same names, and a handler not re-exported there does not exist to Firebase.
 - `getDocumentUrl` — POST `{ kind }` with a bearer ID token → `{ url, expiresAt, fileType, storagePath }`, a short-lived signed url for the LATEST document of that kind. The caller names a KIND, never a path (`functions/doc-url-core.js`), and the door mirrors the `firestore.rules` read. A 503 is what a missing `roles/iam.serviceAccountTokenCreator` grant looks like (CLAUDE.md).
 - `ingestHuddle` — Power Automate → Storage and Firestore: timing-safe bearer auth, base64 and file-signature checks, DOCX → HTML through a lazy `mammoth`, and the metadata written in a transaction. It declares 512 MiB, refuses a date after London's tomorrow, keeps a .docx over `MAX_DOCX_CONVERT_BYTES` as a file, and announces a first upload or the replacement of a HAND upload — only when it is the latest Huddle. It awaits the three-month `pruneOldHuddles` before it responds.
 - `onHuddleCreated` (the push for a manual admin upload; it skips `power-automate`, which `ingestHuddle` already notified) · `onCircularCreated` · `onNewsletterCreated` — `onDocumentCreated` triggers, each pushing its document-arrival notice through `buildPushPayload` and `fanOutPush`; each announces only when its document is the LATEST of its kind (`isLatestOfKind`; a failed read still announces).
