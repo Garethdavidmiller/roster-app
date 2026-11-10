@@ -51,7 +51,7 @@ export const NOTIF_PROMPT_DONE = 'myb_notif_prompt_done';
  *  point every protected page's sign-in passes through) and CONSUMED by password-force.js, so it is
  *  genuinely cross-file and belongs here rather than in either module. The marker is what keeps the
  *  overlay to real sign-ins only: without it the compel would ambush a member on an ordinary page
- *  load, which is the v14.77 "Fix 4" defect the work-email check's identical marker exists to stop. */
+ *  load, which is the v14.77 "Fix 4" defect the retired work-email check's identical marker existed to stop. */
 export const PW_FORCE_PENDING_PREFIX = 'myb_pw_force_pending_';
 
 /** The one-shot "this load followed a release" marker — a `Date.now()` stamp WRITTEN by

@@ -423,7 +423,7 @@ function _show(member) {
             });
         }
 
-        // Focus trap. Mirrors the work-email check rather than overlay.js's trapFocus, because the
+        // Focus trap. Its own, as the retired work-email check's was, not overlay.js's trapFocus, because the
         // focusable set CHANGES at runtime here (the current-password field and the escape button
         // both appear conditionally), so it must be recomputed on each Tab.
         overlay.addEventListener('keydown', e => {
@@ -442,7 +442,7 @@ function _show(member) {
 
         lockBodyScroll();
         overlay.classList.add('visible');
-        // Focus SYNCHRONOUSLY. The work-email check defers this by 60ms because it animates in; this
+        // Focus SYNCHRONOUSLY. The retired work-email check deferred this by 60ms because it animated in; this
         // overlay has no transition, so a timer here buys nothing and creates a race — anything that
         // reaches the fields inside that window has focus yanked back to the first input mid-input.
         // (That race is what made the mobile e2e intermittently see two fills land in one field.)
