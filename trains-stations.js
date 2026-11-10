@@ -41,7 +41,7 @@
  */
 
 import { serviceMinutes, alignTimes, compareRoutes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN, dateWords } from './trains-change.js';
-import { STATION_ORDER } from './trains-data.js';
+import { STATION_ORDER, CHANGE_DATE } from './trains-data.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
 /** @typedef {import('./trains-change.js').PairedTrain} PairedTrain */
@@ -356,11 +356,11 @@ export function stationTrains(nowRows, decRows, crs, dir) {
  * @param {StationSummary|null} dec
  * @param {PairedTrain[]|null} trains
  * @param {'dep'|'arr'} [dir]
- * @param {{ change?: string|null, started?: boolean }} [when] see stationView
+ * @param {{ change?: string|null, started?: boolean }} [when] see stationView; with no `change`, the data module's
  * @returns {{ tone: 'same'|'more'|'less'|'moved'|'unknown', text: string }}
  */
 export function verdictFor(now, dec, trains, dir = 'dep', { change = null, started = false } = {}) {
-    const from = change ? dateWords(change) : '13 December';
+    const from = dateWords(change || CHANGE_DATE);
     if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published where its December trains stop. Today’s figures are below.' };
     // No train either side — a station that only some days reach. It used to say "No change." over a
     // table of noughts, which a reader takes for "the trains carry on as they are".
