@@ -2632,6 +2632,29 @@ test.describe('operations: the roster read, cut off', () => {
             'Reading the PDF — this takes about 15 seconds. Keep this screen open until it finishes.');
     });
 
+    // THE LOCK COVERS THE WEEK (import-client-12). The read disables the week-ending field, but the field
+    // is hidden behind the date picker's trigger, which ignored `disabled` — so the week could be changed
+    // mid-read, and the review then answered for a different week from the one on screen.
+    test('while it reads, the week-ending date is locked with its field, and freed with it', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.route('**/parseRosterPDF*', () => { /* never answered: the read is still running */ });
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        const trigger = page.locator('#rosterWeekEnding + .date-trigger');
+        await expect(trigger).toBeEnabled();
+        await page.locator('#rosterParseBtn').click();
+        await expect(page.locator('#rosterParseBtn')).toBeDisabled();
+        await expect(trigger, 'the week could still be changed while the read ran').toBeDisabled();
+        // …and the picker itself refuses a disabled field, whoever asks it to open.
+        await page.evaluate(async () => {
+            const { openDatePicker } = await import('/date-picker.js');
+            openDatePicker(/** @type {HTMLInputElement} */ (document.getElementById('rosterWeekEnding')));
+        });
+        await expect(page.locator('#datePickerLightbox.visible')).toHaveCount(0);
+        await page.evaluate(() => { /** @type {HTMLInputElement} */ (document.getElementById('rosterWeekEnding')).disabled = false; });
+        await expect(trigger, 'the read is over: the trigger follows its field back').toBeEnabled();
+    });
+
     test('Safari\'s "Load failed" seconds in is a dropped connection, not a large PDF', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         // Safari's own words for a network failure, at once — no read can have been slow by then.

@@ -561,7 +561,8 @@ describe('unsaved-draft.js', () => {
         /** @param {string} by @param {number} [t] */
         const slotFor = (by, t = NOW) => ud.createDraftSlot({ page: 'admin', by, now: () => t });
         /** @type {any[]} */ let asked = [];
-        const ask = (/** @type {boolean} */ answer) => async (/** @type {any} */ o) => { asked.push(o); return answer; };
+        /** What the page's confirmDialog answers: true Restore, false Discard, null a dismissal. */
+        const ask = (/** @type {boolean|null} */ answer) => async (/** @type {any} */ o) => { asked.push(o); return answer; };
         beforeEach(() => { asked = []; });
 
         test('keep, then peek; a colleague\'s slot on the same phone sees none of it; forget deletes it', () => {
@@ -596,7 +597,21 @@ describe('unsaved-draft.js', () => {
             assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: (d) => applied.push(d) }), 'restored');
             assert.deepEqual(applied.map(d => d.data.rows[0].type), ['sick']);
             assert.equal(ls.has(KEY), false, 'cleared after a restore: the work is the page\'s again');
-            assert.deepEqual(asked[1], { title: 'Unsaved changes', message: 'Restore your unsaved changes from 13:20?', confirmLabel: 'Restore', cancelLabel: 'Discard' });
+            assert.deepEqual(asked[1], { title: 'Unsaved changes', message: 'Restore your unsaved changes from 13:20?', confirmLabel: 'Restore', cancelLabel: 'Discard',
+                dismissResult: null });
+        });
+
+        test('a question put away unanswered — a tap outside it, Escape, Back — keeps the draft, still unanswered (rule 1)', async () => {
+            ls.set(KEY, stored());
+            const slot = slotFor('A. Member');
+            /** @type {any[]} */ const applied = [];
+            assert.equal(await slot.offer({ ask: ask(null), apply: (d) => applied.push(d) }), 'unanswered');
+            assert.equal(asked[0].dismissResult, null, 'the dialog must be told a dismissal is not Discard');
+            assert.deepEqual(applied, [], 'nothing is put back');
+            assert.ok(ls.has(KEY), 'a tap on the backdrop deleted the kept work');
+            slot.forget();   // a clean hide in the same page life
+            assert.ok(ls.has(KEY), 'still unanswered, so a clean hide may not delete it (rule 3)');
+            assert.ok(slotFor('A. Member').peek(), 'and the next load asks again');
         });
 
         test('a Restore that could not be put back keeps the draft for the next load', async () => {
@@ -617,6 +632,27 @@ describe('unsaved-draft.js', () => {
             ls.set(KEY, stored({ savedAt: NOW - ud.DRAFT_MAX_AGE_MS - HOUR }));
             assert.equal(slotFor('A. Member').peek(), null);
             assert.equal(ls.has(KEY), false);
+        });
+
+        // A DAY, THEN GONE — FOR EVERY DRAFT ON THE DEVICE (whole-app check, Nov 2026). A draft was read,
+        // and so deleted when stale, only through the slot that owns its key: a colleague's staged week
+        // left on the station PC by somebody who never opened that page there again stayed for good.
+        test('creating any slot sweeps every draft on the device that nobody can be offered — and leaves a live one (rule 4)', () => {
+            const colleague = 'myb_draft_admin_B.%20Colleague', unreadable = 'myb_draft_admin_D.%20Fourth';
+            const live = 'myb_draft_links_C.%20Third', ahead = 'myb_draft_links_E.%20Fifth';
+            ls.set(colleague, ud.encodeDraft({ page: 'admin', by: 'B. Colleague', scope: { member: 'B. Colleague', date: '2026-12-07' },
+                data: { rows: [{ date: '2026-12-08', type: 'sick' }] }, savedAt: NOW - ud.DRAFT_MAX_AGE_MS - HOUR }));
+            ls.set(unreadable, '{not json');
+            ls.set(live, ud.encodeDraft({ page: 'links', by: 'C. Third', scope: {}, data: { patterns: { 1: {} } }, savedAt: NOW - HOUR }));
+            ls.set(ahead, ud.encodeDraft({ page: 'links', by: 'E. Fifth', scope: {}, data: { patterns: { 1: {} } }, savedAt: NOW + 2 * HOUR }));
+            ls.set('myb_pc_a_member_settings', 'kept');
+            slotFor('A. Member');
+            assert.equal(ls.has(colleague), false, 'a colleague\'s day-old staged week stayed on the shared PC');
+            assert.equal(ls.has(unreadable), false, 'unreadable: no page can ever offer it');
+            assert.equal(ls.has(ahead), false, 'dated ahead of the clock: its age cannot be judged, so it is never offered');
+            assert.ok(ls.has(live), 'inside its day: still its own member\'s to be offered (rule 2)');
+            assert.equal(ls.get('myb_pc_a_member_settings'), 'kept', 'only drafts are swept');
+            ls.delete(live); ls.delete('myb_pc_a_member_settings');
         });
 
         test('nobody signed in keeps nothing', () => {

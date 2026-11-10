@@ -794,6 +794,9 @@ runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them.
   LANDED — the fade done and its Back echo arrived. To act on a close, await it rather than a timer.
 - `dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler })` — the close routine, exported for
   the rare overlay built without `createLightbox`.
+- `closeOnBackdropTap(overlay, close)` — the backdrop rule `createLightbox` and the drawer's two lightboxes
+  share: a press AND release on the overlay itself, so a text selection dragged out of the card is not a
+  tap; a click made in code, with no press, still closes.
 - `_pushOverlayState(handler)` / `_clearOverlayHistory(handler)` — Android Back on a LIFO stack: nested
   overlays each get an entry and Back closes only the topmost (`overlay-history.test.mjs`).
   `whenHistorySettled(fn)` runs `fn` once no Back echo of ours is outstanding, so a dialog opened from a
@@ -804,10 +807,11 @@ runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them.
   stays green. `trapFocus(container, e)` wraps Tab, including from the panel itself.
 - **`openNoticeIfClear(lightbox)`** — the ONLY way a one-time notice opens (the `new-notice` skill): false
   while `lb-open` is set, so the notice stays unflagged and takes its turn next load.
-- `confirmDialog({ message, title?, confirmLabel?, cancelLabel?, danger?, onConfirm? })` →
+- `confirmDialog({ message, title?, confirmLabel?, cancelLabel?, danger?, onConfirm?, dismissResult? })` →
   `Promise<boolean>` and `promptDialog({...})` → `Promise<string|null>` — app-drawn `confirm()` and
   `prompt()`. Async, so never inside a capture-phase navigation guard or a `beforeunload`; `onConfirm`
-  runs inside the tap, for work that needs the gesture.
+  runs inside the tap, for work that needs the gesture. A dismissal (backdrop, Escape, Back) resolves
+  `dismissResult`, false unless given; the first answer stands through the close fade.
 - `lockBodyScroll()` / `unlockBodyScroll()` — depth-counted and iOS-safe.
 - `watchScrollFade(panel)` → stop function — toggles `.has-more` (the "more below" fade in shared.css)
   while a scrolling panel has content past its fold. Every lightbox gets it through `createLightbox`; the
@@ -1098,11 +1102,11 @@ The numbers the generator runs against, where they came from, and what may repla
 
 ### `select-sheet.js`
 The app's own dropdown. A native `<select>`'s popup is drawn by the OS, so every dropdown a reader reads opens this sheet instead; the `<select>` stays as the value holder, so consumers are untouched. The rules an enhancement can break are numbered contracts in `select-sheet-parity.test.mjs`; the reasoning is beside the code.
-- `enhanceSelect(select, { title, placeholder, triggerClass?, createLightbox? })` → `refresh()`. Inserts a trigger (`#<id>Trigger`, wearing the select's own classes plus `.fieldpick`), takes the select out of the layout and the accessibility tree, and opens one shared `createLightbox` sheet of `.picker-opt` rows. The trigger mirrors the select's `hidden` and `disabled`, and repaints on `change`, on `input` and on a MutationObserver, because a rebuild, a disable or a selection made in code fires no `change`.
-- `initSelectSheets(specs, { createLightbox? })` → each id's `refresh()`. A missing id is skipped; a select built after boot must be enhanced where it is built.
-- `openOptionSheet({ title, groups, current, subtitle?, searchPlaceholder?, onPick, onPreview? })` — the same sheet for a caller that holds the value itself (the Links grid's cell editor). `onPick` fires once the close has LANDED, so a dialog opened from it is not popped by the Back echo; `onPreview` fires on the tap; neither fires on a dismissal.
+- `enhanceSelect(select, { title, placeholder, triggerClass?, searchLabel?, createLightbox? })` → `refresh()`. Inserts a trigger (`#<id>Trigger`, wearing the select's own classes plus `.fieldpick`), takes the select out of the layout and the accessibility tree, and opens one shared `createLightbox` sheet of `.picker-opt` rows. The trigger mirrors the select's `hidden` and `disabled`, and repaints on `change`, on `input` and on a MutationObserver, because a rebuild, a disable or a selection made in code fires no `change`.
+- `initSelectSheets(specs, { createLightbox? })` → each id's `refresh()`; a spec is `{ id, title, placeholder?, searchLabel? }`. A missing id is skipped; a select built after boot must be enhanced where it is built.
+- `openOptionSheet({ title, groups, current, subtitle?, searchPlaceholder?, searchLabel?, onPick, onPreview? })` — the same sheet for a caller that holds the value itself (the Links grid's cell editor). `onPick` fires once the close has LANDED, so a dialog opened from it is not popped by the Back echo; `onPreview` fires on the tap; neither fires on a dismissal.
 - `readGroups(select)` (also the options parser for `openOptionSheet`; a `hidden` option is never offered) · `triggerLabel(select, placeholder?)` · `widestOptionLabel(select, placeholder?)` — the trigger is sized to the longest label, so it does not change width when the value does.
-- `shouldOfferSearch(count)` · `optionMatches(option, query)` · `filterGroups(groups, query)` · `searchLabelFor(title)` — the filter on a long sheet: a substring of the label or its second line, case and accents folded; a group that keeps nothing is dropped, and no match is an empty list. The box never takes focus, and it is deliberately not `guide-search.js`.
+- `shouldOfferSearch(count)` · `optionMatches(option, query)` · `filterGroups(groups, query)` · `searchLabelFor(title)` — the filter on a long sheet: a substring of the label or its second line, case and accents folded; a group that keeps nothing is dropped, and no match is an empty list. The box never takes focus, and it is deliberately not `guide-search.js`. Its name is the caller's `searchLabel`, else `searchLabelFor`: a title of plain words is welded on (an instruction keeps its noun), anything else — a question — is just "Search".
 - `createLightbox` is injected because `overlay.js` touches `window` at import. Tested by `select-sheet.test.mjs` and `select-sheet-pick.test.mjs`; coverage by `select-sheet-parity.test.mjs`; the wiring by `e2e/calendar.spec.js`.
 
 ### `select-sheet-parity.test.mjs`
@@ -1824,7 +1828,7 @@ How a signed-in page leaves a session, and what it does when the session leaves 
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page, a swipe back asks nothing) and offered on the next load. Imports only `ls.js` and `date-format.js`. The five rules — never applied silently, never across members, it mirrors the unsaved state at the last hide, a day then gone, a draft is work and not a decision — are its header. Written by `keepDraftWhenHidden` (`page-session.js`); used by `admin-app.js` and `links-app.js`. Tested in `page-session.test.mjs`.
-- `createDraftSlot({ page, by, now?, usable? })` → `{ peek, keep(scope, data), forget, offer({ ask, apply }) }` — one page's slot for the signed-in member. `usable(data)` is the page's test of a draft it can put back WHOLE (Links: a grid; Admin: rows); one that fails is neither offered nor kept. `forget` never deletes an earlier page life's draft that has not been answered; `offer` asks through the page's `confirmDialog` ("Restore your unsaved changes from 14:20?", Restore / Discard), and a Restore whose `apply` returns false or throws keeps the draft.
+- `createDraftSlot({ page, by, now?, usable? })` → `{ peek, keep(scope, data), forget, offer({ ask, apply }) }` — one page's slot for the signed-in member. `usable(data)` is the page's test of a draft it can put back WHOLE (Links: a grid; Admin: rows); one that fails is neither offered nor kept. `forget` never deletes an earlier page life's draft that has not been answered; `offer` asks through the page's `confirmDialog` ("Restore your unsaved changes from 14:20?", Restore / Discard), and a Restore whose `apply` returns false or throws keeps the draft — as does a question dismissed unanswered (`'unanswered'`), which the next load asks again.
 - `draftKey(page, by)` / `DRAFT_PREFIX` / `DRAFT_MAX_AGE_MS` — `myb_draft_<page>_<URI-encoded name>`, and the day after which a draft is neither offered nor kept.
 - `encodeDraft(draft)` / `decodeDraft(raw, { page, by, now })` — the stored shape, and what may be offered: null for another member or page, another version, malformed, older than a day or dated in the future.
 - `restoreQuestion(savedAt, now)` — the 24-hour question, with "yesterday" when it is.

@@ -313,6 +313,31 @@ test('the Calendar\'s print key in a home-screen app on iOS 27 opens the explana
     expect(await page.evaluate(() => /** @type {any} */ (window).__prints)).toBe(0);
 });
 
+// ONE TAP, ONE PRINT (shared-ui-7). About's Print closes the panel and prints once the fade is over —
+// and the panel stays on screen, and tappable, through that fade, so every further tap queued another
+// print: the print dialog came back after the first was closed, and in a home-screen app on iOS 27 two
+// "Printing isn't available here" dialogs stacked, so Close appeared not to work.
+test('About: a double tap on Print prints once @print', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__prints = 0;
+        window.print = () => { /** @type {any} */ (window).__prints++; };
+    });
+    await seedMemberSession(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/\bopen\b/);
+    await page.locator('#lightboxPrintBtn').dblclick();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__prints)).toBe(1);
+    await page.waitForTimeout(800);   // well past the 500 ms the second tap's print would have waited
+    expect(await page.evaluate(() => /** @type {any} */ (window).__prints), 'one print per tap that opened it').toBe(1);
+    // …and opening the panel again re-arms the button.
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/\bopen\b/);
+    await page.locator('#lightboxPrintBtn').click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__prints), { message: 'the next opening prints too' }).toBe(2);
+});
+
 // ── THE PRINT BUTTON PRINTS WHAT IS ON SCREEN (v23.27) ──────────────────────────────────────────
 // The prepare used to un-hide every card the finder had filtered out, so a traveller looking at one
 // country got the whole guide — 25 pages, at a station, before a trip. Opening a collapsed card is

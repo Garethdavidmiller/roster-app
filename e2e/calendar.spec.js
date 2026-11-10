@@ -851,6 +851,9 @@ test('calendar: the name sheet offers a filter, and picking a filtered row still
     expect(label, 'the search box must be named').toBeTruthy();
     expect((label || '').toLowerCase(), 'the sheet title leaked into the search name verbatim')
         .not.toMatch(/search (choose|select|pick) /);
+    // …and this sheet's title is a QUESTION, which welded into "Search whose roster are you reading?"
+    // (whole-app check, Nov 2026): a question has no noun to keep.
+    expect(label, 'the sheet\'s question was welded onto "Search"').not.toMatch(/\?|roster are you reading/i);
 
     const shownNow = () => page.locator('.picker-opt[data-value]').count();
     const before = await shownNow();
@@ -3188,6 +3191,31 @@ test.describe('the team week jump', () => {
         expect(label, `week label after picking Sunday ${target.iso}`).toMatch(new RegExp(`^${target.sunDate}\\b`));
         expect(label).toContain(String(target.satDate));
     });
+
+    // FOCUS FOLLOWS THE PICK (shared-ui-4). The pick rebuilds the week row, and Team View focuses the
+    // NEW label in its `change` handler. The picker announced the pick while still open, so its focus
+    // guard pulled that focus straight back into the closing picker — and it fell to <body> when the
+    // picker hid, so the next Tab started from the top of the page.
+    test('calendar: a week picked from the keyboard leaves focus on the rebuilt week label', async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a keyboard');
+        await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.goto('/');
+        await page.waitForSelector('.control-group--actions', { state: 'attached' });
+        await page.locator('#teamViewBtn').click();
+        await page.waitForSelector('.team-week-text');
+        const before = await page.locator('.team-week-text').innerText();
+        await page.locator('#tvWeekJump').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#datePickerLightbox')).toBeVisible();
+        await expect(page.locator('#dpGrid .dp-day:focus'), 'it opens on the chosen day').toHaveCount(1);
+        await page.keyboard.press('ArrowDown');   // the same day, a week on
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#datePickerLightbox')).toBeHidden();
+        await expect(page.locator('.team-week-text')).not.toHaveText(before);
+        await expect(page.locator('#tvWeekJump'), 'focus is on the label the pick rebuilt, not on <body>').toBeFocused();
+    });
 });
 
 // Team View opens on the month the reader is ON. `weekStartForMonth` is unit-tested in
@@ -3247,6 +3275,59 @@ test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+});
+
+// THE DRAWER TAKES ITS HISTORY ENTRY WITH IT (shared-ui-3). The Daily Huddle link is a hash on this page,
+// and the drawer only FORGOT the entry it had pushed rather than popping it — so the entry sat under the
+// viewer, and Android Back did nothing for one press afterwards, every time the Huddle was opened.
+// Read off each entry's own state, so the viewer's separate leftover (calendar-huddle-viewer.js) is not
+// what this counts.
+test('huddle: opened from the drawer, it leaves no drawer entry behind in the history', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    // Mark the entry the Calendar loaded on, so the walk back below stops there and never leaves the page.
+    await page.evaluate(() => history.replaceState({ ...(history.state ?? {}), e2eBase: true }, ''));
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    // Walk back through this page's own entries, one popstate at a time, and keep each one's state.
+    const states = await page.evaluate(async () => {
+        /** @type {any[]} */ const seen = [];
+        for (let i = 0; i < 6 && !history.state?.e2eBase; i++) {
+            await new Promise(r => {
+                const t = setTimeout(r, 1000);
+                addEventListener('popstate', () => { clearTimeout(t); r(undefined); }, { once: true });
+                history.back();
+            });
+            seen.push(history.state);
+        }
+        return seen;
+    });
+    expect(states.filter(s => s && typeof s === 'object' && 'mybNavPanel' in s),
+        'an entry the drawer abandoned: a Back press that does nothing').toEqual([]);
+});
+
+// …and from any OTHER page the link loads the Calendar, so the drawer's entry is REPLACED, as a page
+// pill's is: Back from the Calendar lands where the member was before opening the drawer.
+test('huddle: opened from another page\'s drawer, Back returns to that page past no drawer entry', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await expect(page.locator('#navMenuBtn[data-nav-panel-init]')).toBeAttached({ timeout: 15_000 });
+    await page.evaluate(() => history.replaceState({ ...(history.state ?? {}), e2eBase: true }, ''));
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet', { timeout: 15_000 });
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    for (let i = 0; i < 4 && !page.url().includes('/settings.html'); i++) await page.goBack();
+    expect(page.url()).toContain('/settings.html');
+    expect(await page.evaluate(() => history.state), 'Back landed on the drawer\'s leftover entry, not the page')
+        .toEqual(expect.objectContaining({ e2eBase: true }));
 });
 
 test('huddle: a tap on a Huddle that could not be read offers Try again, which re-reads', async ({ page }) => {

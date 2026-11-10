@@ -214,6 +214,39 @@ test('confirmDialog → promptDialog: Back closes the prompt and stays on the pa
     expect(await page.evaluate(() => /** @type {any} */ (window).__chain), 'Back is a cancel').toBe(null);
 });
 
+// A DRAG THAT ENDS ON THE BACKDROP IS NOT A TAP ON IT (shared-ui-8). Selecting a prompt's pre-filled
+// text with the mouse and letting go just outside the card makes a `click` on the overlay — the nearest
+// element the press and the release share — and the backdrop rule took that for a tap: the prompt
+// closed as Cancel and the typing was gone. A press AND release on the backdrop still closes it.
+test('promptDialog: a text selection dragged out onto the backdrop does not close it; a backdrop tap does', async ({ page }) => {
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible({ timeout: 20_000 });
+    const openPrompt = () => page.evaluate(async () => {
+        const { promptDialog } = await import('/overlay.js');
+        /** @type {any} */ (window).__answer = promptDialog({ message: 'Rename this design', defaultValue: 'Balanced V6 — copy' });
+    });
+    await openPrompt();
+    const input = page.locator('.dialog-overlay.open .dialog-input');
+    await expect(input).toBeVisible();
+    await expect.poll(() => page.locator('.dialog-overlay.open .dialog-lb-content').evaluate(el => getComputedStyle(el).transform),
+        { timeout: 5000 }).toBe('matrix(1, 0, 0, 1, 0, 0)');   // the open's scale has landed
+    const field = /** @type {{ x: number, y: number, width: number, height: number }} */ (await input.boundingBox());
+    const card = /** @type {{ x: number, y: number, width: number, height: number }} */ (
+        await page.locator('.dialog-overlay.open .dialog-lb-content').boundingBox());
+    const y = field.y + field.height / 2;
+    await page.mouse.move(field.x + field.width - 6, y);
+    await page.mouse.down();
+    await page.mouse.move(card.x - 24, y, { steps: 6 });   // out past the card's edge, onto the backdrop
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    await expect(input, 'the prompt closed under a text selection').toBeVisible();
+
+    await page.mouse.click(card.x - 24, y);                  // a real tap on the backdrop
+    await expect(page.locator('.dialog-overlay.open')).toHaveCount(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'a backdrop tap is still a Cancel').toBe(null);
+});
+
 // Same race, from the drawer: the brand button closes the drawer (a `history.back()`) and opens
 // About. About must open only once that traversal has landed, or it has no entry of its own.
 // This pins the OUTCOME, not the mechanism: Chromium and WebKit here both land a same-document
@@ -231,6 +264,49 @@ test('drawer brand → About: Back closes About and stays on the page', async ({
 
     await page.evaluate(() => history.back());
     await expect(about).toBeHidden();
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
+// A DIALOG OVER APP NOTICES ANSWERS ITS OWN CANCEL AND ITS OWN BACK (shared-ui-6). App Notices shares the
+// drawer's history entry, and while it was open the drawer took EVERY popstate for its own: the echo of a
+// dialog's Cancel closed App Notices underneath and stranded the drawer's entry, and a hardware Back
+// closed App Notices while the dialog on top of it stayed. A dialog can arrive by itself — the app-update
+// question, the unsaved-work offer — so this one is opened the way those are.
+test('drawer: a dialog over App Notices answers its own Cancel and Back, and App Notices waits for its own', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const notices = page.locator('#navNoticesLightbox');
+    const dialog = page.locator('.dialog-overlay.open');
+    const noticesThenDialog = async () => {
+        await page.locator('#navMenuBtn').click();
+        const toggle = page.locator('#navGuidesToggle');
+        if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+        await page.locator('.nav-panel-link--notices').click();
+        await expect(notices).toHaveClass(/\bopen\b/);
+        await page.evaluate(async () => {
+            const { confirmDialog } = await import('/overlay.js');
+            /** @type {any} */ (window).__answer = confirmDialog({ message: 'A new version is ready. Reload now?' });
+        });
+        await expect(dialog).toBeVisible();
+    };
+
+    await noticesThenDialog();
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toBeHidden();
+    await page.waitForTimeout(600);   // the dialog's Back echo has landed
+    await expect(notices, 'the dialog\'s Cancel closed App Notices underneath').toHaveClass(/\bopen\b/);
+    await page.evaluate(() => history.back());
+    await expect(notices, 'App Notices still holds the drawer\'s entry, so Back closes it').not.toHaveClass(/\bopen\b/);
+    await expect(page).toHaveURL(/admin\.html/);
+
+    await noticesThenDialog();
+    await page.evaluate(() => history.back());
+    await expect(dialog, 'Back left the dialog on screen').toBeHidden();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__answer), 'Back is the dialog\'s Cancel').toBe(false);
+    await expect(notices, 'and closed App Notices beneath it instead').toHaveClass(/\bopen\b/);
+    await page.evaluate(() => history.back());
+    await expect(notices).not.toHaveClass(/\bopen\b/);
     await expect(page).toHaveURL(/admin\.html/);
 });
 

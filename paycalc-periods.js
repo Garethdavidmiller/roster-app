@@ -198,9 +198,10 @@ export function updateBhRows(/** @type {any} */ p) {
 }
 
 // ── PERIOD SELECT ─────────────────────────────────────────────────────────────
-// iOS Safari ignores `select.value = x` when options are inside <optgroup> —
-// the select stays blank and the change event never fires. Explicitly setting
-// the matching option's .selected property works on all platforms.
+// Selects the payslip `pNum` — and does NOTHING when this select does not offer it, where
+// `select.value = x` would empty the select (the back-pay paid-in list relies on that). It was first
+// written believing iOS Safari ignores `.value` with options inside <optgroup>; WebKit does not
+// (measured 10 Nov 2026, desktop and iPhone emulation), so that is no longer a reason for it.
 export function _setSelectPeriod(/** @type {any} */ sel, /** @type {any} */ pNum) {
   for (const o of sel.options) {
     if (+o.value === pNum) {

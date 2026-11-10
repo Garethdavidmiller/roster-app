@@ -950,6 +950,19 @@ test.describe('sign-in pickers', () => {
         await expect.poll(focused, { timeout: 3000 }).toBe('loginNameTrigger');
     });
 
+    // THE TRAP'S ENDS ARE REAL TAB STOPS (shared-ui-1). It counted the hidden username field — there
+    // for the password manager, `tabindex="-1"` — as its FIRST stop, so Shift+Tab from Grade walked out
+    // to the page behind the card, and Tab from the last control landed on a field nobody can see.
+    test('Tab and Shift+Tab wrap inside the card, between its first and last real controls', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await expect(page.locator('#loginGradeTrigger')).toBeFocused();
+        await page.keyboard.press('Shift+Tab');
+        await expect(page.locator('#loginOverlay .login-back'), 'Shift+Tab from the first control wraps to the last').toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(page.locator('#loginGradeTrigger'), 'and Tab from the last wraps to the first').toBeFocused();
+    });
+
     // The field's own label is a tap target. It named the hidden select, so a tap focused a control
     // nobody can see (and on iOS opened the native wheel the sheet replaces). It names the trigger.
     test('tapping the field label opens the sheet, not the hidden select', async ({ page }) => {
