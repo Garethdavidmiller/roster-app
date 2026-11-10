@@ -153,6 +153,33 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
     });
 });
 
+// ── WHAT SETTINGS SAYS YOU WILL GET (Nov 2026 review) ───────────────────────────────────────────
+// The Notifications card lists the kinds of notification a member agrees to; its ? panel lists them
+// again. The card gained "Timetable changes" at v24.97 and the panel did not, under a comment insisting
+// it named every kind. Each list is held to the other: every kind on the card is named in the panel's
+// "What you'll get", and the panel names nothing the card does not. The card uses the short form of a
+// name ("Retail Circular"), the panel the full one ("Weekly Retail Circular"), so the panel's name must
+// END with the card's.
+describe('settings — the ? panel names the notifications the card lists', () => {
+    const card = [...readFileSync('settings.html', 'utf8').matchAll(/<span class="notif-kind">([^<]+?)(?: ·)?<\/span>/g)]
+        .map(m => m[1].trim());
+    const got = readCardTips('settings-app.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const named = (got?.items ?? []).map((/** @type {any} */ i) => /<strong>([^<]+)<\/strong>/.exec(i.html)?.[1] ?? '');
+
+    test('premise: both lists were found', () => {
+        assert.ok(card.length >= 4, `settings.html: found ${card.length} .notif-kind spans`);
+        assert.ok(named.length >= 4, 'settings-app.js: no "What you\'ll get" section in the notifications tips');
+    });
+    test('every kind on the card is in the panel', () => {
+        const missing = card.filter(k => !named.some(n => n.endsWith(k)));
+        assert.deepEqual(missing, [], `the card lists ${missing.join(', ')}; the ? panel does not`);
+    });
+    test('the panel names nothing the card does not', () => {
+        const extra = named.filter(n => !card.some(k => n.endsWith(k)));
+        assert.deepEqual(extra, [], `the ? panel lists ${extra.join(', ')}; the card does not`);
+    });
+});
+
 for (const { js, html, scope } of PAGES) {
     describe(`${js} — tips content`, () => {
         const tips = readCardTips(js, scope);

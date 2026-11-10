@@ -70,14 +70,15 @@ const CARD_TIPS = {
     'notifications': {
         title: 'Notifications',
         sections: [
-            // FOUR, not two. Circular and Newsletter have been pushed to everybody since
-            // v13.58/59 and this list never mentioned them — so a member turning
-            // notifications on was agreeing to two things and receiving four.
+            // Every kind the card lists (settings.html), and nothing else: a member turning notifications
+            // on agrees to this list. It named two kinds while four were sent, then four while the card
+            // said five — so tips-content.test.mjs now holds the two lists to each other.
             { heading: 'What you\'ll get', items: [
                 { icon: '📋', html: '<strong>Daily Huddle</strong> — when the day\'s Huddle has been uploaded.' },
                 { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
                 { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
                 { icon: '💷', html: '<strong>Pay reminder</strong> — on the cut-off Saturday, six days before payday, to enter your hours.' },
+                { icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' },
             ]},
             { heading: 'How it works', items: [
                 { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
