@@ -1477,6 +1477,24 @@ test('links memory: a table somebody EDITED is kept, and the note says what it i
     await expect(page.locator('#genMemoryNote')).toBeHidden();
 });
 
+// A SPARE COUNT THAT LEAVES NO WORKING LINE is refused by name, and only a STORED table can carry one.
+// Typing is clamped to the box's max, one line short of the rotation, so the refusal is reached from a
+// remembered table (or a saved setup) with every row at 0 — any other count trips the over-capacity
+// check first. The comment beside the message said it was "reachable by typing".
+test('links memory: a remembered spare count that leaves no working line is refused by name, and typing cannot reach it', async ({ page }) => {
+    await openLinksWithMemory(page, { slots: [{ time: '06:20-14:20', weekday: 0, sat: 0, sun: 0 }], spareLines: ROTATING_LINES });
+    const error = page.locator('#genError');
+    await page.locator('#genApplyBtn').click();
+    await expect(error).toContainText(`${ROTATING_LINES} spare weeks leaves no working lines`);
+
+    const box = page.locator('#genSpareLines');
+    await box.fill(String(ROTATING_LINES));
+    await box.dispatchEvent('input');
+    await page.locator('#genApplyBtn').click();
+    await expect(error, 'a typed count is clamped short of it').toContainText('Can\'t generate');
+    await expect(error).not.toContainText('leaves no working lines');
+});
+
 // ── Saved target sets (v21.04) ──────────────────────────────────────────────────────────────────
 // The promise under test: others can load and change anyone's set, but overwriting belongs to its
 // creator. The RULES enforce that server-side (firestore.rules.test.mjs covers it case for case);

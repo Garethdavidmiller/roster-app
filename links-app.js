@@ -1704,9 +1704,11 @@ export function init() {
                           + `${hmFromHours((built.shortRest ?? 0) / 60)} rest, and the minimum is `
                           + `${hmFromHours(MIN_REST_MINUTES / 60)}. No arrangement of these lines fixes it. `
                           + `Move a late finish earlier or a following start later.`
-                        // Reachable by TYPING a spare count the input's max doesn't stop (max only
-                        // gates the spinner) with day totals that still fit. The generic message
-                        // below sends the designer hunting through rows that are all fine.
+                        // Not reachable by typing: the spare box is clamped to its max, one line short
+                        // of the rotation (links-generator-targets.js, v24.38). A REMEMBERED table or a
+                        // saved setup has no such bound, and reaches it with every row at 0 — any other
+                        // count trips the over-capacity check above first. The generic message below
+                        // would send the designer hunting through rows that are all fine.
                         : built.reason === 'bad-spare-lines'
                             ? `Can't generate — ${genSpareLines} spare weeks leaves no working lines. `
                               + `Spare weeks must be fewer than the ${TOTAL_POS} lines.`
