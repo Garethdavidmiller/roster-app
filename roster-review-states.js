@@ -130,6 +130,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
         const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
         if (!member) continue;
         const drift = alignment.byMember.get(entry.memberName) || null;
+        // A ROW NOBODY READ (decided default, whole-app fix, Nov 2026). When every Monday-to-Saturday
+        // cell is a question, the Sunday is one too: a blank Sunday reads as a rest day, so for the
+        // member printed on a second sheet who works most of the week elsewhere it was a pre-ticked
+        // "Update → Rest" over a rostered Sunday, or a ticked "Clear old" over recorded Sunday work.
+        const unread = (/** @type {any} */ v) => !v || v === 'RDW' || isUnknownEncoded(v);
+        const weekdays = parsedResult.dates.filter((/** @type {string} */ d) => !isSunday(d));
+        const rowUnread = weekdays.length > 0 && weekdays.every((/** @type {string} */ d) => unread(entry.shifts?.[d]));
 
         for (const date of parsedResult.dates) {
             // A day the response does not carry is a QUESTION, not a rest day (whole-app fix, Nov
@@ -143,6 +150,11 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // chunk as permission-denied with a misleading "session may have expired" error.
             // Route it to the skip-only UNREADABLE row instead — never written (v16.23).
             if (parsedShift === 'RDW') parsedShift = 'UNKNOWN|RDW (no time on roster)';
+            if (rowUnread && isSunday(date) && !isUnknownEncoded(parsedShift)) {
+                const read = /** @type {Record<string, string>} */ ({ RD: 'rest day', OFF: 'rest day', SICK: 'Absent' })[parsedShift]
+                    ?? (isRdwEncoded(parsedShift) ? `RDW ${stripRdw(parsedShift)}` : parsedShift);
+                parsedShift = `${UNKNOWN_PREFIX}Sunday (${read}) — nothing else on this row was read; check the PDF`;
+            }
             const baseShift    = getBaseShift(member, parseISODate(date));
             const key          = `${entry.memberName}|${date}`;
             const existing     = overrideMap.get(key);

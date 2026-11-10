@@ -160,7 +160,9 @@ evidence, so it must never be warn-only above a fully-ticked list:
   second roster and works only its Saturday: writing RD across their Mon–Fri would overwrite what
   their primary roster's import had just written. The rule is applied at BOTH sites in
   `buildSafeEntries` (a day whose header the model never listed, and a header listed with nothing in
-  it); fixing one alone fixes nothing.
+  it); fixing one alone fixes nothing. **On a row whose Monday to Saturday were ALL unread, the review
+  treats the Sunday as a question too** (decided default, Nov 2026 — `computeCellStates`), so that
+  member's blank Sunday is never pre-ticked as a rest day.
 - **`NA` and `NS` are REST DAYS, on every day** (owner, 6 Nov 2026: "NA and NS should be treated as
   rest days on the roster uploader", Sundays included). `normaliseShift` records both as `RD` beside
   `SN`, so `buildSafeEntries`, the column cross-check and the grid read's rest test all get the same

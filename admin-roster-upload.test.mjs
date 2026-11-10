@@ -985,6 +985,52 @@ describe('collectRosterWrites — what one Save writes', () => {
     });
 });
 
+// ── A ROW NOBODY READ (decided default, whole-app fix, Nov 2026) ─────────────────────────────────
+// A blank weekday is a question and a blank Sunday a rest day — so for a member printed on a second
+// sheet who works most of the week elsewhere, every weekday was asked about while the Sunday was taken
+// as an answer and PRE-TICKED: "Update → Rest" over a rostered Sunday, or "Clear old" over Sunday work
+// an earlier upload had recorded. When Monday to Saturday are all unread, the Sunday is unread too.
+describe('a row whose Monday to Saturday were all unread', () => {
+    const SUNDAY = '2026-11-15';
+    const DATES = ['2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'];
+    const LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const who = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+    const blankWeek = (/** @type {string} */ sunday) => Object.fromEntries(DATES.map((d, i) =>
+        [d, i === 0 ? sunday : `UNKNOWN|no ${LABELS[i]} cell was read — check the PDF`]));
+    const sunday = (/** @type {Record<string,string>} */ shifts, /** @type {any[]} */ existing = []) => {
+        const states = computeCellStates({ parsed: [{ memberName: who.name, shifts }], dates: DATES }, existing);
+        return { s: states.get(`${who.name}|${SUNDAY}`), writes: collectRosterWrites(states) };
+    };
+
+    test('its blank Sunday is a question too — never a ticked "Update → Rest" over a rostered Sunday', () => {
+        assert.ok(who, 'a member rostered on the fixture Sunday');
+        const { s, writes } = sunday(blankWeek('RD'));
+        assert.deepEqual([s.state, s.chosen], ['UNREADABLE', null]);
+        assert.match(s.parsedShift, /^UNKNOWN\|Sunday \(rest day\) — nothing else on this row was read/);
+        assert.deepEqual(writes, []);
+    });
+
+    test('…nor a ticked "Clear old" over Sunday work an earlier upload recorded', () => {
+        const imp = [{ id: 'i1', memberName: who.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
+        const { s, writes } = sunday(blankWeek('RD'), imp);
+        assert.equal(s.state, 'UNREADABLE');
+        assert.deepEqual(writes, []);
+    });
+
+    test('a Sunday time on such a row is held for an answer as well, and says what was read', () => {
+        const { s } = sunday(blankWeek('10:00-14:00'));
+        assert.equal(s.state, 'UNREADABLE');
+        assert.match(s.parsedShift, /Sunday \(10:00-14:00\)/);
+    });
+
+    test('ONE weekday read is enough: the Sunday is then an answer, as the blank-cell rule says', () => {
+        const shifts = { ...blankWeek('RD'), [DATES[3]]: getBaseShift(who, new Date(DATES[3] + 'T12:00:00')) };
+        const { s } = sunday(shifts);
+        assert.deepEqual([s.state, s.chosen], ['DIFF', true], 'a rostered Sunday read as rest is a ticked change');
+    });
+});
+
 // ── THE SUMMARY AND THE SAVE BUTTON COUNT THE SAVE'S OWN WRITES (whole-app fix, Nov 2026) ─────────
 // They were a second pass over the same state, in the coordinator, held to the collector only by a
 // browser test asserting what was written. `reviewOutcome` counts what `collectRosterWrites` returns.
