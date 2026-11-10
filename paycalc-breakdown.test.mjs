@@ -260,11 +260,14 @@ test('buildBreakdownRows: each premium row appears only when its hours > 0', () 
     assert.ok(!html.includes('Bank Holiday Rostered'), 'bhCapped = 0 → no BH row');
 });
 
-test('buildBreakdownRows: training pluralises days; otherAdj shows sign', () => {
+test('buildBreakdownRows: peer training pluralises days; otherAdj shows sign', () => {
+    // "Peer Training", as the Hours row is named (paycalc-3-18) — never "Training Days", the Calendar's
+    // word for a day a member attends training, which needs nothing in the calculator.
     const one = buildBreakdownRows({ ...BD_BASE, peer: 1, gPeer: 42.98 });
-    assert.ok(one.includes('Training Days (1 day × 2h × £21.49)'));
+    assert.ok(one.includes('Peer Training (1 day × 2h × £21.49)'));
     const many = buildBreakdownRows({ ...BD_BASE, peer: 3, gPeer: 128.94 });
-    assert.ok(many.includes('Training Days (3 days × 2h × £21.49)'));
+    assert.ok(many.includes('Peer Training (3 days × 2h × £21.49)'));
+    assert.ok(!many.includes('Training Days'));
     // A negative adjustment reads "−£12.50", beside the "+£" of a positive one (whole-app review):
     // it printed "£-12.50", the extraction having copied the old template's sign after the £.
     const neg = buildBreakdownRows({ ...BD_BASE, otherAdj: -12.5 });
