@@ -318,21 +318,33 @@ export function readHppState(ty) {
   return { mode, exact, damaged: false };
 }
 
+/**
+ * Tax years whose saved amount-source choice was UNREADABLE when restored and has not been chosen
+ * again since (paycalc-2-10). The card falls back to the hours estimate, and until the member picks
+ * an option calcHPP neither overwrites the stored figure — which may be their own typed premium,
+ * feeding the January payslip — nor stays silent about why the card shows something else.
+ * @type {Set<string>}
+ */
+const _hppChoiceUnreadable = new Set();
+
 /** Persist the card's mode + the exact-figure input for a tax year (one JSON blob). The 'ytd' mode
  *  has no input of its own (it reads the Year to Date card), so only the mode + exact are stored. @param {any} ty */
 export function saveHppState(ty) {
   if (!ty) return;
   const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
   lsSet(hppModeKey(ty), JSON.stringify({ mode: _hppMode(), exact: exactEl ? exactEl.value : '' }));
+  _hppChoiceUnreadable.delete(ty.label);   // the member has chosen again
 }
 
 /** Restore a tax year's saved mode + exact-figure input into the DOM (called before calcHPP reads it
- *  on a period/year change). Missing/corrupt blob → default 'hours'. @param {any} ty */
+ *  on a period/year change). Missing or unreadable → default 'hours'. Read through `readHppState`,
+ *  which is total: this runs inside start-up (onPeriodChange), and `JSON.parse('null').exact` threw
+ *  there on every load for a restored backup holding `null` (paycalc-2-7). @param {any} ty */
 export function restoreHppState(ty) {
-  let s = /** @type {{mode?:string, exact?:string}} */ ({});
-  try { const raw = ty ? lsGet(hppModeKey(ty)) : null; if (raw) s = JSON.parse(raw); } catch { s = {}; }
+  const s = readHppState(ty);
+  if (ty) { if (s.damaged) _hppChoiceUnreadable.add(ty.label); else _hppChoiceUnreadable.delete(ty.label); }
   const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
-  if (exactEl) exactEl.value = s.exact || '';
+  if (exactEl) exactEl.value = s.exact;
   applyHppMode(s.mode === 'ytd' || s.mode === 'exact' ? s.mode : 'hours');
 }
 
@@ -557,7 +569,10 @@ export function calcHPP() {
   // When periods were skipped, `hpp` is UNDER-stated (missing them) — so neither overwrite a
   // previously-complete stored figure (the pre-v17.26 bug: `if (hpp > 0)` wrote regardless) nor
   // delete it. The card still SHOWS the understated hpp with the "may be too low" warning.
-  if (_skipped.length === 0) {
+  // Nor while this year's saved CHOICE is unreadable: hours mode is then a fallback nobody chose, and
+  // the stored figure may be the member's own (paycalc-2-10).
+  const _choiceLost = _hppChoiceUnreadable.has(ty.label);
+  if (_skipped.length === 0 && !_choiceLost) {
     if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
     else lsDel(hppEstKey(ty));
   }
@@ -604,6 +619,12 @@ export function calcHPP() {
     if (_skipped.length && basisEl) {
       basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''}, so this may be too low — open ${_skipped.length > 1 ? 'those periods' : 'that period'} above and enter the hours again.</span>`;
     }
+  }
+  if (_choiceLost && basisEl) {
+    const kept = resolveHppForPeriod(null, lsGet(hppEstKey(ty))).amount;
+    basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Your saved choice of where this figure comes from couldn't be read, so this shows the estimate from your hours. ${kept > 0
+      ? `Your saved figure of ${fmt(kept)} stays in use until you choose an option above.`
+      : 'Choose an option above to keep one.'}</span>`;
   }
 
   // The "how it's calculated" note was set up front via _hppNoteHtml (shared with the manual modes).

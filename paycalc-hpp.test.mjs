@@ -150,7 +150,7 @@ globalThis.document = /** @type {any} */ ({
 });
 
 const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
-        priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState } = await import('./paycalc-hpp.js');
+        priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState, saveHppState } = await import('./paycalc-hpp.js');
 const { periodKey, hppEstKey, hppActualKey, hppModeKey } = await import('./paycalc-migrations.js');
 const { getPeriods, CONFIG: PERIOD_CONFIG } = _realPeriods;
 
@@ -714,6 +714,60 @@ describe('with the Year to Date figures detached, only PAID payslips count (payc
         assert.doesNotMatch(_els.hppBasis.textContent, /looks lower/,
             'counting the unpaid payslip\'s basic made a correct figure read as too low');
         assert.equal(_els.hppAmount.textContent, '£0.00');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A SAVED AMOUNT-SOURCE CHOICE OF THE WRONG SHAPE (paycalc-2-7, paycalc-2-10)
+// ─────────────────────────────────────────────────────────────────────────────
+// Only this app writes the blob, always an object — so anything else came in through a backup made
+// elsewhere, which the import ladder lets through as a string. restoreHppState runs during start-up.
+
+describe('restoring an unreadable choice never throws — start-up runs through it (paycalc-2-7)', () => {
+    beforeEach(reset);
+
+    test('JSON that is not an object, and text that is not JSON, both read as "no choice" → hours', () => {
+        for (const raw of ['null', '5', '"x"', '[]', 'true', '{broken']) {
+            _resetDom();
+            _els.hppModeExact.checked = true;                 // whatever the page last showed
+            _els.hppExactAmt.value = '999';
+            _ls.set(hppModeKey(TY26), raw);
+            assert.doesNotThrow(() => restoreHppState(TY26), `stored ${raw}`);
+            assert.equal(_els.hppModeHours.checked, true, `stored ${raw}: falls back to hours`);
+            assert.equal(_els.hppExactAmt.value, '', `stored ${raw}: no figure is carried over`);
+            assert.equal(readHppState(TY26).damaged, true, `stored ${raw}: reported as damaged, not as absent`);
+        }
+        _ls.delete(hppModeKey(TY26));
+        assert.deepEqual(readHppState(TY26), { mode: null, exact: '', damaged: false }, 'nothing stored is not damage');
+    });
+
+    test('an object whose figure is not text never writes "[object Object]" into the box', () => {
+        _ls.set(hppModeKey(TY26), JSON.stringify({ mode: 'exact', exact: { a: 1 } }));
+        restoreHppState(TY26);
+        assert.equal(_els.hppModeExact.checked, true);
+        assert.equal(_els.hppExactAmt.value, '');
+    });
+});
+
+describe('an unreadable choice never silently replaces the member\'s own figure (paycalc-2-10)', () => {
+    beforeEach(reset);
+
+    test('the stored figure is kept and the card says why it shows the hours estimate — until they choose', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 10, 10) });
+        _viewPNum = 58;
+        _ls.set(hppEstKey(TY26), '1500.00');                  // the member's own "Enter the figure yourself"
+        saveHours(56, { otH: 10, otM: 0 });                   // and some hours, so the hours estimate differs
+        _ls.set(hppModeKey(TY26), '{"mode":"exact","exact":"15');   // the choice is damaged
+        restoreHppState(TY26);
+        calcHPP();
+        assert.equal(_ls.get(hppEstKey(TY26)), '1500.00', 'the member\'s figure was replaced by an estimate nobody chose');
+        assert.match(_els.hppBasis.textContent, /saved choice of where this figure comes from couldn't be read/);
+        assert.match(_els.hppBasis.textContent, /£1,500\.00 stays in use until you choose an option above/);
+
+        saveHppState(TY26);                                   // the member picks an option (hours is ticked)
+        calcHPP();
+        assert.notEqual(_ls.get(hppEstKey(TY26)), '1500.00', 'once chosen, the card works normally again');
+        assert.doesNotMatch(_els.hppBasis.textContent, /couldn't be read/);
     });
 });
 
