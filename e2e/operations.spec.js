@@ -1966,6 +1966,37 @@ test('operations: three rows the PDF\'s own grid refused REFUSE the read, withou
     await expect(page.locator('#rosterApplyBtn')).toBeHidden();
 });
 
+// Whole-app fix, Nov 2026 (import-client-13): on a refused read the primary button says "Read the
+// roster again" — and it only cleared the form, the chosen PDF with it, so nothing was read until the
+// admin found the same file again. It now reads it again.
+test('operations: "Read the roster again" on a refused read reads the same PDF again', async ({ page }) => {
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    const three = teamMembers.filter(m => !m.hidden && !m.managerOnly && m.rosterType === 'main').slice(0, 3);
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: DATES, crossCheck: 'complete', missingMembers: [], choices: {},
+        geometryRefused: three.map(m => m.name),
+        parsed: three.map(m => ({ memberName: m.name, shifts: { ...honest(m), [DATES[1]]: '22:00-06:00' } })),
+    });
+    await expect(page.locator('.roster-alignment-stop')).toBeVisible();
+    // The second read is a good one — the route registered last answers first.
+    let reads = 0;
+    await page.route('**/parseRosterPDF*', route => { reads++; return route.fulfill({ status: 200,
+        contentType: 'application/json', body: JSON.stringify(ROSTER_REVIEW_PARSE) }); });
+    await page.locator('#rosterCancelBtn').click();
+    await expect(page.locator('#rosterApplyBtn')).toHaveText(/Save 3 changes/);
+    await expect(page.locator('.roster-alignment-stop')).toHaveCount(0);
+    expect(reads, 'the PDF was read again').toBe(1);
+    await expect(page.locator('#rosterFileName')).toHaveText('roster.pdf');
+    // …and the ordinary button is still "Upload a different file", which clears the form as before.
+    await expect(page.locator('#rosterCancelBtn')).toHaveText('Upload a different file');
+    await page.locator('#rosterCancelBtn').click();
+    await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+    await expect(page.locator('#rosterParseBtn')).toBeDisabled();
+    expect(reads).toBe(1);
+});
+
 test('operations: the review says when the PDF layout check did not run', async ({ page }) => {
     // THE WIRING, which is what escaped: `geometry.status` had been in the response for nine
     // versions and no client code read it, so a fail-open witness produced a review that looked

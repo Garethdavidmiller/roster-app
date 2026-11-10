@@ -467,16 +467,20 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         }
     });
 
-    // ---- "Start over" button ----
+    // ---- "Upload a different file" — or, on a refused read, "Read the roster again" ----
     cancelBtn.addEventListener('click', () => {
+        // The refused read's label is now what the button DOES (whole-app fix, Nov 2026): it only ever
+        // cleared the form, the chosen PDF with it, so nothing was read until the same file was found.
+        const again = [...(_cellStates?.values() ?? [])].some(st => st.rosterBlocked) && !!fileInput.files?.length;
         reviewSection.classList.remove('visible');
         _parsedResult = null;
         _cellStates   = null;
+        applyFeedback.textContent = '';
+        applyFeedback.className   = 'huddle-feedback';
+        if (again) { parseBtn.click(); return; }
         fileInput.value           = '';
         fileNameEl.classList.remove('visible');
         parseBtn.disabled         = true;
-        applyFeedback.textContent = '';
-        applyFeedback.className   = 'huddle-feedback';
     });
 
     // ---- "Save changes" button ----
