@@ -23,7 +23,8 @@
  * ── THE THREE RULES, AND WHY EACH IS HERE RATHER THAN IN THE HANDLER ────────────────────────────
  *
  * 1. WHO. `mayReceiveDocumentUrl` is a MIRROR of `firestore.rules` for `huddles`, `circulars` and
- *    `newsletters`: a member `name` claim, `admin`, or the shared `calendarViewer` capability the
+ *    `newsletters`: the BOUND member (`memberNameFromClaims` — a `name` on its own password account,
+ *    carrying the server's `member` claim), `admin`, or the shared `calendarViewer` capability the
  *    staff PIN mints. It must never be more permissive than the rule — if it were, this endpoint
  *    would become a way to read a document the rules refuse, which is the opposite of its purpose.
  *    `doc-url-core.test.mjs` pins the two together by reading `firestore.rules` itself, because two

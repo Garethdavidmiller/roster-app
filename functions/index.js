@@ -210,9 +210,9 @@ Object.assign(exports, buildDocumentEndpoints({
 /**
  * POST /parseRosterPDF
  *
- * Called from admin.html when Gareth uploads a weekly roster PDF.
- * Extracts the text from the PDF, sends it to Claude AI with a structured
- * prompt, and returns each recognised staff member's shifts for the week.
+ * Called from the roster upload card on operations.html (admin-roster-upload.js). Sends the model the
+ * PDF itself or — where the PDF's own drawn grid places every member (roster-geometry.js) — those
+ * cells, already separated, and returns each recognised staff member's shifts for the week.
  *
  * This function does NOT write anything to Firestore. It just reads and
  * returns. The admin reviews the results in the browser, then approves them,
@@ -229,11 +229,12 @@ Object.assign(exports, buildDocumentEndpoints({
  *
  * Success response (200):
  *   {
- *     weekEnding:  "2026-04-05",
+ *     weekEnding:  "2026-04-04",
  *     rosterType:  "cea",
- *     dates:       ["2026-03-30", ..., "2026-04-05"],   // Sun → Sat
+ *     dates:       ["2026-03-29", ..., "2026-04-04"],   // Sun → Sat
+ *     crossCheck, missingMembers, choices, geometry, geometryRefused,   // the review's evidence — each explained where it is sent
  *     parsed: [
- *       { memberName: "L. Springer", shifts: { "2026-03-30": "05:30-11:30", ... } },
+ *       { memberName: "L. Springer", shifts: { "2026-03-29": "RD", "2026-03-30": "05:30-11:30", ... } },
  *       ...
  *     ]
  *   }
@@ -244,7 +245,7 @@ exports.parseRosterPDF = onRequest(
         region:         'europe-west2',
         cors:           ADMIN_FUNCTION_ORIGINS,
         timeoutSeconds: 120,            // the model call is held to PARSE_MODEL_DEADLINE_MS inside this
-        memory:         '512MiB',       // pdf-parse needs a little headroom
+        memory:         '512MiB',       // a 20 MB PDF held as base64 and bytes, plus the pdfjs grid read
     },
     async (req, res) => {
         // The model call's deadline counts from here (PARSE_MODEL_DEADLINE_MS).
@@ -787,7 +788,6 @@ columnScan: one key per column header; every staff member appears in every colum
 );
 
 // ── Firebase Auth account setup ──────────────────────────────────────────────
-// ── Firebase Auth account setup ──────────────────────────────────────────────
 // The ACCOUNT-AND-CREDENTIAL domain — setupRosterAuth, resetMemberPassword,
 // requestPasswordReset, getSignInStats and getAccountSetupGaps — lives in ./auth-endpoints.js, built here
 // with the shared infrastructure (same composition-root reasoning as the documents
@@ -869,7 +869,7 @@ Object.assign(exports, rosterMembers.overtimeEnabled === false ? { purgeExpiredO
  * and it is why the token it mints carries no `name`, no `admin`, no `manager`, no `linksDesigner`,
  * and no write capability of any kind. Anything privileged still goes through a real member login.
  *
- * ── THE FOUR THINGS THIS HANDLER MUST KEEP DOING ────────────────────────────────────────────────
+ * ── THE FIVE THINGS THIS HANDLER MUST KEEP DOING ────────────────────────────────────────────────
  *
  * 1. **Never log, echo or store the submitted PIN.** Not in an error, not in a warning, not in a
  *    response body. The log line below records the OUTCOME and the hashed source, nothing else.
@@ -966,6 +966,8 @@ exports.unlockCalendarViewer = onRequest(
             return res.status(503).json({ error: 'Calendar access is temporarily unavailable' });
         }
         if (reserved.blocked) {
+            // Readable only by a caller that is not a browser (it is not CORS-exposed): it tells a script
+            // when the block lifts, a number calendar-access-core.js keeps off the page. The ceilings hold either way.
             res.set('Retry-After', String(reserved.blocked.retryAfterSec));
             console.warn('[unlockCalendarViewer] throttled', sourceKey);
             return res.status(429).json({ error: 'Too many attempts' });

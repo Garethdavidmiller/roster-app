@@ -395,18 +395,17 @@ const setupRosterAuth = onRequest(
 
 /**
  * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Stamps `passwordStatus/{member}.
- * resetAt` FIRST (Admin SDK, bypassing Firestore rules — and with no stamp, no reset: stampResetAt),
- * then resets ONE member's Firebase Auth password back to their surname default, so the account is
- * flagged as surname-default again and every device that signed in before the stamp must type a
- * password (the Settings nudge then prompts them to choose a new one — there is no forced overlay yet; that is Phase 2). This is
- * the only ADMIN / server-side password-write path — self-service changes go through the client
+ * resetAt` FIRST (Admin SDK, bypassing Firestore rules — no stamp, no reset: stampResetAt), then puts
+ * ONE member's Firebase Auth password back to their surname default and signs their other devices
+ * out; at their next sign-in the forced overlay (CONFIG.FORCE_PASSWORD_SET) has them choose their
+ * own. The only ADMIN / server-side password-write path — self-service changes go through the client
  * `setOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
  *
- * Admin-only — the same guard as setupRosterAuth (verifyIdToken(checkRevoked) + admin claim). Target
- * must be a SERVER-OWNED provisioned account (roster-members.json), never a raw client name.
+ * Admin-only (requireAdmin). Target must be a SERVER-OWNED provisioned account (roster-members.json),
+ * never a raw client name.
  *
- * Body: { member: string, revoke?: boolean }. `revoke` (default true) signs the member out of their
- * OTHER devices — true for a real reset; false for a Phase-2 migration nudge (leave working sessions).
+ * Body: { member: string }. A reset ALWAYS signs the other devices out. `revoke: false` belonged to
+ * the Phase-2 migration nudge the forced overlay replaced; nothing sends it, and it is ignored.
  */
 const resetMemberPassword = onRequest(
     // The VAPID secret is for the "your password was reset" push below: without it the key reads '' in production.
@@ -416,9 +415,8 @@ const resetMemberPassword = onRequest(
 
         if (!(await requireAdmin(req, res))) return;   // a revoked admin's cached token must not reset accounts
 
-        const body = readJsonBody(req);   // member name + optional revoke, in whatever shape the body arrived
+        const body = readJsonBody(req);   // the member's name, in whatever shape the body arrived
         const member = typeof body.member === 'string' ? body.member.trim() : '';
-        const revoke = body.revoke !== false;   // default true
         if (!member) return res.status(400).json({ error: 'Missing member' });
 
         // Target must be a server-owned provisioned account (B4) — never trust a raw client name.
@@ -449,15 +447,11 @@ const resetMemberPassword = onRequest(
             }
             // AN ACCOUNT THIS SERVER NEVER STAMPED is TAKEN BACK, not just re-passworded (v24.56, auth
             // review) — the same as setupRosterAuth does, for the same reason: it was registered from
-            // outside, so its display name and any other sign-in method are the outsider's, and its
-            // sessions must end whatever the admin chose for `revoke`.
+            // outside, so its display name and any other sign-in method are the outsider's.
             const takeBack = mustReclaim(user);
-            // ── THE STAMP FIRST, AND IT MUST LAND (functions-core-2, 10 Nov 2026) ────────────────
-            // resetAt is what keeps the member's OTHER devices out once the password is back on the
-            // surname default (AUTH_AND_SESSIONS.md 23) — not a status flag. Stamped AFTER the
-            // reset, a failed write left the lost phone free to sign itself straight back in, while
-            // this endpoint answered `stamped: false` and called it cosmetic. So it is written before
-            // anything changes, and a stamp that cannot be written changes nothing: 503, try again.
+            // THE STAMP FIRST, AND IT MUST LAND (functions-core-2). resetAt is what keeps the other
+            // devices out once the password is the surname default (AUTH_AND_SESSIONS.md 23); stamped
+            // after, a failed write let the lost phone straight back in. No stamp, nothing changes.
             try {
                 await stampResetAt(member);
             } catch (stampErr) {
@@ -478,17 +472,15 @@ const resetMemberPassword = onRequest(
             // Each later stage is now attempted on its own and REPORTED on its own: once the
             // password mutation succeeds, this endpoint reports what happened, never "nothing did".
             let revoked = false;
-            if (revoke || takeBack) {
-                try {
-                    await getAuth().revokeRefreshTokens(user.uid);
-                    revoked = true;
-                } catch (revokeErr) {
-                    // The one consequence worth naming: the member's OTHER devices may still hold
-                    // working sessions. That is a security-relevant partial state, so it is logged
-                    // as an error and returned to the admin rather than folded into a boolean.
-                    console.error('[resetMemberPassword] revoke failed (password WAS reset) for', member,
-                                  revokeErr && revokeErr.code, revokeErr);
-                }
+            try {
+                await getAuth().revokeRefreshTokens(user.uid);
+                revoked = true;
+            } catch (revokeErr) {
+                // The one consequence worth naming: the member's OTHER devices may still hold
+                // working sessions. That is a security-relevant partial state, so it is logged
+                // as an error and returned to the admin rather than folded into a boolean.
+                console.error('[resetMemberPassword] revoke failed (password WAS reset) for', member,
+                              revokeErr && revokeErr.code, revokeErr);
             }
             // TELL THE MEMBER (v23.62, owner request). Until now the one person this is ABOUT was
             // the only person not told: their password had become the surname default and — with
@@ -536,7 +528,7 @@ const resetMemberPassword = onRequest(
             // the answer because Operations still reads it.
             return res.json({
                 ok: true, member, revoked, stamped: true, notified,
-                ...((revoke || takeBack) && !revoked ? { revokeFailed: true } : {}),
+                ...(!revoked ? { revokeFailed: true } : {}),
                 // The account still carries NO claim, so the member cannot use the app on it until
                 // Set up accounts stamps one — Operations says so (v24.57).
                 ...(takeBack ? { takenBack: true } : {}),
@@ -574,7 +566,7 @@ const resetMemberPassword = onRequest(
  * How the abuse surface is bounded:
  *  · **The doc ID is the member name**, so the collection can never exceed the roster. Flooding is
  *    impossible BY CONSTRUCTION, not by rate limiting — the worst case is one stale row per member.
- *  · **The name must be in the server-owned `activeMembers` list** (roster-members.json, B4). That also
+ *  · **The name must be on the server-owned roster** (`processMembers`: roster-members.json, B4). That also
  *    makes the name safe for the admin card to render: it came from OUR list, never the request body.
  *  · **No free text of any kind is stored.** An unauthenticated endpoint writing caller-controlled
  *    strings into an admin UI is an injection surface for no benefit.

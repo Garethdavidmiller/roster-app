@@ -53,6 +53,7 @@ const { bearerToken } = require('./request-helpers');
  * @param {Function} deps.isRetriableFirestoreError  commit-ambiguous classifier
  * @param {number}   deps.MAX_FILE_BYTES
  * @param {number}   deps.MAX_HUDDLE_HTML_CHARS
+ * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  the CORS allowlist for getDocumentUrl
  * @param {Record<string, any>} deps.rosterMembers  the server-owned roster (roster-members.json) — the pay reminder's audience
  */
 function buildDocumentEndpoints({
@@ -842,7 +843,7 @@ const sendTimetableReminder = onSchedule(
      * So the Office viewer stays and the URL it is handed becomes short-lived. That bounds the leak
      * without changing one thing a member sees or one step an admin takes.
      *
-     * ── FOUR PROPERTIES, EACH LOAD-BEARING ────────────────────────────────────────────────────
+     * ── FIVE PROPERTIES, EACH LOAD-BEARING ────────────────────────────────────────────────────
      *
      * 1. THE CALLER NAMES A KIND, NEVER A PATH. `resolveKind` answers from a frozen allowlist; the
      *    collection, the document and the storage path are all resolved HERE. An endpoint that
@@ -870,7 +871,7 @@ const sendTimetableReminder = onSchedule(
      * show a member a dead button. RECOVERY_RUNBOOK.md records the grant.
      *
      * Request:  POST { "kind": "huddle" | "circular" | "newsletter" }, Authorization: Bearer <ID token>
-     * Success:  200 { url, expiresAt, fileType }
+     * Success:  200 { url, expiresAt, fileType, storagePath }   (storagePath: the file signed — see below)
      * Refusals: 405 method · 401 no/!valid token · 403 no door · 400 unknown kind
      *           404 nothing published yet · 503 signing unavailable (the IAM case above)
      */
@@ -900,8 +901,7 @@ const sendTimetableReminder = onSchedule(
             const kind = resolveKind(kindFromBody(req.body, req.rawBody));
             if (!kind.ok) return res.status(400).json({ error: 'Unknown document kind' });
 
-            // The LATEST of that kind — the same document the viewer is showing. The id is a date
-            // string, so a descending id order is a descending date order.
+            // The LATEST of that kind — the same query, on the `date` field, the viewer opens with.
             let snap;
             try {
                 snap = await getFirestore().collection(kind.collection)

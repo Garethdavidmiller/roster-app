@@ -104,20 +104,11 @@ function setupWebPush(vapidPrivate, vapidPublic) {
 }
 
 /**
- * Fan out Web Push notifications to all subscribed devices for a given JSON payload.
- * Dead subscriptions (HTTP 410/404 — genuinely gone) are deleted from Firestore. A 401 is a
- * VAPID-AUTH failure (server misconfig, not a dead endpoint) and is logged, NEVER deleted —
- * deleting on 401 would wipe the whole collection on any VAPID key error (v16.15).
- *
- * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
- * @param {string} logTag    Short string for console log lines, e.g. '[push]'
- */
-/**
  * Send a Web Push payload to the devices of SPECIFIC identities only, never to everyone.
  *
- * This is the targeted counterpart to fanOutPush, and it exists because one notification in this app
- * is not a broadcast: "N. Surname asked for a password reset" is addressed to the admin, and sending
- * it to all ~50 staff would leak who is locked out to the entire team.
+ * This is the targeted counterpart to fanOutPush, and it exists because some notices are not
+ * broadcasts — "N. Surname asked for a password reset" is addressed to the admin, and sending it to
+ * all ~50 staff would leak who is locked out to the entire team.
  *
  * **It FAILS CLOSED, on purpose, in three separate places**, because every failure mode here has the
  * same consequence — telling 50 people something meant for one:
@@ -228,6 +219,15 @@ async function releasePushForOwner(uid) {
     return snap.docs.length;
 }
 
+/**
+ * Fan out Web Push notifications to all subscribed devices for a given JSON payload.
+ * Dead subscriptions (HTTP 410/404 — genuinely gone) are deleted from Firestore. A 401 is a
+ * VAPID-AUTH failure (server misconfig, not a dead endpoint) and is logged, NEVER deleted —
+ * deleting on 401 would wipe the whole collection on any VAPID key error (v16.15).
+ *
+ * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
+ * @param {string} logTag    Short string for console log lines, e.g. '[push]'
+ */
 async function fanOutPush(payload, logTag) {
     const snapshot = await getFirestore().collection('pushSubscriptions').get();
     if (snapshot.empty) {

@@ -804,12 +804,15 @@ describe('resetMemberPassword does the whole job when it does proceed', () => {
         assert.equal(out.body.notified, false, 'and the outsider\'s devices are not sent the reset notice');
     });
 
-    test('revoke:false leaves working sessions alone', async () => {
-        // The migration-nudge path. Signing everyone out to prompt a password change would be a
-        // bigger interruption than the thing being prompted.
+    test('a reset signs the other devices out whatever the body says — revoke:false is retired', async () => {
+        // It existed for the Phase-2 migration nudge, which the forced overlay replaced; nothing
+        // sends it (Operations passes true), and a reset that left the lost phone signed in would
+        // not be the reset the admin pressed (functions-core-9).
         const { eps, authOps } = build();
-        await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, revoke: false }));
-        assert.equal(authOps.filter((o) => o.op === 'revokeRefreshTokens').length, 0);
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, revoke: false }));
+        assert.equal(out.code, 200);
+        assert.equal(authOps.filter((o) => o.op === 'revokeRefreshTokens').length, 1);
+        assert.equal(out.body.revoked, true);
     });
 
     test('a failed REVOCATION does not report the reset as failed either', async () => {
