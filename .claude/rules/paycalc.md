@@ -25,15 +25,15 @@ are about to break. Each states WHAT must hold; the WHY is below, or in the modu
 | 2 | **The form ↔ saved-data round trip is symmetric.** Write → read → write must return the same thing. Four money-affecting defects in a row were all an asymmetry here. | `paycalc-form-data.js` |
 | 3 | **Every per-member key carries `pcPrefix()`; device flags never do.** And a retired device flag stays DECLARED — deleting one reclassifies it as member data and fires the ownership prompt at people who have none. | `paycalc-migrations.js` |
 | 4 | **A tax year's holiday premium is paid on the FIRST JANUARY PAYSLIP OF THE FOLLOWING YEAR** — outside that year's own window. Four hand-rolled copies got this wrong; there is now one. | `paycalc-hpp-schedule.js` |
-| 5 | **Back pay is not fed into HPP.** Whole-year settled pricing already includes the award uplift, so adding the lump double-counts it. | `paycalc-hpp.js` |
+| 5 | **Back pay is not fed into HPP.** Whole-year settled pricing already includes the award uplift, so adding the lump double-counts it. Pinned on the real path by `paycalc-backpay.test.mjs` ("a computed, ticked and saved lump leaves the premium estimate exactly where the hours put it") and `e2e/paycalc-cards.spec.js` ("ticking the back-pay lump into the take-home leaves the holiday premium estimate alone"). | `paycalc-hpp.js` |
 | 6 | **London Allowance does not accrue HPP.** It is a fixed allowance paid every period, including while on leave. | `paycalc-hpp.js` (`_varPayForPeriod`) |
 | 7 | **HPP is never pro-rated for a joiner.** It accrues on actual extras done, so a part-year lump is naturally lower without any scaling term. | `paycalc-hpp.js` (`_varPayForPeriod`, which carries no pro-rate term) · this file → *Members with `startDate`* |
 | 8 | **The hourly rate is fixed by grade and never stored.** Deriving it removes the whole stale-saved-rate failure class. | `paycalc-settings.js` |
 | 9 | **Sunday-on-BH: Sunday wins (`dow===0` before `isBH`). BH + RDW is additive.** | `paycalc-roster-suggestions.js` (the suggestion engine; `paycalc-calc.js` only prices the hours) |
 | 10 | **`validateBackup` is the trust boundary, and restore is a REPLACE, never a merge.** A backup is a file from somewhere; these are pay figures, not approximations. | `paycalc-transfer.js` |
 | 11 | **The roster-assist never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — and **viewing a period never persists it**. | `paycalc-roster-suggestions.js` · `paycalc-app.js` |
-| 12 | **A pension opt-out is DATED, and the date is EDITABLE in both directions.** It applies from the payslip the member named onwards and never earlier — a period storing `null` takes the period default, so a timeless flag rewrites history (measured: £115.92 onto one 2025/26 take-home). An empty or unreadable timeline means CONTRIBUTING. Correcting the date must MOVE the spell's start (`withOptOutStartAt`), and un-ticking must END the spell at the payslip on screen (`withRejoinAt`) — recording a raw change at a payslip silently swallows a forward correction and turns every rejoin into an erasure. | `paycalc-pension.js` |
-| 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's — and nothing sends such a member to the page either (the Calendar's notices ask the same function, `calendar-notices.js`). | `roster-data.js` → `gradeForRole` (re-exported by `paycalc-settings.js`) |
+| 12 | **A pension opt-out is DATED, and the date is EDITABLE in both directions.** It applies from the payslip the member named onwards and never earlier — a period storing `null` takes the period default, so a timeless flag rewrites history (measured: £115.92 onto one 2025/26 take-home). An empty or unreadable timeline means CONTRIBUTING. Correcting the date must MOVE the spell's start (`withOptOutStartAt`), and un-ticking must END the spell at the payslip on screen (`withRejoinAt`) — recording a raw change at a payslip silently swallows a forward correction and turns every rejoin into an erasure. A start moved to or before an earlier rejoin is refused (`withOptOutStartAt` returns the timeline unchanged), so a spell that has already ENDED is left alone. | `paycalc-pension.js` |
+| 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's — and nothing sends such a member to the page either (the Calendar's notices ask the same function, `calendar-notices.js`). | `roster-data.js` → `gradeForRole` (re-exported by `paycalc-settings.js`) · `functions/pay-reminder.js` (the pay reminder push goes to CEA and CES members only — owner, 10 Nov 2026) |
 | 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, so `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay-accrual.js` → `awardWindowFactor` |
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary silently under-reported tax years — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so the headers are not the only EXPLANATION — they are the only route that costs the reader nothing and asks nothing of them first: a member who has never heard of HPP has no reason to open a guide looking for it. Never hide, group or shorten these headers without an owner decision; the case that nearly did is DECISIONS.md → "More pay tools" … DECLINED, and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
@@ -106,8 +106,13 @@ exact input, and the coordinator restores in `onPeriodChange` BEFORE `loadPeriod
 runs.
 - **'ytd' reads `#ytdPay` (Taxable Pay) directly.** Taxable Pay is ALL pay, so
   `_expectedNonPremiumYtd(ty)` subtracts expected basic + London − pension over the covered periods
-  (to the `ytdSrcKey` source, else the last PAID payslip) and `hppFromYtdTaxable` takes 7.69% of what is
-  left. **`_expectedNonPremiumYtd` pro-rates ALL non-premium components by `getProRateFactor(p)`** —
+  (to the `ytdSrcKey` source, else the last PAID payslip), and the lumps the app knows exactly
+  (`knownYtdLumps`), and `hppFromYtdTaxable` takes 7.69% of what is left. The known lumps are
+  peer-training pay, last year's premium once its January payslip is covered, and — once the award
+  payslip is covered — the back-pay lump's basic and London arrears, priced from the record by
+  `awardLumpNonPremium`; the lump's premium share stays in. A year whose old rate is not on record
+  (CES 2025/26) is not guessed: the card says the figure may include back pay (owner, 10 Nov 2026).
+  **`_expectedNonPremiumYtd` pro-rates ALL non-premium components by `getProRateFactor(p)`** —
   London and pension as well as basic — mirroring `calculate()` (London ×`_proRateFactor`, pension
   ×`getProRateFactor`) and the real payslip; at full value, every pre-start period of a mid-year joiner
   would add phantom "London − pension" pay and bias the estimate low. Locked by a joiner ytd-mode e2e
@@ -199,6 +204,11 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   to £. **Do NOT floor the excess to a whole pound before the rate**: it produced £213 on the reference
   P2 payslip where the correct figure is £214. Locked by the `PAYSLIP_ACTUALS.sl` regression in
   `paycalc.test.mjs`.
+- **National Insurance is rounded to whole pennies, band by band** (reg 12(1)(b): a halfpenny or less
+  is disregarded, read off the third decimal place — 5 or less rounds down, 6 or more rounds up). Each
+  band is rounded, then the bands are added. **Income tax is rounded DOWN to the penny** (HMRC's
+  tax-table routines). The take-home is the summary's rows subtracted as shown (`takeHomePay`), so the
+  rows always add up. The rules and their sources are in `paycalc-calc.js`, beside `takeHomePay`.
 - **Plan 5** is NOT repayable in 2025/26 (repayments begin 6 Apr 2026) — absent from
   `SL_BY_YEAR['2025/26']`, present in 2026/27. `computeSL` returns 0 for a plan5 selection on a 2025/26
   period; the UI disables it for that year.
@@ -331,9 +341,10 @@ on the 24 Oct 2025 payslip — the same date as `londonAllowFrom`).
   derive the award from `currentPeriodNum()` (the viewed period), so viewing a 2025/26 payslip shows
   the 2025/26 award. State is **per tax year** — `bpKey(ty)` → `myb_pc_<slug>_bp_state_<year>`, e.g.
   `…_bp_state_2026_27` (mirrors `hppIncKey`) — so each year's rates, mode, manual amount, paid-in and
-  tick persist independently (saved in `calcBackPay`, restored by `restoreBpState()` at init), and the
-  include-tick never resets on a year switch. The coordinator's `_syncBackPayForViewedYear()` runs on
-  EVERY period change, not only while the card is open, so the banner and take-home reflect whichever
+  tick persist independently (saved in `calcBackPay` once the member has changed that year's card, or
+  once that year already has a saved blob — viewing alone writes nothing — and restored by
+  `restoreBpState()` at init), and the include-tick never resets on a year switch. The coordinator's
+  `_syncBackPayForViewedYear()` runs on EVERY period change, not only while the card is open, so the banner and take-home reflect whichever
   payslip is on screen; the lump joins take-home only when `_bpPNum === _pNum` (its paid-in payslip is
   the one viewed).
 - **Amount source toggle (`bpMode`):** each year can COMPUTE the lump from your hours (the rate×hours
@@ -577,7 +588,9 @@ sits beside a short one.
 ## State management
 
 **`_clearState` object** (`paycalc-app.js`) — groups all state for the two-tap destructive clear
-action so it resets atomically. Includes `countdownTimer` for the live countdown in the button label.
+action so it resets atomically. Includes `countdownTimer` for the live countdown in the button label,
+and `armedAt`: a confirming tap within 500 ms of arming (`CLEAR_CONFIRM_MIN_MS`) is ignored as part
+of the same gesture.
 
 **`CONDITIONAL_ROWS`** (`paycalc-periods.js`, beside `updateBhRows(p)`, which iterates it) — a
 data-driven array: condition → row IDs → field IDs. Adding a conditional row means one array entry,
@@ -653,6 +666,7 @@ exact payslip line name first and quote it.
 | Boxing Day | `Bank Holiday Overtime 3.0` | 3.0× |
 | Holiday Pay Premium (annual January lump) | `Holiday Pay Premium` | 7.69% (4/52) of variable pay |
 | Peer training | shows as **extra basic pay** (no distinct line) | basic |
+| The payslip comparison's pay row ("Compare more payslip lines") | `Taxable Pay` — this payslip's, after the pension, set against the summary's "Pay after pension deduction" | — |
 
 **Date-first payslip identity (owner: "staff don't remember period numbers, they remember
 paydates").** Every user-facing reference to a payslip LEADS with its payday and keeps the printed
@@ -695,7 +709,9 @@ into empty boxes, nor over a payslip picked in the select on this visit — corr
 - **The January-HPP pointer is PERIOD-GATED:** `#ytdJanHppHint` ("This is the January payslip your
   Holiday Pay Premium lands on — enter the confirmed figure…") is unhidden by `calculate()` ONLY while
   the viewed payslip is the January one that carries HPP (the same `_hppTy` match that gates the HPP
-  take-home add); the year-round version is in the card's `?` help.
+  take-home add), and only where the HPP card's box can take the figure: the member was employed in
+  that tax year (`isTaxYearVisible`), and the payslip may be in hand (`payslipMayBeInHand`) or a
+  confirmed figure is stored. The year-round version is in the card's `?` help.
 - `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the year's paid payslips, newest first (plus,
   from its cut-off, the one about to be paid), never one from before a mid-year joiner started.
 - **Header status chip:** `#ytdStatusChip` in the card header shows the in-use state even while the
