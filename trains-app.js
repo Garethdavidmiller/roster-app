@@ -72,7 +72,7 @@ import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNT
 import { CARD_TIPS } from './trains-tips.js';
 import { parseTypedTime, daysUntil, timetablePhase, dateWords, railwayToday, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
-import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES, changesTitle, leadWords, renderFurtherChanges } from './trains-render.js';
+import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES, changesTitle, leadWords, renderFurtherChanges, SIGN_IN_ABOUT } from './trains-render.js';
 import { syncGridMirror } from './trains-grid-mirror.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
@@ -123,7 +123,7 @@ export function init() {
         // policy decides whether to ask at all, so dropping its flag also signs the PIN out here again.
         const pin = admitsStaffPin('trains') ? holdsStaffPin() : reconcileExpiredIdentity().then(() => false);
         pin.then((held) => { if (held) { start(null); return; } document.body.classList.add('auth-ready'); initLoginOverlay({
-            pageLabel: 'Trains',
+            pageLabel: 'Trains', about: SIGN_IN_ABOUT,   // the way in for the station PIN, which opens this page too (trains-render.js)
             // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.
             onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
         }); });

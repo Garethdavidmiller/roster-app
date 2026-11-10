@@ -9,7 +9,7 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, stubPinExchange, enterPin } from './helpers.js';
 import { TIMETABLES, STATIONS } from '../trains-data.js';
 import { busiestStations, matchStations } from '../trains-stations.js';
 
@@ -941,7 +941,7 @@ test('the trains-a-day box reaches the right-hand edge the blocks around it shar
 // ── THE WHOLE-APP FIX (Nov 2026) ─────────────────────────────────────────────────────────────────────
 // What only the page can show: that the coordinator hands each rule the right timetable, the right phase
 // and the right names. The rules themselves are trains-stations.test.mjs's and trains-change.test.mjs's.
-test.describe('trains — the page turns as a whole', () => {
+test.describe('trains — the page turns as a whole, and a station computer is shown its way in', () => {
     // From 13 December only the tab and the card's title turned: the section, its ? and its chevron, and the
     // ? panel's own title, went on saying "What’s changing" to a screen reader and under the tab.
     test('every name the changes view goes by turns with it at the change', async ({ page }) => {
@@ -997,5 +997,33 @@ test.describe('trains — the page turns as a whole', () => {
         await expect(page.locator('#trGridNow'), 'the grid\'s first timetable is named for what it now is').toHaveText('Until 12 Dec');
         await expect(page.locator('[data-day="SU"]'), 'the day turned too: no day tab was pressed').toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trPatternHint')).toContainText('Sundays');
+    });
+
+    // The station PIN opens this page (AUTH_AND_SESSIONS 24), but its session ends with the browser and
+    // belongs to the tab that unlocked the Calendar, so a station computer can arrive here locked — and
+    // the card asked only for a member's grade, name and password.
+    test('a station computer reaching the page locked is told the PIN opens it, enters it on the roster, and comes back by the menu', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await stubPinExchange(page);
+        await page.goto('/trains.html');
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+        const about = page.locator('#loginAbout');
+        await expect(about).toContainText('The staff PIN opens this page too');
+        await expect(about).toContainText('choose Trains from its menu');
+        await expect(page.locator('#loginOverlay')).not.toContainText(/sign(s|ed)? in with the (staff )?PIN/i);
+        const link = about.locator('.login-about-link');
+        await expect(link).toHaveAttribute('href', './#staff-pin');
+        // The way back to the roster stays: the PIN is offered beside it, not instead of it.
+        await expect(page.locator('#loginOverlay a.login-back')).toHaveAttribute('href', './');
+        await link.click();
+        await expect(page.locator('#calLockPin'), 'the Calendar\'s PIN card, first').toBeVisible();
+        await enterPin(page, '1234');
+        await expect(page.locator('#calendarDisplay')).toBeVisible();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-pill--trains').click();
+        await expect(page).toHaveURL(/trains\.html/);
+        await expect(page.locator('#trControls')).toBeVisible();
+        await expect(page.locator('#loginOverlay')).toHaveCount(0);
+        expect(errors, errors.join('\n')).toEqual([]);
     });
 });

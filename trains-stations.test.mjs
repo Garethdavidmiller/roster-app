@@ -19,7 +19,7 @@ import {
     aRealDay, boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks,
-    leadWords, changesTitle, renderFurtherChanges } from './trains-render.js';
+    leadWords, changesTitle, renderFurtherChanges, SIGN_IN_ABOUT } from './trains-render.js';
 import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { lastTrains } from './trains-stations.js';
@@ -983,7 +983,7 @@ describe('the 72-hour review (v24.96): one train is one train, "Same time" over 
     });
 });
 
-describe('the whole-app fix (Nov 2026): the overview\'s words by date', () => {
+describe('the whole-app fix (Nov 2026): the overview\'s words by date, and the sign-in card\'s way in for the PIN', () => {
     test('the opening line turns at the change, its days read from the date', () => {
         assert.equal(leadWords(CHANGE_DATE, false), 'Today’s timetable beside the new one that starts on Sunday 13 December. Both are Chiltern’s published timetables, not live running information.');
         assert.equal(leadWords(CHANGE_DATE, true), 'The timetable that ran until Saturday 12 December beside the new one, which started on Sunday 13 December. Both are Chiltern’s published timetables, not live running information.');
@@ -1014,5 +1014,14 @@ describe('the whole-app fix (Nov 2026): the overview\'s words by date', () => {
         assert.match(html, new RegExp(`<th scope="col">Now</th><th scope="col">From ${dateWords(CHANGE_DATE, 0, { short: true })}</th>`));
         assert.equal(timetablePhase(new Date(2026, 9, 1), { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL }).newLabel,
             `From ${dateWords(CHANGE_DATE, 0, { short: true })}`, 'the same words timetablePhase gives the page');
+    });
+
+    // AUTH_AND_SESSIONS 18: the PIN is a barrier, not a sign-in, and no surface may say it is more.
+    test('the Trains sign-in card says the station PIN opens the page, links the Calendar\'s PIN card, and never calls it a sign-in', () => {
+        const words = SIGN_IN_ABOUT.lines.join(' ');
+        assert.match(words, /staff PIN opens this page/);
+        assert.match(words, /choose Trains from its menu/, 'and how to come back once the PIN is in');
+        assert.doesNotMatch(`${words} ${SIGN_IN_ABOUT.link.label}`, /sign(?:s|ed|ing)? (?:you |them )?in|log(?:s|ged|ging)? in|account/i);
+        assert.equal(SIGN_IN_ABOUT.link.href, './#staff-pin', 'the Calendar\'s PIN-first hash, so its PIN card is the one that opens');
     });
 });

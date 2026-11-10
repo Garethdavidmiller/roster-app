@@ -19,6 +19,7 @@ import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin } from './trains-change.js';
 import { pairColumns, lineOf, minutesWords, hourNote, hourWords, orderStations, stopChanges, aRealDay, parseStops } from './trains-stations.js';
 import { CHANGE_DATE } from './trains-data.js';
+import { PIN_FIRST_HASH } from './calendar-access-core.js';
 
 /** The three kinds of day in words, as the day tabs name them — one copy for every sentence that names one. */
 export const DAY_NAMES = /** @type {Readonly<Record<'SX'|'SO'|'SU', string>>} */ (Object.freeze({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' }));
@@ -76,6 +77,20 @@ export function renderFurtherChanges(change, until) {
         ? `<strong>${esc(holidays)} ${holidays.includes(' and ') ? 'are' : 'is'} not on this page.</strong> Chiltern is changing times again ${when}, with big changes over the holidays.`
         : `<strong>Chiltern’s further changes are not on this page.</strong> It is changing times again ${when}.`;
 }
+
+/**
+ * What the Trains sign-in card says to a station computer (login-overlay.js → `about`). The staff PIN
+ * opens this page too (AUTH_AND_SESSIONS 24), and a station computer can reach it locked — the PIN's
+ * session ends with the browser and belongs to the tab that unlocked the Calendar (8) — while the card
+ * asked only for a member's grade, name and password. The PIN is entered where it always is, on the
+ * Calendar's PIN card: the exchange, and the order it switches persistence in, are calendar-access.js's
+ * alone, and a second copy of a security boundary is the copy that drifts. The way back is the menu's
+ * Trains, which the PIN keeps. Worded as a way to OPEN the page, never as signing in (18).
+ */
+export const SIGN_IN_ABOUT = Object.freeze({
+    lines: Object.freeze(['Visiting or agency staff, or at a station computer? The staff PIN opens this page too: enter it on the roster, then choose Trains from its menu.']),
+    link: Object.freeze({ href: `./${PIN_FIRST_HASH}`, label: 'Use the staff PIN instead →' }),
+});
 
 const none = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">none</span></span>';
 /** A December figure that cannot be known yet — a dash too, but never read aloud as "none". */
