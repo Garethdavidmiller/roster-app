@@ -50,7 +50,10 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
+      # No token left on disk: nothing here needs git credentials (deploy-hosting.yml says why).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # A RE-RUN MUST NOT PUT OLDER SECURITY RULES LIVE (whole-app review, 10 Nov 2026) — the
       # action's header has the account. A first attempt passes straight through.

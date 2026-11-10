@@ -2578,3 +2578,27 @@ describe('the live-site alert does not send its reader away from an outage', () 
     });
 });
 
+// ── A DEPLOY JOB LEAVES NO GIT TOKEN ON DISK (10 Nov 2026 review) ────────────────────────────────
+//
+// The checkout's default keeps the job's token on disk for the whole job, where every dependency's
+// install script can read it — and nothing in a deploy job uses it: the Hosting upload check only
+// lists files, and the re-run check asks the API with the token it is handed. The mirror's deploy
+// job already said `persist-credentials: false`; the other three now do too.
+describe('a deploy job leaves no git token on disk', () => {
+    for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml', 'deploy-mirror.yml']) {
+        test(`${wf}: the deploy job's checkout keeps no credentials`, () => {
+            const src = readFileSync(join(WF_DIR, wf), 'utf8');
+            const from = src.search(/^ {2}deploy:[ \t]*$/m);
+            assert.ok(from > -1, `${wf} has no deploy job`);
+            const rest = src.slice(from + 1);
+            const job = rest.slice(0, rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m));
+            const at = job.indexOf('uses: actions/checkout@');
+            assert.ok(at > -1, `${wf}: the deploy job has no checkout`);
+            const tail = job.slice(at + 1);
+            const step = tail.slice(0, tail.search(/\n\s*- (name|uses):/));
+            assert.match(step, /^\s+persist-credentials: false[ \t]*$/m,
+                `${wf}: the deploy job's checkout leaves the token on disk for every install script in the job to read`);
+        });
+    }
+});
+

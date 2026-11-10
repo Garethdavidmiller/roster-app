@@ -136,7 +136,12 @@ jobs:
       actions: read     # the re-run check below lists this workflow's runs
       id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     steps:
+      # No token left on disk for the job's lifetime (whole-app review, 10 Nov 2026): nothing here
+      # needs git credentials — the upload check only lists files — and every dependency's install
+      # script runs in this job. The mirror's deploy job does the same.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # A RE-RUN MUST NOT PUT AN OLDER TREE LIVE (whole-app review, 10 Nov 2026). A re-run deploys
       # the commit this run first ran on; once a newer run of this workflow exists, that may be older
