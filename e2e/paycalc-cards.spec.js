@@ -10,6 +10,7 @@
  */
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
+import { AWARD_RATES, HPP_FRACTION, RATE_125 } from '../paycalc-calc.js';
 
 const QUIET = () => {
     localStorage.setItem('myb_pc_ns_migrated', '1');
@@ -98,6 +99,42 @@ test('paycalc: the year fill button keeps keyboard focus through a recalculation
     const receipt = page.locator('#ytdYearSoFar .yearso-receipt');
     await expect(receipt).toContainText(/Filled \d+ payslips? from your calendar/);
     await expect(receipt, 'a fill started from the keyboard moves focus to what it did').toBeFocused();
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── BACK PAY NEVER REACHES THE HOLIDAY PREMIUM (invariant 5; contracts-b-6) ─────────────────────
+//
+// The premium estimate prices every payslip of the year at the settled rate, which already carries
+// the award, so the lump's premium share fed in as well would be counted twice. Nothing but
+// `calcHPP()` taking no argument kept it out, and the coordinator is where it would be threaded back
+// in — so this runs the whole page: a lump WITH a premium share, ticked into the take-home, and the
+// estimate held to the figure the hours alone give, before and after.
+
+test('paycalc: ticking the back-pay lump into the take-home leaves the holiday premium estimate alone', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-08-20T09:00:00Z'));   // the 28 Aug 2026 award payslip is on screen
+    await seedSession(page);
+    await page.addInitScript(QUIET);
+    await page.addInitScript(() => {
+        // Ten overtime hours on each payslip of the award window (10 Apr to 31 Jul 2026), so the
+        // lump has a premium share to leak.
+        for (const n of [50, 51, 52, 53, 54]) {
+            localStorage.setItem(`myb_pc_gmiller_p${n}`, JSON.stringify({
+                satH: 0, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 10, otM: 0,
+                rdwH: 0, rdwM: 0, sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0,
+                slSkip: false, otherAdj: 0, actualNet: null,
+            }));
+        }
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    // Fifty overtime hours at the settled 2026/27 rate, × 1.25, × 7.69%.
+    const fromHours = `£${(50 * AWARD_RATES.cea['2026/27'].rate * RATE_125 * HPP_FRACTION).toFixed(2)}`;
+    await expect(page.locator('#hppAmount')).toHaveText(fromHours);
+
+    await page.locator('#bpBannerTick').check();
+    await expect(page.locator('#bpBannerText')).toContainText('✓ Includes');
+    await expect(page.locator('#hppAmount'), 'the premium took in the back-pay lump').toHaveText(fromHours);
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 

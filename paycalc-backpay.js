@@ -191,10 +191,10 @@ export function prefillBackPay() {
   // (which runs after BOTH prefill and restoreBpState), not here — otherwise a year switch that
   // restores a saved blob would keep the previous year's lock/visibility state.
 
-  // The award year is TODAY's award (pinned above), so the card always computes the current award
-  // regardless of the period being viewed. Its OLD rate = the rate paid before that year's award =
+  // The award year is the VIEWED payslip's (`ty`, derived above from currentPeriodNum()), so the card
+  // computes the award of the year on screen. Its OLD rate = the rate paid before that year's award =
   // the prior year's rate — held per grade/year in AWARD_RATES (payslip-confirmed), so it never
-  // depends on the mutable GRADES default. null = not on record (e.g. CES 2024/25) → the old-rate box
+  // depends on the mutable GRADES default. null = not on record (e.g. CES 2025/26) → the old-rate box
   // stays blank for manual entry.
   const award = awardRatesFor(getGrade(), ty.label);
   if (!oldRateEl.value && award && award.pre != null) oldRateEl.value = award.pre.toFixed(2);
@@ -305,16 +305,15 @@ function _saveBpState() {
 }
 
 /**
- * Restore the persisted card figures into the DOM (card may stay closed). Only restores when the
- * stored award year matches the CURRENT award year — a stale year's figures are discarded (the
- * April rollover clean-slate). Sets _lastAwardYear so the first card-open doesn't wipe the
- * restored values.
+ * Restore the persisted card figures into the DOM (card may stay closed). Reads the VIEWED award
+ * year's own blob (`bpKey(ty)`, one key per tax year), so there is no other year's state to discard.
+ * Sets _lastAwardYear so the first card-open doesn't wipe the restored values.
  *
- * Returns true when a valid same-year blob was APPLIED — **even an all-blank one**: blank saved
- * fields mean the member deliberately cleared the card, and that choice must stick. The
- * coordinator treats false ("no saved state at all — first visit, or a new award year after the
- * rollover discard") as the cue to compute the DEFAULT pending-award estimate automatically.
- * @returns {boolean} true if a same-year saved state was applied.
+ * Returns true when that year's blob was APPLIED — **even an all-blank one**: blank saved fields
+ * mean the member deliberately cleared the card, and that choice must stick. The coordinator
+ * treats false ("no saved state for this award year — a first visit, or a year never changed") as
+ * the cue to compute the DEFAULT estimate automatically.
+ * @returns {boolean} true if this award year's saved state was applied.
  */
 export function restoreBpState() {
   _trackMemberEdits();
@@ -726,7 +725,7 @@ export function calcBackPay() {
   let _inWindow = 0, _employedInWindow = 0;
   periods.forEach(/** @param {any} p */ p => {
     try {
-      if (fromPNum && p.num < fromPNum) return;
+      if (p.num < fromPNum) return;   // fromPNum is always the award year's first period (_backdatedFromPNum)
       if (_capPNum && p.num > _capPNum) return;
       // Skip periods outside the award tax year (e.g. when "paid in" period is
       // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
@@ -741,11 +740,8 @@ export function calcBackPay() {
       // contracted week is owed the rise whether worked or paid at contracted rate on leave/sick
       // (confirmed by Gareth), so an unvisited period defaults to empty data → contracted-only
       // (no variable). _decodeHours returns zeros for `{}`, so ratePay reduces to exactly the
-      // contracted component + London diff. GUARDED by fromPNum: with no "backdated from" period
-      // selected there is no award window, so an unvisited period has nothing to accrue and is
-      // skipped — otherwise contracted arrears would be summed across unbounded history.
+      // contracted component + London diff — bounded by the window's fences above.
       if (parsed.error) { _skipped.push(fdShort(p.payday)); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
-      if (!parsed.data && !fromPNum) return;
       const d = parsed.data || {};
       // Only NAME an empty period in the "no hours saved" notice when it's actually the member's —
       // getProRateFactor is 0 for a period ENTIRELY before a mid-year joiner's start (v18.54), and
@@ -877,8 +873,8 @@ export function calcBackPay() {
   const newBpPNum   = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
   const newBpAmt    = newBpPNum > 0 ? grandTotal    : 0;
   const newBpVarAmt = newBpPNum > 0 ? grandVarTotal : 0;
-  // bpIsEstimate: the lump derives from an accepted-but-unconfirmed award (the 3.6% default) —
-  // the result card must say "estimated" wherever it surfaces this figure.
+  // bpIsEstimate: the lump derives from an accepted-but-unconfirmed award (its percentage from
+  // PENDING_AWARD_PCT, or typed) — the result card must say "estimated" wherever it surfaces this figure.
   return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum,
            bpIsEstimate: !!awardTy?.rateUnconfirmed, bpIncluded };
 }

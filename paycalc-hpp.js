@@ -104,7 +104,8 @@ export function savedPeriodPension(p, d, factor) {
 // and the BH premium must not contribute to HPP (it wasn't in that period's gross).
 /**
  * Compute variable (extra) pay for one period from saved data — the pay that ACCRUES HPP.
- * Used by calcHPP, updatePriorHpp, and paycalc-backpay.js.
+ * Used by calcHPP (through _hoursEstimate) and updatePriorHpp. Back pay prices its own
+ * `varPay` in `_accrueBackPayPeriod` (paycalc-backpay-accrual.js), which mirrors this one.
  * Includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, bank-holiday premium.
  * Does NOT include: London Allowance, peer training, basic pay, expenses, bonuses.
  *
@@ -757,8 +758,7 @@ export function updatePriorHpp(ty) {
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
       // The PRIOR year's settled rate — derived from AWARD_RATES per tax year (v17.87), so last
-      // year prices at last year's rate, never the current one. (The second arg is a retained
-      // no-op since the localStorage rate store was removed.)
+      // year prices at last year's rate, never the current one.
       const rate = getStoredRateForYear(priorTy);
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {

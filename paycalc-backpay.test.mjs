@@ -328,7 +328,7 @@ describe('the lump a member is actually shown', () => {
 // ── THE WINDOW ──────────────────────────────────────────────────────────────────────────────────
 
 // THE LOWER END OF THE WINDOW IS HELD BY ONE LINE, AND IT IS NOT THE ONE THAT LOOKS LIKE IT.
-// Three statements appear to bound the window from below — `if (fromPNum && p.num < fromPNum)`, the
+// Three statements appear to bound the window from below — `if (p.num < fromPNum)`, the
 // tax-year fence `getTaxYearForOffset(p.num - 48) !== awardTy`, and `awardWindowFactor`. Deleting
 // EITHER of the first two leaves every case here green, and deleting both together does too.
 // `awardWindowFactor` returns 0 for a period whose cut-off falls before the backdate, so a March
@@ -717,5 +717,39 @@ describe('a member who started after the award\'s window is told so, not "your p
         const out = calcBackPay();
         assert.ok(out.bpAmount > 0);
         assert.match(els.bpAwardScope.innerHTML, /your <strong>.*Yours is roughly/s);
+    });
+});
+
+// ── BACK PAY NEVER REACHES THE HOLIDAY PREMIUM (invariant 5; contracts-b-6 part b) ──────────────
+// The premium estimate prices every payslip of the year at the SETTLED rate, which already carries
+// the award; the lump's premium share is that same uplift, so feeding it in as well would count it
+// twice (by 7.69% of `bpVarAmount`). The only guard was structural — `calcHPP()` takes no argument —
+// and nothing failed if a back-pay figure reached the estimate. This runs the REAL card first, with a
+// lump that HAS a premium share, ticked into the take-home and saved, then the REAL estimate.
+const { calcHPP, _varPayForPeriod } = await import('./paycalc-hpp.js');
+const { HPP_FRACTION } = await import('./paycalc-calc.js');
+const { hppEstKey } = await import('./paycalc-migrations.js');
+const { getStoredRateForYear } = await import('./paycalc-settings.js');
+
+describe('back pay never reaches the holiday premium (invariant 5)', () => {
+    test('a computed, ticked and saved lump leaves the premium estimate exactly where the hours put it', () => {
+        openCard();
+        const hours = { otH: 10, otM: 0 };                    // premium hours, so the lump has a premium share
+        for (const p of WINDOW) _ls.set(periodKey(p.num), JSON.stringify(hours));
+        const expected = (WINDOW.reduce((/** @type {number} */ s, /** @type {any} */ p) =>
+            s + _varPayForPeriod(p, hours, getStoredRateForYear(TY)), 0) * HPP_FRACTION).toFixed(2);
+
+        calcHPP();
+        assert.equal(_ls.get(hppEstKey(TY)), expected, 'precondition: with no back pay, the estimate is the hours\' own');
+
+        prefillBackPay();
+        els.bpIncludeTick.checked = true;
+        cardEvent('change', true);                            // the member ticks it into the take-home
+        const out = calcBackPay();
+        assert.ok(out.bpVarAmount > 0, 'precondition: the lump carries a premium share that could leak');
+        assert.ok(out.bpIncluded && _ls.has(bpKey(TY)), 'precondition: ticked, and saved');
+
+        calcHPP();
+        assert.equal(_ls.get(hppEstKey(TY)), expected, 'the premium estimate took in the back-pay lump');
     });
 });
