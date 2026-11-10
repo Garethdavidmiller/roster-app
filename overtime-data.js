@@ -262,7 +262,7 @@ const WINDOWS = 'overtimeWindows';
  * @param {{ initialDeadlineAt: number }} milestones
  * @param {string[]} [dates] the window's seven dates; omit to skip the roster read entirely
  * @returns {Promise<{ ok: boolean, participants: any[], submissions: Map<string, any>,
- *   roster: Record<string, Record<string, any>>, rosterKnown: boolean }>}
+ *   roster: Record<string, Record<string, any>> }>}
  */
 export async function loadWeekDetail(weekEnding, milestones, dates) {
     try {
@@ -356,7 +356,8 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
         // A FAILED roster read is not a failed week. The availability is the record; the roster is
         // context on top of it, and blanking the workspace because the overrides query fell over
         // would take away the thing the reviewer came for in order to withhold the thing they did
-        // not have yesterday. `rosterKnown` false makes every row say so instead.
+        // not have yesterday. The roster then comes back empty, and each row's badge, finding no
+        // day for its member, says "Roster unavailable" instead (`rosterBadge`).
         const rosterRead = dates?.length
             // Withdrawn participants are excluded from the roster read as well as from the views:
             // nothing draws their duty, and asking for it would widen a bounded query for rows that
@@ -370,10 +371,9 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
             participants,
             submissions: new Map(withHistory.map(h => [h.memberName, h])),
             roster: rosterRead.byMember,
-            rosterKnown: rosterRead.knowledge === 'authoritative',
         };
     } catch (_) {
-        return { ok: false, participants: [], submissions: new Map(), roster: {}, rosterKnown: false };
+        return { ok: false, participants: [], submissions: new Map(), roster: {} };
     }
 }
 
