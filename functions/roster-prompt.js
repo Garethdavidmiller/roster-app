@@ -389,7 +389,7 @@ function reviewRestReadsOfEmptyCells(safeEntries, cellRows, dates) {
 /**
  * The members the model listed MORE THAN ONCE, of `names` and in its order (whole-app fix, Nov
  * 2026). `buildSafeEntries` keeps one row per name — `memberRows`' rule, the first that says
- * anything — and skips the rest, which only its log line said. A real Dispatch sheet prints an empty
+ * anything — and skips the rest, saying so only in its log. A real Dispatch sheet prints an empty
  * placeholder above a member's real row, so the review names the member, and the admin, who holds
  * the PDF, checks the row that stood. Not geometry-path only: the model can repeat a name on either.
  *

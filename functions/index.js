@@ -778,7 +778,7 @@ columnScan: one key per column header; every staff member appears in every colum
             dates,
             crossCheck,
             missingMembers,
-            // …and each one the model listed MORE THAN ONCE: one row stood, and only the log said so.
+            // …and each one the model listed MORE THAN ONCE: one row stood, and the rest were skipped.
             duplicateMembers: repeatedMembers(parsed.parsed, relevantNames),
             // The two candidate values for each cell the cross-check flagged (v19.32) — lets the
             // review table offer a pick instead of a dead "couldn't read" row. Keyed
