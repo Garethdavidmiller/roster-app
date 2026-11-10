@@ -2446,6 +2446,39 @@ test('paycalc: a disclosure arrow points down when shut and up when open', async
     }
 });
 
+test('paycalc: a back-pay rate locked from the record reads as a fixed value, and does not glow on focus', async ({ page }, info) => {
+    // A CES member on a 2025/26 payslip: that award's OLD rate is not on record, so three of the four
+    // boxes are locked and one stays editable (paycalc-backpay.js). The locked rule was (0,1,1) inside
+    // `.field`, whose own input rule is (0,3,1), so all but the cursor lost: three boxes that looked
+    // editable, padlock and all, and brightened with the 4px glow when Tab reached them.
+    test.skip(isTouchProject(info), 'a keyboard');
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page, 'F. Mohamed');
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2025-11-21');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    if (!await page.locator('#backPayBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#backPayCardToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#backPayBody')).toHaveCSS('visibility', 'visible');
+    if (await page.locator('#bpModeCompute').isVisible()) await page.locator('#bpModeCompute').check();
+    await expect(page.locator('#newRateInput')).toHaveClass(/bp-rate-locked/);
+    await expect(page.locator('#oldRate'), 'the premise: a figure not on record stays editable').not.toHaveClass(/bp-rate-locked/);
+    const look = (/** @type {string} */ id) => page.locator(`#${id}`).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const cs = getComputedStyle(el);
+        return { fill: cs.backgroundColor, edge: cs.borderTopColor, weight: cs.fontWeight, room: cs.paddingRight, glow: cs.boxShadow };
+    }));
+    const fixedValue = { ...(await look('hourlyRate')), glow: 'none' };   // the read-only Settings rate
+    for (const id of ['newRateInput', 'oldLondon', 'newLondon']) expect(await look(id), `#${id} at rest`).toEqual(fixedValue);
+    expect((await look('oldRate')).fill, 'the editable box keeps the field fill').not.toBe(fixedValue.fill);
+
+    await page.locator('#oldRate').focus();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#newRateInput')).toBeFocused();
+    expect(await look('newRateInput'), 'focused by keyboard: no glow, no brightening').toEqual(fixedValue);
+    expect(await page.locator('#newRateInput').evaluate(el => getComputedStyle(el).outlineStyle), 'and the ring still shows where you are').toBe('solid');
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 

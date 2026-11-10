@@ -970,14 +970,18 @@
       font-variant-numeric: tabular-nums; white-space: nowrap;
     }
     /* The locked (confirmed-award) rate boxes read as fixed VALUES, as the read-only Settings rate
-       does: a faint fill, bold, and the 🔒. */
-    input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
+       does: a faint fill, bold, and the 🔒. At the field rule's weight plus the class, (0,4,1): at
+       (0,1,1) every declaration but the cursor lost to `.field input:not(…):not(…)`, the trap the
+       `.roster-suggested` note below records. */
+    .field input.bp-rate-locked:not([type="checkbox"]):not([type="radio"]) {
+      background-color: var(--bg-faint); color: var(--text-dark); font-weight: 700;
       border-color: var(--border-light); cursor: default; padding-right: 32px; }
-    /* No "active field" glow — brightening a box nobody can edit would lie. But they stay in the Tab
-       order (`readOnly`, not `disabled`), so they must still show WHERE you are: `outline: none`
-       here once left four reachable inputs with no focus indicator, which no axe rule can see. */
-    input.bp-rate-locked:focus { box-shadow: none; }
-    input.bp-rate-locked:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* No "active field" glow or brightening — a box nobody can edit would lie. But they stay in the
+       Tab order (`readOnly`, not `disabled`), so the ring still shows WHERE you are: `outline: none`
+       here once left four reachable inputs with no focus indicator. (0,5,1), over the field's own. */
+    .field input.bp-rate-locked:not([type="checkbox"]):not([type="radio"]):focus-visible {
+      background-color: var(--bg-faint); border-color: var(--border-light); box-shadow: none;
+      outline: var(--focus-outline); outline-offset: 2px; }
     .pfx:has(> input.bp-rate-locked)::after {
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: var(--type-small); opacity: .5; pointer-events: none;
