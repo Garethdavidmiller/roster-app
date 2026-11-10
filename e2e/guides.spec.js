@@ -851,3 +851,46 @@ test('guides: each side of the page takes its own safe-area inset', async ({ pag
         if (banner) expect(banner, `${guide}: the source banner`).toEqual(['16px', '44px']);
     }
 });
+
+test('fip: a focused country row shows its whole ring, inside the card that clips it', async ({ page }) => {
+    // The card clips its content (`overflow: hidden`) and the browser's own ring is drawn outside the
+    // row, so keyboard focus showed a hairline with its corners cut off.
+    await page.goto('/fip-guide.html');
+    const row = page.locator('#country-fr > summary');
+    await row.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    const m = await row.evaluate(s => {
+        const cs = getComputedStyle(s), card = getComputedStyle(/** @type {Element} */ (s.parentElement));
+        return { keyboard: s.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth),
+            offset: parseFloat(cs.outlineOffset), corner: cs.borderTopLeftRadius, cardCorner: card.borderTopLeftRadius,
+            clips: card.overflow };
+    });
+    expect(m.keyboard).toBe(true);
+    expect(m.clips, 'the card clips its row — why the ring must sit inside it').toBe('hidden');
+    expect(m.style).toBe('solid');
+    expect(m.width).toBeGreaterThanOrEqual(2);
+    expect(m.offset + m.width, 'the ring is drawn inside the row').toBeLessThanOrEqual(0);
+    expect(m.corner, 'the ringed row takes the card\'s corner, so the ring\'s own corners are not cut').toBe(m.cardCorner);
+});
+
+test('fip: the text link centres under its buttons, the no-match box keeps the column, and the note tag prints in colour', async ({ page }) => {
+    // `text-align` cannot centre an inline-flex item; the desktop reading measure caught the no-match
+    // <p>, a boxed callout; and the print rule that keeps the tags' colours left out `.tag-note`.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/fip-guide.html');
+    const gap = await page.locator('.btn-text-link').first().evaluate(a => {
+        const range = document.createRange();
+        range.selectNodeContents(a);
+        const t = range.getBoundingClientRect(), r = a.getBoundingClientRect();
+        return { left: t.left - r.left, right: r.right - t.right };
+    });
+    expect(Math.abs(gap.left - gap.right), 'the link text sits in the middle of its row').toBeLessThanOrEqual(2);
+    await page.locator('#countrySearch').fill('qwertyzzz');
+    await expect(page.locator('#countryNoMatch')).toBeVisible();
+    const [box, other] = await page.evaluate(() => [document.getElementById('countryNoMatch'), document.querySelector('.box')]
+        .map(e => /** @type {Element} */ (e).getBoundingClientRect().width));
+    expect(box, 'the no-match box is as wide as the page\'s other boxes').toBe(other);
+    await page.emulateMedia({ media: 'print' });
+    expect(await page.locator('.tag-note').first().evaluate(t => getComputedStyle(t).printColorAdjust)).toBe('exact');
+});

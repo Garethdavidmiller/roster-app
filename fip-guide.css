@@ -70,7 +70,6 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
     height: 2px;
     background: var(--gold);
 }
-.section-label:first-child { margin-top: 0; }
 /* Jump/finder links scroll to section + #country-* anchors — clearance for the sticky header +
    chip-bar. fip-guide.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
 .section-label[id], details[id], div[id] { scroll-margin-top: 100px; }
@@ -219,8 +218,6 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
     letter-spacing: 0.04em;
     color: var(--mid);
     background: var(--bg);
-    position: sticky;
-    top: 0;
 }
 .fip-table tbody tr:last-child td { border-bottom: 0; }
 .fip-table td:first-child { font-weight: 700; white-space: nowrap; }
@@ -316,6 +313,11 @@ summary .chevron {
 }
 details[open] > summary .chevron { transform: rotate(180deg); }
 details[open] > summary { border-bottom: 1px solid var(--border); }
+/* The ring is drawn INSIDE the row: the card's `overflow: hidden` clips anything outside it, which
+   left the browser's own ring a hairline with its corners cut off. While ringed, the row takes the
+   card's corners (the top two only, once open), so the ring's corners are not cut either. */
+summary:focus-visible { outline: 2px solid var(--navy); outline-offset: -3px; border-radius: 12px; }
+details[open] > summary:focus-visible { border-radius: 12px 12px 0 0; }
 
 .detail-body {
     padding: 14px;
@@ -406,6 +408,7 @@ details[open] > summary { border-bottom: 1px solid var(--border); }
 .btn-text-link {
     display: inline-flex;
     align-items: center;
+    justify-content: center;   /* `text-align` alone centres only a wrapped line; flex places the item */
     width: 100%;
     text-align: center;
     text-decoration: underline;
@@ -559,7 +562,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
    so does each country's "✓ Checked" line, whose hairline spans its card. The centred disclaimer
    stays centred. Screen only: print is as it was. */
 @media screen and (min-width: 1024px) {
-    main p:not(.country-reviewed), .rule-list li { max-width: 64ch; }
+    /* `.cf-nomatch` is a <p> but a boxed callout, so it keeps the column with the other boxes. */
+    main p:not(.country-reviewed):not(.cf-nomatch), .rule-list li { max-width: 64ch; }
     .foot-disclaimer { margin-inline: auto; }
 }
 
@@ -635,7 +639,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .card { box-shadow: none; border: 1px solid var(--border); }
 
     /* Keep tag/box colours — they carry semantic meaning in a reference doc */
-    .tag-yes, .tag-no, .tag-warn,
+    .tag-yes, .tag-no, .tag-warn, .tag-note,
     .box-yellow, .box-red, .box-blue {
         -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }
