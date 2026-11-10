@@ -307,7 +307,11 @@
            a few hundred pixels down this same page already uses. Two micro-labels that close
            together should not be set differently; the difference here was drift, not intent. */
         .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; }
-        .al-banner-stat .stat-breakdown { font-size: 9px; color: var(--text-mid); opacity: 0.75; white-space: nowrap; }
+        /* WRAPS, as the Calendar's twin has since v24.46 (Nov 2026). `nowrap` made the fourth figure as
+           wide as its sentence — "Includes 1 day in lieu for working Boxing Day" is ~190px at 9px — so
+           the four figures ran out of the banner and the card cut them off. Quieter by size and colour,
+           never a fade: at `opacity: 0.75` it was 3.47:1 (css-tokens.md → "opacity on a group"). */
+        .al-banner-stat .stat-breakdown { font-size: 9px; line-height: 1.25; text-align: center; color: var(--text-mid); }
         /* FOUR STATS ON ONE ROW STOP FITTING BELOW 360px, AND THE CARD CLIPS THEM (v23.45).
            `.al-banner-stat` is `flex: 1`, whose default `min-width: auto` will not shrink a box
            below its content — and "ENTITLEMENT" is one unbreakable word, the widest label of the

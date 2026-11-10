@@ -1400,6 +1400,43 @@ test('admin: Christmas leave is listed with the recorded leave, not counted, wit
     await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
 });
 
+// The note under ENTITLEMENT is a 45-character sentence from Boxing Day 2026, and it was `nowrap`: the
+// fourth figure grew as wide as the sentence and the four ran out of the banner, where the card's
+// `overflow: hidden` cut them ("…for working B") — so the TEXT test above stayed green on a note
+// nobody could finish reading. Geometry, at a phone's widths and in the desktop side column.
+test('admin: the AL banner keeps its figures and the Boxing Day note inside the banner', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '' }],
+        });
+    });
+    await page.setViewportSize({ width: 375, height: 900 });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
+    for (const width of [360, 375, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        const m = await page.locator('#alBanner').evaluate(banner => {
+            const edge = banner.getBoundingClientRect().right - parseFloat(getComputedStyle(banner).borderRightWidth);
+            const right = (/** @type {Element} */ el) => el.getBoundingClientRect().right;
+            return {
+                edge,
+                overflow: banner.scrollWidth - banner.clientWidth,
+                stats: [...banner.querySelectorAll('.al-banner-stat')].map(right),
+                note: right(/** @type {Element} */ (banner.querySelector('#alBannerBreakdown'))),
+            };
+        });
+        expect(m.overflow, `${width}px: the banner's content is wider than the banner`).toBeLessThanOrEqual(0);
+        for (const r of [...m.stats, m.note]) {
+            expect(r, `${width}px: a figure or the note runs past the banner's edge (${m.edge}px)`).toBeLessThanOrEqual(m.edge + 0.5);
+        }
+    }
+});
+
 test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
     async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
