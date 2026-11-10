@@ -609,9 +609,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        target, hide its siblings" cannot go stale as the guide grows.
 
        `:not()` on the marker class rather than an `[id]` match, so the rule reads as what it
-       means. It also beats the `[id^="country-"][hidden] { display: block }` un-hide above on
-       specificity, which is what lets a reader print a country the finder had filtered out
-       while the other 31 stay down. */
+       means. */
     body[data-print-country] > .content > *:not(.is-print-country) { display: none !important; }
 
     /* THE COUNTRY IS NAMED ON ITS OWN SHEET. `summary { display: none }` above is right for the
@@ -627,10 +625,11 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
     .content { max-width: 100%; padding: 0 0 16px; }
 
-    /* Expand all <details> without JS; also un-hide any country card the finder filtered out on
-       screen (the 2 not-FIP <div>s), so a print taken mid-search still contains every country. */
-    details { display: block !important; box-shadow: none; border: 1px solid var(--border); }
-    [id^="country-"][hidden] { display: block !important; }
+    /* Expand every <details> the reader can see — and only those. The ⤓ PDF prints what is on
+       screen (fip-guide.js), and an author `display` outranks the browser's own [hidden] rule, so
+       without :not([hidden]) this, and a second rule that un-hid every country card, put all 32
+       countries on the paper of a filtered guide (whole-app review, 10 Nov 2026). */
+    details:not([hidden]) { display: block !important; box-shadow: none; border: 1px solid var(--border); }
     summary { display: none !important; }
     .detail-body { display: block !important; }
 

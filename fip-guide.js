@@ -70,10 +70,12 @@ var printBtn = document.querySelector('.btn-print');
  */
 function describePrintScope(shown) {
     if (!printBtn) return;
+    // "the guide with \u2026", not "the N countries": the general chapters print as well, and a name that
+    // promised only countries would undersell the sheet by a dozen pages (whole-app review, Nov 2026).
     var label = shown === null ? 'PDF \u2014 save or print the whole FIP guide'
-        : shown === 0          ? 'PDF \u2014 save or print, no countries match your search'
-        : shown === 1          ? 'PDF \u2014 save or print the 1 country shown'
-        :                        'PDF \u2014 save or print the ' + shown + ' countries shown';
+        : shown === 0          ? 'PDF \u2014 save or print the guide without countries, as none matches your search'
+        : shown === 1          ? 'PDF \u2014 save or print the guide with the 1 country shown'
+        :                        'PDF \u2014 save or print the guide with the ' + shown + ' countries shown';
     printBtn.setAttribute('aria-label', label);
 }
 describePrintScope(null);
@@ -345,8 +347,9 @@ function expandAllForPrint() {
     _fipPrepared = true;
     _fipOpenRestore = [];
     // A HIDDEN card's <details> is opened too, deliberately: `hidden` is what keeps it off the
-    // paper, and leaving it closed as well would mean the filter and the disclosure state had to
-    // be restored in the right order to end up where we started.
+    // paper (fip-guide.css expands only `details:not([hidden])` in print), and leaving it closed as
+    // well would mean the filter and the disclosure state had to be restored in the right order to
+    // end up where we started.
     document.querySelectorAll('details').forEach(function (d) {
         var det = /** @type {HTMLDetailsElement} */ (d);
         _fipOpenRestore.push([det, det.open]);
@@ -362,11 +365,10 @@ function restoreAfterPrint() {
 window.addEventListener('beforeprint', expandAllForPrint);
 window.addEventListener('afterprint', restoreAfterPrint);
 // The restore needs the same defence the prepare got (v23.27). `afterprint` is the same event from
-// the same engine that does not fire `beforeprint` for AirPrint — and here the un-restored state is
-// worse than an expanded page: every country card is un-hidden, so a traveller who had filtered to
-// "Belgium" comes back from the print sheet to what looks like a search box that has stopped
-// working. Becoming visible again is the signal every engine sends. Where `afterprint` fires it has
-// already cleared the flag, so this is a no-op.
+// the same engine that does not fire `beforeprint` for AirPrint, and un-restored, every country card
+// the reader had closed would stay open for good — printing would have changed the page. Becoming
+// visible again is the signal every engine sends. Where `afterprint` fires it has already cleared
+// the flag, so this is a no-op.
 document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') restoreAfterPrint();
 });
