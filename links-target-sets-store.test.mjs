@@ -17,7 +17,7 @@
  *     there is no recovery. That window is forced here with an `onRead` seam, the same trick
  *     `links-design-store.test.mjs` uses, because no ordering of real calls can produce it.
  */
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTargetSetStore } from './links-target-sets-store.js';
 
@@ -81,6 +81,19 @@ describe('reading the list: a failure is not an empty collection', () => {
             + 'the empty-account line, and because these are SHARED the designer concludes a '
             + 'colleague deleted them.');
         assert.deepEqual(res.sets, []);
+    });
+
+    test('…and leaves a trace for a developer, where the row can only say it could not tell', async () => {
+        // The catch dropped the error unlogged, so a rules refusal and a lost connection were the same
+        // silence in the console (whole-app fix, Nov 2026).
+        const logged = mock.method(console, 'error', () => {});
+        try {
+            await createTargetSetStore(fakeDb({ failList: true }).deps).list();
+            assert.equal(logged.mock.callCount(), 1, 'a failed read wrote nothing to the console');
+            assert.match(String(logged.mock.calls[0].arguments.at(-1)?.message), /permission-denied/);
+        } finally {
+            logged.mock.restore();
+        }
     });
 
     test('a genuinely empty collection is READY with no rows — the other half of the same answer', async () => {

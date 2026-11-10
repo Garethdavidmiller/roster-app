@@ -19,6 +19,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCell, parseGrid, parseDesignImport, summariseImport } from './links-import.js';
 import { ROTATING_LINES, normalisePatterns } from './links-design.js';
+import { MAX_DESIGN_NAME } from './links-design-naming.js';
 
 /** A full seven-column row as a tab-separated line. */
 const line = (...cells) => cells.join('\t');
@@ -248,6 +249,14 @@ describe('the app\'s own JSON', () => {
         assert.equal(r.name, 'Option A');
         assert.equal(r.patterns['1'].mon, '06:20-14:20');
         assert.equal(r.patterns['1'].tue, 'SPARE');
+    });
+
+    test('its name is held to the one limit every other way a design is named uses', () => {
+        // The import's cap was a second literal of MAX_DESIGN_NAME, tied to it by nothing (whole-app
+        // fix, Nov 2026): a change to the design limit would have left imports on the old one.
+        const r = parseDesignImport(JSON.stringify({ ...good, name: 'x'.repeat(MAX_DESIGN_NAME + 20) }));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.equal(r.name.length, MAX_DESIGN_NAME);
     });
 
     // Whole-app review, Oct 2026: a night start or a past-midnight finish imported silently, and the
