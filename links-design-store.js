@@ -118,7 +118,9 @@ export function createDesignStore(deps) {
      */
     const cacheRead = deps.getDocFromCache ?? getDoc;
     const isOffline = (/** @type {any} */ err) => isOfflineFailure(err, offlineNow);
-    const refFor = (/** @type {string} */ id) => doc(db, 'linkDesigns', id);
+    // One document of the INJECTED collection — its path read from the reference, never a second
+    // copy of the collection's name beside it.
+    const refFor = (/** @type {string} */ id) => doc(db, designsCol.path, id);
 
     /**
      * RULE 4 — send a write, and wait for the server's acknowledgement for at most `waitMs`.

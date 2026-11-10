@@ -580,6 +580,15 @@ describe('creating and restoring ARM the baseline', () => {
     });
 });
 
+test('a design is addressed through the INJECTED collection, never a second copy of its name', async () => {
+    const { api } = makeDb({ initial: { name: 'A' } });
+    const addressed = /** @type {any[]} */ ([]);
+    api.designsCol = { path: 'linkDesignsElsewhere' };
+    api.doc = (/** @type {any[]} */ ...a) => { addressed.push(a.slice(1)); return { id: ID }; };
+    await createDesignStore(api).softDelete(ID, ME);
+    assert.deepEqual(addressed[0], ['linkDesignsElsewhere', ID]);
+});
+
 describe('what counts as offline', () => {
     // The predicate that decides whether the unserialised path may be taken at all. Too broad and
     // rule 2 is back to being advisory.
