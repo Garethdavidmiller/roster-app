@@ -471,7 +471,12 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         requestAnimationFrame(() => {
             overlay.classList.add('open');
             if (focusedEarly) return;
-            const explicit = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
+            const explicit = /** @type {any} */ (typeof initialFocus === 'function' ? initialFocus() : initialFocus);
+            // A NAMED TARGET THAT WILL NOT TAKE FOCUS COUNTS AS NONE. A disabled first row (the Links
+            // ··· More sheet's, on an unsaved design) refuses `focus()`, which left focus on the control
+            // behind the dialog — where Enter acts on the page and a screen reader is never moved in.
+            explicit?.focus?.();
+            if (explicit && document.activeElement === explicit) return;
             // Default focus goes to the dialog PANEL (given a `tabindex="-1"`), NOT the ✕ close button.
             // Moving focus into the dialog on open is the WAI-ARIA pattern, but landing it on the close
             // BUTTON makes a keyboard-focus ring appear around the ✕ even when the dialog was opened by
@@ -480,13 +485,13 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
             // tabindex="-1" is outside the global :focus-visible ring selector (button/[tabindex="0"]),
             // so screen-reader users still get moved into the dialog with no ring on a control.
             // Explicit initialFocus callers (login field, confirm/prompt input) are unchanged.
-            let target = explicit;
             const panel = /** @type {HTMLElement|null} */ (content ?? null);
-            if (!target && panel) {
+            if (panel) {
                 if (!panel.hasAttribute('tabindex')) panel.setAttribute('tabindex', '-1');
-                target = panel;
+                panel.focus?.();
+                return;
             }
-            (target ?? closeBtn)?.focus?.();
+            /** @type {any} */ (closeBtn)?.focus?.();
         });
         document.addEventListener('keydown', onKey);
     }

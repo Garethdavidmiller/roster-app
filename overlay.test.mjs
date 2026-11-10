@@ -594,6 +594,37 @@ describe('createLightbox — focus goes back to whatever opened it', () => {
     });
 });
 
+describe('createLightbox — an initial focus that cannot take focus falls back to the panel', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    // The Links ··· More sheet names its first row, which is DISABLED on an unsaved design. `focus()`
+    // on it does nothing, so focus stayed on the ··· button behind the dialog: Enter acted on the page,
+    // and a screen reader was never moved in. A target that refuses focus is treated as no target.
+    test('a disabled explicit target: focus goes to the panel, as if none were named', () => {
+        const opener = makeBtn();
+        global.document.activeElement = opener;
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };
+        const disabled = Object.assign(makeEl({ tagName: 'BUTTON' }), { disabled: true, focus() { /* a disabled control refuses focus */ } });
+        const overlay = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, initialFocus: () => disabled });
+        lb.open();
+        assert.equal(global.document.activeElement, content, 'focus stayed on the control behind the dialog');
+        lb.close(); overlay._trigger('transitionend');
+    });
+
+    test('a target that takes focus keeps it', () => {
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };
+        const row = Object.assign(makeEl({ tagName: 'BUTTON' }), { focus() { global.document.activeElement = row; } });
+        const overlay = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, initialFocus: () => row });
+        lb.open();
+        assert.equal(global.document.activeElement, row);
+        lb.close(); overlay._trigger('transitionend');
+    });
+});
+
 describe('createLightbox — a fade that never reports its end still finishes', () => {
     beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
 
