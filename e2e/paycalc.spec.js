@@ -3431,6 +3431,22 @@ test('paycalc: the pay-period picker opens on the payslip on screen', async ({ p
     expect(inPanel, 'the title and the ✕ are still on screen').toEqual({ title: true, close: true });
 });
 
+// shared-ui-5 — a search box is named by what its list holds. The payslip pickers' titles are
+// questions, which have no noun to weld onto "Search", so each box was called a bare "Search".
+test('paycalc: every payslip picker calls its search box "Search pay periods"', async ({ page }) => {
+    await openReturning(page);
+    for (const id of ['periodSelect', 'pensionOptOutFrom', 'slPaidOffFrom']) {
+        // Two of these sit in Settings rows shown only once they apply, so the trigger is pressed
+        // through the DOM: what is under test is the sheet the trigger opens, not the row around it.
+        await page.locator(`#${id}Trigger`).evaluate(el => /** @type {HTMLElement} */ (el).click());
+        const box = page.locator('.picker-sheet .picker-search-input');
+        await expect(box, `${id}: a list of payslips earns a search box`).toBeVisible();
+        await expect(box, id).toHaveAttribute('aria-label', 'Search pay periods');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.picker-sheet-overlay')).toBeHidden();
+    }
+});
+
 // PAY9 — a 3px navy stripe on two notes that sit on the navy canvas: no stripe at all, only a white
 // edge 3px inside every other card's.
 test('paycalc: the notes on the navy canvas carry no navy stripe', async ({ page }) => {

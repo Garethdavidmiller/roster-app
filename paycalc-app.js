@@ -1528,13 +1528,13 @@ export function init() {
     // title is also the control's accessible name, so it carries its field's visible label word for
     // word (paycalc-copy-parity.test.mjs) — and the loan stop never says "paid off" (paycalc.md).
     initSelectSheets([
-        { id: 'periodSelect',      title: 'Which pay period?' },
+        { id: 'periodSelect',      title: 'Which pay period?', searchLabel: 'Search pay periods' },
         { id: 'gradeSelect',       title: 'Your grade' },
         { id: 'studentLoan',       title: 'Student loan plan' },
-        { id: 'pensionOptOutFrom', title: 'Not in the scheme from which payslip?' },
-        { id: 'slPaidOffFrom',     title: 'Student loan stopped being deducted?' },
+        { id: 'pensionOptOutFrom', title: 'Not in the scheme from which payslip?', searchLabel: 'Search pay periods' },
+        { id: 'slPaidOffFrom',     title: 'Student loan stopped being deducted?', searchLabel: 'Search pay periods' },
         { id: 'ytdSrcSelect',      title: 'From which payslip?' },
-        { id: 'backPayPeriod',     title: 'Which payslip carries this lump sum?' },
+        { id: 'backPayPeriod',     title: 'Which payslip carries this lump sum?', searchLabel: 'Search pay periods' },
     ], { createLightbox });
 
     initTransferCard();   // late: the backup card reads the per-member namespace runMigrations() chose
