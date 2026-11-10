@@ -1952,6 +1952,51 @@ for (const [width, scale, expectRows] of [[412, 1.0, 1], [412, 1.15, 1], [412, 1
     });
 }
 
+// ─── THE PAGE TITLE NEVER COVERS THE BURGER (whole-app review, 10 Nov 2026) ─────────────────────
+// The title is centred on the page over the header, and Android's text size grows its words while
+// the viewport stays put, so at 360px and 1.5× the logo covered the right half of ☰ — a tap there
+// opened About instead of the menu — and at 2× the title ran off both edges. Its width is now capped
+// at the room the burger leaves; where the cap binds the words take a second line. Three things
+// pinned, measured: at the default size the title is ONE line at every phone width (the owner's
+// compact header is unchanged); under scaling the logo stays clear of the burger and a tap on any
+// part of the ☰ reaches the menu; and nothing runs off the screen.
+for (const [width, scale] of [[320, 1.0], [360, 1.0], [412, 1.0], [320, 1.3], [360, 1.5], [393, 1.5], [360, 2.0], [412, 2.0]]) {
+    test(`calendar: the page title stays clear of the burger at ${width}px under ${scale}× text`, async ({ page }) => {
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.addInitScript((sc) => { const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { textScale: sc }); }, scale);
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        if (scale !== 1) {
+            // Every used font size × k, read before any is written so none compounds — what the OS does.
+            await page.evaluate((k) => {
+                const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+                const px = els.map(e => parseFloat(getComputedStyle(e).fontSize));
+                els.forEach((e, i) => { if (px[i]) e.style.fontSize = `${px[i] * k}px`; });
+            }, scale);
+        }
+        const g = await page.evaluate(() => {
+            const rect = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            const burger = rect('#navMenuBtn'), logo = rect('.title-icon'), h1 = rect('.header h1');
+            // The words' own lines — the text node, not the h1, whose range would count the logo as one.
+            const words = /** @type {Text} */ ([.../** @type {Element} */ (document.querySelector('.header h1')).childNodes]
+                .find(n => n.nodeType === Node.TEXT_NODE && n.textContent?.trim()));
+            const range = document.createRange();
+            range.selectNodeContents(words);
+            const lines = new Set([...range.getClientRects()].filter(r => r.width > 0).map(r => Math.round(r.top))).size;
+            // A tap on each part of the ☰, as a thumb would land it.
+            const taps = [0.25, 0.5, 0.75, 0.95].map(f => document.elementFromPoint(burger.left + burger.width * f,
+                burger.top + burger.height / 2)?.closest('#navMenuBtn') ? 'menu' : 'not the menu');
+            return { clear: logo.left - burger.right, taps, lines, left: h1.left, right: h1.right, vw: innerWidth };
+        });
+        expect(g.clear, `the logo stays clear of the burger (${g.clear.toFixed(1)}px)`).toBeGreaterThanOrEqual(2);
+        expect(g.taps, 'every part of the ☰ opens the menu').toEqual(['menu', 'menu', 'menu', 'menu']);
+        expect(g.left >= 0 && g.right <= g.vw, 'the title stays on the screen').toBe(true);
+        if (scale === 1) expect(g.lines, 'at the default size the title is one line').toBe(1);
+    });
+}
+
 // ─── ON A WIDE SCREEN THE TEAM VIEW BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86) ─────────────
 // At 1280px the two arrows sat at the far edges of a 1040px card, 400px from the label they move,
 // while the month view directly above keeps Prev · name · Next as one compact centred group. Both

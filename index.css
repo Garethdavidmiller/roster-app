@@ -56,7 +56,8 @@
         }
 
         .header {
-            padding: 16px 20px;
+            --hdr-pad-x: 20px;   /* the title's cap reads it: every breakpoint sets the two together */
+            padding: 16px var(--hdr-pad-x);
             margin-bottom: 8px;
             position: relative;
             display: flex;
@@ -70,7 +71,17 @@
             top: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
-            white-space: nowrap;
+            /* NEVER OVER THE BURGER (whole-app review, Nov 2026). Centred on the page and as wide as its
+               words, but never wider than the room the burger leaves on BOTH sides: Android's text size
+               grows the words and leaves the viewport alone, so at 360px and 1.5× the logo covered half
+               the ☰ and a tap there opened About. Where the cap binds, the words take a second line;
+               at the default size it binds nowhere from 320px up. The reach is the header's side
+               padding, the burger's 12px of padding and 4px of air, and its 22px glyph in this 18px
+               title's em, with room. `max-content`, because `left: 50%` leaves an auto width only half
+               the header to wrap in. */
+            width: max-content;
+            max-width: calc(100% - 2 * (var(--hdr-pad-x) + 16px + 1.25em));
+            text-align: center;
             color: white;
             font-size: 20px;
             margin: 0;
@@ -1050,7 +1061,8 @@
             }
 
             .header {
-                padding: 14px 18px;
+                --hdr-pad-x: 18px;
+                padding: 14px var(--hdr-pad-x);
             }
 
             .calendar-container {
@@ -1128,7 +1140,7 @@
            its compact header for the month's sake. `screen`: a printed sheet is this wide too. */
         @media screen and (min-width: 768px) and (min-height: 501px), screen and (min-width: 1024px) {
             body { padding-top: max(20px, env(safe-area-inset-top)); }
-            .header { min-height: 72px; padding: 16px 20px; }
+            .header { min-height: 72px; --hdr-pad-x: 20px; padding: 16px var(--hdr-pad-x); }
             .header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; gap: 14px; }
             .title-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); }
         }
@@ -1143,7 +1155,8 @@
             }
 
             .header {
-                padding: 10px 12px;
+                --hdr-pad-x: 12px;
+                padding: 10px var(--hdr-pad-x);
             }
 
             .controls {
@@ -1208,7 +1221,7 @@
                 padding-left:   max(12px, env(safe-area-inset-left));
                 padding-right:  max(12px, env(safe-area-inset-right));
             }
-            .header { padding: 8px 14px; margin-bottom: 8px; }
+            .header { --hdr-pad-x: 14px; padding: 8px var(--hdr-pad-x); margin-bottom: 8px; }
             .header h1 { font-size: var(--type-medium); }
             .title-icon { width: 26px; height: 26px; }
             .controls {
