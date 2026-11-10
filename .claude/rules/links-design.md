@@ -738,7 +738,8 @@ target. Both divisors are printed on screen. A cover week's hours show as the co
 italic, because that is a convention rather than a reading; its days are a dash — unknown, not none. A
 total that is a FLOOR (a duty on the line could not be read) is orange and ends in "+", so it is not
 told by its colour alone; the "+" is silent where the cell's label already says it. The
-`.tot-legend` line under the grid says what each style means. Rules in `lineTotals`; pinned by
+`.tot-legend` line under the grid says what each style means, the floor included ("so the total is a
+floor, marked “+”"). Rules in `lineTotals`; pinned by
 `links-design.test.mjs`.
 
 ## The generator
@@ -1171,7 +1172,7 @@ The workspace's own rules, in `saveChanges`:
   you're back online" promised an upload a closed page cannot make). It still clears `dirty`: the write is in the device's
   persistent queue, a re-save would only queue a duplicate, and a leave-page warning would claim work is
   at risk that is not. Nor does the masthead's pill say "Saved": while a design's last write — a save,
-  a new design or a copy — is only in this browser's queue, it reads "Saved in this browser". An online
+  a new design, a copy or an import — is only in this browser's queue, it reads "Saved in this browser". An online
   create the server has not answered within `SLOW_SAVE_MS` is queued the same way.
 - **`dirty` clears only if nothing was edited while the save was in flight**, and the payload recorded is
   the one actually WRITTEN, window and revision included.

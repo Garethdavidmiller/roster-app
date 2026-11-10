@@ -165,6 +165,8 @@ including inputs inside modals, where keyboard users most need it.
 `tabindex="-1"`). A `readOnly` input is still reachable — only `disabled` is not — so a read-only box
 needs its ring like any other. Both halves are enforced by `focus-ring-parity.test.mjs`, which keeps
 the exemptions in a named list so a new suppression has to be argued for rather than merely typed.
+An `outline` in a BASE rule counts too: the selector needs a focus rule of its own, or a
+`BASE_OUTLINE_DECORATIONS` entry saying why it is never a Tab stop.
 
 **Every primary button** (calendar `.controls button`, paycalc `.btn-primary`/`.nav-pill`/`.ty-tab`,
 admin `.btn-save`, settings/operations `.btn-action`, shared `#loginSubmit`) shares one tactile press:
