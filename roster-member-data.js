@@ -165,8 +165,10 @@ export const teamMembers = [
     // than before her start), and the figure below would be the same.
     // ⚠️ `proRatedAL: 5` is PROVISIONAL — a day-count (88 of 365 days × 22 = 5.3), entered on the
     // owner's word ("pro-rata her leave until I get it from the workbook", 8 Nov 2026). REPLACE it
-    // with the workbook's `AL allowance`. It replaces only the 22-day BASE: lieu days for bank
-    // holidays worked are still added on top by getALEntitlement.
+    // with the workbook's `AL allowance` before January, when the carry-back reads 2026's remaining
+    // days as its cap — booked as a dated row in docs/MAINTENANCE_CALENDAR.md, because a comment
+    // reminds nobody. It replaces only the 22-day BASE: lieu days for bank holidays worked are still
+    // added on top by getALEntitlement.
     { name: 'J. Bangi',                currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
       rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'dispatcher', currentWeek: 3 }] },
