@@ -315,10 +315,10 @@ function pickRow({ id, name, meta, current }) {
  * skipped, so the module cannot throw on a page that lacks part of the markup.
  *
  * BOTH sheets are built here, from injected elements, and every action closes its sheet first and
- * runs after the fade — the pattern `#linksHowBtn` established for the About panel. Stacking a
- * dialog over an open sheet leaves the sheet behind a finished action, and acting in the same tick
- * as close() races the sheet's history.back() against the dialog's pushState. The 500ms matches
- * `dismissOverlay`'s fallback; with no sheet injected at all there is no fade to wait out, so the
+ * runs once the close has landed — the pattern `#linksHowBtn` established for the About panel.
+ * Stacking a dialog over an open sheet leaves the sheet behind a finished action, and acting in the
+ * same tick as close() races the sheet's history.back() against the dialog's pushState. One action
+ * per opening (`closeThen`); with no sheet injected at all there is no fade to wait out, so the
  * action runs at once.
  *
  * @typedef {{ overlay: HTMLElement|null, content: HTMLElement|null, closeBtn?: HTMLElement|null,
@@ -343,14 +343,30 @@ export function createDesignHeader(els, handlers, extra = {}) {
     const sheet  = build(extra.sheet);
     const picker = build(extra.picker);
 
-    /** Close `lb`, then run `fn` after its fade. */
+    /**
+     * ONE ACTION PER OPENING (whole-app fix, Nov 2026). A sheet stays tappable through its fade, and a
+     * second `close()` hands back the same landing promise, so each extra tap ran the row again: a
+     * double tap on Delete stacked two confirms and filed the design in the bin twice. The first
+     * action spends the opening and `openSheet` re-arms it — select-sheet.js's "one tap, one pick".
+     */
+    const spent = new WeakSet();
+    const openSheet = (/** @type {any} */ lb) => { if (!lb) return; spent.delete(lb); lb.open(); };
+    /**
+     * Close `lb`, then run `fn` once the close has LANDED: the fade finished and the history echo of
+     * its `history.back()` arrived, which `createLightbox`'s `close()` resolves on. A fixed 500 ms
+     * stood in for that until Nov 2026 — a wait with no promise about the echo, and a dialog opened
+     * before the echo pops itself (select-sheet.js has the account). `fn` gets no argument, whatever
+     * the close resolves with.
+     */
     const closeThen = (/** @type {any} */ lb, /** @type {() => void} */ fn) => {
         if (!lb) { fn(); return; }   // nothing to fade, so nothing to wait out
-        lb.close();
-        setTimeout(fn, 500);
+        if (spent.has(lb)) return;
+        spent.add(lb);
+        Promise.resolve(lb.close()).then(() => fn())
+            .catch((/** @type {any} */ err) => console.error('[Links] A sheet action failed:', err));
     };
 
-    extra.moreButton?.addEventListener('click', () => sheet?.open());
+    extra.moreButton?.addEventListener('click', () => openSheet(sheet));
     /** Close the ··· More sheet, then run `fn`. Exposed for a row wired elsewhere (the bin). */
     const viaSheet = (/** @type {() => void} */ fn) => closeThen(sheet, fn);
     for (const [el, run] of extra.sheetActions || []) el?.addEventListener('click', () => viaSheet(run));
@@ -358,7 +374,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
     // NOTE the button comes from `els`, not `extra`: `render` has to disable it, so it belongs with
     // the other rendered handles. Reading it from `extra` here is what shipped first, and the face
     // then had no listener at all while every unit test still passed.
-    els.pickerButton?.addEventListener('click', () => picker?.open());
+    els.pickerButton?.addEventListener('click', () => openSheet(picker));
     // ONE delegated handler on the list, so a rebuild never leaves listeners behind or drops them.
     els.pickList?.addEventListener('click', (/** @type {any} */ ev) => {
         const row = ev.target?.closest?.('.picker-opt[data-id]');
