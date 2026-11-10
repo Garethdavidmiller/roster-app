@@ -7,8 +7,8 @@
 import { test, expect, withLinksDesigners } from './fixtures.js';
 import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject, waitForReadsToLand } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
-// a module import is not available, so those loops carry the literal 22 — and `links: the rotation
-// length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
+// a module import is not available, so those loops carry the length as a literal — and `links: the
+// rotation length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES } from '../links-design.js';
