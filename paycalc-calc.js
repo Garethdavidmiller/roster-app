@@ -97,15 +97,17 @@ export const SCOTTISH_TAX_BY_YEAR = {
 
 // Grade contractual data. `rate` is the CURRENT (2026/27) settled rate — the 3.6% RMT award
 // paid from the 28 Aug 2026 payslip. Per-YEAR settled rates come from AWARD_RATES (consulted by
-// getStoredRateForYear), so an earlier year keeps its own rate; GRADES.rate is the grade default
-// + dropdown label. The mid-year step (pre-28-Aug-2026 periods still on £20.74/£21.81) is applied
-// by getRateForPeriod via awardFromForYear.
+// getStoredRateForYear), so an earlier year keeps its own rate; GRADES.rate is the grade default,
+// used for a year AWARD_RATES has no settled rate for, and the figure the help text quotes. The
+// grade select's options are plain "CEA"/"CES" in paycalc.html, so no rate is written into them.
+// The mid-year step (pre-28-Aug-2026 periods still on £20.74/£21.81) is applied by
+// getRateForPeriod via awardFromForYear.
 // `pension` is the CURRENT default; the per-era history lives in PENSION_STEPS below (the old
 // two-value pensionPre/pensionFrom pair was generalised to the table at v18.43 — review item 8).
 /** @type {Record<string, any>} */
 export const GRADES = {
-  cea: { label: 'CEA — £21.49/hr', rate: 21.49, contr: 140, pension: 151.86 },
-  ces: { label: 'CES — £22.60/hr', rate: 22.60, contr: 140, pension: 151.86 },
+  cea: { rate: 21.49, contr: 140, pension: 151.86 },
+  ces: { rate: 22.60, contr: 140, pension: 151.86 },
 };
 
 // ── Pension (Smart RPS CR Scheme) default per payslip era ──────────────────────
@@ -150,7 +152,8 @@ export const PENSION_STEPS = [
 // Payslip-confirmed values: CEA 2024/25 = £20.06 (reference payslip 09/05/2025, "Basic Pay @20.06").
 // Each April, when the new award is agreed: set that year's `rate`, and add the next year with
 // `pre` = this year's rate. Consumed by paycalc-backpay.js, and by getRateForPeriod for a period
-// paid before its year's award (the `pre` rate); otherwise the rate comes from GRADES as before.
+// paid before its year's award (the `pre` rate); otherwise a period gets its year's settled `rate`
+// (getStoredRateForYear, which falls back to the GRADES default for a year with none).
 // `pre` = the rate paid BEFORE the year's award was applied (the prior year's rate). The DATE the
 // award was applied is NOT stored here — it is a property of the tax YEAR (rate + London step on
 // one payslip: 2025/26 = 24 Oct 2025) and lives once as `londonAllowFrom` on TAX_YEARS, read via
@@ -212,7 +215,8 @@ export function isPreAwardPeriod(p, grade, tyLabel) {
  * backdated to 1 April but PAID from a mid-year date (2025/26: 24 Oct 2025) — so periods paid
  * BEFORE that date were actually paid at the prior year's rate. Returns the recorded pre-award
  * rate for those periods, else the settled rate. Mirrors getLondonAllowanceForPeriod. A grade/year
- * with no recorded step (CES, or the pending 2026/27) always returns the settled rate.
+ * with no recorded `pre` (CES 2025/26 — its 2024/25 rate is not on record), or a year with no award
+ * date (one whose award is still pending), always returns the settled rate.
  * @param {{ payday: Date }} p        - the period
  * @param {string} grade              - 'cea' | 'ces'
  * @param {string} tyLabel            - e.g. '2025/26'

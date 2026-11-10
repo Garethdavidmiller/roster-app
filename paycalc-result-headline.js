@@ -140,11 +140,13 @@ export function renderResultHeadline({ actual, net, payday, bpThisPeriod = 0, hp
     // setStatus on BOTH paths, which is the ONE behaviour change the v22.56 extraction made rather
     // than preserved, and it is deliberate. Before the move the actual path used `setStatus` and the
     // estimate path a plain `textContent` — an accident of the v21.94 glyph sweep touching one and
-    // not the other. Both labels lead with a decorative glyph (✅ / 💷), so both should hide it from
-    // the accessibility tree; `#netLabel` is not itself a live region (`#netDisplay` beside it is),
-    // so nothing is announced either way and the rendered text is identical — `textContent` still
-    // reads back the original string, which is why no existing assertion moved. Two branches doing
-    // the same thing two different ways is exactly what this module was extracted to end.
+    // not the other. Two branches doing the same thing two different ways is exactly what this
+    // module was extracted to end. What it HIDES differs, though: setStatus hides only a glyph in its
+    // closed vocabulary (`STATUS_GLYPHS`, status-text.js). ✅ is in it, so the actual path's glyph
+    // leaves the accessibility tree; 💷 is not, so the estimate path's label passes through
+    // untouched and its glyph is read as it was before the move. `#netLabel` is not itself a live
+    // region (`#netDisplay` beside it is), so nothing is announced either way, and `textContent`
+    // still reads back the original string on both paths.
     if (netLabel) setStatus(netLabel, L.netLabel);
 
     const bdBtn = byId('bdBtn');
