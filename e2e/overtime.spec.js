@@ -1220,7 +1220,8 @@ test.describe('overtime.css — print, focus and contrast', () => {
         await view.click();
         await expect(view).toHaveAttribute('aria-pressed', 'true');
         await page.mouse.move(0, 0);
-        await expect.poll(() => view.evaluate(b => getComputedStyle(b).backgroundColor)).not.toBe('rgb(255, 255, 255)');
+        // The fill and ink move together over --dur-fast; measure the colours they arrive at.
+        await view.evaluate(b => Promise.all(b.getAnimations().map(a => a.finished)));
         const m = await view.evaluate(b => {
             let opacity = 1;
             for (/** @type {Element|null} */ let n = b; n; n = n.parentElement) opacity *= Number(getComputedStyle(n).opacity);
