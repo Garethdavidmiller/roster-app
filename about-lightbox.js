@@ -93,9 +93,16 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
         bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — ${appLabel} Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
     }
 
+    // ONE TAP, ONE PRINT. The panel stays on screen, and tappable, through its close fade, so each
+    // further tap on Print queued another print: the print dialog came back after the first was
+    // closed, and in a home-screen app two "Printing isn't available here" dialogs stacked. One print
+    // per opening of the panel; opening it again re-arms the button.
+    let printQueued = false;
+
     const lb = createLightbox({
         overlay: lightbox, content: content ?? undefined, closeBtn: closeBtn ?? undefined,
         onOpen() {
+            printQueued = false;
             refreshUpdateStatus();
             refreshBugLink();
             onOpen?.();
@@ -113,6 +120,8 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
     // so the tap explains and offers Safari instead — on every page that has this button.
     const printBtn = document.getElementById('lightboxPrintBtn');
     if (printBtn) printBtn.addEventListener('click', () => {
+        if (printQueued) return;
+        printQueued = true;
         lb.close();
         // `whenHistorySettled`: the close above pops the lightbox's history entry, and the dialog the
         // explain path opens pushes its own — if the Back echo has not landed yet it would consume the
