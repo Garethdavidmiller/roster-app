@@ -245,7 +245,7 @@ async function initPageSpeedCard() {
         // named as their headings name them, so "appears" and "First appears" are not two things.
         rows.appendChild(columnHead('speed-row--dual', ['', 'first appears', 'code loaded', 'usable', 'opens']));
         allPages.forEach(pg => {
-            const meta  = PAGE_META[pg];
+            const meta  = Object.hasOwn(PAGE_META, pg) ? PAGE_META[pg] : null;   // own entries only
             const emoji = meta ? meta.emoji : '📄';
             // escapeHtml: the id is a sample key any signed-in session can write, and this is innerHTML.
             const label = meta ? meta.label : escapeHtml(pg);
@@ -337,7 +337,7 @@ async function initPageSpeedCard() {
             breakdownRows(samples, busiest.page, 'mode'),
         ].filter(Boolean);
         if (!blocks.length) return null;
-        const meta = PAGE_META[busiest.page];
+        const meta = Object.hasOwn(PAGE_META, busiest.page) ? PAGE_META[busiest.page] : null;
         const frag = document.createDocumentFragment();
         // escapeHtml: the id is a sample key any signed-in session can write, and the heading is innerHTML.
         frag.appendChild(sectionHeading('🔍', `A closer look — ${meta ? meta.emoji + ' ' + meta.label : escapeHtml(busiest.page)}`, true));

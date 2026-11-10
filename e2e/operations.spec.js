@@ -842,6 +842,20 @@ test('operations usage: the installed app is a number per address, and each lege
     expect(own).toBeLessThan(toPrev);
 });
 
+// ── AN ADDRESS NAMED LIKE A BUILT-IN (routed from pwa, Nov 2026) ─────────────────────────────────
+// Addresses are keys any signed-in session can write. A lookup that walks the prototype took
+// "constructor" for a known address — the Object function — and printed "undefined" for its label, in
+// the bars, the installed-app line and the key. The card asks its table for its OWN entries only.
+// (summariseOrigins now files an unknown label under 'other' before it gets here; the card does not
+// depend on that.)
+test('operations usage: an address named like a built-in is "elsewhere", never "undefined"', async ({ page }) => {
+    const card = await openUsageCard(page, { usage: usageStats({ origins: [
+        { origin: 'web', accounts: 20, installed: 15 }, { origin: 'constructor', accounts: 3, installed: 1 }] }) });
+    const origins = card.locator('.usage-origins');
+    await expect(origins).toContainText('elsewhere');
+    await expect(origins).not.toContainText('undefined');
+});
+
 test('operations usage: the sign-in section holds its place while the figures load', async ({ page }) => {
     // It used to arrive a second or more after the rest of the card, ABOVE two sections the admin may
     // already be reading, and push them down the screen.
