@@ -373,6 +373,22 @@ test('APP_VERSION matches in the 2 runtime bump locations', () => {
     );
 });
 
+// EXACTLY TWO DECIMALS (tooling-4, whole-app review, Nov 2026). The worker orders its caches by integer
+// segment (`isOlderVersion`, `_appCacheVersion`: 25.7 is 25.07) and CI and the pre-commit hook by
+// hundredths (25.7 is 25.70). They agree on every NN.NN and on nothing else — and the bump script
+// accepts any digits.digits, so `25.7` after 25.69 would have each half read it differently: the 25.69
+// worker would think the new release OLDER and could sweep its cache. A release must not carry one.
+const isReleaseVersion = (/** @type {string} */ v) => /^\d+\.\d{2}$/.test(v);
+test('APP_VERSION is NN.NN — the one shape the worker and CI order alike', () => {
+    for (const [v, ok] of [['25.64', true], ['26.00', true], ['25.7', false], ['25.640', false], ['25', false]]) {
+        assert.equal(isReleaseVersion(v), ok, `the shape check is wrong about ${v}`);
+    }
+    const version = readFileSync(join(ROOT, 'roster-data.js'), 'utf8').match(/export const APP_VERSION = '([^']+)'/)?.[1] ?? '';
+    assert.ok(isReleaseVersion(version),
+        `APP_VERSION '${version}' is not two decimals (NN.NN). The service worker orders versions by integer `
+        + 'segment and CI by hundredths, and the two agree only on NN.NN — bump to the next NN.NN instead.');
+});
+
 // The cross-version cache fallback must prefer the NEWEST older cache, not the arbitrary
 // oldest one caches.match() returns (v16.86 mixed-version mitigation). Guards against an
 // accidental revert of the two hot fallback paths (JS/CSS cold miss + doc serveFallback) back
