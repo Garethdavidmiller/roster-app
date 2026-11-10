@@ -21,7 +21,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
-import { isRestShift } from './override-utils.js';
+import { isRestShift, nextReplacedType, nextLeaveYear, buildOverrideCacheRecord } from './override-utils.js';
+import { rangeWriteDates, swapDecisionDates } from './al-swapped-days.js';
 
 /** A CEA on the main rotation — a real member, so the base roster under each date is real too. */
 const MEMBER = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate);
@@ -781,5 +782,72 @@ describe('the January days the Admin card offers to move', () => {
     test('a role with no entitlement on record is offered nothing — there is no figure to cap by', () => {
         const mgmt = { ...MEMBER, role: 'Management' };
         assert.deepEqual(leaveYearChoices({ overrides: [{ ...al(JAN[0]), memberName: mgmt.name }], member: mgmt, todayStr: NOV }), []);
+    });
+});
+
+// ── LEAVE OVER REST-DAY WORKING IS FREE, WHATEVER KIND (owner, 10 Nov 2026) ──────────────────────
+//
+// The whole-app review asked: leave booked across a base rest day holding an Other day ("TRG RDW") or
+// a Spare turn was written and CHARGED, while the same booking across a plain RDW was free. The owner:
+// "Free, like plain RDW." Driven through the helpers the range writer (recordRangeOverrides in
+// admin-overrides.js) calls, in its order — rangeWriteDates, nextReplacedType, the cache record it
+// keeps — and then counted by the allowance, so this is the booking path and not one predicate.
+// VAL-AL-001 stands: a recorded swap (`shift`) on the rest day is the one thing that still costs.
+describe('a Mon–Sat booking across a rest day that holds rest-day working', () => {
+    /** MEMBER's first Mon–Sat week from Mon 1 Mar 2027 with exactly ONE base rest day. */
+    const { week, rest } = (() => {
+        for (let i = 0; i < 30; i++) {
+            const days = [...Array(6)].map((_, k) => formatISO(new Date(2027, 2, 1 + 7 * i + k, 12)));
+            const rests = days.filter(day => isRestShift(getBaseShift(MEMBER, parseISODate(day))));
+            if (rests.length === 1) return { week: days, rest: rests[0] };
+        }
+        return { week: [], rest: '' };
+    })();
+    /** What the member's day holds before the booking. */
+    const on = (/** @type {string} */ date, /** @type {string} */ type, /** @type {string} */ value) =>
+        [{ memberName: MEMBER.name, date, type, value, source: 'manual', createdAt: new Date(2027, 0, 1) }];
+    /** Book Mon–Sat over `held` as recordRangeOverrides does, then count 2027's allowance. */
+    const book = (/** @type {any[]} */ held) => {
+        const ovByDate = new Map(held.map(o => [o.date, o]));
+        const written = rangeWriteDates({ type: 'annual_leave', dates: week, memberObj: MEMBER, ovByDate });
+        const after = held.filter(o => !written.includes(o.date));
+        for (const date of written) {
+            const existing = ovByDate.get(date);
+            after.push(buildOverrideCacheRecord(`m_${date}`, {
+                memberName: MEMBER.name, date, type: 'annual_leave', value: 'AL', source: 'manual',
+                replacedType: nextReplacedType(existing, 'annual_leave'), leaveYear: nextLeaveYear(existing, 'annual_leave', date),
+            }, new Date(2027, 1, 1)));
+        }
+        return { written, asked: swapDecisionDates({ dates: week, memberObj: MEMBER, ovByDate }),
+                 counted: countedAlDates({ overrides: after, member: MEMBER, year: 2027 }) };
+    };
+
+    test('the premise: a Monday-to-Saturday week with one base rest day and five rostered days', () => {
+        assert.equal(week.length, 6, 'no such week found in thirty — the fixture search has stopped working');
+        assert.equal(parseISODate(week[0]).getDay(), 1);
+        assert.equal(week.filter(d => !isRestShift(getBaseShift(MEMBER, parseISODate(d)))).length, 5);
+    });
+
+    for (const [type, value] of [['rdw', '09:00-17:00'], ['other', 'TRG RDW'], ['other', 'MEET RDW 10:00-14:00'], ['spare_shift', 'SPARE']]) {
+        test(`${value} on the rest day: never asked, written, and not charged — the five rostered days only`, () => {
+            const { written, asked, counted } = book(on(rest, type, value));
+            assert.deepEqual(asked, [], 'the record settles the day, as RDW does');
+            assert.ok(written.includes(rest), 'the leave is written over it, as over RDW');
+            assert.equal(counted.has(rest), false, `leave over ${value} on a rest day must not cost a day`);
+            assert.equal(counted.size, 5);
+        });
+    }
+
+    test('a recorded swap (`shift`) on the rest day still costs a day — VAL-AL-001 is unchanged', () => {
+        const { counted } = book(on(rest, 'shift', '09:00-17:00'));
+        assert.equal(counted.has(rest), true);
+        assert.equal(counted.size, 6);
+    });
+
+    test('on a ROSTERED day an Other day or a Spare turn still costs a day', () => {
+        const worked = /** @type {string} */ (week.find(d => d !== rest));
+        for (const [type, value] of [['other', 'TRG'], ['spare_shift', 'SPARE']]) {
+            assert.equal(book(on(worked, type, value)).counted.has(worked), true, `${type} on a rostered day`);
+        }
     });
 });

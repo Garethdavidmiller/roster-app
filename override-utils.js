@@ -43,7 +43,7 @@ export function isRestShift(shift) {
 export const LEGACY_OVERRIDE_TYPES = Object.freeze(['allocated', 'overtime', 'swap']);
 
 export const CONTRACTED_WORK_TYPES = new Set([
-    'shift', 'spare_shift', 'other',
+    'shift', 'spare_shift', 'other',  // the last two only on a ROSTERED day — isContractedWorkOverride
     'allocated', 'swap',              // retired — a historic `replacedType` only; contracted, like `shift`
 ]);
 
@@ -60,15 +60,20 @@ export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
 /**
  * Was the member CONTRACTED to work the day this override describes?
  *
- * Answers from the override alone, so it is the one place the swap-vs-overtime distinction lives.
+ * Answers from the override, so it is the one place the swap-vs-overtime distinction lives.
  * A rest-valued override (`correction`/RD — the other half of a swap) is not work whatever its
  * type, which is checked first because it is the stronger statement.
  *
+ * AN OTHER DAY OR A SPARE TURN ON A BASE REST DAY IS NOT CONTRACTED (owner, 10 Nov 2026: "Free, like plain
+ * RDW"): there it is rest-day working (composeOtherValue forces the marker), so leave over it is free, as
+ * over `rdw`. Only its TYPE survives leave, so the base roster is the witness: the leave paths pass it.
+ *
  * @param {{type?:string, value?:string}|null|undefined} ov
+ * @param {string} [baseShift] the day's base shift; without one (display, the roster review) both count
  * @returns {boolean|null} true/false, or null when `ov` carries no usable information — the caller
  *          must then fall back to the base roster rather than treat "unknown" as "no".
  */
-export function isContractedWorkOverride(ov) {
+export function isContractedWorkOverride(ov, baseShift) {
     if (!ov || !ov.type) return null;
     if (isRestShift(ov.value || '')) return false;          // a rest VALUE is not work whatever its type
     // A `correction` is classifiable by TYPE ALONE: its value is pinned to 'RD' by both TYPES'
@@ -77,7 +82,7 @@ export function isContractedWorkOverride(ov) {
     // the first cut read a `replacedValue` that no write path has ever produced, so a swapped-OUT
     // day's AL was charged the moment the correction doc was destroyed).
     if (ov.type === 'correction') return false;
-    if (CONTRACTED_WORK_TYPES.has(ov.type)) return true;
+    if (CONTRACTED_WORK_TYPES.has(ov.type)) return !((ov.type === 'other' || ov.type === 'spare_shift') && isRestShift(baseShift ?? ''));
     if (VOLUNTARY_WORK_TYPES.has(ov.type)) return false;
     // `sick`, `annual_leave` and anything unrecognised describe an ABSENCE, not a contract. They
     // say nothing about whether the member was due to work, so they must answer "unknown" and let

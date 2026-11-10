@@ -1373,6 +1373,25 @@ describe('contracted work vs volunteered work', () => {
         assert.equal(isContractedWorkOverride({ type: 'allocated', value: '07:00-15:00' }), true);
         assert.equal(isContractedWorkOverride({ type: 'overtime',  value: '07:00-15:00' }), false);
     });
+
+    // The owner's answer to the review's question (10 Nov 2026): "Free, like plain RDW." On a base REST
+    // day an Other day or a Spare turn is rest-day working, so leave over it costs nothing. Only the
+    // TYPE survives leave, so the answer needs the day's base — which only the leave paths pass.
+    it('an Other day or a Spare turn is contracted on a ROSTERED day, and not on a base REST day', () => {
+        for (const ov of [{ type: 'other', value: 'TRG RDW' }, { type: 'other' }, { type: 'spare_shift', value: 'SPARE' }]) {
+            assert.equal(isContractedWorkOverride(ov, 'RD'), false, `${ov.type} on a rest day is rest-day working`);
+            assert.equal(isContractedWorkOverride(ov, 'OFF'), false);
+            assert.equal(isContractedWorkOverride(ov, '06:20-14:20'), true, `${ov.type} on a rostered day is the contract`);
+            assert.equal(isContractedWorkOverride(ov), true, 'no base given (display, the review): the answer is unchanged');
+        }
+    });
+
+    it('a recorded swap stays contracted on a rest day — the one way leave reaches one (VAL-AL-001)', () => {
+        assert.equal(isContractedWorkOverride({ type: 'shift' }, 'RD'), true);
+        assert.equal(isContractedWorkOverride({ type: 'swap' }, 'RD'), true);
+        assert.equal(isContractedWorkOverride({ type: 'rdw' }, '06:20-14:20'), false, 'RDW is never contracted');
+        assert.equal(isContractedWorkOverride({ type: 'sick' }, 'RD'), null, 'an absence still asks the base');
+    });
 });
 
 describe('nextReplacedType — what a write must remember about the doc it deletes', () => {

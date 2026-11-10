@@ -88,9 +88,19 @@ test('a declared swap writes `shift` when there is nothing to carry forward', ()
 });
 
 test('a stronger existing record is kept, not flattened to `shift`', () => {
-    // `spare_shift` and `other` are contracted work too, and a reconstruction must not lose which.
-    assert.equal(replacedTypeForSwap({ type: 'spare_shift', value: 'SPARE' }, 'annual_leave'), 'spare_shift');
-    assert.equal(replacedTypeForSwap({ type: 'other', value: 'TRG' }, 'annual_leave'), 'other');
+    // A retired contracted type is a stronger record than the reconstruction, and keeps its name.
+    assert.equal(replacedTypeForSwap({ type: 'annual_leave', replacedType: 'swap' }, 'annual_leave'), 'swap');
+    assert.equal(replacedTypeForSwap({ type: 'annual_leave', replacedType: 'allocated' }, 'annual_leave'), 'allocated');
+});
+
+// A declared swap is always on a base REST day — only a rest day is asked about — and there an Other day
+// or a Spare turn is rest-day working, so leave over it is free (owner, 10 Nov 2026: "Free, like plain
+// RDW"). This kept `other` and `spare_shift` until then; carried now, the swap the admin declared would
+// cost nothing. They go the way `rdw` always went: the declared swap is recorded as `shift`.
+test('a declared swap over a rest-day Other day or Spare turn is recorded as `shift`, as over RDW', () => {
+    assert.equal(replacedTypeForSwap({ type: 'spare_shift', value: 'SPARE' }, 'annual_leave'), 'shift');
+    assert.equal(replacedTypeForSwap({ type: 'other', value: 'TRG RDW' }, 'annual_leave'), 'shift');
+    assert.equal(replacedTypeForSwap({ type: 'rdw', value: '09:00-17:00' }, 'annual_leave'), 'shift');
 });
 
 test('every value it can write is one the Firestore rules accept', () => {
