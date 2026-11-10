@@ -2098,7 +2098,10 @@ test('admin: a Saved Changes row is one row — controls side by side, under 64p
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#overridesToggleHeader').click();
-    const card = page.locator('.override-card').first();
+    // The list is newest first (whole-app check, 10 Nov 2026 — it had been in whatever order the
+    // member's read arrived), so the 1 September row is found by its date, not by its place.
+    await expect(page.locator('.override-card .btn-edit').first(), 'newest first').toHaveAttribute('data-date', '2026-09-08');
+    const card = page.locator('.override-card').filter({ has: page.locator('.btn-edit[data-date="2026-09-01"]') });
     await expect(card).toBeVisible();
 
     const g = await card.evaluate(el => {

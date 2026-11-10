@@ -502,4 +502,16 @@ describe('the two-tap ✕ keeps ONE disarm timer (the copy Saved Changes had fix
         for (let i = 0; i < 5; i++) await Promise.resolve();
         assert.equal(x.textContent, '✕');
     });
+
+    it('the countdown is the control\'s own `armTimer` — what e2e/axe.spec.js clears to hold a confirm for its scan', () => {
+        // The Saved Changes copy kept it there, and the a11y scan of both armed deletes depends on it:
+        // a private map would let the confirm lapse mid-scan and the scan's "still armed" check fail.
+        const del = renderList({ entries: [leaveOn('2026-11-02')], counted: ['2026-11-02'] });
+        const x = del.xs()[0];
+        x.click();
+        assert.ok(/** @type {any} */ (x).armTimer, 'armed: the countdown is on the control');
+        clearTimeout(/** @type {any} */ (x).armTimer);   // exactly what the axe spec does
+        mock.timers.tick(6000);
+        assert.equal(x.textContent, 'Confirm?', 'held open past its five seconds');
+    });
 });

@@ -54,9 +54,6 @@
 
 import { carriedFrom } from './leave-year.js';
 
-/** Each armed control's disarm timer — ONE per control, so a re-arm gets its own five seconds. */
-const _armTimers = new WeakMap();
-
 /**
  * Arm a two-tap destructive control: its label, class and accessible name change together. A
  * DESTRUCTIVE TWO-STEP CONTROL MUST SAY ITS MEANING CHANGED (v23.16, external review), so the name
@@ -64,6 +61,10 @@ const _armTimers = new WeakMap();
  * success — can restore it, and a re-arm while armed never reads "Confirm confirm …". It disarms
  * itself after five seconds — but never while it is `disabled`, which is how both delete paths mark
  * a delete in flight.
+ *
+ * The countdown is ONE per control, so a re-arm gets its own five seconds, and it lives ON the
+ * control as `armTimer`, where the Saved Changes copy kept it: e2e/axe.spec.js clears it to hold
+ * a confirm open for the length of its scan.
  * @param {HTMLElement} btn
  * @param {string} armedText what the armed control SHOWS
  * @param {string} idleText what it shows again once disarmed
@@ -79,10 +80,11 @@ export function armConfirm(btn, armedText, idleText, armedName) {
         btn.dataset.idleLabel = idle;
         btn.setAttribute('aria-label', armedName ?? `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
     }
-    clearTimeout(_armTimers.get(btn));
-    _armTimers.set(btn, setTimeout(() => {
-        if (btn.classList.contains('confirming') && !(/** @type {any} */ (btn).disabled)) disarmConfirm(btn, idleText);
-    }, 5000));
+    const b = /** @type {any} */ (btn);
+    clearTimeout(b.armTimer);
+    b.armTimer = setTimeout(() => {
+        if (btn.classList.contains('confirming') && !b.disabled) disarmConfirm(btn, idleText);
+    }, 5000);
 }
 
 /**
@@ -91,8 +93,9 @@ export function armConfirm(btn, armedText, idleText, armedName) {
  * @param {HTMLElement} btn @param {string} idleText
  */
 export function disarmConfirm(btn, idleText) {
-    clearTimeout(_armTimers.get(btn));
-    _armTimers.delete(btn);
+    const b = /** @type {any} */ (btn);
+    clearTimeout(b.armTimer);
+    b.armTimer = undefined;
     btn.classList.remove('confirming');
     btn.textContent = idleText;
     if (btn.dataset.idleLabel) btn.setAttribute('aria-label', btn.dataset.idleLabel);
