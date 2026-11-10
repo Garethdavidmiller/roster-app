@@ -48,6 +48,7 @@ import {
     shortDate, deadlineLabel, printedLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
     declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow, weekAvailabilitySummary, reminderLine,
+    gradeScopeLabel,
 } from './overtime-format.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
@@ -117,10 +118,11 @@ export function renderWeekDetail(host, win, data,
         wireRefresh(host, onRefresh);
         // The thunk reads the SAME lens state the panels were built from — grade-filtered,
         // withdrawn-excluded, day-narrowed — so the copied text cannot disagree with the screen.
+        // Its scope and "as at" are the print head's own (`gradeScopeLabel`, the same `now`).
         wireCopy(host, () => weekAvailabilitySummary({
             weekEnding: win.weekEnding, dates,
             participants: ofGrade((data.participants || []).filter(p => !isWithdrawn(p)), grade),
-            submissions: data.submissions, day,
+            submissions: data.submissions, day, grade, asAt: now,
         }));
     }
 }
@@ -242,7 +244,7 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
     const grades = gradesPresent(active);
     const participants = ofGrade(active, grade);
     const received = participants.filter(p => submissions.has(p.memberName)).length;
-    const scope = grade === 'ALL' ? 'All grades' : `${grade} only`;
+    const scope = gradeScopeLabel(grade);
 
     return `
         <div class="ot-detail-head">

@@ -1228,6 +1228,15 @@ describe('weekAvailabilitySummary', () => {
     ]);
     const arg = { weekEnding: '2026-09-12', dates: ['2026-09-09'], participants: P, submissions: subs };
 
+    test('it opens by saying which grades it covers and when it was read (overtime-ui-1)', () => {
+        const AT = Date.parse('2026-09-08T08:30:00Z');
+        const [title, scope, asAt] = weekAvailabilitySummary({ ...arg, grade: 'CES', asAt: AT }).split('\n');
+        assert.match(title, /^Overtime availability — Week ending Saturday 12 September 2026$/);
+        assert.equal(scope, 'CES only');
+        assert.equal(asAt, asAtLine(AT), 'the sheet\'s own "as at" sentence, not a second wording');
+        assert.equal(weekAvailabilitySummary({ ...arg, asAt: AT }).split('\n')[1], 'All grades');
+    });
+
     test('all three sections are named, with the right people under each', () => {
         const text = weekAvailabilitySummary(arg);
         assert.match(text, /Week ending/);

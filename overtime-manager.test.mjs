@@ -183,6 +183,35 @@ describe('by day', () => {
             // with no scope line reads as the whole team.
             assert.match(render(MIXED), /ot-print-scope">All grades/);
         });
+
+        test('Copy summary states the same scope and "as at" as the sheet (overtime-ui-1)', async () => {
+            // Pressed through the real button, because the defect was in the wiring: the summary of
+            // a CES-only lens copied no scope and no read time, so "No response: nobody" pasted into
+            // an email read as the whole team having answered.
+            const NOW = Date.parse('2026-08-19T09:00:00Z');
+            /** @type {Record<string, Function>} */ const on = {};
+            const host = { innerHTML: '', querySelectorAll: () => [],
+                querySelector: (/** @type {string} */ s) => (s === '.ot-copy-btn'
+                    ? { addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => { on.copy = f; } } : null) };
+            let copied = '';
+            const real = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+            Object.defineProperty(globalThis, 'navigator', { configurable: true,
+                value: { clipboard: { writeText: async (/** @type {string} */ t) => { copied = t; } } } });
+            try {
+                for (const [grade, scope] of [['CES', 'CES only'], ['ALL', 'All grades']]) {
+                    renderWeekDetail(/** @type {any} */ (host), WIN, { participants: MIXED.participants,
+                        submissions: MIXED.submissions, roster: {} }, { dates: DATES, now: NOW, grade });
+                    await on.copy();
+                    const lines = copied.split('\n');
+                    assert.match(lines[0], /^Overtime availability — Week ending/);
+                    assert.equal(lines[1], scope, `${grade}: the copy says which grades it covers`);
+                    assert.match(lines[2], /^Availability as at Wed 19 Aug · 10:00 — /, `${grade}: and when it was read`);
+                    assert.ok(host.innerHTML.includes(`ot-print-scope">${scope}<`), 'the same scope as the sheet');
+                }
+            } finally {
+                if (real) Object.defineProperty(globalThis, 'navigator', real);
+            }
+        });
     });
 
     test('the answer chips are toned apart — a no never wears an available colour', () => {

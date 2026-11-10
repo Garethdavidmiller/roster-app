@@ -841,6 +841,11 @@ export function weekSummary(days) {
     return `Available on ${available} of ${values.length} days`;
 }
 
+/** The grades a sheet or a copied summary covers: "All grades" or "CES only". @param {string} grade */
+export function gradeScopeLabel(grade) {
+    return grade === 'ALL' ? 'All grades' : `${grade} only`;
+}
+
 /** The reviewer's flag, worded once — `releaseRequestLine` owns it, so the copy and the screen match. */
 const RELEASE_LABEL = releaseRequestLine({ releaseRequested: true });
 
@@ -861,13 +866,18 @@ const RELEASE_LABEL = releaseRequestLine({ releaseRequested: true });
  * is decided. Its own line, because it is a second thing said about the day (invariant 1). Named on
  * every Sunday — "nobody" in words, by the rule above — and on any other day only if somebody asked.
  *
- * @param {{ weekEnding: string, dates: string[], participants: any[],
- *   submissions: Map<string, any>, day?: string }} arg  `day` narrows to one date ('ALL' = week)
+ * IT STATES ITS GRADE AND ITS AGE, AS THE SHEET DOES (overtime-ui-1). A CES-only copy with neither
+ * pasted into an email as the whole team, answered as at no time: "No response: nobody".
+ *
+ * @param {{ weekEnding: string, dates: string[], participants: any[], submissions: Map<string, any>,
+ *   day?: string, grade?: string, asAt?: number }} arg  `day` narrows to one date ('ALL' = week);
+ *   `grade` is the lens the participants were filtered by; `asAt` when the data was read
  * @returns {string}
  */
-export function weekAvailabilitySummary({ weekEnding, dates, participants, submissions, day = 'ALL' }) {
+export function weekAvailabilitySummary({ weekEnding, dates, participants, submissions, day = 'ALL', grade = 'ALL', asAt = 0 }) {
     const scope = (day && day !== 'ALL') ? [day] : dates;
-    const lines = [`Overtime availability — ${weekLabel(weekEnding)}`];
+    const lines = [`Overtime availability — ${weekLabel(weekEnding)}`, gradeScopeLabel(grade),
+        ...(asAt ? [asAtLine(asAt)] : [])];
     for (const date of scope) {
         /** @type {string[]} */ const avail = [];
         /** @type {string[]} */ const unavail = [];
