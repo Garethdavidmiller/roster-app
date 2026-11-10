@@ -5,6 +5,7 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect } from './fixtures.js';
+import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
 
@@ -17,6 +18,20 @@ test('operations: shows the in-place login when not signed in', async ({ page })
     await expect(page).toHaveURL(/operations\.html/);
     await expect(page.locator('#loginOverlay')).toBeVisible();
     expect(errors, 'Uncaught JS exceptions triggering operations redirect').toHaveLength(0);
+});
+
+// ── NOT ADMIN'S SAVED-CHANGES MACHINERY (Nov 2026 review, import-client-11's Operations half) ────
+// Operations imported admin-overrides.js for one function, loadOverrides, which returns at once on this
+// page (it has no member picker and no Saved Changes list) — and the import brought a dozen of Admin's
+// modules with it. The roster import's re-read is an explicit no-op here now, and none of them loads.
+test('operations: the page loads none of Admin\'s saved-changes modules', async ({ page }) => {
+    const loaded = [];
+    page.on('request', r => { const m = /\/(admin-[a-z-]+)\.js(?:\?|$)/.exec(r.url()); if (m) loaded.push(m[1]); });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#rosterUploadCard')).toBeVisible();
+    expect(loaded, 'premise: the roster import still loads').toContain('admin-roster-upload');
+    expect(loaded.filter(f => /^admin-(overrides|override-store|saved-changes|week-editor)$/.test(f))).toEqual([]);
 });
 
 // Desktop layout contract: the wrapper-column grid (v14.35) must keep the three
@@ -593,6 +608,19 @@ for (const width of [375, 1280]) {
     });
 }
 
+// A server stamp is AHEAD of a device whose clock runs slow, and the shared formatter printed the gap
+// as a negative age — "-90s ago" (Nov 2026 review). The Error Log's rows use the same formatter.
+test('operations reset requests: a request stamped ahead of this device\'s clock reads "just now"', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { docs: [{ id: 'A. Hared', requestedAt: Date.now() + 90_000, count: 1, provisioned: true }] };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const when = page.locator('.rr-row .rr-when');
+    await expect(when).toContainText('just now');
+    await expect(when).not.toContainText('-');
+});
+
 // ── OPERATIONS: the reset-request push deep link (v18.95) ──────────────────────────────────────
 // The admin's notification opens operations.html#reset-requests. Operations has nine collapsed
 // cards, so landing on the page alone would still leave them hunting for the one it was about.
@@ -814,6 +842,20 @@ test('operations usage: the installed app is a number per address, and each lege
     expect(own).toBeLessThan(toPrev);
 });
 
+// ── AN ADDRESS NAMED LIKE A BUILT-IN (routed from pwa, Nov 2026) ─────────────────────────────────
+// Addresses are keys any signed-in session can write. A lookup that walks the prototype took
+// "constructor" for a known address — the Object function — and printed "undefined" for its label, in
+// the bars, the installed-app line and the key. The card asks its table for its OWN entries only.
+// (summariseOrigins now files an unknown label under 'other' before it gets here; the card does not
+// depend on that.)
+test('operations usage: an address named like a built-in is "elsewhere", never "undefined"', async ({ page }) => {
+    const card = await openUsageCard(page, { usage: usageStats({ origins: [
+        { origin: 'web', accounts: 20, installed: 15 }, { origin: 'constructor', accounts: 3, installed: 1 }] }) });
+    const origins = card.locator('.usage-origins');
+    await expect(origins).toContainText('elsewhere');
+    await expect(origins).not.toContainText('undefined');
+});
+
 test('operations usage: the sign-in section holds its place while the figures load', async ({ page }) => {
     // It used to arrive a second or more after the rest of the card, ABOVE two sections the admin may
     // already be reading, and push them down the screen.
@@ -988,6 +1030,181 @@ test('operations account status: a work-email Remove of unknown outcome says so,
     await expect(remove).toBeDisabled();
 });
 
+// ── EVERY OPERATIONS WRITE EXPLAINS A WAIT (Nov 2026 review) ────────────────────────────────────
+// Admin (v24.21) and Settings (v24.38) say when a write is waiting on the server; Operations' saves sat
+// on a bare "Saving…" or a silently disabled button. And Remove's three-second "Confirm?" timer, armed
+// by the first tap, went on running through the delete and turned "Removing…" back into "Remove".
+const ACCT_EMAIL_ROWS = { staffContact: [{ id: 'A. Hared', memberName: 'A. Hared', workEmail: 'a.hared@chilternrailways.co.uk' }], passwordStatus: [], resetRequests: [] };
+
+test('operations account status: a Remove waiting on the server says so, and keeps saying "Removing…"', async ({ page }) => {
+    await page.clock.install();
+    await page.addInitScript((byPath) => {
+        /** @type {any} */ (window).__E2E = { slowSaveMs: 300, failDeleteCode: 'unavailable', deleteDelayMs: 5000, docs: [], docsByPath: byPath };
+    }, ACCT_EMAIL_ROWS);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.clock.runFor(2000);
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const remove = page.locator('.email-set-btn--remove').first();
+    await remove.click();                       // arms "Confirm?" — and its three-second revert
+    await remove.click();                       // removes; the harness holds the delete for five seconds
+    await expect(remove).toHaveText('Removing…');
+    await page.clock.runFor(3500);              // past the revert
+    await expect(remove, 'the arming timer fired into the delete').toHaveText('Removing…');
+    await expect(page.locator('#slowSaveNotice')).toBeVisible();
+    await page.clock.runFor(2000);              // the delete is refused
+    await expect(page.locator('.acct-row .email-set-error').first()).toHaveText(/Couldn’t remove/);
+    await expect(page.locator('#slowSaveNotice')).toBeHidden();
+});
+
+test('operations account status: an email Save waiting on the server says so', async ({ page }) => {
+    // The harness's setDoc lands at once, so the save is held by patching the served firebase-client.js
+    // (the shape stubUsageReads uses) — loud if the anchor moves.
+    await page.route('**/firebase-client.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        const anchor = 'export async function saveStaffContact(memberName, workEmail) {';
+        if (!src.includes(anchor)) throw new Error(`save-hold anchor no longer matches — "${anchor}" in firebase-client.js`);
+        await route.fulfill({ response: res, contentType: 'text/javascript',
+            body: src.replace(anchor, anchor + ' await new Promise(r => { globalThis.__E2E.landSave = r; });') });
+    });
+    await page.addInitScript((byPath) => { /** @type {any} */ (window).__E2E = { slowSaveMs: 200, docs: [], docsByPath: byPath }; }, ACCT_EMAIL_ROWS);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').filter({ hasNot: page.locator('.email-set-btn--remove') }).first();
+    await row.locator('.email-set-btn').click();
+    await row.locator('.email-set-form input').fill('test.person@chilternrailways.co.uk');
+    await row.locator('.email-set-save').click();
+    await expect(page.locator('#slowSaveNotice')).toBeVisible();
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.landSave());
+    await expect(page.locator('#slowSaveNotice')).toBeHidden();
+});
+
+test('operations reset requests: a Clear waiting on the server says so', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { slowSaveMs: 200, failDeleteCode: 'unavailable', deleteDelayMs: 1500,
+            docs: [{ id: 'A. Hared', requestedAt: Date.now() - 60_000, count: 1, provisioned: true }] };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.locator('.btn-rr-clear[data-member="A. Hared"]').click();
+    await expect(page.locator('#slowSaveNotice')).toBeVisible();
+    await expect(page.locator('.rr-row .rr-error')).toHaveText(/Couldn.t clear/);
+    await expect(page.locator('#slowSaveNotice')).toBeHidden();
+});
+
+// ── A ROW BUTTON'S NAME LEADS WITH ITS WORDS, IN EVERY STATE (WCAG 2.5.3, Nov 2026 review) ──────
+// The Account status buttons had FIXED names. "Set email" was named "Set work email for …", so somebody
+// driving by voice said what they saw and reached nothing; and "Cancel", "Confirm?", "Removing…",
+// "Resetting…" and "Retry" kept the name of the state before, so a screen reader was not told the
+// button had changed. axe's own containment rule, on this card only, in each state a row can be in.
+/** @param {import('@playwright/test').Page} page */
+const nameMismatches = async (page) => (await new AxeBuilder({ page }).include('#accountStatusCard')
+    .withRules(['label-content-name-mismatch']).analyze()).violations.flatMap(v => v.nodes.map(n => n.target.join(' ')));
+
+test('operations account status: every row button\'s name holds its visible words, in every state', async ({ page }) => {
+    await page.addInitScript((byPath) => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], failDeleteCode: 'unavailable', deleteDelayMs: 60_000, docsByPath: byPath };
+    }, ACCT_EMAIL_ROWS);
+    // Hermetic: with a stub user signed in, the audit and the sign-in counts would otherwise fetch.
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));
+    const plans = ['hold', 500, 200];   // the first reset never answers, the second fails, the third lands
+    await page.route('**/resetMemberPassword', route => {
+        const plan = plans.shift();
+        if (plan === 'hold') return;
+        return route.fulfill({ status: Number(plan), contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+            body: JSON.stringify(plan === 200 ? { revoked: true, stamped: true, notified: true } : { error: 'Reset failed' }) });
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    await expect(page.locator('.acct-row').first()).toBeVisible();
+    expect(await nameMismatches(page), 'resting: Set email · Edit · Remove · Reset').toEqual([]);
+
+    const plain = page.locator('.acct-row').filter({ hasNot: page.locator('.email-set-btn--remove') }).first();
+    await plain.locator('.email-set-btn').click();
+    await expect(plain.locator('.email-set-btn')).toHaveText('Cancel');
+    expect(await nameMismatches(page), 'the form open: Cancel').toEqual([]);
+
+    const remove = page.locator('.email-set-btn--remove').first();
+    await remove.click();
+    await expect(remove).toHaveText('Confirm?');
+    expect(await nameMismatches(page), 'Remove armed: Confirm?').toEqual([]);
+    await remove.click();
+    await expect(remove).toHaveText('Removing…');
+    expect(await nameMismatches(page), 'Remove under way: Removing…').toEqual([]);
+
+    const resetOn = async (/** @type {number} */ i) => {
+        await page.locator('.acct-row').nth(i).locator('.btn-acct-reset').click();
+        await page.locator('.lb-overlay.open .dialog-btn-confirm').click();   // an earlier, closed dialog is still in the DOM
+    };
+    await resetOn(0);
+    await expect(page.locator('.acct-row').nth(0).locator('.btn-acct-reset')).toHaveText('Resetting…');
+    expect(await nameMismatches(page), 'a reset under way: Resetting…').toEqual([]);
+    await resetOn(1);
+    await expect(page.locator('.acct-row').nth(1).locator('.btn-acct-reset')).toHaveText('Retry');
+    expect(await nameMismatches(page), 'a reset that failed: Retry').toEqual([]);
+    await resetOn(2);
+    await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveText('Reset ✓');
+    await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveAttribute('aria-label', /done/);
+    expect(await nameMismatches(page), 'a reset that landed: Reset ✓').toEqual([]);
+});
+
+// ── KEYBOARD FOCUS IS NEVER DROPPED ON THE PAGE (Nov 2026 review) ───────────────────────────────
+// Escape in the inline email form removed the field that had focus and returned it nowhere, and a reset
+// that landed re-drew the list under the button that had made it — the save and remove paths already
+// put focus somewhere visible; these two did not.
+test('operations account status: Escape out of the email form returns focus to its button', async ({ page }) => {
+    await page.addInitScript((byPath) => { /** @type {any} */ (window).__E2E = { docs: [], docsByPath: byPath }; }, ACCT_EMAIL_ROWS);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').filter({ hasNot: page.locator('.email-set-btn--remove') }).first();
+    const btn = row.locator('.email-set-btn');
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    await expect(row.locator('.email-set-form input')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(row.locator('.email-set-form')).toHaveCount(0);
+    await expect(btn).toHaveText('Set email');
+    await expect(btn, 'focus fell to the page').toBeFocused();
+});
+
+test('operations account status: a reset that lands keeps focus on that row\'s Reset', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ revoked: true, stamped: true, notified: true }),
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').nth(1);
+    const name = await row.getAttribute('data-member');
+    await row.locator('.btn-acct-reset').focus();
+    await page.keyboard.press('Enter');
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    const again = page.locator(`.acct-row[data-member="${name}"] .btn-acct-reset`);
+    await expect(again).toHaveText('Reset ✓');
+    await expect(again, 'the re-drawn list took focus with it').toBeFocused();
+});
+
+// WCAG 2.5.3 again: each file input's name must hold the words of the label that stands for it on
+// screen ("Choose file", "Choose PDF"). They were "Choose huddle PDF or Word document" and the like, so
+// "click Choose file" reached nothing. axe does not test inputs for this, so it is measured here.
+test('operations: every file input\'s name begins with the words of its visible label', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const pairs = await page.locator('label.huddle-file-label').evaluateAll(labels => labels.map(l => [
+        (l.textContent || '').trim(), document.getElementById(l.getAttribute('for') || '')?.getAttribute('aria-label') || '']));
+    expect(pairs.length).toBe(4);
+    for (const [label, name] of pairs) expect(name.startsWith(label), `"${name}" does not begin with "${label}"`).toBe(true);
+});
+
 test('operations account status: a failed Remove leaves the open edit form its own error line', async ({ page }) => {
     // 48-hour review, Nov 2026. The Remove failure cleared the FIRST error line in the row — with the
     // edit form open, that was the form's — so the form's own save failure then wrote to a detached
@@ -1108,6 +1325,197 @@ test('operations attention: a retry after a failed load still reaches the strip'
     await expect(page.locator('#attentionStrip')).toContainText('Unresolved errors');
 });
 
+/**
+ * Serve the Error Log its rows from the page, and optionally hold or refuse each Resolve — by patching
+ * analytics-client.js as it is served, the shape `stubUsageReads` (helpers.js) uses. The harness's
+ * getDocs cannot do either: it answers BOTH of getClientErrors' queries with the same rows and ignores
+ * the cap, so it can neither keep resolved and unresolved apart nor say "truncated", and every write
+ * it makes lands at once. LOUD on a missing anchor, so a renamed function fails here, not silently.
+ * `window.__E2E.errorRows` replaces the rows for every later read; `resolveGate(id)` runs before each
+ * Resolve's write, so a test can hold one open or make it fail. No stub Firebase user: neither card
+ * needs one, and without it the account audit and the sign-in counts stop before they fetch anything.
+ * @param {import('@playwright/test').Page} page
+ * @param {Array<{id: string, message: string, resolved?: boolean}>} rows
+ * @param {{ truncated?: boolean }} [o]
+ */
+async function stubErrorLog(page, rows, { truncated = false, resolvedTruncated = undefined } = {}) {
+    await page.addInitScript(({ rows, truncated, resolvedTruncated }) => {
+        const w = /** @type {any} */ (window);
+        const ts = (/** @type {number} */ ms) => ({ toDate: () => new Date(ms), toMillis: () => ms });
+        w.__E2E = { ...(w.__E2E || {}), errorRows: rows,
+            // `resolvedTruncated` is left out unless a test sets it: an older reader does not send it.
+            errorLog: () => ({ truncated, ...(resolvedTruncated === undefined ? {} : { resolvedTruncated }),
+                errors: w.__E2E.errorRows.map((/** @type {any} */ r, /** @type {number} */ i) => ({
+                    memberName: 'A. Hared', page: 'calendar', appVersion: '25.64', resolved: false, ...r,
+                    timestamp: ts(Date.now() - (i + 1) * 60_000) })) }) };
+    }, { rows, truncated, resolvedTruncated });
+    await page.route('**/analytics-client.js', async route => {
+        const res = await route.fetch();
+        let src = await res.text();
+        for (const [anchor, inject] of [
+            ['    async function getClientErrors() {', ' return globalThis.__E2E.errorLog();'],
+            ['    async function resolveClientError(id) {', ' if (globalThis.__E2E.resolveGate) await globalThis.__E2E.resolveGate(id);'],
+        ]) {
+            if (!src.includes(anchor)) throw new Error(`error-log fixture anchor no longer matches — "${anchor}" in analytics-client.js`);
+            src = src.replace(anchor, anchor + inject);
+        }
+        await route.fulfill({ response: res, body: src, contentType: 'text/javascript' });
+    });
+}
+
+// ── A CAPPED ERROR LOG COUNTS WHAT IT SAW, AS A FLOOR (Nov 2026 review) ─────────────────────────
+// Slow-save diagnostics are listed and never counted, but they take places in the 100-row cap like
+// anything else. The chip and the strip both read "100+" over two real errors, and over a cap holding
+// none the chip was EMPTY while the strip still said "100+" — two voices, two answers. Both are now
+// spelled by attentionBadge from one pair: how many errors were seen, and "+" for entries not loaded.
+const DIAG = (/** @type {string} */ id) => ({ id, message: 'Slow save (diagnostic) — 9s, token 40ms' });
+for (const [label, rows, badge] of [
+    ['two errors among the diagnostics read "2+", not "100+"', [DIAG('d1'), { id: 'e1', message: 'boom one' }, DIAG('d2'), { id: 'e2', message: 'boom two' }, DIAG('d3')], '2+'],
+    ['a cap of diagnostics alone reads "0+" in both voices, not an empty chip under "100+"', [DIAG('d1'), DIAG('d2'), DIAG('d3')], '0+'],
+]) {
+    test(`operations attention: ${label}`, async ({ page }) => {
+        await stubErrorLog(page, /** @type {any} */ (rows), { truncated: true });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html#error-log');
+        await expect(page.locator('#errorLogContent .error-truncation-note')).toContainText('3 of them slow-save diagnostics');
+        await expect(page.locator('#errorLogCountChip')).toHaveText(badge);
+        await expect(page.locator('#attentionStrip .attn-item')).toHaveText(new RegExp(`Unresolved errors\\s*${badge.replace('+', '\\+')}`));
+    });
+}
+
+// ── A CUT RESOLVED LIST SAYS SO (routed from pwa, Nov 2026) ─────────────────────────────────────
+// Past 200 resolved records the read takes an unordered 200, so the card lists the newest of THAT 200,
+// not necessarily the newest. The reader says when (`resolvedTruncated`, pwa-5); the card says so
+// once, where the resolved rows begin (at the end when none is listed) — and nothing at all when the
+// flag is false or absent.
+const OPEN_ROW = { id: 'e1', message: 'boom one' };
+const RESOLVED_ROWS = [OPEN_ROW, { id: 'r1', message: 'old one', resolved: true }, { id: 'r2', message: 'old two', resolved: true }];
+for (const [label, rows, flag, order] of /** @type {const} */ ([
+    ['says so where the resolved rows begin', RESOLVED_ROWS, true, ['open', 'note', 'resolved', 'resolved']],
+    ['says so at the end when no resolved row is listed', [OPEN_ROW], true, ['open', 'note']],
+    ['says nothing when the list was not cut', RESOLVED_ROWS, false, ['open', 'resolved', 'resolved']],
+    ['says nothing to a reader that sends no flag', RESOLVED_ROWS, undefined, ['open', 'resolved', 'resolved']]])) {
+    test(`operations errors: a cut resolved list ${label}`, async ({ page }) => {
+        await stubErrorLog(page, /** @type {any} */ (rows), { resolvedTruncated: flag });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html#error-log');
+        await expect(page.locator('#errorLogContent .error-row')).toHaveCount(rows.length);
+        const seen = await page.locator('#errorLogContent > *').evaluateAll(els => els.map(e =>
+            e.classList.contains('error-resolved-cap-note') ? 'note'
+                : e.classList.contains('error-row--resolved') ? 'resolved' : e.classList.contains('error-row') ? 'open' : null).filter(Boolean));
+        expect(seen).toEqual(order);
+        if (order.includes('note')) await expect(page.locator('#errorLogContent .error-resolved-cap-note'))
+            .toHaveText('More than 200 resolved errors — the resolved entries shown may not be the most recent.');
+    });
+}
+
+/** Hold every Resolve before its write; `window.__E2E.calls` lists them, oldest first, each with
+ *  `res()` / `rej(err)` to land it. @param {import('@playwright/test').Page} page */
+const holdResolves = (page) => page.addInitScript(() => {
+    const w = /** @type {any} */ (window);
+    w.__E2E.calls = [];
+    w.__E2E.resolveGate = (/** @type {string} */ id) => new Promise((res, rej) => w.__E2E.calls.push({ id, res, rej }));
+});
+const ERR_ROWS = [{ id: 'e0', message: 'boom zero' }, { id: 'e1', message: 'boom one' }, { id: 'e2', message: 'boom two' }];
+
+// ── AN ERROR LOG RESOLVE OF UNKNOWN OUTCOME IS NOT A FAILURE (Nov 2026 review) ──────────────────
+// AUTH_AND_SESSIONS 22. A Resolve abandoned at a sign-out may still land, and the page's write gate
+// refuses every later write until reload — so "✗ Failed — try again" sent the admin into a refusal
+// that said the same thing every time. Both write paths now say which kind it was, and stay off.
+test('operations error log: a Resolve signed out mid-write is unconfirmed, not failed, and stays off', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E.failSetCode = 'auth/signed-out-during-request'; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const first = page.locator('.error-row').first();
+    await first.locator('.error-resolve-btn').click();
+    await expect(first).toContainText('signed out before this resolve was confirmed');
+    await expect(first.locator('.error-resolve-btn')).toBeDisabled();
+    // The gate refuses the next write before it is sent — and the row says that, not "Failed".
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failSetCode = null; });
+    const second = page.locator('.error-row').nth(1);
+    await second.locator('.error-resolve-btn').click();
+    await expect(second).toContainText('An earlier change on this page was not confirmed');
+    await expect(second.locator('.error-resolve-btn')).toBeDisabled();
+});
+
+test('operations error log: "Resolve all shown" signed out mid-write is unconfirmed, and stays off', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E.failSetCode = 'auth/signed-out-during-request'; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const all = page.locator('.error-resolve-all-btn');
+    await all.click();
+    await expect(page.locator('.error-log-toolbar')).toContainText('signed out before this batch of resolves was confirmed');
+    await expect(all).toBeDisabled();
+    await expect(all).not.toContainText('try again');
+});
+
+// ── "RESOLVE ALL SHOWN" NAMES THE ROWS THAT FAILED (Nov 2026 review) ────────────────────────────
+// It matched its results BY INDEX against the shown list, which a row's own Resolve finishing in the
+// meantime replaces with a shorter one — so the card blamed a neighbour, and "try again" re-stamped a
+// row that had resolved while dropping the one that had not.
+test('operations error log: "Resolve all shown" retries the row that failed, not its neighbour', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await holdResolves(page);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    await page.locator('.error-row').first().locator('.error-resolve-btn').click();   // e0's own Resolve — held
+    await page.locator('.error-resolve-all-btn').click();                              // e0, e1, e2 — held
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.calls.map((/** @type {any} */ c) => c.id))).toEqual(['e0', 'e0', 'e1', 'e2']);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[0].res());    // the row's own write lands first…
+    await expect(page.locator('.error-row').first()).toHaveClass(/error-row--resolved/);   // …and prunes the list
+    await page.evaluate(() => {
+        const [, b0, b1, b2] = /** @type {any} */ (window).__E2E.calls;
+        b0.res(); b1.rej(new Error('e2e: refused')); b2.res();                       // e1 genuinely fails
+    });
+    const all = page.locator('.error-resolve-all-btn');
+    await expect(all).toHaveText("✗ 1 didn't resolve — try again");
+    await all.click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.calls.slice(4).map((/** @type {any} */ c) => c.id)),
+        { message: 'the retry must be for the row that failed' }).toEqual(['e1']);
+});
+
+test('operations error log: a batch failure that the row\'s own Resolve made good is not reported', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await holdResolves(page);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    await page.locator('.error-row').first().locator('.error-resolve-btn').click();
+    await page.locator('.error-resolve-all-btn').click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.calls.length)).toBe(4);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[0].res());
+    await expect(page.locator('.error-row').first()).toHaveClass(/error-row--resolved/);
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const [, b0, b1, b2] = w.__E2E.calls;
+        w.__E2E.errorRows = [];                                    // what the refresh will read back
+        b0.rej(new Error('e2e: refused')); b1.res(); b2.res();      // e0's batch write fails — but e0 IS resolved
+    });
+    await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
+});
+
+// ── A RESOLVE WAITING ON THE SERVER SAYS SO (Nov 2026 review) ───────────────────────────────────
+// Admin (v24.21) and Settings (v24.38) explain a write the server has not answered; Operations' writes
+// sat on a silently disabled button. Every one now goes through withSlowSaveNotice.
+test('operations error log: a Resolve, and Resolve all shown, waiting on the server say so', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS.slice(0, 2));
+    await holdResolves(page);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E.slowSaveMs = 200; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const notice = page.locator('#slowSaveNotice');
+    await page.locator('.error-row').first().locator('.error-resolve-btn').click();
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('Still sending');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[0].res());
+    await expect(notice).toBeHidden();
+    await page.locator('.error-resolve-all-btn').click();
+    await expect(notice).toBeVisible();
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[1].res());
+    await expect(notice).toBeHidden();
+});
+
 // ── A REFUSED RESET SAYS WHY, AND OFFERS NO RETRY (whole-app review, Oct 2026) ──────────────────
 // A 404 "run Set up accounts first", a 409 "linked to the shared PIN" or a 403 all became a bare
 // "Retry" that could never succeed, with the server's sentence only in the console.
@@ -1130,6 +1538,54 @@ test('operations: a refused reset names the server\'s reason and offers no Retry
     await expect(dialog).toContainText('The reset was refused');
     await expect(dialog).toContainText('run Set up accounts first');
     await expect(row.locator('.btn-acct-reset')).toHaveText('Reset');
+});
+
+// A refusal whose body is not the endpoint's own sentence — an HTML error page from in front of the
+// function — was shown VERBATIM as the reason (Nov 2026 review). The endpoint's own 4xx all come before
+// anything is changed, so a refusal can say plainly that nothing was reset.
+test('operations: a refusal that is an HTML page is not shown as the reason', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 404, contentType: 'text/html', headers: { 'access-control-allow-origin': '*' },
+        body: '<!DOCTYPE html><html lang=en><title>Error 404 (Not Found)!!1</title><p><b>404.</b> That’s an error.',
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    await page.locator('.acct-row').first().locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog).toContainText('The reset was refused');
+    await expect(dialog).toContainText('Nothing was reset');
+    await expect(dialog).not.toContainText('<');
+});
+
+// A RESET WHOSE STAMP FAILED IS A SECURITY STATE, NOT A WRONG TABLE (Nov 2026 review). A device the
+// reset signed out keeps its 60-day session, and its next silent sign-in is refused only when the
+// SAVED resetAt says the session is older (AUTH_AND_SESSIONS 23) — so with no stamp, the lost phone
+// signs itself back in with the surname the reset has just restored. The dialog said only that "the
+// table below may still show Own password", and ranked it below a taken-back account.
+test('operations: a reset whose stamp failed tells the admin to reset again, first', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ revoked: true, stamped: false, notified: true, takenBack: true }),
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    await page.locator('.acct-row').first().locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog).toContainText('Password reset — reset again');
+    await expect(dialog).toContainText('could sign itself back in');
+    await expect(dialog).toContainText('Reset again to retry that');
 });
 
 // A FULLY SUCCESSFUL RESET SAYS SO (whole-app review, Oct 2026). The row re-renders, and a member
@@ -1193,6 +1649,23 @@ test('operations: a reset whose server never answers is not reported as a failur
     await expect(row.locator('.btn-acct-reset')).toHaveText('Reset');
     await expect(row.locator('.btn-acct-reset')).not.toHaveText('Retry');
 });
+
+// The upload receipts printed the date input's raw value — "Circular uploaded for 2026-11-10" — where
+// app copy writes a date in words (CLAUDE.md; Nov 2026 review, cal-docs-18).
+for (const [card, file, words] of [['circularUpload', 'circularFileInput', 'Circular uploaded for'],
+                                   ['newsletterUpload', 'newsletterFileInput', 'Newsletter uploaded for']]) {
+    test(`operations: the ${card.replace('Upload', '')} receipt names its date in words, not as an ISO string`, async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await page.evaluate((id) => document.getElementById(`${id}Body`)?.classList.add('open'), card);
+        await page.setInputFiles(`#${file}`, { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+        await page.locator(`#${card === 'circularUpload' ? 'circular' : 'newsletter'}UploadBtn`).click();
+        const feedback = page.locator(`#${card === 'circularUpload' ? 'circular' : 'newsletter'}Feedback`);
+        await expect(feedback).toContainText(words);
+        await expect(feedback).toHaveText(new RegExp(`${words} \\d{1,2} [A-Z][a-z]{2} \\d{4} —`));
+        await expect(feedback).not.toHaveText(/\d{4}-\d{2}-\d{2}/);
+    });
+}
 
 // ── A tab left open past midnight can still pick today (v23.36) ─────────────────────────────────
 // `doc-upload.js` recomputes its date cap at init and on submit — the v16.23 stale-tab fix, written
@@ -1372,6 +1845,25 @@ test('operations: a roster apply signed out mid-save closes the review rather th
     await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
     await expect(page.locator('#rosterApplyFeedback')).toContainText('signed out before this roster was confirmed', { timeout: 5000 });
     await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+});
+
+// A SAVE STILL GOING OUT IS BUSY, WHATEVER THE SCREEN SHOWS (Nov 2026 review). The page's busy check
+// looked only at what was on screen, so a roster save in several parts whose review the admin had
+// dismissed ("Upload a different file") read as not busy — and an update's reload, or a notification
+// tap, would take the page away with the later parts unsent. Asked here the way the worker asks.
+test('operations: a roster save still sending is busy, even once its review has been dismissed', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    await page.locator('#rosterApplyBtn').click();                     // the first part is held on the device
+    await page.locator('#rosterCancelBtn').click();                    // "Upload a different file"
+    await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+    const busy = await page.evaluate(() => new Promise(resolve => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = (e) => resolve(e.data?.busy);
+        navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
+    }));
+    expect(busy, 'a reload now would strand the parts not yet sent').toBe(true);
 });
 
 // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record outranks an import, so "Use new
@@ -1690,6 +2182,27 @@ test('operations: resets alone show one item, and the strip never renders a zero
     await expect(strip).toBeVisible();
     await expect(strip.getByRole('link', { name: 'Password resets: 1 waiting' })).toBeVisible();
     await expect(strip.locator('a[href="#error-log"]')).toHaveCount(0);
+});
+
+// A keyboard user on a strip link KEEPS it when the strip updates (Nov 2026 review). Every report
+// rebuilt the strip, and one arrives on every return to the tab — so the link they had tabbed to was
+// destroyed and focus fell to the page. The strip now changes an item's words in place.
+test('operations: a strip link keeps keyboard focus when the strip updates under it', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { docs: [{ id: 'A. Hared', requestedAt: Date.now() - 60_000, count: 1, provisioned: true }] };
+    });
+    await page.goto('/operations.html');
+    const link = page.locator('#attentionStrip').getByRole('link', { name: 'Password resets: 1 waiting' });
+    await link.focus();
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs.push({ id: 'K. Jedlinski', requestedAt: Date.now(), count: 1, provisioned: true });
+        document.dispatchEvent(new Event('visibilitychange'));       // back to the tab: the queue re-reads
+    });
+    const updated = page.locator('#attentionStrip').getByRole('link', { name: 'Password resets: 2 waiting' });
+    await expect(updated).toBeVisible();
+    await expect(updated, 'the re-report destroyed the focused link').toBeFocused();
 });
 
 test('operations: no account-status name is truncated at phone width', async ({ page }) => {

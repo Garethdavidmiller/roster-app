@@ -95,7 +95,7 @@ async function initUsageCard() {
             const list = document.createElement('div');
             list.className = 'usage-bars';
             items.forEach(({ page, count }) => {
-                const meta  = metaMap[page];
+                const meta  = Object.hasOwn(metaMap, page) ? metaMap[page] : null;   // own entries only
                 const emoji = meta ? meta.emoji : '📄';
                 // Known labels are static/safe; an unknown page key (a tampered client
                 // could write one) is escaped before it reaches innerHTML.
@@ -269,6 +269,10 @@ const ORIGIN_META = {
     fb:    { emoji: '\u{1F517}', label: 'firebaseapp', explain: 'myb-roster.firebaseapp.com' },
     other: { emoji: '\u2753', label: 'elsewhere', explain: 'localhost, or an address not recognised' },
 };
+/** An address's entry \u2014 the table's OWN entries only: the key is written by any signed-in session, and
+ *  `constructor` found the inherited Object function, labelled "undefined" (routed from pwa, Nov 2026).
+ *  @param {string} origin */
+const originMeta = (origin) => (Object.hasOwn(ORIGIN_META, origin) ? ORIGIN_META[origin] : ORIGIN_META.other);
 
 /**
  * Render the migration picture: unique accounts per address over the last 30 days, and how many of
@@ -308,7 +312,7 @@ function _appendOriginSection(content, rows) {
     const bars = document.createElement('div');
     bars.className = 'usage-bars';
     rows.forEach(({ origin, accounts, installed }) => {
-        const meta = ORIGIN_META[origin] || ORIGIN_META.other;
+        const meta = originMeta(origin);
         const pct  = total ? Math.round((accounts / total) * 100) : 0;
         const row  = document.createElement('div');
         row.className = 'usage-bar-row';
@@ -355,7 +359,7 @@ function _appendOriginSection(content, rows) {
     inst.className = 'usage-origin-installed-count';
     inst.append('From the installed app: ');
     rows.forEach(({ origin, accounts, installed }, i) => {
-        const meta = ORIGIN_META[origin] || ORIGIN_META.other;
+        const meta = originMeta(origin);
         const part = document.createElement('span');
         part.className = 'speed-nowrap';
         const where = meta === ORIGIN_META.other ? meta.label : `on ${meta.label}`;
@@ -371,7 +375,7 @@ function _appendOriginSection(content, rows) {
     const seen = new Set();
     key.className = 'usage-origin-addr';
     rows.forEach(({ origin }) => {
-        const meta = ORIGIN_META[origin] || ORIGIN_META.other;
+        const meta = originMeta(origin);
         if (seen.has(meta.label)) return;
         seen.add(meta.label);
         const li = document.createElement('li');

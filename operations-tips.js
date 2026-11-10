@@ -40,7 +40,7 @@ export const CARD_TIPS = {
         sections: [
             { heading: 'How it works', items: [
                 { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> — always a Saturday, and a date that is not one is moved forward to the next Saturday for you' },
-                { icon: '2️⃣', html: 'Choose the PDF roster file and select <strong>Read roster</strong> — the app reads the shifts. It usually takes under a minute, sometimes a good deal longer — the spinner means it is still working' },
+                { icon: '2️⃣', html: 'Choose the PDF roster file and select <strong>Read roster</strong> — the app reads the shifts. It usually takes about 15 seconds, sometimes longer: keep this screen open until it finishes. The spinner means it is still working' },
                 { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
                 { icon: '4️⃣', html: 'Select <strong>Save changes</strong> to write approved shifts to the roster' },
             ]},
@@ -62,7 +62,7 @@ export const CARD_TIPS = {
     'reset-requests': {
         title: '🙋 Password Reset Requests',
         sections: [{ items: [
-            { icon: '🔑', html: 'Staff who tap <strong>“ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
+            { icon: '🔑', html: 'Staff who tap <strong>“Can’t get in? Ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
             { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out of their other devices.' },
             { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means there is no Firebase account to reset. Run <strong>Set up accounts</strong> instead.' },
             { icon: '🧹', html: '<strong>Clear</strong> removes the row once you have dealt with it. If they ask again it comes back, with the count showing how many times.' },
@@ -144,16 +144,18 @@ export const CARD_TIPS = {
         title: 'Error Log',
         sections: [
             { heading: 'What it captures', items: [
-                { icon: '🐛', html: 'Errors the app ran into on <strong>any page across the app</strong> (calendar, pay calculator, admin, operations, settings, links, overtime) — across all staff, not just you' },
+                { icon: '🐛', html: 'Errors the app ran into on <strong>any of its pages</strong> — every page but the guides — across all staff, not just you' },
+                { icon: '🐢', html: '<strong>Slow save (diagnostic)</strong> entries are not errors: each records a save that waited a long time for the server. They are listed for you to read, and left out of the count on the card' },
                 { icon: '⎘', html: 'Use <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device, the time, and <strong>the name of the member it happened to</strong>. Unlike the Usage and App Speed cards, this one is not anonymous' },
             ]},
             { heading: 'Resolving errors', items: [
                 { icon: '✓', html: '<strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then pruned automatically' },
                 { icon: '🔄', html: 'You don\'t need to manually clean up the log — resolved errors expire on their own' },
+                { icon: '➕', html: 'A count ending in <strong>+</strong> means more than 100 entries are unresolved, so not all of them have loaded. Resolve the ones shown to load the rest' },
             ]},
             { heading: 'What to act on', items: [
                 { icon: '⚠️', html: '<strong>Worth investigating:</strong> the same error from multiple people, or new errors appearing after a deployment' },
-                { icon: '🔕', html: '<strong>Usually safe to resolve:</strong> isolated one-off errors, cross-origin/extension errors (no page or version shown), brief network failures' },
+                { icon: '🔕', html: '<strong>Usually safe to resolve:</strong> isolated one-off errors, errors from a browser extension (its stack trace names the extension), brief network failures' },
             ]},
         ],
     },

@@ -755,6 +755,10 @@ reassurance and false alarm); the wiring by `e2e/settings.spec.js`.
 - `CARD_ORDER` — password, work email, install, notifications: declared, so the to-do list does not
   reshuffle between loads. Pay data is deliberately absent; it has no wrong state.
 - `shouldOpen(state)` — `action`, `blocked` and `error` open their card; `ok`, `unknown` and `n/a` do not.
+- `installNeed({ ios, installed, onMirror })` → `{ state, from }` — installing is a to-do (`action`) only
+  for an iPhone in a browser, an offer (`n/a`) everywhere else. On the Pages mirror that iPhone is a to-do
+  too, with steps that start at the main address (`from: 'main-address'`), since the app is never added
+  from the mirror.
 - `summarise(states)` → `{ tone, headline, items, ids, cards }`. **Silence is not success:** a card that has not
   reported is `unknown`, which outranks every answer, and a failed read is `error` — never "all set".
   `ids`/`cards` say which card each to-do is about, and its element id: the strip's items link there.
@@ -1852,7 +1856,8 @@ Cross-guide search in the drawer's Reference zone: a member knows a term, not wh
 ### `operations-attention.js`
 The "Needs attention" strip on `operations.html`: an index of exceptional card states. Its three refusals are the header — it runs no reads (every count comes from the card that owns it), it does not exist when clean, and it owns no navigation (hash anchors into `DEEP_LINK_CARDS`). Pure half tested by `operations-attention.test.mjs`; the wiring by `e2e/operations.spec.js`.
 - `ATTENTION_CATALOGUE` — the one declaration of what can need attention: id → emoji, deep-link hash, `short` label, `after` (the words after the count). Grouped by REMEDY: `accountSetup` is everything Set up accounts fixes; `accountLeavers` needs the confirmed disable sweep.
-- `buildAttentionItems(reports)` — pure: the items to render, in catalogue order, each with `short` and `badge` (the visual pill, whose count is the same `.card-year-chip` the target card wears; `errors` shows the truncated "100+") and `text`, the accessible name BUILT FROM them so it contains the visible label (WCAG 2.5.3). A count of 0 renders nothing; an id never reported is ABSENT, because unknown is not clean.
+- `attentionBadge(count, truncated)` — pure: the ONE spelling of a count, worn by the strip's badge and the Error Log's header chip alike, so the two cannot disagree. A truncated count is a floor ("2+", "0+" when no error was among the entries loaded); empty means known clean.
+- `buildAttentionItems(reports)` — pure: the items to render, in catalogue order, each with `short` and `badge` (the visual pill, whose count is the same `.card-year-chip` the target card wears, spelled by `attentionBadge`) and `text`, the accessible name BUILT FROM them so it contains the visible label (WCAG 2.5.3). A count of 0 renders nothing; an id never reported is ABSENT, because unknown is not clean.
 - `createAttentionStrip({ container, onJump })` → `{ report(id, count, {truncated}), withdraw(id) }`. `report` THROWS on an unknown id; `withdraw` takes a count back to unknown when the card's reload fails.
 - Fed by the reset-request refresh and the account-setup audit (`operations-app.js`) and the Error Log (`operations-errors.js`), at the moments the card header chips update, so the strip and the chips cannot disagree. A failed card load reports nothing.
 
