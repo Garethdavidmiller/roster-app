@@ -30,7 +30,7 @@
  * review, Oct 2026), and this was the one block in it with no tie to authentication.
  */
 
-import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
+import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors, CLIENT_ERROR_RETENTION_MS } from './client-errors.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf, createPerfBatcher } from './perf-stats.js';
 
@@ -85,28 +85,42 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
      * surface, so a genuinely-hidden overflow must be surfaced, never silently swallowed (the
      * app's no-silent-caps rule). We query `CAP + 1` and set `truncated` only when the extra row
      * comes back (i.e. > 100 actually exist) — exactly 100 with none hidden is NOT truncated.
-     * @returns {Promise<{ errors: Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>, truncated: boolean }>}
+     *
+     * THE RESOLVED READ HAS THE SAME CAP, AND NOW SAYS SO (Nov 2026). It is unordered too, so past
+     * 200 the "recently resolved" rows are 30 of an arbitrary 200 — `resolvedTruncated` tells the card.
+     * And the prune no longer rides on that window: an expired record outside it was never deleted.
+     * It asks for expired records itself, by `resolvedAt` alone (a single-field range, auto-indexed).
+     * @returns {Promise<{ errors: Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>, truncated: boolean, resolvedTruncated: boolean }>}
      */
     async function getClientErrors() {
         const now = Date.now();
         const UNRESOLVED_CAP = 100;
+        const RESOLVED_CAP   = 200;
+        const PRUNE_BATCH    = 200;   // per read; the next read takes the rest
         // Fetch ONE more than the display cap: if the 101st exists we KNOW there are more than
         // 100 (truncated), whereas a plain limit(100) can't tell "exactly 100" from "100+".
-        const [unresolvedSnap, resolvedSnap] = await Promise.all([
+        const [unresolvedSnap, resolvedSnap, expiredSnap] = await Promise.all([
             getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', false), limit(UNRESOLVED_CAP + 1))),
-            getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', true),  limit(200))),
+            getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', true),  limit(RESOLVED_CAP + 1))),
+            // The prune's own read. Caught: a prune must never take the Error Log down with it.
+            getDocs(query(collection(db, collections.clientErrors),
+                where('resolvedAt', '<', new Date(now - CLIENT_ERROR_RETENTION_MS)), limit(PRUNE_BATCH))).catch(() => null),
         ]);
-        // Pure truncation split (client-errors.capUnresolvedErrors, unit-tested): show at most the cap;
-        // `truncated` is true only when the (cap+1)th row came back, i.e. > cap genuinely exist.
+        // Pure truncation split (client-errors.capUnresolvedErrors, unit-tested — it caps any list):
+        // show at most the cap; `truncated` only when the (cap+1)th row came back, i.e. > cap exist.
         const { shown: unresolvedDocs, truncated } = capUnresolvedErrors(unresolvedSnap.docs, UNRESOLVED_CAP);
-        const unresolved = unresolvedDocs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
-        const resolved   = resolvedSnap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
+        const { shown: resolvedDocs, truncated: resolvedTruncated } = capUnresolvedErrors(resolvedSnap.docs, RESOLVED_CAP);
+        /** @param {any} d */ const toRecord = d => ({ id: d.id, ...d.data() });
+        const unresolved = unresolvedDocs.map(toRecord);
+        const resolved   = resolvedDocs.map(toRecord);
+        const expired    = (expiredSnap?.docs ?? []).map(toRecord);
 
-        // Best-effort prune of resolved records past the retention window (from resolvedAt).
-        for (const id of expiredResolvedIds(resolved, now)) {
+        // Best-effort prune of resolved records past the retention window (from resolvedAt): what the
+        // expiry read found, plus any in the window above should that read have failed.
+        for (const id of new Set(expiredResolvedIds([...expired, ...resolved], now))) {
             deleteDoc(doc(db, collections.clientErrors, id)).catch(() => {/* best-effort cleanup */});
         }
-        return { errors: orderClientErrors(unresolved, resolved, now), truncated };
+        return { errors: orderClientErrors(unresolved, resolved, now), truncated, resolvedTruncated };
     }
 
     /**
