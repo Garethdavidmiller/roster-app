@@ -405,6 +405,57 @@ describe('ingestHuddle — the happy path, executed to its side effects', () => 
     });
 });
 
+// ── A BIG .docx MUST NOT TAKE THE INGEST DOWN (functions-core-3, whole-app check 10 Nov 2026) ───
+//
+// The ingest accepts files up to 20 MB and declared no memory, so it ran on the platform default
+// (256 MiB). Measured on its own sequence: converting a 10 MB .docx peaks near 240 MB, a 19 MB one
+// near 350 MB, before the Storage and Firestore clients — and the HTML that comes out of anything
+// that size is millions of characters, far over the cap, and thrown away. A killed instance writes
+// nothing, notifies nobody, and staff keep reading yesterday's Huddle.
+describe('a large .docx Huddle is stored without a conversion whose HTML could never be kept', () => {
+    const mammothPath = require.resolve('mammoth', { paths: [fnDir] });
+    /** A file that passes the .docx signature check, of exactly `bytes` bytes. */
+    const docxOf = (/** @type {number} */ bytes) => Buffer.concat([Buffer.from([0x50, 0x4B, 0x03, 0x04]), Buffer.alloc(bytes - 4, 0x20)]);
+    /** @param {(calls: number[]) => Promise<void>} body */
+    const withMammoth = async (body) => {
+        const calls = /** @type {number[]} */ ([]);
+        require.cache[mammothPath] = /** @type {any} */ ({ id: mammothPath, filename: mammothPath, loaded: true, exports: {
+            convertToHtml: async (/** @type {{buffer: Buffer}} */ { buffer }) => { calls.push(buffer.length); return { value: '<p>Huddle</p>' }; },
+        } });
+        try { await body(calls); } finally { delete require.cache[mammothPath]; }
+    };
+
+    test('the ingest declares enough memory for the files it accepts', () => {
+        const b = build();
+        const mb = b.eps.ingestHuddle.__endpoint.availableMemoryMb;
+        assert.ok(Number.isFinite(mb) && mb >= 512,
+            `ingestHuddle runs on ${typeof mb === 'number' ? `${mb} MB` : 'the platform default (256 MiB)'} for files up to 20 MB`);
+    });
+
+    test('a .docx over the conversion limit is stored, announced and opened as a file — never converted', async () => {
+        await withMammoth(async (calls) => {
+            const b = build();
+            const out = await ingest(b.eps, { filename: 'huddle.docx', body: docxOf(2 * 1024 * 1024 + 1) });
+            assert.equal(out.code, 200);
+            assert.deepEqual(calls, [], 'a conversion ran whose HTML could only be discarded');
+            const doc = b.store.get('huddles/2026-08-30');
+            assert.equal(doc.fileType, 'docx');
+            assert.equal(doc.htmlContent, undefined, 'no inline HTML — the viewer offers the file instead');
+            assert.equal(b.sends.length, 1, 'and staff are still told it arrived');
+        });
+    });
+
+    test('an ordinary .docx is still converted for the in-app viewer', async () => {
+        await withMammoth(async (calls) => {
+            const b = build();
+            const out = await ingest(b.eps, { filename: 'huddle.docx', body: docxOf(40 * 1024) });
+            assert.equal(out.code, 200);
+            assert.deepEqual(calls, [40 * 1024]);
+            assert.equal(b.store.get('huddles/2026-08-30').htmlContent, '<p>Huddle</p>');
+        });
+    });
+});
+
 // ── the retention sweep, by what it DESTROYS ───────────────────────────────────────────────────
 //
 // pruneOldHuddles runs INSIDE the ingest request, against a collection that same request has just

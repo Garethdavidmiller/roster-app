@@ -66,6 +66,11 @@ function buildDocumentEndpoints({
     // (mis-recorded at the time as "the site is down"). To pause again: set true, redeploy.
     const HUDDLE_PUSH_PAUSED = false;
 
+    // The largest .docx the ingest converts to HTML (functions-core-3). Generous on purpose: an
+    // ordinary text Huddle is tens of kilobytes, and a file this size whose HTML still fitted
+    // MAX_HUDDLE_HTML_CHARS would have to be almost entirely content Word does not render.
+    const MAX_DOCX_CONVERT_BYTES = 2 * 1024 * 1024;
+
     /**
      * Is the document just written under `date` the one a tap would now open — the LATEST of its
      * kind? Every arrival notice says "Latest …" and every viewer opens the newest `date`, so a
@@ -120,6 +125,10 @@ const ingestHuddle = onRequest(
         region:        'europe-west2',
         cors:          false,
         timeoutSeconds: 60,
+        // Declared, not the platform's 256 MiB (functions-core-3): a 20 MB file is held as the
+        // base64 body, its text and the decoded bytes at once — measured near 270 MB at 19 MB before
+        // the Storage and Firestore clients. parseRosterPDF takes the same cap on the same 512 MiB.
+        memory:        '512MiB',
     },
     async (req, res) => {
 
@@ -273,8 +282,15 @@ const ingestHuddle = onRequest(
             // client never needs to download the raw DOCX or rely on an external viewer.
             // The HTML is stored in Firestore alongside the storage URL.
             // PDF files are opened natively by Chrome — no conversion needed.
+            //
+            // NOT FOR A LARGE .docx (functions-core-3). Mammoth inlines every picture as base64, so a
+            // 1 MB file already converts to ~1.4 million characters, seven times the cap below, and a
+            // 10–19 MB one costs 100–200 MB more at its peak — all to be thrown away. Over
+            // MAX_DOCX_CONVERT_BYTES the file is stored and offered as a file, as a failed conversion is.
             let htmlContent = null;
-            if (isDocx) {
+            if (isDocx && fileBuffer.length > MAX_DOCX_CONVERT_BYTES) {
+                console.log(`[ingestHuddle] DOCX of ${fileBuffer.length} bytes — too large for its HTML to be kept; not converting`);
+            } else if (isDocx) {
                 try {
                     const mammoth = require('mammoth'); // M8: lazy-loaded only for DOCX conversion
                     const result = await mammoth.convertToHtml({ buffer: fileBuffer });
