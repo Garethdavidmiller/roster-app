@@ -574,6 +574,25 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
     assert.equal(base(100, 200), 0, 'pension over pay');
     approx(base(3203.76, 151.86), 3051.90, 'an ordinary payslip is untouched');
   });
+
+  // THE STOP MUST OUTLIVE ITS PAYSLIP'S PLACE IN THE LIST (whole-app review, Nov 2026). A select set
+  // to a value no option carries reads ''. If the payslip list ever stops offering the stored stop —
+  // the rollover note in paycalc-periods.js says why a year may leave it — calculate() read "still
+  // deducted" and priced the loan back onto every payslip, with nothing on screen to say so.
+  test('the student-loan stop is read from storage when the select cannot show it', () => {
+    const stop = (/** @type {string} */ shown, /** @type {string|null} */ stored, /** @type {number} */ _pNum) =>
+      runAppLines('_slPaidOffFromP', 'slPaidOff', {
+        _slPaidOffSel: { value: shown }, lsGet: (/** @type {string} */ k) => (k === 'sl-stop' ? stored : null),
+        SK: { slPaidOff: 'sl-stop' }, _pNum,
+      }, ['_slPaidOffFromP', 'slPaidOff']);
+    assert.deepEqual(stop('57', '57', 58), { _slPaidOffFromP: 57, slPaidOff: true }, 'the ordinary case');
+    assert.deepEqual(stop('', '47', 58), { _slPaidOffFromP: 47, slPaidOff: true },
+      'a stop the list no longer offers is still in force');
+    assert.deepEqual(stop('', '', 58), { _slPaidOffFromP: 0, slPaidOff: false }, '"No — still deducted"');
+    assert.deepEqual(stop('57', null, 58), { _slPaidOffFromP: 57, slPaidOff: true },
+      'a browser that cannot store still follows the select');
+    assert.equal(stop('57', '57', 56).slPaidOff, false, 'earlier payslips keep their deduction');
+  });
 });
 
 // ── computeTax ────────────────────────────────────────────────────────────────

@@ -772,7 +772,10 @@ export function init() {
       const _slPaidOffSel   = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
       const _slPaidOffField = document.getElementById('slPaidOffField');
       if (_slPaidOffField) _slPaidOffField.classList.toggle('hidden', !_anyLoan);
-      const _slPaidOffFromP = parseInt(_slPaidOffSel?.value || '', 10) || 0;
+      // The select, else what is STORED: a stop naming a payslip the list no longer offers reads as ''
+      // there and must stay in force (paycalc-periods.js → the rollover note). The select comes first,
+      // as storage may be blocked, and saveSettings stores every pick before this runs.
+      const _slPaidOffFromP = parseInt(_slPaidOffSel?.value || lsGet(SK.slPaidOff) || '', 10) || 0;
       const slPaidOff       = !!(_slPaidOffFromP && _pNum >= _slPaidOffFromP);
       // One undergraduate plan AND a Postgraduate Loan can be repaid together — HMRC deducts each
       // independently (9% above the plan threshold; 6% above the £21,000 PGL threshold). The TOTAL feeds

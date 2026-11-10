@@ -20,9 +20,13 @@ import { MONTH_ABB } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
-// ⚠️  TAX YEAR ROLLOVER: Each April, update ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET
-//     and the threshold tables in paycalc-calc.js.
-//     The anchor (13 Feb 2026) stays fixed as the offset reference point (internal num 48).
+// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js,
+//     and raise LAST_OFFSET to the new year's last payslip. That is ALL that moves here:
+//   · ANCHOR_DATE never moves. Every payslip a member saves is keyed by its number, `48 + offset`
+//     (getPeriods), so a new anchor would silently re-date every saved entry.
+//   · FIRST_OFFSET never rises in passing. The pension opt-out, the student-loan stop and the Year
+//     to Date source are stored as payslip numbers, and dropping a year from the list leaves those
+//     naming a payslip no list offers — retiring a year needs its own decision and a migration.
 //
 // NB: `num` below is an INTERNAL, monotonic offset id (37…62), NOT the number printed on the
 // payslip. The payslip counts weeks-into-the-tax-year (×4 per period, resetting each April):
