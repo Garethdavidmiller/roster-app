@@ -92,7 +92,7 @@ export const teamMembers = [
     // `proRatedAL: 13` is TRANSCRIBED from the clerk's workbook (`New Marylebone Totals` → `AL
     // allowance`, read 8 Sep 2026). A day-count agrees here by luck; re-read the book, never recompute.
     // LEFT by 6 Nov 2026 (owner) — his bilingual line, one above T. Gherbi, is a vacancy. Row kept,
-    // `hidden`, so his past shifts, leave and absences still resolve (the /leaver skill).
+    // `hidden`, so his past shifts and everything recorded on them still resolve (the /leaver skill).
     { name: 'I. Melikian',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA', hidden: true,
       startDate: new Date(2026, 7, 10), proRatedAL: { 2026: 13 },
       rosterChanges: [{ from: new Date(2026, 8, 13), rosterType: 'bilingual', currentWeek: 5 }] },
@@ -121,14 +121,13 @@ export const teamMembers = [
     { name: 'D. Minto',                currentWeek: 1,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Targanov',             currentWeek: 2,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher', hidden: true }, // left 10 Sep 2026 — Dispatcher week-3 line is a vacancy. Row kept so his past shifts, overrides and any frozen Overtime week still resolve
-    // S. Faure — comes OFF the rotating link from Mon 29 Jun 2026. On that
-    // date (B. Toth took line 4) and onto her own Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, the
-    // 35 contracted hours a week she is credited with, weekends RD. The base fields still describe
-    // her BEFORE 29 Jun, so every shift she actually worked up to then still displays correctly.
-    // Any absence is override data (🪑 Absent, Mon–Fri) — this only decides what such
-    // overrides sit on, and what her weekends read. (The REASON is never recorded here — GDPR.)
-    // NOTE she shares `fixedRoster[2]` with S. Boyle and K. Jedlinski: change those hours and you
-    // change hers.
+    // S. Faure — moves off the rotating Dispatcher link on Mon 29 Jun 2026, through rosterChanges, onto
+    // a Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, weekends RD (B. Toth took her line 4). The base
+    // fields describe her line BEFORE 29 Jun, so the weeks before then still display as rostered. To
+    // end the move, ADD a `rosterChanges` entry dated from the change; deleting this one would redraw
+    // every date since 29 Jun 2026.
+    // NOTE `fixedRoster[2]` is shared — S. Boyle is on it too, and it drew several starters' first
+    // weeks: change those hours and you change all of theirs.
     { name: 'S. Faure',                currentWeek: 4,  rosterType: 'dispatcher', role: 'Dispatcher',
       rosterChanges: [{ from: new Date(2026, 5, 29), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'L. Szpejer',              currentWeek: 5,  rosterType: 'dispatcher', role: 'Dispatcher' },

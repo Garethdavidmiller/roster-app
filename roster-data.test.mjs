@@ -1724,6 +1724,28 @@ describe('every mid-year joiner says what their leave should be', () => {
     });
 });
 
+// ── THE MEMBER TABLE SAYS NOTHING ABOUT ANYBODY'S ABSENCE OR HEALTH (whole-app review, 10 Nov 2026) ─
+//
+// roster-member-data.js is served to anyone, from both origins, with no sign-in (its own header). A
+// roster MOVE is public — it is on the station's printed rosters — but whether somebody is away, and
+// why, is not: absences sit behind a claim in Firestore, and their reason is never recorded anywhere.
+// A row's comment once said more than the move, and payroll-anonymity.test.mjs could not see it — it
+// matches a name and a term on the SAME line, and that comment put them lines apart. So this reads
+// every comment in the file, whichever line its name is on. A failure names line numbers only, so the
+// text it caught is not repeated into a CI log.
+test('the member table\'s comments say nothing about anybody\'s absence or health', () => {
+    const PERSONAL = /\babsen(ce|ces|t)\b|\bsick|\billness|\binjur|\bmedical|\bhealth|maternity|paternity|bereave|compassionate|pregnan|disabilit|\bGDPR\b|🪑|🤒/i;
+    const lines = readFileSync(new URL('./roster-member-data.js', import.meta.url), 'utf8').split('\n');
+    const hits = lines
+        .map((line, i) => ({ at: i + 1, comment: line.includes('//') ? line.slice(line.indexOf('//')) : '' }))
+        .filter(({ comment }) => PERSONAL.test(comment))
+        .map(({ at }) => `roster-member-data.js:${at}`);
+    assert.ok(lines.length > 100, 'the member table was not read — this test is checking nothing');
+    assert.deepEqual(hits, [],
+        'a comment in the WORLD-READABLE member table speaks of absence or health. Say only the roster '
+        + 'move (the line, the pattern, the date); anything about why belongs nowhere in a served file.');
+});
+
 // ── A DISPATCHER'S LIEU DAYS SURVIVE PRO-RATING (v22.50, owner decision 3 Sep 2026) ─────────────
 //
 // A Dispatcher's entitlement is 22 plus one day for each bank holiday they actually work. Those two
