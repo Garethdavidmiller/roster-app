@@ -1209,6 +1209,7 @@ The pure rules behind Recently deleted in the Links workspace: a soft delete (`d
 - `isDeleted(data)` — tests for the KEY, not a usable timestamp, so a design binned on this device leaves its picker at once.
 - `deletedLabel(data, nowMs)` — the design's AGE in the bin in calendar days ("Deleted 3 days ago"), never time remaining.
 - `sortByDeleted(entries)` · `tsMillis(ts)` (null for a timestamp not yet resolved). Nothing here refuses to bin the last saved design: a shortlisted proposal opens in its place.
+- `deleteOutcomeLine(found, name, deletedData?)` — what a delete found, in words: ours, a colleague's earlier delete (named), or removed for good · `renameRefusedLine(name, deletedData)` — why a rename of a design no longer live did not happen.
 - The Firestore calls are `links-design-store.js`; the panel is `links-design-library.js`. Tested by `links-deletion.test.mjs`.
 
 ### `links-concurrency.js`

@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    tsMillis, isDeleted, deletedLabel, sortByDeleted,
+    tsMillis, isDeleted, deletedLabel, sortByDeleted, deleteOutcomeLine, renameRefusedLine,
 } from './links-deletion.js';
 
 const DAY = 86_400_000;
@@ -149,6 +149,26 @@ describe('sortByDeleted — the bin reads newest first', () => {
     test('empty / missing input is safe', () => {
         assert.deepEqual(sortByDeleted([]), []);
         assert.deepEqual(sortByDeleted(/** @type {any} */ (null)), []);
+    });
+});
+
+// WHAT A DELETE OR A RENAME FOUND, IN WORDS (whole-app fix, Nov 2026). The store now reports a design
+// that was no longer live; the page used to file a colleague's delete as the reader's, or say "check
+// your connection" about a rename no retry could make.
+describe('the lines a delete or a rename gives when the design was already gone', () => {
+    test('a delete names the colleague who had already binned it, or says it was removed for good', () => {
+        assert.equal(deleteOutcomeLine('deleted', 'Option A'), '“Option A” is in Recently deleted.');
+        assert.equal(deleteOutcomeLine('already-deleted', 'Option A', { deletedBy: 'S. Silva' }),
+            '“Option A” is in Recently deleted — S. Silva had already deleted it.');
+        assert.equal(deleteOutcomeLine('already-deleted', 'Option A', { deletedBy: ' ' }),
+            '“Option A” is in Recently deleted — someone had already deleted it.', 'no deleter invented');
+        assert.equal(deleteOutcomeLine('gone', 'Option A'), '“Option A” had already been removed for good.');
+    });
+    test('a rename says it did not happen, and why — never "check your connection"', () => {
+        assert.equal(renameRefusedLine('Option A', { deletedBy: 'S. Silva' }),
+            '“Option A” was not renamed — S. Silva deleted it while it was open here. It is in Recently deleted.');
+        assert.equal(renameRefusedLine('Option A', null), '“Option A” was not renamed — it was removed for good while it was open here.');
+        assert.doesNotMatch(renameRefusedLine('Option A', null) + renameRefusedLine('Option A', {}), /connection/);
     });
 });
 

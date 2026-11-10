@@ -145,3 +145,32 @@ export function sortByDeleted(entries) {
         return kb - ka;
     });
 }
+
+/**
+ * What a delete FOUND, in a sentence (whole-app fix, Nov 2026). The store's soft delete answers
+ * `'deleted'`, `'already-deleted'` (with the binned copy) or `'gone'`, and each tells the designer
+ * something different: their own delete; a colleague's, which the line — like the bin row — must
+ * attribute to THEM, never to the reader; and a design removed for good, which has no bin row at all.
+ * @param {'deleted'|'already-deleted'|'gone'} found @param {string} name @param {any} [deletedData]
+ * @returns {string}
+ */
+export function deleteOutcomeLine(found, name, deletedData) {
+    if (found === 'gone') return `“${name}” had already been removed for good.`;
+    if (found === 'already-deleted') {
+        return `“${name}” is in Recently deleted — ${String(deletedData?.deletedBy ?? '').trim() || 'someone'} had already deleted it.`;
+    }
+    return `“${name}” is in Recently deleted.`;
+}
+
+/**
+ * Why a rename did not happen, when its design was no longer live (links-design-5): binned by a
+ * colleague — named, and in Recently deleted — or removed for good. Never "check your connection",
+ * which no retry could answer.
+ * @param {string} name @param {any} deletedData  the binned copy, or null when it was removed for good
+ * @returns {string}
+ */
+export function renameRefusedLine(name, deletedData) {
+    return deletedData
+        ? `“${name}” was not renamed — ${String(deletedData.deletedBy ?? '').trim() || 'Someone'} deleted it while it was open here. It is in Recently deleted.`
+        : `“${name}” was not renamed — it was removed for good while it was open here.`;
+}

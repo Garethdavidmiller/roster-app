@@ -67,7 +67,7 @@ import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
-    isDeleted, sortByDeleted,
+    isDeleted, sortByDeleted, deleteOutcomeLine, renameRefusedLine,
 } from './links-deletion.js';
 
 
@@ -598,10 +598,10 @@ export function init() {
             // button does nothing, so the sheet opened with focus left behind it. A function, so it is
             // asked when the sheet opens, after the rows' states and the hidden rows are settled. (The
             // header's SheetCfg types this as an element; createLightbox takes either.)
-            sheet:  { overlay: $('designMoreLb'),   content: $('designMoreContent'),   closeBtn: $('designMoreClose'),
+            // (The overlay and `create: createLightbox` share a line: overlay-parity.test.mjs reads them together.)
+            sheet:  { overlay: $('designMoreLb'),   create: createLightbox, content: $('designMoreContent'), closeBtn: $('designMoreClose'),
                       initialFocus: /** @type {any} */ (() => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('#designMoreContent .dm-menu-btn')])
-                          .find(b => !b.disabled && b.offsetParent !== null) ?? null),
-                      create: createLightbox },
+                          .find(b => !b.disabled && b.offsetParent !== null) ?? null) },
             picker: { overlay: $('designPickerLb'), content: $('designPickerContent'), closeBtn: $('designPickerClose'), create: createLightbox },
             sheetActions: [
                 [$('dupDesignBtn'), once(duplicateDesign)], [$('designRenameMenuBtn'), once(onRename)], [$('compareBtn'), once(compare.toggleCompareMode)],
@@ -895,10 +895,7 @@ export function init() {
                 designs = designs.filter(x => x.id !== id);
                 if (binned) library.upsertBin(binEntryFromDoc(id, binned));
                 renderDesignPicker();
-                const by = String(binned?.deletedBy ?? '').trim() || 'Someone';
-                _designActionStatus(binned
-                    ? `“${d.name}” was not renamed — ${by} deleted it while it was open here. It is in Recently deleted.`
-                    : `“${d.name}” was not renamed — it was removed for good while it was open here.`);
+                _designActionStatus(renameRefusedLine(d.name, binned));
                 return;
             }
             console.error('[Links] Rename failed:', err);
@@ -981,10 +978,7 @@ export function init() {
             // row reads "Deleted by X" until the real time is known instead of an invented figure.
             if (found === 'already-deleted') library.upsertBin(binEntryFromDoc(id, deletedData));
             else if (found !== 'gone') library.addToBin(binEntryFrom(d, currentUser));
-            const outcome = found === 'gone' ? `“${d.name}” had already been removed for good.`
-                : found === 'already-deleted'
-                    ? `“${d.name}” is in Recently deleted — ${String(deletedData?.deletedBy ?? '').trim() || 'someone'} had already deleted it.`
-                    : `“${d.name}” is in Recently deleted.`;
+            const outcome = deleteOutcomeLine(found, d.name, deletedData);
             const wasOpen = id === activeDesignId;
             // With no saved design left, the first shortlisted proposal opens, as after Keep only the
             // shortlist (links-app-23): the picker always holds the proposals, so nothing is left empty.
