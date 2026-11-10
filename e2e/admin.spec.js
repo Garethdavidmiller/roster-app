@@ -4972,6 +4972,18 @@ test('admin: the staff picker\'s focus ring stands out from the member bar behin
     }
 });
 
+// ONE BAR, ONE LABEL COLOUR (whole-app fix, 10 Nov 2026). Overtime's copy of this bar ("a member arriving from admin
+// sees the same first line", overtime.css) took its label from the on-navy token; Admin's kept a white-alpha literal,
+// so the two bars that should match did not (7.6:1 against 8.7:1). Read off the navy bar a phone draws.
+test('admin: the member bar\'s label is the app\'s on-navy secondary text, as on Overtime\'s copy of the bar', async ({ page }) => {
+    await deskAdmin(page, { width: 390, height: 844 });
+    const label = page.locator('.member-context-bar label').first();
+    await expect(label).toBeVisible();
+    expect(await label.evaluate(el => getComputedStyle(/** @type {Element} */ (el.closest('.member-context-bar'))).backgroundColor),
+        'premise: at a phone width the bar is navy').toBe(await tokenColour(page, '--primary-blue'));
+    expect(await label.evaluate(el => getComputedStyle(el).color)).toBe(await tokenColour(page, '--on-navy-muted'));
+});
+
 test('admin: each calendar is ONE Tab stop, and the arrow keys move the day — the leave range and the week jump', async ({ page }, info) => {
     // Every day was its own Tab stop: ~62 to cross the two open range calendars, and the arrows did
     // nothing in either picker. Now a roving tabindex, as the Calendar's own grid.
