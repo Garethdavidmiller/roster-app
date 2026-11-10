@@ -70,8 +70,10 @@
  *    and `applyShift` fires once per cell during a paint drag, so an unconditional rebuild would
  *    tear down and re-create every row dozens of times a second — and would destroy the row under
  *    a reader's finger while the sheet is open. The signature compares ids, names, saved-dates and
- *    the active id — the same shape the brush bar uses for the same reason. The click handler is
- *    DELEGATED to the list for the same reason: a rebuild can then never orphan a listener.
+ *    the active id — the same shape the brush bar uses for the same reason — and, for an open
+ *    PROPOSAL only, whether it has been edited: its row is the one whose words follow `dirty`, and
+ *    that flips once per edit session, not once per cell. The click handler is DELEGATED to the
+ *    list for the same reason: a rebuild can then never orphan a listener.
  *
  * What it deliberately does NOT own: the decision to save, the conflict protocol, naming validation
  * (`links-design-naming.js`), compare mode, the bin. Every handle is injected; the module reaches for
@@ -80,7 +82,7 @@
  */
 
 import { avatarInitials, avatarHue } from './roster-data.js';
-import { formatDayMonth, formatDayMonthYear } from './date-format.js';
+import { formatDayMonth, formatDayMonthYear, formatClock } from './date-format.js';
 import { nameConflict } from './links-design-naming.js';
 
 /**
@@ -205,7 +207,7 @@ export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now
     if (dirty)   return { tone: 'dirty', long: 'Unsaved changes', short: 'Unsaved' };
     const when = toDate(updatedAt);
     if (!when) return { tone: 'saved', long: 'Saved', short: 'Saved' };
-    const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const time = formatClock(when);   // the app's one 24-hour clock — the save row beside it uses it too
     if (sameDay(when, now)) return { tone: 'saved', long: `Saved today at ${time}`, short: `Saved ${time}` };
     const date = shortDate(when, now);
     return { tone: 'saved', long: `Saved ${date} at ${time}`, short: `Saved ${date}` };
@@ -315,10 +317,10 @@ function pickRow({ id, name, meta, current }) {
  * skipped, so the module cannot throw on a page that lacks part of the markup.
  *
  * BOTH sheets are built here, from injected elements, and every action closes its sheet first and
- * runs after the fade — the pattern `#linksHowBtn` established for the About panel. Stacking a
- * dialog over an open sheet leaves the sheet behind a finished action, and acting in the same tick
- * as close() races the sheet's history.back() against the dialog's pushState. The 500ms matches
- * `dismissOverlay`'s fallback; with no sheet injected at all there is no fade to wait out, so the
+ * runs once the close has landed — the pattern `#linksHowBtn` established for the About panel.
+ * Stacking a dialog over an open sheet leaves the sheet behind a finished action, and acting in the
+ * same tick as close() races the sheet's history.back() against the dialog's pushState. One action
+ * per opening (`closeThen`); with no sheet injected at all there is no fade to wait out, so the
  * action runs at once.
  *
  * @typedef {{ overlay: HTMLElement|null, content: HTMLElement|null, closeBtn?: HTMLElement|null,
@@ -343,14 +345,30 @@ export function createDesignHeader(els, handlers, extra = {}) {
     const sheet  = build(extra.sheet);
     const picker = build(extra.picker);
 
-    /** Close `lb`, then run `fn` after its fade. */
+    /**
+     * ONE ACTION PER OPENING (whole-app fix, Nov 2026). A sheet stays tappable through its fade, and a
+     * second `close()` hands back the same landing promise, so each extra tap ran the row again: a
+     * double tap on Delete stacked two confirms and filed the design in the bin twice. The first
+     * action spends the opening and `openSheet` re-arms it — select-sheet.js's "one tap, one pick".
+     */
+    const spent = new WeakSet();
+    const openSheet = (/** @type {any} */ lb) => { if (!lb) return; spent.delete(lb); lb.open(); };
+    /**
+     * Close `lb`, then run `fn` once the close has LANDED: the fade finished and the history echo of
+     * its `history.back()` arrived, which `createLightbox`'s `close()` resolves on. A fixed 500 ms
+     * stood in for that until Nov 2026 — a wait with no promise about the echo, and a dialog opened
+     * before the echo pops itself (select-sheet.js has the account). `fn` gets no argument, whatever
+     * the close resolves with.
+     */
     const closeThen = (/** @type {any} */ lb, /** @type {() => void} */ fn) => {
         if (!lb) { fn(); return; }   // nothing to fade, so nothing to wait out
-        lb.close();
-        setTimeout(fn, 500);
+        if (spent.has(lb)) return;
+        spent.add(lb);
+        Promise.resolve(lb.close()).then(() => fn())
+            .catch((/** @type {any} */ err) => console.error('[Links] A sheet action failed:', err));
     };
 
-    extra.moreButton?.addEventListener('click', () => sheet?.open());
+    extra.moreButton?.addEventListener('click', () => openSheet(sheet));
     /** Close the ··· More sheet, then run `fn`. Exposed for a row wired elsewhere (the bin). */
     const viaSheet = (/** @type {() => void} */ fn) => closeThen(sheet, fn);
     for (const [el, run] of extra.sheetActions || []) el?.addEventListener('click', () => viaSheet(run));
@@ -358,7 +376,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
     // NOTE the button comes from `els`, not `extra`: `render` has to disable it, so it belongs with
     // the other rendered handles. Reading it from `extra` here is what shipped first, and the face
     // then had no listener at all while every unit test still passed.
-    els.pickerButton?.addEventListener('click', () => picker?.open());
+    els.pickerButton?.addEventListener('click', () => openSheet(picker));
     // ONE delegated handler on the list, so a rebuild never leaves listeners behind or drops them.
     els.pickList?.addEventListener('click', (/** @type {any} */ ev) => {
         const row = ev.target?.closest?.('.picker-opt[data-id]');
@@ -378,7 +396,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
         // ── the picker list (rebuilt only on a content change — rule 4) ──
         if (els.pickList) {
-            const sig = JSON.stringify([saved, activeId, open, proposalId, proposals.map(d => d.id), groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
+            const sig = JSON.stringify([saved, activeId, open, proposalId, isProposal && dirty, proposals.map(d => d.id), groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
             if (sig !== pickSignature) {
                 pickSignature = sig;
                 els.pickList.textContent = '';
@@ -387,7 +405,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
                 if (!saved && open && !isProposal) {
                     els.pickList.appendChild(pickRow({ name: 'Untitled design', meta: 'Not saved yet', current: true }));
                 }
-                // THE SHORTLIST FIRST (v24.47; four since v25.01): the designs everything is measured against,
+                // THE SHORTLIST FIRST (v24.47): the designs everything is measured against,
                 // built in and read-only. A group of their own, so they cannot be mistaken for
                 // somebody's saved work — "Last saved by" would be a claim about nobody.
                 if (proposals.length) {
@@ -423,7 +441,9 @@ export function createDesignHeader(els, handlers, extra = {}) {
                         wrap.appendChild(pickRow({
                             id: d.id,
                             name: d.name,
-                            meta: when ? `Saved ${shortDate(when, now)}` : 'Not saved yet',
+                            // Every row here HAS a document; with no time yet (a queued create, a failed
+                            // read-back) it says what the pill says, never "Not saved yet".
+                            meta: when ? `Saved ${shortDate(when, now)}` : 'Saved',
                             current: saved && d.id === activeId,
                         }));
                     }

@@ -23,6 +23,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDesignStore, isOfflineFailure } from './links-design-store.js';
 import { conflictOf } from './links-concurrency.js';
+import { runGatedWrite, _resetUnconfirmedWrites, SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
 
 const ID = 'design-1';
 const ME = 'G. Miller';
@@ -36,16 +37,32 @@ const ts = (ms) => ({ toMillis: () => ms, toDate: () => new Date(ms) });
  * between the read and the commit. The body runs ONCE. This said it "re-runs when the document
  * changed", which it never did (test audit, 7 Nov 2026); a test that needs a retried transaction
  * installs its own `runTransaction` — see "a RETRIED forced save decides afresh".
+ *
+ * `getDoc` answers as the REAL SDK does: offline, a document it does not hold REJECTS, whether the
+ * cache has never seen it or knows it was deleted. This fake used to answer `exists() === false`
+ * there — a question the real one refuses offline — so a test passed on a branch production can
+ * never reach (whole-app fix, Nov 2026). `cache` adds `getDocFromCache`, which CAN tell the two
+ * apart: `'knows-deleted'` is a cache that recorded the deletion, `'unknown'` one that never held it.
  */
-function makeDb({ initial = null, onRead = null, failTx = null } = {}) {
+function makeDb({ initial = null, onRead = null, failTx = null, cache = /** @type {null|'knows-deleted'|'unknown'} */ (null) } = {}) {
     let store = initial ? { ...initial } : null;
     let reads = 0;
     const writes = [];
     const db = {};
+    const offlineMiss = () => Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });
+    /** @type {any} */
     const api = {
         db,
         doc: () => ({ id: ID }),
-        getDoc: async () => ({ exists: () => store !== null, data: () => store }),
+        getDoc: async () => {
+            if (store === null && !api.isOnline()) throw offlineMiss();
+            return { exists: () => store !== null, data: () => store };
+        },
+        ...(cache ? { getDocFromCache: async () => {
+            if (store !== null) return { exists: () => true, data: () => store };
+            if (cache === 'knows-deleted') return { exists: () => false, data: () => undefined };
+            throw offlineMiss();
+        } } : {}),
         setDoc: async (_ref, payload, opts) => {
             writes.push({ kind: opts?.merge ? 'merge' : 'set', payload });
             store = opts?.merge ? { ...(store || {}), ...payload } : { ...payload };
@@ -474,11 +491,70 @@ describe('creating and restoring ARM the baseline', () => {
         assert.equal(res.revision, 7);
     });
 
-    test('soft delete is a merge as well', async () => {
+    test('soft delete is a merge as well — a transactional one', async () => {
         const { api, writes } = makeDb({ initial: { name: 'A', patterns: { 1: 'theirs' } } });
-        await createDesignStore(api).softDelete(ID, ME);
-        assert.equal(writes[0].kind, 'merge');
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(writes[0].kind, 'tx-merge');
         assert.equal(writes[0].payload.patterns, undefined, 'our patterns are not written over theirs');
+        assert.deepEqual(res, { queued: false, status: 'deleted' });
+    });
+
+    // ── A DELETE ASKS WHAT IS THERE (whole-app fix, Nov 2026 — the rules reader's lead) ──────────
+    // It was a blind merge. On a design a colleague had already BINNED it wrote over who deleted it
+    // and when; on one REMOVED FOR GOOD it wrote a nameless skeleton the rules refuse, and the
+    // designer read "check your connection" about a design that was already gone. Neither is a
+    // failure — a delete asks for a design that is not live, and that is what there is — so both come
+    // back as what was found, with nothing written.
+    test('a design a colleague already binned: nothing written, and the bin keeps who deleted it', async () => {
+        const { api, writes, current } = makeDb({ initial: { name: 'A', deletedAt: ts(1500), deletedBy: THEM } });
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(res.status, 'already-deleted');
+        assert.equal(res.deletedData?.deletedBy, THEM);
+        assert.deepEqual(writes, []);
+        assert.equal(current()?.deletedBy, THEM);
+    });
+
+    test('a design removed for good: nothing written — no skeleton', async () => {
+        const { api, writes, current } = makeDb({ initial: null });
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(res.status, 'gone');
+        assert.deepEqual(writes, []);
+        assert.equal(current(), null);
+    });
+
+    test('offline, a cache that knows it is binned or gone queues nothing either', async () => {
+        for (const [initial, cache, status] of /** @type {Array<[any, any, string]>} */ ([
+            [{ name: 'A', deletedAt: ts(1500), deletedBy: THEM }, null, 'already-deleted'],
+            [null, 'knows-deleted', 'gone'],
+        ])) {
+            const { api, writes } = makeDb({ initial, cache });
+            api.isOnline = () => false;
+            assert.equal((await createDesignStore(api).softDelete(ID, ME)).status, status);
+            assert.deepEqual(writes, [], status);
+        }
+    });
+
+    test('a RETRIED delete decides afresh — the losing attempt\'s finding does not survive', async () => {
+        const { api, writes } = makeDb();
+        let attempt = 0;
+        api.runTransaction = async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
+            /** @type {any[]} */ let pending = [];
+            const tx = {
+                get: async () => (++attempt === 1
+                    ? { exists: () => true, data: () => ({ name: 'A', deletedAt: ts(1500), deletedBy: THEM }) }
+                    : { exists: () => true, data: () => ({ name: 'A' }) }),
+                set: (/** @type {any} */ _r, /** @type {any} */ p, /** @type {any} */ o) => pending.push({ kind: o?.merge ? 'tx-merge' : 'tx-set', payload: p }),
+            };
+            await fn(tx);   // the losing attempt: Firestore discards what it wrote
+            pending = [];
+            const r = await fn(tx);
+            writes.push(...pending);
+            return r;
+        };
+        const res = await createDesignStore(api).softDelete(ID, ME);
+        assert.equal(attempt, 2, 'premise: the body ran twice');
+        assert.equal(res.status, 'deleted', 'a colleague restored it between attempts, so this delete is the one that binned it');
+        assert.equal(writes.length, 1);
     });
 
     // The AUTOMATIC bin move (v24.47) decides from a list read earlier, so it must ask again at commit.
@@ -504,10 +580,19 @@ describe('creating and restoring ARM the baseline', () => {
     });
 });
 
+test('a design is addressed through the INJECTED collection, never a second copy of its name', async () => {
+    const { api } = makeDb({ initial: { name: 'A' } });
+    const addressed = /** @type {any[]} */ ([]);
+    api.designsCol = { path: 'linkDesignsElsewhere' };
+    api.doc = (/** @type {any[]} */ ...a) => { addressed.push(a.slice(1)); return { id: ID }; };
+    await createDesignStore(api).softDelete(ID, ME);
+    assert.deepEqual(addressed[0], ['linkDesignsElsewhere', ID]);
+});
+
 describe('what counts as offline', () => {
     // The predicate that decides whether the unserialised path may be taken at all. Too broad and
     // rule 2 is back to being advisory.
-    const online = () => false;      // navigator.onLine === true → "not offline"
+    const online = () => false;      // isOfflineNow(): the device does not report itself offline
     test('a contention abort is NOT offline', () => {
         assert.equal(isOfflineFailure({ code: 'aborted' }, online), false);
     });
@@ -522,6 +607,63 @@ describe('what counts as offline', () => {
     });
     test('and so is the browser saying so, whatever the error', () => {
         assert.equal(isOfflineFailure({ code: 'aborted' }, () => true), true);
+    });
+    test('…except an answer from the page\'s OWN write machinery, which no browser state turns into "offline"', () => {
+        // The gate refusing a write while an earlier one is unconfirmed, and an account that signed
+        // out mid-write (claim-retry.js). Neither is the absence of a server.
+        assert.equal(isOfflineFailure({ code: UNCONFIRMED_CODE }, () => true), false);
+        assert.equal(isOfflineFailure({ code: SIGNED_OUT_CODE }, () => true), false);
+    });
+});
+
+describe('a write the page\'s own gate refused is never "queued" (whole-app fix, Nov 2026)', () => {
+    // claim-retry.js: once a write on this page ends unconfirmed (signed out mid-write), every later
+    // write is refused until a reload. Offline, that refusal was read as "no server": the store took
+    // the queued path, the queue's own refusal was only logged, and the page said "Saved in this
+    // browser" about a write nothing had issued. The REAL gate, because the wrapper every other test
+    // injects (fn => fn()) has no gate to close.
+    const closeGate = async () => {
+        _resetUnconfirmedWrites();
+        await runGatedWrite(() => Promise.reject(Object.assign(new Error('signed out'), { code: SIGNED_OUT_CODE })))
+            .catch(() => {});
+    };
+    const offlineGated = () => {
+        const db = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
+            failTx: { code: 'unavailable', message: 'client is offline' } });
+        db.api.isOnline = () => false;
+        db.api.withClaimRetry = (/** @type {Function} */ fn) => runGatedWrite(fn);
+        return db;
+    };
+    /** @type {Array<[string, (s: any) => Promise<any>]>} */
+    const writers = [
+        ['save', s => s.save({ id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000, loadedRevision: 2, baselineUnknown: false, currentUser: ME })],
+        ['create', s => s.create({ name: 'New' })],
+        ['rename', s => s.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 2 })],
+        ['softDelete', s => s.softDelete(ID, ME)],
+    ];
+    for (const [what, run] of writers) {
+        test(`${what}: the refusal reaches the caller, and nothing is written`, async () => {
+            await closeGate();
+            try {
+                const { api, writes } = offlineGated();
+                await assert.rejects(run(createDesignStore(api)), (/** @type {any} */ err) => err.code === UNCONFIRMED_CODE,
+                    'a refusal before anything was issued is not a queued write — the caller words it as unconfirmed');
+                assert.deepEqual(writes, []);
+            } finally { _resetUnconfirmedWrites(); }
+        });
+    }
+
+    test('a save SIGNED OUT mid-transaction while offline says so, rather than being queued', async () => {
+        // The transaction is abandoned with the sign-out code, which also closes the gate. Read as
+        // offline, the store went on to queue — refused by the gate it had just closed — and the
+        // designer was told about "an earlier change", not that they had been signed out.
+        _resetUnconfirmedWrites();
+        try {
+            const { api, writes } = offlineGated();
+            api.runTransaction = async () => { throw Object.assign(new Error('signed out'), { code: SIGNED_OUT_CODE }); };
+            await assert.rejects(writers[0][1](createDesignStore(api)), (/** @type {any} */ err) => err.code === SIGNED_OUT_CODE);
+            assert.deepEqual(writes, []);
+        } finally { _resetUnconfirmedWrites(); }
     });
 });
 
@@ -669,13 +811,98 @@ describe('a design REMOVED FOR GOOD is not recreated by an ordinary save', () =>
         assert.equal(current(), null, 'the design stays gone');
     });
 
-    test('offline: a cache that knows it is gone is believed, and nothing is queued', async () => {
-        const { api, writes } = makeDb({ initial: null, failTx: { code: 'unavailable', message: 'client is offline' } });
-        api.isOnline = () => false;
+    // Offline the question goes to the CACHE, and only `getDocFromCache` can answer it: plain
+    // `getDoc` rejects for a document it does not hold, a deletion the cache recorded included
+    // (whole-app fix, Nov 2026 — this test used to pass on a fake that answered what the SDK refuses).
+    const offlineSave = (/** @type {any} */ cache) => {
+        const db = makeDb({ initial: null, cache, failTx: { code: 'unavailable', message: 'client is offline' } });
+        db.api.isOnline = () => false;
+        return db;
+    };
+    const saveIt = (/** @type {any} */ api) => createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+        baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+
+    test('offline: a cache that KNOWS it is gone is believed, and nothing is queued', async () => {
+        const { api, writes } = offlineSave('knows-deleted');
+        const res = await saveIt(api);
+        assert.equal(res.status, 'deleted-elsewhere', 'queueing here recreates the design on reconnect');
+        assert.deepEqual(writes, []);
+    });
+
+    test('offline: a cache that never held it cannot say, and the write is queued — offline-first', async () => {
+        const { api, writes } = offlineSave('unknown');
+        assert.equal((await saveIt(api)).status, 'queued');
+        assert.equal(writes.length, 1);
+    });
+
+    test('offline, a FORCED save consults the cache the same way', async () => {
+        const { api, writes } = offlineSave('knows-deleted');
         const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
-            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME,
+            forcing: true, forceAgainstRev: 4, forceAgainstRevision: null });
         assert.equal(res.status, 'deleted-elsewhere');
         assert.deepEqual(writes, []);
+    });
+});
+
+describe('a RENAME of a design deleted elsewhere renames nothing (whole-app fix, Nov 2026)', () => {
+    // The one transaction in the store that did not ask. A colleague BINNED the design: our rename
+    // renamed the binned copy and signed it as ours, while our picker went on showing it live. They
+    // REMOVED IT FOR GOOD: our merge wrote a skeleton the rules refuse, and the designer read "check
+    // your connection" however often they tried. Save and restore already say what happened; rename
+    // now hands the workspace the same fact, as an error it cannot mistake for success.
+    const isGone = (/** @type {any} */ data) => (/** @type {any} */ err) =>
+        err.code === 'deleted-elsewhere' && (data === null ? err.deletedData === null : err.deletedData?.deletedBy === data);
+
+    test('binned elsewhere: refused, with who binned it, and the binned copy untouched', async () => {
+        const { api, writes } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4,
+            deletedAt: ts(1500), deletedBy: THEM } });
+        await assert.rejects(createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 }), isGone(THEM));
+        assert.deepEqual(writes, []);
+    });
+
+    test('removed for good: refused with no deleter invented, and no skeleton written', async () => {
+        const { api, writes, current } = makeDb({ initial: null });
+        await assert.rejects(createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 }), isGone(null));
+        assert.deepEqual(writes, []);
+        assert.equal(current(), null);
+    });
+
+    test('offline: a cache that knows it was binned, or removed, refuses too — nothing is queued', async () => {
+        for (const [initial, cache, who] of /** @type {Array<[any, any, any]>} */ ([
+            [{ name: 'A', revision: 4, deletedAt: ts(1500), deletedBy: THEM }, null, THEM],
+            [null, 'knows-deleted', null],
+        ])) {
+            const { api, writes } = makeDb({ initial, cache, failTx: { code: 'unavailable', message: 'client is offline' } });
+            api.isOnline = () => false;
+            await assert.rejects(createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 }), isGone(who));
+            assert.deepEqual(writes, [], JSON.stringify(initial));
+        }
+    });
+
+    test('a RETRIED rename decides afresh — a design restored between attempts is renamed', async () => {
+        const { api, writes } = makeDb();
+        let attempt = 0;
+        const live = { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4 };
+        api.runTransaction = async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
+            /** @type {any[]} */ let pending = [];
+            const tx = {
+                get: async () => {
+                    attempt++;
+                    return attempt === 1 ? { exists: () => false, data: () => undefined } : { exists: () => true, data: () => live };
+                },
+                set: (/** @type {any} */ _r, /** @type {any} */ p) => pending.push({ kind: 'tx-merge', payload: p }),
+            };
+            await fn(tx);   // the losing attempt: Firestore discards what it wrote
+            pending = [];
+            const r = await fn(tx);
+            writes.push(...pending);
+            return r;
+        };
+        const res = await createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
+        assert.equal(attempt, 2, 'premise: the body ran twice');
+        assert.equal(res.baselineFresh, true, 'the second attempt found it live, at the revision we hold');
+        assert.equal(writes.length, 1);
     });
 });
 
@@ -794,6 +1021,26 @@ describe('a queued write does not wait for a server that is not there', () => {
         assert.equal(wrote?.opts?.merge, true, 'and is still a merge');
     });
 
+    test('soft delete ONLINE, on a connection that cannot reach the server (whole-app fix, Nov 2026)', async () => {
+        // The browser says online — Wi-Fi with no uplink, a dead mobile cell — and the real SDK holds a
+        // plain write without ever answering: the delete had no outcome until the signal came back, and
+        // then switched the page away from whatever had been edited meanwhile. A transaction is FAILED
+        // there (`unavailable`, after the SDK's retries), so the delete is queued like a save.
+        const { api } = makeDb({ initial: { name: 'A', revision: 2 }, failTx: { code: 'unavailable', message: 'client is offline' } });
+        api.isOnline = () => true;
+        let issued = false;
+        api.setDoc = () => { issued = true; return neverResolves(); };
+        const res = await Promise.race([createDesignStore(api).softDelete(ID, ME), hang()]);
+        assert.notEqual(res, 'hung', 'the press has an answer');
+        assert.equal(/** @type {any} */ (res).queued, true, 'the delete is in the SDK\'s queue, and says so');
+        assert.equal(issued, true, 'and it was issued');
+    });
+
+    test('…while one the server commits is not called queued', async () => {
+        const { api } = makeDb({ initial: { name: 'A', revision: 2 } });
+        assert.equal((await createDesignStore(api).softDelete(ID, ME)).queued, false);
+    });
+
     test('rename', async () => {
         const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
             failTx: { code: 'unavailable', message: 'client is offline' } });
@@ -863,6 +1110,65 @@ describe('offline: our own queued rename is not a colleague\'s save, and Replace
         await store.rename({ id: ID, name: 'C', by: ME, preBaseline: 1000, preRevision: 5 });
         const res = await save(store);
         assert.equal(res.status, 'queued', `nobody but us has touched it — not ${THEM}`);
+    });
+
+    // ── …AND ONLINE (whole-app fix, Nov 2026) ───────────────────────────────────────────────────
+    // The rename above synced: the server holds OUR clock revision over S. Silva's untouched content,
+    // stamp and name. The next save is ONLINE, so it runs the TRANSACTION — which compared the raw
+    // document with our baseline and said "S. Silva saved a different version … after you opened this
+    // page", about our own rename. Only the offline consult saw through it.
+    const renamedOfflineThenBackOnline = async (/** @type {any} */ initial) => {
+        const db = makeDb({ initial });
+        const tx = db.api.runTransaction;
+        let offline = true;
+        db.api.runTransaction = async (/** @type {any} */ d, /** @type {Function} */ fn) => {
+            if (offline) throw Object.assign(new Error('client is offline'), { code: 'unavailable' });
+            return tx(d, fn);
+        };
+        db.api.isOnline = () => !offline;
+        const store = createDesignStore(db.api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        offline = false;   // the queued merge has landed (the fake applied it) and the signal is back
+        return { db, store, ours: db.current().revision };
+    };
+    const SILVA_5 = { name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 5 };
+
+    test('online, the first save after our own queued rename is a SAVE, not a conflict', async () => {
+        const { store, ours } = await renamedOfflineThenBackOnline(SILVA_5);
+        const res = await save(store);
+        assert.equal(res.status, 'saved', `nobody but us has touched it since we loaded it — not ${THEM}`);
+        assert.equal(res.baseline?.loadedRevision, ours + 1, 'and the counter moves on from the revision really there');
+    });
+
+    test('online: a colleague\'s save that synced UNDER our rename is still caught, and named', async () => {
+        const { db, store, ours } = await renamedOfflineThenBackOnline(SILVA_5);
+        db.setStore({ name: 'B', updatedAt: ts(2000), updatedBy: THEM, revision: ours });
+        const res = await save(store);
+        assert.equal(res.status, 'conflict', 'her save sits under our revision — it is not our rename');
+        assert.equal(res.conflict?.by, THEM);
+    });
+
+    test('online: a colleague\'s save AFTER our rename synced is still caught', async () => {
+        const { db, store, ours } = await renamedOfflineThenBackOnline(SILVA_5);
+        db.setStore({ name: 'B', updatedAt: ts(3000), updatedBy: 'M. Robson', revision: ours + 1 });
+        const res = await save(store);
+        assert.equal(res.status, 'conflict');
+        assert.equal(res.conflict?.by, 'M. Robson');
+    });
+
+    test('online: Replace, given against the version the cache showed under our rename, writes', async () => {
+        // The cache held S. Silva's 6 before we renamed offline, so the dialog named her 6. Back online,
+        // the server holds our revision over that 6 — the version agreed to, under our own rename.
+        const { store } = await renamedOfflineThenBackOnline({ name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 6 });
+        const res = await save(store, { forcing: true, forceAgainstRev: 6, forceAgainstRevision: 2000 });
+        assert.equal(res.status, 'saved', 'the only change since the dialog is our own rename');
+    });
+
+    test('online: a second rename after our queued one advances the baseline, as a fresh rename does', async () => {
+        const { store } = await renamedOfflineThenBackOnline(SILVA_5);
+        const res = await store.rename({ id: ID, name: 'C', by: ME, preBaseline: 1000, preRevision: 5 });
+        assert.equal(res.baselineFresh, true, 'left stale, the save after it met the same false conflict');
+        assert.equal(typeof res.revision, 'number');
     });
 
     test('Replace, offline, queues against the version it was shown', async () => {

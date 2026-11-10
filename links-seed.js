@@ -85,8 +85,8 @@ export function rosterSeedLines() {
 /**
  * Build the generator's target table from roster lines.
  *
- * One slot per distinct start time, carrying separate Mon–Fri / Sat / Sun headcounts, plus the count
- * of whole SPARE lines.
+ * One slot per distinct shift time — the whole "HH:MM-HH:MM", so two duties that share a start are
+ * two slots — carrying separate Mon–Fri / Sat / Sun headcounts, plus the count of whole SPARE lines.
  *
  * Two things that look like details and are not:
  *
