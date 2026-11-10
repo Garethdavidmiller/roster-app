@@ -312,9 +312,11 @@ const WIRED_AFTER_AUTH = ['initErrorReporter', 'recordUsage', 'recordPageLatency
 /**
  * The promise each page hangs that wiring on. Written down per page rather than inferred, because
  * "some promise" is exactly the assertion that would pass on the wrong one — and the pages really
- * do differ. Five use `sessionReady`; the Calendar has no Auth session of its own and uses
- * `calendarAuthReady` (NOT `calendarAccessReady` — in `open` mode those are different instants, and
- * gating on access alone fires the writes into a window with no token, which is the v20.22 bug).
+ * do differ. Most use `sessionReady`; the Calendar has no Auth session of its own and uses
+ * `calendarAuthReady` (NOT `calendarAccessReady` — they were different instants in the anonymous
+ * `open` mode, retired v24.34, where gating on access alone fired the writes into a window with no
+ * token: the v20.22 bug. Every grant now holds a real user, so the two coincide, but the write gate
+ * is still the promise a writer waits on — calendar-access.js says why).
  *
  * `paycalc.html` is the one `soft` page: it owns its auth chain locally and has no `sessionReady`,
  * so its barrier is the `afterAuth` closure that `ensureNamedSession(...).finally()` invokes. That

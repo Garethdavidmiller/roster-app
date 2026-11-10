@@ -758,10 +758,11 @@ describe('initCalendarAccess', () => {
     });
 
     test('a member with a SESSION but no identity gets a sign-in card, never the PIN field', async () => {
-        // The evicted-identity case, which is not a race at all: iOS clears IndexedDB after ~7 days
-        // of not opening the PWA while the local session runs for 60, so this member fails EVERY
-        // load. Offering them the shared PIN would answer the wrong question — and would hand them a
-        // capability with no `name`, so the drawer would show their name while every write failed.
+        // The lost-identity case, which is not always a race: on an iPhone the identity's IndexedDB
+        // read can fail while the 60-day local session survives (not Safari's seven-day rule, which
+        // deletes the session too — KNOWN_LIMITATIONS → "One interaction to expect on iOS"). Offering
+        // them the shared PIN would answer the wrong question — and would hand them a capability
+        // with no `name`, so the drawer would show their name while every write failed.
         sessionValue = { name: 'G. Miller' };
         const type = await initCalendarAccess({ onGranted: () => {} });
         assert.equal(type, 'none');

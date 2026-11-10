@@ -1096,7 +1096,7 @@ describe('what may not be recorded on a Sunday', () => {
     });
 
     it('a type nobody has heard of is not silently forbidden', () => {
-        // Fail OPEN here, deliberately: the four enforcement layers each also check `isSunday`, and
+        // Fail OPEN here, deliberately: the six enforcement layers each also test for a Sunday, and
         // an unknown type reaching this predicate means a new override type has been added without
         // a decision about Sundays. Refusing it by default would make that new type mysteriously
         // unwritable on one day a week; allowing it makes the omission visible at review.

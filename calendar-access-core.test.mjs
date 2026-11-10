@@ -8,8 +8,9 @@
  * SHIPPED app can genuinely be in, and each has a specific wrong answer that would ship a bug.
  *
  * The two that matter most are the halves of the `named` rule, because each rejects a real
- * situation the other cannot see — a local session with no restorable Firebase identity (iOS ITP
- * evicts IndexedDB after ~7 days), and a Firebase identity with no local session (the exact shape
+ * situation the other cannot see — a local session with no restorable Firebase identity (on an
+ * iPhone its IndexedDB read can fail; Safari's seven-day rule deletes both), and a Firebase identity
+ * with no local session (the exact shape
  * `reconcileExpiredIdentity` exists to tear down). Answering `named` in either case would put the
  * base roster on screen as though it were current, which is the failure the whole feature is
  * built to prevent.
@@ -76,9 +77,9 @@ describe('decideAccess', () => {
     });
 
     test('a session with NO restorable Firebase identity → none, not named', () => {
-        // iOS ITP evicts IndexedDB after ~7 days of no PWA use, so a member can hold a valid 30-day
-        // local session and no identity at all. Answering `named` would render the Calendar and let
-        // every override read be denied — the base roster, presented as current.
+        // The identity can fail to restore (on an iPhone its IndexedDB read can fail) while the
+        // 60-day local session survives. Answering `named` would render the Calendar and let every
+        // override read be denied — the base roster, presented as current.
         assert.equal(decideAccess({ session, firebaseUser: null }), 'none');
     });
 
@@ -313,10 +314,11 @@ describe('personalActionsAllowed — a button that says "yours" must mean it', (
 
     test('VIEWER mode refuses even with a live session name — the state that is reachable', () => {
         // THE CASE AN IDENTITY-ONLY RULE GETS WRONG, and it is not defensive. `decideAccess` needs
-        // a restored FIREBASE USER as well as a session, so an iOS ITP eviction (~7 days of no PWA
-        // use) leaves a valid 60-day local session that falls through to `viewer` the moment a PIN
-        // token is restored — name still in localStorage, PIN on screen. Checking only the name
-        // would light both buttons on exactly the shared machine this keeps them off.
+        // a restored FIREBASE USER as well as a session, so an identity that fails to restore (on an
+        // iPhone, a failed IndexedDB read) leaves a valid 60-day local session that falls through to
+        // `viewer` the moment a PIN token is restored — name still in localStorage, PIN on screen.
+        // Checking only the name would light both buttons on exactly the shared machine this keeps
+        // them off.
         assert.equal(personalActionsAllowed({ ...OWN, accessType: 'viewer' }), false,
             'a stale local name must not survive into viewer mode');
         assert.equal(personalActionsAllowed({ accessType: 'viewer', sessionName: null, shownMember: 'G. Miller' }),

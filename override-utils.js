@@ -825,8 +825,8 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
 // override-utils.test.mjs instead — a fifth forbidden type added here fails those tests rather than
 // being silently writable:
 //
-//   · the week-grid PILLS (`admin-overrides.js`) carry per-pill wording — "Annual leave cannot be
-//     recorded on a Sunday…" — and one shared message would be vaguer than any of them.
+//   · the week-grid PILLS (`admin-week-editor.js`) carry per-pill wording — "Annual Leave —
+//     unavailable on Sundays…" — and one shared message would be vaguer than any of them.
 //   · the single-row SAVE (`admin-app.js`) does three different things with the four types: a plain
 //     `shift` is PROMOTED to `rdw` rather than refused, an "Other" day is refused unless its flavour
 //     is Spare (v18.91), and leave and absence are refused outright. That is not drift — it is what
