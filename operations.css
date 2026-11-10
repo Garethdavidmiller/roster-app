@@ -889,8 +889,10 @@ body.auth-ready .container { display: grid; }
    `<button>` that inherits only the select's CLASSES. Without it the two enhanced selects here
    would lose the border, the fill, the 16px type and the chevron — the page's field design would
    simply stop applying to two of its fields, with nothing to throw. Same edit index.css and
-   paycalc.css needed at v23.36. */
-select, .fieldpick, input[type="text"], input[type="date"] {
+   paycalc.css needed at v23.36. THE PAGE'S OWN FIELDS ONLY (Nov 2026), as admin.css's copy says:
+   bare, these turned the drawer's search white under its white text and scrolled the sign-in screen
+   sideways. `:where()` adds no weight, so nothing on this page that overrides them changes. */
+:where(.container) select, :where(.container) .fieldpick, :where(.container) input[type="text"], :where(.container) input[type="date"] {
     width: 100%;
     padding: 8px 10px;
     border: var(--field-border);
@@ -903,14 +905,14 @@ select, .fieldpick, input[type="text"], input[type="date"] {
     font-family: inherit;
     transition: border-color 0.12s, background-color 0.12s;
 }
-input[type="date"] { min-height: 44px; }
-select, .fieldpick {
+:where(.container) input[type="date"] { min-height: 44px; }
+:where(.container) select, :where(.container) .fieldpick {
     background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
     background-position: right 10px center;
     padding-right: 30px;
 }
-select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not([type="radio"]):focus-visible {
+:where(.container) select:focus-visible, :where(.container) .fieldpick:focus-visible, :where(.container) input:not([type="checkbox"]):not([type="radio"]):focus-visible {
     border-color: var(--primary-blue);
     outline: var(--focus-outline);
     outline-offset: 2px;

@@ -307,10 +307,8 @@
            a few hundred pixels down this same page already uses. Two micro-labels that close
            together should not be set differently; the difference here was drift, not intent. */
         .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; }
-        /* WRAPS, as the Calendar's twin has since v24.46 (Nov 2026). `nowrap` made the fourth figure as
-           wide as its sentence — "Includes 1 day in lieu for working Boxing Day" is ~190px at 9px — so
-           the four figures ran out of the banner and the card cut them off. Quieter by size and colour,
-           never a fade: at `opacity: 0.75` it was 3.47:1 (css-tokens.md → "opacity on a group"). */
+        /* WRAPS, as the Calendar's twin does (Nov 2026): `nowrap` made it as wide as the Boxing Day sentence
+           and the card cut the banner off. Quieter by size and colour, never a fade (3.47:1 at 0.75). */
         .al-banner-stat .stat-breakdown { font-size: 9px; line-height: 1.25; text-align: center; color: var(--text-mid); }
         /* FOUR STATS ON ONE ROW STOP FITTING BELOW 360px, AND THE CARD CLIPS THEM (v23.45).
            `.al-banner-stat` is `flex: 1`, whose default `min-width: auto` will not shrink a box
@@ -356,10 +354,12 @@
             margin-bottom: 5px;
         }
 
-        /* `.fieldpick` is select-sheet.js's trigger button. A class cannot inherit an element
-           selector, so every rule a <select> relies on has to name it too, or an enhanced control
-           renders as a bare button. */
-        select, .fieldpick, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
+        /* `.fieldpick` is select-sheet.js's trigger button: a class cannot inherit an element selector,
+           so every rule a <select> relies on names it too. THE PAGE'S OWN FIELDS ONLY (Nov 2026): bare,
+           these five rules out-ranked fields the page hosts but does not own — the drawer's search went
+           white under its white text, the sign-in card's hidden username scrolled the screen sideways.
+           `:where()` adds no weight; one per selector, because `:is()` takes its heaviest argument's. */
+        :where(.container) select, :where(.container) .fieldpick, :where(.container) input[type="text"], :where(.container) input[type="date"] {
             width: 100%;
             padding: 8px 10px;
             border: var(--field-border);
@@ -375,12 +375,12 @@
         }
 
         /* iOS Safari collapses date inputs when -webkit-appearance:none removes native chrome */
-        input[type="date"] {
+        :where(.container) input[type="date"] {
             min-height: 44px;
         }
 
         /* Restore dropdown arrow removed by appearance: none */
-        select, .fieldpick {
+        :where(.container) select, :where(.container) .fieldpick {
             background-image: var(--caret-chevron-small);
             background-repeat: no-repeat;
             background-position: right 10px center;
@@ -389,7 +389,7 @@
             text-align-last: center;
         }
 
-        select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not([type="radio"]):focus-visible {
+        :where(.container) select:focus-visible, :where(.container) .fieldpick:focus-visible, :where(.container) input:not([type="checkbox"]):not([type="radio"]):focus-visible {
             border-color: var(--primary-blue);
             outline: var(--focus-outline);
             outline-offset: 2px;
@@ -398,7 +398,7 @@
             background-color: white;
         }
 
-        select:disabled, .fieldpick:disabled, input:not([type="checkbox"]):not([type="radio"]):disabled {
+        :where(.container) select:disabled, :where(.container) .fieldpick:disabled, :where(.container) input:not([type="checkbox"]):not([type="radio"]):disabled {
             /* Flatter, darker neutral grey — distinct from the cool enabled
                tint so a disabled control still reads as inert. */
             background-color: var(--field-bg-disabled);
@@ -1043,8 +1043,8 @@
         }
         .day-row.active:not(.fixed-type) .time-hint { display: block; }
 
-        /* Selector includes element type (specificity 0,2,1) to beat the global
-           input[type="text"]{width:100%} rule which scores (0,1,1) */
+        /* Selector includes element type (specificity 0,2,1) to beat the page's
+           input[type="text"]{width:100%} rule, which scores (0,1,1) */
         .col-time input.time-input {
             flex: 0 0 90px;
             width: 90px;
