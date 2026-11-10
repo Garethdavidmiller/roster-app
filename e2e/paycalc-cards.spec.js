@@ -70,6 +70,37 @@ test('paycalc: confirming last year\'s premium reprices the January take-home it
     expect(errors).toHaveLength(0);
 });
 
+// ── THE YEAR BLOCK KEEPS A KEYBOARD USER'S PLACE (paycalc-2-18) ─────────────────────────────────
+//
+// "This tax year so far" is rebuilt with innerHTML on every recalculation, and a focused button that
+// leaves the page drops focus to the body. So a keyboard user on "Fill these from your calendar" lost
+// their place whenever anything recalculated, and again when the fill ended — with its receipt, a
+// status region inserted already filled, often never read out. The recalculation is started from
+// script so that focus is not moved by the test itself: only the rebuild can move it. (When the end
+// of a fill may take focus, and when it must not, is unit-tested in paycalc-year-card.test.mjs.)
+
+test('paycalc: the year fill button keeps keyboard focus through a recalculation, and a keyboard fill focuses its receipt', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));   // inside 2026/27, paid payslips waiting
+    await seedSession(page);
+    await page.addInitScript(QUIET);
+    await page.goto('/paycalc.html');
+    const btn = page.locator('#fillYearBtn');
+    await expect(btn).toBeVisible();
+
+    await btn.focus();
+    await btn.evaluate((b) => { b.dataset.before = '1'; });             // marks THIS node, not its successor
+    await page.locator('#taxCode').evaluate((el) => el.dispatchEvent(new Event('input', { bubbles: true })));
+    await expect(page.locator('#fillYearBtn:not([data-before])'), 'the block was rebuilt').toBeAttached();
+    await expect(btn, 'focus came back to the rebuilt button, not the page body').toBeFocused();
+
+    await page.keyboard.press('Enter');
+    const receipt = page.locator('#ytdYearSoFar .yearso-receipt');
+    await expect(receipt).toContainText(/Filled \d+ payslips? from your calendar/);
+    await expect(receipt, 'a fill started from the keyboard moves focus to what it did').toBeFocused();
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 test('paycalc: with no estimate, confirming last year\'s premium offers it on the January payslip at once', async ({ page }) => {
     // The member who entered no 2025/26 hours has no estimate, so no banner — and the banner carries
     // the opt-in tick. Before the fix it appeared only after some unrelated edit.

@@ -10,7 +10,8 @@
  *   per-period maths (all from paycalc-calc.js — the same functions calculate() uses, so the
  *   per-payslip figures here match what the calculator shows for that payslip), or persistence.
  * Edit here for: what the year-so-far summary counts and how it projects.
- * Do not edit here for: pay maths (paycalc-calc.js), the YTD source anchor (paycalc-app.js).
+ * Do not edit here for: pay maths (paycalc-calc.js), the Year to Date source anchor
+ *   (paycalc-periods.js — `ytdAutoSource`, `ytdSourceOffered`).
  *
  * Estimates are NON-CUMULATIVE per period (like the calculator's standard method), so the summed
  * tax can drift ~£1/period from payroll's cumulative figure — fine for a "so far" overview that
@@ -44,12 +45,14 @@ import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js'
  *   does — so the two surfaces agree; the projection adds the one-off lumps ONCE (never
  *   extrapolated across the year). `slPaidOffFromP` is the loan-repaid cutover (p.num of the first payslip
  *   without a deduction, 0/absent = still repaying — item 9). `now` is injectable for tests.
- * @returns {{ entered: number, paid: number, total: number, taxable: number, tax: number,
+ * @returns {{ entered: number, paid: number, total: number, employed: number, taxable: number, tax: number,
  *             ni: number, sl: number, net: number, projectedNet: number, skipped: number,
  *             missing: Date[] }}
  *   entered — paid payslips with saved hours; paid — payslips whose payday has passed AND that the
  *   member was employed for (a mid-year joiner's pre-start periods are excluded — v18.84);
- *   total — the year's payslip count; money fields — sums over `entered`;
+ *   total — the year's payslip count; employed — those of them the member works, which is what the
+ *   projection extrapolates over (nothing is left to project once `entered` reaches it);
+ *   money fields — sums over `entered`;
  *   projectedNet — (recurring net ÷ entered) × employed periods + lumps, 0 when nothing is entered;
  *   skipped — corrupt periods; missing — paydays of PAID payslips with no saved hours (item 2).
  */
@@ -158,7 +161,7 @@ export function computeYearSoFar(ty, opts) {
   }
 
   return {
-    entered, paid: paidPeriods.length, total: yearPeriods.length,
+    entered, paid: paidPeriods.length, total: yearPeriods.length, employed: employedPeriods,
     taxable, tax, ni, sl, net,
     // Recurring pay extrapolated over employed periods + the one-off lumps added ONCE.
     projectedNet: entered > 0 ? (netRecurring / entered) * employedPeriods + lumpNet : 0,
