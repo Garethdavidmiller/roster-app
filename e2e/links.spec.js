@@ -11,7 +11,7 @@ import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedC
 // rotation length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
-import { ROTATING_LINES } from '../links-design.js';
+import { ROTATING_LINES, CONTRACTED_HOURS_PER_WEEK } from '../links-design.js';
 import { PROPOSALS } from '../links-proposals.js';
 import { describeSetList } from '../links-target-sets.js';
 
@@ -1635,6 +1635,53 @@ test('links memory: a remembered spare count that leaves no working line is refu
     await page.locator('#genApplyBtn').click();
     await expect(error, 'a typed count is clamped short of it').toContainText('Can\'t generate');
     await expect(error).not.toContainText('leaves no working lines');
+});
+
+// THE CONTRACT AND REST REFUSALS, PRESSED (whole-app check, 10 Nov 2026). generateLink's refusals are
+// unit-pinned (links-contract.test.mjs, links-design.test.mjs); what only the page shows is the sentence
+// each becomes — the size of the gap, and remedies that are OPPOSITES for a shortfall and a surplus, so
+// crossing them would tell the designer to make it worse. Until now the only refused press driven in a
+// browser was the spare count above and the over-capacity one.
+for (const [label, weekday, gap, remedy, notRemedy] of /** @type {Array<[string, number, string, string, string]>} */ ([
+    ['short of', 1, 'a week of duty missing across the rotation', 'Add duties, lengthen them, or use more spare weeks',
+        'Remove duties'],
+    ['over', ROTATING_LINES, 'a week of duty more than the rotation is paid for', 'Remove duties, shorten them, or use fewer spare weeks',
+        'Add duties'],
+])) {
+    test(`links generator: a table ${label} the contracted week is refused, with its own remedy`, async ({ page }) => {
+        // One early duty each weekday, on one line or on every line: 8h × 5 = 40h a working line
+        // against the 35h contract when every line works it, and far short when one does.
+        await openLinksWithMemory(page, { slots: [{ time: '06:20-14:20', weekday, sat: 0, sun: 0 }], spareLines: 0 });
+        await page.locator('#genApplyBtn').click();
+        const error = page.locator('#genError');
+        await expect(error).toContainText(`Can't generate — These targets average`);
+        await expect(error).toContainText(`the contract is ${CONTRACTED_HOURS_PER_WEEK}h`);
+        await expect(error).toContainText(gap);
+        await expect(error).toContainText(remedy);
+        await expect(error, 'the opposite remedy would make it worse').not.toContainText(notRemedy);
+        await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
+    });
+}
+
+test('links generator: a table no arrangement can give the minimum rest is refused, naming the gap and the minimum', async ({ page }) => {
+    // The default table pays the contract, so the rest gate is the one left to refuse it. The minimum is
+    // raised in the served module (the line-order note test's route) until no arrangement of those
+    // duties can meet it: an early, then the next day's early, is 16 hours.
+    const ANCHOR = 'export const MIN_REST_MINUTES = 12 * 60;';
+    await page.route('**/links-design.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        if (!src.includes(ANCHOR)) throw new Error(`links: links-design.js no longer contains "${ANCHOR}" — re-point the test.`);
+        await route.fulfill({ response: res, body: src.replace(ANCHOR, 'export const MIN_REST_MINUTES = 20 * 60;'), contentType: 'text/javascript' });
+    });
+    await openLinksWithDesign(page);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click();
+    const error = page.locator('#genError');
+    await expect(error).toContainText('Can\'t generate — one turn would follow another with only');
+    await expect(error).toContainText('rest, and the minimum is 20h 00m. No arrangement of these lines fixes it.');
+    await expect(error).toContainText('Move a late finish earlier or a following start later.');
+    await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
 });
 
 // ── Saved target sets (v21.04) ──────────────────────────────────────────────────────────────────
