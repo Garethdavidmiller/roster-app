@@ -937,6 +937,70 @@ test.describe('access and chrome', () => {
         await expect(page).not.toHaveURL(/overtime\.html/);
     });
 
+    test('the not-open card keeps nothing that describes a form, on either way in (overtime-ui-14)', async ({ page }) => {
+        // v25.06 tidied the PAUSED card; this one kept the hint, both caveats, and a ? and a chevron
+        // that only start() wires — two controls that did nothing.
+        const dead = ['#otMineCard .hint', '#otMineCard .btn-card-tips', '#otMineChevron', '.ot-explainer', '.ot-privacy'];
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await signInThroughOverlay(page, 'S. Silva');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
+        await seedSession(page, 'S. Silva');
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
+    });
+
+    test('a session lost over the reviewer\'s sheet takes the sheet with it (overtime-ui-4)', async ({ page }) => {
+        // The sign-in that covers the page is hidden in print, and the week behind it printed: who
+        // was asked, what they answered and who had not, from a PC whose account had just gone.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+            expected: 1, received: 0, noResponse: 1 }] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 10_000 });
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.ot-day-panel'), 'nothing of the sheet is left to print').toHaveCount(0);
+        await expect(page.locator('#otHorizonContent .ot-week-row')).toHaveCount(0);
+    });
+
+    test('switching to My availability takes the confirm bar down and disarms Create (css-overtime-guides lead)', async ({ page }) => {
+        // Fixed to the foot, the bar stayed over the member's pinned Submit bar until it was
+        // cancelled — with Create still armed for a week no longer on screen.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()], weeks: sixWeeks() });
+        await page.route('**/createOvertimeWindow', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }) }));
+        await page.goto('/overtime.html');
+        await page.locator('#otTabAll').click();
+        await page.getByRole('button', { name: 'Open now' }).first().click();
+        await expect(page.locator('#otConfirmBar')).toBeVisible();
+        await expect(page.locator('#otConfirmCreate')).toBeEnabled();
+        await page.locator('#otTabMine').click();
+        await expect(page.locator('#otConfirmBar')).toBeHidden();
+        expect(await page.evaluate(() => document.body.style.paddingBottom), 'the space held for the bar is given back').toBe('');
+        await page.locator('#otTabAll').click();
+        await expect(page.locator('#otConfirmCreate')).toBeDisabled();
+    });
+
+    test('a fault while the page loads is reported, not only drawn as "Couldn\'t load" (overtime-ui-17)', async ({ page }) => {
+        // Both loaders handle their own network failures, so the catch-all only ever receives a fault
+        // in the page itself — and it logged nothing, so the Error Log never heard of one.
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__faults = [];
+            window.addEventListener('error', (e) => { /** @type {any} */ (window).__faults.push(String(e.error ?? e.message)); });
+        });
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [{ ...openWindow(), weekStart: undefined }] });   // a form that cannot be drawn
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("Couldn't load overtime availability");
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__faults.length),
+            { message: 'the fault reached the page\'s error listeners' }).toBeGreaterThan(0);
+    });
+
     test('a reviewer DOES get the nav pill', async ({ page }) => {
         // Guard the guard: the assertion above passes against a drawer that renders no pills at all.
         await seedSession(page, 'H. Croft');

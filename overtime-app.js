@@ -96,7 +96,7 @@ export function init() {
 
     /**
      * The reviewer's workspace — horizon, week selection, detail, creation preview, confirm bar,
-     * and the eight pieces of state that have to agree about which week is on screen (v21.88).
+     * and the state that has to agree about which week is on screen (v21.88).
      *
      * A page holding BOTH surfaces is deliberate (see overtime.html), and it is still not a reason
      * for one coordinator to hold both: nothing in the reviewer's world is reachable from the
@@ -237,25 +237,21 @@ export function init() {
         // Every named page's follow-up (page-session.js): an unconfirmed OWN session is asked to sign
         // in again — and, since v24.52, so is one revoked LATER. This page alone never watched for
         // that, so a revoked member was left on a form whose every send would fail.
-        if (currentUser) guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: currentUser, established: setAuth });
+        // The sign-in that covers the page is hidden in print, so what the lost account read goes
+        // first — or Ctrl+P printed the availability sheet from behind it (overtime-ui-4).
+        if (currentUser) guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: currentUser, established: setAuth,
+            signIn: () => { review.standDown({ clear: true }); initLoginOverlay({ pageLabel: 'Overtime', onSuccess: () => window.location.reload() }); } });
 
         // ── THE `ready` MILESTONE IS LATE ON THIS PAGE, AND THAT IS THE POINT ───────────────────
         //
-        // This page's shell is a row of "Loading…" placeholders, and its content needs TWO network
-        // round trips before any of it can be used: `getMyOvertimeState`, then the member's roster
-        // behind the form. `domReady` fires at the first of those and `fcp` paints the placeholder,
-        // so the two metrics the App Speed card had would both have called this page ready while
-        // it was still empty — the same mis-measurement `markPageReady` was written for at v20.80,
-        // and worse here than on the pages it was written for, because those are waiting on auth
-        // rather than on data.
-        //
-        // `recordPageLatency` therefore moves AFTER the load — the mark has to exist before the
-        // read, which is why the three `auth-ready` pages get away with marking synchronously. It
-        // is in a `finally`, not the success path: a page that failed to load still took time, and
-        // dropping its sample would quietly bias the figures towards loads that went well.
-        // The forced set-password step, as on every other page that mounts the sign-in (v23.21 —
-        // this coordinator was the one that had never run it, so a reviewer who signed in here was
-        // asked on whichever page they opened next). Fails open by design; never awaited here.
+        // The content needs TWO round trips before any of it is usable (`getMyOvertimeState`, then
+        // the roster behind the form), so `domReady` and `fcp` would both call a row of "Loading…"
+        // placeholders ready — the mis-measurement `markPageReady` exists for. `recordPageLatency`
+        // therefore runs AFTER the load (the mark must exist before the read), in a `finally`: a
+        // page that failed to load still took time, and dropping its sample would bias the figures
+        // towards loads that went well.
+        // The forced set-password step, as on every page that mounts the sign-in (v23.21: a reviewer
+        // who signed in here was asked on the next page instead). Fails open; never awaited here.
         sessionReady.then(() => initPasswordForce(currentUser)).catch(() => {});
         sessionReady.then(() => {
             initErrorReporter();
@@ -266,8 +262,11 @@ export function init() {
             // an absent `ready` is rendered as "—" by the card, which is honest — where a number
             // would be a measurement of something nobody could use.
             if (!mineFailed) markPageReady();
-        }).catch(() => {
+        }).catch((err) => {
             renderError(document.getElementById('otMineContent'));
+            // Both loaders answer their own network failures, so this is a fault in the page: it must
+            // reach the console and the Error Log, not only a "Couldn't load" card (overtime-ui-17).
+            globalThis.reportError?.(err);
         }).finally(() => {
             recordPageLatency('overtime', currentUser);
         });
@@ -307,29 +306,21 @@ export function init() {
     /**
      * Keep the page honest across a deadline it sat open through.
      *
-     * `shouldResyncClock` and its five-minute window have existed since v20.69 with nothing
-     * calling them — a member who opened the form at 11:50 was still told "open" at 12:05. The
-     * realistic shape of that failure is a phone pocketed and re-woken, so the trigger is the page
-     * BECOMING VISIBLE near a deadline, not a timer: a timer burns battery all afternoon to catch
-     * a case that, when it matters, always arrives through this event.
+     * The realistic failure is a phone pocketed and re-woken — a form opened at 11:50 still said
+     * "open" at 12:05 — so the trigger is the page BECOMING VISIBLE near a deadline, or after one has
+     * passed since the screen was read (`shouldResyncClock`), never a timer: a timer burns battery
+     * all afternoon to catch a case that, when it matters, always arrives through this event.
      *
      * ── IT RE-RENDERS ONLY WHEN A PHASE ACTUALLY CHANGED, AND THEN ONLY IF IT MUST ──────────────
      *
-     * The blunt version — reload the card whenever the window is near a deadline — would WIPE a
-     * half-filled form under the member's thumb, which is worse than the stale line it fixes. So
-     * this re-reads state (which also refreshes the clock offset that `submitDisposition` uses) and
-     * compares phases.
-     *
-     * Until v20.86 ANY phase move then reloaded, with a comment reasoning that a member mid-form
-     * whose week just closed loses their picks and the server would have refused them anyway. That
-     * is true of `FINAL_OPEN → CLOSED`. It is not true of `INITIAL_OPEN → FINAL_OPEN`, where the
-     * form stays fully submittable — so there the reload destroyed work for nothing, and the
-     * realistic case is exactly the one this whole function was written for: answering at 11:58,
-     * pocket, reopen at 12:02, five days' answers gone. The window is ±5 minutes of EITHER deadline,
-     * so it is the initial deadline that most often triggers it.
-     *
-     * A still-open move is therefore handed to the form to absorb (`setPhase` repaints the head and
-     * touches nothing else). Only a form that must lose its controls is rebuilt.
+     * Reloading the card near every deadline would WIPE a half-filled form under the member's thumb,
+     * which is worse than the stale line it fixes. So this re-reads state (which also refreshes the
+     * clock offset `submitDisposition` uses) and compares phases. A rebuild is right for
+     * `FINAL_OPEN → CLOSED`, whose picks the server would refuse anyway, and wrong for
+     * `INITIAL_OPEN → FINAL_OPEN`, where the form stays submittable — answering at 11:58 and
+     * reopening at 12:02 lost five days' answers until v20.86. So a still-open move is handed to the
+     * form to absorb (`setPhase` repaints the head and touches nothing else); only a form that must
+     * lose its controls is rebuilt.
      */
     function wireDeadlineResync() {
         document.addEventListener('visibilitychange', async () => {
@@ -675,6 +666,8 @@ export function init() {
         if (minePanel) minePanel.hidden = !mine;
         if (allPanel)  allPanel.hidden = mine;
         document.body.dataset.otView = which;
+        // Its confirm bar is fixed to the foot, over the member's Submit bar (css-overtime-guides lead).
+        if (mine) review.standDown();
     }
 
     /** @param {string} id @param {boolean} selected @param {boolean} [focus] */
@@ -737,6 +730,10 @@ export function init() {
         setTabStrip(false);
         if (allPanel) allPanel.hidden = true;
         if (paused && title) title.innerHTML = '<span aria-hidden="true">⏱️</span> Overtime availability';
+        // Either way there is no form, so nothing that describes one stays: the hint, both caveats, and
+        // the ? and chevron only start() wires (overtime-ui-14; the paused CSS rule covered that path only).
+        document.querySelectorAll('#otMineCard .hint, #otMineCard .card-header-actions, .ot-explainer, .ot-privacy')
+            .forEach((n) => n.classList.add('hidden'));
         if (mine) {
             mine.innerHTML = `
                 <div class="ot-state">

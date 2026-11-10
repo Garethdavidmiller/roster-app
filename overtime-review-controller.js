@@ -11,8 +11,8 @@
  * It is not the right call for one coordinator. The two are different applications sharing a
  * header: the member has a window, a form, a submission and a deadline; the reviewer has a planning
  * horizon, a week selection, a detail workspace, grade and day lenses, a creation preview and a
- * confirm bar. Nothing in the second is reachable from the first, and none of its EIGHT pieces of
- * state means anything to a member.
+ * confirm bar. Nothing in the second is reachable from the first, and none of its state means
+ * anything to a member.
  *
  * ── THE PLANNING HORIZON IS THE POINT OF THE PAGE, NOT A CONVENIENCE ────────────────────────────
  *
@@ -759,6 +759,25 @@ async function setAsking(weekEnding, memberName, ask) {
             if (!selectedWeek) return;
             if (Date.now() - detailFetchedAt < detailRefreshDebounceMs) return;
             renderWeekDetail(selectedWeek);
+        },
+        /**
+         * The reviewer's side has left the screen. The confirm bar goes with it — fixed to the foot, it
+         * covered the member's Submit bar after a switch to "My availability" (css-overtime-guides lead)
+         * — and a Create armed for a week no longer in view is disarmed. `clear`: the session was lost
+         * mid-visit, and the sign-in that covers the page is hidden in print, so what was read under the
+         * account goes too, and no read still out may paint it back (overtime-ui-4).
+         * @param {{ clear?: boolean }} [opts]
+         */
+        standDown({ clear = false } = {}) {
+            pendingWeek = null;
+            hideConfirmBar();
+            armConfirmBar();
+            if (!clear) return;
+            // A horizon read still out is dropped by its ticket, a week read by the selection guard; a
+            // later read that fails finds no snapshot to put back.
+            horizonGeneration++;
+            selectedWeek = null; weekShown = null; horizonShown = null;
+            for (const id of ['otHorizonContent', 'otWeekContent', 'otWeekChip']) { const host = el(id); if (host) host.innerHTML = ''; }
         },
     };
 }

@@ -848,6 +848,67 @@ describe('a refusal about the REVIEWER is worded, never the server\'s sentence i
     });
 });
 
+describe('the reviewer\'s side stands down when it leaves the screen (overtime-ui-4; a css-overtime-guides lead)', () => {
+    // A switch to "My availability" left the fixed bar over the member's Submit bar, with Create armed
+    // for a week no longer in view; a session lost mid-visit left the sheet behind a sign-in that
+    // does not print.
+    async function previewed(over = {}) {
+        const create = pressable('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        dom.otConfirmCreate = pressable('x', null);
+        const c = makeController(over);
+        await boot(c, [WEEK_A]);
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, audience: 'restricted', expectedCount: 1 } } }];
+        await create.press();
+        assert.equal(dom.otConfirmBar.hidden, false, 'premise: the question is up');
+        assert.equal(dom.otConfirmCreate.disabled, false, 'premise: and Create is armed');
+        return c;
+    }
+
+    test('a tab switch takes the bar down and disarms Create — and the workspace stays', async () => {
+        const c = await previewed();
+        const horizon = dom.otHorizonContent.innerHTML;
+        c.standDown();
+        assert.equal(dom.otConfirmBar.hidden, true);
+        assert.equal(dom.otConfirmCreate.disabled, true, 'nothing is armed for a week off screen');
+        assert.equal(globalThis.document.body.style.paddingBottom, '', 'and the space reserved for the bar is given back');
+        assert.equal(dom.otHorizonContent.innerHTML, horizon, 'the reviewer comes back to what they left');
+    });
+
+    test('a lost session empties the cards, and no read still out paints them back', async () => {
+        const c = await previewed({ debounce: 0 });
+        detailFor.set(A, detail(2, 1));
+        await c.selectWeek(A);                                              // the sheet is drawn…
+        assert.equal(painted.length, 1, 'premise: a week is on screen');
+        painted.length = 0;
+        const slow = gated(detail(2, 2));
+        detailFor.set(A, slow.fn);
+        const selecting = c.selectWeek(A);                                  // …and re-read, held
+        /** @type {any} */ let landOverview;
+        overviewQueue = [new Promise(r => { landOverview = () => r({ ok: true, data: { planningWeeks: [WEEK_A], retained: [] } }); })];
+        const reloading = c.loadHorizon({ quiet: true });                  // and a horizon read, held
+        await settle();
+        dom.otWeekChip = { ...fakeEl('otWeekChip'), innerHTML: '1/2' };
+        c.standDown({ clear: true });
+        assert.equal(dom.otConfirmBar.hidden, true);
+        assert.deepEqual([dom.otHorizonContent.innerHTML, dom.otWeekContent.innerHTML, dom.otWeekChip.innerHTML], ['', '', '']);
+        slow.release(); landOverview();
+        await selecting; await reloading; await settle();
+        assert.deepEqual(painted, [], 'the held week read painted nothing');
+        assert.deepEqual([dom.otHorizonContent.innerHTML, dom.otWeekContent.innerHTML], ['', ''], 'nor did the held horizon read');
+        // Every read after the loss fails. None may put back a snapshot taken before it.
+        overviewQueue = [{ ok: false, code: 'no-session' }];
+        detailFor.set(A, { ok: false, code: 'no-session' });
+        c.refreshIfStale();
+        await settle();
+        assert.doesNotMatch(dom.otHorizonContent.innerHTML, /ot-week-row/, 'the horizon is not redrawn from its snapshot');
+        assert.equal(dom.otWeekContent.innerHTML, '', 'and no week is re-read: none is selected now');
+        await c.selectWeek(A);
+        assert.deepEqual(painted, [], 'a failed read of that week shows its error, never the sheet it replaced');
+    });
+});
+
 describe('a horizon row speaks of a past deadline in the past tense (overtime-ui-16)', () => {
     // The first row is always a closed week, and it read "Closes Tue 18 Aug · 12:00" beside "Form
     // closed". The mocked clock reads Thu 20 Aug.
