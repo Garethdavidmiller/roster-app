@@ -26,7 +26,7 @@
  *
  * 3. **`loadGenTargets` accepts TWO stored shapes and stamps its own.** A validator that demanded
  *    only the post-v19.58 `spareLines` would discard every table written before it, silently, in
- *    favour of a perfectly plausible roster seed. The version stamp is what retires an old default
+ *    favour of a perfectly plausible default table. The version stamp is what retires an old default
  *    without touching anything a designer edited.
  *
  * 4. **`activeDesignId` arrives as a GETTER; the identity does not, and the difference is real.**
@@ -179,9 +179,9 @@ export function createTargetPanel(deps) {
     // The DESIGN was saved but the INPUTS that produced it were not — every load re-seeded the table
     // from the current roster, so a designer who tuned the targets lost that work on reload and
     // could never answer "what targets produced this design?" when reviewing it. Stored in
-    // localStorage rather than on the Firestore doc: the doc's rules pin it to
-    // hasOnly(['name','patterns','updatedAt','updatedBy']), so a new field would need a rules deploy,
-    // and these are one designer's working notes rather than shared truth.
+    // localStorage rather than on the Firestore doc: the design document's keys are pinned by a
+    // `hasOnly` list in firestore.rules, so a new field would need a rules deploy first, and these are
+    // one designer's working notes rather than shared truth.
     const GEN_KEY_PREFIX = 'myb_links_gen_';
     const _genTargetsKey = () => GEN_KEY_PREFIX + (getActiveDesignId() || 'unsaved');
 
@@ -257,7 +257,8 @@ export function createTargetPanel(deps) {
 
     /** Read back a stored target table, VALIDATED. This is localStorage: it can hold anything, and a
      *  malformed slot would reach generatePatterns and produce a silently wrong link. Anything that
-     *  fails the shape check is discarded in favour of the roster seed. */
+     *  fails the shape check is discarded in favour of the default table (v21.00; it was the roster
+     *  seed before). */
     function loadGenTargets() {
         let raw;
         try { raw = lsGet(_genTargetsKey()); } catch { return null; }
@@ -271,8 +272,8 @@ export function createTargetPanel(deps) {
             // object with a single `spareLines` count; a validator that demanded only the new one
             // would reject every table stored before the change, and a validator that demanded only
             // the old one rejects everything written after it — silently, because the fallback is a
-            // perfectly plausible roster seed. There is no error, just the designer's tuning quietly
-            // gone. Accept either, reject anything that is neither.
+            // perfectly plausible default table. There is no error, just the designer's tuning
+            // quietly gone. Accept either, reject anything that is neither.
             const legacy = okCounts(v.spare);
             if (!int(v.spareLines) && !legacy) return null;
             if (!v.slots.every((/** @type {any} */ sl) => sl && typeof sl.time === 'string' && okCounts(sl))) return null;

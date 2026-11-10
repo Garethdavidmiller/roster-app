@@ -81,9 +81,11 @@
  */
 import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek, isRest, MIN_REST_MINUTES } from './links-design.js';
 
-/** The things the order can be TUNED for — each one a checkbox. Order matters: it is the display
- *  order too. Rest across the week boundary was the sixth until v25.06 and is now a constraint, like
- *  the spare spread — see `cost`. */
+/** The things the order can be TUNED for — one per checkbox on the generator card, whose `key` is
+ *  what `reorderLines` and `cost` read. This array does not draw the switches: they are static markup
+ *  in links.html, worded there, so a label changed here changes nothing on screen. Rest across the
+ *  week boundary was the sixth until v25.06 and is now a constraint, like the spare spread — see
+ *  `cost`. */
 export const OBJECTIVES = Object.freeze([
     { key: 'variety',      label: 'Vary the shift type week to week' },
     { key: 'maxRun',       label: 'Cap the shifts in a row' },

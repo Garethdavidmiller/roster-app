@@ -405,11 +405,11 @@ export function startTimeJumps(seq, thresholdMinutes = 120) {
 /**
  * FF17 — backward rotation.
  *
- * INTERPRETATION, NOT SETTLED: counted as steps within a working block where the next duty starts
- * EARLIER than the one before it. A forward-rotating pattern moves later through the week, which is
- * the principle the generator already encodes. Reported as a count of backward steps against forward
- * steps, so the pattern's overall direction is visible rather than asserted. **Confirm whether the
- * factor is about individual steps or the cycle's net direction.**
+ * Counted as steps within a working block where the next duty starts EARLIER than the one before it
+ * — ORR's own definition (Managing rail staff fatigue, Aug 2024, 7.68), settled by the owner on
+ * 28 Sep 2026 (see the FF17 row). A forward-rotating pattern moves later through the week. Reported as
+ * a count of backward steps against forward steps, so the pattern's overall direction is visible
+ * rather than asserted.
  * @param {Array<{shift:any, line:number, day:string}>} seq
  */
 export function rotationDirection(seq) {
@@ -584,8 +584,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
 
     // "More than 7 consecutive 8h shifts". The tightest consecutive-working rule on the page and
     // the one most likely to bite THIS link, whose duties are around eight hours: FF11 allows 13
-    // shifts between 48h breaks, and this allows 7. It is marked `confirm` because "8h shifts" has
-    // more than one defensible reading and the choice changes what fires.
+    // shifts between 48h breaks, and this allows 7. "8h shifts" has more than one defensible reading
+    // and the choice changes what fires; the owner settled it on 28 Sep 2026, so the row carries no
+    // `confirm` (see the line above the `add`).
     //
     // Read here as EIGHT HOURS OR MORE, which is the direction that reports rather than the one
     // that stays quiet — a nine-hour duty is not less fatiguing than an eight-hour one, and this

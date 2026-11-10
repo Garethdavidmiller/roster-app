@@ -244,10 +244,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      * The prose under the table: what the demand rows mean, the two things that are not visible as
      * cells, and where the figures came from.
      *
-     * The provenance line is not optional. These simplifiers are base files that will be revised and
-     * the weekday one is not marked final, so a demand curve printed with no version on it is the
-     * undated-printed-sheet defect (v19.45) all over again — right when it was made, unverifiable
-     * afterwards.
+     * The provenance line is not optional. These simplifiers are base files that will be revised, so
+     * a demand curve printed with no version on it is the undated-printed-sheet defect (v19.45) all
+     * over again — right when it was made, unverifiable afterwards.
      *
      * @param {ReturnType<typeof summariseDemand>} sum
      * @param {number} minH
@@ -491,8 +490,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // app's own opinion. Everything below is attributed (company policy, ORR p3, today's link);
         // an assessing manager reading the top of the card could not tell where these came from.
         rows.push(
-            // No modifier class: `.check-section-head:first-child` already drops the top margin and
-            // rule, and `links-analysis.test.mjs` fails on any class this module emits that no
+            // No modifier class. Since the triage block arrived above it this heading is not the
+            // card's first child, so it takes the ordinary top margin and rule, which set the
+            // evidence off from the summary (links.css's `:first-child` rule for it matches nothing
+            // now). `links-analysis.test.mjs` fails on any class this module emits that no
             // stylesheet defines — which is exactly how ~15 rows once shipped on a `check-info`
             // class nothing styled.
             `<div class="check-section-head"><span>This design ` +

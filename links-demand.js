@@ -40,12 +40,9 @@
 import { DAYS, ROTATING_LINES, dayClass, startMinutes, endMinutesAbs } from './links-design.js';
 
 /**
- * Provenance. A demand curve with no version on it is the same defect as the undated printed sheet
- * fixed at v19.45 — right when it was made, and unverifiable afterwards. These are "base" files that
- * WILL be revised, and the weekday one is not even marked final, so the label says so.
- */
-/**
- * Provenance for the demand profile, rendered under the heat map.
+ * Provenance for the demand profile, rendered under the heat map. A demand curve with no version on
+ * it is the same defect as the undated printed sheet fixed at v19.45 — right when it was made, and
+ * unverifiable afterwards — and these are base files that will be revised.
  *
  * `provisional` cleared v19.71: the weekday simplifier is confirmed FINAL (owner, Aug 2026 —
  * the answer to the plan's open question 4). It had been flagged because the file is named
