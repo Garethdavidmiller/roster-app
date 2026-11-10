@@ -283,6 +283,19 @@ describe('a member whose saved changes have not arrived', () => {
         assert.match(g.innerHTML, /Retry/);
     });
 
+    test('its Retry reads THAT member, never "everybody" again (whole-app check, Nov 2026)', () => {
+        // Left to the store's default, a session that had made a capped "All staff" read retried the capped
+        // collection, which never covers the member: the same failure, redrawn for ever.
+        _authority = false;
+        _failed    = true;
+        /** @type {Record<string, Function>} */ const on = {};
+        const link = put('retryWeekLink');
+        link.addEventListener = (/** @type {string} */ t, /** @type {Function} */ fn) => { on[t] = fn; };
+        renderFor(MEMBER);
+        on.click();
+        assert.deepEqual(_loadCalls, [[{ everyone: false, member: MEMBER }]]);
+    });
+
     test('once the slice has arrived the week is built', () => {
         // Guard on the guard: without this, a render that silently did nothing would satisfy both
         // cases above.

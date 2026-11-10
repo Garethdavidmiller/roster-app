@@ -523,7 +523,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             // warn the user that some of the range may already have saved (v16.25). A first-chunk
             // SIGNED_OUT may still land; the write gate (claim-retry.js) refuses a retry until reload.
             if (newDocs.length || deletedIds.size) {
-                try { await loadOverrides({ member: memberName }); } catch { /* best-effort resync — of the BOOKED member, not the dropdown's (A14) */ }
+                try { await loadOverrides({ everyone: false, member: memberName }); } catch { /* best-effort resync — of the BOOKED member, not the dropdown's (A14); a capped re-read would not cover them */ }
                 /** @type {any} */ (err).partialCommit = true;
             }
             throw err;

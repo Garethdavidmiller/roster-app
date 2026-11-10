@@ -487,7 +487,7 @@ export function renderWeekGrid() {
                     : 'Couldn\'t load this member\'s saved changes.')
                     + '<br><span class="reload-link" id="retryWeekLink" role="button" tabindex="0">↻ Retry</span></div>';
                 const r = document.getElementById('retryWeekLink');
-                const again = () => { loadOverrides({ member: memberName }); };
+                const again = () => { loadOverrides({ everyone: false, member: memberName }); };   // this member: a capped re-read never covers them
                 r?.addEventListener('click', again);
                 r?.addEventListener('keydown', /** @param {KeyboardEvent} e */ e => {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); again(); }

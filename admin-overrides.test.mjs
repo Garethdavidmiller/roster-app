@@ -38,6 +38,13 @@ let _cachedNextGetDocs = 0;
 // leave-year move makes before it writes.
 let _getDocReads = 0;
 
+// Every MEMBER read's member — `where('memberName', '==', …)` — in order. A collection read records nothing.
+/** @type {string[]} */ const _memberReads = [];
+
+// When a number: that many commits land, and every commit after it is refused — a long range whose
+// first batch saved and a later one did not (a PARTIAL commit). null leaves every commit alone.
+/** @type {number|null} */ let _commitsThatLand = null;
+
 // Lets a test HOLD a getDocs in flight (a load that has started and not yet resolved) and choose the
 // rows it eventually returns. That is the only way to exercise the ordering between a save and a
 // load, which is a property of WHEN each one writes the cache, not of what either computes.
@@ -96,7 +103,7 @@ mock.module('./firebase-client.js', {
         db:              null,
         collection:      () => null,
         query:           () => null,
-        where:           () => null,
+        where:           (/** @type {string} */ _f, /** @type {string} */ _op, /** @type {string} */ v) => { _memberReads.push(v); return null; },
         orderBy:         () => null,
         limit:           () => null,
         getDocs:         async () => {
@@ -131,6 +138,9 @@ mock.module('./firebase-client.js', {
                         const e = /** @type {any} */ (new Error('Maximum 500 writes allowed per request'));
                         e.code = 'invalid-argument';
                         throw e;
+                    }
+                    if (_commitsThatLand !== null && _commitsThatLand-- <= 0) {
+                        throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' });
                     }
                     _commitSizes.push(ops.length);
                     if (_failNextCommits > 0) {
@@ -1121,6 +1131,28 @@ describe('recordRangeOverrides — batches sized by WRITES (Firestore refuses mo
         assert.ok(_commitSizes.every(n => n <= 500), `a batch carried ${Math.max(..._commitSizes)} writes`);
         assert.equal(_commitSizes.reduce((a, b) => a + b, 0), days.length * 3, 'every day: two deletes and its new record');
         assert.equal(new Set(_batchWrites.filter(w => w.type === 'sick').map(w => w.date)).size, days.length, 'every day was written');
+    });
+
+    // A PARTIAL COMMIT RESYNCS THE BOOKED MEMBER (whole-app check, Nov 2026). Left to the store's default, a
+    // session that had read "All staff" re-read the collection — capped past 5,000 records, which never
+    // covers the member — so the list stayed untruthful and the member's next save was refused.
+    test('a range whose later batch fails re-reads the booked member, not the collection', async () => {
+        const days = [];
+        for (let d = new Date(Date.UTC(2026, 1, 2)); days.length < 230; d.setUTCDate(d.getUTCDate() + 1)) {
+            const dow = d.getUTCDay();
+            if (dow !== 0 && dow !== 6) days.push(d.toISOString().slice(0, 10));
+        }
+        const dup = (/** @type {string} */ date, /** @type {string} */ tag, /** @type {number} */ secs) =>
+            ({ id: `${tag}-${date}`, memberName: 'C. Reen', date, type: 'shift', value: '12:00-19:00', source: 'manual', createdAt: { seconds: secs } });
+        setAllOverrides(days.flatMap(date => [dup(date, 'dupA', 100), dup(date, 'dupB', 200)]));   // the cache claims everybody
+        _memberReads.length = 0; _failNextCommits = 0; _commitsThatLand = 1;
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin', getIdToken: async () => {} });
+        /** @type {any} */ let err;
+        try {
+            await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: 'C. Reen', dates: days, changedBy: 'G. Miller' });
+        } catch (e) { err = e; } finally { auth.currentUser = null; _commitsThatLand = null; }
+        assert.equal(err?.partialCommit, true, 'premise: the first batch landed and a later one did not');
+        assert.deepEqual(_memberReads, ['C. Reen'], 'the resync reads the booked member');
     });
 });
 

@@ -460,6 +460,10 @@ async function _loadOverridesInner(opts) {
             _allOverrides = _overridesTruncated ? mergeCappedRead(_allOverrides, rows, _coverage.members) : rows;
             // A CAPPED read covers the LIST, never a write — see admin-override-coverage.js.
             _coverage = withAll(_coverage, { complete: !_overridesTruncated });
+            // So a member on screen whom only an earlier COMPLETE read covered has just lost cover, with no
+            // read of their own coming: their week sat on "Loading…" for ever. Queue one (whole-app check, Nov 2026).
+            const onScreen = fieldMember?.value;
+            if (onScreen && !hasAuthorityFor(_coverage, onScreen)) loadOverrides({ everyone: false, member: onScreen });
         } else {
             // ONE MEMBER, EVERY DATE. No cap and no truncation flag: a single member cannot approach
             // the collection cap, so the partial-list banner would be claiming something untrue.
@@ -502,9 +506,12 @@ async function _loadOverridesInner(opts) {
                 ? 'You\'re offline — saved changes can\'t be checked until you reconnect.'
                 : 'Couldn\'t load saved changes.'}<br><span class="reload-link" id="retryLoadLink" role="button" tabindex="0">↻ Retry</span></div>`;
             const retry = document.getElementById('retryLoadLink');
-            // No captured opts: after a member switch the stale ones would re-fetch the member the
-            // admin has already left. Re-resolve from the page at the moment Retry is pressed.
-            const again = () => { loadOverrides(everyone ? { everyone: true } : {}); };
+            // No captured member: after a member switch it would re-fetch the member the admin has
+            // already left. Re-resolve from the page at the moment Retry is pressed. But a failed
+            // MEMBER read retries as a member read: left to the default, a session that had made a
+            // capped "All staff" read re-read the capped collection, which never covers the member,
+            // so Retry redrew the same failure for ever (whole-app check, Nov 2026).
+            const again = () => { loadOverrides({ everyone }); };
             // Back online, it tries again by itself — the offline case is the one with a known cure.
             if (offline) window.addEventListener('online', again, { once: true });
             retry?.addEventListener('click', again);
