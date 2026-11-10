@@ -122,14 +122,19 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *  relaunched straight into the grid) keeps it, because that reader has not navigated anywhere. */
     let currentTeamWeekStart = getSunday(new Date());
 
-    /** Grade tab shown in team view. Defaults to the logged-in member's role. */
-    let currentTeamGrade = (() => {
+    /** Grade tab shown in team view: the grade of the member the Calendar is showing, decided each
+     *  time the view OPENS until the reader picks a tab — that choice then stays. It was decided once,
+     *  at load, so a first run fixed it on the default member nobody picked (10 Nov 2026). */
+    let currentTeamGrade = 'CEA';
+    let _gradeChosen = false;
+    function openingGrade() {
+        if (_gradeChosen) return currentTeamGrade;
         try {
-            const idx  = getSelectedMemberIndex();
+            const idx  = isFirstRun?.() ? -1 : getSelectedMemberIndex();
             const role = idx >= 0 ? teamMembers[idx].role : 'CEA';
             return TEAM_GRADES.includes(role) ? role : 'CEA';
         } catch { return 'CEA'; }
-    })();
+    }
 
     // ── HELPERS ───────────────────────────────────────────────────────────────
 
@@ -391,7 +396,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         if (gradeTabList) {
             gradeTabList.addEventListener('click', e => {
                 const tab = /** @type {Element} */ (e.target).closest('.grade-tab');
-                if (tab) renderTeamView(/** @type {HTMLElement} */ (tab).dataset.grade ?? '', { skipFetch: true });
+                if (tab) { _gradeChosen = true; renderTeamView(/** @type {HTMLElement} */ (tab).dataset.grade ?? '', { skipFetch: true }); }
             });
             gradeTabList.addEventListener('keydown', e => {
                 const ke = /** @type {KeyboardEvent} */ (e);
@@ -401,6 +406,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                 const idx  = tabs.findIndex(t => t === document.activeElement);
                 if (idx === -1) return;
                 const next = /** @type {HTMLElement} */ (tabs[(idx + (ke.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]);
+                _gradeChosen = true;
                 renderTeamView(next.dataset.grade ?? '', { skipFetch: true });
                 /** @type {HTMLElement} */ (calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade ?? ''}"]`))?.focus();
             });
@@ -633,7 +639,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             _pushOverlayState(toggleTeamView); // Back returns to calendar
             // The month the reader is ON, not the month the clock is on — see `weekStartForMonth`.
             currentTeamWeekStart = weekStartForMonth(getDisplayedMonth?.(), new Date());
-            renderTeamView(currentTeamGrade);
+            renderTeamView(openingGrade());
         } else {
             _clearOverlayHistory(toggleTeamView); // Remove THIS overlay's pushed entry when exiting via button
             watchHintFit(null, null);             // the week's box is about to go: stop watching it
@@ -730,7 +736,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         // so Back exits the app instead of returning to the month calendar — inconsistent with
         // entering team view via the toggle.
         _pushOverlayState(toggleTeamView);
-        renderTeamView(currentTeamGrade);
+        renderTeamView(openingGrade());
     }
 
     /** Jumps to the current week — called from the global Today button when in team view. */

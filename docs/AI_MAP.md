@@ -390,8 +390,9 @@ what an edit can break.
   five row-2 keys, their row, nights, Christmas and Easter (a computed month, never April).
 - `onDispatcherRosterIn(member, year, month, resolve)` — the Night key, decided per DAY, so a scheduled
   move onto or off Dispatch moves it.
-- `legendShown(display, isTeamViewMode)` → `'render'|'hide'|'stand-down'`. A withheld month hides it,
-  `'stale'` shows it, and `'stand-down'` is not `'hide'`: Team View owns the element, so write nothing.
+- `legendShown(display, isTeamViewMode, firstRun)` → `'render'|'hide'|'stand-down'`. A withheld month
+  hides it, and so does a first run (the prompt has no key); `'stale'` shows it, and `'stand-down'` is
+  not `'hide'`: Team View owns the element, so write nothing.
 - `createLegend(deps)` → `{ update }`. The shown/hidden answer belongs to the UPDATE, not to a render,
   because a swipe commit updates the legend without rendering (`e2e/calendar.spec.js`).
 

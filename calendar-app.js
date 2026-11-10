@@ -207,8 +207,12 @@ applyTextScale(document);
     if (!hint) return;
     // Not until the Calendar is OPEN (whole-app review, Oct 2026). Locked, the hint is hidden with the
     // workspace — and its 6s timer still marked it seen, so a first visit that began at the sign-in
-    // card used up the one showing on nothing.
-    calendarAccessReady.then(() => { hint.style.display = ''; setTimeout(dismissSwipeHint, 6000); });
+    // card used up the one showing on nothing. Nor over the first-run prompt, which has no month to
+    // swipe: it waits for the name to be picked (10 Nov 2026).
+    const show = () => { hint.style.display = ''; setTimeout(dismissSwipeHint, 6000); };
+    calendarAccessReady.then(() => {
+        if (!isFirstRun()) show(); else document.getElementById('teamMemberSelect')?.addEventListener('change', show, { once: true });
+    });
 })();
 
 function dismissSwipeHint() {
@@ -289,6 +293,7 @@ const legend = createLegend({
         return v === 'loading' && _snapshotFor(/** @type {any} */ (getCurrentMember())?.name ?? '', y, m) ? 'stale' : v;
     },
     isTeamViewMode: () => teamView.isTeamViewMode(),
+    isFirstRun,
 });
 const updateLegend = () => legend.update();
 
@@ -367,7 +372,8 @@ function renderCalendar() {
         // of the default member's roster. Guarding renderCalendar itself covers EVERY render path
         // — init, the initial Firestore fetch's re-render, swipe — so the prompt is never
         // overwritten. Picking a name saves it → isFirstRun() false → normal render. (H1)
-        if (isFirstRun()) { showFirstRunPrompt(); return; }
+        // The legend is asked too: leaving Team View has just un-hidden it, and a prompt has no key.
+        if (isFirstRun()) { updateLegend(); showFirstRunPrompt(); return; }
         const member = getCurrentMember();
 
         // If the previously-selected member was removed from the roster, show a one-time notice.
@@ -562,10 +568,9 @@ function announceMonthChange() {
 
 document.getElementById('todayBtn')?.addEventListener('click', () => {
     if (isSwipeCooldown()) return;
-    if (isFirstRun()) return;   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
     if (teamView.isTeamViewMode()) {
-        teamView.jumpToCurrentWeek();
-    } else {
+        teamView.jumpToCurrentWeek();   // Team View draws a first run itself, so 📍 works there too
+    } else if (!isFirstRun()) {   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
         const now = new Date();
         setDisplayMonth(now.getMonth());
         setDisplayYear(now.getFullYear());
@@ -910,7 +915,6 @@ try {
             if (document.getElementById('huddleViewer')?.classList.contains('visible')) return;
             if (document.querySelector('.nav-panel.open')) return;
             if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
-            if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
             if (teamView.isTeamViewMode()) {
                 // The week table is a tab stop on a narrow screen so that a keyboard can SCROLL it
                 // (axe scrollable-region-focusable, v25.43) — and ← → are how it scrolls. Turned into
@@ -921,6 +925,8 @@ try {
                 if (e.key === 't' || e.key === 'T') teamView.jumpToCurrentWeek();
                 return;
             }
+            // Below Team View, which draws a first run itself (no "my row"), so its keys work there.
+            if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
             // Guard: when a calendar day cell has focus, arrow keys move between cells
             // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
             // Honour the year-boundary no-op like the Prev/Next buttons do (they check aria-disabled,

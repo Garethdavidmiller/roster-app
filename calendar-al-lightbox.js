@@ -20,7 +20,7 @@ import { getAccessType } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getSession } from './session.js';
 import { shiftBadgeParts } from './roster-data.js';
-import { getCurrentMember } from './calendar-member.js';
+import { getCurrentMember, isFirstRun } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
@@ -94,6 +94,16 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const statsEl  = document.querySelector('.al-lb-stats');
   const remLblEl = document.getElementById('alLbLblRemaining');
 
+  // The markup's own words are the could-not-load answer, kept to put back after another line.
+  const LOAD_FAILED = alErrorEl?.textContent ?? '';
+  /** The line under the figures, for when they are not a confirmed balance — or there are none.
+   *  @param {string|null} text */
+  function noteLine(text) {
+    if (!alErrorEl) return;
+    alErrorEl.textContent = text ?? '';
+    alErrorEl.hidden = !text;
+  }
+
   /** Every not-a-figure state — '…' while loading, '—' with nothing to show. Muted (v24.46 polish):
    *  in the figures' teal they read as four real values.
    *  @param {string} ch */
@@ -140,7 +150,10 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   let _alLoadGen = 0;
   async function loadALStats() {
     const myGen   = ++_alLoadGen;
-    const member  = getCurrentMember();
+    // A FIRST RUN IS NOBODY'S LEAVE (10 Nov 2026): the selector falls back to a default member nobody
+    // picked, which the grid, the print header and the usage counter already refuse to show as anyone's.
+    const firstRun = isFirstRun();
+    const member  = firstRun ? null : getCurrentMember();
     const year    = alYear;
     const yearStr = String(year);
 
@@ -166,9 +179,9 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         accessType: getAccessType(), sessionName: getSession()?.name, shownMember: member?.name,
       });
     }
-    if (alErrorEl) alErrorEl.hidden = true;
+    noteLine(null);
 
-    if (!member) { paintPlaceholder('—'); return; }
+    if (!member) { paintPlaceholder('—'); if (firstRun) noteLine('Choose your name first to see your leave.'); return; }
 
     // Instant paint from the last successful load (if any) while the refresh runs; else the
     // '…' placeholders as before. A malformed memo falls through to placeholders.
@@ -262,7 +275,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       if (memoShown) { console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e); return; }
       console.error('[AL lightbox] Failed:', e);
       paintPlaceholder('—');
-      if (alErrorEl) alErrorEl.hidden = false;
+      noteLine(LOAD_FAILED);
     } finally {
       // Stop the 15s timeout once the race has settled (success / error / timeout) — on the fast
       // path getDocs wins in ~1s but the timer kept running to 15s, accumulating one per open (v16.22).

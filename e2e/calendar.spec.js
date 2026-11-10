@@ -917,6 +917,82 @@ test('calendar: first-run pick survives a failed localStorage write (iOS private
     expect(errors, 'Uncaught JS exceptions in private-mode first-run').toHaveLength(0);
 });
 
+// ── A FIRST RUN THAT GOES INTO TEAM VIEW, OR OPENS THE LEAVE PANEL (10 Nov 2026, cal-ui-3) ─────────
+// A station PC on the staff PIN where nobody has picked a name. Team View handles that state on purpose
+// (no "my row"), so its controls must work there; and the leave panel and the colour key must give the
+// first-run answer the grid gives — nobody's figures, no key to a grid that is not there.
+test('calendar: on a first run, Team View still answers 📍 and the ← → T keys', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    const label = page.locator('#tvWeekJump');
+    await expect(label).toBeVisible();
+    const thisWeek = await label.innerText();
+    await page.keyboard.press('ArrowRight');
+    await expect(label, '→ moves a week, as the Team View help says').not.toHaveText(thisWeek);
+    await page.keyboard.press('t');
+    await expect(label, 'T comes back to this week').toHaveText(thisWeek);
+    await page.locator('#tvNextWeek').click();
+    await expect(label).not.toHaveText(thisWeek);
+    await page.locator('#todayBtn').click();
+    await expect(label, '📍 comes back to this week').toHaveText(thisWeek);
+});
+
+test('calendar: on a first run, the leave panel shows nobody\'s leave and asks for a name', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLightbox')).toBeVisible();
+    await expect(page.locator('#alLbWho'), 'nobody has been chosen, so the panel names nobody').toBeHidden();
+    await expect(page.locator('#alLbTaken')).toHaveText('—');
+    await expect(page.locator('#alLbError')).toHaveText(/Choose your name/);
+    await expect(page.locator('#alLightbox')).toHaveAttribute('aria-label', 'Annual Leave balance');
+});
+
+test('calendar: on a first run, leaving Team View does not put the colour key under the prompt', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await expect(page.locator('.legend'), 'premise: no key beside the prompt').toBeHidden();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#tvWeekJump')).toBeVisible();
+    await page.locator('#teamViewBtn').click();   // back to Month
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await expect(page.locator('.legend')).toBeHidden();
+});
+
+test('calendar: Team View opens on the grade of the name picked after a first run', async ({ page }) => {
+    const ces = teamMembers.find(m => !m.hidden && m.role === 'CES');
+    expect(ces, 'premise: the roster has a CES').toBeTruthy();
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-CEA'), 'nobody chosen yet: the first grade').toHaveAttribute('aria-selected', 'true');
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#teamMemberSelect').selectOption({ label: ces.name });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-CES')).toHaveAttribute('aria-selected', 'true');
+    // …and a tab the reader CHOOSES stays chosen when the view is opened again.
+    await page.locator('#gradeTab-Dispatcher').click();
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#gradeTab-Dispatcher')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('calendar: a first visit does not use up the swipe hint over the choose-your-name prompt', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only');
+    test.setTimeout(30_000);
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.waitForTimeout(6_500);
+    await expect(page.locator('#swipeHint'), 'there is no month to swipe under the prompt').toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBeNull();
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('#swipeHint'), 'shown once there is a month to swipe').toBeVisible();
+});
+
 test('calendar: a removed saved member falls back to the calendar + stale banner, NOT the first-run prompt', async ({ page }) => {
     // Saved member that no longer exists in the roster (e.g. a leaver who was removed).
     await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent'));
