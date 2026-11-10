@@ -41,6 +41,7 @@ import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './operations-tips.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
+import { withSlowSaveNotice } from './slow-save.js';
 
 
 
@@ -483,7 +484,9 @@ export function init() {
                 }
                 saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; errorEl.textContent = '';
                 try {
-                    await saveStaffContact(m.name, email);
+                    // Every write on this page says when the server is slow to answer, as Admin's and
+                    // Settings' do (slow-save.js), rather than sitting on "Saving…" (Nov 2026 review).
+                    await withSlowSaveNotice(saveStaffContact(m.name, email));
                     emailMap.set(m.name, email);
                     renderForGrade(filterSelect.value);
                     focusGradeFilter();
@@ -513,9 +516,10 @@ export function init() {
                 }, 3000);
                 return;
             }
-            removeBtn.disabled = true; removeBtn.textContent = 'Removing…';
+            // Disarmed as the delete starts, or the revert above fires into it ("Removing…" → "Remove").
+            removeBtn.dataset.confirm = ''; removeBtn.disabled = true; removeBtn.textContent = 'Removing…';
             try {
-                await deleteStaffContact(m.name);
+                await withSlowSaveNotice(deleteStaffContact(m.name));
                 emailMap.delete(m.name);
                 renderForGrade(filterSelect.value);
                 focusGradeFilter();
@@ -767,7 +771,7 @@ export function init() {
                     /** @type {HTMLButtonElement} */ (btn).disabled = true;
                     const row = btn.closest('.rr-row');
                     row?.querySelector('.rr-error')?.remove();
-                    try { await clearResetRequest(name); initResetRequests(); }
+                    try { await withSlowSaveNotice(clearResetRequest(name)); initResetRequests(); }
                     catch (e) {
                         // A gated write (Oct 2026 review): an outcome that is UNKNOWN is said so, and
                         // the button stays off — a second Clear would only be refused by the gate.
