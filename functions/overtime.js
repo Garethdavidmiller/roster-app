@@ -1351,8 +1351,25 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                         lastMutationSeenAt: acceptedAt,
                         schemaVersion:   SCHEMA_VERSION,
                     };
-                    if (decision.action === 'create') headWrite.firstAcceptedAt = acceptedAt;
-                    tx.set(headRef, headWrite, { merge: true });
+                    // ── THE HEAD IS THE NEWEST ANSWER, WHOLE (overtime-core-1, Nov 2026) ─────────
+                    //
+                    // Both cases used to be one `set(…, { merge: true })`, and a merge-set merges a
+                    // nested map KEY BY KEY: the SDK writes only the leaf paths of `days`. So
+                    // anything a member REMOVED from a day — the 12-hour tick, the Sunday-release
+                    // request, the times of the answer they moved off — stayed in the head for ever
+                    // while the revision beside it was right. The reviewer read a withdrawn request
+                    // as live, a reloaded form re-sent the stale keys (refused `unknown-field` where
+                    // the new answer cannot carry them), and an identical retry stopped being a no-op.
+                    //
+                    // So revision 1 SETS the head (the read above found none), and every later
+                    // revision UPDATES it. An update replaces each field it names whole, `days`
+                    // included, and leaves `firstAcceptedAt` — written by the first revision only —
+                    // where it is.
+                    if (decision.action === 'create') {
+                        tx.set(headRef, { ...headWrite, firstAcceptedAt: acceptedAt });
+                    } else {
+                        tx.update(headRef, headWrite);
+                    }
                     return { revision, created: decision.action === 'create' };
                 });
             } catch (err) {

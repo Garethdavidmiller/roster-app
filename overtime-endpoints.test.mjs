@@ -46,12 +46,50 @@ const SERVER_NOW = Date.parse('2026-08-17T09:00:00Z');
  */
 const DELETE_SENTINEL = { __delete: true };
 
-/** Apply a patch the way Firestore does, honouring delete sentinels. */
-function applyPatch(current, patch) {
-    const next = { ...(current || {}) };
+// ── HOW A WRITE LANDS — Firestore's rules, not a looser fake's (overtime-core-1, Nov 2026) ──────
+//
+// The fake modelled `set(…, { merge: true })` as `{ ...old, ...new }`: a SHALLOW merge, which
+// replaces a nested map whole. Firestore does the opposite. The SDK builds the write's mask from
+// every LEAF path of the data (`DocumentMask.fromObject`, @google-cloud/firestore), so a key held
+// in a stored map and absent from the new one SURVIVES. That gap is how a submission head that kept
+// a removed answer for ever passed every test in this file. The three shapes the code uses:
+//
+//   update(patch)     each top-level key is ONE field, replaced whole — a map included — and the
+//                     document must exist (the SDK sends an `exists: true` precondition)
+//   set(data)         the whole document is replaced
+//   set(data, merge)  only the leaf paths of `data` are written; every other field stays
+//
+// A timestamp or a sentinel is a leaf, never a map to walk into. The real ones are class instances;
+// this fake's timestamps are plain `{ toMillis }` objects, so `toMillis` is what marks one here.
+
+/** @param {any} v */
+const isLeaf = (v) => v === null || typeof v !== 'object' || Array.isArray(v)
+    || v === DELETE_SENTINEL || typeof v.toMillis === 'function';
+
+/** Firestore's NOT_FOUND, as an update of a missing document fails. @param {string} path */
+const notFound = (path) => Object.assign(new Error(`5 NOT_FOUND: No document to update: ${path}`), { code: 5 });
+
+/** `update()`: each top-level key replaces its field whole; the delete sentinel removes it. */
+function applyUpdate(current, patch) {
+    const next = { ...current };
     for (const [k, v] of Object.entries(patch)) {
+        // The SDK reads a dotted update key as a NESTED path. Nothing here writes one, and a fake
+        // that quietly stored it as a literal key would hide that it was being used.
+        assert.ok(!k.includes('.'), `the fake models top-level update fields only, not "${k}"`);
         if (v === DELETE_SENTINEL) delete next[k];
         else next[k] = v;
+    }
+    return next;
+}
+
+/** `set(…, { merge: true })`: write the LEAF paths of `data`; every other field stays as it was. */
+function applyMerge(current, data) {
+    const next = { ...(current || {}) };
+    for (const [k, v] of Object.entries(data)) {
+        if (v === DELETE_SENTINEL) delete next[k];
+        // An EMPTY map is a leaf too: the SDK masks the map's own path, so it is set as given.
+        else if (isLeaf(v) || Object.keys(v).length === 0) next[k] = v;
+        else next[k] = applyMerge(next[k] !== undefined && !isLeaf(next[k]) ? next[k] : {}, v);
     }
     return next;
 }
@@ -59,6 +97,30 @@ function applyPatch(current, patch) {
 function makeDb(seed = {}, onRead = null) {
     const store = new Map(Object.entries(seed));
     let txQueue = Promise.resolve();
+    /** @param {string} path @param {any} data @param {any} [opts] */
+    const writeSet = (path, data, opts) => {
+        store.set(path, opts?.merge ? applyMerge(store.get(path), data) : data);
+    };
+    /** @param {string} path @param {any} patch */
+    const writeUpdate = (path, patch) => {
+        if (!store.has(path)) throw notFound(path);
+        store.set(path, applyUpdate(store.get(path), patch));
+    };
+    /**
+     * Apply a batch's or a transaction's writes ALL OR NOTHING, as Firestore commits them. Store
+     * values are replaced, never mutated in place, so a shallow copy is a complete undo.
+     * @param {Array<() => void>} writes
+     */
+    const commitAll = (writes) => {
+        const before = new Map(store);
+        try {
+            for (const w of writes) w();
+        } catch (err) {
+            store.clear();
+            for (const [k, v] of before) store.set(k, v);
+            throw err;
+        }
+    };
     // POINT-IN-TIME, as a real snapshot is: the data is what the document held when it was READ.
     // A lazy `store.get` here let a snapshot see writes made after it, which hid every
     // read-then-act race behind a fake that no production read can behave like.
@@ -133,23 +195,22 @@ function makeDb(seed = {}, onRead = null) {
             id: path.split('/').pop(),
             collection: (name) => collRef(`${path}/${name}`),
             get: async () => snap(path),
-            update: async (patch) => { store.set(path, applyPatch(store.get(path), patch)); },
-            set: async (data, opts) => {
-                store.set(path, opts?.merge ? applyPatch(store.get(path), data) : data);
-            },
+            update: async (patch) => { writeUpdate(path, patch); },
+            set: async (data, opts) => { writeSet(path, data, opts); },
         };
     }
     return {
         _store: store,
         collection: collRef,
         batch: () => {
-            const ops = [];
+            /** @type {Array<() => void>} */
+            const writes = [];
             /** Paths the batch CREATES — Firestore refuses the whole commit if any already exists. */
             const creates = [];
             return {
-                set: (ref, data) => ops.push([ref.path, data]),
-                create: (ref, data) => { creates.push(ref.path); ops.push([ref.path, data]); },
-                delete: (ref) => ops.push([ref.path, null]),
+                set: (ref, data, opts) => { writes.push(() => writeSet(ref.path, data, opts)); },
+                create: (ref, data) => { creates.push(ref.path); writes.push(() => writeSet(ref.path, data)); },
+                delete: (ref) => { writes.push(() => { store.delete(ref.path); }); },
                 // Commit is all-or-nothing here too, so a test that expects atomicity is testing
                 // the same property production relies on rather than a looser fake.
                 commit: async () => {
@@ -159,20 +220,30 @@ function makeDb(seed = {}, onRead = null) {
                     if (creates.some(p => store.has(p))) {
                         throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 });
                     }
-                    for (const [p, d] of ops) { if (d === null) store.delete(p); else store.set(p, d); }
+                    commitAll(writes);
                 },
             };
         },
         // SERIALISED, as Firestore's optimistic concurrency makes conflicting transactions in effect:
         // the loser retries against the winner's write. Without this the fake would let two claims
         // on one document both succeed, and a claim-before-send could never be tested.
+        //
+        // And BUFFERED: the writes are applied together when the function returns, all or nothing,
+        // as Firestore commits them. Applied as they were issued, a revision written before a failing
+        // head write would already have landed — a revision with no head, the one shape the
+        // submission's single transaction exists to rule out.
         runTransaction: (fn) => {
-            const run = txQueue.then(() => fn({
-                get: async (ref) => snap(ref.path),
-                set: (ref, data, opts) => store.set(ref.path,
-                    opts?.merge ? { ...(store.get(ref.path) || {}), ...data } : data),
-                update: (ref, patch) => store.set(ref.path, applyPatch(store.get(ref.path), patch)),
-            }));
+            const run = txQueue.then(async () => {
+                /** @type {Array<() => void>} */
+                const writes = [];
+                const result = await fn({
+                    get: async (ref) => snap(ref.path),
+                    set: (ref, data, opts) => { writes.push(() => writeSet(ref.path, data, opts)); },
+                    update: (ref, patch) => { writes.push(() => writeUpdate(ref.path, patch)); },
+                });
+                commitAll(writes);
+                return result;
+            });
             txQueue = run.catch(() => {});
             return run;
         },
@@ -348,6 +419,66 @@ const NOT_HTTP = new Set([
     'purgeExpiredOvertimeWindows',
 ]);
 const httpEndpoints = (eps) => Object.entries(eps).filter(([k]) => !NOT_HTTP.has(k));
+
+describe('the fake writes the way Firestore does — or a test can pass on a write production would not make', () => {
+    // Guard the harness (overtime-core-1). Every case below is a rule of the SDK this file's handlers
+    // depend on; the shallow merge it replaces passed the head write that kept removed answers.
+    const D = 'docs/one';
+    const at = { toMillis: () => 5 };
+
+    test('a MERGE-set keeps a key the stored map has and the new data does not name', async () => {
+        const db = makeDb({ [D]: { days: { sun: { mode: 'all_day', fullTwelve: true } }, keep: 1 } });
+        await db.collection('docs').doc('one').set({ days: { sun: { mode: 'unavailable' } } }, { merge: true });
+        assert.deepEqual(db._store.get(D),
+            { days: { sun: { mode: 'unavailable', fullTwelve: true } }, keep: 1 },
+            'a merge writes leaf paths only, so the removed tick survives');
+    });
+
+    test('an UPDATE replaces a named map whole, and leaves every unnamed field alone', async () => {
+        const db = makeDb({ [D]: { days: { sun: { mode: 'all_day', fullTwelve: true } }, keep: 1 } });
+        await db.collection('docs').doc('one').update({ days: { sun: { mode: 'unavailable' } } });
+        assert.deepEqual(db._store.get(D), { days: { sun: { mode: 'unavailable' } }, keep: 1 });
+    });
+
+    test('an update of a MISSING document is refused, and writes nothing', async () => {
+        const db = makeDb();
+        await assert.rejects(db.collection('docs').doc('one').update({ a: 1 }), /NOT_FOUND/);
+        assert.equal(db._store.has(D), false);
+    });
+
+    test('a plain set replaces the whole document', async () => {
+        const db = makeDb({ [D]: { a: 1, b: 2 } });
+        await db.collection('docs').doc('one').set({ b: 3 });
+        assert.deepEqual(db._store.get(D), { b: 3 });
+    });
+
+    test('in a merge a timestamp is a LEAF, an empty map is set as given, and delete removes a nested key', async () => {
+        const db = makeDb({ [D]: { when: { toMillis: () => 1 }, m: { x: 1 }, n: { y: 1, z: 2 } } });
+        await db.collection('docs').doc('one').set({ when: at, m: {}, n: { z: DELETE_SENTINEL } }, { merge: true });
+        const got = db._store.get(D);
+        assert.equal(got.when, at, 'the new stamp replaced the old one rather than being walked into');
+        assert.deepEqual(got.m, {});
+        assert.deepEqual(got.n, { y: 1 });
+    });
+
+    test('a transaction is ALL OR NOTHING — a write before a failing one does not land', async () => {
+        const db = makeDb();
+        const ref = (/** @type {string} */ id) => db.collection('docs').doc(id);
+        await assert.rejects(db.runTransaction(async (tx) => {
+            tx.set(ref('first'), { a: 1 });
+            tx.update(ref('missing'), { b: 2 });
+        }), /NOT_FOUND/);
+        assert.equal(db._store.has('docs/first'), false, 'the first write was rolled back with the second');
+    });
+
+    test('and a transaction\'s merge-set merges the way the SDK does', async () => {
+        const db = makeDb({ [D]: { days: { sun: { mode: 'all_day', releaseRequested: true } } } });
+        await db.runTransaction(async (tx) => {
+            tx.set(db.collection('docs').doc('one'), { days: { sun: { mode: 'all_day' } } }, { merge: true });
+        });
+        assert.equal(db._store.get(D).days.sun.releaseRequested, true);
+    });
+});
 
 describe('the auth ladder — the same four rungs on every endpoint', () => {
     test('the sweep below covers every HTTP endpoint there is', () => {
@@ -1193,6 +1324,78 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         const first = db._store.get(`overtimeWindows/${WEEK}/submissions/G. Miller/revisions/000001`);
         assert.equal(first.days[DATES[0]].mode, 'all_day', 'history is immutable');
         assert.equal(db._store.get(`overtimeWindows/${WEEK}/submissions/G. Miller`).currentRevision, 2);
+    });
+
+    // ── A REMOVED ANSWER IS REMOVED (overtime-core-1, Nov 2026) ─────────────────────────────────
+    //
+    // The head was written with a merge-set, which Firestore applies leaf by leaf, so whatever a
+    // member took OUT of a day stayed in the head for ever. The first answer here carries everything
+    // that can be taken out — both riders on the Sunday, custom times on the Monday — and the second
+    // takes all of it out. Invisible until the fake merged the way Firestore does.
+    const SUN = DATES[0];
+    const MON = DATES[1];
+    const TUE = DATES[2];
+    const HEAD = `overtimeWindows/${WEEK}/submissions/G. Miller`;
+    const everything = () => ({ ...noDays(),
+        [SUN]: { mode: 'all_day', fullTwelve: true, releaseRequested: true },
+        [MON]: { mode: 'custom', start: '18:00', end: '23:00', nextDay: false } });
+    const narrowed = () => ({ ...noDays(), [SUN]: { mode: 'all_day' }, [MON]: { mode: 'unavailable' } });
+    /** Revision 1 with everything in it, then revision 2 with it all taken out. */
+    async function answeredThenNarrowed() {
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const built = build(seededWindow());
+        const one = await call(built.eps.submitOvertimeAvailability, req(good({ days: everything() })));
+        const two = await call(built.eps.submitOvertimeAvailability, req(good({
+            days: narrowed(), ifRevision: 1, clientMutationId: 'mutation-0002' })));
+        assert.equal(one.code, 200);
+        assert.equal(two.code, 200, `premise: the narrowing amendment is accepted: ${JSON.stringify(two.body)}`);
+        return built;
+    }
+
+    test('an amendment REPLACES each day — a tick, a request or a time the member took out is gone from the head', async () => {
+        const { db } = await answeredThenNarrowed();
+        unfreeze();
+        const head = db._store.get(HEAD);
+        assert.deepEqual(head.days, narrowed(), 'the head holds the newest answer and nothing left over');
+        assert.deepEqual(head.days, db._store.get(`${HEAD}/revisions/000002`).days,
+            'and agrees with the revision it names — the history is derived from those revisions');
+        assert.equal(head.currentRevision, 2);
+        assert.equal(head.firstAcceptedAt.toMillis(), Date.parse('2026-08-17T09:00:00Z'),
+            'while the first acceptance, written by revision 1 only, survives the amendment');
+    });
+
+    test('so the member\'s own read serves exactly the newest answer — what a reloaded form starts from', async () => {
+        const { eps } = await answeredThenNarrowed();
+        const r = await call(eps.getMyOvertimeState, req({}));
+        unfreeze();
+        assert.deepEqual(r.body.windows[0].submission.days, narrowed());
+    });
+
+    test('and an identical retry of the narrowing is still a no-op, not a conflict', async () => {
+        // decideSubmission compares the incoming week with the HEAD: with leftovers in it, the same
+        // content re-sent on a stale baseline came back 409 — "a newer version is saved" — about
+        // the member's own saved answer.
+        const { eps } = await answeredThenNarrowed();
+        const r = await call(eps.submitOvertimeAvailability, req(good({
+            days: narrowed(), ifRevision: 1, clientMutationId: 'retry-000002' })));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(r.body.noop, true);
+    });
+
+    test('and the reloaded form\'s next save is accepted — the served answer goes straight back in', async () => {
+        // The form's working copy is the served head, sent as it is. A leftover the new mode cannot
+        // carry (times beside "Not available") was refused `unknown-field` on every later save.
+        const { eps, db } = await answeredThenNarrowed();
+        const served = (await call(eps.getMyOvertimeState, req({}))).body.windows[0].submission;
+        const working = { ...served.days, [TUE]: { mode: 'all_day' } };
+        const r = await call(eps.submitOvertimeAvailability, req(good({
+            days: working, ifRevision: served.currentRevision, clientMutationId: 'mutation-0003' })));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(r.body.revision, 3);
+        assert.equal(db._store.get(`${HEAD}/revisions/000003`).days[SUN].releaseRequested, undefined,
+            'a withdrawn Sunday request is not re-recorded under the member\'s name');
     });
 
     test('an identical retry with a STALE baseline succeeds, creates nothing, and records its mutation id', async () => {
