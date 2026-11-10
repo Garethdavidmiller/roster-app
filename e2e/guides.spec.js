@@ -420,6 +420,35 @@ test('staff guide: the on-screen banner\'s title has no top margin, as on paper'
     }
 });
 
+// A GRID TRACK IS ONLY AS NARROW AS ITS WIDEST CHILD ALLOWS (css-tokens.md), on the document guides (whole-app review,
+// Nov 2026). `.cols` had bare `1fr` tracks, so with the text enlarged one child that will not shrink — the Staff Guide's
+// two-column badge key — widened the column past a phone's edge, and every paragraph, heading and table in it ran off
+// the right. The text is scaled ONCE, every size read before any is written (the shared `scaleText` compounds through
+// inherited sizes), because Android's font scale multiplies sizes and leaves the viewport alone.
+test('staff guide: enlarged text does not widen the column past a phone @layout', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/staff-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => {
+        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+        const sizes = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (sizes[i]) el.style.fontSize = (sizes[i] * 1.5) + 'px'; });
+    });
+    const m = await page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        const cols = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.cols')]);
+        return {
+            tracks: cols.map(c => ({ track: parseFloat(getComputedStyle(c).gridTemplateColumns), box: c.getBoundingClientRect().width })),
+            past: [...document.querySelectorAll('.cols p, .cols h2, .cols table, .cols .info')]
+                .filter(el => el.getBoundingClientRect().right > vw + 1).length,
+        };
+    });
+    for (const { track, box } of m.tracks) {
+        expect(track, `a column's track is ${track}px in its ${box}px box`).toBeLessThanOrEqual(box + 0.5);
+    }
+    expect(m.past, 'paragraphs, headings, tables and notes running past the screen\'s edge').toBe(0);
+});
+
 // The ← had no hover on four guides, and on the Railcard guide that page's `a:hover` (amber, meant for
 // links in the text) reached it — amber on navy, ~3.3:1 (desktop audit, Nov 2026). One hover now, the
 // shell's, read off the rendered arrow under a real mouse.

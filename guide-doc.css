@@ -125,7 +125,15 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
 .lede { font-size: 14px; color: var(--text); margin-bottom: 10px; }
 
 /* ── Two-column layout ───────────────────────────────── */
-.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+/* `minmax(0, …)` tracks and `min-width: 0` items (css-tokens.md → "A grid track is only as narrow as its widest
+   child ALLOWS"): a bare `1fr` track's floor is its widest child's min-content, so one child that will not
+   shrink widened the whole column. With the text enlarged (Android's font scale, which leaves the viewport
+   alone) the Staff Guide's badge key did exactly that, and every paragraph ran off the right of a phone
+   (whole-app review, Nov 2026). MUTATION SAYS either declaration alone is enough — the items' `min-width: 0`
+   also zeroes what they contribute to a bare `1fr` track — so the guard (e2e/guides.spec.js) fails only
+   when both go; both stay, because that is the rule's shape on every page-level grid. */
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.cols > * { min-width: 0; }
 
 /* ── Info / tip callout ──────────────────────────────── */
 .info {
@@ -235,7 +243,7 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 1
 @media screen and (max-width: 640px) {
     body  { padding: 0 0 max(28px, env(safe-area-inset-bottom)); }
     .page { padding: 12px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left)); }
-    .cols { grid-template-columns: 1fr; gap: 0; }
+    .cols { grid-template-columns: minmax(0, 1fr); gap: 0; }
     .guide-header { padding: 12px 14px; margin-bottom: 16px; }
     .guide-header h2 { font-size: 15px; }
     .guide-header-icon { width: 34px; height: 34px; border-radius: 9px; }
