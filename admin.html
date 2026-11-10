@@ -293,7 +293,8 @@
             </div>
             <div class="al-preview" id="alPreview" role="status" aria-live="polite"></div>
             <button type="button" class="btn-save" id="alSaveBtn" disabled>Record annual leave</button>
-            <div class="feedback" id="alFeedback" role="status" aria-live="polite"></div>
+            <!-- tabindex="-1": where focus goes when a delete empties the list below (admin-booked-periods.js). -->
+            <div class="feedback" id="alFeedback" role="status" aria-live="polite" tabindex="-1"></div>
 
             <!-- WHICH YEAR'S ALLOWANCE (v25.18). January leave comes out of that year's allowance
                  unless it is moved to the year before (owner, 3 Nov 2026 — leave-year.js). Drawn by
@@ -354,7 +355,7 @@
             </div>
             <div class="al-preview sick-preview" id="sickPreview" role="status" aria-live="polite"></div>
             <button type="button" class="btn-save" id="sickSaveBtn" disabled>Record absence</button>
-            <div class="feedback" id="sickFeedback" role="status" aria-live="polite"></div>
+            <div class="feedback" id="sickFeedback" role="status" aria-live="polite" tabindex="-1"></div>
 
             <!-- Collapsible: all recorded absence days for the selected member -->
             <div class="al-booked-box" id="sickBookedBox" hidden>
@@ -405,7 +406,8 @@
             <div class="skeleton-row" aria-hidden="true"></div>
             <div class="skeleton-row" aria-hidden="true"></div>
         </div>
-        <div class="list-feedback" id="listFeedback" role="status" aria-live="polite"></div>
+        <!-- tabindex="-1": where focus goes when a delete removes the control that held it (admin-saved-changes.js). -->
+        <div class="list-feedback" id="listFeedback" role="status" aria-live="polite" tabindex="-1"></div>
         </div><!-- /.card-collapsible-body -->
     </div>
 
