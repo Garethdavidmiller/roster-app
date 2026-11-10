@@ -89,4 +89,5 @@ export default defineConfig({
     },
     projects: [{ name: 'mobile-safari' }],
     webServer: DEV.webServer,
+    globalSetup: DEV.globalSetup,   // a reused server must prove it serves this checkout (e2e/server-identity.mjs)
 });

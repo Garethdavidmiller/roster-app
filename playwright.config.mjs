@@ -106,7 +106,9 @@ export default defineConfig({
     // --silent suppresses the per-request log spam during test runs.
     // The command, its url and `baseURL` all come from one call, because a port changed in one
     // of them and not the others is a readiness probe that HANGS rather than an error. Reuse is
-    // still on locally — but the port now names the CHECKOUT, so an adopted server is serving
-    // these files and not another worktree's. See e2e/dev-server.mjs for what went wrong.
+    // still on locally, on a port derived from the CHECKOUT — but two checkouts can draw the same
+    // port, so the globalSetup makes an adopted server PROVE it serves these files before any test
+    // runs. See e2e/dev-server.mjs for what went wrong, twice.
     webServer: DEV.webServer,
+    globalSetup: DEV.globalSetup,
 });
