@@ -1571,7 +1571,9 @@ button.lightbox-bug-link {
 }
 .picker-search-input::placeholder { color: var(--text-light); }
 .picker-search-input:focus { background-color: white; border-color: var(--primary-blue); }
-.picker-search-input:focus-visible { outline: var(--focus-outline); outline-offset: 1px; }
+/* The field's ring as well as its outline — it borrowed one from Admin's and Operations' field rules, as the
+   sign-in card's fields did (see `.login-field`'s focus rule). */
+.picker-search-input:focus-visible { outline: var(--focus-outline); outline-offset: 1px; box-shadow: var(--focus-ring); }
 /* The OS clear button, suppressed exactly as `.nav-gs-input` does — `type="search"` is kept for
    the iOS keyboard's Search key, not for the widget the engine draws with it. */
 .picker-search-input::-webkit-search-cancel-button,
@@ -3210,12 +3212,16 @@ button.nav-panel-link--notices {
     text-align: center;
     text-align-last: center;
 }
+/* …and the 4px ring every field wears (css-tokens.md → Focus indicators). It was missing here, so the card
+   borrowed it from Admin's and Operations' own field rules and had none on the other seven pages: one shared
+   card, two focus looks, depending on the page that hosted it (whole-app review, Nov 2026). */
 .login-field select:focus-visible,
 .login-field .fieldpick:focus-visible,
 .login-field input:not([type="checkbox"]):not([type="radio"]):focus-visible {
     border-color: var(--primary-blue);
     outline: var(--focus-outline);
     outline-offset: 2px;
+    box-shadow: var(--focus-ring);
     background-color: white;       /* brighten to white on focus — matches the app's fields */
 }
 .login-error {

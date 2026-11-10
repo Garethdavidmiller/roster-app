@@ -810,6 +810,41 @@ test('the sign-in screens never scroll sideways, whatever a page styles its fiel
     expect(await measure('#pwForceOverlay'), 'the set-password sheet scrolls, or its hidden field has a box').toEqual({ scroll: 0, field: [1, 1] });
 });
 
+// ── ONE CARD, ONE FOCUS LOOK (whole-app review, Nov 2026) ───────────────────────────────────────────
+// The sign-in card's fields and the picker sheet's search box are styled in shared.css so that every page
+// draws them the same, and their focus rules had no `--focus-ring`: they wore the 4px field ring only on
+// Admin and Operations, borrowed from those pages' own field rules, and none on the other seven. A focus
+// state is in no screenshot, so it is read off the focused field, on every page that shows the card.
+test('a focused sign-in field, and the picker\'s search box, wear the field ring on every page', async ({ page }) => {
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
+    const ringOf = () => page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.boxShadow = 'var(--focus-ring)';
+        document.body.append(probe);
+        const ring = getComputedStyle(probe).boxShadow;
+        probe.remove();
+        return ring;
+    });
+    for (const url of PAGES) {
+        await page.goto(url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        const ring = await ringOf();
+        expect(ring, 'premise: the token resolves to a ring').not.toBe('none');
+        await page.locator('#loginPassword').focus();
+        expect(await page.locator('#loginPassword').evaluate(el => getComputedStyle(el).boxShadow), `${url}: the focused password field`).toBe(ring);
+    }
+    // The search box, on a page whose own stylesheet styles no field — the case that had no ring to borrow.
+    await page.goto('/settings.html');
+    await page.locator('#loginGradeTrigger').waitFor();
+    await page.locator('#loginGrade').selectOption('CEA');
+    await page.locator('#loginNameTrigger').click();
+    const search = page.locator('.picker-search-input');
+    await expect(search, 'premise: the CEA list is long enough to offer a filter').toBeVisible();
+    await search.focus();
+    expect(await search.evaluate(el => getComputedStyle(el).boxShadow), 'the picker\'s focused search box').toBe(await ringOf());
+});
+
 // ── A SHORT LAPTOP WINDOW SHOWS THE WAY IN (desktop audit, Nov 2026) ────────────────────────────────
 // A laptop's browser window is ~600–650px tall, and the Pay Calculator's card — explanation and all —
 // was 894px, so "Sign in →" sat under the fold with nothing to say the form went on; the Calendar's
