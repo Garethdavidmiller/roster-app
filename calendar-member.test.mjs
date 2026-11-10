@@ -199,6 +199,55 @@ describe('getSelectedMemberIndex — in-memory backstop', () => {
     });
 });
 
+// ── THE PICKER AND THE GRID NAME THE SAME PERSON FOR THE LIFE OF THE PAGE (cal-data-2) ─────────
+//
+// The picker is filled ONCE, at start-up (calendar-app.js), and the grid used to ask the shared key
+// on every render — so Admin rewriting that key under a live Calendar (another tab, or a Back that
+// restores this page from the back/forward cache) drew one person under a picker naming another, and
+// re-picking the named one changed nothing. The page's selection is now held once it is known.
+describe('the selection a live page draws', () => {
+    /** The picker as calendar-app.js builds it at start-up; returns the name it shows selected. */
+    function buildPicker() {
+        /** @type {any[]} */ const opts = [];
+        const mk = (/** @type {string} */ tag) => ({ tag, _kids: /** @type {any[]} */ ([]), value: '', textContent: '', selected: false,
+            disabled: false, label: '', appendChild(/** @type {any} */ c) { this._kids.push(c); return c; } });
+        const select = { appendChild(/** @type {any} */ c) { (c.tag === 'optgroup' ? c._kids : [c]).forEach(o => opts.push(o)); return c; } };
+        Object.defineProperty(select, 'innerHTML', { set() { opts.length = 0; }, get() { return ''; } });
+        /** @type {any} */ (globalThis).document = { getElementById: (/** @type {string} */ id) => (id === 'teamMemberSelect' ? select : null), createElement: mk };
+        populateTeamMemberDropdown();
+        return () => opts.find(o => o.selected)?.textContent;
+    }
+
+    test('a key rewritten under the page does not move the grid off the picker', () => {
+        store.set(MEMBER_KEY, 'B. Jones');
+        const pickerShows = buildPicker();
+        assert.equal(pickerShows(), 'B. Jones');
+        store.set(MEMBER_KEY, 'A. Smith');   // Admin, following whoever it is editing
+        assert.equal(getCurrentMember().name, pickerShows(),
+            'the next render drew the member Admin wrote, under a picker still naming the one on screen');
+    });
+
+    test('the signed-in member chosen at start-up is held the same way', () => {
+        _session = { name: 'B. Jones' };
+        assert.equal(getSelectedMemberIndex(), 1);
+        store.set(MEMBER_KEY, 'A. Smith');
+        assert.equal(getCurrentMember().name, 'B. Jones');
+    });
+
+    test('a pick on THIS page still moves the grid — and still hands the choice to the next load', () => {
+        store.set(MEMBER_KEY, 'B. Jones');
+        getSelectedMemberIndex();
+        saveSelectedMember(0);
+        assert.equal(getCurrentMember().name, 'A. Smith');
+        assert.equal(store.get(MEMBER_KEY), 'A. Smith', 'the key is how the next Calendar load, and Admin, learn the choice');
+    });
+
+    test('a first run holds nothing — the default is not a choice, so the prompt stays', () => {
+        assert.equal(getSelectedMemberIndex(), 0);
+        assert.equal(isFirstRun(), true, 'asking which member to draw ended the first-run prompt');
+    });
+});
+
 // ── getCurrentMember ──────────────────────────────────────────────────────────
 
 describe('getCurrentMember', () => {
