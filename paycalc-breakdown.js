@@ -12,25 +12,64 @@
  * this was a mechanical extraction to gain testability, not a redesign of the breakdown.
  */
 
-import { fmt } from './paycalc-format.js';
+import { fmt, decimalToHM } from './paycalc-format.js';
+
+/** A tax code fit to quote on the page — letters and digits, which every real PAYE code is — or null.
+ *  Anything else is described, never written in, so nothing typed into the box becomes markup.
+ *  @param {unknown} code @returns {string|null} */
+const plainTaxCode = code => typeof code === 'string' && /^[A-Z0-9]{1,12}$/.test(code) ? code : null;
+/** A code as a payslip prints it: the emergency suffix is a word of its own ("1257L M1", v24.96).
+ *  @param {string} code */
+const shownTaxCode = code => code.replace(/(W1|M1|X)$/, ' $1');
 
 /**
- * Decimal hours → "Nh Mm" / "Nh" — the per-row hours label in the full breakdown. Pure.
+ * What the page says when the Tax Code box holds a code `computeTax` does not recognise (whole-app
+ * review, Nov 2026). Such a code is priced on the standard 1257L allowance — a fallback as old as the
+ * engine — and only the "Check against your payslip" line said so, which is hidden until the
+ * payslip's cut-off and silent until a take-home is typed more than £2 out. "OT" typed for a payslip's
+ * 0T put the estimate £241.80 high with nothing on screen to say why. So it is said under the Income
+ * Tax figure it changed (`row`, markup) and under the box it was typed in (`field`, plain text that
+ * leads with the ⚠ `setStatus` keeps out of the announcement).
+ * @param {string} code  the code as `computeTax` read it
+ * @returns {{ row: string, field: string }}
+ */
+export function taxCodeNotRecognised(code) {
+    const plain = plainTaxCode(code);
+    const hint = plain?.includes('O') ? ' 0T and D0 are written with a zero, not the letter O.'
+        : plain && /^\d+$/.test(plain) ? ' A tax code made of numbers ends in a letter, like the L in 1257L.'
+        : '';
+    return {
+        row: plain
+            ? `Tax code <strong>${shownTaxCode(plain)}</strong> isn't one the calculator recognises, so this uses the standard 1257L allowance — check it in Your Settings.${hint}`
+            : "The tax code in Your Settings isn't one the calculator recognises, so this uses the standard 1257L allowance — check it there.",
+        field: `⚠ The calculator doesn't recognise this tax code, so it works out your tax on the standard 1257L allowance.${hint}`,
+    };
+}
+
+/**
+ * Decimal hours → "Nh Mm" / "Nh" — the per-row hours label in the full breakdown. Pure. Through
+ * `decimalToHM`, whose 60-minute carry it lacked: 140 − 7h 20m − 7h 40m is 124.99999999999999 in
+ * floating point, and the basic-pay row read "124h 60m" (whole-app review, Nov 2026).
  * @param {number} h decimal hours
  * @returns {string}
  */
 export function fmtHrsMins(h) {
-    const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
-    return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
+    const hm = decimalToHM(Math.max(0, h)) ?? { h: 0, m: 0 };
+    return hm.m > 0 ? `${hm.h}h ${hm.m}m` : `${hm.h}h`;
 }
 
 /**
  * Build the estimate summary rows (#summary): Regular/Total pay → back pay → HPP → pension →
  * tax → NI → Student Loan → estimated take-home. `slLines` is the loan rows, from `buildLoanLines`.
+ * `taxCode` and `taxCodeRecognised` are what `computeTax` read and whether it knew it: an unknown code
+ * gets a line under Income Tax saying the figure is on the standard allowance (`taxCodeNotRecognised`).
+ * `taxPayLimited` is `computeTax`'s `payLimited`: the Year to Date figures asked for more tax than the
+ * payslip pays, which only a mistyped figure does, so the row says to check them.
  * @param {{
  *   _bpThisPeriod:number, _hppForPeriod:number, gross:number, grossWithBp:number,
  *   _bpIsEstimate:boolean, _hppIsEstimate:boolean, pension:number, sacGross:number,
- *   usingCumulative:boolean, tax:number, ni:number, slLines:string, net:number, taxRefund?:number
+ *   usingCumulative:boolean, tax:number, ni:number, slLines:string, net:number, taxRefund?:number,
+ *   taxCode?:string, taxCodeRecognised?:boolean, taxPayLimited?:boolean
  * }} d
  * @returns {string} innerHTML for #summary
  */
@@ -38,7 +77,10 @@ export function buildSummaryRows(d) {
     const {
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
         pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund = 0,
+        taxCode = '', taxCodeRecognised = true, taxPayLimited = false,
     } = d;
+    const codeNote = (taxCodeRecognised === false ? `<span class="sum-net-sub">${taxCodeNotRecognised(taxCode).row}</span>` : '')
+        + (taxPayLimited ? '<span class="sum-net-sub">Your Year to Date figures ask for more tax than this payslip pays, so this shows only what it can — check Taxable Pay and Tax Paid against your payslip.</span>' : '');
     return `
         ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
           ? `<div class="sum-row"><span class="lbl">Regular pay</span><span class="val">${fmt(gross)}</span></div>
@@ -48,7 +90,7 @@ export function buildSummaryRows(d) {
           : `<div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>`}
         ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension contribution</span><span class="val">−${fmt(pension)}</span></div>` : ''}
         ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
-        <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}${_refundNote(taxRefund)}</span><span class="val">−${fmt(tax)}</span></div>
+        <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}${_refundNote(taxRefund)}${codeNote}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
         ${slLines}
         <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_netNote(d) ? `<span class="sum-net-sub">${_netNote(d)}</span>` : ''}</span><span class="val">${fmt(net)}</span></div>
@@ -171,11 +213,13 @@ export function buildBreakdownRows(d) {
         bd += `<div class="bd-row"><span class="b-lbl">Sunday Working (${fh(sHrs)} × ${fmt(r150)})</span><span class="b-val">${fmt(gSunday)}</span></div>`;
     if (bHrs > 0)
         bd += `<div class="bd-row"><span class="b-lbl">Boxing Day Working (${fh(bHrs)} × ${fmt(r300)})</span><span class="b-val">${fmt(gBoxing)}</span></div>`;
+    // "Peer Training", the Hours row's own name (paycalc-3-18): "Training Days" is also what the
+    // Calendar calls a day a member ATTENDS training, which needs nothing here.
     if (peer > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Training Days (${peer} day${peer>1?'s':''} × 2h × ${fmt(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Peer Training (${peer} day${peer>1?'s':''} × 2h × ${fmt(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
     bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
     if (otherAdj !== 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;   // fmt signs a negative "−£"
     // The stopped-deducting cutover outranks the one-off skip (mirrors the summary-row precedence).
     // Worded as the observable fact, never "repaid in full" (v19.27): a loan moved to direct debit
     // stops being deducted while still owed.
@@ -269,10 +313,9 @@ export function buildActualCheck(actual, estimated, used = {}) {
     const dir = diff > 0 ? 'more' : 'less';
     const gap = `${fmt(ad)} ${dir} than this estimate.`;
     const knowsCode = typeof used.taxCode === 'string';
-    const plainCode = knowsCode && /^[A-Z0-9]{1,12}$/.test(used.taxCode ?? '') ? used.taxCode : null;
-    // Shown as a payslip prints it: the emergency suffix is a separate word there ("1257L M1", not
-    // the engine's "1257LM1"), and this sentence asks the member to compare the two (v24.96).
-    const shownCode = plainCode ? plainCode.replace(/(W1|M1|X)$/, ' $1') : null;
+    const plainCode = knowsCode ? plainTaxCode(used.taxCode) : null;
+    // Shown as a payslip prints it, because this sentence asks the member to compare the two.
+    const shownCode = plainCode ? shownTaxCode(plainCode) : null;
     // A payday label the app wrote ("25 Sep"); anything else is left out rather than quoted.
     const ytdFrom = typeof used.ytdFrom === 'string' && /^[0-9]{1,2} [A-Z][a-z]{2}( [0-9]{4})?$/.test(used.ytdFrom) ? used.ytdFrom : '';
     // Each sentence is written out whole, so the words on screen can be found in this file.
@@ -319,14 +362,21 @@ export function buildActualCheck(actual, estimated, used = {}) {
  * place causes are (carefully) discussed stays the net verdict line, which has owned that wording
  * since v18.42.
  *
+ * LIKE WITH LIKE. `gross` is the payslip's pay figure, its "Taxable Pay" line, and that comes AFTER
+ * the pension (paycalc.md → payslip line names; the breakdown's own note says the payslip's figure is
+ * lower than the Total pay row by the pension). So the estimate's `gross` is its pay after the
+ * pension — the summary's "Pay after pension deduction" — and the row carries the payslip's name for
+ * it. Set against the Total pay row, a perfect estimate showed the whole pension as a difference.
+ *
  * @param {{ actual: {gross: number|null, pension: number|null, tax: number|null,
  *   ni: number|null, net: number|null},
  *   estimate: {gross: number, pension: number, tax: number, ni: number, net: number} }} d
+ *   `gross` on both sides is Taxable Pay — the pay after the pension
  * @returns {string} '' when no line beyond net is entered
  */
 export function buildActualComparison({ actual, estimate }) {
     const LINES = /** @type {const} */ ([
-        ['gross',   'Total pay'],
+        ['gross',   'Taxable Pay'],
         ['pension', 'Pension contribution'],
         ['tax',     'Income Tax'],
         ['ni',      'National Insurance'],

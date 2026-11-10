@@ -1,16 +1,20 @@
 // @ts-check
 // Pay-calculator form-field input helpers — extracted from paycalc-app.js (v18.60, review item 10:
 // "continue focused coordinator extraction"). These read/normalise the numbers a member types into
-// the hours & figures fields and own the live "= 7h 30m" decimal-conversion hint.
+// the hours & figures fields, own the live "= 7h 30m" decimal-conversion hint and the Tax Code box's
+// warning.
 //
-// They depend ONLY on the DOM (`document`) plus the pure number/format helpers imported below — NO
-// coordinator closure state — so they lift cleanly out of paycalc-app.js's init() and are
+// They depend ONLY on the DOM (`document`) plus the helpers imported below (pure, but for setStatus,
+// which only writes the element it is handed) — NO coordinator closure state — so they lift cleanly
+// out of paycalc-app.js's init() and are
 // unit-testable in Node against a fake `document` (paycalc-inputs.test.mjs). The event WIRING that
 // USES them (autoDecimalHours, onHhMm) stays in the coordinator, because it closes over
 // calculate()/autosave()/period state; it simply calls these primitives.
 
 import { parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import { clampMinute, decimalToHM } from './paycalc-format.js';
+import { taxCodeNotRecognised } from './paycalc-breakdown.js';
+import { setStatus } from './status-text.js';
 
 /** @param {string} id */
 export function numVal(id) {
@@ -44,23 +48,36 @@ export function numValOr(id, fallback) {
 export function intVal(id)    { return Math.max(0, parseInt(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '') || 0); }
 
 /**
- * An hours/minutes pair as whole hours + minutes, reading a DECIMAL still in the hours box the way
- * the blur split (`autoDecimalHours`) will write it: floor to hours, the fraction to minutes, the
- * minutes box REPLACED. Before this, "7.5" read as parseInt's 7 until blur — priced 7h live, and
- * stored 7h by any autosave that ran while the field was focused. One reader, so what is priced,
- * what is stored and what the member sees after blur cannot disagree.
+ * What an hours box holding MORE than whole hours means, as hours + minutes — or null for whole
+ * hours or nothing, which the box's own integer read handles. PURE. Two shapes:
+ *  - a decimal, "7.5" → 7h 30m — and with a decimal COMMA, "7,5", which a decimal-comma region's
+ *    keypad offers (whole-app review, Oct 2026; how a bare ",5" parses is `parseSmartFloat`'s rule);
+ *  - a clock time, "7:30" → 7h 30m (whole-app review, Nov 2026). The box is text, so a desk keyboard
+ *    can type one, and `parseInt` stopped at the colon: priced and saved as 7h while still reading
+ *    "7:30". Minutes above 59 are held at 59, as the minutes box holds them.
+ * The ONE reader behind the price (`hmPair`), the live "= 7h 30m" preview and the blur split, so
+ * what is priced, what is stored and what the member sees afterwards cannot disagree.
+ * @param {string} raw the hours box's text
+ * @returns {{ h: number, m: number } | null}
+ */
+export function hoursTextToHM(raw) {
+  const s = String(raw ?? '').trim();
+  const clock = /^(\d*):(\d{0,2})$/.exec(s);
+  if (clock) return clock[1] || clock[2] ? { h: parseInt(clock[1] || '0', 10), m: clampMinute(parseInt(clock[2] || '0', 10)) } : null;
+  return /[.,]/.test(s) ? decimalToHM(Math.max(0, parseSmartFloat(s))) : null;
+}
+
+/**
+ * An hours/minutes pair as whole hours + minutes, reading a DECIMAL or a clock time still in the
+ * hours box the way the blur split (`autoDecimalHours`) will write it (`hoursTextToHM`), the minutes
+ * box REPLACED. Before this, "7.5" read as parseInt's 7 until blur — priced 7h live, and stored 7h
+ * by any autosave that ran while the field was focused.
  * @param {string} hId @param {string} mId
  * @returns {{ h: number, m: number }}
  */
 export function hmPair(hId, mId) {
-  const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId))?.value ?? '';
-  // A decimal COMMA is a decimal point too: a decimal-comma region's keypad offers "," and "7,5"
-  // priced 7h (whole-app review, Oct 2026). parseSmartFloat reads ",5" as the fraction.
-  if (/[.,]/.test(raw)) {
-    const hm = decimalToHM(Math.max(0, parseSmartFloat(raw)));
-    if (hm) return hm;
-  }
-  return { h: intVal(hId), m: intVal(mId) };
+  const hm = hoursTextToHM(/** @type {HTMLInputElement} */ (document.getElementById(hId))?.value ?? '');
+  return hm ?? { h: intVal(hId), m: intVal(mId) };
 }
 
 /**
@@ -109,12 +126,21 @@ export function _decHintEl(hId, make) {
  * converter's bare `parseFloat("7,5")` read 7 — the iPhone audit, 7 Nov 2026. `parseSmartFloatOrNull`,
  * not `parseSmartFloat`: that one floors a blank or unreadable box to 0, and the card would then
  * answer "0 mins" to a question nobody had asked yet.
+ *
+ * It answers ONLY for what it can read whole: a plain number, or a clock time, which is already hours
+ * and minutes. The parser alone stops at the first character it cannot use, so the card answered
+ * "7 hrs" to "7:30" and "1000 hrs" to "1e3" — for something nobody typed (whole-app check, 10 Nov
+ * 2026). A clock time with 60 minutes or more is not one, and answers "–".
  * @param {string} raw the box's text
  * @returns {string}
  */
 export function decimalHoursText(raw) {
-  const v = parseSmartFloatOrNull(raw);
-  const hm = v === null ? null : decimalToHM(v);   // single source: paycalc-format.js (60→next-hour guard)
+  const s = String(raw ?? '').trim();
+  const clock = /^(\d*):(\d{1,2})$/.exec(s);
+  const hm = clock ? (+clock[2] < 60 ? { h: +(clock[1] || 0), m: +clock[2] } : null)
+    : /^(\d+[.,]?\d*|[.,]\d+)$/.test(s)
+      ? decimalToHM(/** @type {number} */ (parseSmartFloatOrNull(s)))   // paycalc-format.js (60→next-hour guard)
+      : null;
   if (!hm) return '–';
   const hrs = `${hm.h} hr${hm.h !== 1 ? 's' : ''}`;
   const mins = `${hm.m} min${hm.m !== 1 ? 's' : ''}`;
@@ -123,13 +149,11 @@ export function decimalHoursText(raw) {
   return `${hrs} ${mins}`;
 }
 
-// Live "= 7h 30m" preview shown WHILE a decimal is being typed, so the on-blur
+// Live "= 7h 30m" preview shown WHILE a decimal (or a clock time) is being typed, so the on-blur
 // split is a visible transformation rather than a silent one (trust on a pay form).
 /** @param {string} hId */
 export function decPreview(hId) {
-  const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
-  const val = parseSmartFloat(raw);
-  const hm = /[.,]/.test(raw) ? decimalToHM(val) : null;   // a decimal comma too — see hmPair
+  const hm = hoursTextToHM(/** @type {HTMLInputElement} */ (document.getElementById(hId)).value);
   if (hm) {
     const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, true));
     if (hint) { hint.textContent = `= ${hm.h}h ${String(hm.m).padStart(2, '0')}m`; hint.hidden = false; }
@@ -137,6 +161,38 @@ export function decPreview(hId) {
     const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
     if (hint) hint.hidden = true;
   }
+}
+
+/**
+ * The Tax Code box's own warning, for a code `computeTax` does not recognise (whole-app review,
+ * Nov 2026): said where the code is typed, as the Income Tax row says it under the figure. The words
+ * are `taxCodeNotRecognised`'s. Built on first need, as the box's markup has no slot for it, and
+ * named by the box's `aria-describedby`, so a screen reader hears it on returning to the box.
+ *
+ * HELD BACK WHILE THE BOX HAS FOCUS. Every code passes through unrecognised shapes on the way to a
+ * real one — "1257" before "1257L" — and a red line flashing at each keystroke is noise; the Income
+ * Tax row already follows live. It appears once the member leaves the box, which the coordinator
+ * recalculates on.
+ * @param {{ code: string, recognised: boolean }} s  `computeTax`'s `code` and `recognised`
+ * @returns {void}
+ */
+export function paintTaxCodeWarning({ code, recognised }) {
+    const input = document.getElementById('taxCode');
+    if (!input) return;
+    const show = !recognised && document.activeElement !== input;
+    let warn = document.getElementById('taxCodeWarn');
+    if (!warn) {
+        if (!show) return;
+        warn = document.createElement('div');
+        warn.id = 'taxCodeWarn';
+        warn.className = 'val-warn';
+        warn.setAttribute('role', 'status');
+        (input.closest('.field') ?? input.parentElement)?.append(warn);
+        input.setAttribute('aria-describedby', 'taxCodeWarn');
+    }
+    if (show) setStatus(warn, taxCodeNotRecognised(code).field);
+    else warn.textContent = '';
+    warn.classList.toggle('show', show);
 }
 
 /**

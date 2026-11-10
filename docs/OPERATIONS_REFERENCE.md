@@ -263,6 +263,7 @@ Body:
   "dates": ["2026-03-29", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04"],
   "crossCheck": "complete",
   "missingMembers": [],
+  "duplicateMembers": [],
   "choices": {},
   "geometry": { "status": "complete", "checked": 28, "total": 28, "pagesRead": 2, "pagesRejected": 0 },
   "geometryRefused": [],
@@ -282,6 +283,7 @@ Body:
 
 - **`crossCheck`** — the column-scan cross-check status: `"complete"` (every returned member re-verified against a SECOND column-by-column read — by the same model, of the same PDF, in the same call, so it is a second reading and **not** an independent witness), `"partial"` (some), `"unavailable"` (the AI omitted/garbled `columnScan` so the check never ran), or `"not-applicable"` on the geometry path (that prompt asks for no column re-read). The review UI shows an advisory note when it isn't `"complete"` or `"not-applicable"`.
 - **`missingMembers`** — roster members of this `rosterType` the AI returned NO row for (advisory: could be a dropped row OR a genuine absence — leaver/new starter/other page). The review UI lists them so a silently-dropped member is visible.
+- **`duplicateMembers`** — roster members of this `rosterType` the AI returned MORE THAN ONE row for, judged against the same names as `missingMembers` (`repeatedMembers`, `functions/roster-prompt.js`). Only one row is used, the first that is not empty (`memberRows`; a real Dispatch sheet prints an empty placeholder row above the member's real one), so the review gives each member a line asking the admin to check them against the PDF. A response without the field, from an older Function, is read as none.
 - **`choices`** — the two candidate readings for each cell the cross-check flagged, keyed `"memberName|date"`, so the review can offer a pick instead of a dead "couldn't read" row.
 - **`geometry`** — `{ status, checked, total, pagesRead, pagesRejected }` for the PDF's-own-grid witness (`functions/roster-geometry.js`): `status` is `"complete"` (every returned member was matched to a geometry row and checked), `"partial"` (some — the rest are named in the Functions log as unmatched) or `"unavailable"` (no grid found, no text layer, `pdfjs-dist` absent, or nobody matched — the witness did not run for this read). Unlike `crossCheck`, this IS an independent witness: it reads the file's coordinates, not the model. It is counted over the rows the admin will see, never a hallucinated name.
 - **`geometryRefused`** — the member names whose rows the witness refused (a claim read where the PDF's cell is empty), filtered to names on the review. Consumed by `assessRosterAlignment` (roster-alignment.js): such a row starts unticked with its own wording, and refusals count toward the three-member breaker. The refused cells themselves are already `UNKNOWN|…` in `parsed`.
@@ -443,7 +445,7 @@ before relying on this summary:
 | C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
-`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`; `getSurname()` in `session.js` delegates to `normaliseSurname()`. The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
+`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. The client never CREATES a missing account: one that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js`.
 
@@ -655,9 +657,11 @@ If the block says it **couldn't check** — the connection, an account list the 
 (it declines to name the whole roster as missing rather than guess), or an answer it could not read —
 that is a third answer and not a pass. Retry it.
 
-**"Taken back and reset to the default password"** (v24.24) is a line Set up accounts prints when it
-finds an account at a roster email carrying no custom claim at all — somebody registered that email
-from outside before the server provisioned it. It resets the password to the member's surname
+**"Reset to the default password and signed out"** (v24.24; worded "Taken back and reset to the default
+password" until 10 Nov 2026) is a line Set up accounts prints when it finds an account at a roster
+email carrying no custom claim at all — somebody registered that email from outside before the server
+provisioned it — and also for a DISABLED account at a roster email that it re-enables, such as a
+returning leaver's, from whom nothing was taken back. It resets the password to the member's surname
 default, signs out every session on it, stamps `resetAt` (so Settings asks them to choose a new one)
 and then stamps the claims. The member named there should be told their password is their surname.
 For anybody provisioned before v24.24 this never fires: their accounts already carry claims. A

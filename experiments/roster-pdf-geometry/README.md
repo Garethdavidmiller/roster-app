@@ -252,8 +252,10 @@ find the drawn rules, and pdfjs 6 changed that encoding: on 6.3.289 every one of
 failed identically with `fns is not iterable`, which looks exactly like a PDF problem and is not
 one. If this is ever upgraded, `rulesOf` is the function to rewrite first.
 
+Run from this directory: `pdfjs-dist` resolves from the repository's own install (`npm ci`), at
+the exact v4 that package.json pins — there is nothing to install separately.
+
 ```
-npm i pdfjs-dist@4          # in a scratch directory, not the repo
 node rules2.mjs  <roster.pdf>          # the drawn rules, per page
 node extract.mjs <roster.pdf>          # every member × every day, as JSON
 node witness.mjs <roster.pdf> "G. Miller"   # one row, as raw x → column arithmetic

@@ -102,18 +102,18 @@ export function initALSection({
      *   everything answered       → how many days of leave this will record;
      *   days that cost nothing    → named separately, never folded into the total.
      *
+     * `projection` is always given: `project` below is always supplied, and `projectAlBooking`
+     * returns counts even with no member resolved.
+     *
      * @param {{ member: string, dates: string[], memberObj: any, memberOvByDate: Map<string, any>|null,
-     *   rangeStr: string, workDays: number, restCount: number, projection?: any }} ctx
+     *   rangeStr: string, projection?: any, sundays?: string[], sundayNote?: string }} ctx
      */
-    function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount, projection = null }) {
+    function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, projection, sundays = [], sundayNote = '' }) {
         // A day that is STILL Spare — not one a roster upload has since assigned (admin-al-spare-note.js).
         const spareCount = countSpareDays(memberObj, dates, memberOvByDate);
-        const c = projection?.counts;
+        const c = projection.counts;
         let label, restNote = '';
-        if (!c) {                                    // no projection (no member resolved): old shape
-            label = `${workDays} working day${workDays !== 1 ? 's' : ''}`;
-            if (restCount > 0) restNote = ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>`;
-        } else if (c.unanswered > 0) {
+        if (c.unanswered > 0) {
             // Unanswered days are not counted in or out yet, so the total is deliberately withheld —
             // a figure that is about to change is worse than no figure.
             const settled = c.consuming + c.freeWritten;
@@ -134,9 +134,11 @@ export function initALSection({
             if (free > 0) parts.push(`${free} day${free > 1 ? 's' : ''} recorded at no cost`);
             if (lieuDays.length) parts.push(lieuGoesWords(lieuDays));
             // Christmas Day and Boxing Day are named as themselves (v25.37): never counted, and for a
-            // member due at work already shown as leave, so "rest day" would be the wrong word.
-            const rest = c.skipped - (c.christmas ?? 0);
+            // member due at work already shown as leave, so "rest day" would be the wrong word. A
+            // worked Sunday is not skipped either: the save sets it as a rest day (whole-app check).
+            const rest = c.skipped - (c.christmas ?? 0) - sundays.length;
             if (rest > 0)          parts.push(`${rest} rest day${rest > 1 ? 's' : ''} skipped`);
+            if (sundayNote)        parts.push(sundayNote);
             if (c.christmas > 0) {
                 const names = [.../** @type {Set<string>} */ (new Set(projection.christmas.map(/** @param {string} d */ d =>
                     d.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day')))];

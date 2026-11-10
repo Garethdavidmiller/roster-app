@@ -92,6 +92,41 @@ test('links: a design saved since 2 Nov 2026 is not one of the older ones, and s
     await expect(activeDesignName(page)).toHaveText('Even Step — tweaked');
 });
 
+// UNSAVED WORK IS LOST ONLY IF THE OPEN DESIGN MOVES (links-design-10). The press replaces the working
+// copy only when the open design is one of the older ones, and the dialog said "your unsaved changes …
+// will be lost" whenever anything was unsaved — about a recent design that stays, edits and all.
+const recentOne = { id: 'new1', name: 'Even Step — tweaked', patterns: {}, updatedAt: Date.now(), updatedBy: 'M. Robson' };
+/** Paint one cell, so the open design has unsaved work. @param {import('@playwright/test').Page} page */
+async function editOpenDesign(page) {
+    await page.locator('#brushBar .brush-chip').nth(2).click();
+    await page.locator('.shift-cell-btn').first().click();
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+}
+
+test('links: Keep only the shortlist does not warn about unsaved work on a design that stays', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_links_active_design', 'new1'));
+    await openWith(page, 'G. Miller', [twoOlder[0], recentOne]);
+    await expect(activeDesignName(page)).toHaveText('Even Step — tweaked');
+    await editOpenDesign(page);
+    await sheetAction(page, 'keepShortlistBtn');
+    const msg = keepDialog(page).locator('.dialog-message');
+    await expect(msg).toContainText('This older design moves to Recently deleted');
+    await expect(msg, 'the open design stays, so nothing of it is lost').not.toContainText('unsaved changes');
+    await clickDialogConfirm(page);
+    await expect(page.locator('#linksSaveStatus')).toContainText('The older design is in Recently deleted');
+    await expect(activeDesignName(page)).toHaveText('Even Step — tweaked');
+    await expect(page.locator('#linksSaveBtn'), 'and its edit is still there, unsaved').toBeEnabled();
+});
+
+test('links: Keep only the shortlist warns about unsaved work when the open design is one that moves', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_links_active_design', 'old1'));
+    await openWith(page, 'G. Miller', [twoOlder[0], recentOne]);
+    await expect(activeDesignName(page)).toHaveText('Closing Time — copy');
+    await editOpenDesign(page);
+    await sheetAction(page, 'keepShortlistBtn');
+    await expect(keepDialog(page).locator('.dialog-message')).toContainText('Your unsaved changes to the open design will be lost.');
+});
+
 test('links: cancelling Keep only the shortlist writes nothing and moves nothing', async ({ page }) => {
     await openWith(page, 'G. Miller', twoOlder);
     await sheetAction(page, 'keepShortlistBtn');

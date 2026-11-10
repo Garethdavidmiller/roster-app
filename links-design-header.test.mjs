@@ -11,7 +11,7 @@
  * what the markup SAYS and whether the select was rebuilt when it need not have been (rule 4 in the
  * module header — a rebuild mid-paint on Android closes an open picker).
  */
-import { test, describe, mock } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     groupDesigns, saveButtonLabel, statusCopy, whoCopy, proposeNewDesignName, toDate, createDesignHeader, lastSaveTime,
@@ -112,9 +112,34 @@ describe('the status pill — lying about saved state is the expensive direction
         const lastYear = statusCopy({ saved: true, dirty: false, updatedAt: at(new Date(2025, 8, 3, 9, 5).getTime()), now: NOW });
         assert.match(lastYear.long, /2025/);
     });
+    test('the time is the app\'s one 24-hour clock, even where the locale would reach 12-hour', () => {
+        // date-format.js's formatClock names the hour cycle because "a locale fallback can reach
+        // 12-hour"; the pill's own bare toLocaleTimeString did not, so there it read "Saved today at
+        // 12:05 am" beside a save row reading "00:05" (whole-app fix, Nov 2026). Simulated by a locale
+        // whose DEFAULT is 12-hour: a call that names its cycle is unaffected, as the real one is.
+        const real = Date.prototype.toLocaleTimeString;
+        Date.prototype.toLocaleTimeString = function (/** @type {any} */ _locale, /** @type {any} */ opts) {
+            return real.call(this, 'en-GB-u-hc-h12', opts);
+        };
+        try {
+            const at05 = new Date(2026, 8, 8, 0, 5);
+            assert.equal(statusCopy({ saved: true, dirty: false, updatedAt: at(at05.getTime()), now: at05 }).long, 'Saved today at 00:05');
+        } finally { Date.prototype.toLocaleTimeString = real; }
+    });
+
     test('a saved design whose timestamp has not resolved yet still says Saved, with no invented time', () => {
         const s = statusCopy({ saved: true, dirty: false, updatedAt: null, now: NOW });
         assert.equal(s.long, 'Saved');
+    });
+
+    // A WRITE ONLY IN THIS BROWSER'S QUEUE (links-app-4): made offline, or not answered by the server.
+    // "Saved" — or "Saved today at 14:32", read off this device's clock by `recordSave` — told the
+    // designer a colleague could already see it. It is neither a success nor a failure.
+    test('a write still in this browser\'s queue says so, whatever time this device recorded', () => {
+        const s = statusCopy({ saved: true, dirty: false, queued: true, updatedAt: at(NOW.getTime()), now: NOW });
+        assert.deepEqual(s, { tone: 'queued', long: 'Saved in this browser', short: 'Saved here' });
+        assert.equal(statusCopy({ saved: true, dirty: true, queued: true, now: NOW }).tone, 'dirty', 'later edits are still unsaved');
+        assert.equal(statusCopy({ saved: true, dirty: false, saving: true, queued: true }).tone, 'saving');
     });
 });
 
@@ -202,7 +227,12 @@ const allRows = (/** @type {any} */ list) => {
 const tickedRows = (/** @type {any} */ list) => allRows(list).filter(r => r.attrs?.['aria-current'] === 'true');
 const rowMeta = (/** @type {any} */ row) => row.children[0].children[1].textContent;
 
-function harness() {
+/** Let a sheet's close land and the action queued behind it run. */
+const flush = () => new Promise(r => setImmediate(r));
+
+/** @param {{ closeLands?: (tag: string) => any, sheetActions?: any[] }} [opts] `closeLands` is what
+ *  each fake `close()` returns — the real one returns the promise of the close LANDING. */
+function harness({ closeLands = () => undefined, sheetActions = [] } = {}) {
     const els = {
         pickList: el(), pickerSub: el(), pickerButton: el('button'),
         faceName: el(), eyebrow: el(), count: el(), masthead: el(),
@@ -218,11 +248,15 @@ function harness() {
     // hypothetical gap: `pickerButton` was read from the wrong argument when the sheet first shipped
     // and every unit test here still passed, because none of them pressed the face.
     const opened = /** @type {string[]} */ ([]);
-    const lb = (/** @type {string} */ tag) => ({ open: () => opened.push(`open:${tag}`), close: () => opened.push(`close:${tag}`) });
+    const lb = (/** @type {string} */ tag) => ({
+        open: () => opened.push(`open:${tag}`),
+        close: () => { opened.push(`close:${tag}`); return closeLands(tag); },
+    });
     const extra = {
         moreButton: el('button'),
         sheet:  { overlay: el(), content: el(), create: () => lb('more') },
         picker: { overlay: el(), content: el(), create: () => lb('picker') },
+        sheetActions,
     };
     const h = createDesignHeader(/** @type {any} */ (els), { onSelect: id => calls.push(`select:${id}`), onRename: () => calls.push('rename') }, /** @type {any} */ (extra));
     return { els, h, calls, extra, opened };
@@ -247,6 +281,14 @@ describe('render — what the masthead SAYS', () => {
         // The face is aria-hidden, so the BUTTON has to carry the name a <select> announced for free.
         assert.match(els.pickerButton.attrs['aria-label'], /Option A/);
     });
+    test('a design whose last write is only in this browser says so in the pill and the sheet, not "Saved"', () => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW, queued: true });
+        assert.equal(els.status.className, 'dm-status dm-status--queued');
+        assert.equal(els.statusLong.textContent, 'Saved in this browser');
+        assert.equal(els.statusShort.textContent, 'Saved here');
+        assert.equal(els.sheetSub.textContent, `Saved by ${ME} in this browser`);
+    });
     // THE BUG (Sep 2026 polish): after a save whose read-back returned no stamp — every queued
     // offline save, and any failed read — the pill kept the PREVIOUS save's time ("Saved 24 Jun at
     // 16:40") while the save row said "at 09:00". `recordSave` now records `savedAt`; the pill,
@@ -260,6 +302,17 @@ describe('render — what the masthead SAYS', () => {
         assert.equal(els.statusShort.textContent, 'Saved 14:32');
         assert.equal(els.sheetSub.textContent, `Saved by ${ME} today at 14:32`);
     });
+    test('a saved design with no save time yet says "Saved" in its row, as the pill does', () => {
+        // A create that had to be queued, or whose read-back failed, carries no stamp yet. The pill
+        // said "Saved" and the picker row "Not saved yet" — one design, two answers, and the row's
+        // was the false one: the design has a document (whole-app fix, Nov 2026).
+        const { els, h } = harness();
+        const designs = [{ id: 'q', name: 'Queued', updatedBy: ME, updatedAt: null }];
+        h.render({ designs, activeId: 'q', design: { name: 'Queued' }, dirty: false, currentUser: ME, now: NOW });
+        assert.equal(els.statusLong.textContent, 'Saved');
+        assert.equal(rowMeta(allRows(els.pickList)[0]), 'Saved');
+    });
+
     test('the ··· More sheet names the last SAVE, whatever the working copy is doing', () => {
         // It was built from the status pill's words, so with unsaved edits it read "Saved by
         // G. Miller Unsaved changes" and mid-save "Saved by G. Miller Saving…".
@@ -283,9 +336,13 @@ describe('render — what the masthead SAYS', () => {
         assert.equal(els.pickList.children[0].disabled, true, 'the unsaved row has no id to select by, so it is inert');
         assert.equal(rowName(els.pickList.children[0]), 'Untitled design');
     });
-    test('the last design cannot be deleted while the bin rule says so, and the row states why through disabled', () => {
+    // The last saved design may be deleted too (links-app-23): the row was greyed with no reason
+    // given, for a rule whose reason no longer held. Delete needs a saved design, and nothing else.
+    test('the only saved design can be deleted; an unsaved one cannot', () => {
         const { els, h } = harness();
-        h.render({ designs: DESIGNS.slice(0, 1), activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, canDelete: false, now: NOW });
+        h.render({ designs: DESIGNS.slice(0, 1), activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
+        assert.equal(els.deleteButton.disabled, false);
+        h.render({ designs: DESIGNS.slice(0, 1), activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
         assert.equal(els.deleteButton.disabled, true);
     });
     test('no design open: the face says so, the status is hidden, Save is disabled', () => {
@@ -331,19 +388,16 @@ describe('render — what the masthead SAYS', () => {
         for (const b of els.saveButtons) assert.equal(b.textContent, 'Saving…');
         assert.equal(els.status.className, 'dm-status dm-status--saving');
     });
-    test('the wiring: a tap anywhere inside a row reports THAT row\'s id; the pencil reports a rename', () => {
+    test('the wiring: a tap anywhere inside a row reports THAT row\'s id; the pencil reports a rename', async () => {
         const { els, h, calls } = harness();
         h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
         // The handler is delegated to the list, so the event target is whatever was under the
         // finger — here the name INSIDE the row, which is what a real tap almost always hits.
         const row = els.pickList.children[1].children[1];
-        // The selection waits out the sheet's fade, so the clock has to move for it to land.
-        mock.timers.enable({ apis: ['setTimeout'] });
-        try {
-            for (const f of els.pickList.listeners.click) f({ target: row.children[0].children[0] });
-            assert.deepEqual(calls, [], 'nothing is selected until the sheet has gone');
-            mock.timers.tick(600);
-        } finally { mock.timers.reset(); }
+        // The selection waits for the sheet's close to land, so that has to settle for it to run.
+        for (const f of els.pickList.listeners.click) f({ target: row.children[0].children[0] });
+        assert.deepEqual(calls, [], 'nothing is selected until the sheet has gone');
+        await flush();
         for (const f of els.renameButtons[0].listeners.click) f();
         assert.deepEqual(calls, ['select:c', 'rename']);
     });
@@ -363,16 +417,64 @@ describe('render — what the masthead SAYS', () => {
         // first and the selection follows it — never the other way round.
         assert.deepEqual(opened, ['close:picker']);
     });
-    test('a tap on a group heading, or on the inert unsaved row, selects nothing', () => {
+    test('a tap on a group heading, or on the inert unsaved row, selects nothing', async () => {
         const { els, h, calls } = harness();
         h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });
-        mock.timers.enable({ apis: ['setTimeout'] });
-        try {
-            for (const f of els.pickList.listeners.click) f({ target: els.pickList.children[1].children[0] });
-            for (const f of els.pickList.listeners.click) f({ target: els.pickList.children[0] });
-            mock.timers.tick(600);
-        } finally { mock.timers.reset(); }
+        for (const f of els.pickList.listeners.click) f({ target: els.pickList.children[1].children[0] });
+        for (const f of els.pickList.listeners.click) f({ target: els.pickList.children[0] });
+        await flush();
         assert.deepEqual(calls, []);
+    });
+});
+
+// ─── ONE ACTION PER OPENING, ONCE THE CLOSE HAS LANDED (whole-app fix, Nov 2026) ───────────────
+//
+// A sheet stays tappable through its fade, and a second close() hands back the SAME landing promise,
+// so every extra tap ran the row again: a double tap on Delete stacked two confirms and filed the
+// design in the bin twice; on New blank design, two prompts and two designs. And the action waited a
+// fixed 500 ms rather than for the close to land — no promise at all about the history echo a dialog
+// opened from it races. select-sheet.js cured both for every other dropdown; this is the same cure.
+describe('one action per opening of a sheet', () => {
+    test('a double tap on a picker row selects ONCE; opening the sheet again re-arms it', async () => {
+        const { els, h, calls } = harness();
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
+        const row = els.pickList.children[1].children[1];
+        const tap = () => { for (const f of els.pickList.listeners.click) f({ target: row }); };
+        for (const f of els.pickerButton.listeners.click) f();
+        tap(); tap();
+        await flush();
+        assert.deepEqual(calls, ['select:c'], 'the second tap landed during the fade and must not run again');
+        for (const f of els.pickerButton.listeners.click) f();
+        tap();
+        await flush();
+        assert.deepEqual(calls, ['select:c', 'select:c']);
+    });
+
+    test('a double tap on a ··· More row runs it once — and a row wired elsewhere shares the opening', async () => {
+        const del = el('button');
+        const ran = /** @type {string[]} */ ([]);
+        const { h, extra } = harness({ sheetActions: [[del, () => ran.push('delete')]] });
+        for (const f of extra.moreButton.listeners.click) f();
+        for (const f of del.listeners.click) f();
+        for (const f of del.listeners.click) f();
+        h.viaSheet(() => ran.push('bin'));   // Recently deleted is wired by the library, through viaSheet
+        await flush();
+        assert.deepEqual(ran, ['delete']);
+    });
+
+    test('the action waits for the close to LAND — not a timer, and with nothing passed to it', async () => {
+        /** @type {(v: any) => void} */ let land = () => {};
+        const landed = new Promise(r => { land = r; });
+        const got = /** @type {any[]} */ ([]);
+        const del = el('button');
+        const { extra } = harness({ closeLands: () => landed, sheetActions: [[del, (/** @type {any[]} */ ...a) => got.push(a)]] });
+        for (const f of extra.moreButton.listeners.click) f();
+        for (const f of del.listeners.click) f();
+        await new Promise(r => setTimeout(r, 600));
+        assert.deepEqual(got, [], 'still fading: well past the old 500 ms, and nothing has run');
+        land('what the close resolved with');
+        await flush();
+        assert.deepEqual(got, [[]], 'it ran once it landed, given no argument — duplicateDesign(originalGone) reads one');
     });
 });
 
@@ -511,6 +613,20 @@ describe('render — a built-in proposal', () => {
         assert.deepEqual(tickedRows(els.pickList).map((/** @type {any} */ r) => r.dataset.id), [PROPS[0].id]);
         assert.ok(!rows.some((/** @type {any} */ r) => rowName(r) === 'Untitled design'));
         assert.equal(els.pickerSub.textContent, '3 shortlisted · 2 saved designs', 'both counts, neither folded into the other');
+    });
+
+    test('the open proposal\'s row follows its edits — the one row whose words depend on `dirty`', () => {
+        // Rule 4 keeps a dirty flip from rebuilding the list, and that was right while no row's words
+        // depended on it. The open PROPOSAL's does, so a list built clean went on saying "read-only"
+        // under a masthead saying "Copy of a proposal · Unsaved changes" (whole-app fix, Nov 2026).
+        const { els, h } = harness();
+        const base = { designs: DESIGNS, activeId: null, design: { name: PROPS[0].name }, currentUser: ME, now: NOW,
+                       proposals: PROPS, proposalId: PROPS[0].id };
+        h.render({ ...base, dirty: false });
+        h.render({ ...base, dirty: true });
+        assert.equal(rowMeta(allRows(els.pickList)[0]), 'Open · edited, not saved');
+        h.render({ ...base, dirty: false });   // the edit undone
+        assert.equal(rowMeta(allRows(els.pickList)[0]), 'LC-26-T10 · 32241e32 · read-only');
     });
 
     test('a saved design open: the proposals are listed, none of them ticked', () => {

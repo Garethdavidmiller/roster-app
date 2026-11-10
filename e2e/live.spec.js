@@ -95,6 +95,10 @@ const isNoise = (/** @type {string} */ text) => IGNORED_CONSOLE.some(u => text.i
  * `page.goto` was reset, so the first cut reported DIRECT and then failed all six navigations. The
  * probe has to travel the same path the thing it is predicting travels — hence a real navigation
  * to the cheapest asset on the origin.
+ *
+ * Any HTTP answer, an error included, proves the browser reached the origin on its own socket; the
+ * page checks then judge that answer, by name, on both origins (10 Nov 2026 review — an error status
+ * here used to fail all six tests before any page opened).
  */
 let _direct = /** @type {boolean|null} */ (null);
 async function canReachDirectly(/** @type {any} */ page) {
@@ -109,7 +113,7 @@ async function canReachDirectly(/** @type {any} */ page) {
     const probe = await page.context().newPage();
     try {
         const r = await probe.goto(`${FIREBASE}/robots.txt`, { timeout: 20_000 });
-        _direct = !!r && r.status() === 200;
+        _direct = !!r;
     } catch { _direct = false; } finally { await probe.close(); }
     return _direct;
 }

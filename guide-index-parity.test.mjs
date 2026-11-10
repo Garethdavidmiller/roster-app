@@ -111,3 +111,18 @@ test('contract 8 — evidence-bearing units exist (the extractor has not gone qu
     // vacuously on empty lists. At least the three known claims must be found somewhere.
     assert.ok(GUIDE_INDEX.filter(u => u.e.length > 0).length >= 3);
 });
+
+test('contract 9 — every FIP country card is a unit of its own, the plain-div ones included', () => {
+    // The reverse of contract 4. Contract 4 checks that every index id is an anchor; nothing checked
+    // that every country card is in the index, so the "No FIP operator listed" cards — plain divs, not
+    // <details> — were left out, and "sweden" found Denmark's card instead (whole-app check, 10 Nov 2026).
+    const ids = [...read('fip-guide.html').matchAll(/\bid="(country-[a-z]+)"/g)].map(m => m[1]);
+    assert.ok(ids.length > 30, `found only ${ids.length} FIP country cards — the scan is wrong`);
+    const indexed = new Set(GUIDE_INDEX.filter(u => u.page === 'fip-guide.html').map(u => u.id));
+    assert.deepEqual(ids.filter(id => !indexed.has(id)), [], 'these FIP country cards are not in the search index');
+    // …and the drawer finds a country by the names staff type: guides-5 ("Czechia (Czech Republic)")
+    // and guides-6 (Ł folds to l).
+    for (const [q, id] of [['sweden', 'country-se'], ['finland', 'country-fi'], ['czechia', 'country-cz'], ['lodz', 'country-pl']]) {
+        assert.equal(searchGuideIndex(GUIDE_INDEX, q)[0]?.id, id, `"${q}" no longer leads to its own country card`);
+    }
+});

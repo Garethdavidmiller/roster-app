@@ -156,7 +156,7 @@ export const LIMIT_CLAIM = POLICY_SOURCE_CONFIRMED
     : 'Configured Chiltern limits — policy source outstanding';
 
 /**
- * THE CONTRACTED-DAYS CEILING (v24.47) — the 26-line rules' fourth hard limit (`docs/links-26/
+ * THE CONTRACTED-DAYS CEILING (v24.47) — the link rules' fourth hard limit (`docs/links-26/
  * RULES.md`, set by the owner 1 Oct 2026): a design must give **219 contracted days a year or
  * fewer**, today's roster's own figure. The contract fixes the minutes; this fixes how many duties
  * they are split into, so a design cannot pay the week by adding short turns. Unlike the run limit

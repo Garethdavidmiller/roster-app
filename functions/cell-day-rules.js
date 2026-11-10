@@ -43,6 +43,15 @@
 /** The token the prompt returns for a cell with no text in it. */
 const BLANK_CELL_TOKEN = 'BLANK';
 
+/**
+ * Every word a model writes for an EMPTY cell, in upper case: nothing at all, the BLANK both prompts
+ * ask for, the EMPTY it sometimes writes instead, and a lone dash, which the shared vocabulary itself
+ * calls blank ("NO text at all (or only a dash)"). ONE list for every read of a cell (whole-app fix,
+ * Nov 2026): the row read knew only the first two, so an empty Sunday it reported as "-" was an
+ * unreadable claim, and the Sunday repair moved a correctly read week a day right.
+ */
+const BLANK_READINGS = Object.freeze(['', BLANK_CELL_TOKEN, 'EMPTY', '-']);
+
 /** The ways a roster writes "not available" — a rest day (v25.38). `N/A` is a spelling of `NA`. */
 const NOT_AVAILABLE_TOKENS = new Set(['NA', 'N/A']);
 
@@ -54,15 +63,26 @@ const NOT_AVAILABLE_SUNDAY_TOKENS = new Set(['NS']);
 const SUNDAY = 0;
 
 /**
- * Did the model report this cell as physically empty? True for a missing key, an empty string and
- * the BLANK token — the three ways "there was nothing there" arrives.
+ * Does this reading say the cell was EMPTY — no answer at all, or one of `BLANK_READINGS`? This is
+ * what a cell MEANS, so the row read, the column scan and the geometry path's check of an empty read
+ * all ask it.
+ * @param {any} raw
+ * @returns {boolean}
+ */
+function isBlankReading(raw) {
+    if (raw === undefined || raw === null) return true;
+    return BLANK_READINGS.includes(String(raw).trim().toUpperCase());
+}
+
+/**
+ * …and was there NOTHING in the cell, not even ink? The same, less the dash: the PDF grid sees a
+ * printed dash as an occupied cell, so where a reading is weighed against the grid
+ * (`settleDisputedSundays`) a dash is a printed code, not an empty cell.
  * @param {any} raw
  * @returns {boolean}
  */
 function isPhysicallyBlank(raw) {
-    if (raw === undefined || raw === null) return true;
-    const s = String(raw).trim();
-    return s === '' || s.toUpperCase() === BLANK_CELL_TOKEN;
+    return isBlankReading(raw) && String(raw ?? '').trim() !== '-';
 }
 
 /** Separators dropped before matching, so `N.A.` and `N/A` are the `NA` they spell. A cell
@@ -105,9 +125,11 @@ function blankCellMeaning(dayIndex, dayLabel) {
 
 module.exports = {
     BLANK_CELL_TOKEN,
+    BLANK_READINGS,
     NOT_AVAILABLE_TOKENS,
     NOT_AVAILABLE_SUNDAY_TOKENS,
     SUNDAY,
+    isBlankReading,
     isPhysicallyBlank,
     isNotAvailable,
     isNotAvailableSunday,

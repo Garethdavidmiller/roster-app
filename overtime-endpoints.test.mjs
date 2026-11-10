@@ -46,12 +46,50 @@ const SERVER_NOW = Date.parse('2026-08-17T09:00:00Z');
  */
 const DELETE_SENTINEL = { __delete: true };
 
-/** Apply a patch the way Firestore does, honouring delete sentinels. */
-function applyPatch(current, patch) {
-    const next = { ...(current || {}) };
+// ── HOW A WRITE LANDS — Firestore's rules, not a looser fake's (overtime-core-1, Nov 2026) ──────
+//
+// The fake modelled `set(…, { merge: true })` as `{ ...old, ...new }`: a SHALLOW merge, which
+// replaces a nested map whole. Firestore does the opposite. The SDK builds the write's mask from
+// every LEAF path of the data (`DocumentMask.fromObject`, @google-cloud/firestore), so a key held
+// in a stored map and absent from the new one SURVIVES. That gap is how a submission head that kept
+// a removed answer for ever passed every test in this file. The three shapes the code uses:
+//
+//   update(patch)     each top-level key is ONE field, replaced whole — a map included — and the
+//                     document must exist (the SDK sends an `exists: true` precondition)
+//   set(data)         the whole document is replaced
+//   set(data, merge)  only the leaf paths of `data` are written; every other field stays
+//
+// A timestamp or a sentinel is a leaf, never a map to walk into. The real ones are class instances;
+// this fake's timestamps are plain `{ toMillis }` objects, so `toMillis` is what marks one here.
+
+/** @param {any} v */
+const isLeaf = (v) => v === null || typeof v !== 'object' || Array.isArray(v)
+    || v === DELETE_SENTINEL || typeof v.toMillis === 'function';
+
+/** Firestore's NOT_FOUND, as an update of a missing document fails. @param {string} path */
+const notFound = (path) => Object.assign(new Error(`5 NOT_FOUND: No document to update: ${path}`), { code: 5 });
+
+/** `update()`: each top-level key replaces its field whole; the delete sentinel removes it. */
+function applyUpdate(current, patch) {
+    const next = { ...current };
     for (const [k, v] of Object.entries(patch)) {
+        // The SDK reads a dotted update key as a NESTED path. Nothing here writes one, and a fake
+        // that quietly stored it as a literal key would hide that it was being used.
+        assert.ok(!k.includes('.'), `the fake models top-level update fields only, not "${k}"`);
         if (v === DELETE_SENTINEL) delete next[k];
         else next[k] = v;
+    }
+    return next;
+}
+
+/** `set(…, { merge: true })`: write the LEAF paths of `data`; every other field stays as it was. */
+function applyMerge(current, data) {
+    const next = { ...(current || {}) };
+    for (const [k, v] of Object.entries(data)) {
+        if (v === DELETE_SENTINEL) delete next[k];
+        // An EMPTY map is a leaf too: the SDK masks the map's own path, so it is set as given.
+        else if (isLeaf(v) || Object.keys(v).length === 0) next[k] = v;
+        else next[k] = applyMerge(next[k] !== undefined && !isLeaf(next[k]) ? next[k] : {}, v);
     }
     return next;
 }
@@ -59,6 +97,30 @@ function applyPatch(current, patch) {
 function makeDb(seed = {}, onRead = null) {
     const store = new Map(Object.entries(seed));
     let txQueue = Promise.resolve();
+    /** @param {string} path @param {any} data @param {any} [opts] */
+    const writeSet = (path, data, opts) => {
+        store.set(path, opts?.merge ? applyMerge(store.get(path), data) : data);
+    };
+    /** @param {string} path @param {any} patch */
+    const writeUpdate = (path, patch) => {
+        if (!store.has(path)) throw notFound(path);
+        store.set(path, applyUpdate(store.get(path), patch));
+    };
+    /**
+     * Apply a batch's or a transaction's writes ALL OR NOTHING, as Firestore commits them. Store
+     * values are replaced, never mutated in place, so a shallow copy is a complete undo.
+     * @param {Array<() => void>} writes
+     */
+    const commitAll = (writes) => {
+        const before = new Map(store);
+        try {
+            for (const w of writes) w();
+        } catch (err) {
+            store.clear();
+            for (const [k, v] of before) store.set(k, v);
+            throw err;
+        }
+    };
     // POINT-IN-TIME, as a real snapshot is: the data is what the document held when it was READ.
     // A lazy `store.get` here let a snapshot see writes made after it, which hid every
     // read-then-act race behind a fake that no production read can behave like.
@@ -133,23 +195,22 @@ function makeDb(seed = {}, onRead = null) {
             id: path.split('/').pop(),
             collection: (name) => collRef(`${path}/${name}`),
             get: async () => snap(path),
-            update: async (patch) => { store.set(path, applyPatch(store.get(path), patch)); },
-            set: async (data, opts) => {
-                store.set(path, opts?.merge ? applyPatch(store.get(path), data) : data);
-            },
+            update: async (patch) => { writeUpdate(path, patch); },
+            set: async (data, opts) => { writeSet(path, data, opts); },
         };
     }
     return {
         _store: store,
         collection: collRef,
         batch: () => {
-            const ops = [];
+            /** @type {Array<() => void>} */
+            const writes = [];
             /** Paths the batch CREATES — Firestore refuses the whole commit if any already exists. */
             const creates = [];
             return {
-                set: (ref, data) => ops.push([ref.path, data]),
-                create: (ref, data) => { creates.push(ref.path); ops.push([ref.path, data]); },
-                delete: (ref) => ops.push([ref.path, null]),
+                set: (ref, data, opts) => { writes.push(() => writeSet(ref.path, data, opts)); },
+                create: (ref, data) => { creates.push(ref.path); writes.push(() => writeSet(ref.path, data)); },
+                delete: (ref) => { writes.push(() => { store.delete(ref.path); }); },
                 // Commit is all-or-nothing here too, so a test that expects atomicity is testing
                 // the same property production relies on rather than a looser fake.
                 commit: async () => {
@@ -159,20 +220,30 @@ function makeDb(seed = {}, onRead = null) {
                     if (creates.some(p => store.has(p))) {
                         throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 });
                     }
-                    for (const [p, d] of ops) { if (d === null) store.delete(p); else store.set(p, d); }
+                    commitAll(writes);
                 },
             };
         },
         // SERIALISED, as Firestore's optimistic concurrency makes conflicting transactions in effect:
         // the loser retries against the winner's write. Without this the fake would let two claims
         // on one document both succeed, and a claim-before-send could never be tested.
+        //
+        // And BUFFERED: the writes are applied together when the function returns, all or nothing,
+        // as Firestore commits them. Applied as they were issued, a revision written before a failing
+        // head write would already have landed — a revision with no head, the one shape the
+        // submission's single transaction exists to rule out.
         runTransaction: (fn) => {
-            const run = txQueue.then(() => fn({
-                get: async (ref) => snap(ref.path),
-                set: (ref, data, opts) => store.set(ref.path,
-                    opts?.merge ? { ...(store.get(ref.path) || {}), ...data } : data),
-                update: (ref, patch) => store.set(ref.path, applyPatch(store.get(ref.path), patch)),
-            }));
+            const run = txQueue.then(async () => {
+                /** @type {Array<() => void>} */
+                const writes = [];
+                const result = await fn({
+                    get: async (ref) => snap(ref.path),
+                    set: (ref, data, opts) => { writes.push(() => writeSet(ref.path, data, opts)); },
+                    update: (ref, patch) => { writes.push(() => writeUpdate(ref.path, patch)); },
+                });
+                commitAll(writes);
+                return result;
+            });
             txQueue = run.catch(() => {});
             return run;
         },
@@ -322,6 +393,22 @@ function seededWindow(extra = {}) {
     };
 }
 
+/**
+ * The seeded window, STORED under a timetable today's rule would not derive — invariant 7's fixture
+ * (contracts-b-1). Pick a clock between a stored deadline and its derived twin, and only a reader
+ * that uses the stored one gets the answer the window was published with.
+ * @param {{ initial?: number, final?: number }} stored
+ */
+function offRuleWindow({ initial = M.initialDeadlineAt, final = M.finalDeadlineAt } = {}) {
+    const seed = seededWindow();
+    Object.assign(seed[`overtimeWindows/${WEEK}`], {
+        initialDeadlineAt: { toMillis: () => initial },
+        finalDeadlineAt:   { toMillis: () => final },
+    });
+    return seed;
+}
+const DAY_MS = 86_400_000;
+
 // Every test runs against the frozen clock below unless it says otherwise.
 //
 // The REAL clock is captured once, at load, and put back after EVERY test (test audit, 7 Nov 2026).
@@ -348,6 +435,66 @@ const NOT_HTTP = new Set([
     'purgeExpiredOvertimeWindows',
 ]);
 const httpEndpoints = (eps) => Object.entries(eps).filter(([k]) => !NOT_HTTP.has(k));
+
+describe('the fake writes the way Firestore does — or a test can pass on a write production would not make', () => {
+    // Guard the harness (overtime-core-1). Every case below is a rule of the SDK this file's handlers
+    // depend on; the shallow merge it replaces passed the head write that kept removed answers.
+    const D = 'docs/one';
+    const at = { toMillis: () => 5 };
+
+    test('a MERGE-set keeps a key the stored map has and the new data does not name', async () => {
+        const db = makeDb({ [D]: { days: { sun: { mode: 'all_day', fullTwelve: true } }, keep: 1 } });
+        await db.collection('docs').doc('one').set({ days: { sun: { mode: 'unavailable' } } }, { merge: true });
+        assert.deepEqual(db._store.get(D),
+            { days: { sun: { mode: 'unavailable', fullTwelve: true } }, keep: 1 },
+            'a merge writes leaf paths only, so the removed tick survives');
+    });
+
+    test('an UPDATE replaces a named map whole, and leaves every unnamed field alone', async () => {
+        const db = makeDb({ [D]: { days: { sun: { mode: 'all_day', fullTwelve: true } }, keep: 1 } });
+        await db.collection('docs').doc('one').update({ days: { sun: { mode: 'unavailable' } } });
+        assert.deepEqual(db._store.get(D), { days: { sun: { mode: 'unavailable' } }, keep: 1 });
+    });
+
+    test('an update of a MISSING document is refused, and writes nothing', async () => {
+        const db = makeDb();
+        await assert.rejects(db.collection('docs').doc('one').update({ a: 1 }), /NOT_FOUND/);
+        assert.equal(db._store.has(D), false);
+    });
+
+    test('a plain set replaces the whole document', async () => {
+        const db = makeDb({ [D]: { a: 1, b: 2 } });
+        await db.collection('docs').doc('one').set({ b: 3 });
+        assert.deepEqual(db._store.get(D), { b: 3 });
+    });
+
+    test('in a merge a timestamp is a LEAF, an empty map is set as given, and delete removes a nested key', async () => {
+        const db = makeDb({ [D]: { when: { toMillis: () => 1 }, m: { x: 1 }, n: { y: 1, z: 2 } } });
+        await db.collection('docs').doc('one').set({ when: at, m: {}, n: { z: DELETE_SENTINEL } }, { merge: true });
+        const got = db._store.get(D);
+        assert.equal(got.when, at, 'the new stamp replaced the old one rather than being walked into');
+        assert.deepEqual(got.m, {});
+        assert.deepEqual(got.n, { y: 1 });
+    });
+
+    test('a transaction is ALL OR NOTHING — a write before a failing one does not land', async () => {
+        const db = makeDb();
+        const ref = (/** @type {string} */ id) => db.collection('docs').doc(id);
+        await assert.rejects(db.runTransaction(async (tx) => {
+            tx.set(ref('first'), { a: 1 });
+            tx.update(ref('missing'), { b: 2 });
+        }), /NOT_FOUND/);
+        assert.equal(db._store.has('docs/first'), false, 'the first write was rolled back with the second');
+    });
+
+    test('and a transaction\'s merge-set merges the way the SDK does', async () => {
+        const db = makeDb({ [D]: { days: { sun: { mode: 'all_day', releaseRequested: true } } } });
+        await db.runTransaction(async (tx) => {
+            tx.set(db.collection('docs').doc('one'), { days: { sun: { mode: 'all_day' } } }, { merge: true });
+        });
+        assert.equal(db._store.get(D).days.sun.releaseRequested, true);
+    });
+});
 
 describe('the auth ladder — the same four rungs on every endpoint', () => {
     test('the sweep below covers every HTTP endpoint there is', () => {
@@ -648,6 +795,24 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
             'the newest row is simply waiting for tonight, and must say so');
     });
 
+    test('a week past the roster\'s last year says it cannot open, rather than "overnight" (overtime-core-6)', async () => {
+        // December 2030 with MAX_YEAR not yet raised: the scheduler refuses every 2031 week each
+        // night (`beyond-horizon`), and those rows read "Opens automatically overnight" until they
+        // read "Missed" — the cause visible only as a line in the function log.
+        freeze(Date.parse('2030-12-18T10:00:00Z'));   // a Wednesday; the horizon runs into 2031
+        const { eps } = build();
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        const beyond = rows.filter(w => w.weekEnding.startsWith('2031'));
+        assert.ok(beyond.length >= 2, `fixture no longer reaches past the roster: ${rows.map(w => w.weekEnding)}`);
+        for (const w of beyond) {
+            assert.equal(w.state, 'not-created-beyond-roster', w.weekEnding);
+            assert.equal(w.canCreate, false, `${w.weekEnding}: the server refuses it, so no button`);
+        }
+        assert.notEqual(rows.find(w => w.weekEnding === '2030-12-28').state, 'not-created-beyond-roster',
+            'a week inside the roster is untouched');
+    });
+
     test('a missed week offers no Create, and a recoverable one does', async () => {
         // `canCreate` and `state` are computed separately, so they can disagree — and a Create
         // button on a week the server would refuse is a button that reports a failure the Manager
@@ -752,6 +917,89 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
         const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
         unfreeze();
         assert.equal(r.body.serverNow, 1234567890);
+    });
+});
+
+describe('invariant 7 — every reader judges a window by the deadlines STORED on it', () => {
+    // The overview's row was the only reader pinned (contracts-b-1): submitting, the member's own
+    // state, withdrawing and the top-up could each be switched to freshly derived deadlines with
+    // every test green, because every other fixture stores exactly what today's rule derives. If
+    // the rule ever moves, such an edit re-times every window already open — a member told
+    // "Closes Tue 25 Aug" refused, or accepted, at another instant. Each case below stands between
+    // a stored deadline and its derived twin, where only the stored one gives the right answer.
+
+    test('a submission is accepted until the STORED final deadline, past the derived one', async () => {
+        freeze(M.finalDeadlineAt + DAY_MS);    // derived: CLOSED · stored: still FINAL_OPEN
+        const { eps } = build(offRuleWindow({ final: M.finalDeadlineAt + 2 * DAY_MS }));
+        const r = await call(eps.submitOvertimeAvailability, req({
+            weekEnding: WEEK, days: allDay(), ifRevision: 0, clientMutationId: 'stored-final-1' }));
+        unfreeze();
+        assert.equal(r.code, 200, `refused against a deadline the window never had: ${JSON.stringify(r.body)}`);
+        assert.equal(r.body.phase, 'FINAL_OPEN');
+    });
+
+    test('the member\'s own state names the STORED deadline and the phase it gives', async () => {
+        const stored = M.initialDeadlineAt + 2 * DAY_MS;
+        freeze(M.initialDeadlineAt + DAY_MS);  // derived: FINAL_OPEN · stored: still INITIAL_OPEN
+        const { eps } = build(offRuleWindow({ initial: stored }));
+        const r = await call(eps.getMyOvertimeState, req({}));
+        unfreeze();
+        const w = r.body.windows[0];
+        assert.equal(w.initialDeadlineAt, stored);
+        assert.equal(w.phase, 'INITIAL_OPEN');
+    });
+
+    test('withdrawal is refused once the STORED final deadline has passed, though the derived one has not', async () => {
+        freeze(M.finalDeadlineAt - DAY_MS);    // derived: still open · stored: CLOSED
+        const { db, eps } = build(offRuleWindow({ final: M.finalDeadlineAt - 2 * DAY_MS }));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'closed');
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/G. Miller`).withdrawn, undefined);
+    });
+
+    test('the top-up stops at the STORED first deadline, though the derived one is still ahead', async () => {
+        freeze(M.initialDeadlineAt - DAY_MS);  // derived: INITIAL_OPEN · stored: FINAL_OPEN
+        const { db, eps } = build(offRuleWindow({ initial: M.initialDeadlineAt - 2 * DAY_MS }),
+            { rosterMembers: { ...ROSTER, overtimeBeta: ['S. Silva'] } });
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.body.existed, true);
+        assert.deepEqual(r.body.added, [], 'nobody joins a week whose own first deadline has gone');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false);
+    });
+
+    test('a restore is judged against the STORED first deadline', async () => {
+        // Stood down between the derived first deadline and the stored one: against the window's own
+        // deadline that is BEFORE it, so the restore must be refused.
+        freeze(M.initialDeadlineAt + 3 * DAY_MS);
+        const seed = offRuleWindow({ initial: M.initialDeadlineAt + 2 * DAY_MS });
+        Object.assign(seed[`overtimeWindows/${WEEK}/participants/G. Miller`], {
+            withdrawn: true, withdrawnAt: { toMillis: () => M.initialDeadlineAt + DAY_MS }, withdrawnBy: 'H. Croft' });
+        const { eps } = build(seed);
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'restore-window-passed');
+    });
+
+    test('the deadline-morning reminder waits for the STORED first deadline\'s morning', async () => {
+        // Five hours before the derived deadline the derived rule says "due"; the window's own
+        // deadline is a day later, so nobody may yet be told their answers are due today.
+        /** @type {any[]} */
+        const sends = [];
+        freeze(M.initialDeadlineAt - 5 * 3600_000);
+        const { db, eps } = build(offRuleWindow({ initial: M.initialDeadlineAt + DAY_MS }), { notify: {
+            sendPush: async (/** @type {any} */ payload, /** @type {string[]} */ uids) => { sends.push(payload); return uids.length; },
+            uidForName: async () => 'uid-gm',
+        } });
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.equal(sends.filter(p => p.title.includes('due today')).length, 0);
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, undefined, 'and the morning is not claimed');
     });
 });
 
@@ -924,6 +1172,37 @@ describe('withdrawOvertimeParticipant — the leaver who is chased every week', 
         unfreeze();
         assert.equal(r.code, 200);
         assert.deepEqual(db._store.get(PATH), before, 'and nothing was written');
+    });
+
+    // RESTORING IS NOT THE MIRROR OF WITHDRAWING (v21.26; contracts-b-2). The rule was unit-tested
+    // and the endpoint line that CALLS it was not: it could be deleted with every test green — and
+    // the client's `canRestoreNow` only hides a button, so this refusal is the protection.
+    const withdrawnAt = (/** @type {number} */ ms) => seededWindow({
+        [PATH]: { memberName: 'G. Miller', grade: 'CEA', rosterOrder: 2, uid: null,
+            withdrawn: true, withdrawnAt: { toMillis: () => ms }, withdrawnBy: 'H. Croft' },
+    });
+
+    test('somebody stood down BEFORE the first deadline cannot be put back after it', async () => {
+        // Restored, they would be expected for a deadline they were never asked about, and their
+        // first answer would read "submitted after the initial deadline" — false of the person.
+        freeze(M.initialDeadlineAt + 3600_000);
+        const { eps, db } = build(withdrawnAt(M.initialDeadlineAt - DAY_MS));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'restore-window-passed');
+        assert.equal(db._store.get(PATH).withdrawn, true, 'and the withdrawal stands');
+    });
+
+    test('but somebody stood down AFTER it is an ordinary undo — guard the guard', async () => {
+        freeze(M.initialDeadlineAt + 3600_000);
+        const { eps, db } = build(withdrawnAt(M.initialDeadlineAt + 1800_000));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(db._store.get(PATH).withdrawn, undefined);
     });
 
     test('a CLOSED week refuses, with a code the page can name', async () => {
@@ -1193,6 +1472,78 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         const first = db._store.get(`overtimeWindows/${WEEK}/submissions/G. Miller/revisions/000001`);
         assert.equal(first.days[DATES[0]].mode, 'all_day', 'history is immutable');
         assert.equal(db._store.get(`overtimeWindows/${WEEK}/submissions/G. Miller`).currentRevision, 2);
+    });
+
+    // ── A REMOVED ANSWER IS REMOVED (overtime-core-1, Nov 2026) ─────────────────────────────────
+    //
+    // The head was written with a merge-set, which Firestore applies leaf by leaf, so whatever a
+    // member took OUT of a day stayed in the head for ever. The first answer here carries everything
+    // that can be taken out — both riders on the Sunday, custom times on the Monday — and the second
+    // takes all of it out. Invisible until the fake merged the way Firestore does.
+    const SUN = DATES[0];
+    const MON = DATES[1];
+    const TUE = DATES[2];
+    const HEAD = `overtimeWindows/${WEEK}/submissions/G. Miller`;
+    const everything = () => ({ ...noDays(),
+        [SUN]: { mode: 'all_day', fullTwelve: true, releaseRequested: true },
+        [MON]: { mode: 'custom', start: '18:00', end: '23:00', nextDay: false } });
+    const narrowed = () => ({ ...noDays(), [SUN]: { mode: 'all_day' }, [MON]: { mode: 'unavailable' } });
+    /** Revision 1 with everything in it, then revision 2 with it all taken out. */
+    async function answeredThenNarrowed() {
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const built = build(seededWindow());
+        const one = await call(built.eps.submitOvertimeAvailability, req(good({ days: everything() })));
+        const two = await call(built.eps.submitOvertimeAvailability, req(good({
+            days: narrowed(), ifRevision: 1, clientMutationId: 'mutation-0002' })));
+        assert.equal(one.code, 200);
+        assert.equal(two.code, 200, `premise: the narrowing amendment is accepted: ${JSON.stringify(two.body)}`);
+        return built;
+    }
+
+    test('an amendment REPLACES each day — a tick, a request or a time the member took out is gone from the head', async () => {
+        const { db } = await answeredThenNarrowed();
+        unfreeze();
+        const head = db._store.get(HEAD);
+        assert.deepEqual(head.days, narrowed(), 'the head holds the newest answer and nothing left over');
+        assert.deepEqual(head.days, db._store.get(`${HEAD}/revisions/000002`).days,
+            'and agrees with the revision it names — the history is derived from those revisions');
+        assert.equal(head.currentRevision, 2);
+        assert.equal(head.firstAcceptedAt.toMillis(), Date.parse('2026-08-17T09:00:00Z'),
+            'while the first acceptance, written by revision 1 only, survives the amendment');
+    });
+
+    test('so the member\'s own read serves exactly the newest answer — what a reloaded form starts from', async () => {
+        const { eps } = await answeredThenNarrowed();
+        const r = await call(eps.getMyOvertimeState, req({}));
+        unfreeze();
+        assert.deepEqual(r.body.windows[0].submission.days, narrowed());
+    });
+
+    test('and an identical retry of the narrowing is still a no-op, not a conflict', async () => {
+        // decideSubmission compares the incoming week with the HEAD: with leftovers in it, the same
+        // content re-sent on a stale baseline came back 409 — "a newer version is saved" — about
+        // the member's own saved answer.
+        const { eps } = await answeredThenNarrowed();
+        const r = await call(eps.submitOvertimeAvailability, req(good({
+            days: narrowed(), ifRevision: 1, clientMutationId: 'retry-000002' })));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(r.body.noop, true);
+    });
+
+    test('and the reloaded form\'s next save is accepted — the served answer goes straight back in', async () => {
+        // The form's working copy is the served head, sent as it is. A leftover the new mode cannot
+        // carry (times beside "Not available") was refused `unknown-field` on every later save.
+        const { eps, db } = await answeredThenNarrowed();
+        const served = (await call(eps.getMyOvertimeState, req({}))).body.windows[0].submission;
+        const working = { ...served.days, [TUE]: { mode: 'all_day' } };
+        const r = await call(eps.submitOvertimeAvailability, req(good({
+            days: working, ifRevision: served.currentRevision, clientMutationId: 'mutation-0003' })));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(r.body.revision, 3);
+        assert.equal(db._store.get(`${HEAD}/revisions/000003`).days[SUN].releaseRequested, undefined,
+            'a withdrawn Sunday request is not re-recorded under the member\'s name');
     });
 
     test('an identical retry with a STALE baseline succeeds, creates nothing, and records its mutation id', async () => {
@@ -1660,6 +2011,36 @@ describe('a member invited into the beta AFTER a window was created', () => {
         assert.deepEqual(again.body.added, [], 'a second press must be a no-op, not a second write');
     });
 
+    test('two top-ups racing never overwrite a participant — not even one withdrawn in between', async () => {
+        // The nightly run and a reviewer's Add both read "S. Silva is missing". The first commits
+        // her; a reviewer then stops asking her; the second commits. Written with `set`, the second
+        // REPLACED her document and the withdrawal silently vanished — invariant 5's reason for
+        // creating with `create`, at the one place that still used `set`. Simulated at the commit:
+        // between this top-up's read and its commit, she appears, already withdrawn.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { db, eps } = buildWider(seededWindow());
+        const SILVA = `overtimeWindows/${WEEK}/participants/S. Silva`;
+        const realBatch = db.batch;
+        db.batch = () => {
+            const b = realBatch();
+            const commit = b.commit;
+            b.commit = async () => {
+                if (!db._store.has(SILVA)) {
+                    db._store.set(SILVA, { memberName: 'S. Silva', grade: 'CEA', rosterOrder: 5, uid: null,
+                        withdrawn: true, withdrawnAt: { toMillis: () => M.initialDeadlineAt - 86400000 }, withdrawnBy: 'H. Croft' });
+                }
+                return commit();
+            };
+            return b;
+        };
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.code, 200, JSON.stringify(r.body));
+        assert.equal(db._store.get(SILVA).withdrawn, true, 'the reviewer\'s withdrawal stands');
+        assert.equal(db._store.get(SILVA).withdrawnBy, 'H. Croft');
+        assert.deepEqual(r.body.added, [], 'and this top-up claims nobody another writer added');
+    });
+
     // ── THE BOUNDARY IS THE **INITIAL** DEADLINE, not the final one (v20.81) ───────────────────
     //
     // What keeps the freeze meaningful: somebody added to a week they could not answer ON TIME is a
@@ -1972,7 +2353,7 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         assert.deepEqual(s.uids, ['uid-gm'],
             'the submitted (uid-ls) and the withdrawn (uid-ss) are not reminded; the accountless (H. Croft) are skipped');
         assert.match(s.payload.body, /are due by 12:00 today/);
-        assert.ok(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, 'stamped after the attempt');
+        assert.ok(db._store.get(`overtimeWindows/${WEEK}`).reminderSentAt, 'the morning is claimed (before the send)');
 
         // The same morning again — a re-run, a second scheduler instance — sends nothing more.
         await eps.autoCreateOvertimeWindows.run({});
@@ -2040,6 +2421,101 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         await Promise.all([eps.autoCreateOvertimeWindows.run({}), eps.autoCreateOvertimeWindows.run({})]);
         unfreeze();
         assert.equal(reminderSends(sends).length, 1);
+    });
+
+    // ── WHAT THE REMINDER REACHED (overtime-core-4, Nov 2026) ───────────────────────────────────
+    //
+    // `reminderSentAt` is claimed BEFORE the send, which is what stops two runs both sending — so on
+    // its own it records an attempt, and the reviewer's line said "Reminder to non-responders sent"
+    // on a morning nobody could be reached or the push failed. The outcome is now written beside it.
+    /**
+     * One deadline morning against the seeded window (G. Miller, silent unless `submitted`).
+     * @param {{ sendPush?: Function, uidForName?: Function, submitted?: boolean }} o
+     */
+    async function reminderMorning({ sendPush = async (/** @type {any} */ _p, /** @type {string[]} */ uids) => uids.length,
+        uidForName = /** @type {Function|null} */ (async () => 'uid-gm'), submitted = false,
+        users = /** @type {Record<string, any>|null} */ (null) } = {}) {
+        freeze(M.initialDeadlineAt - 5 * 3600_000);
+        const { db, eps } = build(seededWindow(submitted ? {
+            [`overtimeWindows/${WEEK}/submissions/G. Miller`]: { currentRevision: 1, days: noDays() },
+        } : {}), { notify: { sendPush, uidForName } });
+        // `uidForName: null` runs the PRODUCTION resolver, against these accounts by email.
+        if (users) {
+            const { getAuth } = require(require.resolve('firebase-admin/auth',
+                { paths: [new URL('./functions/', import.meta.url).pathname] }));
+            getAuth().getUserByEmail = async (/** @type {string} */ email) => {
+                if (users[email]) return users[email];
+                throw Object.assign(new Error('no user'), { code: 'auth/user-not-found' });
+            };
+        }
+        await eps.autoCreateOvertimeWindows.run({});
+        const overview = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        unfreeze();
+        const w = db._store.get(`overtimeWindows/${WEEK}`);
+        return { w, row: overview.body.planningWeeks.find((/** @type {any} */ r) => r.weekEnding === WEEK) };
+    }
+
+    test('a reminder that reached a device records it — and the reviewer\'s row carries it', async () => {
+        const { w, row } = await reminderMorning();
+        assert.ok(w.reminderSentAt, 'claimed');
+        assert.equal(w.reminderOutstanding, 1);
+        assert.equal(w.reminderAccepted, 1);
+        assert.deepEqual([row.reminderOutstanding, row.reminderAccepted], [1, 1]);
+    });
+
+    test('the shared staff-PIN account is never a member\'s target (routed from functions-core)', async () => {
+        // A roster email linked to the PIN account would send that member's Overtime notices to
+        // every station PC on the PIN. The real resolver refuses it, as `uidForMember` does for pay.
+        const { nameToEmail } = require('./functions/roster-parse-helpers.js');
+        const email = nameToEmail('G. Miller');
+        /** @type {Array<{ payload: any, uids: string[] }>} */ const sent = [];
+        const sendPush = async (/** @type {any} */ payload, /** @type {string[]} */ uids) => { sent.push({ payload, uids }); return uids.length; };
+        for (const viewer of [{ uid: 'calendar-viewer' }, { uid: 'pin-account-x', customClaims: { calendarViewer: true } }]) {
+            const { w } = await reminderMorning({ sendPush, uidForName: null, users: { [email]: viewer } });
+            assert.deepEqual(sent, [], `neither notice goes to ${viewer.uid}`);
+            assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0], 'and the record says nobody was reached');
+        }
+        // Guard the guard: the member's own account is reached through the same production resolver —
+        // the asked notice and the reminder alike, and nobody else.
+        await reminderMorning({ sendPush, uidForName: null, users: { [email]: { uid: 'uid-gm' } } });
+        assert.deepEqual([askedSends(sent).length, reminderSends(sent).length], [1, 1]);
+        assert.deepEqual(sent.map((s) => s.uids), [['uid-gm'], ['uid-gm']]);
+    });
+
+    test('a silent member with no account was NOT reached, and the record says so', async () => {
+        const { w } = await reminderMorning({ uidForName: async () => null });
+        assert.ok(w.reminderSentAt, 'the morning is still claimed — the claim is what stops a second send');
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0]);
+    });
+
+    test('a push the service refused records the ACCEPTED count, not the targets asked', async () => {
+        const { w } = await reminderMorning({ sendPush: async () => 0 });
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0]);
+    });
+
+    test('a push transport that throws records that nothing was reached', async () => {
+        const { w } = await reminderMorning({ sendPush: async () => { throw new Error('push transport down'); } });
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0]);
+    });
+
+    test('a morning with nobody silent records that nobody needed reminding', async () => {
+        const { w } = await reminderMorning({ submitted: true });
+        assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [0, 0]);
+    });
+
+    test('a window with a stamp and no outcome reaches the row as UNKNOWN, never as zero', async () => {
+        // Every window stamped before the outcome existed, and a run that stopped between the two
+        // writes: "attempted, outcome unknown" — not "reached nobody", which would be an accusation.
+        const NOW = Date.parse('2026-08-19T09:00:00Z');
+        freeze(NOW);
+        const [week] = OT.weeksNeedingWindows(OT.lastSchedulerRun(NOW), [], { maxRosterYear: 2030 });
+        const { eps } = build({ [`overtimeWindows/${week}`]: { ...OT.deriveMilestones(week), audience: 'restricted',
+            reminderSentAt: { toMillis: () => NOW - 3600_000 } } });
+        const rows = (await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'))).body.planningWeeks;
+        unfreeze();
+        const row = rows.find((/** @type {any} */ r) => r.weekEnding === week);
+        assert.equal(row.reminderOutstanding, null);
+        assert.equal(row.reminderAccepted, null);
     });
 
     test('a push that throws costs a log line, never the window', async () => {

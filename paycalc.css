@@ -1,12 +1,14 @@
     /* ── Pay-calculator-specific design tokens (all shared tokens come from shared.css) ── */
     :root {
       --boxing-day-bg:      oklch(97.5% 0.028 89deg);
-      --badge-pending-text: oklch(68% 0.195 52deg);
+      /* The three "check this" oranges forward the app's AA ones (css-tokens.md → The orange family):
+         their own bright values measured 2.85:1, 3.2:1 and 4.31:1 against their grounds. */
+      --badge-pending-text: var(--orange-text);
       --boxing-day-text:    oklch(55% 0.175 50deg);
       --notice-text:        oklch(36% 0.090 65deg);
       --chip-bh-bg:         oklch(39% 0.225 308deg);
       --chip-bhot-bg:       oklch(52% 0.195 311deg);
-      --chip-ot-bg:         oklch(67% 0.198 50deg);
+      --chip-ot-bg:         var(--orange-deep);
       --row-matched-bg:     color-mix(in oklch, var(--success-green) 10%, white);
       --row-matched-text:   var(--success-green);
       --row-differs-bg:     color-mix(in oklch, var(--orange) 7%, white);
@@ -15,7 +17,7 @@
       --conf-recorded-bg:   var(--blue-light);
       --conf-recorded-text: var(--blue-sky);
       --conf-possible-bg:   oklch(97% 0.022 72deg);
-      --conf-possible-text: oklch(58% 0.225 40deg);
+      --conf-possible-text: var(--orange-text);
 
       /* The page's colour, green: the header badge, the About badge and every chosen control all
          read it (shared.css :root → "Page identity"). Declared once, here. */
@@ -31,18 +33,9 @@
       background: var(--primary-blue);
       min-height: 100vh;
       min-height: 100dvh;
-      padding-top:    max(20px, env(safe-area-inset-top));
-      padding-bottom: max(10px, env(safe-area-inset-bottom));
-      padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-      padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+      /* The page gutter is shared.css's (the card pages' one home for it). */
       overflow-x: hidden; overflow-x: clip; overscroll-behavior: none; /* clip avoids creating a scroll container that breaks position:sticky on iOS */
       font-size: var(--type-body); color: var(--text-dark);
-    }
-    @media (max-width: 768px) {
-      body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-      }
     }
 
     .app { max-width: 480px; margin: 0 auto; }
@@ -51,22 +44,13 @@
        bottom margin (admin uses a grid gap). */
     .app-header { margin-bottom: 4px; }
 
-    /* ── CARD HEADER — deliberately FLAT here (padding + divider only), NOT the shared flex row.
-       The cards use it as `card-header--row` (one static header) and `card-header-toggle` (the
-       collapsible ones, which add their own flex + chevron rules); a flex base would fight both.
-       The FILL and the TITLE are NOT restated: a copy of shared.css's is exactly what stops
-       matching — this page once kept a grey band and a 13px title alone, and nothing failed. */
-    .card-header {
-      padding: 11px 16px;
-      border-bottom: 1px solid var(--border-light);
-    }
-    .hint {
-      font-size: var(--type-small); color: var(--text-light);
-      display: block; margin-top: 2px;
-    }
+    /* ── CARD HEADER — shared.css's, whole: padding, divider, fill, title and hint. A copy here is
+       what stops matching: this page kept a grey band and a 13px title alone once, and until
+       Nov 2026 a hint 2px lower than every other page's. Nothing failed either time. */
 
-    /* ── PRIMARY BUTTON ── */
-    .btn-primary {
+    /* ── PRIMARY BUTTON ── Save settings is the one primary without .btn-action. A button wearing
+       both takes shared.css's recipe whole: this one, reaching them, gave each pair two shapes. */
+    .btn-primary:not(.btn-action) {
       display: flex; align-items: center; justify-content: center;
       width: 100%; min-height: 44px; box-sizing: border-box; padding: 11px 16px;
       background: var(--primary-blue); color: white;
@@ -102,7 +86,7 @@
       background-image: var(--caret-chevron);
       background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
       cursor: pointer; touch-action: manipulation;
-      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
     }
     #periodSelect:focus-visible,
     #periodSelectTrigger:focus-visible { border-color: var(--primary-blue); outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); background-color: white; }
@@ -111,7 +95,7 @@
       flex: 1;
       padding: 10px 14px;
       background: var(--primary-blue); color: white;
-      border: none; border-radius: var(--radius-md);
+      border: none; border-radius: var(--radius-button);   /* the period field's corner, above it */
       font-family: inherit; font-size: var(--type-label); font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       transition: background var(--dur-med), transform var(--dur-fast) var(--ease-standard); white-space: nowrap;
@@ -125,7 +109,7 @@
       flex: 0 0 auto;
       width: 38px; height: 38px; padding: 0;
       background: var(--accent-gold); color: var(--primary-blue);
-      border: none; border-radius: var(--radius-md);
+      border: none; border-radius: var(--radius-button);
       font-family: inherit; font-size: var(--type-micro); font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       transition: background var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
@@ -159,7 +143,7 @@
     }
     .save-status {
       font-size: var(--type-micro); color: var(--text-faint);
-      transition: color 0.3s;
+      transition: color var(--dur-slower);
     }
     .save-status.saved   { color: var(--success-text); }
     .save-status.corrupt { color: var(--warning-amber); font-weight: 600; }
@@ -252,7 +236,7 @@
     #payBreakBar.pbb-visible { display: flex; }
     .pbb-seg {
       border-radius: 3px; min-width: 3px;
-      transition: flex-grow 0.35s var(--ease-standard);
+      transition: flex-grow var(--dur-slower) var(--ease-standard);
     }
     .pbb-pension { background: var(--accent-gold); }
     .pbb-tax     { background: var(--primary-blue); }
@@ -330,6 +314,13 @@
       cursor: pointer; touch-action: manipulation;
     }
     .banner-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* The invisible hit area the other small text controls have (above), ~15px drawn. It reaches 5px
+       up — the opt-in tick sits 6px above, and a tap meant for it must not open the card — and 9px
+       down, over the note line, which takes no tap. Coarse pointers only. */
+    @media (pointer: coarse) {
+      .banner-link { position: relative; }
+      .banner-link::after { content: ''; position: absolute; inset: -5px -6px -9px; }
+    }
     /* Accuracy / confirm-your-payslip note line; hidden when its text is empty. */
     .bp-banner-note { margin-top: 4px; font-weight: 400; }
     .bp-banner-note:empty { display: none; }
@@ -355,12 +346,12 @@
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
     /* A containing block, so the clip reaches a picker's 1px select (select-sheet-parity contract 12;
        `.collapsible-body`, below, has the measurement). */
-    .bd-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+    .bd-body { position: relative; max-height: 0; overflow: hidden; transition: max-height var(--dur-slower) var(--ease-standard); }
     /* A FINITE cap so the open/close can animate (max-height: none cannot), well above the tallest
        real content: ≤ ~13 back-pay rows (one award year) or the ~20-line result breakdown, ~550–800px.
-       Print unclips it. Should a breakdown ever outgrow it, measure the height and drop the cap after
-       transitionend, rather than reach for a bigger number. */
-    .bd-body.open { max-height: 1400px; }
+       Print unclips it. In `em`, as every cap on this page is (see `.collapsible-body.open`): 1400px at
+       the 14px it is set in, and it grows with the text, which a pixel cap does not. */
+    .bd-body.open { max-height: 100em; }
     .bd-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 16px; border-bottom: 1px solid var(--border-light);
@@ -439,6 +430,8 @@
   @media (hover: hover) and (pointer: fine) {
     #helpLightboxClose:hover { color: white; }
   }
+  /* On the dark glass the navy fallback ring measured 1.17:1: the gold every ✕ on a navy sheet wears. */
+  #helpLightboxClose:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
 
   /* ── SHOW MORE / HOURS EXTRA ── */
     .show-more-btn {
@@ -454,8 +447,9 @@
       .show-more-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
     }
     .show-more-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-    .show-more-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); }
-    .show-more-btn.open .show-more-arrow { transform: rotate(180deg); }
+    /* No rotation for this arrow or the HPP note's: the script swaps their glyph (▼ shut, ▲ open —
+       `_setDisclosure`), and a rotation as well turned the ▲ back into a ▼, open or shut. */
+    .show-more-arrow { font-size: var(--type-micro); }
     .hours-extra { display: none; }
     .hours-extra.open { display: block; }
 
@@ -514,7 +508,7 @@
       font-variant-numeric: tabular-nums;
       font-size: var(--type-medium); font-weight: 600;
       text-align: center; color: var(--text-dark); background-color: var(--field-bg);
-      touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      touch-action: manipulation; transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
       letter-spacing: 0.5px;
       -moz-appearance: textfield;
     }
@@ -556,7 +550,9 @@
       touch-action: manipulation; transition: background-color var(--dur-med); flex-shrink: 0;
     }
     .stepper button:active { background: var(--primary-blue); color: white; }
-    .stepper button:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* Inside the button: the stepper clips (`overflow: hidden`), and a ring drawn outside lost three
+       of its four sides — the inset ring .bd-btn and .roster-row wear for the same reason. */
+    .stepper button:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     @media (hover: hover) and (pointer: fine) {
       .stepper button:hover { background: var(--primary-blue-dark); color: white; }
     }
@@ -578,7 +574,7 @@
       transition: max-height var(--dur-slower) var(--ease-standard), opacity var(--dur-slower) var(--ease-standard), margin-bottom var(--dur-slower) var(--ease-standard), padding var(--dur-slower) var(--ease-standard);
     }
     .boxing-banner.visible {
-      max-height: 60px; opacity: 1;
+      max-height: 5em; opacity: 1;   /* 60px at its 12px; in em so a banner that wraps at large text still shows */
       padding: 8px 12px; margin-bottom: 10px;
     }
 
@@ -609,7 +605,7 @@
       border: var(--field-border); border-radius: var(--radius-field);
       font-family: inherit; font-size: var(--type-medium); font-weight: 600;
       color: var(--text-dark); background-color: var(--field-bg);
-      touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      touch-action: manipulation; transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
     }
     /* Brighten to white when active — the field 'fills in' on focus. The OUTLINE is stated, never
        left to the browser: unstated, the UA's `outline: auto` painted an AMBER ring on Android
@@ -734,7 +730,7 @@
       width: 100%; font-size: var(--type-medium); padding: 8px 10px 8px 26px;
       border: var(--field-border); border-radius: var(--radius-field);
       background-color: var(--field-bg);
-      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
     }
     .check-actual input:not([type="checkbox"]):not([type="radio"]):focus-visible {
       border-color: var(--primary-blue); box-shadow: var(--focus-ring);
@@ -828,11 +824,12 @@
     }
     .hpp-toggle-btn:active { color: var(--text-mid); }
     .hpp-toggle-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
-    .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
-    .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
+    .hpp-toggle-arrow { font-size: var(--type-micro); }   /* glyph-swapped, so never rotated (.show-more-arrow) */
     /* `position: relative` — a containing block, as `.bd-body`'s is. */
-    .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
-    .hpp-note-body.open { max-height: 400px; }
+    .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height var(--dur-slower) var(--ease-standard); }
+    /* 448px at the 14px it is set in (it was 400): about 216px of text at default size grew to 829px at
+       twice the size, faster than the text, because a narrow column wraps more lines. */
+    .hpp-note-body.open { max-height: 32em; }
 
     /* Actual HPP badge */
     .actual-badge {
@@ -964,14 +961,18 @@
       font-variant-numeric: tabular-nums; white-space: nowrap;
     }
     /* The locked (confirmed-award) rate boxes read as fixed VALUES, as the read-only Settings rate
-       does: a faint fill, bold, and the 🔒. */
-    input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
+       does: a faint fill, bold, and the 🔒. At the field rule's weight plus the class, (0,4,1): at
+       (0,1,1) every declaration but the cursor lost to `.field input:not(…):not(…)`, the trap the
+       `.roster-suggested` note below records. */
+    .field input.bp-rate-locked:not([type="checkbox"]):not([type="radio"]) {
+      background-color: var(--bg-faint); color: var(--text-dark); font-weight: 700;
       border-color: var(--border-light); cursor: default; padding-right: 32px; }
-    /* No "active field" glow — brightening a box nobody can edit would lie. But they stay in the Tab
-       order (`readOnly`, not `disabled`), so they must still show WHERE you are: `outline: none`
-       here once left four reachable inputs with no focus indicator, which no axe rule can see. */
-    input.bp-rate-locked:focus { box-shadow: none; }
-    input.bp-rate-locked:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* No "active field" glow or brightening — a box nobody can edit would lie. But they stay in the
+       Tab order (`readOnly`, not `disabled`), so the ring still shows WHERE you are: `outline: none`
+       here once left four reachable inputs with no focus indicator. (0,5,1), over the field's own. */
+    .field input.bp-rate-locked:not([type="checkbox"]):not([type="radio"]):focus-visible {
+      background-color: var(--bg-faint); border-color: var(--border-light); box-shadow: none;
+      outline: var(--focus-outline); outline-offset: 2px; }
     .pfx:has(> input.bp-rate-locked)::after {
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: var(--type-small); opacity: .5; pointer-events: none;
@@ -1032,13 +1033,6 @@
       .save-row       { grid-area: save; }
       .period-hint    { margin-top: 0; }
       #rosterViewLink { grid-column: 1 / -1; } /* span both cols of the period-controls subgrid */
-
-      /* Buttons stop at 280px — no need to span a 720px card — except in the ~400px sidebar, where
-         the backup card's primary sat 280px wide over a full-width secondary (a mismatched pair
-         reads as a fault), and under the Settings fields: a button under a field matches the field
-         (css-tokens.md), as on mobile. */
-      .btn-primary { max-width: 280px; }
-      #payTransferBody .btn-primary, #saveSettingsBtn { max-width: none; }
     }
 
     /* ── Desktop: 1024px — a three-column WORKSPACE in ONE shared grid row: .pc-work (period band,
@@ -1077,7 +1071,7 @@
 
       /* The bands above the workspace span THE WORK COLUMNS, not the whole grid, so their width is
          structural — 680px at 1280, 543px at 1024, tracking .pc-work — with a gutter on both sides
-         or neither: one side only reads as unfinished. A hidden #setupBanner collapses its row. */
+         or neither: one side only reads as unfinished. A hidden one leaves an empty row: see below. */
       #setupBanner             { grid-column: 1 / 3; grid-row: 1; }
       /* The refusal card is the exception, on purpose: it is the ONLY thing on the page (everything
          else is hidden with it — role-unsupported, below), so it has no edges to share. It spans the
@@ -1115,11 +1109,15 @@
          row-gap — 32px and 28px steps beside every other 16px. These are the bands' resets. */
       main > .setup-banner, main > .privacy-note-standalone, main > .guide-footer-link { margin-bottom: 0; }
     }
-    /* A HIDDEN TOP NOTE MUST NOT LEAVE ITS GAP: the privacy note owns row 2, and an empty row still
-       takes a row-gap, so a returning member's workspace sat 16px low; this pulls it up one gap.
+    /* A HIDDEN TOP ROW MUST NOT LEAVE ITS GAP. The setup banner owns row 1 and the privacy note row 2,
+       and an empty row still takes its row-gap, so each hidden one put everything below it 16px low:
+       a returning member, with both hidden, had the workspace 20px under the header against every
+       other card page's 4. Whatever follows a hidden row comes up one gap per hidden row.
        `screen`: print lays <main> out as a flex column with its own gap, where this would overlap. */
     @media screen and (min-width: 1024px) {
+      main:has(> #setupBanner.hidden) > .privacy-note-standalone { margin-top: -16px; }
       main:has(> #privacyNoteTop.hidden) > :is(.pc-work, .pc-side) { margin-top: -16px; }
+      main:has(> #setupBanner.hidden):has(> #privacyNoteTop.hidden) > :is(.pc-work, .pc-side) { margin-top: -32px; }
     }
     @media (min-width: 1024px) {
       /* The headline figure takes the extra width, and Fill from calendar — the obvious first action,
@@ -1167,7 +1165,7 @@
       .bd-btn, .show-more-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,
       #payTransferCard,
-      .field-hint, .net-hint, .net-ytd, .check-actual, .prov-chips:empty,
+      .field-hint, .net-hint, .net-ytd, .check-actual,
       .privacy-note-standalone, .guide-footer-link,
       #rosterHintBar, .joiner-notice, #stickyTotal,
       #payBreakBar, #payBreakLegend { display: none !important; }
@@ -1235,7 +1233,6 @@
       }
       .hhmm-lbl { font-size: var(--type-micro) !important; color: var(--text-light) !important; }
       .stepper { display: flex !important; align-items: center !important; }
-      .stepper button { display: none !important; }
       .stepper-val { font-weight: 700 !important; font-size: var(--type-label) !important; }
       .disclaimer {
         box-shadow: none !important; font-size: var(--type-micro) !important;
@@ -1259,14 +1256,10 @@
       /* Controls that do nothing on paper: the year card's fill button and a card's collapse
          arrow ("▲" printed beside "Your Settings"). */
       #fillYearBtn, .yearso-fill, .card-toggle-arrow { display: none !important; }
-      /* Rate badge colours — ensure they print with background */
-      .badge-sat  { background: var(--orange-light)    !important; color: var(--orange-text)   !important; }
-      .badge-bh   { background: var(--al-light)        !important; color: var(--al-text)  !important; }
-      .badge-ot   { background: var(--ot-light)        !important; color: var(--ot)       !important; }
-      .badge-rdw  { background: var(--rdw-light)       !important; color: var(--rdw-text) !important; }
-      .badge-sun  { background: var(--blue-light)      !important; color: var(--blue-sky) !important; }
-      .badge-box  { background: var(--boxing-day-bg)   !important; color: var(--boxing-day-text) !important; }
-      .badge-peer { background: var(--green-light)     !important; color: var(--green)    !important; }
+      /* The rate badges print their screen colours (the `*` rule above keeps every fill on paper) —
+         except RDW, whose name the calendar's shift badge shares: shared.css's print rule would paint
+         this pale chip solid with white words, so it is restated here, after it. */
+      .badge-rdw  { background: var(--rdw-light) !important; color: var(--rdw-text) !important; }
     }
 
     /* ── YTD NOTICE LIGHTBOX ─────────────────────────────────────────── */
@@ -1278,12 +1271,10 @@
     #noticeYtdContent strong { color: rgba(255,255,255,0.9); }
 
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
+    /* The lightboxes are shared.css's (.lb-overlay, .lb-content), and stop there. */
     @media (prefers-reduced-motion: reduce) {
-      #iconLightbox, #iconLightboxContent,
-      #noticeYtdLightbox, #noticeYtdContent,
-      #helpLightbox, #helpLightboxContent,
-      .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
-      .show-more-arrow, .hpp-toggle-arrow, .card-toggle-arrow,
+      .bd-body, .bd-arrow, .boxing-banner, .collapsible-body, .hpp-note-body,
+      .card-toggle-arrow,
       .save-status, .stepper button, .pbb-seg {
         transition: none !important;
         animation: none !important;
@@ -1346,9 +1337,11 @@
   }
   .collapsible-body.open {
     /* A finite cap so the open/close can ANIMATE (max-height: none cannot tween). The tallest body,
-       #backPayBody with a full 13-period breakdown, MEASURED ~1404px; revisit only if one could
-       exceed 1800px. */
-    max-height: 1800px;
+       #backPayBody with a full 13-period breakdown, MEASURED ~1404px at default text. In `em`: 1800px
+       at the cards' 14px, growing with the text. As 1800px it clipped Settings at Android's 1.3x text
+       scale — a student loan and a pension opt-out put Save settings out of reach (measured 1916px
+       of content at 360px) — and a narrow card's height grows faster than its text. */
+    max-height: calc(1800em / 14);
     visibility: visible; transition-delay: 0s;
     padding-top: 8px !important; padding-bottom: 16px !important;
   }
@@ -1473,6 +1466,8 @@
   @media (hover: hover) and (pointer: fine) {
     .guide-footer-link a:hover { color: white; }
   }
+  /* On the navy canvas the navy fallback ring was 1:1 — gold, as on every other dark surface. */
+  .guide-footer-link a:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; border-radius: var(--radius-xs); }
 
   /* ── ROSTER SUGGESTION CARD ── */
   .roster-card {
@@ -1498,21 +1493,29 @@
   .roster-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
   /* The calendar's "none": shown only when a stale figure is waiting for Replace to clear it. */
   .roster-none-note { margin: 0; font-size: var(--type-small); color: var(--text-mid); line-height: 1.45; }
+  /* The row WRAPS: what does not fit moves to a second line instead of being squeezed. At 360px a
+     "Bank holiday overtime" row whose hours differ needed ~56px more than it had, and with nothing
+     allowed to wrap the meta column was crushed to 0 and painted over the arrow and past the row. */
   .roster-row {
-    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
-    padding: 8px 10px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; width: 100%; min-height: 44px;
+    position: relative; padding: 8px 29px 8px 10px;   /* the right 29px: the arrow's place, below */
     background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius);
     font-family: inherit; text-align: left;
-    cursor: pointer; touch-action: manipulation; transition: background 0.12s, border-color 0.12s;
+    cursor: pointer; touch-action: manipulation; transition: background var(--dur-fast), border-color var(--dur-fast);
   }
   .roster-row-icon  { font-size: var(--type-body); flex-shrink: 0; width: 20px; text-align: center; }
-  .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); white-space: nowrap; flex-shrink: 0; }
+  .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); min-width: 0; }
   .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
   /* The meta column is a WRAPPING flex row: too narrow for its text ("3 days" / "Calendar: 8h")
      and the confidence chip together, the chip drops to its own line WHOLE. No " · " between them —
-     the chip's fill is the separator, and a typed one was left dangling at a line end. */
-  .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+     the chip's fill is the separator, and a typed one was left dangling at a line end. Its automatic
+     minimum (its longest word) stands: below that it takes the row's next line, never a 0px column. */
+  .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
   .roster-cat-arrow { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); flex-shrink: 0; }
+  /* The → or ✓ sits at the row's right edge, centred, out of the wrapping flow: as the last flex item
+     it was the one thing to wrap, alone, to the start of a line of its own. The row's 29px of right
+     padding is the 11px glyph and its 8px gap, so a one-line row draws exactly as before. */
+  .roster-row > :is(.roster-cat-arrow, .roster-cat-match) { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
   .roster-row:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
   .roster-row--matched { background: var(--row-matched-bg); }
   .roster-row--differs { background: var(--row-differs-bg); }
@@ -1524,8 +1527,9 @@
     .roster-row--differs:hover { background: color-mix(in oklch, var(--row-differs-bg) 94%, var(--orange)); }
   }
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
-  .roster-row--differs .roster-row-total { color: var(--chip-ot-bg); }
-  .roster-cat-arrow--differs { color: var(--chip-ot-bg); }
+  /* Text on the "differs" tint: the AA text orange, not the chip FILL (that was 3.04:1). */
+  .roster-row--differs .roster-row-total { color: var(--orange-text); }
+  .roster-cat-arrow--differs { color: var(--orange-text); }
   /* The chip WRAPS inside its column (`white-space: normal`, the whole fix): the meta column is
      ~110px on a phone, and with `nowrap` the longest chip, "Includes an 8h estimate — check", ran
      off the row and the card with nothing failing — an overflow paints. Pinned by

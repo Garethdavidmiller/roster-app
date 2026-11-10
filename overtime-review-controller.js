@@ -11,18 +11,40 @@
  * It is not the right call for one coordinator. The two are different applications sharing a
  * header: the member has a window, a form, a submission and a deadline; the reviewer has a planning
  * horizon, a week selection, a detail workspace, grade and day lenses, a creation preview and a
- * confirm bar. Nothing in the second is reachable from the first, and none of its EIGHT pieces of
- * state means anything to a member.
+ * confirm bar. Nothing in the second is reachable from the first, and none of its state means
+ * anything to a member.
+ *
+ * ── THE PLANNING HORIZON IS THE POINT OF THE PAGE, NOT A CONVENIENCE ────────────────────────────
+ *
+ * A weekly-window system has exactly one catastrophic failure, and it happens before any document
+ * exists: nobody creates the window. Then no participants exist, so nobody is outstanding, so no
+ * reminder can fire, so staff see nothing — and "no window" is indistinguishable from "no overtime
+ * needed this week". The clerk plans a roster from a page that is quietly empty.
+ *
+ * So the horizon is rendered FIRST, above the week detail, from the CALENDAR rather than from
+ * Firestore, and a missed week keeps its row until its Saturday has passed. Anything that makes
+ * these rows less prominent makes the feature less safe.
+ *
+ * ── WHICH READ IS LATEST, NOT MERELY WHICH WEEK IS SELECTED ─────────────────────────────────────
+ *
+ * `renderWeekDetail` guards on the selected WEEK, so two reads of the SAME week both satisfy it —
+ * and three things start one (Refresh, the visibility refetch, a week press). If the second returns
+ * first, the first lands after it and paints the OLDER snapshot beneath the NEWER "as at" time.
+ * Every other stale render is a page that is behind; this is a page that is behind while saying it
+ * is current, on the surface a clerk rings people from. Hence `detailGeneration`: a ticket per call,
+ * and only the newest may paint. Coalescing into one in-flight promise is worse — it would hand a
+ * Refresh press the answer to the read already running, which is the stale data the press exists
+ * to replace.
  *
  * ── WHAT IT OWNS, AND WHY THAT IS ALL ONE THING ─────────────────────────────────────────────────
  *
  * Every piece of state here exists to keep several asynchronous reads from disagreeing about which
  * week the reviewer is looking at:
  *
- *   · `horizonGeneration` / `detailGeneration` — the two GENERATION TICKETS. Three actions reload
- *     the horizon (create, top-up, stop-asking) and two in quick succession put two reads in
- *     flight; the older one painting LAST showed pre-action counts and repopulated `horizonByWeek`
- *     with the stale rows the next detail read takes its milestones from.
+ *   · `horizonGeneration` / `detailGeneration` — the two GENERATION TICKETS. Three actions and
+ *     every refresh reload the horizon, and two in quick succession put two reads in flight; the
+ *     older one painting LAST showed pre-action counts and repopulated `horizonByWeek` with the
+ *     stale rows the next detail read takes its milestones from.
  *   · `selectedWeek` — checked again after every await, because painting an older week's answers
  *     over a newer selection is the classic late-read bug.
  *   · `horizonByWeek` — where a week's milestones come from when the detail read needs them.
@@ -31,10 +53,12 @@
  *     would be reset by the act of changing week. They differ from each other deliberately (grade
  *     survives a week switch, day does not — its values are one window's dates).
  *   · `pendingWeek` — what the Create button is armed for, and nothing else.
- *   · `detailFetchedAt` — what the visibility refresh debounces on.
+ *   · `detailFetchedAt` / `horizonFetchedAt` — what the visibility refresh debounces on.
+ *   · `weekShown` / `horizonShown` — the newest snapshot each card drew, so a re-read that fails can
+ *     put it back, with its own age, rather than an error card (overtime-ui-3, -11).
  *
- * Those eight have to agree with each other and with nothing else on the page. That is the
- * invariant, and this module is the one owner of it.
+ * They have to agree with each other and with nothing else on the page. That is the invariant, and
+ * this module is the one owner of it.
  *
  * ── WHAT IT DOES NOT OWN ────────────────────────────────────────────────────────────────────────
  *
@@ -48,10 +72,11 @@
 
 import * as OTD from './overtime-data.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn,
+    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn, putBackWindow, weekDates,
+    writeOutcomeUnknown,
 } from './overtime-format.js';
 import { phaseAt } from './overtime-phase.js';
-import { renderWeekDetail as paintWeekDetail } from './overtime-manager.js';
+import { renderWeekDetail as paintWeekDetail, stampPrinted, refocus, focusLost } from './overtime-manager.js';
 import { confirmDialog } from './overlay.js';
 
 /**
@@ -63,10 +88,16 @@ import { confirmDialog } from './overlay.js';
  * @param {number} deps.detailRefreshDebounceMs
  */
 export function createReviewController({ el, esc, renderLoading, renderError, detailRefreshDebounceMs }) {
-    // ── The eight pieces of state, and the reason they live together (see the header) ───────────
+    // ── The state, and the reason it lives together (see the header) ────────────────────────────
 
     /** Ticket for the newest horizon read. Only its holder may paint. */
     let horizonGeneration = 0;
+    /** When the horizon last came back — the visibility refresh's debounce for it. */
+    let horizonFetchedAt = 0;
+    /** The overview the horizon is drawing, and when it was read. @type {{weeks: any[], past: any[], readAt: number}|null} */
+    let horizonShown = null;
+    /** The newest snapshot the workspace drew — what a failed re-read of THAT week falls back on. @type {{weekEnding: string, win: any, data: any, dates: string[], now: number}|null} */
+    let weekShown = null;
     /** The week the Manager detail card is showing, if any. @type {string|null} */
     let selectedWeek = null;
     /** The planning rows from the last overview, keyed by week. @type {Map<string, any>} */
@@ -82,17 +113,31 @@ export function createReviewController({ el, esc, renderLoading, renderError, de
     /** Ticket for the newest week-detail read. Only its holder may paint. */
     let detailGeneration = 0;
 
+    // The sheet's "Printed …" line names the moment it PRINTS, by the corrected clock (overtime-ui-7).
+    if (typeof window !== 'undefined') {
+        window.addEventListener('beforeprint', () => stampPrinted(el('otWeekContent'), OTD.correctedNow()));
+    }
+
 // ── Upcoming weeks (the planning horizon) ───────────────────────────────────────────────────
 
-async function loadHorizon() {
+/**
+ * Read and draw the horizon. `quiet` is a REFRESH (overtime-ui-3): rows already on screen stay there
+ * while it reads and if it fails — then with a line saying how old they are — because a loading line
+ * or an error card in their place would take away the one surface that shows a week nobody created.
+ * @param {{ quiet?: boolean }} [opts]
+ */
+async function loadHorizon({ quiet = false } = {}) {
     const host = el('otHorizonContent');
     if (!host) return;
-    renderLoading(host, 'Loading upcoming weeks…');
+    const keep = quiet ? horizonShown : null;
+    if (!keep) { renderLoading(host, 'Loading upcoming weeks…'); horizonShown = null; }
     const generation = ++horizonGeneration;
     const r = await OTD.getOvertimeManagerOverview();
     if (generation !== horizonGeneration) return;   // a newer load owns the card now
+    if (!r.ok && keep) { paintHorizon(host, keep, true); return; }
     // Its OWN retry: the page default is loadEverything, which rebuilds the member's form too.
     if (!r.ok) { renderError(host, () => loadHorizon()); return; }
+    horizonFetchedAt = Date.now();
 
     const weeks = r.data.planningWeeks || [];
     horizonByWeek.clear();
@@ -116,20 +161,8 @@ async function loadHorizon() {
         .filter((/** @type {any} */ w) => !shown.has(w.weekEnding));
     for (const w of past) horizonByWeek.set(w.weekEnding, w);
 
-    host.innerHTML = `<div class="ot-week-list">${weeks.map(renderHorizonRow).join('')}</div>`
-        + (past.length ? `
-            <div class="ot-history">
-                <div class="ot-history-title">Previous weeks</div>
-                <div class="ot-week-list">${past.map(renderPastWeekRow).join('')}</div>
-            </div>` : '');
-    host.querySelectorAll('[data-create]').forEach(btn =>
-        btn.addEventListener('click', () => previewWindow(
-            String(btn.getAttribute('data-create')), /** @type {HTMLElement} */ (btn))));
-    host.querySelectorAll('[data-open]').forEach(btn =>
-        btn.addEventListener('click', () => selectWeek(String(btn.getAttribute('data-open')))));
-    host.querySelectorAll('[data-topup]').forEach(btn =>
-        btn.addEventListener('click', () => topUpWeek(
-            String(btn.getAttribute('data-topup')), /** @type {HTMLElement} */ (btn))));
+    horizonShown = { weeks, past, readAt: OTD.correctedNow() };
+    paintHorizon(host, horizonShown, false);
 
     // OPEN THE WEEK BEING PLANNED, rather than making the reviewer ask for it.
     //
@@ -162,6 +195,29 @@ async function loadHorizon() {
             || created[created.length - 1];
         if (lead) await selectWeek(lead.weekEnding, { scroll: false });
     }
+}
+
+/**
+ * Draw one overview's rows and wire their buttons — `stale` when a refresh of them has just failed.
+ * @param {HTMLElement} host @param {{weeks: any[], past: any[], readAt: number}} shown @param {boolean} stale
+ */
+function paintHorizon(host, { weeks, past, readAt }, stale) {
+    host.innerHTML = (stale ? `<div class="ot-reminder-line ot-reminder-line--warn" role="status">Couldn't refresh `
+            + `just now — this list is as at ${esc(deadlineLabel(readAt))}.</div>` : '')
+        + `<div class="ot-week-list">${weeks.map(renderHorizonRow).join('')}</div>`
+        + (past.length ? `
+            <div class="ot-history">
+                <div class="ot-history-title">Previous weeks</div>
+                <div class="ot-week-list">${past.map(renderPastWeekRow).join('')}</div>
+            </div>` : '');
+    host.querySelectorAll('[data-create]').forEach(btn =>
+        btn.addEventListener('click', () => previewWindow(
+            String(btn.getAttribute('data-create')), /** @type {HTMLElement} */ (btn))));
+    host.querySelectorAll('[data-open]').forEach(btn =>
+        btn.addEventListener('click', () => selectWeek(String(btn.getAttribute('data-open')))));
+    host.querySelectorAll('[data-topup]').forEach(btn =>
+        btn.addEventListener('click', () => topUpWeek(
+            String(btn.getAttribute('data-topup')), /** @type {HTMLElement} */ (btn))));
 }
 
 /** @param {any} w */
@@ -198,13 +254,16 @@ function renderHorizonRow(w) {
             // recessive button under a red label reads as "nothing you can do".
             ? `<button type="button" class="ot-row-btn${w.state === 'not-created-overdue' ? ' ot-row-btn--primary' : ''}" data-create="${esc(w.weekEnding)}">Open now</button>`
             : '');
+    // A deadline that has gone is stated in the past tense (overtime-ui-16): the first row is always
+    // a closed week, and it said "Closes …" beside "Form closed". Past at the instant, as phases are.
+    const now = OTD.correctedNow();
     return `
         <div class="ot-week-row ot-week-row--${tone}">
             <div class="ot-week-main">
                 <div class="ot-week-title">${esc(weekLabel(w.weekEnding))}</div>
                 <div class="ot-week-meta">
-                    Answers due ${esc(deadlineLabel(w.initialDeadlineAt))}<br>
-                    Closes ${esc(deadlineLabel(w.finalDeadlineAt))}
+                    ${now >= w.initialDeadlineAt ? 'Answers were due' : 'Answers due'} ${esc(deadlineLabel(w.initialDeadlineAt))}<br>
+                    ${now >= w.finalDeadlineAt ? 'Closed' : 'Closes'} ${esc(deadlineLabel(w.finalDeadlineAt))}
                     ${counts ? `<br>${esc(counts)}` : ''}
                 </div>
                 <span class="ot-week-state ot-week-state--${tone}">${esc(label)}</span>
@@ -222,7 +281,8 @@ function renderPastWeekRow(w) {
                 <div class="ot-week-meta">Closed ${esc(deadlineLabel(w.finalDeadlineAt))}</div>
             </div>
             <div class="ot-week-actions">
-                <button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}">View</button>
+                <button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}"
+                        aria-pressed="${selectedWeek === w.weekEnding}">View</button>
             </div>
         </div>`;
 }
@@ -263,7 +323,7 @@ async function previewWindow(weekEnding, btn) {
     const restore = setCreateBusy(btn);
     const r = await OTD.createOvertimeWindow(weekEnding, { dryRun: true });
     restore();
-    if (!r.ok) { flashConfirm(`Couldn't prepare that week (${esc(r.code)}).`, false); return; }
+    if (!r.ok) { flashConfirm(esc(accessRefusal(r) ?? `Couldn't prepare that week (${r.code}).`), false); return; }
     const w = r.data.window;
     pendingWeek = weekEnding;
     const bar = el('otConfirmBar');
@@ -282,6 +342,9 @@ async function previewWindow(weekEnding, btn) {
     }
     armConfirmBar();
     showConfirmBar(bar);
+    // The question is asked at the foot of the page, so the keyboard goes there — to Cancel, the
+    // answer that changes nothing (overtime-ui-12).
+    el('otConfirmCancel')?.focus();
 }
 
 /**
@@ -314,7 +377,9 @@ async function topUpWeek(weekEnding, btn) {
     if (!r.ok) {
         btn.textContent = label;
         /** @type {HTMLButtonElement} */ (btn).disabled = false;
-        flashConfirm(`Couldn't add anyone to that week (${esc(r.code)}).`, false);
+        // The server may have added them, and told them (overtime-ui-10): say so, and re-read.
+        if (writeOutcomeUnknown(r)) { await unknownOutcome(weekEnding, 'whether anyone was added to'); return; }
+        flashConfirm(esc(accessRefusal(r) ?? `Couldn't add anyone to that week (${r.code}).`), false);
         return;
     }
     const added = (r.data && r.data.added) || [];
@@ -383,8 +448,11 @@ function armConfirmBar() {
 
 function wireConfirmBar() {
     el('otConfirmCancel')?.addEventListener('click', () => {
+        const asked = pendingWeek;
         pendingWeek = null;
         hideConfirmBar();
+        // Back to the row that asked; the hidden bar takes the keyboard with it otherwise.
+        if (asked) refocus(el('otHorizonContent'), 'data-create', asked);
     });
     el('otConfirmCreate')?.addEventListener('click', async () => {
         if (!pendingWeek) return;
@@ -392,19 +460,25 @@ function wireConfirmBar() {
         btn.disabled = true;
         const week = pendingWeek;
         const r = await OTD.createOvertimeWindow(week, { dryRun: false });
-        // Re-arm from `pendingWeek`, not unconditionally: a timeout keeps the week pending (the
-        // press is worth repeating), and every other outcome below clears it. Unless a preview of
-        // ANOTHER week landed while this was out (48-hour review): the message below is about THIS
-        // week, so Create must not stay armed for that one under it.
+        // Re-arm from `pendingWeek`, not unconditionally: a failure keeps the week pending, so the
+        // press can be repeated (a second create of a week that exists answers with that week), and
+        // only a success clears it. Unless a preview of ANOTHER week landed while this was out
+        // (48-hour review): the message below is about THIS week, so Create must not stay armed for
+        // that one under it.
         if (pendingWeek !== week) pendingWeek = null;
         armConfirmBar();
         if (!r.ok) {
-            // A timeout on a CREATE is not a failure — the window may exist. Say so, and say
-            // what to do, rather than inviting a second create that would look like a failure
-            // too (it would return the existing window, which is right, but reads as confusing).
-            flashConfirm(r.code === 'timeout'
-                ? 'Timed out waiting for the server. The week may still have been created — close this and check the list.'
-                : `Couldn't create that week (${esc(r.code)}).`, false);
+            // A create whose answer never came is not a failure — the window may exist. Say so, and
+            // say what to do, rather than inviting a second create that would look like a failure
+            // too (it would return the existing window, which is right, but reads as confusing). The
+            // list is re-read, so "check the list" checks a current one (overtime-ui-10).
+            if (writeOutcomeUnknown(r)) {
+                flashConfirm('Couldn\'t confirm whether the week was created — it may still have been created. '
+                    + 'Close this and check the list.', false);
+                loadHorizon({ quiet: true });
+                return;
+            }
+            flashConfirm(esc(accessRefusal(r) ?? `Couldn't create that week (${r.code}).`), false);
             return;
         }
         pendingWeek = null;
@@ -448,6 +522,33 @@ function flashConfirm(html, ok) {
 }
 
 /**
+ * A write whose answer never came (overtime-ui-10). The server may have done it — added people and
+ * told them, or stood somebody down and taken the week off their page — so it is neither reported
+ * as a failure nor left unread. Both writes are idempotent, so a second press after the re-read is safe.
+ * @param {string} weekEnding @param {string} what e.g. "whether anyone was added to"
+ */
+async function unknownOutcome(weekEnding, what) {
+    flashConfirm(`Couldn't confirm ${esc(what)} ${esc(weekLabel(weekEnding))} — it may still have happened. `
+        + 'Check the week before trying again.', false);
+    await loadHorizon({ quiet: true });
+    if (selectedWeek === weekEnding) renderWeekDetail(weekEnding);
+}
+
+/**
+ * A refusal about the REVIEWER rather than the action (the overtime-core lead): for these the server
+ * puts a sentence in its code field, which read as "(Forbidden — reviewer access required)" after the
+ * action's words. And `offline`: nothing was sent. Null for anything the action words itself.
+ * @param {{ code?: string, status?: number }} r
+ */
+function accessRefusal(r) {
+    if (r.code === 'offline') return 'Couldn\'t reach the server, so nothing was sent. Check your connection and try again.';
+    if (r.code === 'no-session' || r.status === 401 || r.status === 403) {
+        return 'Your sign-in no longer has reviewer access. Reload the page and sign in again.';
+    }
+    return null;
+}
+
+/**
  * Put the bar on screen and cancel any pending auto-hide. EVERY path that shows the bar goes
  * through here, so a stale timer can never outlive the message that set it.
  * @param {HTMLElement|null} bar
@@ -456,6 +557,10 @@ function showConfirmBar(bar) {
     if (confirmHideTimer) { clearTimeout(confirmHideTimer); confirmHideTimer = null; }
     if (bar) bar.hidden = false;
     reserveConfirmSpace(true);
+    // Said aloud through a live region that is always rendered: words that appear inside a bar that
+    // was hidden when they changed are announced unreliably or not at all (overtime-ui-12).
+    const live = el('otConfirmLive');
+    if (live) live.textContent = el('otConfirmText')?.textContent ?? '';
 }
 
 /** Take the bar down, and the pending auto-hide with it. The mirror of `showConfirmBar`. */
@@ -521,6 +626,7 @@ async function renderWeekDetail(weekEnding) {
         // "Refreshing…" button, which wireRefresh promises can never survive — so say what
         // happened and clear the selection instead (v21.56, external sweep).
         selectedWeek = null;
+        weekShown = null;
         host.innerHTML = '<div class="ot-state">That week is no longer available — pick a week above.</div>';
         // EMPTY, not `hidden` (v21.94). `selectWeek` clears this chip by writing '' and relying on
         // the `.card-year-chip:empty { display: none }` rule; setting `hidden` here was a second
@@ -531,7 +637,7 @@ async function renderWeekDetail(weekEnding) {
         if (chip) chip.textContent = '';
         return;
     }
-    const dates = weekDatesFrom(win.weekStart);
+    const dates = weekDates(win.weekStart);
     // A ticket per call — only the newest may paint. See "WHICH READ IS LATEST" in the header.
     const generation = ++detailGeneration;
     const data = await OTD.loadWeekDetail(weekEnding,
@@ -543,19 +649,35 @@ async function renderWeekDetail(weekEnding) {
     // flight, and painting the older answer over the newer selection is the classic late-read
     // bug. Cheap to prevent; invisible when it happens.
     if (selectedWeek !== weekEnding) return;
-    if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
+    // A RE-READ of the week on screen that fails — one the device's cache answered included —
+    // keeps the snapshot, whose "as at" is still true, and says the refresh failed (overtime-ui-11).
+    // The error card is for a week with nothing drawn yet.
+    if (!data.ok && weekShown?.weekEnding === weekEnding) { paintShown(host, weekShown, true); return; }
+    if (!data.ok) { weekShown = null; renderError(host, () => renderWeekDetail(weekEnding)); return; }
     detailFetchedAt = Date.now();
-    const now = OTD.correctedNow();
+    weekShown = { weekEnding, win, data, dates, now: OTD.correctedNow() };
+    paintShown(host, weekShown, false);
+}
+
+/**
+ * Draw a week's snapshot — again, with `refreshFailed`, when a newer read of it did not arrive.
+ * @param {HTMLElement} host @param {{weekEnding: string, win: any, data: any, dates: string[], now: number}} shown
+ * @param {boolean} refreshFailed
+ */
+function paintShown(host, { weekEnding, win, data, dates, now }, refreshFailed) {
     // The overview's rows carry no `phase`, and the workspace keys the closed-week panels and the
     // reminder audit on it — so it is derived from the clock here, never read off the row.
-    paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
-        dates, now,
+    const drawn = paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
+        dates, now, refreshFailed, printedAt: OTD.correctedNow(),
         grade: reviewGrade, onGrade: (g) => { reviewGrade = g; paintWeekChip(data, g); },
         day: reviewDay, onDay: (d) => { reviewDay = d; },
-        onRefresh: () => renderWeekDetail(weekEnding),
+        // The horizon too: its row for this week says the same counts (overtime-ui-3).
+        onRefresh: () => { loadHorizon({ quiet: true }); return renderWeekDetail(weekEnding); },
         onAsk: (memberName, ask) => setAsking(weekEnding, memberName, ask),
     });
-    paintWeekChip(data, reviewGrade);
+    // The grade the card OPENED on: a carried grade this week does not hold falls back to All
+    // grades there, and `reviewGrade` stays the reviewer's for the next week (overtime-ui-8).
+    paintWeekChip(data, drawn?.grade ?? reviewGrade);
 }
 
 /**
@@ -601,9 +723,10 @@ async function setAsking(weekEnding, memberName, ask) {
         }
         : {
             title: `Stop asking ${memberName}?`,
+            // Worked out from the restore rule, not "while the form is open" (overtime-ui-2).
             message: `${memberName} comes out of the counts for ${week} and stops appearing `
-                + 'as outstanding. Anything they have already said is kept, and you can put '
-                + 'them back while the form is open.',
+                + 'as outstanding. Anything they have already said is kept, and you can put them back '
+                + `${putBackWindow(Number(horizonByWeek.get(weekEnding)?.initialDeadlineAt), OTD.correctedNow())}.`,
             confirmLabel: 'Stop asking',
             cancelLabel: 'Cancel',
         });
@@ -612,42 +735,63 @@ async function setAsking(weekEnding, memberName, ask) {
     const r = await OTD.withdrawOvertimeParticipant(weekEnding, memberName, !ask);
     pendingWeek = null;   // …nor one that landed while this call was out
     if (!r.ok) {
+        // The server may have done it, and the member's own page with it (overtime-ui-10).
+        if (writeOutcomeUnknown(r)) {
+            await unknownOutcome(weekEnding, `whether ${memberName} was ${ask ? 'put back on' : 'taken off'}`);
+            return;
+        }
         // `closed` is the one refusal worth naming rather than reporting as a fault: it is a
         // rule, and a reviewer told only "that didn't work" would try it again.
         flashConfirm(r.code === 'closed'
             ? `${esc(week)} has closed, so who was asked can no longer be changed — a closed `
               + 'week is the record the roster was planned from.'
-            : `That couldn't be saved (${esc(r.code)}).`, false);
+            : esc(accessRefusal(r) ?? `That couldn't be saved (${r.code}).`), false);
         return;
     }
     flashConfirm(ask
         ? `<strong>${esc(memberName)}</strong> is being asked for ${esc(week)} again.`
         : `<strong>${esc(memberName)}</strong> is no longer being asked for ${esc(week)}.`, true);
     await loadHorizon();
-    if (selectedWeek === weekEnding) renderWeekDetail(weekEnding);
-}
-
-/**
- * The seven Sunday→Saturday dates. The server's `weekDates` is authoritative; this mirrors it.
- * @param {string} weekStart
- */
-function weekDatesFrom(weekStart) {
-    const [y, m, d] = String(weekStart).split('-').map(Number);
-    return Array.from({ length: 7 }, (_, i) => {
-        const dt = new Date(Date.UTC(y, m - 1, d + i));
-        return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
-    });
+    if (selectedWeek !== weekEnding) return;
+    await renderWeekDetail(weekEnding);
+    // The repaint took the pressed button with it: the keyboard goes to the same person's control in
+    // its new place (Ask again ↔ Stop asking) — unless the reader moved on meanwhile (overtime-ui-12).
+    if (focusLost()) refocus(el('otWeekContent'), ask ? 'data-stop-asking' : 'data-ask-again', memberName);
 }
 
     return {
         loadHorizon,
         selectWeek,
         wireConfirmBar,
-        /** The coordinator's visibility handler asks this; the debounce rule lives here. */
-        refreshSelectedIfStale() {
+        /**
+         * The coordinator's visibility handler asks this; the debounce rule lives here. The HORIZON
+         * too, on the same debounce (overtime-ui-3): re-reading only the week let a row that guards
+         * the one catastrophic failure ("did not open overnight") go stale above a fresh card.
+         */
+        refreshIfStale() {
+            if (Date.now() - horizonFetchedAt >= detailRefreshDebounceMs) loadHorizon({ quiet: true });
             if (!selectedWeek) return;
             if (Date.now() - detailFetchedAt < detailRefreshDebounceMs) return;
             renderWeekDetail(selectedWeek);
+        },
+        /**
+         * The reviewer's side has left the screen. The confirm bar goes with it — fixed to the foot, it
+         * covered the member's Submit bar after a switch to "My availability" (css-overtime-guides lead)
+         * — and a Create armed for a week no longer in view is disarmed. `clear`: the session was lost
+         * mid-visit, and the sign-in that covers the page is hidden in print, so what was read under the
+         * account goes too, and no read still out may paint it back (overtime-ui-4).
+         * @param {{ clear?: boolean }} [opts]
+         */
+        standDown({ clear = false } = {}) {
+            pendingWeek = null;
+            hideConfirmBar();
+            armConfirmBar();
+            if (!clear) return;
+            // A horizon read still out is dropped by its ticket, a week read by the selection guard; a
+            // later read that fails finds no snapshot to put back.
+            horizonGeneration++;
+            selectedWeek = null; weekShown = null; horizonShown = null;
+            for (const id of ['otHorizonContent', 'otWeekContent', 'otWeekChip']) { const host = el(id); if (host) host.innerHTML = ''; }
         },
     };
 }

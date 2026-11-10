@@ -23,12 +23,18 @@ const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setup
  * Initialises the Staff Login Accounts setup card (admin only). Call once after
  * authentication resolves.
  * @param {{ currentIsAdmin: boolean,
- *           onAttention?: (counts: { setUp: number, leavers: number }) => void }} cfg
+ *           onAttention?: (counts: { setUp: number, leavers: number }) => void,
+ *           onWithdraw?: () => void }} cfg
  *        `onAttention` is called ONLY when the audit actually answered — a failed or refused check
  *        reports nothing, because the strip it feeds treats an unreported item as UNKNOWN and an
  *        absent one as "nothing to do". Those must not be the same thing here.
+ *        `onWithdraw` is called whenever a check could NOT answer, so that what an earlier one
+ *        reported goes back to unknown with it — the re-audit after a run, or a Retry, that fails
+ *        (whole-app check, 10 Nov 2026; settings-ops-6). Reporting nothing was right and was not
+ *        enough: the strip kept "Leavers still active 2" beside a card saying it could not tell.
+ *        As the Error Log's (`operations-errors.js`).
  */
-export function initAuthSetup({ currentIsAdmin, onAttention }) {
+export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
     if (!currentIsAdmin) return;
 
     const card      = document.getElementById('authSetupCard');
@@ -72,11 +78,12 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
         'claims':     'wrong permissions',
     });
 
-    /** One line: a count, the names behind it, and the button that fixes them. */
+    /** One line: a count, the names behind it, and the button that fixes them. `cls` is the whole
+     *  class list — a modifier only where operations.css styles one (the leaver line's red). */
     function gapLine(/** @type {string} */ cls, /** @type {string} */ lead,
                      /** @type {string[]} */ names, /** @type {string} */ fix) {
         const p = document.createElement('p');
-        p.className = `auth-gap-line ${cls}`;
+        p.className = cls;
         const strong = document.createElement('strong');
         strong.textContent = String(names.length);
         p.append(strong, ` ${lead} — ${names.join(', ')}`);
@@ -130,31 +137,29 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
             tick.textContent = '✓';
             ok.append(tick, ' Everyone on the roster has a login, and no leaver still has one.');
             gapsEl.append(ok);
-            gapsEl.classList.remove('auth-gaps--warn');
         } else {
             if (setUp.length) {
-                gapsEl.append(gapLine('auth-gap-line--setup',
+                gapsEl.append(gapLine('auth-gap-line',
                     setUp.length === 1 ? 'member is not set up' : 'members are not set up',
                     setUp.map(/** @param {any} g */ g => `${g.name} (${WHY_TEXT[g.why] || g.why})`),
                     'Press Set up accounts below.'));
             }
             if (leavers.length) {
-                gapsEl.append(gapLine('auth-gap-line--leaver',
+                gapsEl.append(gapLine('auth-gap-line auth-gap-line--leaver',
                     leavers.length === 1 ? 'leaver can still sign in' : 'leavers can still sign in',
                     leavers,
                     'Tick the leavers box below, then press Set up accounts.'));
             }
-            gapsEl.classList.add('auth-gaps--warn');
         }
         gapsEl.hidden = false;
         onAttention?.({ setUp: setUp.length, leavers: leavers.length });
     }
 
-    /** Neither "gaps" nor "clean" — and it must not be mistaken for either. */
+    /** Neither "gaps" nor "clean" — and it must not be mistaken for either, here or on the strip. */
     function renderUnknown(/** @type {string} */ message) {
+        onWithdraw?.();   // what an earlier answer reported is unknown again (see the JSDoc above)
         if (!gapsEl) return;
         gapsEl.textContent = '';
-        gapsEl.classList.remove('auth-gaps--warn');
         const p = document.createElement('p');
         p.className = 'auth-gap-unknown';
         p.textContent = message + ' ';
@@ -244,7 +249,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
             /**
              * Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal.
              * `afterConfirm` APPENDS beneath the first run's report rather than replacing it (whole-app
-             * review, Oct 2026): the confirm used to wipe it, and with it the "taken back — tell them"
+             * review, Oct 2026): the confirm used to wipe it, and with it the "reset — tell them"
              * names the admin is the only person able to act on. The re-run's "already existed" list
              * is the whole roster again, so it is left out of the appended part.
              * @param {any} data @param {boolean} [afterConfirm]
@@ -255,10 +260,13 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                 const lines = [];
                 if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
                 if (skipped.length && !afterConfirm) lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
-                // v24.24: an account this server never stamped was taken back — its password is now the
-                // member's default and every session on it was signed out. The admin is the only person
-                // who can tell the member, so the names are the point of the line.
-                if (reclaimed.length) lines.push(`🔁 Taken back and reset to the default password (${reclaimed.length}): ${reclaimed.join(', ')} — tell them their password is their surname`);
+                // An account the server reset to the member's default password and signed out of every
+                // session: one it never stamped, taken back from whoever registered it (v24.24), or a
+                // DISABLED one it re-enabled — a returning leaver, from whom nothing was taken back. So
+                // the line says what happened to the account, which is true of both, and never "taken
+                // back" (functions-core, 10 Nov 2026). The admin is the only person who can tell the
+                // member, so the names are the point of the line.
+                if (reclaimed.length) lines.push(`🔁 Reset to the default password and signed out (${reclaimed.length}): ${reclaimed.join(', ')} — tell them their password is their surname`);
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
                 // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).

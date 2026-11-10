@@ -100,29 +100,29 @@ const MON = '2026-06-15';
 
 describe('shiftValueToOverrideType — existing vocabulary (regression)', () => {
     test('AL → annual_leave; SICK → sick; SPARE → spare_shift', () => {
-        assert.equal(shiftValueToOverrideType('AL', 'RD', MON), 'annual_leave');
-        assert.equal(shiftValueToOverrideType('SICK', 'RD', MON), 'sick');
-        assert.equal(shiftValueToOverrideType('SPARE', 'RD', MON), 'spare_shift');
+        assert.equal(shiftValueToOverrideType('AL', MON), 'annual_leave');
+        assert.equal(shiftValueToOverrideType('SICK', MON), 'sick');
+        assert.equal(shiftValueToOverrideType('SPARE', MON), 'spare_shift');
     });
 
     test('RD / OFF → correction', () => {
-        assert.equal(shiftValueToOverrideType('RD', '06:00-14:00', MON), 'correction');
-        assert.equal(shiftValueToOverrideType('OFF', '06:00-14:00', MON), 'correction');
+        assert.equal(shiftValueToOverrideType('RD', MON), 'correction');
+        assert.equal(shiftValueToOverrideType('OFF', MON), 'correction');
     });
 
     test('pipe-encoded RDW and bare RDW → rdw', () => {
-        assert.equal(shiftValueToOverrideType('RDW|14:30-22:00', 'RD', MON), 'rdw');
-        assert.equal(shiftValueToOverrideType('RDW', 'RD', MON), 'rdw');
+        assert.equal(shiftValueToOverrideType('RDW|14:30-22:00', MON), 'rdw');
+        assert.equal(shiftValueToOverrideType('RDW', MON), 'rdw');
     });
 
     test('plain time → shift on a weekday, rdw on a Sunday (Sundays uncontracted)', () => {
-        assert.equal(shiftValueToOverrideType('06:30-14:30', 'RD', MON), 'shift');
-        assert.equal(shiftValueToOverrideType('06:30-14:30', 'RD', SUN), 'rdw');
+        assert.equal(shiftValueToOverrideType('06:30-14:30', MON), 'shift');
+        assert.equal(shiftValueToOverrideType('06:30-14:30', SUN), 'rdw');
     });
 
     test('Sunday AL / SICK → correction (the Sunday block)', () => {
-        assert.equal(shiftValueToOverrideType('AL', 'RD', SUN), 'correction');
-        assert.equal(shiftValueToOverrideType('SICK', 'RD', SUN), 'correction');
+        assert.equal(shiftValueToOverrideType('AL', SUN), 'correction');
+        assert.equal(shiftValueToOverrideType('SICK', SUN), 'correction');
     });
 });
 
@@ -130,20 +130,20 @@ describe('shiftValueToOverrideType — training (OTHER_DAYS.md)', () => {
     test('every training grammar form → training', () => {
         for (const v of ['TRG', 'IND', 'ASSESS', 'MEET', 'TRG RDW', 'IND RDW', 'ASSESS RDW', 'MEET RDW',
                          'TRG 08:00-16:00', 'TRG RDW 08:00-16:00']) {
-            assert.equal(shiftValueToOverrideType(v, 'RD', MON), 'other', v);
+            assert.equal(shiftValueToOverrideType(v, MON), 'other', v);
         }
     });
 
     test('Sunday training → correction (layer 1 of the Sunday block — never written as training)', () => {
         for (const v of ['TRG', 'TRG RDW', 'IND', 'ASSESS']) {
-            assert.equal(shiftValueToOverrideType(v, 'RD', SUN), 'correction', v);
+            assert.equal(shiftValueToOverrideType(v, SUN), 'correction', v);
         }
     });
 
     test('a training value never falls through to rdw/shift on its RDW substring', () => {
         // 'TRG RDW' contains 'RDW' — the training check must classify it before the
         // RDW checks could ever see it.
-        assert.equal(shiftValueToOverrideType('TRG RDW', '06:00-14:00', MON), 'other');
+        assert.equal(shiftValueToOverrideType('TRG RDW', MON), 'other');
     });
 });
 
@@ -433,8 +433,9 @@ describe('computeCellStates — review state machine', () => {
     });
 
     // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record the winner outranks still
-    // outranks an import, so "Use new roster" replacing only the winner left it to resurface.
-    test('a CONFLICT carries the older manual copies of its day, and never the import or the winner', () => {
+    // outranks an import, so "Use new roster" replacing only the winner left it to resurface. An
+    // import under it is taken too since Nov 2026 (below) — this test used to pin it as left alone.
+    test('a CONFLICT carries every other record of its day — the older manual copy and the import — never the winner', () => {
         const c = run(differ, [
             { memberName: mname, date: WD, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'newer', createdAt: new Date(2000) },
             { memberName: mname, date: WD, value: '22:00-06:00', type: 'shift', source: 'manual', id: 'older', createdAt: new Date(1000) },
@@ -442,7 +443,37 @@ describe('computeCellStates — review state machine', () => {
         ]);
         assert.equal(c.state, 'CONFLICT');
         assert.equal(c.manualId, 'newer');
-        assert.deepEqual(c.manualDupIds, ['older']);
+        assert.deepEqual(c.otherRecordIds, ['older', 'imp']);
+    });
+
+    // Whole-app fix, Nov 2026: two IMPORT copies of one day — two devices importing the same week, or a
+    // save pressed twice while the first was sending — and a replace or "Clear old" took only the
+    // newer, so the older one came back on the Calendar until the roster was uploaded again.
+    test('two import copies of a day: a replace, and a "Clear old", take BOTH', () => {
+        const held = base === '10:00-18:00' ? '09:00-17:00' : '10:00-18:00';   // never the base itself
+        const copies = [
+            { memberName: mname, date: WD, value: held, type: 'shift', source: 'roster_import', id: 'copyA', createdAt: new Date(1000) },
+            { memberName: mname, date: WD, value: held, type: 'shift', source: 'roster_import', id: 'copyB', createdAt: new Date(2000) },
+        ];
+        const gone = (/** @type {string} */ parsed) => {
+            const states = computeCellStates({ parsed: [{ memberName: mname, shifts: { [WD]: parsed } }], dates: [WD] }, copies);
+            return collectRosterWrites(states).flatMap(w => [w.replaceId, ...w.alsoDelete]).sort();
+        };
+        assert.deepEqual(gone(base), ['copyA', 'copyB'], 'back to the base roster: both cleared');
+        const other = base === '11:00-19:00' ? '12:00-20:00' : '11:00-19:00';
+        assert.deepEqual(gone(other), ['copyA', 'copyB'], 'a new value: both replaced');
+    });
+
+    // Whole-app fix, Nov 2026: a day the response does not carry fell back to 'RD' on ANY day — on a
+    // worked base day a pre-ticked rest day, against the rule that a blank weekday is a question.
+    // Today's server always sends seven days; this is the fallback for a reply that does not.
+    test('a day the reply does not carry is a question, never a rest day', () => {
+        for (const missing of [undefined, '']) {
+            const states = computeCellStates({ parsed: [{ memberName: mname, shifts: missing === undefined ? {} : { [WD]: missing } }], dates: [WD] }, []);
+            const c = states.get(`${mname}|${WD}`);
+            assert.deepEqual([c.state, c.chosen], ['UNREADABLE', null], JSON.stringify(missing));
+            assert.deepEqual(collectRosterWrites(states), [], 'nothing is written until it is answered');
+        }
     });
 
     test('stale roster_import, PDF now matches base → REMOVE_IMPORT (delete, write nothing)', () => {
@@ -787,6 +818,46 @@ describe('computeCellStates — review state machine', () => {
         assert.equal(c.state, 'COVERED');
     });
 
+    // …AND AGAINST THE BASE ROSTER (whole-app fix, Nov 2026). A weekday marked RDW at the member's own
+    // base hours compared equal on the bare time: MATCH, not shown, and the marker lost from the
+    // Calendar and the Pay Calculator's RDW count — or, over an earlier plain import, a ticked "Clear
+    // old" that deleted it. Found from the roster, not named: a member working a timed base weekday.
+    describe('a weekday RDW at the base shift\'s own hours is a change, not a match', () => {
+        const MONDAY = '2026-11-16';
+        const at = new Date(MONDAY + 'T12:00:00');
+        const who = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+            && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, at)));
+        const base = getBaseShift(who, at);
+        const st = (/** @type {string} */ value, /** @type {any[]} */ existing = []) => computeCellStates(
+            { parsed: [{ memberName: who.name, shifts: { [MONDAY]: value } }], dates: [MONDAY] }, existing).get(`${who.name}|${MONDAY}`);
+        const record = (/** @type {any} */ ex) => [{ id: 'r1', memberName: who.name, date: MONDAY, value: base, ...ex }];
+
+        test('with nothing saved, it is a ticked Update that writes rest-day working', () => {
+            const c = st(`RDW|${base}`);
+            assert.deepEqual([c.state, c.chosen], ['DIFF', true]);
+            assert.equal(shiftValueToOverrideType(collectRosterWrites(new Map([[`${who.name}|${MONDAY}`, c]]))[0].value, MONDAY), 'rdw');
+        });
+        test('over an earlier PLAIN import it replaces it rather than clearing it; over an RDW one it is covered', () => {
+            assert.equal(st(`RDW|${base}`, record({ type: 'shift', source: 'roster_import' })).state, 'DIFF');
+            assert.equal(st(`RDW|${base}`, record({ type: 'rdw', source: 'roster_import' })).state, 'COVERED');
+            assert.equal(st(`RDW|${base}`, record({ type: 'shift', source: 'manual' })).state, 'CONFLICT');
+        });
+        test('the plain base time is still a match, and a Sunday is still exempt', () => {
+            assert.equal(st(base).state, 'MATCH');
+            const other = base === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00';
+            assert.equal(st(base, record({ type: 'shift', source: 'roster_import', value: other })).state, 'REMOVE_IMPORT');
+            // Sunday work is rest-day working whatever it is marked, so a marked Sunday at the base
+            // Sunday's hours changes nothing (the save promotes a Sunday time to rdw anyway).
+            const SUNDAY = '2026-11-15';
+            const sun = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+                && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+            assert.ok(sun, 'a member rostered on the fixture Sunday');
+            const sunBase = getBaseShift(sun, new Date(SUNDAY + 'T12:00:00'));
+            assert.equal(computeCellStates({ parsed: [{ memberName: sun.name, shifts: { [SUNDAY]: `RDW|${sunBase}` } }], dates: [SUNDAY] }, [])
+                .get(`${sun.name}|${SUNDAY}`).state, 'MATCH');
+        });
+    });
+
     test('a Sunday "AL" is normalised to RD — never written as AL', () => {
         // SUN (2026-06-21) is the module-level Sunday constant.
         const c = computeCellStates(
@@ -806,7 +877,7 @@ describe('collectRosterWrites — what one Save writes', () => {
     const D = '2026-06-16';
     /** One cell, keyed X|D, carrying the fields every state has. */
     const one = (/** @type {any} */ s) => collectRosterWrites(new Map([[`X|${D}`,
-        { baseShift: '06:00-14:00', manualId: null, manualDupIds: [], ...s }]]));
+        { baseShift: '06:00-14:00', manualId: null, otherRecordIds: [], ...s }]]));
 
     test('a ticked DIFF writes the value the row DISPLAYED, never the parsed one', () => {
         const ws = one({ state: 'DIFF', chosen: true, parsedShift: 'SICK', displayShift: 'RD' });
@@ -877,7 +948,7 @@ describe('collectRosterWrites — what one Save writes', () => {
     });
 
     test('every write takes the day\'s other manual records with it — as a list, never undefined', () => {
-        const ws = one({ state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm2', manualDupIds: ['m1', 'm0'] });
+        const ws = one({ state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm2', otherRecordIds: ['m1', 'm0'] });
         assert.deepEqual(ws[0].alsoDelete, ['m1', 'm0']);
         assert.deepEqual(one({ state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' })[0].alsoDelete, []);
         const bare = collectRosterWrites(new Map([[`X|${D}`, { state: 'DIFF', chosen: true, parsedShift: '07:00-15:00', baseShift: 'RD' }]]));
@@ -914,6 +985,196 @@ describe('collectRosterWrites — what one Save writes', () => {
     });
 });
 
+// ── LEAVE OR AN ABSENCE ON A BASE REST DAY IS NOT A "REST" BUTTON (whole-app fix, Nov 2026) ──────
+// Two readings "Absent or 06:00-14:00" on a base rest day were offered as "Rest" and the time: the
+// rest-day guard had rewritten the absence, so the row never said Absent and never asked the swapped-
+// day question every other route asks. And picking "Rest" — or entering Rest Day — wrote a correction
+// over a day the base already rests, the redundant record REMOVE_IMPORT exists to avoid.
+describe('an unreadable cell on a base rest day', async () => {
+    const ec = await import('./roster-entry-control.js');
+    const rs = await import('./roster-review-states.js');
+    const WEEK = ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'];
+    /** @type {any} */ let who = null; let day = '';
+    for (const x of teamMembers) {
+        if (x.hidden || x.managerOnly || x.startDate) continue;
+        const d = WEEK.find(w => getBaseShift(x, new Date(w + 'T12:00:00')) === 'RD');
+        if (d) { who = x; day = d; break; }
+    }
+    const key = () => `${who.name}|${day}`;
+    const read = (/** @type {string[]} */ choices, /** @type {any[]} */ existing = []) => computeCellStates({
+        parsed: [{ memberName: who.name, shifts: { [day]: `UNKNOWN|${choices.join(' or ')}? (PDF unclear)` } }],
+        dates: [day], choices: { [key()]: choices } }, existing);
+    const record = (/** @type {any} */ ex) => [{ id: 'r1', memberName: who.name, date: day, ...ex }];
+
+    test('a reading the rest-day guard would rewrite offers no picks — the row shows what was read', () => {
+        assert.ok(who, 'a member resting on a weekday of the fixture week');
+        for (const absence of ['SICK', 'AL']) {
+            const s = read([absence, '06:00-14:00']).get(key());
+            assert.equal(s.state, 'UNREADABLE');
+            assert.equal(s.options, null, `${absence}: never a "Rest" button`);
+            assert.match(s.parsedShift, /06:00-14:00/, 'the readings stay on the row');
+        }
+    });
+
+    test('…and entering that absence asks the swapped-day question, as everywhere else', () => {
+        const st = read(['SICK', '06:00-14:00']);
+        const s = st.get(key());
+        s.draft = { type: 'sick', from: '', to: '', open: true };
+        ec.commitEntry(s);
+        assert.equal(s.entered, null, 'unanswered writes nothing');
+        assert.match(ec.entryControlHtml(key(), s, day), /Was it a swapped working day\?/);
+    });
+
+    test('a rest day picked or entered over a base rest day writes nothing new — and clears what was there', () => {
+        const pickRest = (/** @type {any[]} */ existing) => {
+            const st = read(['RD', '06:00-14:00'], existing);
+            const s = st.get(key());
+            s.chosen = s.options.findIndex((/** @type {any} */ o) => o.display === 'RD');
+            return collectRosterWrites(st).map(w => [w.value, w.replaceId ?? null, !!w.deleteOnly]);
+        };
+        assert.deepEqual(pickRest([]), [], 'nothing saved there: nothing to write');
+        assert.deepEqual(pickRest(record({ type: 'shift', value: '06:00-14:00', source: 'roster_import' })), [[null, 'r1', true]],
+            'an earlier import there is cleared, not covered by a correction');
+        const enterRest = (/** @type {any[]} */ existing) => {
+            const st = computeCellStates({ parsed: [{ memberName: who.name, shifts: { [day]: 'UNKNOWN|SEE CEM' } }], dates: [day] }, existing);
+            const s = st.get(key());
+            s.draft = { type: 'correction', from: '', to: '', open: true };
+            ec.commitEntry(s);
+            return { s, writes: collectRosterWrites(st) };
+        };
+        const { s, writes } = enterRest([]);
+        assert.deepEqual(writes, []);
+        assert.match(ec.entryControlHtml(key(), s, day), /nothing new is recorded/, 'and the hint does not say "will be saved"');
+        assert.equal(rs.reviewOutcome(new Map([[key(), s]])).unreadable, 0, 'an answer, not a cell nobody read');
+        assert.deepEqual(enterRest(record({ type: 'shift', value: '06:00-14:00', source: 'manual' })).writes.map(w => [w.deleteOnly, w.replaceId]),
+            [[true, 'r1']], 'over a hand-recorded entry the day goes back to its rest day');
+    });
+
+    test('on a WORKED base day nothing changes: the readings are offered, and Rest Day is a correction', () => {
+        const worked = WEEK.find(d => /^\d{2}:/.test(getBaseShift(who, new Date(d + 'T12:00:00'))));
+        assert.ok(worked, 'the fixture member works a day that week');
+        const k = `${who.name}|${worked}`;
+        const st = computeCellStates({ parsed: [{ memberName: who.name, shifts: { [worked]: 'UNKNOWN|Absent or 06:00-14:00? (PDF unclear)' } }],
+            dates: [worked], choices: { [k]: ['SICK', '06:00-14:00'] } }, []);
+        const s = st.get(k);
+        assert.deepEqual(s.options.map((/** @type {any} */ o) => o.display), ['SICK', '06:00-14:00']);
+        s.chosen = null; s.draft = { type: 'correction', from: '', to: '', open: true };
+        ec.commitEntry(s);
+        assert.deepEqual(collectRosterWrites(st).map(w => w.value), ['RD']);
+    });
+});
+
+// ── A ROW NOBODY READ (decided default, whole-app fix, Nov 2026) ─────────────────────────────────
+// A blank weekday is a question and a blank Sunday a rest day — so for a member printed on a second
+// sheet who works most of the week elsewhere, every weekday was asked about while the Sunday was taken
+// as an answer and PRE-TICKED: "Update → Rest" over a rostered Sunday, or "Clear old" over Sunday work
+// an earlier upload had recorded. When Monday to Saturday are all unread, the Sunday is unread too.
+describe('a row whose Monday to Saturday were all unread', () => {
+    const SUNDAY = '2026-11-15';
+    const DATES = ['2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'];
+    const LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const who = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+    const blankWeek = (/** @type {string} */ sunday) => Object.fromEntries(DATES.map((d, i) =>
+        [d, i === 0 ? sunday : `UNKNOWN|no ${LABELS[i]} cell was read — check the PDF`]));
+    const sunday = (/** @type {Record<string,string>} */ shifts, /** @type {any[]} */ existing = []) => {
+        const states = computeCellStates({ parsed: [{ memberName: who.name, shifts }], dates: DATES }, existing);
+        return { s: states.get(`${who.name}|${SUNDAY}`), writes: collectRosterWrites(states) };
+    };
+
+    test('its blank Sunday is a question too — never a ticked "Update → Rest" over a rostered Sunday', () => {
+        assert.ok(who, 'a member rostered on the fixture Sunday');
+        const { s, writes } = sunday(blankWeek('RD'));
+        assert.deepEqual([s.state, s.chosen], ['UNREADABLE', null]);
+        assert.match(s.parsedShift, /^UNKNOWN\|Sunday \(rest day\) — nothing else on this row was read/);
+        assert.deepEqual(writes, []);
+    });
+
+    test('…nor a ticked "Clear old" over Sunday work an earlier upload recorded', () => {
+        const imp = [{ id: 'i1', memberName: who.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
+        const { s, writes } = sunday(blankWeek('RD'), imp);
+        assert.equal(s.state, 'UNREADABLE');
+        assert.deepEqual(writes, []);
+    });
+
+    test('a Sunday time on such a row is held for an answer as well, and says what was read', () => {
+        const { s } = sunday(blankWeek('10:00-14:00'));
+        assert.equal(s.state, 'UNREADABLE');
+        assert.match(s.parsedShift, /Sunday \(10:00-14:00\)/);
+    });
+
+    test('ONE weekday read is enough: the Sunday is then an answer, as the blank-cell rule says', () => {
+        const shifts = { ...blankWeek('RD'), [DATES[3]]: getBaseShift(who, new Date(DATES[3] + 'T12:00:00')) };
+        const { s } = sunday(shifts);
+        assert.deepEqual([s.state, s.chosen], ['DIFF', true], 'a rostered Sunday read as rest is a ticked change');
+    });
+});
+
+// ── THE SUMMARY AND THE SAVE BUTTON COUNT THE SAVE'S OWN WRITES (whole-app fix, Nov 2026) ─────────
+// They were a second pass over the same state, in the coordinator, held to the collector only by a
+// browser test asserting what was written. `reviewOutcome` counts what `collectRosterWrites` returns.
+describe('reviewOutcome — what the summary and the Save button say', () => {
+    const D = '2026-06-16';
+    const states = (/** @type {any[]} */ list) => new Map(list.map((s, i) => [`P${i}|${D}`,
+        { baseShift: '06:00-14:00', manualId: null, otherRecordIds: [], ...s }]));
+
+    test('every write the collector returns is counted, a delete as a clear — and nothing else is', async () => {
+        const { reviewOutcome } = await import('./roster-review-states.js');
+        const m = states([
+            { state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' },
+            { state: 'DIFF', chosen: false, parsedShift: '07:00-15:00' },
+            { state: 'REMOVE_IMPORT', chosen: true, manualId: 'i1' },
+            // "Rest day — leave it" over an old import DELETES it: a clear, not a shift updated.
+            { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'AL', chosen: 'free', manualId: 'i2', manualValue: '10:00-18:00' },
+            { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'SICK', chosen: 'swapped' },
+            { state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm1' },
+            { state: 'CONFLICT', chosen: null, parsedShift: '07:00-15:00', manualId: 'm2' },
+            { state: 'UNREADABLE', chosen: 0, options: [{ display: '07:00-15:00' }] },
+        ]);
+        const o = reviewOutcome(m);
+        const writes = collectRosterWrites(m);
+        assert.equal(o.updates + o.clears, writes.length, 'the button promises exactly what Save writes');
+        assert.equal(o.clears, writes.filter(w => w.deleteOnly).length);
+        assert.deepEqual([o.updates, o.clears, o.conflictsTotal, o.conflictsSwitched], [4, 2, 2, 1]);
+        assert.equal(o.blocked, false);
+    });
+
+    test('an unread cell is one nobody has answered — a reading, an entry, or "nothing to record"', async () => {
+        const { reviewOutcome } = await import('./roster-review-states.js');
+        const u = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x' };
+        const m = states([{ ...u, chosen: null }, { ...u, chosen: 'entered', entered: { display: '07:00-15:00' } },
+            { ...u, chosen: null, leftAsRest: true }]);
+        assert.equal(reviewOutcome(m).unreadable, 2, 'without the entry control, an answered rest day still looks unread');
+        assert.equal(reviewOutcome(m, (/** @type {any} */ st) => !!st.leftAsRest).unreadable, 1,
+            'the entry control says which rows were answered "nothing to record"');
+    });
+
+    test('held back counts only drifted rows still unticked, and a refused read is reported as one', async () => {
+        const { reviewOutcome } = await import('./roster-review-states.js');
+        const o = reviewOutcome(states([{ state: 'DIFF', chosen: false, drift: 'left', parsedShift: '07:00-15:00' },
+            { state: 'DIFF', chosen: true, drift: 'left', parsedShift: '07:00-15:00' }]));
+        assert.deepEqual([o.heldBack, o.updates, o.anySuspect], [1, 1, true]);
+        assert.equal(reviewOutcome(states([{ state: 'DIFF', chosen: true, rosterBlocked: true }])).blocked, true);
+    });
+
+    test('the summary words: one line per kind, the hint only when something saves, nothing when empty', async () => {
+        const { reviewOutcome, outcomeHtml } = await import('./roster-review-states.js');
+        const zero = { blocked: false, updates: 0, clears: 0, conflictsTotal: 0, conflictsSwitched: 0, unreadable: 0, heldBack: 0, anySuspect: false };
+        assert.equal(outcomeHtml(zero), '', 'nothing to say is no summary at all');
+        const html = outcomeHtml({ ...zero, updates: 1, clears: 2, conflictsTotal: 2, conflictsSwitched: 1, unreadable: 1, heldBack: 3, anySuspect: true });
+        for (const words of ['<strong>1</strong> shift will be updated', '<strong>2</strong> old entries will be cleared',
+            '<strong>2</strong> days need your choice — 1 switched to the new roster, 1 kept as you saved',
+            '<strong>1</strong> cell couldn\'t be read — nothing saved',
+            '<strong>3</strong> days held back — the week may be a day out', 'Ticked rows will save',
+            'Rows flagged as possibly a day out start unticked']) {
+            assert.ok(html.includes(words), `missing: ${words}`);
+        }
+        assert.ok(!outcomeHtml({ ...zero, unreadable: 2 }).includes('Ticked rows will save'), 'no hint when nothing saves');
+        assert.ok(outcomeHtml(reviewOutcome(states([{ state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' }])))
+            .includes('<strong>1</strong> shift will be updated'), 'through the counts');
+    });
+});
+
 // ── A MEETING PRINTED WITH ITS TIMES ON A SUNDAY (6 Nov 2026 review) ────────────────────────────
 // v25.38 began reading `MTG` over `10:00-14:00` as `MEET 10:00-14:00`, and the Sunday guard made any
 // Other day a rest day — so on a rest Sunday nothing was written, a re-upload of a week imported
@@ -933,7 +1194,7 @@ describe('computeCellStates — a timed meeting on a Sunday is Sunday work, neve
         const st = stateFor(m);
         assert.equal(st.state, 'DIFF');
         assert.equal(st.chosen, true);
-        assert.equal(shiftValueToOverrideType(st.displayShift, st.baseShift, SUNDAY), 'rdw');
+        assert.equal(shiftValueToOverrideType(st.displayShift, SUNDAY), 'rdw');
     });
 
     test('a ROSTERED Sunday: the meeting\'s times, never a correction that makes it a rest day', () => {
@@ -941,7 +1202,7 @@ describe('computeCellStates — a timed meeting on a Sunday is Sunday work, neve
         assert.ok(m, 'needs a member rostered that Sunday');
         const st = stateFor(m);
         assert.notEqual(st.displayShift, 'RD');
-        assert.equal(shiftValueToOverrideType(st.displayShift, st.baseShift, SUNDAY), 'rdw');
+        assert.equal(shiftValueToOverrideType(st.displayShift, SUNDAY), 'rdw');
     });
 
     test('a re-upload over a week imported before v25.38 keeps its rest-day working', () => {
@@ -1657,6 +1918,26 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
         assert.ok([...st.values()].every(c => c.rosterBlocked));
     });
 
+    // Whole-app fix, Nov 2026: the hard gate in `collectRosterWrites` reads `rosterBlocked` off each
+    // cell, and the UNREADABLE branch never stamped it — so an answered unreadable cell on a refused
+    // read was the one row the gate could not see. The HARD GATE test builds its states by hand, so it
+    // could not notice; this one builds them from the real state machine.
+    test('an unreadable cell of a refused read is refused too: answered or picked, it writes nothing', () => {
+        const names = [MEMBER, ...others.slice(0, ALIGNMENT_BLOCK_THRESHOLD - 1)];
+        const parsed = names.map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const day = DATES.find(d => /^\d{2}:\d{2}-/.test(getBaseShift(MEMBER, new Date(d + 'T12:00:00'))));
+        parsed[0].shifts[day] = 'UNKNOWN|07:00-15:00 or Absent? (PDF unclear)';
+        const st = states({ parsed, dates: DATES, geometryRefused: names.map(m => m.name),
+            choices: { [`${MEMBER.name}|${day}`]: ['07:00-15:00', 'SICK'] } });
+        const cell = st.get(`${MEMBER.name}|${day}`);
+        assert.deepEqual([cell.state, cell.rosterBlocked, cell.drift], ['UNREADABLE', true, 'geometry']);
+        cell.chosen = 'entered'; cell.entered = { display: '07:00-15:00' };
+        assert.deepEqual(collectRosterWrites(st), [], 'an answered unreadable cell on a refused read');
+        cell.chosen = 0;
+        assert.ok(cell.options?.[0], 'fixture: a reading to pick');
+        assert.deepEqual(collectRosterWrites(st), [], 'a picked reading on a refused read');
+    });
+
     test('two refusals plus one drift the breaker can see is also three', () => {
         const rowFor = (/** @type {any} */ m, off) => Object.fromEntries(DATES.map(d => {
             const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
@@ -1673,6 +1954,21 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
     test('a name the server refused that is not on this roster is ignored, not counted', () => {
         const a = assessRosterAlignment({ parsed: [{ memberName: 'G. Miller', shifts: honest(MEMBER) }], dates: DATES, geometryRefused: ['Nobody Here', 'G. Miller'] });
         assert.deepEqual(a.suspects, ['G. Miller']);
+    });
+
+    // Whole-app fix, Nov 2026: a LEAVER the server still prints (its generated name list lags the
+    // `hidden` flag) has a row in the read but none on the review. Refused by the grid, they counted
+    // toward the three, so two real refusals blocked the whole read under a banner naming somebody the
+    // admin could not see — and there is no "save anyway". Same test as a drifted row: on the review.
+    test('a hidden member\'s refused row is not counted either — they have no row on the review', () => {
+        const leaver = teamMembers.find(/** @param {any} m */ m => m.hidden && !m.managerOnly);
+        assert.ok(leaver, 'needs a leaver on the roster');
+        const real = [MEMBER, others[0]];
+        const parsed = [...real, leaver].map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const a = assessRosterAlignment({ parsed, dates: DATES, geometryRefused: [...real, leaver].map(m => m.name) });
+        assert.equal(a.blocked, false, 'two real refusals are not three');
+        assert.deepEqual([...a.suspects].sort(), real.map(m => m.name).sort());
+        assert.ok(!a.geometryRefused.includes(leaver.name));
     });
 
     // The detector's coverage is NOT uniform, and the repo described it as "the one AI-independent
@@ -1777,11 +2073,29 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
         assert.match(none, /empty cell/);
         assert.doesNotMatch(none, /shifted a day/);
         assert.match(none, /has not been saved/);
+        // Two rows that line up shifted and one only the grid refused: the count says which is which
+        // (whole-app fix, Nov 2026 — it said "3 staff line up … shifted").
         const left = stopCopy({ direction: 'left', suspects: ['A', 'B', 'C'], geometryRefused: ['C'] }, 'A, B, C');
-        assert.match(left, /shifted a day earlier/);
-        assert.match(left, /On 1 of those rows the PDF/);
+        assert.match(left, /2 staff line up with their usual pattern shifted a day earlier, and on 1 more row a day was read where the PDF's own table has an empty cell/);
         assert.match(left, /blank Sunday/);
-        assert.doesNotMatch(stopCopy({ direction: 'right', suspects: ['A'], geometryRefused: [] }, 'A'), /blank Sunday|of those rows/);
+        assert.doesNotMatch(stopCopy({ direction: 'right', suspects: ['A'], geometryRefused: [] }, 'A'), /blank Sunday|of the shifted rows/);
+    });
+
+    test('the stop banner counts as shifted only the rows that ARE shifted — from the real verdict', () => {
+        const rowFor = (/** @type {any} */ m, /** @type {number} */ off) => Object.fromEntries(DATES.map(d => {
+            const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
+        const drifter = others.find(/** @param {any} m */ m => detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+        const [g1, g2] = others.filter(m => m !== drifter);
+        const verdict = assessRosterAlignment({ dates: DATES, geometryRefused: [g1.name, g2.name],
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, ...[g1, g2].map(m => ({ memberName: m.name, shifts: honest(m) }))] });
+        assert.deepEqual([verdict.blocked, verdict.direction], [true, 'left'], 'fixture: one drift and two refusals block the read');
+        const copy = stopCopy(verdict, 'who');
+        assert.match(copy, /1 person’s week lines up with their usual pattern shifted a day earlier, and on 2 more rows/);
+        assert.doesNotMatch(copy, /3 staff line up/);
+        // …and a row that is BOTH shifted and refused is counted once, as shifted, with the grid's word added.
+        const both = assessRosterAlignment({ dates: DATES, geometryRefused: [drifter.name, g1.name, g2.name],
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, ...[g1, g2].map(m => ({ memberName: m.name, shifts: honest(m) }))] });
+        assert.match(stopCopy(both, 'who'), /1 person’s week lines up .* and on 2 more rows .* On 1 of the shifted rows the PDF's own table also shows an empty cell/);
     });
 });
 
@@ -2002,7 +2316,7 @@ describe('leave or an absence ENTERED on a base rest day asks the swap question 
         // still drives the browser path to the payload.
         const { commitEntry, entryClick } = await import('./roster-entry-control.js');
         const { name, date } = restDayFixture();
-        const s = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x', baseShift: 'RD', date, manualId: null, manualDupIds: [],
+        const s = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x', baseShift: 'RD', date, manualId: null, otherRecordIds: [],
                     chosen: null, entered: null, draft: { type: 'annual_leave', from: '', to: '', open: true } };
         commitEntry(s);
         assert.deepEqual(collectRosterWrites(new Map([[`${name}|${date}`, s]])), [], 'unanswered: nothing is written');
@@ -2029,7 +2343,7 @@ describe('the roster\'s leave or absence over a HAND-RECORDED swap is shown as w
         assert.equal(c.guarded, null);
         // "Use new roster" writes this value; replacing the manual shift, nextReplacedType carries
         // 'shift' forward, so the leave costs a day and displays on the rest-day base.
-        assert.equal(shiftValueToOverrideType(c.displayShift, c.baseShift, date), 'annual_leave');
+        assert.equal(shiftValueToOverrideType(c.displayShift, date), 'annual_leave');
     });
 
     test('PDF Absent over a hand-recorded shift likewise', () => {
@@ -2047,6 +2361,21 @@ describe('the roster\'s leave or absence over a HAND-RECORDED swap is shown as w
     test('the same leave already recorded on the swapped-in day is covered', () => {
         assert.equal(run('AL', manual('annual_leave', 'AL', { replacedType: 'shift' })).state, 'COVERED');
     });
+
+    // roster-core-5 (owner, 10 Nov 2026): leave over an Other day or a Spare turn on a base rest day is
+    // free, like plain RDW — so neither is a swap, and the review treats the roster's leave there as it
+    // treats leave over an RDW: the guarded rest day, not leave that costs a day.
+    for (const [type, value] of [['other', 'TRG'], ['other', 'MEET 10:00-14:00'], ['spare_shift', 'SPARE']]) {
+        for (const parsed of ['AL', 'SICK']) {
+            test(`PDF ${parsed} over a hand-recorded ${type} (${value}) on a rest day is handled like leave over an RDW`, () => {
+                const c = run(parsed, manual(type, value));
+                const rdw = run(parsed, manual('rdw', '06:00-14:00'));
+                assert.equal(c.guarded, 'rest-day', 'it was taken for a swapped-in working day');
+                assert.equal(c.displayShift, rdw.displayShift);
+                assert.equal(c.state, rdw.state);
+            });
+        }
+    }
 
     test('unchanged: a previous IMPORT under the day still asks, and a bare manual absence is still covered', () => {
         const imp = run('AL', [{ id: 'i1', memberName: name, date, type: 'shift', value: '23:00-06:00', source: 'roster_import' }]);
@@ -2145,9 +2474,188 @@ describe('a roster read that fails in transit says what happened', () => {
     });
 
     test('anything that is not a failure in transit is left to the caller, which carries the server\'s words', () => {
-        assert.equal(line(Object.assign(new Error('The AI found no recognisable staff members'), { serverMessage: 'x' }), seen()), null);
+        assert.equal(line(Object.assign(new Error('The AI found no recognisable staff members'), { adminLine: 'x' }), seen()), null);
         assert.equal(line(new SyntaxError('Unexpected token'), seen({ elapsedMs: 1 })), null);
         assert.equal(line(new TypeError('Cannot read properties of undefined'), seen({ elapsedMs: 1 })), null);
     });
+
+    // Whole-app fix, Nov 2026: a refusal whose body carries no words — the platform's, not the
+    // handler's — was "Unexpected error — please try again or contact support". The words now come
+    // from the status; the browser half (a 504 and a body that stalls) is in e2e/operations.spec.js.
+    test('a refusal with no words of its own is worded from its status, and never sends anyone to "support"', async () => {
+        const { statusFailureLine } = await import('./admin-roster-upload.js');
+        assert.match(statusFailureLine(504), /^The server stopped the read because it took too long\. Try again/);
+        assert.match(statusFailureLine(408), /took too long/);
+        assert.match(statusFailureLine(413), /too large/);
+        assert.match(statusFailureLine(500), /^The server could not finish the read \(error 500\)/);
+        assert.match(statusFailureLine(503), /\(error 503\)/);
+        assert.match(statusFailureLine(429), /^The server refused the read \(error 429\)/);
+        for (const s of [400, 413, 429, 500, 502, 503, 504]) assert.doesNotMatch(statusFailureLine(s), /support/i, String(s));
+    });
 });
 
+
+// ── CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026) ───
+// The base roster makes both a rest day for everybody, and from 2026 the app SHOWS a member due at work
+// there on leave without recording anything (christmas-leave.js). The import knew none of it: a pattern
+// shift printed on either day was a pre-ticked DIFF — saved, it put the member at work on Christmas Day
+// and added the Boxing Day lieu day — and leave printed there asked "A rest day on the base roster. Was
+// it a swapped working day?" of a day the member was rostered to work. The owner's rule: never pre-tick
+// either day, say why on the row, ask no swap question there — and a manager can still tick one on
+// purpose (a Boxing Day really worked). Driven with the week ending Saturday 26 December 2026.
+describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
+    const { getPatternShift } = await import('./roster-data.js');
+    const rs = await import('./roster-review-states.js');
+    const ec = await import('./roster-entry-control.js');
+    const DATES = ['2026-12-20', '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25', '2026-12-26'];
+    const XMAS = '2026-12-25', BOXING = '2026-12-26';
+    const at = (/** @type {string} */ d) => new Date(d + 'T12:00:00');
+    const TIME = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+    // FOUND, not named: due at work on both days by pattern, and on an ordinary day of the week too.
+    const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && [XMAS, BOXING, '2026-12-22'].every(d => TIME.test(getPatternShift(x, at(d)))));
+    const shiftsWith = (/** @type {Record<string,string>} */ over) => ({
+        ...Object.fromEntries(DATES.map(d => [d, getBaseShift(m, at(d))])), ...over });
+    const states = (/** @type {Record<string,string>} */ over, /** @type {any[]} */ existing = []) =>
+        computeCellStates({ parsed: [{ memberName: m.name, shifts: shiftsWith(over) }], dates: DATES }, existing);
+    const other = (/** @type {string} */ d) => (getBaseShift(m, at(d)) === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00');
+
+    test('the fixture: a member the base roster rests on both days, and the pattern has at work', () => {
+        assert.ok(m, 'a member due at work on 25 and 26 December 2026 by pattern');
+        assert.equal(getBaseShift(m, at(XMAS)), 'RD');
+        assert.equal(getBaseShift(m, at(BOXING)), 'RD');
+    });
+
+    test('their pattern shift printed on 25 and 26 December is shown UNTICKED, and the rest of the week is not', () => {
+        const st = states({ [XMAS]: getPatternShift(m, at(XMAS)), [BOXING]: getPatternShift(m, at(BOXING)), '2026-12-22': other('2026-12-22') });
+        for (const d of [XMAS, BOXING]) {
+            const s = st.get(`${m.name}|${d}`);
+            assert.deepEqual([s.state, s.chosen, s.christmas], ['DIFF', false, true], `${d} is offered, never pre-ticked`);
+        }
+        const ordinary = st.get(`${m.name}|2026-12-22`);
+        assert.deepEqual([ordinary.state, ordinary.chosen, ordinary.christmas], ['DIFF', true, false], 'an ordinary day keeps its tick');
+        assert.deepEqual(collectRosterWrites(st).map(w => w.date), ['2026-12-22'], 'Save writes neither Christmas day');
+        const o = rs.reviewOutcome(st);
+        assert.deepEqual([o.updates, o.christmasHeld, o.heldBack], [1, 2, 0]);
+        assert.ok(rs.outcomeHtml(o).includes('<strong>2</strong> days not selected — the app’s Christmas leave decides 25 and 26 December'),
+            'the summary says what is withheld, and why');
+    });
+
+    test('a manager can still tick one on purpose — a Boxing Day really worked is written', () => {
+        const st = states({ [BOXING]: '13:30-21:00' });
+        st.get(`${m.name}|${BOXING}`).chosen = true;
+        assert.deepEqual(collectRosterWrites(st).map(w => [w.date, w.value]), [[BOXING, '13:30-21:00']]);
+    });
+
+    test('leave printed there asks no swap question and records nothing, whatever the answer says', () => {
+        const st = states({ [XMAS]: 'AL', [BOXING]: 'SICK' });
+        for (const d of [XMAS, BOXING]) {
+            const s = st.get(`${m.name}|${d}`);
+            assert.equal(s.state, 'GUARDED', `${d}: shown, not hidden as a MATCH`);
+            assert.equal(rs.swapQuestionApplies(s), false, `${d}: nothing is asked`);
+            const html = rs.guardedRowHtml({ key: `${m.name}|${d}`, s, dayName: 'Fri', dateStr: d, badgeHtml: 'AL', esc: (/** @type {string} */ v) => v });
+            assert.ok(!/swapped working day|data-swap/.test(html), `${d}: no question worded as if they were rostered there`);
+            assert.ok(html.includes('Christmas leave decides 25 and 26 December'), `${d}: says who decides`);
+            assert.ok(!html.includes('A rest day on the base roster'), `${d}: not called a rest day on their roster`);
+            s.chosen = 'swapped';
+            assert.deepEqual(rs.guardedWrites(s, m.name, d), [], `${d}: even a forced answer writes nothing`);
+        }
+    });
+
+    test('an earlier import there is an unticked "Clear old", never a question — and the same leave again is left alone', () => {
+        const imp = { id: 'i1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00', source: 'roster_import' };
+        const s = states({ [BOXING]: 'AL' }, [imp]).get(`${m.name}|${BOXING}`);
+        assert.deepEqual([s.state, s.chosen], ['REMOVE_IMPORT', false]);
+        const same = { ...imp, type: 'annual_leave', value: 'AL' };
+        assert.equal(states({ [BOXING]: 'AL' }, [same]).get(`${m.name}|${BOXING}`).state, 'COVERED');
+    });
+
+    test('the entry control asks nothing there either, and says why nothing is recorded', () => {
+        const key = `${m.name}|${XMAS}`;
+        const s = states({ [XMAS]: 'UNKNOWN|SEE CEM' }).get(key);
+        assert.deepEqual([s.state, s.christmas], ['UNREADABLE', true]);
+        for (const type of ['annual_leave', 'sick']) {
+            s.draft = { type, from: '', to: '', open: true, swap: 'yes' };
+            ec.commitEntry(s);
+            assert.deepEqual([s.entered, s.chosen], [null, null], `${type}: nothing is entered, even with a stale "yes"`);
+            const html = ec.entryControlHtml(key, s, XMAS);
+            assert.ok(!html.includes('Was it a swapped working day?'), `${type}: no swap question`);
+            assert.ok(html.includes('Christmas leave decides 25 and 26 December'), `${type}: the hint says why`);
+            assert.equal(ec.entryLeftAsRest(s), true, `${type}: an answer, not a cell nobody could read`);
+        }
+        s.draft = { type: 'shift', from: '13:30', to: '21:00', open: true };
+        ec.commitEntry(s);
+        assert.equal(s.chosen, 'entered', 'a shift entered on purpose is written');
+    });
+
+    test('other days and other years keep the question — the rule is the two days, from 2026', () => {
+        const rest = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+            && getBaseShift(x, at('2026-12-24')) === 'RD');
+        assert.ok(rest, 'a member resting on Christmas Eve');
+        const eve = computeCellStates({ parsed: [{ memberName: rest.name, shifts: { '2026-12-24': 'AL' } }], dates: ['2026-12-24'] }, [])
+            .get(`${rest.name}|2026-12-24`);
+        assert.equal(rs.swapQuestionApplies(eve), true, 'Christmas Eve is an ordinary rest day');
+        const old = computeCellStates({ parsed: [{ memberName: m.name, shifts: { '2025-12-25': 'AL' } }], dates: ['2025-12-25'] }, [])
+            .get(`${m.name}|2025-12-25`);
+        assert.equal(old.christmas, false, '2025 predates the Christmas leave (CHRISTMAS_LEAVE_FROM_YEAR)');
+    });
+});
+
+// ── THE WEEK THE FORM OFFERS FIRST (owner, 10 Nov 2026) ─────────────────────────────────────────
+// The roster is normally uploaded on a Thursday or a Friday for the FOLLOWING week. The field used to
+// default to the week in progress on every day but Saturday — a week early on exactly those days —
+// and nothing downstream can catch a whole week out: the drift detector compares ±1 day. The owner's
+// rule: from Thursday the following week; Sunday to Wednesday the week in progress; and a Saturday
+// keeps the next Saturday, as it always did — so Thursday to the next Wednesday all offer one week.
+describe('defaultWeekEnding — the week ending the upload form offers first', async () => {
+    const { defaultWeekEnding } = await import('./roster-alignment.js');
+    const { execFileSync } = await import('node:child_process');
+    /** A London wall-clock moment in winter, when London is UTC. */
+    const gmt = (/** @type {string} */ day, time = '10:00') => new Date(`${day}T${time}:00Z`);
+
+    test('every weekday of one week: Thursday to the following Wednesday offer the same Saturday', () => {
+        const expected = {
+            '2026-11-11': '2026-11-14',   // Wed — the week in progress
+            '2026-11-12': '2026-11-21',   // Thu — the release day: the FOLLOWING week
+            '2026-11-13': '2026-11-21',   // Fri
+            '2026-11-14': '2026-11-21',   // Sat — keeps the next Saturday, as it always did
+            '2026-11-15': '2026-11-21',   // Sun — the week in progress
+            '2026-11-16': '2026-11-21',   // Mon
+            '2026-11-17': '2026-11-21',   // Tue
+            '2026-11-18': '2026-11-21',   // Wed
+            '2026-11-19': '2026-11-28',   // Thu — the next release
+        };
+        for (const [day, saturday] of Object.entries(expected)) {
+            assert.equal(defaultWeekEnding(gmt(day)), saturday, day);
+            assert.equal(defaultWeekEnding(gmt(day, '00:05')), saturday, `${day}, just after midnight`);
+            assert.equal(defaultWeekEnding(gmt(day, '23:55')), saturday, `${day}, just before midnight`);
+        }
+    });
+
+    test('across a month end and the 2026→2027 year end', () => {
+        const expected = {
+            '2026-11-26': '2026-12-05', '2026-11-30': '2026-12-05', '2026-12-01': '2026-12-05', '2026-12-03': '2026-12-12',
+            '2026-12-23': '2026-12-26', '2026-12-24': '2027-01-02', '2026-12-25': '2027-01-02', '2026-12-26': '2027-01-02',
+            '2026-12-27': '2027-01-02', '2026-12-30': '2027-01-02', '2026-12-31': '2027-01-09', '2027-01-01': '2027-01-09',
+        };
+        for (const [day, saturday] of Object.entries(expected)) assert.equal(defaultWeekEnding(gmt(day)), saturday, day);
+    });
+
+    test('the day is LONDON\'s: in summer, half past midnight on a Thursday is already the release day', () => {
+        assert.equal(defaultWeekEnding(new Date('2026-06-17T22:30:00Z')), '2026-06-20', 'Wed 23:30 BST — the week in progress');
+        assert.equal(defaultWeekEnding(new Date('2026-06-17T23:30:00Z')), '2026-06-27', 'Thu 00:30 BST — the following week');
+        assert.equal(defaultWeekEnding(new Date('2026-10-25T12:00:00Z')), '2026-10-31', 'the Sunday the clocks go back');
+        assert.equal(defaultWeekEnding(new Date('2026-03-26T12:00:00Z')), '2026-04-04', 'a Thursday before the clocks go forward');
+    });
+
+    test('…whatever zone the device is set to', () => {
+        const src = new URL('./roster-alignment.js', import.meta.url).href;
+        const script = `const { defaultWeekEnding } = await import(${JSON.stringify(src)});
+            console.log([defaultWeekEnding(new Date('2026-11-18T20:00:00Z')), defaultWeekEnding(new Date('2026-11-19T03:00:00Z'))].join(','));`;
+        for (const TZ of ['Pacific/Auckland', 'America/Los_Angeles', 'UTC']) {
+            const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, TZ }, encoding: 'utf8' }).trim();
+            // Wed 20:00 London is Thursday in Auckland; Thu 03:00 London is still Wednesday in Los Angeles.
+            assert.equal(out, '2026-11-21,2026-11-28', TZ);
+        }
+    });
+});

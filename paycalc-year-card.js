@@ -34,7 +34,7 @@ import { getLoggedMember, getProRateFactor } from './paycalc-settings.js';
 import { readSavedPeriod, periodKey, hppEstKey, hppActualKey, hppIncKey } from './paycalc-migrations.js';
 import { getRosterSuggestion, fetchOverridesForPeriod, resetOverrides } from './paycalc-roster-suggestions.js';
 import { snapKey, updateRosterHint } from './paycalc-roster-hint.js';
-import { fillYearFromCalendar, fillYearReceipt } from './paycalc-fill-year.js';
+import { fillYearFromCalendar, fillYearReceipt, answerWithin, FETCH_TIMEOUT_MS } from './paycalc-fill-year.js';
 import { fmt, fdList, fdShort } from './paycalc-format.js';
 import { lsGet, lsSetBothVerified } from './ls.js';
 
@@ -45,14 +45,18 @@ let _lastArgs = null;
 /** @type {((r: any) => void)|null} */
 let _afterFill = null;
 let _filling = false;
+/** How long any one fetch may hold the fill — the loop's and the re-fetch after it alike. */
+let _fetchTimeoutMs = FETCH_TIMEOUT_MS;
 
 /**
  * Wire the card once (delegated — the render replaces the block's children on every calculate).
- * @param {{ afterFill: (r: any) => void }} cfg  coordinator hook: reload the visible form if it
- *   was filled, then recalculate (which re-renders this block, receipt included).
+ * @param {{ afterFill: (r: any) => void, fetchTimeoutMs?: number }} cfg  coordinator hook: reload
+ *   the visible form if it was filled, then recalculate (which re-renders this block, receipt
+ *   included). `fetchTimeoutMs` is for tests; the page takes the fill's own limit.
  */
-export function initYearCard({ afterFill }) {
+export function initYearCard({ afterFill, fetchTimeoutMs }) {
     _afterFill = afterFill;
+    _fetchTimeoutMs = fetchTimeoutMs ?? FETCH_TIMEOUT_MS;
     const el = document.getElementById('ytdYearSoFar');
     el?.addEventListener('click', (e) => {
         const btn = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('#fillYearBtn'));
@@ -84,24 +88,35 @@ export function renderYearCard({ ty, plan, pgLoan, slPaidOffFromP, bpLump }) {
     const hppLump = (_ysHppIncluded && _ysHppAmount > 0) ? { amount: _ysHppAmount } : null;
     const y = computeYearSoFar(ty, { taxCode, plan, pgLoan, slPaidOffFromP, bpLump, hppLump });
 
+    // While a fill runs, a recalculation still rebuilds this block — and a fresh, enabled-looking
+    // button whose taps `_filling` then ignored read as broken. It keeps saying what it is doing
+    // (paycalc-2-8).
     const fillControl = y.missing.length
-        ? `<div class="yearso-fill"><button type="button" id="fillYearBtn" class="btn-action btn-secondary">`
-          + `<span aria-hidden="true">📅</span> Fill these from your calendar</button></div>`
+        ? `<div class="yearso-fill"><button type="button" id="fillYearBtn" class="btn-action btn-secondary"${_filling ? ' disabled' : ''}>`
+          + (_filling ? 'Filling from your calendar…' : '<span aria-hidden="true">📅</span> Fill these from your calendar')
+          + '</button></div>'
         : '';
+    // tabindex="-1": focus can be MOVED to the receipt after a fill (see _restoreFocus), never tabbed to.
     const receiptHtml = (_receipt && _receipt.tyLabel === ty.label)
-        ? `<div class="yearso-receipt" role="status">${_receipt.lines.map(l => `<div>${l}</div>`).join('')}</div>`
+        ? `<div class="yearso-receipt" role="status" tabindex="-1">${_receipt.lines.map(l => `<div>${l}</div>`).join('')}</div>`
         : '';
+    const plural = (/** @type {number} */ n) => (n > 1 ? 's' : '');
+    const hadFocus = _focusInside(el);
 
-    // FROM-ZERO: nothing entered, nothing corrupt — but paid periods are waiting. The old
-    // early-return hid the block (right as a quiet default, wrong once it hides the one control
-    // that fixes the emptiness). A slim variant renders instead of the totals.
-    if (!y.entered && !y.skipped) {
-        if (!y.missing.length && !receiptHtml) { el.hidden = true; el.innerHTML = ''; return; }
+    // FROM-ZERO: nothing READABLE entered — but paid periods are waiting. The old early-return hid
+    // the block (right as a quiet default, wrong once it hides the one control that fixes the
+    // emptiness). A slim variant renders instead of the totals — and a year holding only UNREADABLE
+    // payslips lands here too: it rendered four "≈ £0.00" rows and a £0.00 projection, figures about
+    // pay nobody could read (paycalc-2-20).
+    if (!y.entered) {
+        if (!y.missing.length && !receiptHtml && !y.skipped) { el.hidden = true; el.innerHTML = ''; return; }
         el.hidden = false;
         el.innerHTML =
             `<div class="yearso-head">This tax year so far <span class="yearso-count">0 of ${y.paid} paid payslip${y.paid !== 1 ? 's' : ''} entered</span></div>` +
             (y.missing.length ? `<div class="yearso-proj">Not entered yet: ${fdList(y.missing)}.</div>` : '') +
+            (y.skipped ? `<div class="yearso-proj pay-skip-warn">⚠️ Couldn't read ${y.skipped} saved payslip${plural(y.skipped)}, so there is nothing to total yet — open ${y.skipped > 1 ? 'those payslips' : 'that payslip'} above and enter the hours again.</div>` : '') +
             fillControl + receiptHtml;
+        _restoreFocus(el, hadFocus);
         return;
     }
     el.hidden = false;
@@ -116,10 +131,52 @@ export function renderYearCard({ ty, plan, pgLoan, slPaidOffFromP, bpLump }) {
         (y.missing.length ? `<div class="yearso-proj">Not entered yet: ${fdList(y.missing)}.</div>` : '') +
         fillControl +
         // The projection is deliberately labelled rough — it assumes the rest of the year looks
-        // like the entered payslips (premiums vary period to period).
-        `<div class="yearso-proj">If the rest of ${ty.label} looks similar: take-home ≈ <strong>${fmt(y.projectedNet)}</strong> for the year (rough — based on your entered payslips).</div>` +
-        (y.skipped ? `<div class="yearso-proj pay-skip-warn">⚠️ Couldn't read ${y.skipped} saved payslip${y.skipped > 1 ? 's' : ''}, so these totals may be too low.</div>` : '') +
+        // like the entered payslips (premiums vary period to period). With every payslip of the year
+        // entered there is no "rest", and it only repeated the take-home above it (paycalc-2-20).
+        (y.entered < y.employed
+            ? `<div class="yearso-proj">If the rest of ${ty.label} looks similar: take-home ≈ <strong>${fmt(y.projectedNet)}</strong> for the year (rough — based on your entered payslips).</div>`
+            : '') +
+        (y.skipped ? `<div class="yearso-proj pay-skip-warn">⚠️ Couldn't read ${y.skipped} saved payslip${plural(y.skipped)}, so these totals may be too low.</div>` : '') +
         receiptHtml;
+    _restoreFocus(el, hadFocus);
+}
+
+/** Set at the end of a fill whose focus is free (see _focusIsFree), so the render that brings the
+ *  receipt focuses it. */
+let _focusReceiptNext = false;
+
+/** Was focus inside the block a rebuild is about to replace? @param {any} el */
+function _focusInside(el) {
+    const a = typeof document !== 'undefined' ? document.activeElement : null;
+    return !!(a && el && typeof el.contains === 'function' && el.contains(a));
+}
+
+/**
+ * May the end of a fill move focus to its receipt? Only when focus has nowhere else to be: on the
+ * page body (the button it started on was disabled, or rebuilt away) or still in this block. A member
+ * who went on to another field while the fill ran keeps their place.
+ */
+function _focusIsFree() {
+    if (typeof document === 'undefined') return false;
+    const a = document.activeElement;
+    return !a || a === document.body || _focusInside(document.getElementById('ytdYearSoFar'));
+}
+
+/**
+ * FOCUS SURVIVES THE REBUILD (paycalc-2-18). The block is rebuilt with innerHTML on every
+ * recalculation, and a focused button that leaves the page drops focus to the body — so a keyboard
+ * user lost their place on any background recalculation, and after every fill. Focus goes back to
+ * the button; at the end of a fill, to the receipt instead — its words are then read out, where a
+ * status region inserted already filled is often not announced at all. Not only after a keyboard
+ * start: Safari does not focus a tapped button, so a screen reader on an iPhone would be missed.
+ * @param {any} el @param {boolean} hadFocus
+ */
+function _restoreFocus(el, hadFocus) {
+    const afterFill = _focusReceiptNext;
+    _focusReceiptNext = false;
+    if ((!hadFocus && !afterFill) || typeof el.querySelector !== 'function') return;
+    const target = (afterFill && el.querySelector('.yearso-receipt')) || el.querySelector('#fillYearBtn');
+    target?.focus?.();
 }
 
 /** @param {HTMLButtonElement} btn */
@@ -134,6 +191,7 @@ async function _runFill(btn) {
         const receipt = await fillYearFromCalendar({
             periods: periodsInTaxYear(ty, getPeriods()), member, now: new Date(),
             deps: {
+                timeoutMs: _fetchTimeoutMs,
                 proRateFactor: getProRateFactor,
                 readSaved: readSavedPeriod,
                 fetchOverrides: (p, name) => fetchOverridesForPeriod(p, name),
@@ -160,9 +218,20 @@ async function _runFill(btn) {
         // otherwise overwrite the restored map with a different period's changes (and a later Fill
         // would write them into this one). The reset bumps the fetch token, so it returns 'cancelled'.
         resetOverrides(cur && member.name ? 'checking' : 'base-only');
-        if (cur && member.name) { try { await fetchOverridesForPeriod(cur, member.name); } catch { /* hint bar shows base-only */ } }
+        if (cur && member.name) {
+            // Bounded like every fetch in the loop (paycalc-2-14): unbounded, a connection that stopped
+            // answering here left the receipt, the coordinator's reload and the button all waiting for
+            // ever, with the filled payslips already in storage unannounced. No answer in time is
+            // base-only — the badge is the truth — and the reset cancels a late answer.
+            let answer = 'base-only';
+            try { answer = await answerWithin(fetchOverridesForPeriod(cur, member.name), _fetchTimeoutMs); } catch { /* hint bar shows base-only */ }
+            if (answer === 'timeout') resetOverrides('base-only');
+        }
         _receipt = { tyLabel: ty.label, lines: fillYearReceipt(receipt, fdShort) };
+        _filling = false;        // before the coordinator's re-render, so the button it draws is live
+        _focusReceiptNext = _focusIsFree();
         _afterFill?.(receipt);   // coordinator reloads the visible form if filled, then recalculates
+        _focusReceiptNext = false;
         updateRosterHint();
     } catch (err) {
         // A CONTROL THAT NEVER COMES BACK (v23.71). Everything above restores this button by being
@@ -183,7 +252,10 @@ async function _runFill(btn) {
         console.error('[PayCalc] Fill year failed', err);
         _receipt = { tyLabel: ty.label, lines: ["Couldn't finish filling from your calendar. "
             + 'Any payslips it did fill have been saved; the others are untouched. Try again.'] };
+        _filling = false;        // before the re-render, so the button it draws is live
+        _focusReceiptNext = _focusIsFree();
         if (_lastArgs) renderYearCard(_lastArgs);
+        _focusReceiptNext = false;
     } finally {
         _filling = false;        // the re-render replaced the button; this guards the no-render error path
     }

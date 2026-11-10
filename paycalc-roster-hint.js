@@ -4,7 +4,7 @@
  *
  * Owns: updateRosterHint, updateJoinerNotice, toggleRosterDays, fillFromRoster,
  *   fillCategoryFromRoster, _applyRosterSuggestion, clearRosterSuggestedAll,
- *   _restoreRosterSuggested, snapKey, renderRosterDayList.
+ *   _restoreRosterSuggested, recordCalendarFigures, snapKey, renderRosterDayList.
  * Does NOT own: period arithmetic (paycalc-periods.js), override cache / suggestion
  *   engine (paycalc-roster-suggestions.js), calculation (paycalc-app.js).
  * Edit here for: roster hint bar rendering, day list, fill logic, snap persistence.
@@ -16,7 +16,7 @@ import { getLoggedMember, getEffectiveContr, getContr } from './paycalc-settings
 import { getRosterSuggestion, getOverridesFetchState, fetchOverridesForPeriod } from './paycalc-roster-suggestions.js';
 import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
-import { pcPrefix } from './paycalc-migrations.js';
+import { pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
 import { fdLong, minutesFieldText } from './paycalc-format.js';
 import { proRateDays } from './paycalc-calc.js';
 
@@ -105,17 +105,19 @@ function renderRosterDayList(days) {
  * @param {any} mId
  * @param {any} hVal
  * @param {any} mVal
+ * @returns {boolean} true only when the pair was BLANK and is now filled — the one case whose
+ *   snapshot the display-only refresh may write (see `_applyRosterSuggestion`)
  */
 function _suggestIfBlank(hId, mId, hVal, mVal) {
   const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
   const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
-  if (!elH || !elM) return;
+  if (!elH || !elM) return false;
   // Nothing to suggest when the engine reports zero for BOTH hours and minutes — the
   // suggestion object uses numeric 0 (not null) for undetected categories, so guarding
   // only on `== null` stamped a gold "0" onto every empty category, making it look like a
   // confirmed "none" where the engine actually has no information. A real 0-in-one-field
   // pairing (e.g. 5h 0m, or 0h 30m) still passes because the other field is non-zero.
-  if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return;
+  if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return false;
   // ONE PAIR, ONE AUTHOR (whole-app review, Oct 2026). The hours and minutes boxes are one figure,
   // and this used to fill each independently — so a payslip saved as 8h 0m, which reloads as "8"
   // beside a BLANK minutes box, took the calendar's 30 into the blank and priced 8h 30m: a figure
@@ -123,7 +125,8 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   // 45 typed minutes did the same in reverse. If the member typed either box, the pair is theirs.
   const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
   const mEdited = elM.value !== '' && !elM.classList.contains('roster-suggested');
-  if (hEdited || mEdited) return;
+  if (hEdited || mEdited) return false;
+  const wasBlank = elH.value === '' && elM.value === '';
   if (hVal != null) {
     elH.value = hVal ?? '';
     elH.classList.add('roster-suggested');
@@ -132,6 +135,7 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
     elM.value = minutesFieldText(mVal);   // "00", not "0" — display only; the stored value is unchanged
     elM.classList.add('roster-suggested');
   }
+  return wasBlank;
 }
 
 // ── SNAP PERSISTENCE ──────────────────────────────────────────────────────────
@@ -157,6 +161,39 @@ function _saveRosterSnap(pNum, s) {
       boxH: s.boxH, boxM: s.boxM,
     }));
   } catch {}
+}
+
+/**
+ * Merges just these pairs into the snapshot, leaving every other category's entry as it was.
+ * @param {any} pNum
+ * @param {{ hId: string, mId: string, hVal: any, mVal: any }[]} pairs
+ */
+function _mergeRosterSnap(pNum, pairs) {
+  try {
+    const snap = JSON.parse(lsGet(snapKey(pNum)) || '{}');
+    for (const { hId, mId, hVal, mVal } of pairs) { snap[hId] = hVal ?? ''; snap[mId] = mVal ?? ''; }
+    lsSet(snapKey(pNum), JSON.stringify(snap));
+  } catch {}
+}
+
+/**
+ * Re-record which SAVED figures came from the calendar: the gold pairs on screen, at the values the
+ * payslip now holds. Call it straight after a period is saved, so the snapshot describes the saved
+ * blob (paycalc-3-1). An edit saves every box, gold ones included (implicit acceptance — paycalc.md),
+ * so this is the moment a figure the background refresh only SHOWED becomes one that is saved; and
+ * a pair the member typed over drops out, so it can never be taken for the calendar's on a later
+ * visit. Read back from storage rather than the boxes, so a save that failed changes nothing here.
+ * @param {number} pNum
+ */
+export function recordCalendarFigures(pNum) {
+  const { data } = readSavedPeriod(pNum);
+  if (!data) return;
+  /** @type {Record<string, any>} */ const snap = {};
+  for (const { hId, mId } of HM_PAIRS) {
+    const gold = [hId, mId].some(id => document.getElementById(id)?.classList.contains('roster-suggested'));
+    if (gold) { snap[hId] = data[hId] ?? 0; snap[mId] = data[mId] ?? 0; }
+  }
+  try { lsSet(snapKey(pNum), JSON.stringify(snap)); } catch {}
 }
 
 /** Re-adds roster-suggested to any field whose current value still matches the last
@@ -206,10 +243,10 @@ export function updateRosterHint() {
 
   const badge = document.getElementById('rosterStateBadge');
   if (badge) {
-    if (getOverridesFetchState() === 'loaded') {
+    if (getOverridesFetchState(p) === 'loaded') {
       setStatus(badge, '✓ Includes recorded changes');
       badge.className    = 'roster-state-badge loaded';
-    } else if (getOverridesFetchState() === 'base-only') {
+    } else if (getOverridesFetchState(p) === 'base-only') {
       setStatus(badge, '⚠ Scheduled only');
       badge.className    = 'roster-state-badge base-only';
     } else {
@@ -241,7 +278,8 @@ export function updateRosterHint() {
       const enteredMins = (hv === '' && mv === '') ? null
         : (parseInt(hv) || 0) * 60 + (parseInt(mv) || 0);
 
-      const conf     = _confBadge(r.cat, r.fromOv, s.defaulted8h?.[r.cat] ? 8 : s.defaulted7h?.[r.cat] ? 7 : 0);
+      const estimateH = s.defaulted8h?.[r.cat] ? 8 : s.defaulted7h?.[r.cat] ? 7 : 0;
+      const conf     = _confBadge(r.cat, r.fromOv, estimateH);
       const confHtml = conf ? `<span class="conf-badge ${conf.cls}">${conf.text}</span>` : '';
 
       // The meta column is a wrapping flex row (paycalc.css .roster-row-meta), so its text and the
@@ -264,7 +302,10 @@ export function updateRosterHint() {
       } else if (enteredMins === suggestMins) {
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
-        metaText  = `<span>${dayStr}</span>`;
+        // A figure that holds a DEFAULT says so here too (paycalc-3-2): matching the calendar does not
+        // make it a record, and this is the state the page reaches by itself on view. The other chips
+        // only describe a figure still to be checked against the calendar, so the calm ✓ drops them.
+        metaText  = `<span>${dayStr}</span>${estimateH ? confHtml : ''}`;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
         action    = 'matches your calendar';
       } else {
@@ -287,14 +328,19 @@ export function updateRosterHint() {
     }).join('');
     const body = html || (s.none ? '<p class="roster-none-note">Your calendar has no Saturday, Sunday or bank holiday shifts on this payslip.</p>' : '');
     if (body !== _lastRosterRowsHtml) {
+      // Rewriting the rows destroys the button that had focus — a row filled from the keyboard — and
+      // drops the keyboard on the page body; it goes back to that category's new row (paycalc-3-14).
+      const active = /** @type {Element|null} */ (document.activeElement ?? null);
+      const focusedCat = active && rows.contains?.(active) ? active.closest('[data-cat]')?.getAttribute('data-cat') : null;
       rows.innerHTML = body;
       _lastRosterRowsHtml = body;
+      if (focusedCat) /** @type {HTMLElement|null} */ (rows.querySelector(`[data-cat="${focusedCat}"]`))?.focus({ preventScroll: true });
     }
   }
 
   const hintTextEl = document.getElementById('rosterHintText');
   if (hintTextEl) {
-    hintTextEl.textContent = getOverridesFetchState() === 'loaded'
+    hintTextEl.textContent = getOverridesFetchState(p) === 'loaded'
       ? 'Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.'
       : 'Calendar (base pattern only) — recorded shift changes not yet loaded. Special-rate hours only; standard contracted hours are already included in basic pay.';
   }
@@ -319,7 +365,7 @@ export function updateRosterHint() {
     //      in exactly the state that recovery was written for.
     //
     // So: refuse only when the data is complete AND there is nothing to write AND nothing to remove.
-    const _loaded = getOverridesFetchState() === 'loaded';
+    const _loaded = getOverridesFetchState(p) === 'loaded';
     const _entered = _hasEntry;
     const _zeroInCalendar = (/** @type {string} */ cat) =>
       !((s[cat + 'H'] || 0) > 0 || (s[cat + 'M'] || 0) > 0);
@@ -328,8 +374,12 @@ export function updateRosterHint() {
     // clear itself is scoped to, so the button can never promise a removal that will not happen.
     const clearable = _loaded && [...CLEARABLE_CATS].some(cat => _entered(cat) && _zeroInCalendar(cat));
     const hasEntries = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(_entered);
-    fillBtn.disabled = _loaded && !fillable && !clearable;
-    fillBtn.textContent = fillBtn.disabled ? 'Nothing to fill this payslip'
+    const nothing = _loaded && !fillable && !clearable;
+    // …and BUSY while a tap's own fetch is in flight (paycalc-3-13): a refresh meanwhile — every
+    // keystroke in an hours box asks for one — re-enabled the button, and the in-flight guard then
+    // swallowed the next tap without a word: the enabled control that no-ops, back again.
+    fillBtn.disabled = nothing || _fillInFlight;
+    fillBtn.textContent = nothing ? 'Nothing to fill this payslip'
       : hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
   }
 
@@ -352,6 +402,9 @@ export function updateJoinerNotice(p) {
   if (member.startDate > p.cutoff) { el.style.display = 'none'; return; }
   // The same count the pay factor uses (clock-change-safe) — never a second copy of it.
   const { daysEmployed, totalDays } = proRateDays(member.startDate, p.start, p.cutoff);
+  // Nothing was scaled — a start the count treats as the whole period (the Monday after the period's
+  // opening Sunday) — so there is nothing to explain; it read "140 of 140 … 28 of 28 days" (paycalc-3-12).
+  if (daysEmployed >= totalDays) { el.style.display = 'none'; return; }
   const proRated     = getEffectiveContr(p);
   const base         = getContr();
   const startFmt     = fdLong(member.startDate);
@@ -389,7 +442,7 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
   // "✓ Filled" after a tap that wrote nothing is the difference between a member reporting
   // "nothing to fill this payslip" (true, diagnosable) and "the button doesn't work" (what got
   // reported, undiagnosable, and it outlived two fixes aimed at the tap itself).
-  const written = [], cleared = [];
+  const written = [], cleared = [], filledBlank = [];
   for (const { hId, mId, cat } of HM_PAIRS) {
     const hVal = s[hId], mVal = s[mId];
     if (force) {
@@ -419,11 +472,19 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
       elH.classList.add('roster-suggested');
       elM.classList.add('roster-suggested');
       written.push(cat);
-    } else {
-      _suggestIfBlank(hId, mId, hVal, mVal);
+    } else if (_suggestIfBlank(hId, mId, hVal, mVal)) {
+      filledBlank.push({ hId, mId, hVal, mVal });
     }
   }
-  _saveRosterSnap(currentPeriodNum(), s);
+  // THE SNAPSHOT DESCRIBES WHAT IS SAVED (paycalc-3-1). It is how a reload tells a saved figure that
+  // came from the calendar (gold, and free to follow it) from one the member typed. An explicit fill
+  // is saved straight after, so it writes the lot. The background refresh on view saves NOTHING
+  // (invariant 11) — so it must not move the entry of a figure that IS saved: it used to, and a
+  // payslip filled at 8h whose calendar later said 16h then showed 16 on one visit and, on the next,
+  // read its saved 8 as typed and showed that. It only adds the pairs it filled from BLANK, which is
+  // what lets a member's next edit — whose autosave keeps the gold figures — keep them gold.
+  if (force) _saveRosterSnap(currentPeriodNum(), s);
+  else if (filledBlank.length) _mergeRosterSnap(currentPeriodNum(), filledBlank);
   return { written, cleared };
 }
 
@@ -466,7 +527,7 @@ function _hasEntry(cat) {
  */
 function _suggestionOrNone(p, member) {
   const s = getRosterSuggestion(p, member);
-  if (s || getOverridesFetchState() !== 'loaded') return s;
+  if (s || getOverridesFetchState(p) !== 'loaded') return s;
   const zero = { days: [], none: true };
   for (const cat of ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box']) Object.assign(zero, { [cat + 'H']: 0, [cat + 'M']: 0, [cat + 'Count']: 0 });
   return zero;
@@ -502,13 +563,7 @@ export function fillCategoryFromRoster(cat, autosave) {
     elM.classList.add('roster-suggested');
     // Merge this category into the existing snapshot so reload can restore the
     // roster-suggested class for just these fields (without clobbering other fields).
-    const pNum = currentPeriodNum();
-    try {
-      const existing = JSON.parse(lsGet(snapKey(pNum)) || '{}');
-      existing[hId] = hVal ?? '';
-      existing[mId] = mVal ?? '';
-      lsSet(snapKey(pNum), JSON.stringify(existing));
-    } catch {}
+    _mergeRosterSnap(currentPeriodNum(), [{ hId, mId, hVal, mVal }]);
   }
   autosave();
   // Programmatic value changes don't fire the input listeners — refresh the
@@ -534,7 +589,9 @@ export async function fillFromRoster(autosave) {
   // shifts exist as RECORDED CHANGES then gets a fill that misses exactly the hours they wanted.
   // The tap is an explicit "give me the calendar", so it is the right moment to try once more;
   // a failure falls through to base-only, which is what would have happened anyway.
-  if (getOverridesFetchState() !== 'loaded' && member?.name) {
+  // Every state read here names THIS payslip: while the year fill runs, the last fetch is another
+  // payslip's, and "loaded" alone priced this one from that payslip's changes (paycalc-2-8).
+  if (getOverridesFetchState(p) !== 'loaded' && member?.name) {
     const btn = /** @type {HTMLButtonElement|null} */ (document.getElementById('fillFromRosterBtn'));
     _fillInFlight = true;
     if (btn) btn.disabled = true;
@@ -553,7 +610,7 @@ export async function fillFromRoster(autosave) {
   // clearZeros only when the calendar data is COMPLETE: clearing on base-only counts could
   // wipe real hours whose recorded changes simply failed to load (the inverse of the bug).
   const { written, cleared } = _applyRosterSuggestion(s, true,
-    { clearZeros: getOverridesFetchState() === 'loaded' });
+    { clearZeros: getOverridesFetchState(p) === 'loaded' });
   autosave();
   // Refresh row states (✓ matched) before the confirmation text swap below.
   updateRosterHint();
@@ -570,13 +627,21 @@ export async function fillFromRoster(autosave) {
     const _names = written.map(c => _CAT_LABELS[c] ?? c);
     const _what = _names.length > 3 ? `${written.length} categories` : _names.join(' + ');
     const _gone = cleared.map(c => _CAT_LABELS[c] ?? c).join(' + ');
-    setStatus(hint, written.length > 0
-      ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''} — select "Clear all entries" to undo`
+    // No undo is offered, because there is none: "Clear all entries" empties the WHOLE payslip, and
+    // what a Replace overwrote does not come back (paycalc-3-11).
+    const said = written.length > 0
+      ? `✓ Filled ${_what}${cleared.length ? ` + cleared ${_gone}` : ''}`
       : cleared.length > 0
         ? `✓ Cleared ${_gone} — your calendar shows none`
-        : (getOverridesFetchState() === 'loaded'
+        : (getOverridesFetchState(p) === 'loaded'
             ? 'Nothing to fill — no special-rate shifts on this payslip'
-            : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)'));
-    setTimeout(() => { hint.textContent = prev; }, 4000);
+            : 'Nothing to fill — and recorded shift changes could not be loaded (check signal)');
+    setStatus(hint, said);
+    // …and to a screen reader, through a status region of its own (paycalc-3-14): the paragraph above
+    // is no live region, so a fill was silent, and "Nothing to fill" met a press with nothing at all.
+    // Cleared with the receipt, so the next fill is a change, and is announced.
+    const live = document.getElementById('rosterFillStatus');
+    setStatus(live, said);
+    setTimeout(() => { hint.textContent = prev; if (live) live.textContent = ''; }, 4000);
   }
 }

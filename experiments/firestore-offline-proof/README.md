@@ -23,12 +23,14 @@ without consulting them. Two consequences, opposite in sign, both following from
 ## Running it
 
 ```bash
-# 1. The real production SDK, fetched once (the harness imports it from ./sdk/).
+# 1. The SDK the app ships — the version firebase-client.js loads — fetched once (the harness
+#    imports it from ./sdk/).
+SDK=$(grep -o 'firebasejs/[0-9.]*/' ../../firebase-client.js | head -1 | cut -d/ -f2)
 mkdir -p sdk && for f in firebase-app.js firebase-firestore.js; do
-  curl -sS -o sdk/$f "https://www.gstatic.com/firebasejs/12.16.0/$f"; done
+  curl -sS -o sdk/$f "https://www.gstatic.com/firebasejs/$SDK/$f"; done
 # The firestore bundle imports the app bundle by absolute gstatic URL — point it at the local copy,
 # so the run needs no network at all:
-sed -i 's#https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js#./firebase-app.js#g' \
+sed -i "s#https://www.gstatic.com/firebasejs/$SDK/firebase-app.js#./firebase-app.js#g" \
   sdk/firebase-firestore.js
 
 # 2. Emulator + a static server for the harness.
@@ -40,8 +42,9 @@ node run.mjs                                  # same browser session (page reloa
 SETTLE_MS=4000 FLUSH_MS=2000 node restart.mjs  # full browser restart, profile reused
 ```
 
-Keep the SDK version in step 1 in step with `firebase-client.js`, or the experiment stops being
-about the code that ships.
+Step 1 fetches whatever `firebase-client.js` loads, so a re-run measures the code that ships. **The
+results below were measured on SDK 12.16.0 and have not been re-run since the app moved on** (it
+loads 13.1.0 on 10 November 2026): re-run, and re-date them, before leaning on them for a newer SDK.
 
 ## The two ways this measured the wrong thing
 

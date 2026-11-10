@@ -135,6 +135,32 @@ function _noticeEl() {
     return el;
 }
 
+/** The usual visually-hidden recipe (`.sr-only` in shared.css), inline because the notice's own id
+ *  rule out-specifies a class: present for assistive tech, invisible on screen. */
+const _UNSEEN = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0';
+
+/**
+ * Draw the notice for the counts as they stand — three states.
+ *
+ * THE LIVE REGION IS THERE BEFORE ITS WORDS (Nov 2026). It used to be created, filled and un-hidden
+ * in one step, and a live region that arrives already holding its text is commonly NOT announced:
+ * assistive technology announces changes to a region it already knows (MDN, "ARIA live regions":
+ * "Establish the live region before updating its content. Start with an empty live region…"). So
+ * the person who could not see the line was the one not told why Save stayed disabled. Now, while
+ * any write is on its way, the region is in the page empty and unseen; when one turns slow, only
+ * its text changes, and the box appears. With nothing in flight it is hidden, as before.
+ */
+function _render() {
+    try {
+        const el = _noticeEl();
+        if (!el) return;
+        const text = _waiting > 0 ? slowSaveText(_batchedWaiting > 0) : '';
+        if (el.textContent !== text) el.textContent = text;   // an unchanged line is not re-announced
+        el.style.cssText = _waiting > 0 || _inFlight === 0 ? '' : _UNSEEN;
+        el.hidden = _waiting === 0 && _inFlight === 0;
+    } catch { /* the notice must never disturb the save it describes */ }
+}
+
 /** Writes handed to withSlowSaveNotice and not yet settled, slow or not. */
 let _inFlight = 0;
 /** A number per save, so a listener can pair the two announcements of one save. */
@@ -164,10 +190,7 @@ let _batchedWaiting = 0;
 function _show(batched) {
     _waiting++;
     if (batched) _batchedWaiting++;
-    const el = _noticeEl();
-    if (!el) return;
-    el.textContent = slowSaveText(_batchedWaiting > 0);
-    el.hidden = false;
+    _render();
 }
 
 /**
@@ -178,10 +201,7 @@ function _show(batched) {
 function _hide(batched) {
     _waiting = Math.max(0, _waiting - 1);
     if (batched) _batchedWaiting = Math.max(0, _batchedWaiting - 1);
-    const el = _noticeEl();
-    if (!el) return;
-    if (_waiting) { el.textContent = slowSaveText(_batchedWaiting > 0); return; }
-    el.hidden = true; el.textContent = '';
+    _render();
 }
 
 /**
@@ -195,7 +215,8 @@ function _hide(batched) {
  */
 export function withSlowSaveNotice(promise, { batched = false } = {}) {
     _inFlight++;
-    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); };
+    _render();   // the live region goes into the page now, empty, so its words can be announced later
+    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); _render(); };
     promise.then(settle, settle);   // observe only — the caller still sees the result or error
     // `window.__E2E?.slowSaveMs` is a TEST SEAM, the same shape as text-scale.js's: the e2e holds a
     // commit open and would otherwise sit through eight real seconds to see the notice. Nothing in

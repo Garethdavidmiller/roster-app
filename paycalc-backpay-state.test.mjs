@@ -16,7 +16,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     BP_FIELDS, readBpFields, bpFieldWrites,
-    resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod,
+    resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod, blobFitsGrade,
 } from './paycalc-backpay-state.js';
 
 /** A blob-reader over a plain {id: value} map, matching what the coordinator passes. */
@@ -202,5 +202,33 @@ describe('the paid-in period ladder', () => {
         assert.equal(resolvePaidInPeriod({
             awardDecided: false, derivedPNum: null, savedPNum: /** @type {any} */ ('56'), fallbackPNum: 55,
         }), 55);
+    });
+});
+
+// ── DEFECT 2 AGAIN, ARRIVING BY GRADE (paycalc-2-9) ────────────────────────────────────────────
+// A box with no figure on record keeps what the blob holds. A blob written under ANOTHER grade
+// therefore prices that grade's figure in it: CEA's old rate of £20.06 against CES's £21.81, a rise
+// nobody was given. The CES 2025/26 award is the live case — its old rate is not on record.
+describe('a saved blob fits the grade it is read under', () => {
+    // CES 2025/26 as the record holds it: no old rate, everything else on record.
+    const CES_25 = { oldRate: null, newRateInput: 21.81, oldLondon: 267.08, newLondon: 276.16 };
+    const CEA_BLOB = { oldR: '20.06', newR: '20.74', oldL: '267.08', newL: '276.16' };
+
+    test('a blob that names its grade is judged by it', () => {
+        assert.equal(blobFitsGrade({ ...CEA_BLOB, grade: 'cea' }, 'ces', CES_25), false);
+        assert.equal(blobFitsGrade({ ...CEA_BLOB, grade: 'ces' }, 'ces', CES_25), true);
+    });
+
+    test('an older blob without one is recognised by its LOCKED figures, which carry its grade\'s record', () => {
+        // Written under CEA: its new rate is CEA's £20.74, where CES's record says £21.81.
+        assert.equal(blobFitsGrade(CEA_BLOB, 'ces', CES_25), false);
+    });
+
+    test('a CES member\'s own typed old rate is never thrown away on a guess', () => {
+        // The same year saved under CES, with the old rate typed by hand: every recorded box agrees.
+        assert.equal(blobFitsGrade({ oldR: '21.09', newR: '21.81', oldL: '267.08', newL: '276.16' }, 'ces', CES_25), true);
+        // Nothing to compare (blank boxes, an unsettled award) reads as a fit, not as a mismatch.
+        assert.equal(blobFitsGrade({ oldR: '21.09' }, 'ces', CES_25), true);
+        assert.equal(blobFitsGrade(CEA_BLOB, 'ces', { oldRate: null, newRateInput: null, oldLondon: null, newLondon: null }), true);
     });
 });

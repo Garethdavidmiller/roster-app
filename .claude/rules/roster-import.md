@@ -79,7 +79,8 @@ never defaulted`) just because the fact arrived by PDF.
   PDF now says it is not a working day (`guardedWrites`, `deleteOnly`).
 - **Unanswered writes nothing** — asked, never defaulted — and **Skip all takes an answer back** (an
   answered swap is a write, so a skipped section must not still write it).
-- Sundays and breaker-refused reads ask nothing.
+- Sundays and breaker-refused reads ask nothing, and nor do 25 and 26 December from 2026: the app's
+  Christmas leave decides those days, so their rows start unticked and say so (owner, 10 Nov 2026).
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
 
@@ -96,14 +97,19 @@ maps it to an **UNREADABLE** review row.
   Sunday's `MEET 10:00-14:00` beside `10:00-14:00`). A lone rest day is not offered — written on a
   rostered Sunday it takes the shift away — and a Sunday training or meeting reading is never offered.
 - Unpicked is the default and writes nothing.
+- A reading of leave or an absence on a base REST day is not offered at all (the guard would show it
+  as "Rest"): the row shows what was read, and the entry below asks the swapped-day question. A rest
+  day picked or entered over a base rest day writes nothing new, only clearing what the day held
+  (`restOverRest`; whole-app fix, Nov 2026).
 - An EMPTY cell is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row
   Monday to Saturday (below).
 
 ## Day drift — a week written onto the wrong days
 
-**Day-drift defence — three layers; a one-day shift must never be silently written.** The only entry
-point for a shifted row is the AI's visual ROW read (date assignment is deterministic: day-name keys
-→ server dates).
+**Day-drift defence — four layers; a week must never be silently written onto the wrong days.** The
+only entry point for a ONE-day shift is the AI's visual ROW read (date assignment is deterministic:
+day-name keys → server dates), and layers 1–3 guard it. A WHOLE week out enters through the week
+chosen on the form instead, and only layer 4 can see it.
 
 1. **`applySundayScanCorrections`** (`functions/roster-sunday-repair.js`) — the Sunday-anchored Case
    A/B repair. Its clean right-shift needs an EMPTY Saturday slot, and **only the blank-Saturday
@@ -132,13 +138,24 @@ point for a shifted row is the AI's visual ROW read (date assignment is determin
 3. **`detectShiftedRow`** (`roster-alignment.js`, client) — the AI-independent signal: the parsed
    week is correlated against the member's OWN base roster at offsets −1/0/+1; if a ±1 alignment beats
    offset 0 by ≥3 matches (and scores ≥5/7), the row is suspect.
+4. **`checkSheetWeek`** (`functions/roster-week-heading.js`) — the sheet's OWN week, and **it does
+   not depend on the model**: it reads the PDF's text layer, never a reply. Layers 1–3 compare a day
+   with its neighbours, so a sheet for a different week, read perfectly, passes all three. The
+   roster prints its week (`Week Ending: DD/MM/YYYY`, on page 1 above the grid; the footer's Print
+   Date is never read). The grid read collects every such heading, and `parseRosterPDF` refuses the
+   WHOLE read with a 409 when one names a week other than the one chosen, with a message naming both
+   weeks that the admin sees as written: before the model is called, or, when the early wait on the
+   grid read gave up, once it settles (as `settledGeometry` re-asks for the witness, below), and
+   either way before anything is written. **It never guesses**: no heading read (no text layer, a
+   layout without one, a date that is not a Saturday) fails open and is logged, as the geometry
+   witness does (owner, 10 Nov 2026).
 
-**THE THREE "LAYERS" ARE NOT THREE WITNESSES.** Layers 1 and 2 both come from ONE model call looking
-at ONE PDF — so when it visually collapses the blank Sunday cell and repeats that positional mistake
-across the row read, `sundayScan` AND `columnScan`, every server-side check agrees with the wrong
-answer and a whole week is written onto the wrong days. Nothing errors. Pinned by the "consistently
-shifted read" block in `roster-parse-helpers.test.mjs`. Layer 3 is the only genuinely independent
-evidence, so it must never be warn-only above a fully-ticked list:
+**THE FIRST THREE "LAYERS" ARE NOT THREE WITNESSES.** Layers 1 and 2 both come from ONE model call
+looking at ONE PDF — so when it visually collapses the blank Sunday cell and repeats that positional
+mistake across the row read, `sundayScan` AND `columnScan`, every server-side check agrees with the
+wrong answer and a whole week is written onto the wrong days. Nothing errors. Pinned by the
+"consistently shifted read" block in `roster-parse-helpers.test.mjs`. Of the three, layer 3 is the
+only genuinely independent evidence, so it must never be warn-only above a fully-ticked list:
 
 - **A suspect member's rows start UNTICKED** (`computeCellStates` owns the decision, so the save path
   inherits it).
@@ -159,7 +176,9 @@ evidence, so it must never be warn-only above a fully-ticked list:
   second roster and works only its Saturday: writing RD across their Mon–Fri would overwrite what
   their primary roster's import had just written. The rule is applied at BOTH sites in
   `buildSafeEntries` (a day whose header the model never listed, and a header listed with nothing in
-  it); fixing one alone fixes nothing.
+  it); fixing one alone fixes nothing. **On a row whose Monday to Saturday were ALL unread, the review
+  treats the Sunday as a question too** (decided default, Nov 2026 — `computeCellStates`), so that
+  member's blank Sunday is never pre-ticked as a rest day.
 - **`NA` and `NS` are REST DAYS, on every day** (owner, 6 Nov 2026: "NA and NS should be treated as
   rest days on the roster uploader", Sundays included). `normaliseShift` records both as `RD` beside
   `SN`, so `buildSafeEntries`, the column cross-check and the grid read's rest test all get the same

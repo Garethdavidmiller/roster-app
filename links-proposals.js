@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * links-proposals.js — the SHORTLISTED 26-line designs, built into the Links workspace (v24.47).
+ * links-proposals.js — the SHORTLISTED designs for the new link, built into the Links workspace (v24.47).
  *
  * ── WHAT THESE ARE ─────────────────────────────────────────────────────────────────────────────
  *
@@ -39,13 +39,15 @@
  *
  * **A proposal id never reaches Firestore.** Ids carry the `proposal:` prefix, and the coordinator
  * opens a proposal with NO saved-design id, so every write path (save, rename, delete) already
- * treats it as unsaved. `links-proposals.test.mjs` pins that each design is 26 lines, meets the
+ * treats it as unsaved. `links-proposals.test.mjs` pins that each design is `ROTATING_LINES` lines, meets the
  * hard limits, and matches its fingerprinted source.
  *
  * If the shortlist changes, re-copy from the pack (the grids are the `patterns` of each `.json`, in
  * `docs/links-26/proposals/`, `docs/links-26/30-days-off/` or its `balanced/` subfolder), keep the printed
  * name, and the test will say whether the copy is faithful.
  */
+
+import { nameConflict } from './links-design-naming.js';
 
 /** @typedef {{ id: string, code: string, name: string, ref: string, patterns: Record<string, Record<string, string>> }} Proposal */
 
@@ -176,13 +178,16 @@ export function proposalById(id) {
  * date and never the ref, plus "— copy", numbered if taken. A copy is a new design, and
  * carrying the fingerprint over would label an edited grid with the fingerprint of one it no longer
  * matches.
+ *
+ * "Taken" is `nameConflict`'s answer — the rule the save then applies — so the suggestion can never
+ * be one the page refuses. A rule of its own (trim and lower-case) missed a saved name with a double
+ * or no-break space in it, and the dialog pre-filled a name it then called a duplicate.
  * @param {Readonly<Proposal>} proposal
  * @param {Array<{ name?: string }>} existing
  */
 export function proposalCopyName(proposal, existing = []) {
     const base = proposal.name.split(' — ')[0].trim() + ' — copy';
-    const taken = new Set(existing.map(d => String(d.name || '').trim().toLowerCase()));
-    if (!taken.has(base.toLowerCase())) return base;
-    for (let n = 2; n < 1000; n++) if (!taken.has(`${base} ${n}`.toLowerCase())) return `${base} ${n}`;
+    if (!nameConflict(base, existing)) return base;
+    for (let n = 2; n < 1000; n++) if (!nameConflict(`${base} ${n}`, existing)) return `${base} ${n}`;
     return base;
 }

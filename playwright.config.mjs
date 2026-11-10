@@ -13,13 +13,15 @@ const DEV = devServer(4001);
 
 export default defineConfig({
     testDir: './e2e',
-    // Two specs are excluded from the smoke run:
+    // These specs are excluded from the smoke run, each because another config owns it:
     //  • csp.spec.js — the deployed-CSP proof (playwright.csp.mjs + `npm run test:csp`): needs the
     //    Firebase Hosting emulator's real CSP header, which this http-server-backed config doesn't serve.
-    //  • visual.spec.js — the visual-regression baselines (playwright.visual.mjs + `npm run test:visual`):
-    //    pixel diffs are environment-sensitive, so they're an opt-in tool, not a behavioural gate.
+    //  • visual.spec.js and print-visual.spec.js — the visual-regression baselines (playwright.visual.mjs
+    //    + `npm run test:visual`): pixel diffs are environment-sensitive, so they're an opt-in tool, not
+    //    a behavioural gate. visual-webkit.spec.js is the same for Safari's engine (its own config).
     //  • offline.spec.js — the offline SW integration test (playwright.offline.mjs + `npm run
     //    test:offline`): needs `serviceWorkers: 'allow'`, the opposite of this config's block.
+    //  • live.spec.js — the deployment health check against the real site (playwright.live.mjs).
     // EVERY opt-in spec that has its own config must be here, or the behavioural lanes run it —
     // and `playwright.webkit.mjs` spreads this config, so one omission leaks into BOTH. That is not
     // hypothetical: `visual-webkit.spec.js` was added at v23.71 and not listed, so `smoke` and two
@@ -50,8 +52,9 @@ export default defineConfig({
     //
     // The old comment's two objections were checked rather than inherited:
     //   · The "exit-code-1-on-pass" behaviour of Playwright 1.51+ does NOT occur at the pinned
-    //     1.63.0. Measured with a spec that fails once and passes on retry: reported as `1 flaky`,
-    //     process exits 0 — first at 1.56.1, and again at the 1.63.0 upgrade (3 Nov 2026).
+    //     1.64.1. Measured with a spec that fails once and passes on retry: reported as `1 flaky`,
+    //     process exits 0 — first at 1.56.1, again at the 1.63.0 upgrade (3 Nov 2026), and at
+    //     1.64.1 (10 November 2026). Re-measure when the pin moves.
     //   · A retry does not LAUNDER a flaky test. That same run prints `1 flaky` rather than
     //     `1 passed`, so the signal survives — which is the property that makes this safe and the
     //     reason the count is worth reading when a job takes longer than usual.
@@ -80,8 +83,10 @@ export default defineConfig({
         baseURL: DEV.baseURL,
         // Block service workers in tests: the app's SW (network-first, skipWaiting)
         // would otherwise intercept fetches and compete with the Firebase route stub.
-        // sw-register.js catches the resulting registration rejection, so blocking is
-        // safe and keeps the network fully under page.route's control.
+        // Playwright's block makes `register()` resolve to nothing (with a console warning),
+        // and sw-register.js's catch absorbs the TypeError reading `registration.waiting`
+        // that follows ("[SW] Registration failed" in every smoke test's console). So
+        // blocking is safe, and keeps the network fully under page.route's control.
         serviceWorkers: 'block',
         // Keep a trace for any failure so CI runs are debuggable without a retry.
         trace: 'retain-on-failure',
@@ -91,7 +96,7 @@ export default defineConfig({
         // Desktop Chromium — catches JS/module bugs at ≥768px
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
 
-        // Pixel 5 (Android 375px) — primary staff device; catches mobile-only CSS/layout
+        // Pixel 5 (Android, 393px wide) — catches mobile-only CSS/layout on Chromium
         { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
     ],
 
@@ -101,7 +106,9 @@ export default defineConfig({
     // --silent suppresses the per-request log spam during test runs.
     // The command, its url and `baseURL` all come from one call, because a port changed in one
     // of them and not the others is a readiness probe that HANGS rather than an error. Reuse is
-    // still on locally — but the port now names the CHECKOUT, so an adopted server is serving
-    // these files and not another worktree's. See e2e/dev-server.mjs for what went wrong.
+    // still on locally, on a port derived from the CHECKOUT — but two checkouts can draw the same
+    // port, so the globalSetup makes an adopted server PROVE it serves these files before any test
+    // runs. See e2e/dev-server.mjs for what went wrong, twice.
     webServer: DEV.webServer,
+    globalSetup: DEV.globalSetup,
 });

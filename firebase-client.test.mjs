@@ -175,38 +175,58 @@ describe('the password stamp', () => {
 
 // ── credentials ───────────────────────────────────────────────────────────────────────────────
 
-describe('setting your own password', () => {
-    test('changes the password, then stamps it', async () => {
+describe('every member\'s password status (the admin\'s table)', () => {
+    test('a row is named by its document id — a stored `memberName` field can never rename it', async () => {
+        // The id is what the rules bind and what the table acts on; getResetRequests put the id last
+        // for this reason at v18.94, and this read still put the stored field over it.
+        signIn();
+        state.docs.set(`passwordStatus/${MEMBER}`, { memberName: 'Somebody Else', passwordSetAt: fakeTimestamp(5) });
+        const rows = await fc.getAllPasswordStatus();
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].memberName, MEMBER);
+        assert.equal(rows[0].passwordSetAt.toMillis(), 5, 'and the rest of the record is kept');
+    });
+});
+
+// A deadline belongs on the password change alone (settings-ops-2): the stamp is a Firestore write that
+// settles only when the server acknowledges it, and timed with the change it turned a changed password
+// into "we couldn't confirm" wherever commits were slow. The forced overlay times this call.
+describe('changing your own password, with the stamp left to finish on its own', () => {
+    test('resolves once the password has changed, while its stamp is still unacknowledged', async () => {
         signIn({ uid: 'uid_springer' });
-        const out = await fc.setOwnPassword(MEMBER, 'a-new-passphrase');
-        assert.deepEqual(out, { statusRecorded: true });
+        /** @type {(v?: any) => void} */ let acknowledge = () => {};
+        state.holdNext.set('passwordStatus/', new Promise((r) => { acknowledge = r; }));
+        // Raced, so a call that waits for the stamp FAILS here rather than hanging the file.
+        const out = await Promise.race([fc.changeOwnPassword(MEMBER, 'a-new-passphrase'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('it waited for the stamp')), 1000))]);
         assert.deepEqual(state.authOps.find((o) => o.op === 'updatePassword'), { op: 'updatePassword', uid: 'uid_springer', pw: 'a-new-passphrase' });
-        assert.equal(writes('passwordStatus/').length, 1);
+        let settled = false;
+        out.stamp.then(() => { settled = true; });
+        await new Promise((r) => setImmediate(r));
+        assert.equal(settled, false, 'premise: the stamp is still on its way');
+        acknowledge();
+        assert.equal(await out.stamp, true, 'and it is recorded once acknowledged');
+        assert.deepEqual(writes('passwordStatus/').map((w) => w.data), [{ passwordSetAt: SERVER_TS }]);
     });
 
-    test('a failed stamp NEVER reports the change as failed — the password already changed', async () => {
-        // Rejecting here would tell the member to retry with a password that no longer exists.
+    test('a stamp that fails settles false — it never rejects, because the password changed', async () => {
         signIn();
         state.failNext.set('passwordStatus/', 'unavailable');
-        const out = await fc.setOwnPassword(MEMBER, 'a-new-passphrase');
-        assert.deepEqual(out, { statusRecorded: false });
-        assert.equal(state.authOps.filter((o) => o.op === 'updatePassword').length, 1);
-    });
-
-    test('a password change that FAILS writes no stamp — the stamp follows the change, never leads it', async () => {
-        // The ordering is the whole contract: a stamp written first would mark the member migrated
-        // (no Settings nudge) while their password is still the surname default. Nothing held the
-        // order until v24.26 — rewriting it stamp-first, swallowing the stamp's error, left 35 green.
-        signIn();
-        state.reauthRejects.set('update:a-new-passphrase', 'auth/requires-recent-login');
-        await assert.rejects(fc.setOwnPassword(MEMBER, 'a-new-passphrase'), /requires-recent-login/);
-        assert.deepEqual(writes('passwordStatus/'), [], 'no passwordSetAt for a password that did not change');
+        const out = await fc.changeOwnPassword(MEMBER, 'a-new-passphrase');
+        assert.equal(await out.stamp, false);
     });
 
     test('signed out, nothing is attempted', async () => {
-        await assert.rejects(fc.setOwnPassword(MEMBER, 'x'), /Not signed in/);
+        await assert.rejects(fc.changeOwnPassword(MEMBER, 'x'), /Not signed in/);
         assert.equal(state.authOps.filter((o) => o.op === 'updatePassword').length, 0);
         assert.deepEqual(writes('passwordStatus/'), []);
+    });
+
+    test('a password change that fails rejects, and starts no stamp', async () => {
+        signIn();
+        state.reauthRejects.set('update:a-new-passphrase', 'auth/requires-recent-login');
+        await assert.rejects(fc.changeOwnPassword(MEMBER, 'a-new-passphrase'), /requires-recent-login/);
+        assert.deepEqual(writes('passwordStatus/'), [], 'no passwordSetAt for a password that did not change');
     });
 });
 
@@ -241,7 +261,7 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
     // A token minted before the admin claim was revoked is still valid by signature for up to an
     // hour; forcing the refresh is the client half of `checkRevoked` on the server.
     const cases = [
-        { name: 'resetMemberPassword', run: () => fc.resetMemberPassword(MEMBER, { revoke: false }), method: 'POST', url: /\/resetMemberPassword$/ },
+        { name: 'resetMemberPassword', run: () => fc.resetMemberPassword(MEMBER), method: 'POST', url: /\/resetMemberPassword$/ },
         { name: 'getSignInStats', run: () => fc.getSignInStats(), method: 'GET', url: /\/getSignInStats$/ },
         { name: 'getAccountSetupGaps', run: () => fc.getAccountSetupGaps(), method: 'GET', url: /\/getAccountSetupGaps$/ },
     ];
@@ -266,10 +286,12 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
         });
     }
 
-    test('the reset carries exactly the member and the revoke choice', async () => {
+    test('the reset carries exactly the member — a reset always signs them out, so there is no choice to send', async () => {
+        // The `revoke` option and its body field went with the server's (functions-core, Nov 2026):
+        // the "Phase-2 migration nudge" they served never did anything (PASSWORD_DESIGN.md §7).
         signIn();
-        await fc.resetMemberPassword(MEMBER, { revoke: false });
-        assert.deepEqual(JSON.parse(fetches[0].init.body), { member: MEMBER, revoke: false });
+        await fc.resetMemberPassword(MEMBER);
+        assert.deepEqual(JSON.parse(fetches[0].init.body), { member: MEMBER });
     });
 
     test('the two reads carry no body at all', async () => {

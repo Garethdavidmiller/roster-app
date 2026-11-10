@@ -1,6 +1,18 @@
 import js from '@eslint/js';
 import globals from 'globals';
 
+// Files that never run in a page: Node (the Cloud Functions, the scripts, this config, the Node-side
+// test fixtures) and the service worker, whose globals are a worker's. They used to inherit the
+// browser's globals with everyone else, so `status`, `name`, `event` or `document` in one of them
+// linted clean and failed only in production, as a ReferenceError — and neither the
+// Functions nor the worker is type-checked (whole-app check, 10 November 2026).
+const NOT_A_PAGE = ['functions/**', 'scripts/**', 'test-fixtures/**/*.mjs', 'generate-sri.mjs',
+    'eslint.config.js', 'service-worker.js'];
+
+// The page scripts loaded by a plain `<script src … defer>` — classic SCRIPTS, where an `import` or
+// `export` is a fatal SyntaxError. lint-scope.test.mjs reads the pages and fails on one not listed.
+const CLASSIC_SCRIPTS = ['fip-guide.js', 'guide-back.js', 'railcard-guide.js', 'rangers-guide.js', 'splash-watchdog.js'];
+
 export default [
     // Global ignores — applies to all subsequent config entries.
     {
@@ -22,9 +34,6 @@ export default [
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'module',
-            globals: {
-                ...globals.browser,
-            },
         },
         rules: {
             // Catch bindings and vars named _ are intentionally unused (no-op catch / destructure discard).
@@ -34,7 +43,23 @@ export default [
             'no-console': 'off',
         },
     },
-    // mammoth is loaded via CDN <script> in admin.html — not an ES module import.
+    // The browser's globals, for the code that runs in a page and nowhere else (NOT_A_PAGE above).
+    {
+        files: ['**/*.js', '**/*.mjs'],
+        ignores: NOT_A_PAGE,
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+            },
+        },
+    },
+    // A classic page script (CLASSIC_SCRIPTS above), not a module.
+    {
+        files: CLASSIC_SCRIPTS,
+        languageOptions: { sourceType: 'script' },
+    },
+    // mammoth is not an ES module import: huddle.js injects the CDN <script> (SRI-pinned) when a
+    // Word Huddle is first converted, and reads the global it defines.
     {
         files: ['huddle.js'],
         languageOptions: {
@@ -95,7 +120,7 @@ export default [
         rules: { 'no-unused-vars': 'off' },
     },
     {
-        files: ['scripts/**/*.mjs', 'generate-sri.mjs'],
+        files: ['scripts/**/*.mjs', 'generate-sri.mjs', 'eslint.config.js'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',
@@ -105,9 +130,11 @@ export default [
     {
         // A classic worker SCRIPT, not a module: self/caches/clients, and AbortController, which the
         // serviceworker set in this `globals` version omits although every engine exposes it there.
+        // ES2022, as the app: syntax cannot be feature-detected, so a newer construct here means a
+        // worker an older supported iPhone cannot even PARSE, and it stops taking updates.
         files: ['service-worker.js'],
         languageOptions: {
-            ecmaVersion: 'latest',
+            ecmaVersion: 2022,
             sourceType: 'script',
             globals: { ...globals.serviceworker, AbortController: 'readonly' },
         },

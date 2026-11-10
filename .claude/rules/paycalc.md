@@ -34,7 +34,7 @@ are about to break. Each states WHAT must hold; the WHY is below, or in the modu
 | 11 | **The roster-assist never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — and **viewing a period never persists it**. | `paycalc-roster-suggestions.js` · `paycalc-app.js` |
 | 12 | **A pension opt-out is DATED, and the date is EDITABLE in both directions.** It applies from the payslip the member named onwards and never earlier — a period storing `null` takes the period default, so a timeless flag rewrites history (measured: £115.92 onto one 2025/26 take-home). An empty or unreadable timeline means CONTRIBUTING. Correcting the date must MOVE the spell's start (`withOptOutStartAt`), and un-ticking must END the spell at the payslip on screen (`withRejoinAt`) — recording a raw change at a payslip silently swallows a forward correction and turns every rejoin into an erasure. | `paycalc-pension.js` |
 | 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's — and nothing sends such a member to the page either (the Calendar's notices ask the same function, `calendar-notices.js`). | `roster-data.js` → `gradeForRole` (re-exported by `paycalc-settings.js`) |
-| 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, so `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay.js` → `awardWindowFactor` |
+| 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, so `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay-accrual.js` → `awardWindowFactor` |
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary silently under-reported tax years — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so the headers are not the only EXPLANATION — they are the only route that costs the reader nothing and asks nothing of them first: a member who has never heard of HPP has no reason to open a guide looking for it. Never hide, group or shorten these headers without an owner decision; the case that nearly did is DECISIONS.md → "More pay tools" … DECLINED, and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
 
@@ -81,8 +81,8 @@ keyed on `TAX_YEARS['2026/27'].londonAllowFrom`. The **arrears** back to 1 Apr 2
 **opt-in** back-pay lump (below), never auto-added to take-home.
 
 **When the NEXT award is announced:** add its tax year to `TAX_YEARS` with `rateUnconfirmed: true`
-and reset `PENDING_AWARD_PCT` (`paycalc-backpay.js` — dormant while no award is pending) to the
-announced figure. When its payslip lands: bump `GRADES.rate` + labels, set the year's
+and add the announced figure to `PENDING_AWARD_PCT` under that year's label (`paycalc-backpay.js` —
+empty while no award is pending). When its payslip lands: bump `GRADES.rate`, set the year's
 `AWARD_RATES.rate`, add the following year with `pre` = this rate, set the year's
 `londonAllow`/`londonAllowPre`/`londonAllowFrom` on `TAX_YEARS`, drop `rateUnconfirmed`, and add the
 `PENSION_STEPS` step from the award payslip.
@@ -106,7 +106,7 @@ exact input, and the coordinator restores in `onPeriodChange` BEFORE `loadPeriod
 runs.
 - **'ytd' reads `#ytdPay` (Taxable Pay) directly.** Taxable Pay is ALL pay, so
   `_expectedNonPremiumYtd(ty)` subtracts expected basic + London − pension over the covered periods
-  (to the `ytdSrcKey` source, else `todaysPeriodNum`) and `hppFromYtdTaxable` takes 7.69% of what is
+  (to the `ytdSrcKey` source, else the last PAID payslip) and `hppFromYtdTaxable` takes 7.69% of what is
   left. **`_expectedNonPremiumYtd` pro-rates ALL non-premium components by `getProRateFactor(p)`** —
   London and pension as well as basic — mirroring `calculate()` (London ×`_proRateFactor`, pension
   ×`getProRateFactor`) and the real payslip; at full value, every pre-start period of a mid-year joiner
@@ -133,7 +133,7 @@ runs.
   (calendar-filled ahead of time) the count reads "N paid and M upcoming payslips entered" (`paidCount`
   in `_hoursEstimate`), matching the Year to Date card's "N of N paid" frame.
 - **The prior-year confirm input is GATED:** `#priorHppActualInput` is disabled until the January
-  payslip carrying the premium exists (the first January payday of the due year has passed), with an
+  payslip carrying the premium can be in hand (from its cut-off — `payslipMayBeInHand`), with an
   "Unlocks when your January ⟨year⟩ payslip arrives" hint — EXCEPT when a stored actual already exists,
   which always keeps the input enabled (the repair path: a wrong figure must never be locked in). Its
   placeholder is an example figure ("e.g. 1,843.01"), never the zero-like "0.00".
@@ -170,9 +170,10 @@ arrives. **The two are one door**: the refusal wears the sign-in card's panel (`
 shared do-this-first recipe), its "What it does" box and its "← Back to roster", centred over the page on
 desktop rather than parked in the work columns — `e2e/paycalc.spec.js` pins the width and the centring.
 
-`saveSettings` guards the pension default on joining periods — it writes `getPensionDefault(curP)`
-(full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining
-period corrupts the default for later periods.
+`saveSettings` stores no member-level pension: each payslip keeps its own figure through the form
+round trip, and a payslip with none takes its period default (`periodDefaultPension`, pro-rated on a
+joining period). The retired `SK.pension` was written on every save and read only into a field
+`loadPeriodData` repaints in the same init (paycalc-3-15).
 
 The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from the base roster +
 Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled fields turn gold.
@@ -213,8 +214,9 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   Year to Date figure would then invent money.
 - **50% overriding limit (`computeTax`, PAYE reg 23) — K CODES ONLY:** the tax deducted in a period can
   never exceed 50% of the period's taxable pay, on both the cumulative and non-cumulative paths. For
-  every other code the cumulative path is bounded by the period's pay instead — a deduction never
-  exceeds what is paid.
+  every other code the cumulative path is bounded by what the period's pay leaves after National
+  Insurance and student loans — the deductions together never exceed what is paid, and the Income Tax
+  row says to check Year to Date figures that ask for more (`payLimited`).
 - **Cumulative PAYE needs BOTH Year to Date figures, and `0` is a figure** (`computeTax`'s
   `ytdPay != null && ytdTax != null`). `calculate()` reads the two boxes independently, so "Taxable Pay
   typed, Tax Paid still blank" is an ordinary mid-typing state; weakening the `&&` runs the recalc
@@ -400,8 +402,8 @@ on the 24 Oct 2025 payslip — the same date as `londonAllowFrom`).
 3. **The notice does not restate the paid-in payslip** whenever `bpP` is set (the story strip and hero
    eyebrow already name it, date-first + P-number) — it carries only the taxed-in-full fact (+ the
    missing-hours line).
-4. **"Enter the amount from your payslip" is DISABLED until the paid-in payslip exists**
-   (`payday < now`): there is no printed figure to copy from a future payslip. A restored manual
+4. **"Enter the amount from your payslip" is DISABLED until the paid-in payslip can be in hand**
+   (from its cut-off — `payslipMayBeInHand`): there is no printed figure to copy before then. A restored manual
    selection for a still-future payslip falls back to compute (`applyBpMode('compute')`, with the
    persisted state healed by `_saveBpState`). A prior/paid award keeps manual enabled and as default.
 
@@ -450,7 +452,8 @@ coordinator gates the gross addition (`_bpThisPeriod`) on it.
   estimate" ("will land" once the award is confirmed; with the view-card link), so the estimate stays
   discoverable without inflating anyone's figure uninvited. Both carry a second line
   (`.bp-banner-note`, owner request Jul 2026): "For the best estimate, fill in your hours on each
-  payslip back to 1 April <award year>." (`paycalc-money-banner.js`) — the year derives from the award
+  payslip back to 1 April <award year>." (`paycalc-money-banner.js`) — except for a lump typed from the
+  payslip (manual mode), which hours cannot change, so it has no second line — the year derives from the award
   tax-year label, so it rolls forward untouched. Every surface labels an unconfirmed award via
   `_bpIsEstimate`. Once the award is confirmed the same flow computes the REAL lump (settled prefill +
   real payment period) with plain labels — still opt-in.
@@ -563,8 +566,8 @@ padding. The bar is the **sole** keep-the-£-visible mechanism on every width.
 
 **Desktop card placement** — explicit grid-row placement (mobile DOM order is untouched — every rule
 lives inside `@media (min-width:1024px)`): rows 1–2 the banners and privacy note (cols 1–2 — the
-privacy note is FIRST-VISIT ONLY, and a rule in paycalc.css pulls the workspace up by one gap when it
-is hidden, because an empty grid row still takes its row-gap; the same line leads the `.disclaimer`
+privacy note is FIRST-VISIT ONLY, and paycalc.css pulls whatever follows a hidden banner or note up by
+one gap per hidden row, because an empty grid row still takes its row-gap; the same line leads the `.disclaimer`
 note at the foot of the page on every visit) · row 3 `.pc-work` (cols 1–2) and `.pc-side` (col 3) ·
 `.guide-footer-link` row 4 · `.disclaimer` row 5. `align-self:start` on the work cards and the
 sidebar, so an expanding accordion never stretches its neighbour. The occasional cards stack in the
@@ -666,7 +669,9 @@ match the payslip box.
 
 **Year to Date figures are ANCHORED to their source payslip (owner request).** The card records which
 payslip the two totals were copied from (`ytdSrcKey(ty)`, a "From which payslip?" select auto-stamped
-to the latest PAID payslip on first entry, correctable).
+to the latest PAID payslip on first entry, moved to the payslip the take-home line names when figures
+already recorded against an older one are typed in again (`ytdSourceAfterRetype`) — never when typed
+into empty boxes, nor over a payslip picked in the select on this visit — correctable).
 - **Payslips are issued before payday**, so from the current payslip's cut-off the picker also offers
   it (`ytdSourceOffered`): a member copying from it picks it, and an anchor one payslip early would
   count its pay twice. The first-entry stamp keeps the standing rule (`ytdAutoSource`); do not replace
@@ -674,9 +679,9 @@ to the latest PAID payslip on first entry, correctable).
   stamped one payslip LATE on the first open after payday.
 - **The cumulative PAYE method in `calculate()` engages ONLY on the payslip immediately after the
   source** (`p.num === src + 1`); any other payslip nulls the Year to Date inputs and falls back to the
-  standard non-cumulative method. **That guard is one line and its regression is silent on screen**,
-  because `_updateYtdNote` derives the chip and the note from the same rule independently — without it
-  the header says "not in use" over a figure that is using them. `e2e/paycalc.spec.js` → "Year to Date
+  standard non-cumulative method. **That guard is one line and its regression is quiet on screen**:
+  the chip and the note follow `computeTax`'s `usingCumulative`, so without it they call the figures
+  "in use" on every payslip, beside a £ priced on stale totals. `e2e/paycalc.spec.js` → "Year to Date
   figures sharpen ONLY the payslip after their source" asserts the two together, probing the figures by
   their EFFECT (clear the boxes; the £ must move on source + 1 and must not move anywhere else).
 - Legacy figures with no recorded source are stamped on load with the app's old standing assumption
@@ -684,7 +689,7 @@ to the latest PAID payslip on first entry, correctable).
   is unchanged — outside the cut-off-to-payday window above, where nothing is guessed.
 - **`#ytdUptoNote`** states the position per payslip ("✓ … sharpen this payslip's estimate" / "uses
   the standard method — update from P__") and is EMPTY (hidden via `:empty`) while no source is
-  recorded, because the header hint, field labels and select label already carry the copy-and-pick
+  recorded or no figure entered, because the header hint, field labels and select label already carry the copy-and-pick
   instruction. The source select's placeholder is the short "— choose a payslip —"; the two £ inputs
   carry example-figure placeholders ("e.g. 21,758.94"), never the zero-like "0.00".
 - **The January-HPP pointer is PERIOD-GATED:** `#ytdJanHppHint` ("This is the January payslip your
@@ -692,7 +697,7 @@ to the latest PAID payslip on first entry, correctable).
   the viewed payslip is the January one that carries HPP (the same `_hppTy` match that gates the HPP
   take-home add); the year-round version is in the card's `?` help.
 - `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the year's paid payslips, newest first (plus,
-  from its cut-off, the one about to be paid).
+  from its cut-off, the one about to be paid), never one from before a mid-year joiner started.
 - **Header status chip:** `#ytdStatusChip` in the card header shows the in-use state even while the
   card is collapsed — green "✓ in use" when the figures sharpen the viewed payslip, neutral "not in
   use" otherwise, hidden when there is nothing to report (no figures, no source, or the year's first
@@ -710,6 +715,8 @@ opens the card at `#ytdPay`. It is quiet:
 - on the tax year's first payslip, where Year to Date starts again;
 - for a W1/M1/X or NT code, which the figures cannot change — read exactly as `computeTax` reads the
   code, and cross-checked against `computeTax` over twenty codes in `paycalc-periods.test.mjs`;
+- for a code `computeTax` does not recognise (`recognised: false`), whose estimate they make worse;
+- for a payslip from before a mid-year joiner started, which carries none of their figures;
 - while the figures are in use (`inUse` is `computeTax`'s `usingCumulative`, so one figure, or an
   unreadable one, is not in use) or come from this payslip or a later one;
 - until the payslip to copy from can be in hand (`payslipMayBeInHand`, from its cut-off);

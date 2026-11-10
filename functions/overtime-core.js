@@ -210,6 +210,30 @@ function deriveMilestones(weekEnding) {
     };
 }
 
+/** A window's STORED milestones as plain numbers — how every reader gets an existing window's
+ *  timetable, never `deriveMilestones` (point 2 above; invariant 7). @param {any} data */
+function storedMilestones(data) {
+    return {
+        weekEnding:        data.weekEnding,
+        weekStart:         data.weekStart,
+        initialDeadlineAt: toMillis(data.initialDeadlineAt),
+        draftRosterDate:   data.draftRosterDate,
+        finalDeadlineAt:   toMillis(data.finalDeadlineAt),
+        finalRosterDate:   data.finalRosterDate,
+        retentionUntil:    toMillis(data.retentionUntil),
+        policyVersion:     data.policyVersion,
+    };
+}
+
+/** A stored instant (a Timestamp, epoch ms or a Date) as epoch ms, else 0 — read through its
+ *  `toMillis`, so this module still needs no Firebase. @param {any} v @returns {number} */
+function toMillis(v) {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    return v instanceof Date ? v.getTime() : 0;
+}
+
 /** @typedef {'INITIAL_OPEN'|'FINAL_OPEN'|'CLOSED'} Phase */
 
 /**
@@ -421,15 +445,22 @@ function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
  * `autoOverdue` is that distinction and nothing more; the caller decides it (see
  * `lastSchedulerRun`), because only the caller knows which weeks exist.
  *
+ * A week ending after the roster's last year can never be created — `validateWeekEnding` refuses it
+ * (`beyond-horizon`), so it is never `autoOverdue` either — and as `not-created` it said "Opens
+ * automatically overnight" every day until "Missed" (overtime-core-6). `beyondRoster` gives it its
+ * own state at every phase, because its cause, a CONFIG year nobody raised, is the same throughout.
+ *
  * @param {number} nowMs
  * @param {boolean} exists
  * @param {boolean} [autoOverdue] true when the last scheduled run was due to create this week and
  *   did not. Ignored unless the week is missing and still inside its initial deadline — past that
  *   the row is already reporting something worse.
- * @returns {'created'|'created-closed'|'not-created'|'not-created-overdue'|'not-created-initial-passed'|'missed'}
+ * @param {boolean} [beyondRoster] true when the week ends after the roster's last year
+ * @returns {'created'|'created-closed'|'not-created'|'not-created-overdue'|'not-created-initial-passed'|'missed'|'not-created-beyond-roster'}
  */
-function windowRowState(milestones, nowMs, exists, autoOverdue = false) {
+function windowRowState(milestones, nowMs, exists, autoOverdue = false, beyondRoster = false) {
     if (exists) return nowMs >= milestones.finalDeadlineAt ? 'created-closed' : 'created';
+    if (beyondRoster) return 'not-created-beyond-roster';
     if (nowMs < milestones.initialDeadlineAt) return autoOverdue ? 'not-created-overdue' : 'not-created';
     if (nowMs < milestones.finalDeadlineAt)   return 'not-created-initial-passed';
     return 'missed';
@@ -788,6 +819,19 @@ function decideSubmission(head, incomingDays, ifRevision) {
     return { action: 'append', revision: head.currentRevision + 1 };
 }
 
+/** The submission head as its member may see it — their own content, nothing about anyone else.
+ *  @param {any} data */
+function publicHead(data) {
+    return {
+        currentRevision:   data.currentRevision,
+        days:              data.days,
+        firstAcceptedAt:   toMillis(data.firstAcceptedAt),
+        updatedAt:         toMillis(data.updatedAt),
+        lastMutationId:    data.lastMutationId || null,
+        schemaVersion:     data.schemaVersion,
+    };
+}
+
 /**
  * Everything the Manager needs to know about how a submission moved, derived from the immutable
  * revisions rather than stored as flags.
@@ -894,9 +938,10 @@ const REMINDER_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 /**
  * Should THIS window's initial-deadline reminder go out now?
  *
- * `reminderSentAtMs` is the idempotency stamp (0 when never sent): the scheduler stamps after the
- * attempt, so a re-run the same morning sends nothing. Once the deadline passes the phase moves and
- * this is false for ever — the stamp only has to protect the one morning.
+ * `reminderSentAtMs` is the idempotency stamp (0 when never claimed): the scheduler CLAIMS it in a
+ * transaction before it sends (functions/overtime.js) — written after, two overlapping runs would
+ * both read "unsent" and both send — so a re-run the same morning sends nothing. Once the deadline
+ * passes the phase moves and this is false for ever: the stamp only has to protect the one morning.
  *
  * @param {{ initialDeadlineAt: number, retentionUntil: number, weekStart: string,
  *           finalDeadlineAt: number }} milestones
@@ -1055,6 +1100,8 @@ module.exports = {
     weekEndingFor,
     // milestones + phases
     deriveMilestones,
+    storedMilestones,
+    toMillis,
     phaseFor,
     isOpenPhase,
     canChangeParticipation,
@@ -1075,6 +1122,7 @@ module.exports = {
     // revisions
     revisionId,
     decideSubmission,
+    publicHead,
     deriveHistory,
     // push notices
     REMINDER_LOOKAHEAD_MS,
