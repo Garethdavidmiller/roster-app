@@ -11,6 +11,7 @@ on:
       - 'firestore.indexes.json'
       - '**/*.md'
       - '.github/**'
+      - '.git/**'
       # Session tooling — skills, rules, hooks. It cannot reach the served app, and since 8 Sep
       # 2026 firebase.json excludes it from the bundle too, so a deploy triggered by a change in
       # here would republish an identical tree. That is not merely wasted: the concurrency group
@@ -223,6 +224,16 @@ jobs:
         with:
           workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'
+
+      # NOTHING BUT THE COMMITTED APP IS UPLOADED (10 Nov 2026). Hosting's public directory is this
+      # folder, and the sign-in step above has just written its credentials file into it; the
+      # checkout's `.git/` is here too. Both are in firebase.json's ignore list — and this asks
+      # firebase-tools' own lister what the deploy is about to upload and stops it if anything git
+      # does not track is on the list. It must stay BETWEEN the sign-in and the deploy: before the
+      # sign-in the credentials file does not exist yet, so a pass would prove nothing about it.
+      # scripts/hosting-upload-check.mjs has the account; hosting-ignore-parity.test.mjs pins the order.
+      - name: Check what Hosting is about to upload
+        run: node scripts/hosting-upload-check.mjs
 
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting --project myb-roster
