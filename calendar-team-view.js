@@ -606,11 +606,16 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      */
     function refreshFromCache() {
         if (!teamViewMode) return;
-        const _display  = document.getElementById('calendarDisplay');
-        const _activeId = document.activeElement instanceof HTMLElement
-            && _display?.contains(document.activeElement) ? document.activeElement.id : null;
+        const _activeId = focusedControlId();
         renderTeamView(currentTeamGrade, { skipFetch: true });
         if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
+    }
+
+    /** The id of the Team View control holding focus — a render rebuilds every one of them, so the
+     *  caller hands focus to the new node by it — or null when focus is elsewhere. */
+    function focusedControlId() {
+        const active = document.activeElement;
+        return active instanceof HTMLElement && document.getElementById('calendarDisplay')?.contains(active) ? active.id || null : null;
     }
 
     /**
@@ -739,11 +744,16 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         renderTeamView(openingGrade());
     }
 
-    /** Jumps to the current week — called from the global Today button when in team view. */
+    /** Jumps to the current week — called from the global Today button and the T key in team view.
+     *  T is pressed with focus on Prev, Next, the week label or a tab, all rebuilt here, so focus is
+     *  handed to the new node (10 Nov 2026); "Back to this week" is not drawn on this week, so it goes
+     *  to Next, as that button's own click does. */
     function jumpToCurrentWeek() {
+        const id = focusedControlId();
         currentTeamWeekStart = getSunday(new Date());
         renderTeamView(currentTeamGrade);
         announceTeamWeek();
+        if (id) /** @type {HTMLElement|null} */ (document.getElementById(id) ?? document.getElementById('tvNextWeek'))?.focus();
     }
 
     // ── PUBLIC API ────────────────────────────────────────────────────────────

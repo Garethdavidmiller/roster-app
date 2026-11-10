@@ -2795,6 +2795,77 @@ test('calendar: a refused Enter opens the day panel rather than doing nothing', 
     }
 });
 
+// ── KEYBOARD FOCUS SURVIVES A GRID REBUILT UNDER IT (10 Nov 2026, cal-ui-4) ─────────────────────────
+// Every re-render wipes #calendarDisplay. With focus dropped to <body>, PageUp/PageDown do nothing and
+// ← → change the MONTH instead of the day, so each of these left a keyboard user stranded.
+/** Which day cell holds focus, by its date words — or what does, when no day cell does. */
+const focusedDay = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+    const a = /** @type {HTMLElement|null} */ (document.activeElement);
+    return a?.classList.contains('calendar-day') && a.closest('#calendarDisplay') ? a.dataset.detailDay : `not a day: ${a?.tagName}`;
+});
+
+test('calendar: PageDown onto a month still loading keeps focus for the grid that follows', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });   // new months wait
+    await page.locator('.calendar-day.today').focus();
+    await page.keyboard.press('PageDown');   // October: inside the first read, drawn at once
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+    await page.keyboard.press('PageDown');   // November: not read yet
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = false; });
+    await expect(page.locator('#calendarDisplay .calendar-day').first()).toBeVisible();
+    expect(await focusedDay(page), 'the grid that arrived must take the focus back').toMatch(/November 2026$/);
+    await page.keyboard.press('PageDown');
+    await expect(page.locator('.month-year'), 'and PageDown still pages').toHaveText('December 2026');
+});
+
+test('calendar: closing the day panel after the grid was redrawn behind it returns focus to that day', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // The month is painted from the cache while the first server read is held open.
+        w.__E2E.cacheDocs = w.__E2E.docs = [{ id: 'c1', memberName: 'G. Miller', date: '2026-09-18', type: 'annual_leave', value: 'AL', note: '' }];
+        w.__E2E.docsHeld = true;
+    });
+    await page.goto('/');
+    const shown = page.locator('#calendarDisplay > .calendar-container');
+    await expect(shown).toHaveAttribute('data-override-state', 'stale');
+    const cell = page.locator('#calendarDisplay .calendar-day:not(.other-month):not(.payday):not(.cutoff)').nth(9);
+    const day = await cell.getAttribute('data-detail-day');
+    await cell.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the read lands
+    await expect(shown, 'premise: the grid behind the panel was rebuilt').toHaveAttribute('data-override-state', 'render');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+    expect(await focusedDay(page)).toBe(day);
+});
+
+test('calendar: T in Team View keeps focus on the control it was pressed from', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#tvNextWeek').click();   // a week away, so T has somewhere to go
+    await expect(page.locator('#tvNextWeek')).toBeFocused();
+    await page.keyboard.press('t');
+    await expect(page.locator('.tv-week-status--now'), 'premise: back on this week').toBeVisible();
+    await expect(page.locator('#tvNextWeek'), 'the rebuilt Next still has the focus').toBeFocused();
+    // "↩ Back to this week" is not drawn on this week, so focus moves to Next, as its own click does.
+    await page.locator('#tvNextWeek').click();
+    await page.locator('#tvToday').focus();
+    await page.keyboard.press('t');
+    await expect(page.locator('#tvNextWeek')).toBeFocused();
+});
+
 test('calendar: a PIN-unlocked screen cannot click through to the calculator', async ({ page }) => {
     // THE STATION PC — and deliberately the HARD version of it: a stale local session naming the
     // very member on screen (reachable — an iOS ITP eviction drops the Firebase user while the

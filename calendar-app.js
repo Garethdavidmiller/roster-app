@@ -364,6 +364,9 @@ function retryMonth(year, month) {
     renderCalendar();
 }
 
+/** A day cell had keyboard focus when a render with none to give it back replaced the grid. */
+let _gridFocusOwed = false;
+
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
 // Sets data-member-name for print header then builds and inserts fresh container.
 function renderCalendar() {
@@ -411,15 +414,17 @@ function renderCalendar() {
         // roving anchor below. Doing it HERE (the render choke point) covers BOTH the synchronous
         // PageUp/Down month change AND the async override-fetch re-render that follows when paging
         // beyond the cached window (v16.55) — the case a keyboard-only fix in calendar-keyboard.js
-        // missed. preventScroll so a background re-render can't yank the viewport.
-        const _hadCellFocus = document.activeElement instanceof HTMLElement
-            && document.activeElement.classList.contains('calendar-day');
+        // missed. preventScroll so a background re-render can't yank the viewport. A render with no
+        // day cells ("Checking this month", the failure panel) leaves the focus OWED (10 Nov 2026):
+        // it fell to <body> there, so the grid that followed found no cell focused and restored none.
+        const _active = document.activeElement;
+        const _hadCellFocus = (_active instanceof HTMLElement && _active.classList.contains('calendar-day'))
+            || (_gridFocusOwed && (!_active || _active === document.body));
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
-        if (_hadCellFocus) {
-            /** @type {HTMLElement|null} */
-            (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]'))?.focus({ preventScroll: true });
-        }
+        const _anchor = _hadCellFocus ? /** @type {HTMLElement|null} */ (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]')) : null;
+        _anchor?.focus({ preventScroll: true });
+        _gridFocusOwed = _hadCellFocus && !_anchor;
 
         updateNavButtonState();
         _saveOwnSnapshot();

@@ -343,15 +343,34 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   }
 
 
+  // THE DAY CELL THAT HAD FOCUS when the panel opened (10 Nov 2026). Focus goes back to it on close —
+  // but a read landing while the panel is open rebuilds the grid behind it, and a detached cell cannot
+  // take focus, so it fell to <body>, where ← → change month and PageUp/Down do nothing. Then the same
+  // day in the new grid takes it, or the grid's own entry cell.
+  /** @type {HTMLElement|null} */
+  let _focusedCell = null;
+  function refocusRebuiltDay() {
+    const was = _focusedCell;
+    _focusedCell = null;
+    if (!was || was.isConnected) return;   // still in the page: the lightbox's own return does it
+    const cells = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('#calendarDisplay .calendar-day:not(.other-month)')]);
+    const cell = cells.find(c => c.dataset.detailDay === was.dataset.detailDay) ?? cells.find(c => c.tabIndex === 0);
+    if (!cell) return;
+    for (const c of cells) c.tabIndex = c === cell ? 0 : -1;
+    cell.focus({ preventScroll: true });
+  }
+
   const detailLb = dayLb ? createLightbox({
     overlay:  /** @type {any} */ (dayLb),
     content:  /** @type {HTMLElement} */ (document.getElementById('dayDetailContent')),
     closeBtn: /** @type {HTMLElement} */ (document.getElementById('dayDetailClose')),
+    onClose:  refocusRebuiltDay,
   }) : null;
 
   /** @param {any} cell */
   function openDayDetail(cell) {
     if (!detailLb) return;
+    _focusedCell = document.activeElement === cell ? cell : null;
     const d = cell.dataset;
     dateEl.textContent  = d.detailDay   || '';
     // The roster week for THIS date, or nothing. Which members have one is `weekContext`'s call in
