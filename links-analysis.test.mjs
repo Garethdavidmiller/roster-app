@@ -631,6 +631,22 @@ test('the cover chip says WITH TRAINS in both forms, so it cannot contradict a r
     assert.match(els.linksSummary.innerHTML, /sum-chip--bad"><span aria-hidden="true">⛔<\/span><strong>\d+<\/strong> staffed hours with trains and nobody on/);
 });
 
+// ── THE STRIP NAMES ITS DESIGN WHENEVER TWO GRIDS ARE ON SCREEN (whole-app review, Nov 2026) ────────
+// A design fresh from the generator has no name until its first save, and generate-then-compare is
+// the commonest way in. The chip needed a name, so the strip went unlabelled in exactly that case.
+test('in compare mode the strip names its design, an unsaved one as its compare column does', async () => {
+    const { COMPARE_ACTIVE_FALLBACK } = await import('./links-compare.js');
+    const chipFor = (/** @type {any} */ design, /** @type {boolean} */ comparing) => {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => design, isComparing: () => comparing }).renderSummary();
+        return (els.linksSummary.innerHTML.match(/<span class="sum-chip sum-chip--who">([^<]*)<\/span>/) || [])[1] ?? null;
+    };
+    assert.equal(chipFor({ name: 'Option A', patterns: fullPatterns() }, true), 'Option A');
+    assert.equal(chipFor({ name: '', patterns: fullPatterns() }, true), COMPARE_ACTIVE_FALLBACK, 'an unsaved design is named too');
+    assert.equal(chipFor({ patterns: fullPatterns() }, true), COMPARE_ACTIVE_FALLBACK);
+    assert.equal(chipFor({ name: '', patterns: fullPatterns() }, false), null, 'and outside compare mode there is no chip');
+});
+
 test('the summary never says "no fatigue factors" while standing factors exist', () => {
     resetDom();
     const patterns = fullPatterns();          // 06:00 starts ⇒ at least one STANDING early factor

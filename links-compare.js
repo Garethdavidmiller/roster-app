@@ -22,6 +22,13 @@ import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { describeHours } from './links-demand.js';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * What compare mode calls the ACTIVE design while it has no name yet — a design fresh from the
+ * generator is untitled until its first save. One label, read by this module's column header and by
+ * the sticky summary strip (`links-analysis.js`), so the strip names the column its figures are for.
+ */
+export const COMPARE_ACTIVE_FALLBACK = 'Design A';
 // The rotation length, IMPORTED (v19.98). It was a local literal `28` — the fourth copy of a
 // number links-design.js had already been made the single declaration of at v19.38, and the one
 // the earlier sweep missed. When the rotation went 28 -> 22 this module alone kept rendering 28
@@ -149,7 +156,7 @@ export function initLinksCompare(deps) {
             el.innerHTML = `${escapeHtml(name)}` +
                 `<span class="compare-window${differ ? ' compare-window--differs' : ''}">${escapeHtml(formatWindow(win))}</span>`;
         };
-        head(headA, design.name || 'Design A', design.window);
+        head(headA, design.name || COMPARE_ACTIVE_FALLBACK, design.window);
         head(headB, other.name   || 'Design B', other.window);
 
         // ORDER IS LOAD-BEARING: the strip computes `_diffLines`, and both the filter control and

@@ -42,6 +42,7 @@ import {
     demandAt, demandBucket, peakCars, peakHours, dutySpans, summariseDemand, describeHours, describeMovements,
 } from './links-demand.js';
 import { escapeHtml } from './roster-data.js';
+import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
@@ -378,10 +379,15 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // options still wants the live analysis of the one they are editing, and hiding it would
         // take that away to fix a labelling problem. The chip is dropped entirely when not
         // comparing, so the ordinary view is unchanged.
+        //
+        // An UNNAMED design is named too (whole-app review, Nov 2026): one fresh from the generator has
+        // no name until its first save, and generate-then-compare is the commonest way to compare, so
+        // the strip went unlabelled in exactly the case this exists for. It takes the label compare
+        // mode gives that design's column.
         const unfilled = checks.unfilledLines.length;
         el.innerHTML =
-            (isComparing() && design.name
-                ? `<span class="sum-chip sum-chip--who">${escapeHtml(design.name)}</span>`
+            (isComparing()
+                ? `<span class="sum-chip sum-chip--who">${escapeHtml((design.name || '').trim() || COMPARE_ACTIVE_FALLBACK)}</span>`
                 : '')
             + (unfilled
                 ? chip('bad', '✗', unfilled, unfilled === 1 ? 'line undesigned' : 'lines undesigned')
