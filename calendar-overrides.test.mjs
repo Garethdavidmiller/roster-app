@@ -1212,3 +1212,73 @@ describe('losing access through the first load\'s chip forgets what the old gran
             'the old grant\'s month was drawn as current by the new one, over its own failed read');
     });
 });
+
+// ── A MONTH THAT LOADS BY ITSELF WITHDRAWS THE FIRST LOAD'S "COULDN'T UPDATE" (cal-data-5) ────────
+// The failure render re-reads the month on screen. When that read worked — a blip — the grid was
+// drawn as current and the header watcher put "Couldn't update — try again" back above it after every
+// render, until somebody pressed it. The real first load, the real month read and the real knowledge
+// states; the header is rebuilt on every render, as `buildCalendarContainer` rebuilds it.
+describe('the first load\'s failure chip and a month that then loads by itself', async () => {
+    const { initInitialFetch } = await import('./calendar-initial-fetch.js');
+    const ovNs = await import('./calendar-overrides.js');   // the live `_initialFetchInProgress` binding
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    const OFFLINE = () => Object.assign(new Error('offline'), { code: 'unavailable' });
+    /** @type {any} */ let savedDoc, savedObserver, header;
+    /** @type {Function[]} */ let observers = [];
+    const rebuildHeader = () => {
+        if (header) for (const k of header.kids) k.isConnected = false;
+        header = { kids: /** @type {any[]} */ ([]), appendChild(/** @type {any} */ c) { this.kids.push(c); c.isConnected = true; return c; } };
+        for (const cb of [...observers]) cb();
+    };
+    const chip = () => header.kids.find((/** @type {any} */ k) => k.tag === 'button' && k.isConnected);
+    const renderCalendar = () => { rebuildHeader(); if (!ovNs._initialFetchInProgress) ensureOverridesCached(y, m, renderCalendar); };
+
+    beforeEach(() => {
+        savedDoc = /** @type {any} */ (globalThis).document;
+        savedObserver = /** @type {any} */ (globalThis).MutationObserver;
+        observers = []; header = null;
+        /** @type {any} */ (globalThis).document = {
+            getElementById: () => null,
+            querySelector: (/** @type {string} */ sel) => (sel === '.calendar-header' ? header : null),
+            createElement: (/** @type {string} */ tag) => ({ tag, type: '', className: '', textContent: '', disabled: false, onclick: null,
+                isConnected: false, setAttribute() {}, remove() { this.isConnected = false; }, focus() {} }),
+            addEventListener: () => {}, body: {},
+        };
+        /** @type {any} */ (globalThis).MutationObserver = class {
+            /** @param {Function} cb */ constructor(cb) { this.cb = cb; }
+            observe() { observers.push(this.cb); }
+            disconnect() { observers = observers.filter(c => c !== this.cb); }
+        };
+        rebuildHeader();
+        mock.timers.enable({ apis: ['setTimeout'] });
+        rosterOverridesCache.clear(); forgetKnowledge();
+        _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false; _deferGetDocs = true; _releases.length = 0;
+        setOverrideAccess(true);
+    });
+    afterEach(() => {
+        mock.timers.reset();
+        /** @type {any} */ (globalThis).document = savedDoc;
+        /** @type {any} */ (globalThis).MutationObserver = savedObserver;
+        _deferGetDocs = false; _releases.length = 0;
+        setInitialFetchInProgress(false);
+        forgetKnowledge();
+        setOverrideAccess(true);
+    });
+
+    test('the first load fails once, the failure render\'s own read of the month works: no chip above it', async () => {
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar, authReady: Promise.resolve() });
+        renderCalendar();                     // the boot's own first render
+        await _tick(30);
+        _releases.shift()?.(OFFLINE());       // the three-month read fails — a blip
+        await _tick(30);
+        assert.ok(chip()?.className.includes('sync-chip-error'), 'premise: the failure is on the chip');
+        assert.equal(_releases.length, 1, 'premise: the failure render asked for the month on screen again');
+        _releases.shift()?.();                // …and that read works
+        await _tick(30);
+        assert.equal(knowledgeOf(monthKey(y, m)), 'authoritative', 'premise: the month on screen is current');
+        assert.equal(chip(), undefined, '"Couldn\'t update — try again" stood above a grid the server had just answered for');
+        renderCalendar(); await _tick(30);
+        assert.equal(chip(), undefined, 'and the next render does not put it back');
+    });
+});

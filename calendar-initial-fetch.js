@@ -10,7 +10,8 @@
 
 import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration, hasOverrideAccess, READ_SUPERSEDED } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
-import { noteKnowledge } from './calendar-data-state.js';
+import { noteKnowledge, knowledgeOf } from './calendar-data-state.js';
+import { getDisplayMonth, getDisplayYear } from './calendar-state.js';
 import { formatISO } from './roster-data.js';
 
 /** The sync's own failure deadline — the point at which the chip says "Couldn't update" (v19.08).
@@ -170,6 +171,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
 
   function renderChipState() {
     if (!_chipState) return;
+    // A FAILURE THE SERVER HAS SINCE ANSWERED (cal-data-5, 10 Nov 2026). The chip sits above the month
+    // on screen, and once that month has been confirmed — its own read after the failure render, or a
+    // visit once the signal is back — "Couldn't update" is false there; the watcher below put it back
+    // after every render all the same. Withdrawn as the month panel's Try again withdraws it: each
+    // month's own read is the recovery from here (the window's months were released, so a visit reads).
+    if (_chipState.className.includes('sync-chip-error')
+        && knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())) === 'authoritative') { dismissSyncError(); return; }
     const chip = ensureChipAttached();
     // Keep watching whether or not we could render. With no header we are waiting for one to
     // appear; WITH one we are waiting for the next re-render to destroy the chip — and that is the

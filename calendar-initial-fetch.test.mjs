@@ -48,11 +48,14 @@ mock.module('./calendar-overrides.js', {
 mock.module('./roster-data.js', {
     namedExports: {
         formatISO: d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        // calendar-state.js (the month on screen, which the chip sits above — cal-data-5) reads its bounds.
+        CONFIG: { MIN_YEAR: 2024, MAX_YEAR: 2040 },
     },
 });
 
 const { initInitialFetch } = await import('./calendar-initial-fetch.js');
-const { knowledgeOf, _reset: resetKnowledge } = await import('./calendar-data-state.js');
+const { knowledgeOf, noteKnowledge, _reset: resetKnowledge } = await import('./calendar-data-state.js');
+const { setDisplayMonth, setDisplayYear } = await import('./calendar-state.js');
 
 // ── Minimal DOM helpers ───────────────────────────────────────────────────────
 
@@ -160,6 +163,10 @@ beforeEach(() => {
     _hasAccess           = true;
     _cacheFetchImpl      = () => Promise.resolve(false);
     setupDOM();
+    // The knowledge module is REAL and process-wide, and since cal-data-5 a month on screen known
+    // current withdraws the failure chip — so one test's settled months must not reach the next.
+    resetKnowledge();
+    setDisplayMonth(new Date().getMonth()); setDisplayYear(new Date().getFullYear());
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -449,6 +456,38 @@ describe('failure path', () => {
         assert.equal(chip._removed, true, 'the chip leaves the header');
         rebuildHeader();   // the rebuild clears the header's children, so any chip found now is a NEW one
         assert.equal(getSyncChip(), null, 'and the header watcher does not re-attach it');
+    });
+
+    // cal-data-5 (10 Nov 2026). The failure render re-reads the month on screen, and when that read
+    // WORKS — a blip, or the signal back on the next visit — the grid is drawn as current while the
+    // header watcher put "Couldn't update — try again" back above it after every render.
+    test('the month on screen confirmed since: the next render withdraws the failure, not re-attaches it', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(new Error('x'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        assert.ok(getSyncChip()?._classes.has('sync-chip-error'), 'premise: the failure chip is up');
+        const now = new Date();
+        noteKnowledge(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, 'authoritative');   // its own read landed
+        rebuildHeader();   // …and repainted the grid
+        assert.equal(getSyncChip(), null, '"Couldn\'t update" went back above a month the server has just answered for');
+        rebuildHeader();
+        assert.equal(getSyncChip(), null, 'and stays withdrawn');
+    });
+
+    test('…but a month confirmed ELSEWHERE does not: the chip is about the grid it sits above', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => Promise.reject(new Error('x'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        const now = new Date();
+        const away = new Date(now.getFullYear(), now.getMonth() + 5, 1);
+        noteKnowledge(`${away.getFullYear()}-${String(away.getMonth() + 1).padStart(2, '0')}`, 'authoritative');
+        rebuildHeader();
+        assert.ok(getSyncChip()?._classes.has('sync-chip-error'), 'a month nobody is looking at took the retry away');
+        setDisplayMonth(away.getMonth()); setDisplayYear(away.getFullYear());   // the member goes there
+        rebuildHeader();
+        assert.equal(getSyncChip(), null, 'over THAT grid, which is current, the failure is withdrawn');
     });
 
     test('dismissSyncError leaves a sync that is still RUNNING alone', (t) => {
