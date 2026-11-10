@@ -787,6 +787,46 @@ describe('computeCellStates — review state machine', () => {
         assert.equal(c.state, 'COVERED');
     });
 
+    // …AND AGAINST THE BASE ROSTER (whole-app fix, Nov 2026). A weekday marked RDW at the member's own
+    // base hours compared equal on the bare time: MATCH, not shown, and the marker lost from the
+    // Calendar and the Pay Calculator's RDW count — or, over an earlier plain import, a ticked "Clear
+    // old" that deleted it. Found from the roster, not named: a member working a timed base weekday.
+    describe('a weekday RDW at the base shift\'s own hours is a change, not a match', () => {
+        const MONDAY = '2026-11-16';
+        const at = new Date(MONDAY + 'T12:00:00');
+        const who = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+            && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, at)));
+        const base = getBaseShift(who, at);
+        const st = (/** @type {string} */ value, /** @type {any[]} */ existing = []) => computeCellStates(
+            { parsed: [{ memberName: who.name, shifts: { [MONDAY]: value } }], dates: [MONDAY] }, existing).get(`${who.name}|${MONDAY}`);
+        const record = (/** @type {any} */ ex) => [{ id: 'r1', memberName: who.name, date: MONDAY, value: base, ...ex }];
+
+        test('with nothing saved, it is a ticked Update that writes rest-day working', () => {
+            const c = st(`RDW|${base}`);
+            assert.deepEqual([c.state, c.chosen], ['DIFF', true]);
+            assert.equal(shiftValueToOverrideType(collectRosterWrites(new Map([[`${who.name}|${MONDAY}`, c]]))[0].value, base, MONDAY), 'rdw');
+        });
+        test('over an earlier PLAIN import it replaces it rather than clearing it; over an RDW one it is covered', () => {
+            assert.equal(st(`RDW|${base}`, record({ type: 'shift', source: 'roster_import' })).state, 'DIFF');
+            assert.equal(st(`RDW|${base}`, record({ type: 'rdw', source: 'roster_import' })).state, 'COVERED');
+            assert.equal(st(`RDW|${base}`, record({ type: 'shift', source: 'manual' })).state, 'CONFLICT');
+        });
+        test('the plain base time is still a match, and a Sunday is still exempt', () => {
+            assert.equal(st(base).state, 'MATCH');
+            const other = base === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00';
+            assert.equal(st(base, record({ type: 'shift', source: 'roster_import', value: other })).state, 'REMOVE_IMPORT');
+            // Sunday work is rest-day working whatever it is marked, so a marked Sunday at the base
+            // Sunday's hours changes nothing (the save promotes a Sunday time to rdw anyway).
+            const SUNDAY = '2026-11-15';
+            const sun = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+                && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+            assert.ok(sun, 'a member rostered on the fixture Sunday');
+            const sunBase = getBaseShift(sun, new Date(SUNDAY + 'T12:00:00'));
+            assert.equal(computeCellStates({ parsed: [{ memberName: sun.name, shifts: { [SUNDAY]: `RDW|${sunBase}` } }], dates: [SUNDAY] }, [])
+                .get(`${sun.name}|${SUNDAY}`).state, 'MATCH');
+        });
+    });
+
     test('a Sunday "AL" is normalised to RD — never written as AL', () => {
         // SUN (2026-06-21) is the module-level Sunday constant.
         const c = computeCellStates(

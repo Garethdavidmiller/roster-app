@@ -37,9 +37,10 @@
  *   3. AN UNREADABLE CELL NEVER WRITES ITS SENTINEL, and every candidate reading offered as a pick
  *      goes through the same `normaliseCellValue` guards a parsed value does. Picking must not be
  *      a route to write something the parsed path would have refused — a Sunday AL, say.
- *   4. RDW-PARITY IS PART OF "COVERED". A stored `{type:'shift', '14:30-22:00'}` and an incoming
- *      `RDW|14:30-22:00` are equal on the bare time, so without the type check the overtime
- *      reclassification is dropped in silence. Sundays are excluded from that check on purpose.
+ *   4. RDW-PARITY IS PART OF "COVERED", AND OF "MATCH". A stored `{type:'shift', '14:30-22:00'}` and
+ *      an incoming `RDW|14:30-22:00` are equal on the bare time, so without the type check the
+ *      overtime reclassification is dropped in silence — and a weekday RDW at the BASE shift's own
+ *      hours is a change for the same reason. Sundays are excluded from both on purpose.
  *   5. A PREVIOUS IMPORT AND A MANUAL ENTRY ARE DIFFERENT THINGS. `isManual` picks the branch, and
  *      REMOVE_IMPORT exists so a row that now matches the base roster DELETES the stale import
  *      rather than writing a fresh base-matching override — which would mask a later base change.
@@ -249,6 +250,12 @@ export function computeCellStates(parsedResult, existingOverrides) {
             const rdwMatches = isSun
                 || !/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(normParsed)
                 || ((existing?.type === 'rdw') === isRdwEncoded(parsedShift));
+            // …AND THE SAME HOLDS AGAINST THE BASE ROSTER (whole-app fix, Nov 2026). A base shift is
+            // never rest-day working, so a weekday marked RDW at the base's own hours (a swapped week
+            // whose moved rest day is worked on the usual turn) is a change: compared on the bare time
+            // it was a MATCH — not shown, not saved — and the RDW marker went in silence, from the
+            // Calendar and from the Pay Calculator's RDW suggestion. Sundays are exempt, as above.
+            const matchesBase = normParsed === normBase && (isSun || !isRdwEncoded(parsedShift));
             if (guarded === 'sunday-other') {
                 // A TRAINING OR MEETING DAY CANNOT BE ON A SUNDAY (owner, 7 Nov 2026), so a roster
                 // saying one is not a change to make: not over the base, not over a saved record, not
@@ -259,7 +266,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // No override, or only a previous import.
                 if (existing && !isManual && normRest(existing.value) === normParsed && rdwMatches) {
                     state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
-                } else if (normParsed === normBase) {
+                } else if (matchesBase) {
                     // PDF now matches the base roster.
                     //  • No override to clean up → genuinely nothing to do (MATCH)…
                     //  • …UNLESS it only matches because a guard REWROTE it (v23.97). An AL or an
