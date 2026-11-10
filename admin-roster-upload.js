@@ -273,6 +273,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     /** @type {any} */ let _parsedResult = null;      // response from parseRosterPDF Cloud Function
     /** @type {any} */ let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
     /** @type {File|null} */ let _parsedFile = null;  // the PDF that WAS read — the picker may hold a newer one
+    // A SAVE STILL WAITING FOR THE SERVER keeps every way to a second one shut (whole-app fix, Nov 2026).
+    // Any touch in the review re-ran refreshOutcome, which handed Save back mid-save; a roster import
+    // mints new ids, so the second press wrote a second copy of every row (slow-save.js's rule 2).
+    let _saving = false;
+    const lockForSave = (/** @type {boolean} */ on) => {
+        _saving = on; changeList.inert = on; cancelBtn.disabled = on; fileInput.disabled = on;
+        parseBtn.disabled = on || !fileInput.files?.length;
+    };
 
     // Default week ending to the next Saturday (roster PDFs always end on a Saturday).
     // If today is already Saturday, jump to the one after so we default to the upcoming week.
@@ -478,6 +486,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         applyBtn.disabled    = true;
         applyBtn.textContent = `Saving ${toWrite.length} change${toWrite.length !== 1 ? 's' : ''}…`;
         applyFeedback.textContent = '';
+        lockForSave(true);
 
         try {
             const refused = await _saveOverrideBatches(toWrite, currentUser);
@@ -535,7 +544,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
             applyBtn.disabled    = false;
             applyBtn.textContent = 'Save changes';
-        }
+        } finally { lockForSave(false); }
     });
 
     // ------------------------------------------------------------------
@@ -581,6 +590,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // the plain-language outcome summary above the list. Presentation only — the state
         // machine (computeCellStates) and the `chosen` model are unchanged.
         function refreshOutcome() {
+            if (_saving) return;   // never re-arm Save while one is sending (see lockForSave)
             // A refused read has no outcome to summarise (v22.16): "Save 41 changes" beside
             // "nothing has been selected" is what makes a safety gate read as a suggestion.
             if ([...cellStates.values()].some(st => st.rosterBlocked)) {

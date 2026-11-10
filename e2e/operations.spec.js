@@ -1345,6 +1345,37 @@ test('operations: a roster apply signed out mid-save closes the review rather th
     await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
 });
 
+// Whole-app fix, Nov 2026 (import-client-1): while a save waited for the server, any touch in the
+// review ran the outcome refresh, which handed the Save button back — and a second press wrote a
+// second copy of every row, because the import mints new document ids. The review is now out of
+// reach until the save settles, and nothing re-arms the button meanwhile.
+test('operations: a roster save still sending keeps its button, whatever is touched meanwhile', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const save = page.locator('#rosterApplyBtn');
+    await expect(save).toHaveText(/Save 3 changes/);
+    await save.click();
+    await expect(save).toHaveText(/Saving 3 changes/);
+    await expect(save).toBeDisabled();
+    // Out of reach while it sends: the review, and the two buttons that would start another one.
+    await expect(page.locator('#rosterChangeList')).toHaveJSProperty('inert', true);
+    await expect(page.locator('#rosterCancelBtn')).toBeDisabled();
+    await expect(page.locator('#rosterParseBtn')).toBeDisabled();
+    await expect(page.locator('#rosterFileInput')).toBeDisabled();
+    // A change that DOES reach the review's handler — a script's click, which `inert` does not stop —
+    // still does not give the button back.
+    await page.evaluate(() => { const t = /** @type {HTMLElement} */ (document.querySelector('.roster-tick')); t.click(); t.click(); });
+    await expect(save).toBeDisabled();
+    await expect(save).toHaveText(/Saving 3 changes/);
+    await save.click({ force: true });
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 3 changes applied');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length),
+        'one save, so one copy of each row').toBe(3);
+    await expect(page.locator('#rosterChangeList')).toHaveJSProperty('inert', false);
+});
+
 // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record outranks an import, so "Use new
 // roster" — which deleted only the record the review showed — left the copy to resurface over it.
 test('operations: "Use new roster" also clears an older manual copy of the day', async ({ page }) => {
