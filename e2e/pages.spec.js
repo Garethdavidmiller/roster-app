@@ -1246,6 +1246,12 @@ const KNOWN_SMALL = {
 // would fail a control that is comfortably operable. What that bargain requires is that the row
 // ACTUALLY clears 44px, which is the half Settings was missing — its `.pw-show-row` had no height
 // of its own, so the label rescued nothing.
+//
+// A `<summary>` IS A CONTROL TOO (whole-app check, 10 Nov 2026): it is the button that opens its
+// `<details>`, and the selector never named it, so no fold in the app was measured. The walk reaches
+// the Links check card's quiet fold; the others — Trains' "Train by train", Links' compare fold,
+// Admin's save receipt, Operations' stack trace — appear only after a choice, a save or an error
+// that this walk does not make.
 test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
     // It walks every control on several pages, so it needs ~32s on an idle runner — right on the
@@ -1287,7 +1293,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         // No wait after opening: `.open` is `display: block`, nothing animates (the 16px sweep above).
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
-        const own = await ownElements(page, 'button, select, [role=button], input[type=checkbox], input[type=radio]');
+        const own = await ownElements(page, 'button, select, summary, [role=button], input[type=checkbox], input[type=radio]');
         expect(own.held === 0 || own.withBox > 0,
             `${url} holds ${own.held} controls of its own and none had a box — the page was not laid out, so this proves nothing`).toBe(true);
         const scan = () => page.evaluate(() => {
@@ -1337,7 +1343,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
             const target = (el) => (/^(checkbox|radio)$/.test(el.type)
                 && el.closest('label')) || el;
             document.querySelectorAll(
-                'button, select, [role=button], input[type=checkbox], input[type=radio]'
+                'button, select, summary, [role=button], input[type=checkbox], input[type=radio]'
             ).forEach(node => {
                 const el = target(node);
                 const r = el.getBoundingClientRect();
