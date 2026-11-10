@@ -141,6 +141,152 @@ test('guides: a deep link leaves alone a page scrolled away without a touch or a
     expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement pulled the page back to the fragment').toBe(moved);
 });
 
+// ── …AND ON THE TWO DOCUMENT GUIDES, WHICH HAVE NO CHIP BAR (whole-app fix, 10 Nov 2026) ─────────────────
+// Their one sticky element is the header, and no stylesheet knows its height: with the phone's text one
+// step up the title wraps, and a search result opened its heading under the header — 25px at 375px,
+// 60px at 1.3×. The text is scaled as Android scales it (every used size multiplied, each read before
+// any is written) at DOMContentLoaded, so it is in place before the browser lands, and the measurement
+// is held until after `load`, the phone's order, as above. guide-back.js does the measuring.
+/** @param {import('@playwright/test').Page} page @param {number} k */
+async function scaleTextBeforeLanding(page, k) {
+    await page.addInitScript((mult) => document.addEventListener('DOMContentLoaded', () => {
+        const els = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('*')]);
+        const px = els.map(el => parseFloat(getComputedStyle(el).fontSize));
+        els.forEach((el, i) => { if (px[i]) el.style.fontSize = `${px[i] * mult}px`; });
+    }), k);
+}
+/** @param {import('@playwright/test').Page} page @param {string} id */
+function underHeader(page, id) {
+    return page.evaluate((target) => {
+        const top = /** @type {HTMLElement} */ (document.getElementById(target)).getBoundingClientRect().top;
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect().bottom;
+        return { top: Math.round(top), hdr: Math.round(hdr) };
+    }, id);
+}
+
+for (const [guide, id, k] of /** @type {Array<[string, string, number]>} */ ([
+    ['staff-guide', 'sg-change-a-shift', 1.15],
+    ['paycalc-guide', 'pg-holiday-pay-premium-hpp', 1.15],
+    ['staff-guide', 'sg-sundays', 1.3],
+])) {
+    test(`guides: a deep link to ${guide}#${id} lands below the header with the text at ${k}×`, async ({ page }) => {
+        await page.setViewportSize({ width: 375, height: 740 });
+        await holdGuideMeasurement(page);
+        await scaleTextBeforeLanding(page, k);
+        await landHeld(page, `/${guide}.html#${id}`);
+        const landed = await underHeader(page, id);
+        expect(landed.top, 'premise: the browser\'s own landing, on the stylesheet\'s fallback, is under the header').toBeLessThan(landed.hdr);
+        await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+        await settleFrames(page);
+        const geo = await underHeader(page, id);
+        expect(geo.top, `#${id} starts under the header (top ${geo.top}px, header ends ${geo.hdr}px)`).toBeGreaterThanOrEqual(geo.hdr);
+        // …and an in-page jump made later keeps the same clearance: it is the measured margin that holds it.
+        await page.evaluate(() => { location.hash = ''; window.scrollTo(0, 0); });
+        await page.evaluate((t) => { location.hash = t; }, id);
+        await settleFrames(page);
+        const jumped = await underHeader(page, id);
+        expect(jumped.top, 'an in-page jump lands under the header').toBeGreaterThanOrEqual(jumped.hdr);
+    });
+}
+
+// The two guards, on the document guides too: a reader who has moved, and a reload, are left where they are.
+test('guides: on a document guide a deep link does not pull back a reader who has moved, or a reload', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await scaleTextBeforeLanding(page, 1.15);
+    await landHeld(page, '/staff-guide.html#sg-change-a-shift');
+    await page.mouse.move(180, 500);
+    await page.mouse.wheel(0, 30);
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    const { top, hdr } = await underHeader(page, 'sg-change-a-shift');
+    expect(top, 'the nudge leaves the heading inside the band a re-land would act on').toBeLessThan(hdr);
+    expect(top, 'and still on the screen').toBeGreaterThanOrEqual(0);
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reader who had scrolled').toBe(moved);
+
+    await page.reload();
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const restored = await page.evaluate(() => Math.round(window.scrollY));
+    const back = await underHeader(page, 'sg-change-a-shift');
+    expect(back.top, 'premise: the reload restored a position inside the band').toBeLessThan(back.hdr);
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reloaded page off its restored position').toBe(restored);
+});
+
+test('guides: on a document guide a deep link leaves alone a page scrolled away without a touch or a key', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await scaleTextBeforeLanding(page, 1.15);
+    await landHeld(page, '/paycalc-guide.html#pg-holiday-pay-premium-hpp');
+    await page.evaluate(() => window.scrollBy(0, 400));
+    await settleFrames(page);
+    const moved = await page.evaluate(() => Math.round(window.scrollY));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement pulled the page back to the fragment').toBe(moved);
+});
+
+// The landing ENDS once the page has loaded and measured: the header still re-measures afterwards (a font swap, a
+// rotation), but that only moves the margins, never the reader.
+test('guides: on a document guide, once the page has landed, a later change to the header does not move the reader', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await scaleTextBeforeLanding(page, 1.15);
+    await landHeld(page, '/staff-guide.html#sg-change-a-shift');
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    await page.evaluate(() => window.scrollBy(0, 40));   // no touch and no key: the heading goes back under the header
+    await settleFrames(page);
+    const { top, hdr } = await underHeader(page, 'sg-change-a-shift');
+    expect(top, 'premise: the heading is inside the band a re-land would act on').toBeLessThan(hdr);
+    expect(top, 'and still on the screen').toBeGreaterThanOrEqual(0);
+    // The header is in the flow, so growing it moves the page under it, and the browser's scroll anchoring then
+    // keeps what is on screen where it was: the reader's view is the heading's place on the screen, not scrollY.
+    await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.page-header h1')).style.fontSize = '24px'; });
+    await settleFrames(page);
+    const after = await underHeader(page, 'sg-change-a-shift');
+    expect(after.hdr, 'premise: the header grew').toBeGreaterThan(hdr);
+    expect(Math.abs(after.top - top), `a header change after the landing moved the reader (the heading went from ${top}px to ${after.top}px)`).toBeLessThanOrEqual(2);
+});
+
+// guide-back.js measures the HEADER alone, which on a chip-bar guide is short of the sticky stack by the whole bar —
+// so it must leave those three to their own scripts. Today's script order would hide a lapse (the page's script
+// writes last), so every margin WRITTEN is recorded, not just the one that ends up on the card.
+test('guides: on a chip-bar guide, every scroll margin written clears the header and the chip bar', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {number[]} */
+        const seen = [];
+        /** @type {any} */ (window).__marginsWritten = seen;
+        const read = (/** @type {string|null} */ style) => {
+            const m = /scroll-margin-top:\s*([\d.]+)px/.exec(style || '');
+            if (m) seen.push(parseFloat(m[1]));
+        };
+        new MutationObserver(records => records.forEach(r => {
+            const el = /** @type {HTMLElement} */ (r.target);
+            if (!el.id || !el.closest('main')) return;
+            read(r.oldValue);
+            read(el.getAttribute('style'));
+        })).observe(document, { subtree: true, attributes: true, attributeFilter: ['style'], attributeOldValue: true });
+    });
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        await settleFrames(page);
+        const m = await page.evaluate(() => ({
+            written: /** @type {number[]} */ (/** @type {any} */ (window).__marginsWritten),
+            stack: /** @type {HTMLElement} */ (document.querySelector('.page-header')).offsetHeight
+                + /** @type {HTMLElement} */ (document.querySelector('.chip-bar')).offsetHeight,
+        }));
+        expect(m.written.length, `premise: ${guide} measured its stack`).toBeGreaterThan(0);
+        expect(Math.min(...m.written), `${guide}: a margin was written that leaves a card under the chip bar (stack ${m.stack}px)`)
+            .toBeGreaterThanOrEqual(m.stack);
+    }
+});
+
 test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // A lone "%" is an invalid percent-escape — decodeURIComponent would throw uncaught without the guard.
