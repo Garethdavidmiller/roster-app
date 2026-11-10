@@ -278,7 +278,9 @@ describe('what a real member actually carries', () => {
     for (const yr of YEARS) {
         REAL[`${PREFIX}hpp_est_${yr}`]    = '1843.01';   // the estimate
         REAL[`${PREFIX}hpp_actual_${yr}`] = '1901.44';   // the confirmed figure off the payslip
-        REAL[`${PREFIX}hpp_mode_${yr}`]   = 'hours';     // which source was chosen
+        // Which source was chosen, in the shape `saveHppState` (paycalc-hpp.js) writes — a JSON
+        // object. A bare 'hours' is a value the app never stores, and its reader reads it as damage.
+        REAL[`${PREFIX}hpp_mode_${yr}`]   = '{"mode":"hours","exact":""}';
         REAL[`${PREFIX}hpp_inc_${yr}`]    = '1';         // the include tick
         REAL[`${PREFIX}bp_state_${yr}`]   = '{"mode":"manual","manual":"512.30","inc":"1"}';
         REAL[`${PREFIX}ytd_pay_${yr}`]    = '21758.94';
