@@ -3362,19 +3362,24 @@
         /* ONE field, not four PIN cells. Four cells look sharper and cost real robustness: per-cell
            focus juggling, they fight paste and autofill, and screen readers announce four unlabelled
            boxes. A single field styled AS a PIN reads the same and behaves like the input it is.
-           Everything not listed here comes from `.login-field input`. */
-        .cal-lock-pin {
+           Everything not listed here comes from the shared login field.
+           THE ID, NOT THE CLASS: that shared skin is `.login-field input:not([type="checkbox"])
+           :not([type="radio"])`, (0,3,1), and it beat `.cal-lock-pin` (0,1,0) on size, padding and
+           colour — so until the whole-app review (Nov 2026) the field drew at the login's 16px in its
+           grey, and only the weight, tracking and centring below ever applied. */
+        #calLockPin {
             /* --type-xl (24px) against the shared 16px. A PIN is four characters read at a glance,
                and it is comfortably over the iOS focus-zoom floor either way (css-tokens.md → the
                16px rule). Through the token, not a literal: a repeated raw size is how the scale
                stopped meaning anything (type-scale-parity.test.mjs). */
             font-size: var(--type-xl);
             font-weight: 700;
-            /* Tracking wide enough that four masked dots read as four separate characters. The extra
-               padding-left compensates for the trailing letter-space, which would otherwise push the
-               visual centre left of the box's centre. */
+            /* Tracking wide enough that four masked dots read as four separate characters. The run
+               ends in one letter-space nobody sees, which pulls the dots half of it left of centre;
+               the extra 0.5em on the left puts them back, in the field's own em so it stays exact
+               when a phone scales the text. */
             letter-spacing: 0.5em;
-            padding: 10px 10px 10px 20px;
+            padding: 10px 10px 10px calc(10px + 0.5em);
             text-align: center;
             color: var(--primary-blue);
         }

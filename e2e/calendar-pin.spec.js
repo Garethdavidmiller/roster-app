@@ -746,6 +746,23 @@ test('the PIN field is labelled, and large enough not to trigger iOS focus zoom'
     // that lands a first-time user in a half-scrolled layout.
     const size = await page.locator('#calLockPin').evaluate(el => parseFloat(getComputedStyle(el).fontSize));
     expect(size).toBeGreaterThanOrEqual(16);
+    // …and drawn as a PIN, not as the login field it sits in. The PIN rule asks for --type-xl in navy;
+    // the shared login skin, (0,3,1), beat its class on size, padding and colour, so this field drew at
+    // 16px in grey and the floor above still passed (whole-app review, Nov 2026).
+    const look = await page.locator('#calLockPin').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const probe = document.body.appendChild(document.createElement('div'));
+        probe.style.fontSize = 'var(--type-xl)';
+        probe.style.color = 'var(--primary-blue)';
+        const want = { size: getComputedStyle(probe).fontSize, colour: getComputedStyle(probe).color };
+        probe.remove();
+        return { size: cs.fontSize, colour: cs.color, want,
+                 extraLeft: parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), tracking: parseFloat(cs.letterSpacing) };
+    });
+    expect(look.size, 'the PIN is --type-xl, not the login field\'s 16px').toBe(look.want.size);
+    expect(look.colour, 'the PIN is navy').toBe(look.want.colour);
+    // The run ends in one letter-space nobody sees; the left padding gives it back, so the dots sit centred.
+    expect(look.extraLeft, 'the extra left padding is one letter-space').toBeCloseTo(look.tracking, 1);
 });
 
 test('the card does not overflow at 360px, nor sprawl at 1440px', async ({ page }) => {
