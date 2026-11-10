@@ -1507,7 +1507,10 @@
             .btn-delete.confirming { animation: none; }
         }
 
-        .override-state .reload-link {
+        /* Both Retries: Saved Changes' and the week grid's, which a failed read shows together. Scoped
+           to `.override-state` until Nov 2026, so the week grid's — on the card the admin is looking
+           at — was plain grey text with no cursor, a control that did not look like one. */
+        .reload-link {
             display: inline-block;
             margin-top: 8px;
             font-size: var(--type-small);

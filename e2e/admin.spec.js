@@ -1506,6 +1506,29 @@ test('admin: the "Removing" badge on an unticked saved day is readable', async (
     expect(ratio, 'the "Removing" badge is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
 });
 
+// A failed read shows two Retries at once — Saved Changes' and the week grid's, the second added
+// "because this is the card they are looking at" — and only the first was styled: the rule was scoped
+// to `.override-state`, so the week grid's rendered as plain grey text with no pointer.
+test('admin: the week grid\'s Retry looks like Saved Changes\' Retry', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const other = await page.locator('#fieldMember').evaluate((el) => {
+        const sel = /** @type {HTMLSelectElement} */ (el);
+        return [...sel.options].find(o => o.value && o.value !== sel.value)?.value ?? '';
+    });
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = true; });
+    await page.locator('#fieldMember').selectOption(other);
+    const week = page.locator('#retryWeekLink'), list = page.locator('#retryLoadLink');
+    await expect(week, 'premise: the week grid offers a Retry').toHaveCount(1, { timeout: 10000 });
+    await expect(list, 'premise: Saved Changes offers one too').toHaveCount(1);
+    const look = (/** @type {import('@playwright/test').Locator} */ l) => l.evaluate(el => {
+        const c = getComputedStyle(el);
+        return [c.color, c.cursor, c.textDecorationLine, c.fontWeight, c.fontSize].join(' | ');
+    });
+    expect(await look(week)).toBe(await look(list));
+});
+
 test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
     async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
