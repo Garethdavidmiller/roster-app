@@ -854,6 +854,10 @@ uppercase. */
     .tr-view[hidden] { display: none !important; }
     .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
+    /* The title and the page badge's words are white for the navy canvas, which paper does not have,
+       and both printed white on white: the title turns navy, the badge keeps its fill. */
+    .app-header h1 { color: var(--primary-blue); }
+    .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-grid-swipe, .tr-change-station { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }

@@ -581,6 +581,32 @@ test('New link: the best figure prints in the green pill its key promises @print
     expect(look.best.colour, 'and unlike a figure that is not the best').not.toBe(look.plain.colour);
 });
 
+// ── THE PAGE'S NAME IS ON THE SHEET (whole-app review, 10 Nov 2026) ─────────────────────────────
+// The header's title and the page badge's words are white, for the navy canvas, and print gives the
+// page a white body: on Trains and New link both printed white on white, so the sheet was headed by a
+// lone logo. Found while proving css-calendar-10. The Pay Calculator prints its own header and is not
+// one of these.
+for (const pg of ['trains', 'newlink']) {
+    test(`${pg}: the printed header names the page, not white on white @print`, async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto(`/${pg}.html`);
+        await expect(page.locator('.app-header h1')).toBeVisible();
+        const look = await inPrint(page, () => {
+            const h1 = getComputedStyle(/** @type {Element} */ (document.querySelector('.app-header h1')));
+            const badge = getComputedStyle(/** @type {Element} */ (document.querySelector('.app-header .badge-page')));
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.color = 'var(--primary-blue)';
+            const navy = getComputedStyle(probe).color;
+            probe.remove();
+            return { title: h1.color, navy, paper: getComputedStyle(document.body).backgroundColor,
+                     badgeKept: badge.printColorAdjust || badge.webkitPrintColorAdjust };
+        });
+        expect(look.paper, 'premise: the sheet is white').toBe('rgb(255, 255, 255)');
+        expect(look.title, 'the title prints navy').toBe(look.navy);
+        expect(look.badgeKept, 'the badge keeps the fill its white words need').toBe('exact');
+    });
+}
+
 // ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────────────────────────
 // The print review, item 1 (ROADMAP_HISTORY.md): "Most readers want France, not the book." The guide is 25 sheets and a
 // traveller checking one coupon before a trip needs one card.
