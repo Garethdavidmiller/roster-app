@@ -212,16 +212,21 @@ export function shouldOfferSearch(count) { return count >= SEARCH_FROM; }
  * what a person would say. A title that is already a noun ("Tax year") is left alone; the rule only
  * fires on a recognised opener, because inventing a name is worse than repeating one.
  *
+ * AND ONLY A NOUN IS WELDED ON (whole-app check, Nov 2026). The titles the app really passes are
+ * mostly QUESTIONS, and "Search whose roster are you reading?" is the same defect again; the Links
+ * cell editor's "Line 3 · Mon" is no better. A title that is not plain words has no noun to keep, so
+ * its box is called "Search" — and a caller that can say what the list holds passes `searchLabel`
+ * ("Search pay periods") to `enhanceSelect`, `openOptionSheet` or an `initSelectSheets` spec.
+ *
  * @param {string} title  the sheet's own heading
  * @returns {string}
  */
 export function searchLabelFor(title) {
     const t = String(title || '').trim();
-    if (!t) return 'Search';
     // Only these openers, and only at the START — "Choose" inside a name is part of the name.
     const noun = t.replace(/^(choose|select|pick)\s+(a|an|the)\s+/i, '')
                   .replace(/^(choose|select|pick)\s+/i, '');
-    return `Search ${noun.toLowerCase()}`;
+    return /^\p{L}[\p{L} '’-]*$/u.test(noun) ? `Search ${noun.toLowerCase()}` : 'Search';
 }
 
 /**
@@ -321,7 +326,7 @@ function ensureSheet() {
  * caller whose `change` handler would otherwise focus it — see `openOptionSheet`, which is where
  * the timing that makes it necessary lives.
  * @param {HTMLSelectElement|null} select
- * @param {{ title?: string, placeholder?: string, triggerClass?: string,
+ * @param {{ title?: string, placeholder?: string, triggerClass?: string, searchLabel?: string,
  *           focusOnPick?: (value: string) => (HTMLElement|null|undefined),
  *           createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} [opts]
  */
@@ -440,6 +445,7 @@ export function enhanceSelect(select, opts = {}) {
     btn.addEventListener('click', () => {
         openOptionSheet({
             title,
+            searchLabel: opts.searchLabel,
             groups: readGroups(select),
             current: select.value,
             // THE FACE MOVES ON THE TAP (v23.61). The value below waits for the sheet's close to land,
@@ -492,7 +498,7 @@ export function enhanceSelect(select, opts = {}) {
  * focus back to the control that opened the sheet, synchronously, and a focus made before it would
  * be undone. A callback that throws costs the focus, never the pick.
  * @param {{ title: string, groups: SheetGroup[], current?: string, subtitle?: string,
- *           searchPlaceholder?: string,
+ *           searchPlaceholder?: string, searchLabel?: string,
  *           onPick: (value: string) => void, onPreview?: (value: string) => void,
  *           focusOnPick?: (value: string) => (HTMLElement|null|undefined),
  *           createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} opts
@@ -560,8 +566,8 @@ export function openOptionSheet(opts) {
     sheet.input.placeholder = opts.searchPlaceholder || 'Search\u2026';
     // A placeholder is not a label — it is the field's own content, and it disappears the moment
     // anything is typed. The name says WHAT is being filtered, because a screen-reader user meets
-    // this control without the heading above it in view.
-    sheet.input.setAttribute('aria-label', searchLabelFor(title));
+    // this control without the heading above it in view — the caller's words where it gave them.
+    sheet.input.setAttribute('aria-label', opts.searchLabel || searchLabelFor(title));
     // Rebound on every open, and `oninput` rather than addEventListener so a sheet opened by a
     // different control can never still be filtered by the previous one's handler.
     sheet.input.oninput = searchable ? () => paint(sheet.input.value) : null;
@@ -615,7 +621,7 @@ function centreRow(panel, row) {
  * one of them is not an error, which is what lets one call site serve several pages.
  * Each id is looked up ONCE, so a select built later is skipped in silence: enhance that one
  * where it is built (Operations' `#acctGradeFilter` does). Returns each id's `refresh()`.
- * @param {Array<{ id: string, title: string, placeholder?: string }>} specs
+ * @param {Array<{ id: string, title: string, placeholder?: string, searchLabel?: string }>} specs
  * @param {{ createLightbox?: (opts: any) => { open: () => void, close: () => (Promise<void>|void) } }} [opts]
  */
 export function initSelectSheets(specs, opts = {}) {
@@ -624,7 +630,7 @@ export function initSelectSheets(specs, opts = {}) {
     const refreshers = {};
     for (const spec of specs) {
         const el = /** @type {HTMLSelectElement|null} */ (document.getElementById(spec.id));
-        refreshers[spec.id] = enhanceSelect(el, { title: spec.title, placeholder: spec.placeholder });
+        refreshers[spec.id] = enhanceSelect(el, { title: spec.title, placeholder: spec.placeholder, searchLabel: spec.searchLabel });
     }
     return refreshers;
 }

@@ -801,6 +801,9 @@ test('calendar: the name sheet offers a filter, and picking a filtered row still
     expect(label, 'the search box must be named').toBeTruthy();
     expect((label || '').toLowerCase(), 'the sheet title leaked into the search name verbatim')
         .not.toMatch(/search (choose|select|pick) /);
+    // …and this sheet's title is a QUESTION, which welded into "Search whose roster are you reading?"
+    // (whole-app check, Nov 2026): a question has no noun to keep.
+    expect(label, 'the sheet\'s question was welded onto "Search"').not.toMatch(/\?|roster are you reading/i);
 
     const shownNow = () => page.locator('.picker-opt[data-value]').count();
     const before = await shownNow();
