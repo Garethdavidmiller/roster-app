@@ -451,6 +451,56 @@ test('paycalc: the comparison sets the payslip\'s Taxable Pay against the pay af
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
+// ── THE JANUARY POINTER POINTS AT A BOX THAT CAN TAKE THE FIGURE (whole-app check, 10 Nov 2026) ──
+// The Year to Date card's "enter the confirmed figure from it in the Holiday Pay Premium card"
+// showed on the January payslip whatever that card could do: before the payslip was paid, when the
+// confirm box is locked, and to a member who joined after that premium's year, for whom the whole
+// last-year section is hidden. 15 Jan 2027 (p60) carries the 2025/26 premium.
+const JAN_2027_PAID_DAY = new Date('2027-01-20T09:00:00Z');
+
+test('paycalc: the January premium pointer waits for the payslip, then points at an open box', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // 7 Nov 2026 — the 15 Jan 2027 payslip is months away
+    await seedSession(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#periodSelect')).toHaveValue('60');
+    await expect(page.locator('#priorHppActualInput'), 'premise: the confirm box is locked').toBeDisabled();
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', true);
+
+    // Once the payslip is paid the box opens, and the pointer to it shows.
+    await page.clock.setFixedTime(JAN_2027_PAID_DAY);
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#priorHppActualInput')).toBeEnabled();
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', false);
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+    await expect(page.locator('#ytdJanHppHint')).toBeVisible();
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+test('paycalc: a joiner is not pointed at last year\'s premium, which the card hides from them', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(JAN_2027_PAID_DAY);
+    await seedSession(page, 'J. Davies');   // started 5 May 2026 — employed for none of 2025/26
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_jdavies_grade', 'cea');
+        localStorage.setItem('myb_pc_jdavies_setup', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#periodSelect')).toHaveValue('60');
+    await expect(page.locator('#priorHppSection'), 'premise: the last-year section is hidden from a joiner').toHaveClass(/hidden/);
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', true);
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── ONE EDIT REACHES THE FIGURES THAT READ STORAGE (whole-app review, Oct 2026) ───────────────
 // autosave() priced the page BEFORE it saved, and "This tax year so far" — like the Holiday Pay
 // Premium card and its stored estimate, the figure a January payslip adds — reads the payslip back

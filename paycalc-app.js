@@ -708,13 +708,18 @@ export function init() {
       // calcHPP() stores the estimate whenever a payslip of that year is viewed.
       const _hppTy = hppTaxYearForPayslip(_curP, getPeriods(), CONFIG.TAX_YEARS);
       // A CONFIRMED actual (stored, even £0) beats the estimate: resolveHppForPeriod is that one rule,
-      // shared with the prior-year card so the two cannot disagree. And the Year to Date card's
-      // January pointer shows ONLY on that January payslip — on every other it read wrong (owner).
-      const _janHint = document.getElementById('ytdJanHppHint');
-      if (_janHint) _janHint.hidden = !_hppTy;
+      // shared with the prior-year card so the two cannot disagree.
       const _hppRes = _hppTy
           ? resolveHppForPeriod(lsGet(hppActualKey(_hppTy)), lsGet(hppEstKey(_hppTy)))
           : { amount: 0, isEstimate: false, hasActual: false };
+      // The Year to Date card's January pointer ("enter the confirmed figure from it in the Holiday Pay
+      // Premium card") shows ONLY on that January payslip — on every other it read wrong (owner) — and
+      // only where that card's confirm box can take the figure: a member employed in the premium's year
+      // (updatePriorHpp hides the whole last-year section from a joiner) and a box that is open, which
+      // it is from the payslip's payday or while it holds a confirmed figure (paycalc-hpp.js).
+      const _janHint = document.getElementById('ytdJanHppHint');
+      if (_janHint) _janHint.hidden = !(_hppTy && isTaxYearVisible(_hppTy)
+          && (_hppRes.hasActual || (!!_curP && _curP.payday < new Date())));
       const _hppAmount     = _hppRes.amount;      // the HPP figure landing on this January payslip
       const _hppIsEstimate = _hppRes.isEstimate;
       // OPT-IN, like back pay: the premium JOINS the take-home only once the member ticks it in (off
