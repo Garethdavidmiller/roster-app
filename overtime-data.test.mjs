@@ -1,6 +1,6 @@
 /**
  * overtime-data.test.mjs — THE CLOCK, AND WHAT A CALL SAYS WHEN IT DOES NOT COME BACK.
- * Run with: node --experimental-test-module-mocks --test overtime-data.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs overtime-data.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

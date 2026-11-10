@@ -1,6 +1,6 @@
 /**
  * paycalc-role-card.test.mjs — what the Pay Calculator says to somebody it will not price (v25.50).
- * Run: node --test paycalc-role-card.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs paycalc-role-card.test.mjs   (part of `npm run test:hygiene`)
  *
  * The WORDS are the feature here: the calculator already refused a Dispatcher and a manager (v21.78),
  * and what changed is that each is now told what the calculator is for, in terms true of THEM. So the

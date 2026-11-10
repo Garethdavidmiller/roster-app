@@ -1,6 +1,6 @@
 /**
  * links-fatigue.test.mjs — the ORR p3 fatigue factors, assessed against a link design.
- * Run: node --test links-fatigue.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-fatigue.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THE WEIGHTING HERE. This module's output goes in front of a manager assessing a roster
  * proposal for fatigue. The dangerous failure is not a wrong number — it is a design that shows NO

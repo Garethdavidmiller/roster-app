@@ -1,7 +1,7 @@
 /**
  * Unit tests for nav-panel.js: isNoticeExpired() and the App Notices archive (archiveNotice) — both
  * notice-archive.js's, re-exported here and tested through the import every page uses — and the drawer.
- * Run with: node --experimental-test-module-mocks --test nav-panel.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs nav-panel.test.mjs
  *
  * nav-panel.js imports browser-only modules (notif.js, overlay.js, ls.js) that
  * touch window/navigator at load. They are mocked so the module imports cleanly

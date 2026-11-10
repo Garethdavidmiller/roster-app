@@ -1,6 +1,6 @@
 /**
  * Unit tests for notif.js — the shared Web Push state machine + subscribe/unsubscribe.
- * Run with: node --experimental-test-module-mocks --test notif.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs notif.test.mjs
  *
  * notif.js imports firebase-client.js (which statically imports the Firebase SDK from the gstatic
  * CDN — unloadable in Node) and ls.js. Both are mocked. The browser Push APIs (Notification,

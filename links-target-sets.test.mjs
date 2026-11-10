@@ -1,6 +1,6 @@
 /**
  * links-target-sets.test.mjs — saved generator target sets: the trust boundary and the ownership rule.
- * Run: node --test links-target-sets.test.mjs   (no mocks; part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-target-sets.test.mjs   (no mocks; part of `npm run test:hygiene`)
  *
  * Organised around the two ways this feature can betray its one promise — "others can mess about
  * but not lose my set". A CORRUPT set that half-loads becomes a lighter week every panel then

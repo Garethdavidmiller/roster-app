@@ -1,8 +1,10 @@
 // run-tests-script.test.mjs — scripts/run-tests.mjs, tested by running it, and every npm script
-// that runs Node's test runner held to it.
+// that runs Node's test runner held to it, and every test file's own run line.
 //
 // The wrapper exists for the one failure `node --test` does not report: a `describe` whose body
-// THROWS while being built prints `not ok`, adds nothing to the counts, and the run exits 0. Its
+// THROWS while being built prints `not ok`, adds nothing to the counts, and the run exits 0. That
+// is Node 22. From Node 24 Node fails such a run itself, so the tests below demand the wrapper's own
+// message only where plain `node --test` would have passed the file, and the run failing always. Its
 // verdicts had no test of their own, though it has already needed one repair when Node's default
 // reporter changed. And one lane bypassed it: `test:payslip-local`, the command whose green is
 // documented to mean "the real payslip comparison definitely ran", called `node --test` directly —
@@ -12,7 +14,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +35,13 @@ function runWrapped(t, body, flags = []) {
     writeFileSync(file, body);
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT;
-    return spawnSync(process.execPath, [...flags, WRAPPER, file], { encoding: 'utf8', env });
+    const wrapped = spawnSync(process.execPath, [...flags, WRAPPER, file], { encoding: 'utf8', env });
+    // What plain `node --test` makes of the same file. Node 22 exits 0 on a suite that fails to
+    // build — the gap the wrapper exists for. From Node 24 Node fails the run itself, so there the
+    // wrapper has nothing to add and prints no message of its own (measured, 10 November 2026: CI
+    // runs Node 24 and failed the old assertions; this container runs Node 22).
+    const raw = spawnSync(process.execPath, [...flags, '--test', '--test-reporter=tap', file], { encoding: 'utf8', env });
+    return Object.assign(wrapped, { rawStatus: raw.status });
 }
 
 const HEAD = "import { describe, test, mock } from 'node:test';\nimport assert from 'node:assert/strict';\n";
@@ -47,8 +55,14 @@ describe('the wrapper\'s verdicts', () => {
             + "});\n"
             + "test('an unrelated test that passes', () => {});\n");
         assert.equal(r.status, 1, r.stdout + r.stderr);
-        assert.match(r.stderr, /FAILED TO BUILD/);
-        assert.match(r.stderr, /payslip integration/, 'the message names the suite that did not build');
+        if (r.rawStatus === 0) {
+            // Node let the run pass, so the wrapper is what failed it, and it must say why.
+            assert.match(r.stderr, /FAILED TO BUILD/);
+            assert.match(r.stderr, /payslip integration/, 'the message names the suite that did not build');
+        } else {
+            // Node failed the run itself; its own report, passed through, names the suite.
+            assert.match(r.stdout, /^not ok \d+ - payslip integration$/m, 'Node\'s report names the suite that did not build');
+        }
     });
 
     test('a failing `todo` test is NOT a build failure — Node passes it by design', (t) => {
@@ -67,7 +81,7 @@ describe('the wrapper\'s verdicts', () => {
             + "describe('payroll # TODO list', () => { throw new Error('no such helper'); });\n"
             + "test('a test that passes', () => {});\n");
         assert.equal(r.status, 1, r.stdout + r.stderr);
-        assert.match(r.stderr, /FAILED TO BUILD/);
+        if (r.rawStatus === 0) assert.match(r.stderr, /FAILED TO BUILD/);
     });
 
     test('an ordinary failing test fails, and a clean file passes', (t) => {
@@ -103,5 +117,35 @@ describe('every npm script that runs Node\'s test runner goes through the wrappe
         for (const name of ['test:hygiene', 'test:parse', 'test:unit', 'test:functions', 'test:rules', 'test:payslip-local']) {
             assert.match(String(scripts[name]), /scripts\/run-tests\.mjs/, `${name} no longer runs through the wrapper`);
         }
+    });
+});
+
+describe('every test file\'s own run line goes through the wrapper', () => {
+    // A test file's header is where somebody copies the command to run that one file. Until
+    // 10 November 2026, 141 headers said `node --test <file>`: on Node 22, the runner that exits 0
+    // when a block fails to BUILD, so it was handed out for the exact file a reader was debugging.
+    const ROOT = fileURLToPath(new URL('.', import.meta.url));
+    const files = readdirSync(ROOT).filter((f) => f.endsWith('.test.mjs'));
+    const text = (f) => readFileSync(join(ROOT, f), 'utf8');
+    const bare = /node (?:--[a-z-]+ )*--test [\w.-]+\.test\.mjs/;
+
+    test('no header tells a reader to run its file with bare `node --test`', () => {
+        const offenders = files.filter((f) => bare.test(text(f)));
+        assert.deepEqual(offenders, [],
+            'these files name `node --test <file>` as the way to run them; name '
+            + '`node [flags] scripts/run-tests.mjs <file>` instead:\n  ' + offenders.join('\n  '));
+    });
+
+    test('guard the guard — the headers that name the wrapper were found', () => {
+        // On a clean tree the check above finds nothing, so it cannot tell a working pattern from a
+        // broken one: show it both shapes of run line. Assembled, or this file would be the offender.
+        const T = '--test';
+        assert.match(` * Run with: node --experimental-test-module-mocks ${T} some.test.mjs`, bare);
+        assert.match(` * Run: node ${T} some.test.mjs   (part of \`npm run test:hygiene\`)`, bare);
+        assert.doesNotMatch(' * Run: node --experimental-test-module-mocks scripts/run-tests.mjs some.test.mjs', bare);
+        const wrapped = files.filter((f) => /node (?:--[a-z-]+ )*scripts\/run-tests\.mjs [\w.-]+\.test\.mjs/.test(text(f)));
+        assert.ok(files.length > 100, `only ${files.length} test files found beside this one`);
+        assert.ok(wrapped.length * 2 > files.length,
+            `only ${wrapped.length} of ${files.length} test files name the wrapper — the scan is not reading them`);
     });
 });

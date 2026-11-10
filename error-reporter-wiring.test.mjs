@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * error-reporter-wiring.test.mjs — the reporter's WIRING, which error-reporter.test.mjs cannot see.
- * Run: node --experimental-test-module-mocks --test error-reporter-wiring.test.mjs   (part of test:unit)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs error-reporter-wiring.test.mjs   (part of test:unit)
  *
  * error-reporter.test.mjs pins the noise FILTERS (`shouldReport`, in client-errors.js) from both
  * sides. It never loads error-reporter.js itself — so the module that actually listens for errors,

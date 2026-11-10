@@ -2,7 +2,7 @@
 /**
  * calendar-snapshot.test.mjs — the member's own stored roster (v24.59): every rule that decides
  * whether a copy may be READ, and that a write keeps only what it should.
- * Run with: node --test calendar-snapshot.test.mjs
+ * Run with: node scripts/run-tests.mjs calendar-snapshot.test.mjs
  *
  * The page-level behaviour (painted at once, labelled, never for the PIN, written by a live read) is
  * pinned in e2e/calendar-pin.spec.js; this file covers the refusals one by one, because each is a

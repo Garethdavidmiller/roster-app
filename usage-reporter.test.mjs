@@ -9,7 +9,7 @@
  * (the station PC left on the admin's row) must not take real staff opens out with it, a release
  * reload must not count as a visit, and a rolling count must MOVE to the latest active day.
  *
- * Run: node --experimental-test-module-mocks --test usage-reporter.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs usage-reporter.test.mjs
  */
 import { test, describe, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';

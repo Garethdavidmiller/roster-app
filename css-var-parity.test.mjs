@@ -1,6 +1,6 @@
 /**
  * css-var-parity.test.mjs — every `var(--x)` a page can reach is DEFINED on that page (v23.13).
- * Run: node --test css-var-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs css-var-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── THE BUG THIS EXISTS FOR ────────────────────────────────────────────────────────────────────
  *

@@ -1,6 +1,6 @@
 /**
  * calendar-access.test.mjs — the unlock exchange and the viewer session lifecycle.
- * Run: node --experimental-test-module-mocks --test calendar-access.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-access.test.mjs
  *
  * `calendar-access-core.test.mjs` covers the pure decisions. This file covers the part that talks to
  * the network and to Firebase, because that is where the failure modes are STATEFUL — a half-signed-

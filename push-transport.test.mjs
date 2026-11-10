@@ -1,7 +1,7 @@
 /**
  * push-transport.test.mjs — the two SENDERS, driven for real (v21.85).
  *
- * Run: node --test push-transport.test.mjs   (part of `npm run test:functions`)
+ * Run: node scripts/run-tests.mjs push-transport.test.mjs   (part of `npm run test:functions`)
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

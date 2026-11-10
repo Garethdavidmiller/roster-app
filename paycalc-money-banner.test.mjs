@@ -1,6 +1,6 @@
 /**
  * paycalc-money-banner.test.mjs — a banner may only say "Includes" when the sum is actually in it.
- * Run: node --test paycalc-money-banner.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs paycalc-money-banner.test.mjs   (part of `npm run test:hygiene`)
  *
  * @nodeps-safe — runs on a bare checkout with nothing installed.
  *

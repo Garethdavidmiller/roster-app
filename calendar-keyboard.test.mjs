@@ -2,7 +2,7 @@
 /**
  * calendar-keyboard.test.mjs — the Calendar's keyboard grammar: the roving tabindex, the month jump
  * and the swipe-cooldown guard.
- * Run: node --experimental-test-module-mocks --test calendar-keyboard.test.mjs   (part of test:unit)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-keyboard.test.mjs   (part of test:unit)
  *
  * WHY THIS FILE EXISTS (v24.28 review). module-coverage-parity listed calendar-keyboard.js as
  * "driven by e2e/calendar.spec.js (arrow-key navigation and the hover tooltip)". Half of that was

@@ -1,6 +1,6 @@
 /**
  * links-rotation-parity.test.mjs — the rotation LENGTH is declared once and stated nowhere (v19.98).
- * Run: node --test links-rotation-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-rotation-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────────────────
  *

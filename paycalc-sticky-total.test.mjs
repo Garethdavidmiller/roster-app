@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * paycalc-sticky-total.test.mjs — the bar that keeps the take-home figure on screen.
- * Run: node --test paycalc-sticky-total.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs paycalc-sticky-total.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS FILE EXISTS (v24.28 review). module-coverage-parity counted paycalc-sticky-total.js as
  * "named" only because coordinator-ratchet.test.mjs mentions it in a COMMENT; nothing loaded it. Its

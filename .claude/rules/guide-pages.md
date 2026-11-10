@@ -62,8 +62,10 @@ paths:
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP
   (`script-src 'self'`) blocks them. All guide JS is in external files: `guide-back.js` and
   `guide-print.js` (loaded by every guide), plus `railcard-guide.js`, `rangers-guide.js` and
-  `fip-guide.js` (opens the target country `<details>` on jump/deep-link). **Only `guide-print.js`
-  prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
+  `fip-guide.js` (opens the target country `<details>` on jump/deep-link). `guide-back.js` also
+  measures the sticky header on a guide with no chip bar (the Staff and Pay Calculator guides), so
+  every id in `<main>` lands below it, and re-lands a deep link still landing — `railcard-guide.js`'s
+  rules. **Only `guide-print.js` prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
 - Back buttons link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
   when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and the guide
@@ -83,7 +85,9 @@ not redefine them.
 - **Typeface:** the shared Inter `@font-face` (the same self-hosted `fonts/inter-latin.woff2` the app
   uses — SW-precached, CSP-clean) + the `--font-sans` token. Every guide body uses `var(--font-sans)`
   (railcard/fip/rangers in their own CSS; staff-guide/paycalc-guide via `guide-doc.css`) so the guides
-  render the same brand typeface as the app.
+  render the same brand typeface as the app. Every form control inherits it too
+  (`button, input, select, textarea { font-family: inherit }`), because a control does not inherit
+  the page's font: the FIP country finder's clear ✕ was Arial.
 - **Header:** full-bleed sticky navy `.page-header`, `align-items: center`, `top: 0`, with `←`
   `.btn-back` (left) · title `<h1>` + `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top
   padding `max(14px, env(safe-area-inset-top))` for the iOS notch. **3px gold bottom rule** — the
@@ -98,9 +102,13 @@ not redefine them.
   own `a:hover`, which once turned it amber on navy.
 - **Footer back link:** `.guide-back-link` is ONE recipe for railcard, rangers and FIP — centred,
   44px tall, "← Back to calendar" to `./`, the last element of `<main>`, hidden in print by the
-  shell. Do not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
+  shell — and ONE hover (navy words, gold underline), at (0,2,0) so no page's `a:hover` reaches it. Do
+  not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
 - **Chips:** desktop hover feedback (border-darken + soft shadow, colour-fade only — no transform) on
   the shared `.chip`, so a mouse gets an affordance as well as `:active`.
+- **With no script the chip bar is not sticky** (`@media (scripting: none)`): its `top` is the page
+  script's measurement, and no single fallback fits every header — the chips do nothing without script
+  either.
 - **Print:** `.page-header { position: static; print-color-adjust: exact }`, and `.btn-back`,
   `.btn-pdf`, `.chip-bar`, `.guide-back-link` and `.print-unavailable` are hidden. railcard/fip/rangers
   print the sticky header as their title banner; on staff-guide/paycalc-guide the header is
@@ -157,7 +165,7 @@ code.
 |---|---|---|
 | 0 | `scripts/app-pages.mjs` | a `GUIDE_PAGES` entry — `page-contract-parity.test.mjs` fails on an undeclared page — then `npm run generate:guide-index` (`guide-index-parity.test.mjs` checks it) |
 | 1 | `nav-panel.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** |
-| 2 | `firestore.rules` | analytics counter id, in **two** places (the `hasOnly` allowlist and the per-id int check) |
+| 2 | `firestore.rules` | analytics counter id, in **two** places (the `pvCountIds()` list and the per-id int check) |
 | 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways |
 | 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) |
 | 5 | `sw-asset-check.test.mjs` | asset-list parity, and the `noindex` meta contract |
@@ -193,9 +201,9 @@ this mid-transaction and get the right answer fast?"
 - **£ / ⊘ tokens in the When row.** £ = the discount still applies, subject to a minimum fare. ⊘ = the discount is not available yet. Both symbols are defined in the key strip (with ↳, follows the ticket's own Off-Peak rule) — keep both.
 - **Weekend banner is deliberately simple.** Morning/min-fare limits usually don't apply at weekends — it does NOT say all restrictions lift. Do not broaden it back.
 - **Chiltern-specific callouts** (`rc-chiltern`) are amber banners inside the card — keep them.
-- **Photo-check is a table, not prose.** The `.photo-table` inside check step 3 gives colour-coded rows by card type. Distinguish physical vs digital explicitly.
+- **Photo-check is a table, not prose.** The `.photo-table`, in its own block after the six check steps, gives colour-coded rows by card type. Distinguish physical vs digital explicitly.
 - **Selling essentials live in gotchas.** Minimum-fare mechanic, First Class eligibility per card, season-ticket exceptions. Do not move these to card rows.
-- **Three-layer breakdown for "varies by route" time rules.** Where a card's Mon–Fri cutoff is really a *local shortcut* for a national "morning-peak, off-peak-varies-by-route" rule, the card carries a `.rc-layers` block of three labelled rows instead of a `.rc-chiltern` prose note — `.rc-layer-lbl official` (navy: the national rule) / `local` (amber: Chiltern's directional Off-Peak rule, set out in the "Marylebone mornings" panel — never a clock time) / `check` (red: what the retail system confirms). The page intro teaches the model once, with `.tl-tag` chips. **Applied ONLY to the genuinely-varies cards — Family & Friends and Senior.** Do NOT blanket every card with it: cards whose time IS fixed (Network 10:00, Gold Card 04:30–09:29) keep the simple note, and three layers everywhere would wreck the glanceable one-card scan the guide depends on. This is the durable fix for a local shortcut masquerading as a universal rule.
+- **Three-layer breakdown for "varies by route" time rules.** Where a card's Mon–Fri cutoff is really a *local shortcut* for a national "morning-peak, off-peak-varies-by-route" rule, the card carries a `.rc-layers` block of three labelled rows instead of a `.rc-chiltern` prose note — `.rc-layer-lbl official` (navy: the national rule) / `local` (amber: Chiltern's directional Off-Peak rule, set out in the "Marylebone mornings" panel — never a clock time) / `check` (red: what the retail system confirms). A Chiltern-only rule wears the one `.tl-tag local` chip ("Marylebone"), explained in the source banner and worn by the Marylebone mornings panel; the national and retail-system layers are the cards' `.rc-layer-lbl` labels. **Applied ONLY to the genuinely-varies cards — Family & Friends and Senior.** Do NOT blanket every card with it: cards whose time IS fixed (Network 10:00, Gold Card 04:30–09:29) keep the simple note, and three layers everywhere would wreck the glanceable one-card scan the guide depends on. This is the durable fix for a local shortcut masquerading as a universal rule.
 
 **What to care about:**
 - Factual accuracy per card — verify against nationalrail.co.uk before changing any rule.
@@ -205,7 +213,9 @@ this mid-transaction and get the right answer fast?"
 - Two Together photocard — **confirmed** against the official Two Together T&Cs: a physically printed Two Together Railcard bought at a station is issued with a **separate Two Together Photocard** (carrying both holders' photos) that must be carried and presented alongside the card, and both named holders must travel together. Digital cards have no separate photocard.
 
 **What not to flag as defects:**
-- No JS modules — static page, intentional.
+- No Firebase and no app state — intentional. The page loads `railcard-guide.js` (chip bar, scrollspy,
+  deep-link landing) and the shared `guide-back.js` and `guide-print.js`. `guide-print.js` is a module,
+  and its one import is the self-contained print guard (`print-guard.js`).
 - Sticky header + sticky chip bar eating vertical space on small phones — an accepted trade-off.
 - A–Z order with numeric cards first — intentional.
 
@@ -284,8 +294,10 @@ next reader to re-read a page that already agrees. Two such non-conflicts, kept 
   Senior Railcard: 1/3 off **on Standard**. Other discount cards: Gold Cards: 1/3 off…"*. **"on
   Standard" binds to Senior**; Gold sits in a separate sentence with no class qualifier, and its own
   page says Standard *and* First twice.
-- **Chiltern's "£13 at all times".** Read alone it contradicts RDG's Mon–Fri minimum. Its table's own
-  preamble is *"Restrictions listed below are applicable Monday–Friday (excluding bank holidays)"*.
+- **Chiltern's £13 minimum.** Chiltern's railcard table once read "£13 at all times", which looked like
+  a conflict with RDG's Mon–Fri minimum until its preamble was read: *"Restrictions listed below are
+  applicable Monday–Friday (excluding bank holidays)"*. Re-read on 10 November 2026, the Network row
+  itself now says "Mon-Fri" (`GUIDE_SOURCES.md` → `rc-myb-restrictions`).
 
 ### A correction callout may quote the old wrong wording — if it negates it
 

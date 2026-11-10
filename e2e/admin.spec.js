@@ -2210,10 +2210,12 @@ test('admin: "AL left" in the card header is readable when only a few days remai
     expect(ratio, '"AL left: N" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
 });
 
-// Unticking a day that holds a saved change stages its removal, and the badge beside its date says
-// so in the badge's own colours — which were white on the bright orange, 2.16:1, the one pairing
-// css-tokens.md forbids. The a11y scan never unticks a saved row.
-test('admin: the "Removing" badge on an unticked saved day is readable', async ({ page }) => {
+// Staging a saved change's removal puts "Removing" in the badge beside its date, in the badge's own
+// colours — which were white on the bright orange, 2.16:1, the one pairing css-tokens.md forbids. The
+// a11y scan never stages a removal. Since the owner's 10 Nov 2026 decision a tick on a saved row only
+// selects it; a saved change is removed by selecting its own type again (admin-week-editor.js, the
+// checkbox handler).
+test('admin: the "Removing" badge on a saved day staged for removal is readable', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -2226,7 +2228,7 @@ test('admin: the "Removing" badge on an unticked saved day is readable', async (
     await page.locator('#fieldMember').selectOption('G. Miller');
     const row = page.locator('.week-panel .day-row[data-date="2026-11-12"]');
     await expect(row.locator('.overwrite-badge')).toContainText('Saved');
-    await row.locator('.col-check input').click();
+    await row.locator('.type-pill-btn[data-type="rdw"]').click();
     const badge = row.locator('.overwrite-badge');
     await expect(badge).toContainText('Removing');
     const ratio = await badge.evaluate(async el => {

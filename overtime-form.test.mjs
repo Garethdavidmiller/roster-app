@@ -1,6 +1,6 @@
 /**
  * overtime-form.test.mjs — WHAT THE FORM TELLS A MEMBER ABOUT A SUBMISSION IT CANNOT SEE.
- * Run with: node --experimental-test-module-mocks --test overtime-form.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs overtime-form.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * admin-card-config.test.mjs — what the two range cards on Admin are CONFIGURED to write.
- * Run: node --experimental-test-module-mocks --test admin-card-config.test.mjs   (part of test:unit)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs admin-card-config.test.mjs   (part of test:unit)
  *
  * WHY THIS EXISTS (test audit, 7 Nov 2026). `admin-range-booking.js`'s factory is tested directly,
  * and that is where the coverage exemption for these two wrappers pointed. But the factory writes

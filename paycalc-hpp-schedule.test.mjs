@@ -2,7 +2,7 @@
  * Unit tests for paycalc-hpp-schedule.js — the payslip ↔ tax-year relation for the Holiday Pay
  * Premium (v18.85).
  *
- * Run: node --test paycalc-hpp-schedule.test.mjs   (no mocks — the module is argument-injected)
+ * Run: node scripts/run-tests.mjs paycalc-hpp-schedule.test.mjs   (no mocks — the module is argument-injected)
  *
  * The headline case is the ROUND TRIP against the REAL tax-year table and the REAL period grid:
  * asking "which payslip carries this year's premium?" and then "whose premium does that payslip

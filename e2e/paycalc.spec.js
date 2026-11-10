@@ -272,6 +272,19 @@ test('paycalc: a link to a payday outside the calculator says so, and a covered 
     await expect(note).toBeHidden();
 });
 
+// The 31 Jul 2026 payslip prints its pension as TWO "Smart RPS CR Scheme" lines, £113.90 + £36.84:
+// the 2026/27 rise began three weeks into that period (payslips re-read 10 Nov 2026). The field opens
+// on their total — the table said £147.36, so that payslip's estimate was £3.38 out on pension alone.
+test('paycalc: each payslip around the 2026/27 pension rise opens on the pension printed on it', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    for (const [payday, printed] of [['2026-07-03', '147.36'], ['2026-07-31', '150.74'], ['2026-08-28', '151.86']]) {
+        await page.goto(`/paycalc.html?payday=${payday}`);
+        await expect(page.locator('#pensionAmt'), `the ${payday} payslip`).toHaveValue(printed);
+    }
+});
+
 // ── THE GOLD HIGHLIGHT MEANS "FROM YOUR CALENDAR", AND NOTHING ELSE (whole-app review, Oct 2026) ──
 // The roster snapshot stores 0/0 for every category the calendar had nothing for, and a BLANK
 // minutes box matched it — so every reload painted empty boxes gold and put "📅 Hours from

@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * christmas-leave.test.mjs — CHRISTMAS DAY AND BOXING DAY (v25.37, the owner's rules of 5 Nov 2026).
- * Run: node --test christmas-leave.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs christmas-leave.test.mjs   (part of `npm run test:hygiene`)
  *
  * Organised by what a wrong answer COSTS, because none of these failures is loud:
  *

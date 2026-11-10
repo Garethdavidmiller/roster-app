@@ -1,7 +1,7 @@
 /**
  * Unit tests for the PURE gate in password-force.js — `shouldForcePasswordSet`.
  *
- * Run: node --test password-force.test.mjs   (no mocks — the gate takes plain values)
+ * Run: node scripts/run-tests.mjs password-force.test.mjs   (no mocks — the gate takes plain values)
  *
  * WHY THIS IS THE PART WORTH TESTING. The overlay itself is DOM wiring; the gate is where a mistake
  * has consequences. Each of its four conditions prevents a specific failure that is either invisible

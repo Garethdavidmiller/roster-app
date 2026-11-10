@@ -1,7 +1,7 @@
 /**
  * Unit tests for the overlay.js Android-Back history STACK (_pushOverlayState /
  * _clearOverlayHistory + the popstate listener).
- * Run with: node --test overlay-history.test.mjs
+ * Run with: node scripts/run-tests.mjs overlay-history.test.mjs
  *
  * The existing overlay.test.mjs stubs window.addEventListener as a no-op, so it can't
  * dispatch popstate. This suite installs a capturing harness (records the popstate

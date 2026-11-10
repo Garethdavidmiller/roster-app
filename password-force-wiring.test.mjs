@@ -2,7 +2,7 @@
 /**
  * password-force-wiring.test.mjs — the forced set-password overlay's ENTER key, driven through the
  * real module against a minimal fake DOM.
- * Run: node --experimental-test-module-mocks --test password-force-wiring.test.mjs   (part of test:unit)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs password-force-wiring.test.mjs   (part of test:unit)
  *
  * WHY THIS IS NOT AN E2E. The browser suite's Firebase stub has no signed-in Firebase user by design
  * (`getAuth()` returns `currentUser: null`, which a dozen specs branch on), so every save there fails

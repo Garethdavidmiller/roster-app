@@ -44,8 +44,11 @@
            individually load-bearing and the e2e test's teeth are against removing both. They are
            kept as a pair because which one binds depends on the content, and the content changes. */
         .container > *, .col-main > *, .col-side > * { min-width: 0; }
-        /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
-        .app-header { margin-bottom: -8px; }
+        /* The header is <main>'s sibling (inside it, it was not the banner landmark), so it takes here what
+           the grid gave it: the page's band, 4px above the first card at every width as on Settings, and
+           the hide until sign-in. e2e/pages.spec.js holds all three. */
+        .app-header { max-width: var(--content-max-width); margin: 0 auto 4px; }
+        body:not(.auth-ready) .app-header { display: none; }
         body.auth-ready .container { display: grid; }
         /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
         /* Gap matches the container gap so cards stack with one even rhythm when the
@@ -2201,10 +2204,6 @@
         /* ── Tablet: 768px — single-column with more breathing room ── */
         @media (min-width: 768px) {
             .container { gap: 14px; }
-            /* net gap = 14px - 10px = 4px, the gap under the header on every card page (desktop audit,
-               Nov 2026: this was 0, so Admin, Operations and Links set their first card 10px lower
-               than Pay, Settings, Trains, New link and Overtime). e2e/pages.spec.js measures all eight. */
-            .app-header { margin-bottom: -10px; }
             .col-main, .col-side { gap: 14px; }
 
             .list-toolbar { gap: 10px; }
@@ -2226,16 +2225,15 @@
 
             /* (The bars' band padding is at the foot of this file, after their base rules.) */
 
-            /* Full-width rows spanning both columns */
-            .app-header              { grid-column: 1 / -1; }
             /* Saved Changes now lives inside .col-side (moved there in admin.html v16.72) so it
                stacks under Absence in the sticky right column and fills the right-column void,
                rather than stacking under Change a Shift in the left column. No grid placement
                needed here any more — it's a flex child of col-side. */
 
-            /* Explicit column assignment — prevents auto-placement mis-ordering */
-            .col-main { grid-column: 1; grid-row: 2; }
-            .col-side { grid-column: 2; grid-row: 2; }
+            /* Explicit column assignment — prevents auto-placement mis-ordering. Row 1: the header held it
+               until it left the grid, and an empty first row would still draw its 14px row gap. */
+            .col-main { grid-column: 1; grid-row: 1; }
+            .col-side { grid-column: 2; grid-row: 1; }
 
             /* Column wrappers become flex containers with tighter gap */
             .col-main,
@@ -2252,7 +2250,7 @@
                it: `--member-bar-h` is measured (admin-app.js), and the column's max-height keeps the two
                from parting or overlapping as the page scrolls. */
             .container > .member-context-bar {
-                grid-column: 2; grid-row: 2; align-self: start; position: sticky; top: 20px;
+                grid-column: 2; grid-row: 1; align-self: start; position: sticky; top: 20px;
                 background: white; border: 1px solid var(--border-light); box-shadow: var(--shadow-1);
             }
 

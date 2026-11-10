@@ -1,6 +1,6 @@
 /**
  * admin-range-booking.test.mjs — THE SHARED SAVE PATH BEHIND ANNUAL LEAVE AND ABSENCE.
- * Run with: node --experimental-test-module-mocks --test admin-range-booking.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs admin-range-booking.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

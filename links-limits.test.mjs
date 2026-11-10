@@ -1,6 +1,6 @@
 /**
  * links-limits.test.mjs — the HARD limits (v19.80).
- * Run: node --test links-limits.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-limits.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THE WEIGHTING HERE IS DIFFERENT FROM links-fatigue.test.mjs. That suite guards a panel that
  * reports advisory factors and never passes or fails a design, so its dangerous failure is a design

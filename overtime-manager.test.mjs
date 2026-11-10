@@ -1,6 +1,6 @@
 /**
  * overtime-manager.test.mjs — the reviewer's by-day view, rendered.
- * Run: node --test overtime-manager.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs overtime-manager.test.mjs   (part of `npm run test:hygiene`)
  *
  * `renderWeekDetail` writes one string into a host element, so it is testable against a two-line
  * fake DOM — which is the right level for it, because everything worth checking here is about WHAT

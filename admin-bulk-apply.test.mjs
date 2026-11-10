@@ -1,6 +1,6 @@
 /**
  * admin-bulk-apply.test.mjs — what the week card's bulk Apply waits for, and the words that say so.
- * Run: node --test admin-bulk-apply.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs admin-bulk-apply.test.mjs   (part of `npm run test:hygiene`)
  *
  * No mocks: the rule reads the real `SUNDAY_FORBIDDEN_TYPES` (through `isForbiddenOnSunday`) and the
  * real `isSunday`, so a change to either is a change to what this greys out. The browser half — the

@@ -42,7 +42,7 @@ December lines with
 `python3 -I docs/timetable-dec26/tooling/simplifier.py $IN/sx.xlsx $IN/so.xlsx $IN/su.xlsx $IN/dec.json`;
 `build.py` tells the two outputs apart by their shape.
 
-Then `node --test trains-change.test.mjs trains-stations.test.mjs`. The `trains-data.js` blocks
+Then `node scripts/run-tests.mjs trains-change.test.mjs trains-stations.test.mjs`. The `trains-data.js` blocks
 of the first hold the generated tables to facts checked by hand against the printed books — the departure
 counts (rows, and a real Tuesday-to-Thursday), the 10:36 to Banbury running on to Birmingham, where
 December's 10:36 stops, the weekday grid as the page draws it (`stoppingGrid`), the restricted stops

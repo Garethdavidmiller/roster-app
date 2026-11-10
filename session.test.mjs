@@ -1,7 +1,7 @@
 /**
  * Unit tests for session.js: constants, getSession, saveSession, clearSession,
  * resolveSession/sessionReady, and the Firebase sign-in lifecycle.
- * Run with: node --experimental-test-module-mocks --test session.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs session.test.mjs
  *
  * firebase-client.js is mocked (CDN imports, Firebase Auth).
  * ls.js is backed by an in-memory Map so tests can seed and inspect it.

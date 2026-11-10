@@ -1,6 +1,6 @@
 /**
  * admin-override-store.test.mjs — WHAT ADMIN HAS, AND WHETHER IT REALLY HAS IT.
- * Run with: node --experimental-test-module-mocks --test admin-override-store.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs admin-override-store.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

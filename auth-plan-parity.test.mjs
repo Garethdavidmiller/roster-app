@@ -1,6 +1,6 @@
 /**
  * Track E doc parity — AUTH_PLAN.md ↔ SECURITY_RELEASE_PLAN.md.
- * Run: node --test auth-plan-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs auth-plan-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS FILE EXISTS. Track E is described in two places on purpose: AUTH_PLAN.md is authoritative
  * for DESIGN, SECURITY_RELEASE_PLAN.md for SEQUENCING. Nothing kept the two phase lists in step, and

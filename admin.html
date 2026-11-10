@@ -105,8 +105,8 @@
     </div>
 </div>
 
-<!-- Boot placeholder (v20.80). `.container` is `display:none` until `body.auth-ready`, and the
-     header lives INSIDE it — so until the module graph has loaded and run, this page is a blank
+<!-- Boot placeholder (v20.80). `.container` and the header are `display:none` until
+     `body.auth-ready` — so until the module graph has loaded and run, this page is a blank
      navy screen with nothing on it at all, not even the burger. Measured at 622ms locally on a
      fast disk with no network; on a phone it is seconds. A sibling of `.container`, so it is
      visible in exactly the window `.container` is not. Removed by CSS the moment `auth-ready`
@@ -115,17 +115,20 @@
     <span class="boot-spinner" aria-hidden="true"></span>
     <span class="boot-placeholder-text">Loading…</span>
 </div>
-<main class="container">
 
-    <header class="app-header">
-        <button type="button" class="btn-burger" id="navMenuBtn"
-                aria-label="Open navigation menu" aria-expanded="false">☰</button>
-        <div class="app-header-brand">
-            <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
-            <h1>Marylebone Roster</h1>
-        </div>
-        <span class="badge-page" id="adminBadge"><span class="badge-glyph" aria-hidden="true">📝</span> Admin</span>
-    </header>
+<!-- The header is <main>'s sibling, never inside it: inside, it is not the page's banner landmark
+     (whole-app check, Nov 2026). Its band, its gap and its hide until sign-in are admin.css's. -->
+<header class="app-header">
+    <button type="button" class="btn-burger" id="navMenuBtn"
+            aria-label="Open navigation menu" aria-expanded="false">☰</button>
+    <div class="app-header-brand">
+        <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+        <h1>Marylebone Roster</h1>
+    </div>
+    <span class="badge-page" id="adminBadge"><span class="badge-glyph" aria-hidden="true">📝</span> Admin</span>
+</header>
+
+<main class="container">
 
     <!-- ==================== MEMBER SELECTOR BAR ==================== -->
     <div class="member-context-bar">

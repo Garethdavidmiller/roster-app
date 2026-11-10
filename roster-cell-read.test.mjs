@@ -1,6 +1,6 @@
 /**
  * roster-cell-read.test.mjs — the geometry-first read: the grid places the cell, the model only
- * says what it means. Run: node --test roster-cell-read.test.mjs   (part of `npm run test:functions`)
+ * says what it means. Run: node scripts/run-tests.mjs roster-cell-read.test.mjs   (part of `npm run test:functions`)
  *
  * ROADMAP "Roster import" phase 2. The contract is `.claude/rules/roster-import.md`; the reasoning
  * lives in `functions/roster-prompt.js`'s header, beside the code.

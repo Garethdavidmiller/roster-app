@@ -1,6 +1,6 @@
 /**
  * calendar-notices.test.mjs — WHO A NOTICE IS ADDRESSED TO, AND WHETHER IT ASKS.
- * Run with: node --experimental-test-module-mocks --test calendar-notices.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-notices.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

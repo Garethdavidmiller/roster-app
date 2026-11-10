@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * newlink-config.test.mjs — the new link page's settings, and the one switch that must not be flipped alone.
- * Run: node --test newlink-config.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs newlink-config.test.mjs   (part of `npm run test:hygiene`)
  *
  * `PHASE` is the page's lifecycle switch: 'preview' until v25.59 (the admin and the named previewers, CONFIG.NEWLINK_PREVIEW,
  * S. Silva since v25.33), 'open' since v25.60 (owner, 9 Nov 2026: "send the new links section live for everyone with a cea

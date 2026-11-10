@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * module-coverage-parity.test.mjs — A RUNTIME MODULE THAT NO TEST HAS HEARD OF.
- * Run with: node --test module-coverage-parity.test.mjs
+ * Run with: node scripts/run-tests.mjs module-coverage-parity.test.mjs
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *

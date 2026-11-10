@@ -1,6 +1,6 @@
 /**
  * roster-prompt-parity.test.mjs — the roster-parse PROMPT is code, and nothing was checking it.
- * Run: node --test roster-prompt-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs roster-prompt-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS EXISTS — a staff-reported defect, Jul 2026: "the roster uploader only gets AL right 50%
  * of the time." It was not OCR, and not the parser. In the real PDF a cell's SECOND line holds the

@@ -1,7 +1,7 @@
 /**
  * status-text.test.mjs — the decorative-glyph rule, from both sides.
  *
- * Run: node --test status-text.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs status-text.test.mjs   (part of `npm run test:hygiene`)
  *
  * This is the ONLY thing that can see this module working. The change it makes is invisible to
  * every other kind of test in the repo by construction: rendering is unchanged so the visual

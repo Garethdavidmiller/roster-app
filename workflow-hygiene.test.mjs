@@ -1,6 +1,6 @@
 /**
  * Static hygiene guard for the CI workflows.
- * Run: node --test workflow-hygiene.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs workflow-hygiene.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS FILE EXISTS. `workflow-lint.yml` validates every workflow's YAML and enforces
  * `timeout-minutes` on every job — but it cannot guard its OWN toolchain, and it only runs when

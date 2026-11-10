@@ -1,6 +1,6 @@
 /**
  * calendar-access-core.test.mjs — the Calendar access decision, pinned.
- * Run: node --test calendar-access-core.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs calendar-access-core.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THESE CASES AND NOT A MATRIX. `decideAccess` has two inputs and three outputs, so a full
  * matrix is nine trivially-passing assertions that would all still pass if the function returned

@@ -1,7 +1,7 @@
 /**
  * paycalc-backpay.test.mjs — the back-pay lump sum, ASSEMBLED.
  *
- * Run: node --experimental-test-module-mocks --test paycalc-backpay.test.mjs   (`npm run test:unit`)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-backpay.test.mjs   (`npm run test:unit`)
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

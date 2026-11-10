@@ -67,7 +67,7 @@ do not carry it into the page or the pack.
 |---|---|---|---|
 | **Rotation length** | ✅ **24, main-only** (owner, Aug 2026) — 22 at v19.98, corrected v20.01. Evidence class C | — | — |
 | **Spare weeks** | ✅ **4** — the same as the roster today. A fifth was added v20.01 and reverted v20.02 once its motivating FF11 finding proved to be an optimiser bug (owner) | — | — |
-| **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST** — `canSoftDelete` refuses the last LIVE design, so binning them all requires one to exist, and that is the order the work wants anyway | Before a proposal is frozen | **Gareth** — the clicks |
+| **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST**, because that is the order the work wants (until Nov 2026 `canSoftDelete` refused the last live design; it was retired, and binning the last one now opens a shortlisted proposal) | Before a proposal is frozen | **Gareth** — the clicks |
 | Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
 | Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
 | Operating-window setting | ✅ Shipped v19.54 | — | — |
@@ -328,8 +328,14 @@ pattern scores, and Nathan will inevitably ask. Measured by running `runDesignCh
 
 | Cycle | Lines | Longest worked stretch | FF11 — longest run between 48h breaks | Short turnarounds (<12h) | Weekends off |
 |-------|-------|------------------------|----------------------------------------|--------------------------|--------------|
-| **Main — the comparator** | 20 | **9 days** | **12 shifts** — clear | **0** | 4/20 (20%) |
-| Bilingual — context only | 8 | **8 days** | **15 shifts** — over | **0** | 0/8 |
+| **Main — the comparator** | 20 | **9 days** | **13 shifts** — clear, exactly at the threshold | **0** | 4/20 (20%) |
+| Bilingual — context only | 8 | **9 days** | **15 shifts** — over | **0** | 0/8 |
+
+**Re-measured on 10 November 2026.** Since v25.03 a spare week's four duties come from Monday to
+Saturday, and its Sunday can be worked as overtime on top. That adds one shift to the worst case: the
+main cycle's FF11 run went from 12 to 13, and the bilingual stretch from 8 days to 9. FF11 counts
+"more than 13", so the main cycle still does not feature it, but it now sits exactly at the
+threshold. The workspace's own baseline line is computed live, so it already says 13.
 
 **The MAIN row is the comparator, and since v19.98 it is the only one.** The 22-line design *(28 Sep 2026: 24 lines since v20.01)* replaces
 the main 20-line cycle and does not take on the bilingual roster's work, so a bilingual figure is no
@@ -354,22 +360,23 @@ oversight.
 > a breach that does not exist, on the roster people are working right now. Anyone who knows the
 > real link would have discounted the row — and the next design that genuinely does go past 13
 > would have been hidden by that discount. Both figures above are now the WORST CASE over every
-> placement of each spare week's four duties, which is the number that can be defended in the room.
+> placement of each spare week's four duties (and, since v25.03, its Sunday worked on top), which is
+> the number that can be defended in the room.
 
 **Those first two columns are DIFFERENT measures, and the corrected figures make the gap wider,
 not narrower.** A single rest day is not counted as a 48h break, so it does not reset the FF11 count — the
-main cycle's 9-day worked stretch sits inside a 12-shift FF11 run, and the bilingual's 8-day
+main cycle's 9-day worked stretch sits inside a 13-shift FF11 run, and the bilingual's 9-day
 stretch inside a 15-shift one. Quote the **FF11 column** when the subject is FF11; that is the one
 being read against the guidance. Quote the worked-stretch column when the subject is consecutive
 days on duty.
 
 Two things fall out of that, and both matter more than anything else in this document:
 
-1. **The BILINGUAL cycle exceeds FF11; the main cycle does not.** 15 shifts against 12. That is a
+1. **The BILINGUAL cycle exceeds FF11; the main cycle does not.** 15 shifts against 13. That is a
    different statement from the one this document carried until v19.79 ("both cycles, at 15 shifts
    each"), and a more useful one: it names where the problem actually is. A standby day IS a duty
    and counts, but a spare WEEK is four of them, not seven. Read any FF11 finding in a proposal
-   against 12 for main and 15 for bilingual, never against zero.
+   against 13 for main and 15 for bilingual, never against zero.
    **The bilingual 15 is a worst case with a structural cause worth knowing:** its two spare weeks
    are lines 1 and 8 of 8, so they wrap into each other, and a spare week's three rest days need
    not be adjacent — so in the worst arrangement neither week supplies a 48h break while both still
@@ -381,9 +388,11 @@ Two things fall out of that, and both matter more than anything else in this doc
    something.
 
 **A caution about how that was measured, which the v19.98 change makes moot and worth keeping
-anyway.** Splicing the 20 main lines and the 8 bilingual lines into one 28-line sequence returns a
-longest stretch of **19** — an artefact of joining two unrelated rotations end to end, not a property
-of either. The numbers above are per real cycle. The tool will happily compute a stretch across
+anyway.** Splicing the 20 main lines and the 8 bilingual lines into one 28-line sequence returned a
+longest stretch of **19** when this was written — an artefact of joining two unrelated rotations end
+to end, not a property of either. (Re-measured on 10 November 2026, the same splice gives 9: these
+two cycles no longer show the artefact, and the rule does not depend on them.) The numbers above are
+per real cycle. The tool will happily compute a stretch across
 however many lines it is given, so a design's figures only mean something once those lines genuinely
 are one rotation. The 22-line design *(28 Sep 2026: 24 lines since v20.01)* is one rotation by construction; the point survives as the
 general rule.

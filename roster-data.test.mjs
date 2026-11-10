@@ -1,6 +1,6 @@
 /**
  * Unit tests for roster-data.js utility functions.
- * Run with: node --test roster-data.test.mjs
+ * Run with: node scripts/run-tests.mjs roster-data.test.mjs
  *
  * Uses Node's built-in test runner (no dependencies required).
  * Covers: bank holidays, Easter, paydays, cutoffs, AL entitlement, validation, the START-DATE
@@ -1880,7 +1880,12 @@ describe('every mid-year joiner says what their leave should be', () => {
 // every comment in the file, whichever line its name is on. A failure names line numbers only, so the
 // text it caught is not repeated into a CI log.
 test('the member table\'s comments say nothing about anybody\'s absence or health', () => {
-    const PERSONAL = /\babsen(ce|ces|t)\b|\bsick|\billness|\binjur|\bmedical|\bhealth|maternity|paternity|bereave|compassionate|pregnan|disabilit|\bGDPR\b|🪑|🤒/i;
+    // The second line catches what implies an absence without naming one: "dated from her return"
+    // survived the first version of this test beside a named row (found 10 Nov 2026).
+    const PERSONAL = new RegExp([
+        /\babsen(ce|ces|t)\b|\bsick|\billness|\binjur|\bmedical|\bhealth|maternity|paternity|bereave|compassionate|pregnan|disabilit|\bGDPR\b|🪑|🤒/.source,
+        /\b(her|his|their) return\b|\breturn(s|ed|ing)? to work\b|\bback (at|to) work\b|\boff work\b|\bwhile (she|he|they) (is|are|was|were) away\b/.source,
+    ].join('|'), 'i');
     const lines = readFileSync(new URL('./roster-member-data.js', import.meta.url), 'utf8').split('\n');
     const hits = lines
         .map((line, i) => ({ at: i + 1, comment: line.includes('//') ? line.slice(line.indexOf('//')) : '' }))

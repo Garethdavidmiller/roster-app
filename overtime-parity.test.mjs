@@ -1,6 +1,6 @@
 /**
  * overtime-parity.test.mjs — the client and the server must agree about a submission's history.
- * Run: node --test overtime-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs overtime-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * `deriveHistory` exists TWICE: in `functions/overtime-core.js` (CommonJS, for the endpoints) and in
  * `overtime-format.js` (ESM, for the Manager view). Cloud Functions cannot import a browser module,

@@ -1,6 +1,6 @@
 /**
  * uk-english-parity.test.mjs — the app speaks UK English (owner, 3 Nov 2026).
- * Run: node --test uk-english-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs uk-english-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS IS A GATE AND NOT JUST A CONVENTION ────────────────────────────────────────────────
  *

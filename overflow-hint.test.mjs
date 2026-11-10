@@ -1,6 +1,6 @@
 /**
  * overflow-hint.test.mjs — the "swipe the table" line shows only while its table really scrolls.
- * Run: node --test overflow-hint.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs overflow-hint.test.mjs   (part of `npm run test:hygiene`)
  *
  * The rule and its watch, with the browser's two collaborators stood in for: a ResizeObserver that
  * RECORDS what it is given and fires when the test says the size changed, and a frame queue the test

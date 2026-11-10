@@ -1,6 +1,6 @@
 /**
  * leave-year.test.mjs — which year's allowance a January leave day comes out of (v25.18).
- * Run: node --test leave-year.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs leave-year.test.mjs   (part of `npm run test:hygiene`)
  *
  * Organised by what a wrong answer COSTS. Reading a stored year the rules would never accept moves a
  * day of leave between two people's-worth of figures on the strength of a malformed record; dropping

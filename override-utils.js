@@ -69,7 +69,8 @@ export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
  * over `rdw`. Only its TYPE survives leave, so the base roster is the witness: the leave paths pass it.
  *
  * @param {{type?:string, value?:string}|null|undefined} ov
- * @param {string} [baseShift] the day's base shift; without one (display, the roster review) both count
+ * @param {string} [baseShift] the day's base shift; without one (display suppression, `contractEvidence`,
+ *        the swap question in al-swapped-days.js) both count. The leave paths and the roster review pass it
  * @returns {boolean|null} true/false, or null when `ov` carries no usable information — the caller
  *          must then fall back to the base roster rather than treat "unknown" as "no".
  */

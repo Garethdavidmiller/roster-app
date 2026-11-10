@@ -194,8 +194,8 @@ that the pay-maths regression checks against live in `test-fixtures/payslip-actu
 **gitignored** (`*.local.js`), so only the owner's checkout holds them.
 
 **Why a gitignore and not an ignore list.** The app has TWO live origins. `firebase.json`'s
-`test-fixtures/**` exclusion governs Firebase Hosting; the GitHub Pages staff mirror serves the whole
-repository root from `main`, with no config file that could exclude anything (measured: a fixture
+`test-fixtures/**` exclusion governs Firebase Hosting; the GitHub Pages staff mirror serves every
+committed file but the hidden ones such as `.claude/`, and reads no ignore list (measured: a fixture
 there returned `200`). An exclusion list expresses a decision for an origin that reads it, and the
 mirror does not read one. Keeping the bytes out of the repository is the only rule BOTH origins obey.
 `sw-asset-check.test.mjs` guards the `.gitignore` rule itself, because a deleted line there re-opens
