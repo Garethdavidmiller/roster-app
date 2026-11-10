@@ -1533,9 +1533,14 @@ button.lightbox-bug-link {
    right — until the login overlay OPENS one. The sign-in grade/name pickers then rendered BEHIND
    the card that opened them: the rows were painted, `elementFromPoint` at a row's centre returned
    `.login-app-name`, and the member could see names they could not tap.
-   Nothing else lives between 9000 and `--z-splash` (9999), so raising the sheet costs no other
-   surface. Caught by the e2e that clicks a real row rather than by the three tests that only read
-   the trigger's label — the label was right the whole time. */
+   No other FIXED layer lives between 9000 and `--z-splash` (9999), so raising the sheet costs no
+   other surface. Caught by the e2e that clicks a real row rather than by the three tests that only
+   read the trigger's label — the label was right the whole time.
+   ONE THING ENTERS THAT RANGE AT RUN TIME, ON PURPOSE: a confirm dialog opened over a layer higher
+   than its own — a notification's question arriving while this sheet or the sign-in card is up
+   (sw-register.js) — is lifted one above the highest layer on screen (overlay.js → `_openDialog`).
+   The newest overlay holds the keyboard, so it must also paint on top, or Enter answers a question
+   nobody can see. */
 .picker-sheet-overlay { z-index: var(--z-picker); }
 /* A SHEET WITH A SEARCH BOX SITS AT THE TOP OF THE SCREEN (iPhone audit, 7 Nov 2026). Centred, the
    panel re-centred on every keystroke that shortened the list, so the box and its matches slid DOWN
