@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     OBJECTIVES, GENTLE_THRESHOLD_MINUTES, DEFAULT_BLOCK_TARGET, lineStartProfile, weekStep,
     breakLength, boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
-    blockRuns, blockExcess, spareSpread, longestRunFor, runExcess,
+    blockRuns, longestBlockOf, blockExcess, spareSpread, longestRunFor, runExcess,
 } from './links-adjacency.js';
 import { generatePatterns, generateLink, runDesignChecks, ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
 import { buildRosterTargets } from './links-seed.js';
@@ -150,6 +150,57 @@ describe('blockRuns — how many weeks in a row on much the same shift', () => {
 
     test('a whole rotation inside one band is ONE block, not a partition artefact', () => {
         assert.deepEqual(runs(['06:00-14:00', '06:30-14:30', '07:00-15:00', '07:30-15:30']), [4]);
+        const p = rota(['06:00-14:00', '06:30-14:30', '07:00-15:00', '07:30-15:30']);
+        assert.equal(longestBlockOf(p, Object.keys(p)), 4);
+    });
+
+    // ── THE REPORTED FIGURE IS A PROPERTY OF THE CIRCLE (whole-app review, Nov 2026) ──────────────
+    // `blockRuns` walks from the first step over two hours in the order it is given, so where the
+    // walk starts decides the partition. The figure a designer is told — `longestBlock`, on the
+    // generator's status line — asks from every line instead.
+    test('renumbering the rotation cannot move the longest block', () => {
+        // Weeks starting 06:20, 08:30, 07:15, 09:30: blocks of 1 and 3 numbered this way, 1, 1 and 2
+        // numbered from the 09:30 line, by the old reading. Lines 2–4 sit within 2h of 08:30 either way.
+        const times = ['06:20-14:20', '08:30-17:00', '07:15-15:45', '09:30-18:00'];
+        for (let s = 0; s < times.length; s++) {
+            const p = rota([...times.slice(s), ...times.slice(0, s)]);
+            assert.equal(scoreOrder(p, Object.keys(p)).longestBlock, 3, `numbered from line ${s + 1}`);
+        }
+        // …and on seeded random rotations, every cyclic renumbering gives one figure.
+        let seed = 26;
+        const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+        const T = ['06:20-14:20', '07:15-15:45', '08:30-17:00', '09:30-18:00', '11:00-19:30', '13:30-22:00', '15:25-23:55', 'SP'];
+        for (let i = 0; i < 60; i++) {
+            const base = Array.from({ length: 12 }, () => T[Math.floor(rnd() * T.length)]);
+            const seen = new Set();
+            for (let s = 0; s < base.length; s++) {
+                const p = rota([...base.slice(s), ...base.slice(0, s)]);
+                seen.add(scoreOrder(p, Object.keys(p)).longestBlock);
+            }
+            assert.equal(seen.size, 1, `${base.join(' ')} reads ${[...seen].join(' or ')}`);
+        }
+    });
+
+    test('a gradual drift is measured as the stretches it holds, not as one block', () => {
+        // 06:00 → 12:00 → 06:00 in 90-minute steps: no single step is over two hours, so the
+        // optimiser's walk has no boundary to start at. The longest stretch within 2h of its own
+        // first week is the four around the peak: 10:30, 12:00, 10:30, 09:00.
+        const p = rota(['06:00-14:00', '07:30-15:30', '09:00-17:00', '10:30-18:30', '12:00-20:00',
+            '10:30-18:30', '09:00-17:00', '07:30-15:30']);
+        assert.equal(longestBlockOf(p, Object.keys(p)), 4);
+        assert.equal(scoreOrder(p, Object.keys(p)).longestBlock, 4);
+    });
+
+    test('the figure counts a block the optimiser\'s partition cut in two', () => {
+        // A stretch can start at a line that follows its predecessor by less than two hours, so the
+        // partition never starts a block there: 15:20, 15:25, then 13:50, 13:10, 13:30, 15:15 — the
+        // last four are within 2h of 13:50, the first three of 15:20. Generated designs do this
+        // (the default, every switch on, at attempt 1).
+        const p = rota(['15:20-23:50', '15:25-23:55', '13:50-22:20', '13:10-21:40', '13:30-22:00',
+            '15:15-23:45', '06:20-14:20', '06:30-14:30']);
+        const k = Object.keys(p);
+        assert.ok(Math.max(...blockRuns(p, k)) < 4, 'premise: the partition does not see four in a row');
+        assert.equal(scoreOrder(p, k).longestBlock, 4);
     });
 
     test('the excess is summed over every over-long block, not just the worst', () => {

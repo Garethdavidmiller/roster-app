@@ -189,19 +189,30 @@ export function boundaryRest(a, b) {
  * genuine interruption, but it does not change what you go back to the week after, and treating it
  * as a break would let four spare weeks hide a 20-week block behind a reported maximum of 4. That is
  * the flattering reading, and it is the one this workspace keeps having to refuse.
+ *
+ * THIS IS THE OPTIMISER'S PARTITION, NOT THE REPORTED FIGURE (whole-app review, Nov 2026). An
+ * anchored walk round a circle partitions it differently depending on where it starts, and this one
+ * starts at the first step over `span` in the order it is given: weeks starting 06:20, 08:30, 07:15,
+ * 09:30 read as blocks of 1 and 3 in that order and 1, 1 and 2 from the 09:30 line. With no step over
+ * `span` at all there is nowhere to start, and the whole rotation comes back as one block — so a
+ * gradual drift is charged as one long block here, although it is not one (the paragraph above). It
+ * is kept as it is because `variety` charges its excess and the first press of Generate is canonical:
+ * taking the worst partition over every starting line instead was measured (Nov 2026) to change the
+ * shipped default design at attempt 0, and changing that is the owner's decision, not a tidy-up. The
+ * figure a designer is TOLD is `longestBlockOf`, which asks from every line, so renumbering the
+ * rotation cannot move it.
  * @param {Record<string, any>} patterns
  * @param {string[]} order
  * @param {number} [span]
- * @returns {number[]} block lengths, in order
+ * @returns {number[]} block lengths, in order from the first boundary
  */
 export function blockRuns(patterns, order, span = GENTLE_THRESHOLD_MINUTES) {
     const prof = order.map(k => lineStartProfile(patterns[k]));
     const idx = prof.map((v, i) => (v === null ? -1 : i)).filter(i => i >= 0);
     if (idx.length < 2) return idx.length ? [1] : [];
 
-    // Start the walk at a real boundary so the cyclic partition is canonical rather than an artefact
-    // of starting at line 1. If every line is within span of its predecessor there is no boundary,
-    // and the honest answer is one block covering the whole rotation.
+    // The walk starts at the first step over `span` in this order; with none, the whole rotation is
+    // one block (see the header for why that is kept, and what reports the real figure).
     const n = idx.length;
     let start = -1;
     for (let k = 0; k < n; k++) {
@@ -221,6 +232,29 @@ export function blockRuns(patterns, order, span = GENTLE_THRESHOLD_MINUTES) {
     }
     runs.push(len);
     return runs;
+}
+
+/**
+ * The longest BLOCK, as a property of the circle: the longest stretch of consecutive lines whose
+ * working day stays within `span` of the stretch's first week, asked from EVERY line in turn and
+ * capped at the rotation. Renumbering the rotation cannot change it, and a gradual drift is measured
+ * as the stretches it really holds rather than as one block. Spare lines are transparent, as in
+ * `blockRuns`. This is the figure the generator's status line names.
+ * @param {Record<string, any>} patterns
+ * @param {string[]} order
+ * @param {number} [span]
+ * @returns {number}
+ */
+export function longestBlockOf(patterns, order, span = GENTLE_THRESHOLD_MINUTES) {
+    const prof = /** @type {number[]} */ (order.map(k => lineStartProfile(patterns[k])).filter(v => v !== null));
+    const n = prof.length;
+    let best = 0;
+    for (let s = 0; s < n; s++) {
+        let len = 1;
+        while (len < n && Math.abs(prof[(s + len) % n] - prof[s]) <= span) len++;
+        if (len > best) best = len;
+    }
+    return best;
 }
 
 /** Weeks beyond `target` across every over-long block — a smooth gradient, unlike the bare maximum. */
@@ -346,9 +380,11 @@ export function scoreOrder(patterns, order, opts = {}) {
     const abs = steps.map(Math.abs);
     const spare = spareSpread(patterns, order);
     return {
-        // How long you stay on much the same shift. The live roster's longest is 3.
+        // `blocks` is the optimiser's partition (`variety` charges its excess); `longestBlock` is the
+        // reported figure, asked from every line so that renumbering cannot move it. They can differ:
+        // see `blockRuns`. How long you stay on much the same shift — the live roster's longest is 3.
         blocks: runs,
-        longestBlock: runs.length ? Math.max(...runs) : 0,
+        longestBlock: longestBlockOf(patterns, order, GENTLE_THRESHOLD_MINUTES),
         // Gentle: mean absolute move, and how many weeks move more than the threshold.
         gentleMean: abs.length ? Math.round(abs.reduce((a, b) => a + b, 0) / abs.length) : 0,
         gentleOver: abs.filter(v => v > GENTLE_THRESHOLD_MINUTES).length,
