@@ -65,8 +65,10 @@ claim('no two closing weeks side by side on any of the three, cover weeks aside;
 claim('all three keep today’s leave; on Short Run four weeks off take a day more, and 14 days buy two fewer at best', C.every(c => +c.f.leaveFour === +TC.f.leaveFour && +c.f.leaveBest === +TC.f.leaveBest)
   && +SRf.leaveFour === +TC.f.leaveFour + 1 && +SRf.leaveBest === +TC.f.leaveBest - 2);
 const oneOf = f => +String(f.oneTurn).split(' of ')[0];
-claim('Level Crossing and Middle Ground: 18 of 21 weeks on one shift time, as Short Run; Balanced V6 7, its runs of earlies or of lates three weeks at most',
-  oneOf(LC.f) === 18 && oneOf(MG.f) === 18 && oneOf(SRf) === 18 && oneOf(BV.f) === 7 && +BV.f.block === 3 && C.every(c => /^\d+ of 21$/.test(c.f.oneTurn)));
+// THE RUNS WITH THEIR COVER WEEK (the bug check, 9 Nov 2026): "three weeks at most" alone was the figure cover weeks aside,
+// beside a table cell reading "3 (up to 5)" — the line now says both, as the COSTS line below does
+claim('Level Crossing and Middle Ground: 18 of 21 weeks on one shift time, as Short Run; Balanced V6 7, its runs of earlies or of lates three weeks at most, or five if a cover week falls badly',
+  oneOf(LC.f) === 18 && oneOf(MG.f) === 18 && oneOf(SRf) === 18 && oneOf(BV.f) === 7 && +BV.f.block === 3 && +BV.f.blockUpTo === 5 && C.every(c => /^\d+ of 21$/.test(c.f.oneTurn)));
 const keeps1345 = p => MS.slice(0, 5).every(d => Object.values(p).some(r => timed(r[d]) && r[d].endsWith('-13:45')));
 claim('all three keep a 13:45 every weekday; Short Run has no 13:35 or 13:45', C.every(c => keeps1345(c.p)) && monSatDuties(SRp).every(s => !/-13:(35|45)$/.test(s)) && +SRf.shortYear === 0);
 // THE 22:30 OFFICE ON ALL THREE (6 Nov 2026): two Saturday ticket-office lates, 14:30–22:30, where today's finish at 22:00
@@ -76,7 +78,7 @@ const CHANGES = [
   'The shortlist is new: Balanced V6, Level Crossing and Middle Ground. Short Run is no longer on it.',
   'All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. On Short Run three closing weeks fall together.',
   'All three keep today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Short Run four weeks off take 15, and 14 days buy 28 at best.',
-  'Level Crossing and Middle Ground keep 18 of 21 weeks on one shift time, as Short Run does. Balanced V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most.',
+  'Level Crossing and Middle Ground keep 18 of 21 weeks on one shift time, as Short Run does. Balanced V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most, or five if a cover week falls badly.',
   // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 12 or 20 a year
   'All three keep a shift finishing at 13:45 on every weekday of the rota. Short Run has none.',
   'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10.',
@@ -92,12 +94,18 @@ claim('better than today on all three', weekends.every(w => w > +TC.f.weekendsYe
 // EVERY CLOSER SHORTER, BY ITS LONGEST (8 Nov 2026): Balanced V6's Saturday has two, and its 8h 55m is 15 minutes under today's 9h 10m
 const cuts = C.flatMap(c => ['closerWk', 'closerSat', 'closerSun'].map(k => Hmax(TC.f[k]) - Hmax(c.f[k]))), cutLo = Math.min(...cuts);
 claim('every closing shift 15 minutes to an hour shorter', cutLo === 15 && Math.max(...cuts) === 60);
+// …BUT A BADLY PLACED COVER WEEK ON BALANCED V6 MAKES ONE DAY MORE IN A ROW THAN TODAY'S WORST (the bug check, 9 Nov 2026).
+// The sheet's "Whoever you are" says so; the page said only "cover weeks aside", which is kindest to the one design it is true
+// of. The rest line is the set shifts' too, so it says so as the days-in-a-row line does: nothing gives a cover week's rest
+const worstRun = c => +(/up to (\d+)/.exec(c.f.run)?.[1] ?? first(c.f.run));
+claim('if a cover week falls badly, Balanced V6 one day more in a row than today’s worst; the other two fewer than today’s',
+  worstRun(BV) === worstRun(TC) + 1 && [LC, MG].every(c => worstRun(c) < worstRun(TC)));
 const GAINS = [
   `The same ${hours.replace('h', '-hour')} week, so the same basic pay.`,
   `${span(weekends)} full weekends off a year (today ${TC.f.weekendsYear}).`,
-  `At most ${run} days in a row, cover weeks aside (today ${first(TC.f.run)}).`,
+  `At most ${run} days in a row, cover weeks aside (today ${first(TC.f.run)}). If a cover week falls badly, Balanced V6 can make ${worstRun(BV)} in a row, one more than today’s worst.`,
   `Every closing shift ${cutLo} minutes to an hour shorter.`,
-  `At least ${hm(restLo)} between shifts (today ${hm(H(TC.f.rest))}).`,
+  `At least ${hm(restLo)} between shifts, cover weeks aside (today ${hm(H(TC.f.rest))}).`,
   `No avoidable fatigue warnings on the set shifts (today ${first(TC.f.ff)}).`,
 ].map(t);
 const late23 = shared('finishes at 23:00 or later', c => +c.f.late23);   // the leave is not a cost on any of the three since 8 Nov 2026 (CHANGES says so)
@@ -150,11 +158,15 @@ const NOTES = [
   'One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.',
   `Pounds are gross, before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.`,
   'A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.',
-  'Bold green marks the clear best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year.',
+  // "THE BEST", NOT "THE CLEAR BEST" (the bug check, 9 Nov 2026): isBest marks the best however small the lead — 8h 06m beside
+  // 8h 07m is marked — so "clear" promised a margin the marks do not keep. The sheet's key says the same since v25.61. AND THE
+  // SUNDAY ROWS SAY WHY THEY ARE UNMARKED (owner: "Fix"), with the sheet's own sentence: what-it-means-data.mjs asserts it
+  'Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.',
   '“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail.',
 ].map(t);
 claim('the swap rows are left unranked, as the notes say', GROUPS[2].rows.every(r => !r.better));
 claim('the no-overtime rows are left unranked, as the notes say', GROUPS.find(g => /no overtime at all/.test(g.who)).rows.every(r => !r.better));
+claim('the Sunday rows are left unranked, as the notes say', GROUPS.find(g => /share of Sundays/.test(g.who)).rows.every(r => !r.better));
 
 // ── THE FULL PACK — what a colleague is handed, nothing more ──────────────────────────────────────────────────────────
 // Not the shortlist sheet or the What it means sheet, whose comparison this page already is, and not the managers' decks.
@@ -204,7 +216,7 @@ const src = `// @ts-check
  * PUBLIC, like every file in this repository: it holds the proposals' published figures and nothing about any person.
  */
 
-/** @typedef {{ text: string, best: boolean }} Cell  one figure; \`best\`: the clear best of the three for that person */
+/** @typedef {{ text: string, best: boolean }} Cell  one figure; \`best\`: the best of the three for that person, however small the lead */
 /** @typedef {{ label: string, cells: Cell[] }} Row  cells in COLUMNS order */
 /** @typedef {{ id: string, icon: string, chip: string, who: string, gist: string, rows: Row[] }} Persona */
 /** @typedef {{ design: string|null, label: string, path: string, pages: number }} PackFile  path is under docs/links-26/ */
