@@ -2394,6 +2394,30 @@ test('operations: an entered RDW is written as RDW, not as an ordinary shift', a
     expect(written[0].value).toBe('09:00-17:00');
 });
 
+// The summary is counted from the Save's own writes now (whole-app fix, Nov 2026), and the entry
+// control is the one that knows an unreadable cell was ANSWERED with nothing to record — it is handed
+// to the count. Without it, "Rest day — leave it" went on being reported as a cell nobody could read.
+test('operations: leave entered on a rest day and answered "Rest day" is an answer, not an unread cell', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    const me = teamMembers.find(m => m.name === 'G. Miller');
+    const base = (/** @type {string} */ d) => getBaseShift(me, new Date(d + 'T12:00:00'));
+    const rest = ROSTER_REVIEW_DATES.slice(1).find(d => base(d) === 'RD');
+    test.skip(!rest, 'G. Miller has no weekday rest day in the fixture week');
+    const shifts = Object.fromEntries(ROSTER_REVIEW_DATES.map(d => [d, base(d)]));
+    shifts[/** @type {string} */ (rest)] = 'UNKNOWN|SEE CEM';
+    await openRosterReview(page, { weekEnding: '2026-08-08', rosterType: 'cea', dates: ROSTER_REVIEW_DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {}, geometry: { status: 'complete' },
+        parsed: [{ memberName: 'G. Miller', shifts }] }, { noSavedEntries: true });
+    const outcome = page.locator('#rosterOutcome');
+    await expect(outcome).toContainText("1 cell couldn't be read");
+    const row = page.locator('.roster-change-row', { hasText: 'SEE CEM' });
+    await row.locator('.roster-choice-btn--enter').click();
+    await row.locator('.roster-entry-pill', { hasText: /^AL$/ }).click();
+    await row.locator('.roster-entry-swap-btn[data-entry-swap="no"]').click();
+    await expect(row.locator('.roster-act')).toHaveText('Not recorded');
+    await expect(outcome).not.toContainText("couldn't be read");
+});
+
 test('operations: the entry control never offers a type Sunday forbids', async ({ page }) => {
     // Sunday is uncontracted, so AL, Absent and a plain Shift may never be written to one — six
     // numbered enforcement layers say so, and this control consults that list rather than keeping
