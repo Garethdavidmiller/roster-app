@@ -130,7 +130,11 @@ jobs:
     # the previous version with every test green. Nothing failed; the hourly currency check was
     # the only thing that noticed. A timeout here is a stuck-job guard, not a performance budget,
     # so it is set at about twice today's run to leave room for the suite to keep growing.
-    timeout-minutes: 40
+    # 80, not 40 (10 Nov 2026), by that same rule: the whole-app check's browser tests took v25.68's
+    # deploy to 38m24s of its 40 (smoke 35m18s), and v25.69 queued behind it with more. Running the
+    # two Chrome projects as parallel jobs, as e2e.yml's smoke does, would halve the run; until then
+    # the limit follows the run.
+    timeout-minutes: 80
     permissions:
       contents: read
       actions: read     # the re-run check below lists this workflow's runs
@@ -181,7 +185,7 @@ jobs:
       # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
       # the smoke job in e2e.yml. The apt libraries, which the cache cannot hold, install on every run
       # with a time limit of their own (reason in the same place): a stalled mirror here would otherwise
-      # hold up the release for the job's whole 40 minutes.
+      # hold up the release for the job's whole time limit.
       - name: Restore Playwright Chromium from the cache
         id: pw-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
