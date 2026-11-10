@@ -1285,13 +1285,8 @@ export function init() {
     // container (which survives re-renders), through the same iOS tap guard.
     const _rosterRows = document.getElementById('rosterRows');
     if (_rosterRows) wireIosTap(_rosterRows, e => {
-      const _eTarget = /** @type {Element} */ (e.target);
-      const catBtn = _eTarget.closest('[data-cat]');
-      if (catBtn) { fillCategoryFromRoster(/** @type {HTMLElement} */ (catBtn).dataset.cat || '', autosave); return; }
-      if (_eTarget.closest('[data-action="focus-ot"]')) {
-        const el = document.getElementById('otH');
-        if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-      }
+      const catBtn = /** @type {Element} */ (e.target).closest('[data-cat]');
+      if (catBtn) fillCategoryFromRoster(/** @type {HTMLElement} */ (catBtn).dataset.cat || '', autosave);
     });   // (closes the wireIosTap action)
 
     // An edit makes the whole PAIR the member's (one pair, one author — _suggestIfBlank), so both boxes
@@ -1354,8 +1349,9 @@ export function init() {
       saveSettings();
       persistSetting(['slSkip'])();
     });
-    // pensionAmt: save global default AND lock pension to current period immediately.
-    // autosave() calls calculate() internally, so no separate calculate() call needed.
+    // pensionAmt: the figure belongs to THIS payslip — autosave() stores it in the period's own blob
+    // (pensionToStore: one equal to the period default stores null, so the payslip keeps following
+    // PENSION_STEPS) and calls calculate() itself; saveSettings() keeps the member-level settings.
     /** @type {HTMLElement} */ (document.getElementById('pensionAmt')).addEventListener('input',  () => { saveSettings(); autosave(); });
     // The pension card's two controls are wired by the module that owns the card's rules; the
     // coordinator supplies only how to persist. Keeping the wiring beside `buildPensionFromSelect` /
@@ -1477,9 +1473,10 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('backPayCard')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    // ── LIGHTBOXES — About, Help, Welcome, YTD notice, Decimal converter ──────────
-    // All five lightboxes delegated to paycalc-lightboxes.js; returns the About
-    // open handle so the nav-panel drawer logo can open the same panel.
+    // ── LIGHTBOXES — About, Help, the Year to Date notice, the data-ownership prompt, the developer's
+    // payslip import, and the decimal converter card: paycalc-lightboxes.js, whose header lists them
+    // (the Welcome lightbox was retired at v19.36). Returns the About open handle so the nav-panel
+    // drawer logo can open the same panel.
     const { openAboutLightbox, showYtdNotice } = initPaycalcLightboxes();
 
     // (The service worker is registered at the top of init(), before the sign-in gate. Never a second
