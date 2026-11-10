@@ -218,7 +218,7 @@ function overlayHtml(pageLabel, alternative, notice, about) {
             <label for="loginPassword">Password</label>
             <div class="login-pw-wrap">
                 <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="loginPwHint">
-                <button type="button" id="loginPwToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+                <button type="button" id="loginPwToggle" class="login-pw-toggle" aria-label="Show password">Show</button>
             </div>
             <div id="loginPwHint" class="login-hint">Your surname in lowercase — or the password you’ve set yourself.</div>
         </div>
@@ -377,16 +377,21 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLElement} */ (overlay.querySelector('.login-back'));
 
-    // Show/hide the password. It isn't a secret (the hint literally states the convention), and
-    // typing it blind on a phone is the main cause of the 3-strikes 30s lockout — so a reveal
-    // toggle removes lock-outs with no security cost. Starts masked, so the field still reads as a
-    // normal password field.
+    // Show/hide the password. Typing it blind on a phone is the main cause of the 3-strikes 30s
+    // lockout, so the card offers a reveal. It IS a secret — members choose their own since
+    // FORCE_PASSWORD_SET — so it starts masked, shows only when the member asks, and is masked again
+    // whenever the person in the card changes (`personChanged`, below).
+    // A plain button whose name says what it will do, NOT a toggle (sessions-5): with `aria-pressed`
+    // as well, a screen reader read "Hide password, pressed" — a toggle's label must not change with
+    // its state (WAI-ARIA APG, Button), and this one's visible "Show"/"Hide" has to stay in its name.
+    /** @param {boolean} shown */
+    function setPasswordShown(shown) {
+        passwordInput.type = shown ? 'text' : 'password';
+        pwToggle.textContent = shown ? 'Hide' : 'Show';
+        pwToggle.setAttribute('aria-label', shown ? 'Hide password' : 'Show password');
+    }
     pwToggle?.addEventListener('click', () => {
-        const revealing = passwordInput.type === 'password';
-        passwordInput.type = revealing ? 'text' : 'password';
-        pwToggle.textContent = revealing ? 'Hide' : 'Show';
-        pwToggle.setAttribute('aria-pressed', revealing ? 'true' : 'false');
-        pwToggle.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+        setPasswordShown(passwordInput.type === 'password');
         passwordInput.focus();
     });
 
@@ -526,11 +531,21 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         (namePreset ? passwordInput : gradeRestored ? nameTrigger() : gradeTrigger())?.focus();
     }
 
-    gradeSelect.addEventListener('change', () => {
+    /** The person in the card just changed — a different grade or name — so nothing of the previous
+     *  person's may stay (sessions-3, Nov 2026; until then only the first two went): their error,
+     *  their reset-request line or emphasis (see `resetResetRequest`), their failure streak — the reset
+     *  link is raised from a person's SECOND failure (v18.94), and a newcomer's first mistake was
+     *  being counted as the third — and a password they chose to show, or the next person types
+     *  theirs in clear. */
+    function personChanged() {
         errorEl.classList.remove('visible');
-        // The person in the card just changed, so any "Request sent" line and any stuck-member
-        // emphasis belonged to somebody else — see resetResetRequest for why that matters.
         resetResetRequest();
+        _failCount = 0;
+        setPasswordShown(false);
+    }
+
+    gradeSelect.addEventListener('change', () => {
+        personChanged();
         passwordInput.value = '';
         nameSelect.value = '';
         populateNames(gradeSelect.value);
@@ -541,8 +556,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     const usernameInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginUsername'));
     nameSelect.addEventListener('change', () => { usernameInput.value = nameSelect.value; });
     nameSelect.addEventListener('change', () => {
-        errorEl.classList.remove('visible');
-        resetResetRequest();   // see the grade handler
+        personChanged();
         // Already emptied in the tap for this name (`focusOnPick`, above): anything here now was
         // typed for it, after the pick. Any other change — a test's `selectOption` — clears as before.
         if (_pwClearedFor !== nameSelect.value) passwordInput.value = '';
@@ -550,10 +564,11 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         if (nameSelect.value) passwordInput.focus();
     });
 
-    let _failCount   = 0;
+    let _failCount   = 0;       // this person's credential failures in a row — zeroed by `personChanged`
     let _lockedUntil = 0;
     let _attempting  = false;
     let _signingIn   = false;   // true ONLY while Firebase auth is genuinely in flight (not lockout)
+    let _resetSeq    = 0;       // reset-request sends and changes of person — see the request's click
     // This client-side lockout is a UX measure only — it resets on page reload. Real rate
     // limiting is enforced server-side by Firebase Auth.
 
@@ -583,8 +598,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
      *  Now the link is not tied to any failure: it means "I am the person named above and I cannot get
      *  in", so the dropdown IS the referent and reading it at click time is the correct behaviour
      *  rather than the bug. What must not survive a name change is the *status* text — "Request sent"
-     *  under a different name would tell the new member their request is filed when it is not. */
+     *  under a different name would tell the new member their request is filed when it is not — nor
+     *  the outcome of a send still on its way, which `_resetSeq` drops when it lands. */
     function resetResetRequest() {
+        _resetSeq++;
         if (resetBtn) {
             resetBtn.hidden = false;
             resetBtn.disabled = false;
@@ -607,6 +624,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     resetBtn?.addEventListener('click', async () => {
         const name = nameSelect.value;
         if (!name) { setResetStatus('Choose your name first.', 'fail'); return; }
+        // Is this send still the latest thing to have happened to the control? A change of person
+        // bumps the count too (`resetResetRequest`), so a send that lands after one is not written
+        // under the NEW name (sessions-3): "Request sent" would tell somebody who filed nothing that
+        // they had, with no button left to file theirs. `personChanged` has already put the control
+        // back to rest for them, so a stale outcome touches nothing at all.
+        const seq = ++_resetSeq;
+        const current = () => seq === _resetSeq;
         resetBtn.disabled = true;
         // innerHTML, not textContent: the label carries the span that places its line break, and a
         // textContent round trip would restore it flattened — balanced in the wrong place again.
@@ -620,12 +644,14 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 import('./firebase-client.js'), import('./fetch-timeout.js')]);
             timedOut = (e) => isFetchTimeout(e?.cause);
             await requestPasswordReset(name);
+            if (!current()) return;
             // Replace the control rather than leaving a re-tappable button: the request is recorded
             // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
             resetBtn.hidden = true;
             setResetStatus('Request sent. The admin will reset your password and let you know.', 'ok');
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
+            if (!current()) return;
             // A TIMEOUT is not a failure to send: the server records the request before it answers,
             // so it may well have arrived (Sep 2026 review). Saying "couldn't send" would have the
             // member ask again, and the throttle then drops the repeat without a word.
@@ -635,9 +661,11 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         } finally {
             // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
-            // re-revealed a dead control.
-            resetBtn.disabled = false;
-            resetBtn.innerHTML = original;
+            // re-revealed a dead control. Not for a stale send: the control is no longer its own.
+            if (current()) {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = original;
+            }
         }
     });
 

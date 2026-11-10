@@ -190,7 +190,7 @@ function _mount() {
                 <label for="pwfNew">New password</label>
                 <div class="login-pw-wrap">
                     <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="pwfNewHint">
-                    <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+                    <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password">Show</button>
                 </div>
                 <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters. Anything you'll remember — it replaces your surname everywhere you sign in.</div>
             </div>
@@ -284,12 +284,13 @@ function _show(member) {
             if (e.key === 'Enter' && !saveBtn.disabled && [newEl, confEl, curEl].includes(/** @type {any} */ (e.target))) { e.preventDefault(); saveBtn.click(); }
         });
 
+        // A plain button whose name says what it will do — not a toggle as well, which read "Hide
+        // password, pressed" (sessions-5; the sign-in card's `setPasswordShown` has the reasoning).
         toggle.addEventListener('click', () => {
             const show = newEl.type === 'password';
             newEl.type = confEl.type = show ? 'text' : 'password';
             toggle.textContent = show ? 'Hide' : 'Show';
             toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-            toggle.setAttribute('aria-pressed', String(show));
         });
 
         escBtn.addEventListener('click', close);

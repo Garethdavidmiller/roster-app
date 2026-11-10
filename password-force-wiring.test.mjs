@@ -58,7 +58,10 @@ function el(/** @type {string} */ id) {
         fire(/** @type {string} */ t, /** @type {any} */ ev) { for (const f of on[t] || []) f(ev); },
         click() { e.fire('click', { target: e }); },
         focus() { doc.activeElement = e; },
-        setAttribute() {}, removeAttribute() {}, hasAttribute: () => false, closest: () => null,
+        /** @type {Record<string, string>} */ attrs: {},
+        setAttribute(/** @type {string} */ k, /** @type {any} */ v) { e.attrs[k] = String(v); },
+        removeAttribute(/** @type {string} */ k) { delete e.attrs[k]; },
+        hasAttribute: (/** @type {string} */ k) => k in e.attrs, closest: () => null,
         contains: (/** @type {any} */ x) => !!x && Object.values(ids).includes(x),
         querySelectorAll: () => [],
     };
@@ -131,6 +134,24 @@ test('a load whose identity is not a named member is never compelled — whateve
         assert.equal(r, false, `the overlay compelled a ${status} load`);
         assert.notEqual(doc.activeElement, ids.pwfNew, `the overlay opened for a ${status} load`);
     }
+});
+
+test('Show is a plain button that names what it will do — never a toggle as well (sessions-5)', async () => {
+    // With `aria-pressed` beside the changing name, a screen reader read "Hide password, pressed": a
+    // toggle's label must not change with its state (WAI-ARIA APG, Button). The name has to change
+    // here, because it carries the visible "Show"/"Hide" — so the pressed state is what goes.
+    void initPasswordForce('G. Miller');                       // resolves only when the overlay closes
+    for (let i = 0; i < 40 && doc.activeElement !== ids.pwfNew; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(doc.activeElement, ids.pwfNew, 'premise: the overlay is up');
+    ids.pwfToggle.click();
+    assert.equal(ids.pwfNew.type, 'text');
+    assert.equal(ids.pwfConfirm.type, 'text', 'both new-password fields are shown together');
+    assert.equal(ids.pwfToggle.textContent, 'Hide');
+    assert.equal(ids.pwfToggle.attrs['aria-label'], 'Hide password');
+    assert.equal('aria-pressed' in ids.pwfToggle.attrs, false, 'a changing name AND a pressed state contradict each other');
+    ids.pwfToggle.click();
+    assert.equal(ids.pwfNew.type, 'password');
+    assert.equal(ids.pwfToggle.attrs['aria-label'], 'Show password');
 });
 
 test('a rate-limited save offers the escape — the member cannot proceed by typing', async () => {
