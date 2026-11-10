@@ -163,6 +163,40 @@ describe('the frozen timetable', () => {
         assert.equal(d[6], '2026-09-05');
         assert.deepEqual(d.map(C.isoDayOfWeek), [0, 1, 2, 3, 4, 5, 6]);
     });
+
+    test('a stored window reads back as exactly the timetable that was stored', () => {
+        // `storedMilestones` is how every reader gets an existing window's deadlines (invariant 7);
+        // the instants come back from Firestore as Timestamps, and the rules work in epoch ms.
+        // OFF-RULE on purpose: a timetable today's rule would not derive, so a reader that derives
+        // instead of reading cannot pass (the blind spot contracts-b-1 found in the endpoint suite).
+        const derived = C.deriveMilestones(WEEK_SEP);
+        const m = { ...derived, initialDeadlineAt: derived.initialDeadlineAt + 3_600_000,
+            finalDeadlineAt: derived.finalDeadlineAt - 3_600_000, retentionUntil: derived.retentionUntil + 1,
+            draftRosterDate: '2026-08-19', finalRosterDate: '2026-08-26', policyVersion: 0 };
+        const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms });
+        const stored = { ...m, initialDeadlineAt: ts(m.initialDeadlineAt), finalDeadlineAt: ts(m.finalDeadlineAt),
+            retentionUntil: ts(m.retentionUntil), audience: 'restricted', createdAt: ts(1) };
+        assert.deepEqual(C.storedMilestones(stored), m, 'the timetable and its policy version, and nothing else');
+    });
+
+    test('a stored instant is read as epoch ms whatever shape it arrives in, and 0 when it is not one', () => {
+        assert.equal(C.toMillis({ toMillis: () => 1234 }), 1234);
+        assert.equal(C.toMillis(5678), 5678);
+        assert.equal(C.toMillis(new Date(42)), 42);
+        for (const v of [null, undefined, 'yesterday', {}]) assert.equal(C.toMillis(v), 0, String(v));
+    });
+});
+
+describe('the head a member is shown', () => {
+    test('their own answer and its receipt — never the name, the uid or anything else on the document', () => {
+        const head = C.publicHead({
+            memberName: 'A. Example', uid: 'u1', currentRevision: 2, days: { d: { mode: 'all_day' } },
+            firstAcceptedAt: { toMillis: () => 10 }, updatedAt: { toMillis: () => 20 },
+            lastMutationSeenAt: { toMillis: () => 20 }, schemaVersion: 1,
+        });
+        assert.deepEqual(head, { currentRevision: 2, days: { d: { mode: 'all_day' } }, firstAcceptedAt: 10,
+            updatedAt: 20, lastMutationId: null, schemaVersion: 1 });
+    });
 });
 
 describe('phase boundaries — where "in time" is decided', () => {
