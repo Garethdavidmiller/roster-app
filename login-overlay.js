@@ -37,6 +37,7 @@
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
+import { isCredentialRejection } from './auth-identity.js';
 import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
@@ -86,14 +87,16 @@ function withTimeout(promise, ms) {
  * @param {() => void} deps.clearSession
  * @param {() => (string|null|undefined)} deps.getAuthError
  * @param {(code: any) => boolean} deps.isTransient
+ * @param {(code: any) => boolean} [deps.isCredential]  a DEFINITIVE credential rejection — by default
+ *   the shared `isCredentialRejection` (auth-identity.js) the sign-in ladder itself stops on
  * @param {() => boolean} [deps.keepsLocalSession]  true when this device already holds a session for
  *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
  * @param {number} [deps.timeoutMs]
- * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'storage' }>}
+ * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage' }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, keepsLocalSession = () => false, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
@@ -118,8 +121,18 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // Definitive credential rejection — covers BOTH a wrong/forgotten password AND an account that
         // was never provisioned (auth/user-not-found). The remedy for the latter is set-up, not a
         // reset, so the wording names "the admin" generically (an account matter — house rule) and
-        // doesn't wrongly promise a reset that can't fix an unset-up account.
-        return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
+        // doesn't wrongly promise a reset that can't fix an unset-up account. ONE sentence for both,
+        // so the card never tells a stranger which of the two it was.
+        if (isCredential(code)) return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
+        // EVERYTHING ELSE IS NOT A PASSWORD PROBLEM (sessions-2, Nov 2026). Until then this fell through
+        // to the line above: a site missing from the API key's allowed referrers, a disabled account,
+        // sign-in switched off, or the Calendar viewer that could not be signed out — each told the
+        // member their password was wrong, counted towards the lockout and, from the second, pushed
+        // the reset link, filing requests a reset cannot answer. So: not counted, no reset prompt, the
+        // typed password kept for the retry. The sentence names no cause and no account state, so it
+        // reads the same for every name (Firebase's own response is in the browser anyway); "the
+        // admin" because each cause is an app or account matter.
+        return { ok: false, kind: 'other', error: 'Couldn’t sign you in. Try again — if it keeps happening, ask the admin.' };
     }
     // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
     // on an iPhone, Safari's Block All Cookies; Private Browsing has not refused storage since iOS 11,
@@ -132,6 +145,25 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
     }
     return { ok: true };
+}
+
+/**
+ * The sign-in core's dependencies for one attempt, bound to the member and the password they typed —
+ * what the card's submit passes to `runNamedSignIn`. Exported so the unit suite drives this exact
+ * wiring through the real session.js (login-overlay.test.mjs), rather than a copy of it.
+ * @param {string} name     the member picked in the card
+ * @param {string} typedPw  the password as typed — never normalised (PASSWORD_DESIGN.md §3.2)
+ */
+export function signInDeps(name, typedPw) {
+    return {
+        ensureNamedSession: () => ensureNamedSession(name, { password: typedPw }),
+        saveSession:        () => saveSession(name),
+        clearSession,
+        getAuthError:       getFirebaseAuthError,
+        isTransient:        isTransientAuthError,
+        isCredential:       isCredentialRejection,
+        keepsLocalSession:  () => getSession()?.name === name,
+    };
 }
 
 /**
@@ -664,20 +696,14 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
             // class; see runNamedSignIn / LOGIN_INCIDENT.md). On failure we restore the button and
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
-            const _result = await runNamedSignIn({
-                ensureNamedSession: () => ensureNamedSession(name, { password: typedPw }),
-                saveSession:        () => saveSession(name),
-                clearSession,
-                getAuthError:       getFirebaseAuthError,
-                isTransient:        isTransientAuthError,
-                keepsLocalSession:  () => getSession()?.name === name,
-            });
+            const _result = await runNamedSignIn(signInDeps(name, typedPw));
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
                 // Client 3-strikes → 30s lockout — ONLY on a genuine wrong password (`kind:'credential'`),
                 // never on a network/timeout/rate-limit failure (which would punish a connectivity
-                // problem). Firebase does the real rate-limiting; this is a UX brake on hammering.
+                // problem) or any other cause (`'other'`, which no password could fix). Firebase does
+                // the real rate-limiting; this is a UX brake on hammering.
                 if (_result.kind === 'credential') {
                     _failCount++;
                     // From the SECOND failure (FIX, v18.94). v18.93 revealed on the first, which

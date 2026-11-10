@@ -853,9 +853,12 @@ designer-only Links) stays with each coordinator, after sign-in.
   writes the one-shot set-password marker (`PW_FORCE_PENDING_PREFIX`) and calls `onSuccess(name)`.
 - `runNamedSignIn(deps)` — the DOM-free sign-in core (`login-overlay.test.mjs`). It time-boxes
   `ensureNamedSession` and saves the local session ONLY once auth genuinely resolves; otherwise it returns
-  `{ ok: false, kind, error }`, `kind` being `timeout`, `ratelimit`, `transient`, `credential` or `storage`.
-  A failure clears any local session except this member's own (`keepsLocalSession`). The history is
-  LOGIN_INCIDENT.md.
+  `{ ok: false, kind, error }`, `kind` being `timeout`, `ratelimit`, `transient`, `credential`, `other` or
+  `storage`. `credential` only for a code `isCredentialRejection` (auth-identity.js) accepts — wrong password
+  and no account share one sentence; any other refusal is `other`, never counted. A failure clears any local
+  session except this member's own (`keepsLocalSession`). The history is LOGIN_INCIDENT.md.
+- `signInDeps(name, typedPw)` — the core's dependencies for one attempt, as the card's submit builds them;
+  exported so the unit suite drives that exact wiring through the real `session.js`.
 - `dismissLoginOverlay()` — removes the overlay and unlocks scroll; safe to call unconditionally on a
   coordinator's authorised path, which runs in place.
 - `isAboutLinkAllowed(href)` — PURE: whether an `about` link may go on the card — a same-origin relative

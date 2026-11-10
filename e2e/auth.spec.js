@@ -156,9 +156,14 @@ test('login overlay: CONTROL — a failed sign-in as the SAME member keeps their
     expect(await storedName(page), 'one mistyped password wiped the session that would sign them back in').toBe('G. Miller');
 });
 
+// The third row is sessions-2 (Nov 2026): every failure that was neither a connection problem nor a
+// rate limit used to be dressed as a wrong password — "Password not recognised", counted, and the reset
+// link pushed — although a site missing from the API key's allowed referrers (the May 2026 outage), a
+// disabled account or sign-in switched off is nothing a reset can fix.
 for (const [kind, code, locks] of /** @type {[string, string|undefined, boolean][]} */ ([
     ['a wrong password', undefined, true],
     ['a connection failure', 'auth/network-request-failed', false],
+    ['a refusal that is not about the password', 'auth/requests-from-referer-http://localhost-are-blocked.', false],
 ])) {
     test(`login overlay: three failures from ${kind} ${locks ? 'lock' : 'never lock'} the button for 30 seconds`, async ({ page }) => {
         await page.addInitScript((c) => { /** @type {any} */ (window).__E2E = { failSignIn: true, ...(c ? { failSignInCode: c } : {}) }; }, code);
@@ -169,12 +174,17 @@ for (const [kind, code, locks] of /** @type {[string, string|undefined, boolean]
             await expect(page.locator('#loginError')).toBeVisible();
             if (i < 3) await expect(submit).toHaveText('Sign in →');
         }
+        const reset = page.locator('#loginResetRequest');
         if (locks) {
             await expect(submit).toHaveText('Try again in 30s');
             await expect(submit).toBeDisabled();
+            await expect(reset, 'repeated wrong passwords point at the reset route').toHaveClass(/login-reset-request--prompted/);
         } else {
-            await expect(submit, 'a member on weak signal was locked out for having no connection').toHaveText('Sign in →');
+            await expect(submit, 'a member was locked out for a failure no password could fix').toHaveText('Sign in →');
             await expect(submit).toBeEnabled();
+            await expect(reset, 'only a wrong password points at a reset').not.toHaveClass(/login-reset-request--prompted/);
+            await expect(page.locator('#loginError')).not.toContainText('Password not recognised');
+            await expect(page.locator('#loginPassword'), 'the typed password is kept for the retry').not.toHaveValue('');
         }
     });
 }
