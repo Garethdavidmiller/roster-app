@@ -816,8 +816,7 @@
            every width above a phone — its time track reserved ~190px even on an untouched row and six
            pills wrapped onto three lines — yet it lingered as the base rule while a ≤680px and a ≥681px
            block each restated this template over it, so it still applied BETWEEN 680 and 681px, which
-           a zoomed browser can reach. The header's `.hdr-pills`/`.hdr-time` cells (admin-week-editor.js
-           still renders them) have no column to head, so they stay hidden.
+           a zoomed browser can reach. The header heads only the three columns of row 1.
            `var(--wg-base-col)`, never `auto` (v22.22): the header and the rows are SEPARATE grids, so an
            `auto` last column sizes to each one's own content — "Base roster" is 76.5px and a badge is
            110px, so the header's column sat 34px out of step with the column it labels. */
@@ -833,7 +832,6 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .week-grid-header .hdr-pills, .week-grid-header .hdr-time { display: none; }
 
         /* Each row is a discrete rounded card (v15.58) — gaps come from the flex .week-panel.
            A row's STATE is a 4px bar down its left edge: the 1px border recoloured plus a 3px inset
@@ -1537,10 +1535,6 @@
             margin-bottom: 12px;
         }
 
-        /* Staff member display is already shown in the member context bar at the top —
-           hide it here so the date inputs span the full card width */
-        .al-member-field { display: none; }
-
         /* ---- Inline date-range picker (AL and Absence cards) ---- */
         .rp-chips {
             display: flex;
@@ -1604,7 +1598,10 @@
             border-radius: 50%;
             -webkit-tap-highlight-color: transparent;
         }
-        @media (hover: hover) and (pointer: fine) { .rp-nav-btn:hover { background: var(--bg-light); } }
+        @media (hover: hover) and (pointer: fine) { .rp-nav-btn:hover:not([aria-disabled="true"]) { background: var(--bg-light); } }
+        /* An arrow at a bound is `aria-disabled` and faded (admin-rangepicker.js), never `disabled`, which
+           would drop a keyboard user's focus. It does nothing there, so it offers a mouse no hand and no fill. */
+        .rp-nav-btn[aria-disabled="true"] { cursor: default; }
         .rp-label { font-size: var(--type-body); font-weight: 700; color: var(--text-dark); }
         .rp-clip {
             position: relative;
@@ -2201,6 +2198,10 @@
         }
         .list-feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
         .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-text); }
+        /* A keyboard delete that removes the control holding focus hands it to the line saying what happened
+           (admin-booked-periods.js, admin-saved-changes.js — tabindex="-1", never a Tab stop). That line wears
+           the app's ring, not the browser's own; inset, because the cards clip and this one runs edge to edge. */
+        .feedback:focus-visible, .list-feedback:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 
         /* ═════════════════════════════════════════════════════════════
            TABLET & DESKTOP  —  min-width only; mobile (< 768px) untouched
@@ -2560,7 +2561,9 @@
 .sunday-note,
 /* Christmas leave (v25.37): the same quiet line, for the same reason — the row's own explanation of a
    day the Base roster column cannot describe (it shows the rest day both Christmas days are). */
-.christmas-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
+.christmas-note,
+/* …and a day before the member's start date (admin-1-11): no change can be recorded there. */
+.start-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
 .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }

@@ -119,8 +119,8 @@ const NATIVE_BY_DECISION = {
 
     'admin.html#alMember':
         'NOT A CONTROL — a `hidden` value holder the save path reads. The member is chosen ONCE, in '
-        + 'the top bar; `.al-member-field` has been `display:none` since the member context bar '
-        + 'existed, for the same reason. It WAS enhanced, v23.33 to v23.74, and that built a second, '
+        + 'the top bar; `.al-member-field` was `display:none` from the member context bar\'s arrival, for '
+        + 'the same reason, and was removed on 10 Nov 2026. It WAS enhanced, v23.33 to v23.74, and that built a second, '
         + 'fully operable member picker inside the card: picking a name there moved the value the '
         + 'SAVE writes to while the top bar, "Recording for", the AL banner, the week grid and Saved '
         + 'Changes all stayed on the previous member, so the card would have recorded leave against '
