@@ -8,9 +8,10 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration, hasOverrideAccess, READ_SUPERSEDED } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, oweRecheck, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration, hasOverrideAccess, READ_SUPERSEDED } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
-import { noteKnowledge } from './calendar-data-state.js';
+import { noteKnowledge, knowledgeOf } from './calendar-data-state.js';
+import { getDisplayMonth, getDisplayYear } from './calendar-state.js';
 import { formatISO } from './roster-data.js';
 
 /** The sync's own failure deadline — the point at which the chip says "Couldn't update" (v19.08).
@@ -82,7 +83,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   ];
   addFetchedMonths(_initialMonthKeys);
 
-  /** @type {HTMLButtonElement|null} */
   /** @type {HTMLButtonElement|null} */ let syncChip = null;
   /** @type {any} */
   let syncStatus = null;
@@ -170,6 +170,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
 
   function renderChipState() {
     if (!_chipState) return;
+    // A FAILURE THE SERVER HAS SINCE ANSWERED (cal-data-5, 10 Nov 2026). The chip sits above the month
+    // on screen, and once that month has been confirmed — its own read after the failure render, or a
+    // visit once the signal is back — "Couldn't update" is false there; the watcher below put it back
+    // after every render all the same. Withdrawn as the month panel's Try again withdraws it: each
+    // month's own read is the recovery from here (the window's months were released, so a visit reads).
+    if (_chipState.className.includes('sync-chip-error')
+        && knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())) === 'authoritative') { dismissSyncError(); return; }
     const chip = ensureChipAttached();
     // Keep watching whether or not we could render. With no header we are waiting for one to
     // appear; WITH one we are waiting for the next re-render to destroy the chip — and that is the
@@ -311,6 +318,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
         return;
       }
       noteKnowledge(_initialMonthKeys, 'error');
+      oweRecheck(_initialMonthKeys);   // a month still drawn as the saved copy is asked for again on return (cal-data-4)
       setChipState({
         text: '⚠ Couldn\'t update — try again',
         className: 'sync-chip sync-chip-error',
@@ -372,8 +380,8 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // BOUNDED by the sync's own failure deadline (v19.08). Waiting for a session is the point of
       // this phase, but waiting FOREVER is not: an unbounded await meant the IIFE could never
       // settle, so neither catch nor finally ran and the fetch state leaked permanently (see
-      // SYNC_TIMEOUT_MS). Past the deadline we read anyway — today that succeeds, and once reads
-      // require a session it fails into the catch below, which is the recoverable path.
+      // SYNC_TIMEOUT_MS). Past the deadline we read anyway: reads have needed Calendar access since
+      // v20.12, so one made without it fails into the catch below, which is the recoverable path.
       /** @type {ReturnType<typeof setTimeout>|undefined} */ let authWait;
       try {
         await Promise.race([authReady, new Promise(r => { authWait = setTimeout(r, SYNC_TIMEOUT_MS); })]);
@@ -418,10 +426,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
         if (hasOverrideAccess()) { if (isTeamViewMode()) refetchTeamView(); else renderCalendar(); }
         return;
       }
-      // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
-      // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
-      // and the cached grid stays up behind the retry chip, which is the right answer there.
-      noteKnowledge(_initialMonthKeys, 'error');
       console.error('[Firestore] Initial override fetch failed', err);
       // Release the 3 pre-claimed months so ensureOverridesCached() can re-fetch them on a later
       // render/navigation. Without this they stay marked fetched forever and their overrides never
@@ -429,12 +433,21 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // is absent in team-view and first-run, leaving those states with NO recovery path at all.
       _initialMonthKeys.forEach(clearFetchedMonth);
       // Access gone, not network — see the retry path above for why these must not share a state.
+      // Nothing is recorded against the months first (cal-data-6): a refusal says nothing about them,
+      // and an `error` left across the lock was the first thing the next grant drew.
       if (onAccessLost && isAccessFailure(err)) {
         setChipState(null);
         if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
         onAccessLost();
         return;
       }
+      // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
+      // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
+      // and the cached grid stays up behind the retry chip, which is the right answer there — and it
+      // is asked for again the next time the page comes into view (cal-data-4; Team View included,
+      // whose failure repaint below reads nothing).
+      noteKnowledge(_initialMonthKeys, 'error');
+      oweRecheck(_initialMonthKeys);
       // A renderCalendar() call between the fetch start and the catch (e.g. from visibilitychange)
       // rebuilds the calendar header, detaching the chip — setChipState re-creates it. When there
       // is NO header at all (first run, Team View) the state is still recorded and rendered the
@@ -452,8 +465,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // flag, the render and the button live in three different modules.
       setInitialFetchInProgress(false);
       // Repaint so a withheld grid moves from "Checking this month" to the failure panel (v20.40).
-      // The months were released just above, so this render re-fetches them once; the one-shot
-      // guard in calendar-overrides.js is what stops that becoming a fetch↔render loop.
+      // The months were released just above, so the month grid's render re-reads the month on screen
+      // once — the one-shot guard in calendar-overrides.js stops that becoming a fetch↔render loop.
+      // Team View's repaint reads nothing; its saved-copy months are owed the re-check above instead.
       if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     } finally {
       setInitialFetchInProgress(false);
@@ -487,6 +501,12 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     refreshIfStale();
   });
   globalThis.addEventListener?.('pageshow', (/** @type {any} */ e) => { if (e.persisted) refreshIfStale(); });   // globalThis: the Node suites have no window
+  // …AND WHILE IT STAYS IN VIEW (cal-data-8, 10 Nov 2026). A page that is never hidden — a window
+  // beside Admin, a station PC left on Team View — never came BACK into view, so it showed what each
+  // month held when first read, as current, for as long as it was open: the shared-PC case the release
+  // exists for. The same check every STALE_MONTH_MS while the page is visible and holds access. unref():
+  // in Node (the suites) a live interval would hold the process open; a browser returns a number.
+  /** @type {any} */ (setInterval(() => { if (!document.hidden && hasOverrideAccess()) refreshIfStale(); }, STALE_MONTH_MS)).unref?.();
 
   // THE PANEL'S RETRY TAKES OVER FROM THE CHIP (48-hour review). The month panel's Try again re-reads
   // the month without passing through `doRetry`, so a recorded failure outlived a retry that worked

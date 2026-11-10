@@ -9,7 +9,9 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, stubPinExchange, enterPin } from './helpers.js';
+import { TIMETABLES, STATIONS } from '../trains-data.js';
+import { busiestStations, matchStations } from '../trains-stations.js';
 
 /**
  * Type into the station box. Under a chosen station the box and the chips have folded away (v24.92),
@@ -431,6 +433,151 @@ test.describe('trains', () => {
         await oxford.click();
         await page.locator('[data-day="SO"]').click();
         await expect(page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]')).toHaveCount(0);
+    });
+
+    // ── THE TWO DECEMBER CHANGES ARE TWO SHAPES (whole-app review, 10 Nov 2026) ──────────────────
+    // "New stop" and "no longer stops" were a green ring and a red one of the same lightness, so with
+    // red-green colour blindness, or on a black-and-white printer, the key showed two identical rings
+    // for opposite meanings, and the grid's cells carry no words. Compared here as a greyscale printer
+    // sees them: the INSIDES of the two rings must not be the same picture. At 4× so a 12px dot is
+    // 48 pixels, sampled on one grid, because the two sit at different fractional offsets and a
+    // pixel-by-pixel comparison of the raw captures compared misaligned images (measured).
+    test.describe('the December dots', () => {
+        test.use({ deviceScaleFactor: 4 });
+        test('where they stop: "new stop" and "no longer stops" differ in shape, not only in colour', async ({ page }) => {
+            await page.setViewportSize({ width: 393, height: 900 });
+            await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+            await seedSession(page, 'C. Reen');
+            await page.goto('/trains.html');
+            await page.locator('[data-view="grid"]').click();
+            await page.locator('[data-grid="dec"]').click();
+            const key = page.locator('#trPattern .tr-grid-key');
+            await expect(key, 'premise: the December key names both changes').toContainText('no longer stops');
+            const shot = async (/** @type {string} */ kind) => (await key.locator(`.tr-dot--${kind}`).screenshot()).toString('base64');
+            const pair = [await shot('new'), await shot('lost')];
+            // Decoded in a blank page, where a canvas has no stylesheet or CSP in its way.
+            const lab = await page.context().newPage();
+            const apart = await lab.evaluate(async ([a, b]) => {
+                /** The middle 40% of a capture — inside any ring — in greyscale, on a 16×16 grid. */
+                const inside = async (/** @type {string} */ png) => {
+                    const img = new Image();
+                    img.src = `data:image/png;base64,${png}`;
+                    await img.decode();
+                    const c = document.createElement('canvas');
+                    c.width = img.width; c.height = img.height;
+                    const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+                    g.drawImage(img, 0, 0);
+                    const d = g.getImageData(0, 0, c.width, c.height).data;
+                    const out = [];
+                    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) {
+                        const x = Math.floor(c.width * (0.3 + 0.4 * (i + 0.5) / 16)), y = Math.floor(c.height * (0.3 + 0.4 * (j + 0.5) / 16));
+                        const k = 4 * (y * c.width + x);
+                        out.push(0.2126 * d[k] + 0.7152 * d[k + 1] + 0.0722 * d[k + 2]);
+                    }
+                    return out;
+                };
+                const [p, q] = [await inside(a), await inside(b)];
+                return p.reduce((sum, v, i) => sum + Math.abs(v - q[i]), 0) / p.length;
+            }, pair);
+            await lab.close();
+            // Measured in Chromium: 97.5 for the plus and the slash, 25 for the two plain rings they replaced.
+            expect(apart, 'in greyscale the insides of the two symbols are nearly the same picture').toBeGreaterThan(60);
+        });
+    });
+
+    // ── A PHONE'S COLUMN HEADS ARE AS TIGHT AS ITS CELLS (whole-app review, 10 Nov 2026) ───────────
+    // The heads' phone padding sat in the ≤480px block ABOVE the base rule for the same selector, so it
+    // lost on source order: every head kept the desktop's 6px a side, 42px across the weekday's seven
+    // trains, and a 393px phone showed three whole trains before swiping where it shows four.
+    for (const [width, side] of [[393, '3px'], [1280, '6px']]) {
+        test(`where they stop: a column head is padded like the cells beneath it at ${width}px`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 900 });
+            await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+            await seedSession(page, 'C. Reen');
+            await page.goto('/trains.html');
+            await page.locator('[data-view="grid"]').click();
+            await expect(page.locator('#trPattern .tr-grid-colbtn').first()).toBeVisible();
+            const pad = await page.evaluate(() => ({
+                head: getComputedStyle(/** @type {Element} */ (document.querySelector('#trPattern .tr-grid-colbtn'))).paddingLeft,
+                cell: getComputedStyle(/** @type {Element} */ (document.querySelector('#trPattern tbody td'))).paddingLeft,
+            }));
+            expect(pad).toEqual({ head: side, cell: side });
+        });
+    }
+
+    // The tallest column head is flush with the top of the grid's scroll box, and the box clips: a ring
+    // drawn 2px OUTSIDE the button lost its whole top edge there (measured 4px above the box).
+    test('where they stop: the focus ring on a column head is drawn whole', async ({ page }) => {
+        await page.setViewportSize({ width: 393, height: 900 });
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        const heads = page.locator('#trPattern .tr-grid-colbtn');
+        await expect(heads.first()).toBeVisible();
+        const tallest = await heads.evaluateAll(bs => {
+            const tops = bs.map(b => b.getBoundingClientRect().top);
+            return tops.indexOf(Math.min(...tops));
+        });
+        await heads.nth(tallest).focus();
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('Tab');            // a keyboard arrival, so :focus-visible draws the ring
+        const g = await page.evaluate(() => {
+            const el = /** @type {HTMLElement} */ (document.activeElement);
+            const box = /** @type {Element} */ (document.querySelector('#trPattern .tr-grid-wrap')).getBoundingClientRect();
+            const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+            const reach = parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth);
+            return { head: el.classList.contains('tr-grid-colbtn'), ringTop: r.top - reach, boxTop: box.top };
+        });
+        expect(g.head, 'premise: Tab landed on the column head').toBe(true);
+        expect(g.ringTop, 'the ring\'s top edge is inside the scroll box that clips it').toBeGreaterThanOrEqual(g.boxTop - 0.5);
+    });
+
+    // "A TAB is a button" (css-tokens.md → Corners): Overtime's and New link's tabs are 12px; every strip
+    // here — the views, the days, a station's direction, the grid's timetable — was on the 16px card-like
+    // corner. Read from every tab on the page, shown or not, against the token as this page resolves it.
+    test('every tab on the page wears the button corner', async ({ page }) => {
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await expect(page.locator('.tr-tab').first()).toBeVisible();
+        const g = await page.evaluate(() => {
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.borderTopLeftRadius = 'var(--radius-button)';
+            const button = getComputedStyle(probe).borderTopLeftRadius;
+            probe.remove();
+            const tabs = [...document.querySelectorAll('.tr-tab')];
+            return { button, count: tabs.length, off: tabs.map(t => getComputedStyle(t).borderTopLeftRadius).filter(r => r !== button) };
+        });
+        expect(g.count, 'premise: the four strips\' tabs are all found').toBeGreaterThanOrEqual(10);
+        expect(g.off, `every tab is on --radius-button (${g.button})`).toEqual([]);
+    });
+
+    // A hover tint gated on WIDTH alone stays on a touch tablet's tapped row — the browser keeps :hover
+    // on whatever was last touched. Every other hover in these sheets waits for a mouse; the grid's row
+    // tint did not. Read from the stylesheet the page actually parsed, so a new rule is held to it too.
+    test('every hover tint in the stylesheet waits for a mouse', async ({ page }) => {
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await expect(page.locator('.tr-tab').first()).toBeVisible();
+        const g = await page.evaluate(() => {
+            const sheet = [...document.styleSheets].find(s => s.href?.endsWith('/trains.css'));
+            /** @type {string[]} */ const ungated = [];
+            let hovers = 0;
+            const walk = (/** @type {CSSRuleList} */ rules, /** @type {string[]} */ gates) => {
+                for (const r of rules) {
+                    if (r instanceof CSSMediaRule) walk(r.cssRules, [...gates, r.media.mediaText]);
+                    else if (r instanceof CSSStyleRule) {
+                        if (!r.selectorText.includes(':hover')) continue;
+                        hovers++;
+                        if (!gates.some(m => /\(hover:\s*hover\)/.test(m))) ungated.push(`${gates.join(' · ') || 'no gate'} → ${r.selectorText}`);
+                    } else if (r instanceof CSSGroupingRule) walk(r.cssRules, gates);
+                }
+            };
+            if (sheet) walk(sheet.cssRules, []);
+            return { found: !!sheet, hovers, ungated };
+        });
+        expect(g.found && g.hovers >= 5, `premise: trains.css and its hover rules are read (${g.hovers})`).toBe(true);
+        expect(g.ungated, 'a hover tint not gated on (hover: hover)').toEqual([]);
     });
 
     // Every view at phone width, with the widest content each holds open. The basic-hour grid
@@ -934,4 +1081,94 @@ test('the trains-a-day box reaches the right-hand edge the blocks around it shar
         column: /** @type {Element} */ (document.querySelector('.tr-ov-side')).getBoundingClientRect().right,
     }));
     expect(Math.abs(edge.box - edge.column), `box ends at ${edge.box}, its column at ${edge.column}`).toBeLessThanOrEqual(1);
+});
+
+// ── THE WHOLE-APP FIX (Nov 2026) ─────────────────────────────────────────────────────────────────────
+// What only the page can show: that the coordinator hands each rule the right timetable, the right phase
+// and the right names. The rules themselves are trains-stations.test.mjs's and trains-change.test.mjs's.
+test.describe('trains — the page turns as a whole, and a station computer is shown its way in', () => {
+    // From 13 December only the tab and the card's title turned: the section, its ? and its chevron, and the
+    // ? panel's own title, went on saying "What’s changing" to a screen reader and under the tab.
+    test('every name the changes view goes by turns with it at the change', async ({ page }) => {
+        for (const [when, words] of [['2026-11-16T10:00:00Z', 'What’s changing'], ['2026-12-20T10:00:00Z', 'What changed']]) {
+            await page.clock.setFixedTime(new Date(when));
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            await expect(page.locator('#trChangesTab')).toHaveText(words);
+            await expect(page.locator('#trViewChanges'), 'the section').toHaveAttribute('aria-label', words);
+            await expect(page.locator('#trChangesTips'), 'its ?').toHaveAttribute('aria-label', `Tips for ${words.toLowerCase()}`);
+            await expect(page.locator('#trChangesChevron'), 'its chevron').toHaveAttribute('aria-label', `Toggle ${words}`);
+            await page.locator('#trChangesTips').click();
+            await expect(page.locator('#tipsLbTitle'), 'the ? panel').toHaveText(`🔔 ${words}`);
+        }
+        // and the Last trains card's chips are headed for a screen reader in the same tense
+        await page.locator('#tipsLightboxClose').click();
+        await page.locator('[data-view="stations"]').click();
+        await expect(page.locator('#trLast .tr-last thead')).toContainText('What changed');
+    });
+
+    // The chips and the order of equal matches were counted on the first timetable for good, so from
+    // 13 December they described the one that had stopped (busiest stations, and "bi" + Enter).
+    test('the busiest stations, and the order of equal matches, are counted on the timetable running', async ({ page }) => {
+        const names = (/** @type {string[]} */ codes) => codes.map(c => STATIONS[c]);
+        const first = (/** @type {'now'|'dec'} */ side) => STATIONS[matchStations(STATIONS, 'bi', 6, busiestStations(TIMETABLES[side].SX.dep, Infinity))[0]];
+        expect(first('now'), 'premise: the two timetables order "bi" differently').not.toBe(first('dec'));
+        expect(busiestStations(TIMETABLES.now.SX.dep), 'premise: and their busiest weekday stations').not.toEqual(busiestStations(TIMETABLES.dec.SX.dep));
+        for (const [when, side] of /** @type {[string, 'now'|'dec'][]} */ ([['2026-11-16T09:00:00Z', 'now'], ['2027-01-11T09:00:00Z', 'dec']])) {
+            await page.clock.setFixedTime(new Date(when));      // two Mondays: before the change, and once it has settled
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            await page.locator('[data-view="stations"]').click();
+            await expect(page.locator('#trStationPicks .tr-pick'), `${side}: the chips`).toHaveText(names(busiestStations(TIMETABLES[side].SX.dep)));
+            await page.locator('#trStationInput').fill('bi');
+            await expect(page.locator('#trStationPicks .tr-pick').first(), `${side}: Enter opens`).toHaveText(first(side));
+            await page.locator('[data-view="changes"]').click();
+            await expect(page.locator('#trJumpPicks .tr-pick'), `${side}: the desktop's jump card`).toHaveText(names(busiestStations(TIMETABLES[side].SX.dep)));
+        }
+    });
+
+    // A press redrew the view and not the overview, so a tab in view across 03:00 showed two dates at once.
+    // Local times, no "Z": the page reads the browser's clock, and the browser and this file share a time zone.
+    test('a press after 03:00 on the day of the change turns the overview with the view, and the day with them', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-12-13T02:30:00'));   // still Saturday's railway day
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trCountdown')).toHaveText('Starts tomorrow');
+        await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        await page.clock.setFixedTime(new Date('2026-12-13T03:30:00'));   // the change has come; the tab never slept
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trCountdown')).toHaveText('Starts today');
+        await expect(page.locator('#trLead')).toContainText('The timetable that ran until Saturday 12 December');
+        await expect(page.locator('#trGridNow'), 'the grid\'s first timetable is named for what it now is').toHaveText('Until 12 Dec');
+        await expect(page.locator('[data-day="SU"]'), 'the day turned too: no day tab was pressed').toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#trPatternHint')).toContainText('Sundays');
+    });
+
+    // The station PIN opens this page (AUTH_AND_SESSIONS 24), but its session ends with the browser and
+    // belongs to the tab that unlocked the Calendar, so a station computer can arrive here locked — and
+    // the card asked only for a member's grade, name and password.
+    test('a station computer reaching the page locked is told the PIN opens it, enters it on the roster, and comes back by the menu', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await stubPinExchange(page);
+        await page.goto('/trains.html');
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+        const about = page.locator('#loginAbout');
+        await expect(about).toContainText('The staff PIN opens this page too');
+        await expect(about).toContainText('choose Trains from its menu');
+        await expect(page.locator('#loginOverlay')).not.toContainText(/sign(s|ed)? in with the (staff )?PIN/i);
+        const link = about.locator('.login-about-link');
+        await expect(link).toHaveAttribute('href', './#staff-pin');
+        // The way back to the roster stays: the PIN is offered beside it, not instead of it.
+        await expect(page.locator('#loginOverlay a.login-back')).toHaveAttribute('href', './');
+        await link.click();
+        await expect(page.locator('#calLockPin'), 'the Calendar\'s PIN card, first').toBeVisible();
+        await enterPin(page, '1234');
+        await expect(page.locator('#calendarDisplay')).toBeVisible();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-pill--trains').click();
+        await expect(page).toHaveURL(/trains\.html/);
+        await expect(page.locator('#trControls')).toBeVisible();
+        await expect(page.locator('#loginOverlay')).toHaveCount(0);
+        expect(errors, errors.join('\n')).toEqual([]);
+    });
 });

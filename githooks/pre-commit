@@ -38,45 +38,127 @@ for _doc in "$DOC_AI_MAP" "$DOC_CLAUDE" "$DOC_FILE_INDEX" "$DOC_OPERATIONS" "$DO
 done
 
 ERRORS=0
+HOOK_TMP=$(mktemp -d "${TMPDIR:-/tmp}/pre-commit.XXXXXX") || { echo "  pre-commit: could not make a temporary folder."; exit 1; }
+trap 'rm -rf "$HOOK_TMP"' EXIT
 
-# .mjs too (whole-app review, I7): the glob was `*.js` alone, so a root module written as .mjs was
-# never checked here. The skips mirror doc-parity.test.mjs's NOT_ROUTED set and its runner-config
-# rule, so the hook and the suite agree about what counts as a module.
-for f in *.js *.mjs; do
-  [ -e "$f" ] || continue
-  [[ "$f" == *test* ]] && continue
-  # Tooling, runner config and vendored files are not application modules — skip them.
-  case "$f" in
-    eslint.config.js|generate-sri.mjs|purify.es.mjs|playwright.*) continue ;;
+# A step that cannot run must SAY so: skipped in silence, it is indistinguishable from one that
+# looked and was satisfied (the ESLint branch below learned this at v23.63). A GUI client's hook
+# PATH often has no `node`, and every node step used to vanish there without a word.
+if command -v node >/dev/null 2>&1; then HAVE_NODE=1; else HAVE_NODE=""; fi
+not_checked() {
+  echo "  $1 DID NOT RUN — node is not on this hook's PATH, so this commit was NOT checked for it."
+}
+
+# ── WHAT IS BEING COMMITTED, READ ONCE (whole-app check, 10 November 2026) ─────────────────────
+#
+# Every check below reads THE COMMIT — the index — never the working tree, and all of them read the
+# same list. Before this, the module check grepped the documents ON DISK, so a module staged with
+# its two documentation lines written but not `git add`-ed passed and was committed without them;
+# ESLint linted the working copy of a half-staged file; and the lint and export-drift steps each kept
+# their own filter, `.js` only and Added/Copied/Modified only — so every `.mjs`, every Cloud Function
+# and every renamed file went in unlinted, and a renamed module escaped export drift. NUL-separated,
+# so a name with a space survives; STAGED_RENAMES pairs each renamed path with its old one.
+STAGED_FILES=""
+STAGED_RENAMES=""
+while IFS= read -r -d '' _status; do
+  IFS= read -r -d '' _path
+  case "$_status" in
+    R*|C*)
+      _old="$_path"
+      IFS= read -r -d '' _path
+      if [[ "$_status" == R* ]]; then STAGED_RENAMES+="$_old"$'\t'"$_path"$'\n'; fi
+      ;;
   esac
+  STAGED_FILES+="$_path"$'\n'
+done < <(git diff --cached --name-status -M --diff-filter=ACMR -z)
 
-  if ! grep -q "$f" "$DOC_AI_MAP" 2>/dev/null; then
-    echo "  doc-check: $f not listed in $DOC_AI_MAP"
+# A root application MODULE: the rule doc-parity.test.mjs applies (its NOT_ROUTED set and its
+# runner-config rule), stated ONCE for the listing check and the export-drift check. A test is
+# `*.test.*`, as there — `*test*` also skipped any module whose name merely contained "test".
+is_module() {
+  case "$1" in
+    */*|*.test.*) return 1 ;;
+    eslint.config.js|generate-sri.mjs|purify.es.mjs|playwright.*) return 1 ;;
+    *.js|*.mjs) return 0 ;;
+  esac
+  return 1
+}
+STAGED_MODULES=""
+while IFS= read -r _f; do
+  if [[ -n "$_f" ]] && is_module "$_f"; then STAGED_MODULES+="$_f"$'\n'; fi
+done <<< "$STAGED_FILES"
+export STAGED_FILES STAGED_RENAMES STAGED_MODULES
+
+# ── EVERY MODULE IN THE COMMIT IS DOCUMENTED IN THE COMMIT ─────────────────────────────────────
+# The documents AS STAGED, and a mention matched as a whole file name: `grep -q picker.js` matched
+# `date-picker.js`, so a new `picker.js` passed with no entry at all — and five existing modules
+# are the tail of another's name (guide-search.js, leave-year.js, ls.js, overlay.js, session.js).
+git show ":$DOC_AI_MAP" > "$HOOK_TMP/ai-map" 2>/dev/null
+git show ":$DOC_FILE_INDEX" > "$HOOK_TMP/file-index" 2>/dev/null
+mentions() {   # mentions <file> <module name>
+  grep -Eq -- "(^|[^A-Za-z0-9_.-])${2//./\\.}([^A-Za-z0-9_-]|$)" "$1"
+}
+while IFS= read -r -d '' f; do
+  is_module "$f" || continue
+  if ! mentions "$HOOK_TMP/ai-map" "$f"; then
+    echo "  doc-check: $f not listed in $DOC_AI_MAP (as staged)"
     ERRORS=$((ERRORS + 1))
   fi
-
-  if ! grep -q "$f" "$DOC_FILE_INDEX" 2>/dev/null; then
-    echo "  doc-check: $f not listed in $DOC_FILE_INDEX"
+  if ! mentions "$HOOK_TMP/file-index" "$f"; then
+    echo "  doc-check: $f not listed in $DOC_FILE_INDEX (as staged)"
     ERRORS=$((ERRORS + 1))
   fi
-done
+done < <(git ls-files -z -- '*.js' '*.mjs')
 
 if [ "$ERRORS" -gt 0 ]; then
   echo ""
-  echo "  Add the missing module(s) to $DOC_AI_MAP and $DOC_FILE_INDEX, then re-commit."
+  echo "  Add the missing module(s) to $DOC_AI_MAP and $DOC_FILE_INDEX, stage both, then re-commit."
   exit 1
 fi
 
-# Roster-members sync check — ensures functions/roster-members.json matches
-# the active (non-hidden, non-manager) staff in roster-data.js.
-# Uses the same logic as sw-asset-check.test.mjs 'roster-members.json' test.
-# Adding a new member without re-running generate:roster-members silently breaks uploads.
-if command -v node >/dev/null 2>&1; then
-  node --test --test-name-pattern "roster-members.json matches" sw-asset-check.test.mjs 2>&1
+# Roster-members sync check — functions/roster-members.json must be exactly what
+# scripts/generate-roster-members.mjs builds from roster-data.js. Adding a member without
+# re-running generate:roster-members silently breaks uploads. sw-asset-check.test.mjs checks the
+# same property in CI.
+#
+# It used to RUN that test, picked by a title substring nothing pinned, against the WORKING TREE:
+# a JSON regenerated but left unstaged passed here and was missing from the commit, and a reworded
+# title would have matched no test at all, which `node --test` reports as a pass. It now builds the
+# file with the generator's own buildRosterMembers() over the modules AS STAGED, and compares it
+# with the JSON as staged. The root modules are copied out of the index, so imports resolve as they
+# will in the commit.
+if [[ -n "$HAVE_NODE" ]]; then
+  export ROSTER_TMP="$HOOK_TMP/roster"
+  mkdir -p "$ROSTER_TMP"
+  git ls-files -z -- ':(glob)*.js' ':(glob)*.mjs' package.json 'scripts/*.mjs' functions/roster-members.json \
+    | xargs -0 git checkout-index --prefix="$ROSTER_TMP/" --
+  node --input-type=module - << 'NODEEOF'
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
+
+const root = process.env.ROSTER_TMP;
+let expected, committed;
+try {
+    const { buildRosterMembers } = await import(pathToFileURL(`${root}/scripts/generate-roster-members.mjs`).href);
+    expected = JSON.parse(JSON.stringify(buildRosterMembers()));   // as the generator writes it
+    committed = JSON.parse(readFileSync(`${root}/functions/roster-members.json`, 'utf8'));
+} catch (e) {
+    process.stderr.write(`  roster-members: could not build the member list from the staged files — ${e && e.message}\n`);
+    process.exit(1);
+}
+if (!isDeepStrictEqual(committed, expected)) {
+    process.stderr.write('  roster-members: functions/roster-members.json, as staged, is not what roster-data.js\n'
+        + '  (as staged) generates.\n');
+    process.exit(1);
+}
+NODEEOF
   if [ $? -ne 0 ]; then
-    echo "  Run: npm run generate:roster-members"
+    echo "  Run: npm run generate:roster-members — and stage functions/roster-members.json with it."
     exit 1
   fi
+else
+  not_checked "The roster-members sync check"
 fi
 
 # Export-drift same-commit check — if a staged JS module CHANGES its exported
@@ -94,7 +176,7 @@ fi
 # Overtime permission gates) and ten of `paycalc-calc.js`'s pay constants were among
 # them. Adding to a documented API is the COMMON case; leaving it unchecked meant the
 # gate fired on the rare direction and slept through the frequent one.
-if command -v node >/dev/null 2>&1; then
+if [[ -n "$HAVE_NODE" ]]; then
   node - << 'NODEEOF'
 const { execSync } = require('child_process');
 const sh = c => { try { return execSync(c, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }); } catch { return null; } };
@@ -102,10 +184,12 @@ const sh = c => { try { return execSync(c, { encoding: 'utf8', stdio: ['pipe', '
 // The path comes from the hook's own DOC_AI_MAP, never a literal — the heredoc is quoted, so an
 // interpolated path would be a second copy free to drift from the first.
 const AI_MAP = process.env.DOC_AI_MAP;
-const staged = (sh('git diff --cached --name-only --diff-filter=ACMR') || '').split('\n').filter(Boolean);
-const aiMapStaged = staged.includes(AI_MAP);
-// Root JS modules only — skip tests, the SW, and functions/ (CommonJS, not in AI_MAP).
-const jsFiles = staged.filter(f => /^[^/]+\.js$/.test(f) && !f.includes('.test.') && f !== 'service-worker.js');
+const list = (/** @type {string} */ v) => (process.env[v] || '').split('\n').filter(Boolean);
+const aiMapStaged = list('STAGED_FILES').includes(AI_MAP);
+// The modules the hook selected once (is_module), so this and the listing check agree; a renamed
+// one is compared with its OLD path at HEAD, not skipped as new.
+const jsFiles = list('STAGED_MODULES');
+const renamedFrom = new Map(list('STAGED_RENAMES').map(l => l.split('\t')).map(([from, to]) => [to, from]));
 
 function exportsOf(src) {
     const names = new Set();
@@ -132,7 +216,7 @@ function exportsOf(src) {
 
 const offenders = [];
 for (const f of jsFiles) {
-    const head = sh(`git show HEAD:"${f}"`);
+    const head = sh(`git show HEAD:"${renamedFrom.get(f) ?? f}"`);
     if (head == null) continue;                  // new file — covered by the module-listing check
     const now = sh(`git show :"${f}"`);
     if (now == null) continue;
@@ -177,9 +261,11 @@ if (offenders.length) {
 }
 NODEEOF
   if [ $? -ne 0 ]; then exit 1; fi
+else
+  not_checked "The export-drift check"
 fi
 
-# ESLint — run on staged .js files only (fast).
+# ESLint — run on the staged JS (fast).
 #
 # ── RESOLVING THE BINARY FROM A WORKTREE (v23.63) ──────────────────────────────────────────────
 #
@@ -202,7 +288,7 @@ for _candidate in \
   if [[ -x "$_candidate" ]]; then ESLINT_BIN="$_candidate"; break; fi
 done
 
-if [[ -n "$ESLINT_BIN" ]]; then
+if [[ -n "$ESLINT_BIN" && -n "$HAVE_NODE" ]]; then
   # --no-warn-ignored is load-bearing (v20.11). Naming an ESLint-IGNORED file on the command line
   # makes it warn "file ignored", which --max-warnings=0 turns into a failed commit — so any commit
   # touching one is blocked for a reason that is not a lint problem. This block used to handle that
@@ -213,52 +299,72 @@ if [[ -n "$ESLINT_BIN" ]]; then
   # service-worker.js was filtered out here too, until the v24.28 review gave it its own block in
   # eslint.config.js (a classic worker script with serviceworker globals) — so it is linted like
   # everything else now, and the special case went with the ignore.
-  STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | tr '\n' ' ')
-  if [[ -n "$STAGED_JS" ]]; then
-    # shellcheck disable=SC2086
-    "$ESLINT_BIN" --max-warnings=0 --no-warn-ignored $STAGED_JS
-    if [ $? -ne 0 ]; then
-      echo ""
-      echo "  ESLint: fix the above warnings/errors, then re-commit."
-      echo "  (Run: $ESLINT_BIN --fix <file> to auto-fix most issues.)"
-      exit 1
+  #
+  # EVERY staged .js and .mjs, from the one list above: tests, scripts, runner configs and the Cloud
+  # Functions too, which `npm run lint` covers and this step used to filter out. A file with
+  # unstaged edits is linted AS STAGED, through stdin, because the working copy is not the commit.
+  _lint_failed=""
+  _whole=()
+  while IFS= read -r _f; do
+    case "$_f" in *.js|*.mjs) ;; *) continue ;; esac
+    if git diff --quiet -- "$_f"; then
+      _whole+=("$_f")
+    elif ! git show ":$_f" | "$ESLINT_BIN" --max-warnings=0 --no-warn-ignored --stdin --stdin-filename "$_f"; then
+      _lint_failed=1
     fi
+  done <<< "$STAGED_FILES"
+  if [[ ${#_whole[@]} -gt 0 ]] && ! "$ESLINT_BIN" --max-warnings=0 --no-warn-ignored "${_whole[@]}"; then
+    _lint_failed=1
+  fi
+  if [[ -n "$_lint_failed" ]]; then
+    echo ""
+    echo "  ESLint: fix the above warnings/errors, then re-commit."
+    echo "  (Run: $ESLINT_BIN --fix <file> to auto-fix most issues.)"
+    exit 1
   fi
 else
   # SAY THAT NOTHING WAS CHECKED, not merely that something is missing. The old line read
   # "(node_modules/.bin/eslint not found — run: npm install)", which is a suggestion; this is a
   # statement about what this commit was and was not checked against. Deliberately NOT a refusal:
   # a bare clone with no install must still be committable, which is the same posture as
-  # `npm run test:nodeps`. The parity test pins the wording so it cannot soften back.
-  echo "  ESLint DID NOT RUN — no eslint binary in this checkout or the main one."
-  echo "  Staged JS was NOT linted by this commit. Run: npm install"
-fi
-
-# service-worker.js syntax check — ESLint is bypassed above; use node --check instead.
-if git diff --cached --name-only --diff-filter=ACM | grep -q '^service-worker\.js$'; then
-  node --check service-worker.js
-  if [ $? -ne 0 ]; then
-    echo "  service-worker.js: syntax check failed."
-    exit 1
+  # `npm run test:nodeps`. The parity test pins the wording so it cannot soften back. The binary is
+  # a node script, so without node it cannot run either — and used to fail as though the CODE had.
+  if [[ -z "$HAVE_NODE" ]]; then
+    echo "  ESLint DID NOT RUN — node is not on this hook's PATH."
+    echo "  Staged JS was NOT linted by this commit."
+  else
+    echo "  ESLint DID NOT RUN — no eslint binary in this checkout or the main one."
+    echo "  Staged JS was NOT linted by this commit. Run: npm install"
   fi
 fi
 
-# Firebase SDK version consistency check — ensures firebase.json functions and
-# index.html both reference the same major.minor version of the Firebase JS SDK.
-if command -v node >/dev/null 2>&1 && [[ -f "index.html" ]] && [[ -f "firebase-client.js" ]]; then
+# service-worker.js — parsed as what it is, a CLASSIC script. ESLint's own block for it catches
+# this when ESLint is installed; this is the check that remains on a bare clone, where the step
+# above says it did not run. It used to be `node --check`, which in this `"type": "module"`
+# package parses the worker as a MODULE, so a stray `import`, `export` or top-level `await` — fatal
+# to the classic worker sw-register.js registers, which would stop every update — passed.
+if [[ $'\n'"$STAGED_FILES" == *$'\n'service-worker.js$'\n'* ]]; then
+  if [[ -n "$HAVE_NODE" ]]; then
+    if ! git show :service-worker.js | node -e "new (require('vm').Script)(require('fs').readFileSync(0, 'utf8'), { filename: 'service-worker.js' })"; then
+      echo "  service-worker.js: it does not parse as a classic script — the browser would refuse it."
+      exit 1
+    fi
+  else
+    not_checked "The service-worker syntax check"
+  fi
+fi
+
+# Firebase SDK version consistency — every `firebasejs/x.y.z/` import in firebase-client.js (as
+# staged) names the same version: two versions on one page is two SDKs, and the second one's state
+# is invisible to the first. (The SDK pin against package.json and service-worker.js is
+# dependency-pin-parity.test.mjs and sw-asset-check.test.mjs, in CI.)
+if [[ -n "$HAVE_NODE" ]]; then
+  git show :firebase-client.js > "$HOOK_TMP/firebase-client.js" 2>/dev/null
+  export FIREBASE_CLIENT_STAGED="$HOOK_TMP/firebase-client.js"
   node - << 'NODEEOF'
-const fs = require('fs');
-const clientSrc = fs.readFileSync('firebase-client.js', 'utf8');
-const fnPkg = fs.existsSync('functions/package.json') ? JSON.parse(fs.readFileSync('functions/package.json', 'utf8')) : null;
-const clientMatch = clientSrc.match(/firebase@(\d+\.\d+)/);
-const clientVer = clientMatch ? clientMatch[1] : null;
-const fnVer = fnPkg && fnPkg.dependencies && fnPkg.dependencies['firebase-admin']
-    ? fnPkg.dependencies['firebase-admin'].replace(/[\^~>=<]*/g, '').split('.').slice(0,2).join('.')
-    : null;
-// Only warn; SDK versions in browser client vs Admin SDK aren't directly comparable.
-// This check catches forgotten bumps within the browser SDK (firebase vs @firebase/app).
+const clientSrc = require('fs').readFileSync(process.env.FIREBASE_CLIENT_STAGED, 'utf8');
 // The SDK is imported by URL (`…/firebasejs/12.19.0/firebase-app.js`), never as `firebase@x.y.z` —
-// this matched that npm spelling until Sep 2026 and so could never fire.
+// an earlier version of this check matched that npm spelling until Sep 2026 and so could never fire.
 const importMatch = clientSrc.match(/firebasejs\/(\d+\.\d+\.\d+)\//g);
 if (importMatch && importMatch.length > 1) {
     const versions = [...new Set(importMatch.map(s => s.replace(/^firebasejs\/|\/$/g, '')))];
@@ -270,19 +376,31 @@ if (importMatch && importMatch.length > 1) {
 }
 NODEEOF
   if [ $? -ne 0 ]; then exit 1; fi
+else
+  not_checked "The Firebase SDK version check"
 fi
 
 # Documentation 0.10-checkpoint — BLOCKING for every versioned .md doc.
 # Each doc's version stamp must be at least the latest 0.10 milestone at or below
 # APP_VERSION. Mirrors sw-asset-check.test.mjs exactly, so a missed doc sweep fails
 # at commit time locally, not only in CI. Covers ALL the docs, not just AI_MAP.
-if command -v node >/dev/null 2>&1; then
+# Read AS STAGED, like every check above: the commit is what has to be swept.
+if [[ -n "$HAVE_NODE" ]]; then
   node - << 'NODEEOF'
-const fs = require('fs');
+const { execFileSync } = require('child_process');
+const staged = (p) => { try { return execFileSync('git', ['show', `:${p}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
 const toHundredths = v => { const [a, b = '0'] = v.split('.'); return parseInt(a, 10) * 100 + parseInt(b.padEnd(2, '0').slice(0, 2), 10); };
 
-const app = (fs.readFileSync('roster-data.js', 'utf8').match(/export const APP_VERSION = '([\d.]+)'/) || [])[1];
-if (!app) process.exit(0);
+// AN UNREADABLE VERSION IS A FAILURE, NOT A PASS. This exited 0 when the line could not be read,
+// so the whole check went quiet; and a version that is not two decimals is one the toolchain reads
+// two ways (25.7 is 25.70 here and in CI, 25.07 to the service worker's ordering).
+const line = ((staged('roster-data.js') || '').match(/export const APP_VERSION = '([^']*)'/) || [])[1];
+if (!line || !/^\d+\.\d{2}$/.test(line)) {
+    process.stderr.write(`\n  doc-checkpoint: APP_VERSION in roster-data.js (as staged) is ${line ? `'${line}'` : 'not readable'} —\n`
+        + '  it must be exactly two decimals (npm run bump), so the documentation stamps were NOT checked.\n');
+    process.exit(1);
+}
+const app = line;
 const milestone = Math.floor(toHundredths(app) / 10) * 10;
 const milestoneStr = `v${(milestone / 100).toFixed(2)}`;
 
@@ -302,8 +420,9 @@ for (const { file, re } of DOCS) {
     // that cannot find its documents has not checked them — which is the opposite of what its
     // silence claimed. The loud module check above was the only reason anyone noticed at all.
     if (!file) { stale.push('(a documentation path was not exported by the hook)'); continue; }
-    if (!fs.existsSync(file)) { stale.push(`${file} (does not exist — fix the path in githooks/pre-commit)`); continue; }
-    const m = fs.readFileSync(file, 'utf8').match(re);
+    const text = staged(file);
+    if (text == null) { stale.push(`${file} (not in this commit — fix the path in githooks/pre-commit, or stage it)`); continue; }
+    const m = text.match(re);
     if (!m) { stale.push(`${file} (no version stamp found)`); continue; }
     if (toHundredths(m[1]) < milestone) stale.push(`${file} (v${m[1]})`);
 }
@@ -317,5 +436,6 @@ if (stale.length) {
 }
 NODEEOF
   if [ $? -ne 0 ]; then exit 1; fi
+else
+  not_checked "The documentation 0.10-checkpoint"
 fi
-

@@ -34,4 +34,5 @@ export default defineConfig({
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     ],
     webServer: DEV.webServer,
+    globalSetup: DEV.globalSetup,   // a reused server must prove it serves this checkout (e2e/server-identity.mjs)
 });

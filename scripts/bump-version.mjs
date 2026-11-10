@@ -14,6 +14,13 @@
  *  dropped in the v16.81 debt sweep: they were maintenance-only noise that touched 8 files on
  *  ~half of all commits and conflicted across parallel branches, while carrying no runtime effect.
  *  The runtime version is still shown to staff via the About lightbox, which reads APP_VERSION.)
+ *
+ * EVERYTHING IS CHECKED BEFORE ANYTHING IS WRITTEN (whole-app check, 10 November 2026). It used to
+ * write `roster-data.js` and then discover a problem with `service-worker.js`, leaving the two
+ * disagreeing — and its own advice for that case failed the same way on the other file. And it took
+ * any `digits.digits`: `25.7` read as 25.70 to CI and the hook but as 25.07 to the worker's version
+ * ordering, so a 25.69 worker could sweep the newer release's cache; `25.640` outranked every later
+ * 25.xx. A version is now exactly two decimals, above the one both files already agree on.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -22,42 +29,58 @@ import { dirname, join } from 'node:path';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const newVersion = process.argv[2];
 
-if (!newVersion || !/^\d+\.\d+$/.test(newVersion)) {
-    console.error('Usage: node scripts/bump-version.mjs <version>  e.g. 13.48');
+/** @param {string} msg */
+function refuse(msg) {
+    console.error(`✗ ${msg}\n  Nothing was written.`);
     process.exit(1);
 }
 
-function patch(file, pattern, replacement) {
-    const filePath = join(ROOT, file);
-    const src = readFileSync(filePath, 'utf8');
-    const patched = src.replace(pattern, replacement);   // String.replace accepts a string OR a function
-    if (patched === src) {
-        // TWO DIFFERENT FAILURES, and they were reported as one. A no-op replace means either the
-        // pattern genuinely did not match (the version line moved or was reshaped — a real problem)
-        // or it matched and the file ALREADY says the target, which happens whenever a version
-        // conflict is resolved to the value being bumped to. Reporting both as "Pattern not matched"
-        // sends the reader hunting for a broken regex that is working correctly.
-        if (pattern.test(src)) {
-            throw new Error(`${file} already reads ${newVersion} — nothing to bump. `
-                + 'If a merge resolution set it by hand, that is the write this script should own: '
-                + 'set the line back to the previous version and re-run.');
-        }
-        throw new Error(`Pattern not matched in ${file}: ${pattern}`);
-    }
-    writeFileSync(filePath, patched);
-    console.log(`  ✓ ${file}`);
+if (!newVersion || !/^\d+\.\d{2}$/.test(newVersion)) {
+    console.error('Usage: node scripts/bump-version.mjs <version>  e.g. 13.48 — exactly two decimals:'
+        + ' 25.70, never 25.7 (the service worker would order that as 25.07).');
+    process.exit(1);
 }
 
-console.log(`Bumping version to ${newVersion}…`);
+/** "25.07" → 2507. Both parts are integers, so this is the one ordering every reader of it agrees on. */
+const hundredths = (/** @type {string} */ v) => {
+    const [whole, frac] = v.split('.');
+    return Number(whole) * 100 + Number(frac);
+};
 
-// 1. roster-data.js
-patch('roster-data.js',
-    /export const APP_VERSION = '\d+\.\d+'/,
-    `export const APP_VERSION = '${newVersion}'`);
+const LOCATIONS = [
+    // 1. roster-data.js — the APP_VERSION export every runtime read uses.
+    { file: 'roster-data.js', pattern: /export const APP_VERSION = '(\d+\.\d+)'/, line: (/** @type {string} */ v) => `export const APP_VERSION = '${v}'` },
+    // 2. service-worker.js — the APP_VERSION const that names the SW cache.
+    { file: 'service-worker.js', pattern: /const APP_VERSION = '(\d+\.\d+)'/, line: (/** @type {string} */ v) => `const APP_VERSION = '${v}'` },
+];
 
-// 2. service-worker.js — APP_VERSION const (names the SW cache).
-patch('service-worker.js',
-    /const APP_VERSION = '\d+\.\d+'/,
-    `const APP_VERSION = '${newVersion}'`);
+const read = LOCATIONS.map(loc => {
+    const src = readFileSync(join(ROOT, loc.file), 'utf8');
+    const m = loc.pattern.exec(src);
+    if (!m) refuse(`the APP_VERSION line was not found in ${loc.file} (${loc.pattern}) — has it moved?`);
+    return { ...loc, src, current: /** @type {RegExpExecArray} */ (m)[1] };
+});
 
+const [first, second] = read;
+if (first.current !== second.current) {
+    // A merge resolution that set one of them by hand. Which one is right is the question the
+    // reader must answer; this script will not guess, and a half-bump is worse than none.
+    refuse(`${first.file} reads ${first.current} but ${second.file} reads ${second.current}. Set both to\n`
+        + '  the version on main (git show origin/main:roster-data.js | grep APP_VERSION), then re-run.');
+}
+const current = first.current;
+if (!/^\d+\.\d{2}$/.test(current)) {
+    refuse(`the current version ${current} is not two decimals — correct both files by hand first.`);
+}
+if (hundredths(newVersion) <= hundredths(current)) {
+    refuse(`${newVersion} is not above the current ${current}. The version names the service-worker`
+        + ' cache, so it only ever goes up.');
+}
+
+console.log(`Bumping version ${current} → ${newVersion}…`);
+for (const loc of read) {
+    // A function replacement, so nothing in the line is read as a `$` pattern.
+    writeFileSync(join(ROOT, loc.file), loc.src.replace(loc.pattern, () => loc.line(newVersion)));
+    console.log(`  ✓ ${loc.file}`);
+}
 console.log(`\nDone. Run tests to verify: npm test`);

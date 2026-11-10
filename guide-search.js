@@ -38,14 +38,26 @@
 const MIN_TOKEN_LEN = 2;
 
 /**
- * Lower-case, strip accents, split on anything that is not a letter or digit, drop short
- * fragments, dedupe. The ONE tokeniser — the generator imports this; see rule 2 above.
+ * Letters whose mark is PART of the letter — a stroke or a ligature — so NFKD leaves them whole and
+ * the accent strip cannot reach them. Each then split its word: "Łódź" read as "odz", "København" as
+ * "benhavn", and the UK-keyboard spellings found nothing (whole-app review, Nov 2026). Lower-case
+ * only, because the text is lower-cased first. fip-guide.js's country finder folds with the same
+ * table, and guide-search.test.mjs holds the two to one answer.
+ * @type {Readonly<Record<string, string>>}
+ */
+const WHOLE_LETTERS = Object.freeze({ 'ł': 'l', 'đ': 'd', 'ø': 'o', 'æ': 'ae', 'œ': 'oe', 'ß': 'ss' });
+
+/**
+ * Lower-case, fold the whole letters above, strip accents, split on anything that is not a letter
+ * or digit, drop short fragments, dedupe. The ONE tokeniser — the generator imports this; see rule
+ * 2 above.
  * @param {string} text
  * @returns {string[]} unique tokens, first-seen order
  */
 export function tokeniseText(text) {
     if (typeof text !== 'string' || !text) return [];
-    const folded = text.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    const folded = text.toLowerCase().replace(/[łđøæœß]/g, c => WHOLE_LETTERS[c])
+        .normalize('NFKD').replace(/[̀-ͯ]/g, '');
     const out = [];
     const seen = new Set();
     for (const raw of folded.split(/[^a-z0-9]+/)) {

@@ -71,7 +71,10 @@
         <div class="card-header card-header--row">
             <div>
                 <h2><span aria-hidden="true">🔁</span> The new link: three proposals</h2>
-                <span class="hint">For discussion, not a decision</span>
+                <!-- "For discussion, not a decision" — written by newlink-app.js only while views are asked for
+                     (newlink-render.js, statusHint): once a design is chosen, or the start has come, it would be untrue,
+                     so it is never typed here to show before the script has decided. -->
+                <span class="hint" id="nlStatusHint"></span>
             </div>
         </div>
         <div class="card-body" id="nlStatus"></div>

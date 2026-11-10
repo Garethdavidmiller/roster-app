@@ -34,7 +34,12 @@ function harness(opts = {}) {
             const d = docs.get(ref.path);
             return { exists: () => d !== undefined, data: () => d };
         },
-        getDocs: async (q) => ({ docs: (opts.queryResults?.(q) || []).map(r => ({ id: r.id, data: () => r })) }),
+        getDocs: async (q) => {
+            if (opts.getDocsThrows?.(q)) throw new Error('query failed');
+            // A query's limit is honoured, as Firestore's is — a cap the fake ignored could not be tested.
+            const lim = q.parts.find(p => p.limit !== undefined)?.limit ?? Infinity;
+            return { docs: (opts.queryResults?.(q) || []).slice(0, lim).map(r => ({ id: r.id, data: () => r })) };
+        },
         setDoc: async (ref, data, o) => { if (opts.setDocRejects) throw new Error('denied'); writes.push({ path: ref.path, data, merge: !!o?.merge }); },
         addDoc: async (col, data) => { if (opts.addDocRejects) throw new Error('denied'); writes.push({ path: col.path, data }); },
         deleteDoc: async (ref) => { deletes.push(ref.path); },
@@ -164,6 +169,56 @@ describe('the error log', () => {
         ] : []) });
         await client.getClientErrors();
         assert.deepEqual(deletes, ['clientErrors/old']);
+    });
+
+    // ── PAST 200 RESOLVED (Nov 2026) ─────────────────────────────────────────────────────────────
+    // The resolved read is `limit(200)` with no order, so past 200 Firestore hands back the 200 lowest
+    // document ids — and the prune and the "recently resolved" rows both worked on that arbitrary 200.
+    const resolvedRows = (/** @type {number} */ n, /** @type {number} */ now) => Array.from({ length: n },
+        (_, i) => ({ id: `r${i}`, resolved: true, resolvedAt: ts(now - DAY), timestamp: ts(now - 2 * DAY) }));
+    const isExpiryRead = (/** @type {any} */ q) => q.parts[0].where[0] === 'resolvedAt';
+
+    test('an expired record OUTSIDE the resolved window is still pruned — the prune asks for it itself', async () => {
+        const now = Date.now();
+        const old = { id: 'past-the-window', resolved: true, resolvedAt: ts(now - 120 * DAY), timestamp: ts(now - 121 * DAY) };
+        const { client, deletes } = harness({ queryResults: (q) => isExpiryRead(q) ? [old]
+            : (q.parts[0].where[2] === true ? resolvedRows(201, now) : []) });
+        await client.getClientErrors();
+        assert.deepEqual(deletes, ['clientErrors/past-the-window']);
+    });
+
+    test('the expiry read asks by resolvedAt alone, before the retention cut-off — no composite index', async () => {
+        const seen = /** @type {any[]} */ ([]);
+        const { client } = harness({ queryResults: (q) => { seen.push(q); return []; } });
+        const t0 = Date.now();
+        await client.getClientErrors();
+        const expiry = seen.find(isExpiryRead);
+        assert.ok(expiry, 'the prune makes its own read');
+        assert.equal(expiry.parts.length, 2, 'one filter and a limit — nothing that needs a composite index');
+        assert.equal(expiry.parts[0].where[1], '<');
+        const cut = /** @type {Date} */ (expiry.parts[0].where[2]).getTime();
+        assert.ok(Math.abs(cut - (t0 - 90 * DAY)) < 5000, 'the cut-off is the 90-day retention, measured from resolution');
+    });
+
+    test('more than 200 resolved is SAID — resolvedTruncated — and exactly 200 is not', async () => {
+        const now = Date.now();
+        for (const [n, expected] of [[201, true], [200, false]]) {
+            const { client } = harness({ queryResults: (q) => (!isExpiryRead(q) && q.parts[0].where[2] === true ? resolvedRows(n, now) : []) });
+            const { resolvedTruncated } = await client.getClientErrors();
+            assert.equal(resolvedTruncated, expected, `${n} resolved`);
+        }
+    });
+
+    test('the expiry read failing costs the prune, never the Error Log', async () => {
+        const now = Date.now();
+        const old = { id: 'old', resolved: true, resolvedAt: ts(now - 120 * DAY), timestamp: ts(now - 121 * DAY) };
+        const { client, deletes } = harness({
+            getDocsThrows: isExpiryRead,
+            queryResults: (q) => (q.parts[0].where[2] === true ? [old] : []),
+        });
+        const { errors } = await client.getClientErrors();
+        assert.ok(Array.isArray(errors), 'the card still gets its list');
+        assert.deepEqual(deletes, ['clientErrors/old'], 'and what the resolved read saw is still pruned');
     });
 
     test('Resolve goes through the GATED write and stamps resolvedAt', async () => {

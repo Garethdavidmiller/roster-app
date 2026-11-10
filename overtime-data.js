@@ -81,8 +81,15 @@ async function postOnce(name, body, opts, fresh) {
         const user = auth.currentUser;
         if (!user) return { ok: false, code: 'no-session' };
         token = await user.getIdToken(fresh);
-    } catch (_) {
-        return { ok: false, code: 'no-session' };
+    } catch (err) {
+        // NO SIGNAL IS NOT AN EXPIRED SIGN-IN (overtime-core-3, Nov 2026). A lapsed hourly token
+        // that cannot be refreshed for want of a network was `no-session`, worded "Reload the page
+        // and sign in again" — and a reload on a phone throws away the answers not yet submitted.
+        // The SDK draws the line itself: a refresh that cannot reach the network (its own timeout
+        // included) fails `auth/network-request-failed`, and it treats any OTHER failure as a token
+        // that is no longer valid. So `offline` is that one code: nothing was sent, try again.
+        const code = /** @type {any} */ (err)?.code === 'auth/network-request-failed' ? 'offline' : 'no-session';
+        return { ok: false, code };
     }
 
     const tSend = Date.now();
@@ -255,7 +262,7 @@ const WINDOWS = 'overtimeWindows';
  * @param {{ initialDeadlineAt: number }} milestones
  * @param {string[]} [dates] the window's seven dates; omit to skip the roster read entirely
  * @returns {Promise<{ ok: boolean, participants: any[], submissions: Map<string, any>,
- *   roster: Record<string, Record<string, any>>, rosterKnown: boolean }>}
+ *   roster: Record<string, Record<string, any>> }>}
  */
 export async function loadWeekDetail(weekEnding, milestones, dates) {
     try {
@@ -325,24 +332,32 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
 
             /** @type {any[]} */
             const revisions = [];
+            /** @type {any} */
+            let rSnap = null;
             try {
-                const rSnap = await getDocs(collection(doc(windowRef, 'submissions', h.memberName), 'revisions'));
-                rSnap.forEach((/** @type {any} */ d) => {
-                    const r = d.data();
-                    revisions.push({ ...r, acceptedAt: toMillis(r.acceptedAt) });
-                });
+                rSnap = await getDocs(collection(doc(windowRef, 'submissions', h.memberName), 'revisions'));
             } catch (_) {
                 // A missing revision history is not a missing SUBMISSION. The head still shows what
                 // they said; only the "changed since initial" marker is unavailable, so it is simply
                 // omitted rather than guessed at.
             }
+            // …BUT A CACHE-SERVED HISTORY IS A FAILED LOAD, like the two lists above (overtime-core-5,
+            // Nov 2026). The connection can drop between the lists and these reads, and the cache
+            // then answers with nothing or with an OLDER history — beside a head the server just
+            // sent. That is not an absent marker but a wrong one, painted under a fresh "as at".
+            if (rSnap?.metadata?.fromCache) throw new Error('revision history served from the offline cache');
+            rSnap?.forEach((/** @type {any} */ d) => {
+                const r = d.data();
+                revisions.push({ ...r, acceptedAt: toMillis(r.acceptedAt) });
+            });
             return { ...h, history: deriveHistory(revisions, h.days, milestones.initialDeadlineAt, openedAt) };
         }));
 
         // A FAILED roster read is not a failed week. The availability is the record; the roster is
         // context on top of it, and blanking the workspace because the overrides query fell over
         // would take away the thing the reviewer came for in order to withhold the thing they did
-        // not have yesterday. `rosterKnown` false makes every row say so instead.
+        // not have yesterday. The roster then comes back empty, and each row's badge, finding no
+        // day for its member, says "Roster unavailable" instead (`rosterBadge`).
         const rosterRead = dates?.length
             // Withdrawn participants are excluded from the roster read as well as from the views:
             // nothing draws their duty, and asking for it would widen a bounded query for rows that
@@ -356,10 +371,9 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
             participants,
             submissions: new Map(withHistory.map(h => [h.memberName, h])),
             roster: rosterRead.byMember,
-            rosterKnown: rosterRead.knowledge === 'authoritative',
         };
     } catch (_) {
-        return { ok: false, participants: [], submissions: new Map(), roster: {}, rosterKnown: false };
+        return { ok: false, participants: [], submissions: new Map(), roster: {} };
     }
 }
 

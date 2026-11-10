@@ -155,16 +155,24 @@
         while (splash.firstChild) splash.removeChild(splash.firstChild);
         splash.classList.remove('hidden');
         splash.setAttribute('aria-hidden', 'false');
+        // An alertdialog NAMED from its title and holding focus (Nov 2026): the role alone was
+        // switched on an element that had been on the page all along, the case a screen reader is
+        // least likely to announce, so a member who cannot see it could be left on a silent page.
         splash.setAttribute('role', 'alertdialog');
+        splash.setAttribute('aria-modal', 'true');
+        splash.setAttribute('aria-labelledby', 'splashRecoveryTitle');
+        splash.setAttribute('aria-describedby', 'splashRecoveryText');
         splash.style.background = '#001e3c';   // navy fallback if index.css didn't load
         splash.style.pointerEvents = 'auto';
         splash.style.opacity = '1';            // whatever hid it, it is being reused now
 
         var title = document.createElement('div');
+        title.id = 'splashRecoveryTitle';
         title.textContent = 'Marylebone Roster couldn’t finish loading';
         title.style.cssText = 'font:600 18px/1.3 system-ui,-apple-system,sans-serif;color:#fff;text-align:center;margin-bottom:8px';
 
         var sub = document.createElement('div');
+        sub.id = 'splashRecoveryText';
         // Neutral wording: by the time this panel shows we've already tried one auto-reload, so
         // the cause could be a slow network OR a stale/broken cache — don't assert "stale copy"
         // (factually wrong for a first install that has no cache yet). Reload / Reset cover both.
@@ -194,6 +202,9 @@
         wrap.appendChild(reloadBtn);
         wrap.appendChild(resetBtn);
         splash.appendChild(wrap);
+        // Focus moves INTO the dialog, on its first action — what opening an alertdialog means, and
+        // what makes a screen reader read the name and the description above.
+        try { reloadBtn.focus(); } catch (_e) { /* nothing focusable here — the panel still shows */ }
     }
 
     /** THIS APP's cache clear: unregister the service workers that serve this app, delete the

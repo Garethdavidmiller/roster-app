@@ -159,7 +159,7 @@ pattern `password-force.js` follows.
 ## 4. Set-your-own-password
 
 - **Settings card** ("Set / change your password"): current password → new password ×2 →
-  reauthenticate → `updatePassword` — through `reauthenticateWithPassword` and `setOwnPassword` in
+  reauthenticate → `updatePassword` — through `reauthenticateWithPassword` and `changeOwnPassword` in
   `firebase-client.js`, which re-exports `updatePassword`, `reauthenticateWithCredential` and
   `EmailAuthProvider` from the SDK.
 - **Shared helper `credentialCandidatesFor(name, typed)`** — the §3.2 gate+padding logic written

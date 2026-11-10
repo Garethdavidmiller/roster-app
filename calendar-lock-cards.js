@@ -113,6 +113,20 @@ export function hideLockPanel() {
 }
 
 /**
+ * Take the come-back card's FULL-SCREEN sign-in form down, for a grant (cal-data-9, 10 Nov 2026).
+ * The form is appended to <body>, not the slot, so a grant that landed while it was open — a slow
+ * identity restore, the silent sign-in — took the card away and left the form asking for a password
+ * over a Calendar already granted and built. The front door's INLINE card is in the slot and goes
+ * with it. A form whose OWN sign-in is in flight is left: its success reloads the page, and that
+ * reload is what runs the forced set-password step (its marker is written after the identity lands).
+ */
+export function dismissSignInForm() {
+    const form = document.getElementById('loginOverlay');
+    if (!form || form.classList.contains('login-overlay--inline') || form.querySelector('.login-back--busy')) return;
+    _signInForm?.dismissLoginOverlay();
+}
+
+/**
  * Build and show the staff-access panel.
  *
  * Deliberately NOT a lightbox. `createLightbox` is the app's modal grammar — backdrop, focus trap,
@@ -197,20 +211,28 @@ export function showLockPanel() {
     }
 
     let _busy = false;
+    // When the progressive delay after repeated failures ends — ONE value both handlers read
+    // (cal-data-7, 10 Nov 2026). The delay used to live only in the button's `disabled`, and the field's
+    // input handler set that from the digits alone, so retyping the four digits lifted it at once and
+    // the delay never delayed anything.
+    let _heldUntil = 0;
+    const held = () => Date.now() < _heldUntil;
 
     // Digits only, always. Filtering on input rather than rejecting on submit means the field can
     // never hold something the member can see but the app will not accept.
     input.addEventListener('input', () => {
         const cleaned = normalisePin(input.value);
         if (cleaned !== input.value) input.value = cleaned;
-        submit.disabled = !isCompletePin(cleaned) || _busy;
+        submit.disabled = !isCompletePin(cleaned) || _busy || held();
         if (msg.textContent) say('', false);
     });
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
         const pin = normalisePin(input.value);
-        if (!isCompletePin(pin) || _busy) return;
+        if (!isCompletePin(pin) || _busy || held()) return;
+        // A delay's timer still pending must not re-enable the button under "Unlocking…".
+        if (_backoffTimer) { clearTimeout(_backoffTimer); _backoffTimer = null; }
         _busy = true;
         submit.disabled = true;
         submit.textContent = 'Unlocking…';
@@ -229,14 +251,13 @@ export function showLockPanel() {
         say(result.message, true);
 
         const wait = attemptBackoffMs(_consecutiveFailures);
+        submit.disabled = true;   // the field is now empty, and a delay may follow
         if (wait > 0) {
-            submit.disabled = true;
+            _heldUntil = Date.now() + wait;
             _backoffTimer = setTimeout(() => {
                 _backoffTimer = null;
                 submit.disabled = !isCompletePin(normalisePin(input.value));
             }, wait);
-        } else {
-            submit.disabled = true;   // the field is now empty
         }
         // Focus goes back to the field on every failure — the member's next action is always to
         // retype, and leaving focus on a disabled button strands a keyboard user with nowhere to go.
@@ -299,7 +320,7 @@ export async function showSignInPanel(notice = '') {
             // Who the PIN is FOR, said on the card that leads with the alternative to it — otherwise
             // a visiting colleague with no account reads a sign-in form and reasonably concludes the
             // app is not for them. "Visiting or agency staff": the audience the owner named.
-            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle and the guides.',
+            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and the guides.',
             onSelect: () => showLockPanel(),
         },
     });
@@ -342,9 +363,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     _deps.setWorkspaceHidden(true);
     _deps.onAwaitingInput?.();   // the page now waits for the member to sign in again (perf-reporter.js)
 
-    // Same card, same ids for the button and the message channel, so both wear the styling the PIN
-    // card already established — including `#calLockSubmit:disabled`, which is exactly the resting
-    // look wanted while the silent attempt is in flight.
+    // Same card, and the same id for the button, so it wears the styling the PIN card established.
     const panel = mountLockCard({ labelledBy: 'calLockWho', html: `
         <div class="cal-lock-card">
             <img src="./icon-192.png" alt="" loading="eager">
@@ -388,7 +407,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
         // overlay pre-selects grade and name and lands on the password field. `presetName` is a
         // convenience the overlay is free to ignore — it never widens who may sign in.
         const open = (/** @type {typeof import('./login-overlay.js')} */ m) =>
-            m.initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload(), presetName: name });
+            m.initLoginOverlay({ pageLabel: 'Calendar', onSuccess: () => window.location.reload(), presetName: name });
         if (_signInForm) { open(_signInForm); return; }   // inside the tap — see the block above
         /** @type {typeof import('./login-overlay.js')} */ let mod;
         // A failed load must not leave a dead button: say so and keep the button live. After a
@@ -398,6 +417,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
             if (whyEl) whyEl.textContent = 'The sign-in form could not load. Check your connection and try again.';
             return;
         }
+        _signInForm = mod;   // so a grant can take the form down (`dismissSignInForm`)
         open(mod);
     });
 

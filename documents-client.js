@@ -54,6 +54,9 @@ import { SIGNED_OUT_CODE } from './claim-retry.js';
  */
 const RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
 
+/** What `latestIn` throws when only this device's cache answered, empty — see `latestIn`. */
+const CACHE_ONLY_EMPTY = 'documents/cache-only-empty';
+
 /**
  * Verify a chosen file's leading bytes (magic number) actually match its declared type before it is
  * uploaded. Browser uploads otherwise trust only the file extension / reported MIME, so a renamed
@@ -201,12 +204,15 @@ export function buildDocumentClient({
                 // SIGNED OUT MID-COMMIT (v24.39). Firestore keeps the write queued for that account
                 // and never settles it, so this used to sit on "Uploading…" for good. It may still
                 // land, so it is UNCONFIRMED — never a failure, and never a rollback of our object,
-                // which the live document may yet point at.
-                if (e?.code === SIGNED_OUT_CODE) {
-                    const amb = /** @type {any} */ (new Error('Signed out before the upload was confirmed.'));
-                    amb.code = 'upload/unconfirmed';
-                    throw amb;
-                }
+                // which the live document may yet point at: the outer catch keeps the file.
+                //
+                // It leaves through the rethrow below with its OWN code (SIGNED_OUT_CODE), and is
+                // never renamed `upload/unconfirmed` again (whole-app review, 10 Nov 2026). The two
+                // are different causes with different instructions: a sign-out is answered by signing
+                // in again (`unconfirmedWriteLine`, claim-retry.js), a failed read by looking. Renamed,
+                // it was worded "the connection dropped mid-save", and the page's write gate — which
+                // counts only this code — never heard of it, so Operations stopped holding an update
+                // the moment the button came back (AUTH_AND_SESSIONS 22).
                 if (!RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setErr;
                 console.warn(`[upload] ${logTag} setDoc attempt 1 failed (${e?.code}) — checking what committed`);
                 await sleep(2000);
@@ -285,15 +291,25 @@ export function buildDocumentClient({
             // (definite non-commit). A still-retriable FINAL error is commit-ambiguous — deleting
             // could leave a committed doc pointing at nothing (staff taps 404 until re-upload) — so
             // leave the file (at most one orphan, which the next upload's cleanup tolerates).
-            // `upload/unconfirmed` joins the retriable codes here for the same reason they are
-            // listed: our write MAY have committed, so deleting the object could leave a live
-            // document pointing at nothing. `upload/superseded` deliberately does NOT — there the
-            // read PROVED somebody else's document is live, so ours is an orphan with a known name.
+            // `upload/unconfirmed` and a sign-out join the retriable codes here for the same reason
+            // they are listed: our write MAY have committed, so deleting the object could leave a
+            // live document pointing at nothing. `upload/superseded` deliberately does NOT — there
+            // the read PROVED somebody else's document is live, so ours is an orphan with a known name.
             const _code = /** @type {any} */ (err)?.code;
-            if (!RETRIABLE_FIRESTORE_CODES.has(_code) && _code !== 'upload/unconfirmed') {
+            const _retriable = RETRIABLE_FIRESTORE_CODES.has(_code);
+            if (!_retriable && _code !== 'upload/unconfirmed' && _code !== SIGNED_OUT_CODE) {
                 deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[upload] ${logTag} rollback failed:`, e));
             } else {
                 console.warn(`[upload] ${logTag} commit-ambiguous failure — leaving new Storage object in place:`, _code);
+            }
+            // …and SAYS so (whole-app review, 10 Nov 2026). A still-retriable final error — the
+            // compare-and-set retry ending `unavailable` after the first write ended
+            // `deadline-exceeded` — is exactly the state `upload/unconfirmed` names, and the line
+            // above has just judged it so by keeping the file. Thrown as its raw code, the card
+            // read it as a plain failure ("Upload failed — please try again") about a document
+            // that may be live. The original stays on `cause`.
+            if (_retriable) {
+                throw Object.assign(new Error('Could not confirm the upload saved.'), { code: 'upload/unconfirmed', cause: err });
             }
             throw err;
         }
@@ -328,12 +344,22 @@ export function buildDocumentClient({
     /**
      * Read the most recent document in a date-keyed collection (one-shot).
      * A row with no `storageUrl` is treated as absent — it points at nothing.
+     *
+     * ONLY THE SERVER CAN SAY "NONE" (whole-app review, 10 Nov 2026) — the Huddle listener's rule
+     * (`subscribeToLatestHuddle` below, and its viewer), which these one-shot reads never got. Offline,
+     * `getDocs` resolves from this device's cache (CALENDAR_DATA.md 16), and an EMPTY cache is a read
+     * that could not be made, not a document that does not exist. It is thrown, so both callers — the
+     * drawer and the in-app viewer — say they could not connect, with a way to try again, instead of
+     * "No … has been uploaded yet".
      * @param {string} collectionName
      * @returns {Promise<any>} the latest document's data, or null
      */
     async function latestIn(collectionName) {
         const q = query(collection(db, collectionName), orderBy('date', 'desc'), limit(1));
         const snap = await getDocs(q);
+        if (snap.empty && snap.metadata?.fromCache) {
+            throw Object.assign(new Error('Only this device\'s cache answered, and it holds none.'), { code: CACHE_ONLY_EMPTY });
+        }
         if (snap.empty) return null;
         const data = snap.docs[0].data();
         return data.storageUrl ? data : null;
@@ -370,10 +396,12 @@ export function buildDocumentClient({
         uploadNewsletter: (date, file, uploadedBy) =>
             uploadDoc(collections.newsletters, date, file, uploadedBy),
 
-        /** @returns {Promise<any>} the latest Retail Circular, or null if none uploaded */
+        /** @returns {Promise<any>} the latest Retail Circular, or null if the server says none is
+         *  uploaded; rejects when only an empty cache answered (`latestIn`) */
         getLatestCircular: () => latestIn(collections.circulars),
 
-        /** @returns {Promise<any>} the latest Newsletter, or null if none uploaded */
+        /** @returns {Promise<any>} the latest Newsletter, or null if the server says none is uploaded;
+         *  rejects when only an empty cache answered (`latestIn`) */
         getLatestNewsletter: () => latestIn(collections.newsletters),
 
         /**

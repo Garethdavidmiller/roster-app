@@ -79,7 +79,7 @@
  * nothing reports as a survivor and is not one.
  */
 
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mock } from 'node:test';
 
@@ -295,6 +295,31 @@ describe('the control that fixes the emptiness', () => {
         assert.equal(_block.innerHTML, '', 'and the previous year\'s block is cleared, not left up');
     });
 
+    test('every payslip of the year entered: no projection — there is no "rest" of it (paycalc-2-20)', () => {
+        // A finished year read "Take-home ≈ £X" and then "If the rest of 2025/26 looks similar:
+        // take-home ≈ £X for the year" — the same figure, under a heading about what is left.
+        for (const p of TY_PERIODS) enter(p.num);
+        render();
+        assert.match(_block.innerHTML, /13 of 13 paid payslips entered/);
+        assert.match(_block.innerHTML, /Take-home/);
+        assert.doesNotMatch(_block.innerHTML, /If the rest of/);
+    });
+
+    test('only UNREADABLE payslips: no £0.00 totals, no projection — a warning (paycalc-2-20)', () => {
+        // Four "≈ £0.00" rows and a £0.00 projection were figures about pay nobody could read.
+        localStorage.setItem(periodKey(TY_PERIODS[0].num), '{corrupt');
+        render();
+        assert.equal(_block.hidden, false);
+        assert.doesNotMatch(_block.innerHTML, /yearso-row/);
+        assert.doesNotMatch(_block.innerHTML, /If the rest of/);
+        assert.match(_block.innerHTML, /Couldn't read 1 saved payslip, so there is nothing to total yet/);
+        // …and with EVERY payslip unreadable, nothing is missing — the block must still say so.
+        for (const p of TY_PERIODS) localStorage.setItem(periodKey(p.num), '{corrupt');
+        render();
+        assert.equal(_block.hidden, false, 'a year of unreadable payslips hid the block that says so');
+        assert.match(_block.innerHTML, /Couldn't read 13 saved payslips/);
+    });
+
     test('every paid payslip is NAMED, not just counted', () => {
         // v18.42: "3 of 13" is a status; the dates are what make it actionable.
         enter(TY_PERIODS[0].num);
@@ -369,6 +394,48 @@ describe('a control that never comes back', () => {
         assert.match(receipt, /Couldn't finish filling/, 'precondition: it is the FAILURE receipt');
         assert.doesNotMatch(receipt, /[Nn]othing was (changed|lost|written)/,
             'a partial write must not be reported as no write');
+    });
+
+    test('a recalculation DURING a fill draws a button that says so, not a live-looking one (paycalc-2-8)', async () => {
+        // Any calculate() while the fill waits on the network rebuilds this block. It used to draw a
+        // fresh, enabled "Fill these from your calendar" whose taps `_filling` silently ignored.
+        /** @type {Function[]} */ const held = [];
+        _fetch = () => new Promise((r) => held.push(() => r('loaded')));
+        _suggest = (/** @type {any} */ p) => (p.num === TY_PERIODS[12].num ? null : { otH: 3, otM: 0 });   // one stays missing
+        render();
+        clickFill(fillButton());
+        await settle();
+        render();                                             // what any calculate() during the fill does
+        const midFill = _block.innerHTML;
+        // Release everything BEFORE asserting: a held fetch left behind would keep the fill (and its
+        // 15-second timers) alive past a failure here.
+        for (let i = 0; i < 40 && held.length; i++) { held.splice(0).forEach((r) => r()); await settle(); }
+        assert.match(midFill, /id="fillYearBtn"[^>]* disabled/, 'the button looked live mid-fill');
+        assert.match(midFill, /Filling from your calendar…/);
+        assert.equal(_afterFillReceipts.length, 1, 'precondition: the fill finished');
+        assert.match(_block.innerHTML, /id="fillYearBtn"/, 'precondition: one payslip is still missing');
+        assert.doesNotMatch(_block.innerHTML, /disabled/, 'the re-render after the fill must draw a LIVE button');
+    });
+
+    test('the re-fetch of the payslip on screen is bounded too — a silent connection cannot hold the fill (paycalc-2-14)', async () => {
+        const onScreen = TY_PERIODS[0];
+        for (const p of TY_PERIODS.slice(0, 12)) enter(p.num);   // only the last is fillable
+        _periodSelectValue = String(onScreen.num);
+        _suggest = () => ({ otH: 3, otM: 0 });
+        _fetch = (/** @type {any} */ p) => (p.num === onScreen.num ? new Promise(() => {}) : Promise.resolve('loaded'));
+        _block = makeBlock();
+        initYearCard({
+            afterFill: (/** @type {any} */ r) => { _events.push('afterFill'); _afterFillReceipts.push(r); render(); },
+            fetchTimeoutMs: 30,
+        });
+        render();
+        await clickFill(fillButton());
+        await new Promise((r) => setTimeout(r, 100));
+        assert.equal(_afterFillReceipts.length, 1, 'the fill never finished: its re-fetch of the payslip on screen had no time limit');
+        assert.match(_block.innerHTML, /yearso-receipt/);
+        const at = _events.indexOf(`fetch:${onScreen.num}`);
+        assert.ok(at >= 0 && _events.slice(at + 1).includes('reset'),
+            'no answer in time: the late one is cancelled and the hint bar says base-only');
     });
 
     test('a second click while a fill is in flight is ignored', async () => {
@@ -493,5 +560,49 @@ describe('the post-fill order', () => {
         await settle();
         assert.deepEqual(_events, [], 'no fetch, no coordinator, no hint');
         assert.equal(btn.disabled, false, 'and the button is never disabled');
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// E. WHERE FOCUS GOES WHEN A FILL ENDS (paycalc-2-18)
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// The rebuild that drops focus is a browser matter, proved in e2e/paycalc-cards.spec.js. What runs
+// here is the DECISION at the end of a fill: the receipt takes focus only when focus has nowhere else
+// to be, and never from a field the member moved to while the fill was running. The block gains just
+// enough to hold focus: `contains`, and a `querySelector` answering with stand-ins whose `focus()`
+// moves `document.activeElement`.
+
+describe('where focus goes when a fill ends', () => {
+    const doc = /** @type {any} */ (global.document);
+    /** @type {any} */ let receipt;
+    beforeEach(() => {
+        doc.body = { tag: 'body' };
+        doc.activeElement = doc.body;
+        receipt = { tag: 'receipt', focus() { doc.activeElement = this; } };
+        const button = { tag: 'button', focus() { doc.activeElement = this; } };
+        _block.contains = (/** @type {any} */ a) => a === receipt || a === button;
+        _block.querySelector = (/** @type {string} */ sel) => (
+            sel === '.yearso-receipt' ? (/yearso-receipt/.test(_block.innerHTML) ? receipt : null)
+                : sel === '#fillYearBtn' ? (/id="fillYearBtn"/.test(_block.innerHTML) ? button : null) : null);
+        _suggest = () => ({ otH: 3, otM: 0 });
+    });
+    afterEach(() => { delete doc.activeElement; delete doc.body; });
+
+    test('focus with nowhere to be — a tapped button Safari never focused — lands on the receipt', async () => {
+        render();
+        await clickFill(fillButton());                // activeElement stays the page body throughout
+        assert.equal(doc.activeElement, receipt, 'the receipt is what a screen reader should read next');
+    });
+
+    test('a member who moved to another field while the fill ran keeps their place', async () => {
+        render();
+        const handler = _block._on.click?.[0];
+        handler({ target: fillButton() });            // the fill starts and waits on its first fetch…
+        const elsewhere = { tag: 'input' };
+        doc.activeElement = elsewhere;                // …while the member goes on typing hours
+        await settle();
+        assert.ok(_afterFillReceipts.length === 1, 'precondition: the fill finished');
+        assert.equal(doc.activeElement, elsewhere, 'the end of a fill must not pull focus out of a field in use');
     });
 });

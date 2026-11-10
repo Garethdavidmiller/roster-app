@@ -22,7 +22,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { summarise, shouldOpen, CARD_ORDER } from './settings-status.js';
+import { summarise, shouldOpen, installNeed, CARD_ORDER } from './settings-status.js';
 
 // `install` is 'n/a' in the ALL-OK set because that is what it reports almost everywhere: an
 // offer, not a setting to get right. Its 'action' state is the iPhone-in-a-browser case only.
@@ -121,6 +121,26 @@ describe('false alarm — the noisy failure', () => {
         const s = summarise(iphoneInBrowser);
         assert.equal(s.tone, 'todo');
         assert.equal(s.headline, '1 thing to finish');
+        assert.deepEqual(s.items, ['Add the app to your Home Screen']);
+    });
+
+    test('installing is a to-do for an iPhone in a browser, and an offer everywhere else', () => {
+        const need = (/** @type {Partial<{ios: boolean, installed: boolean, onMirror: boolean}>} */ d) =>
+            installNeed({ ios: false, installed: false, onMirror: false, ...d });
+        assert.deepEqual(need({ ios: true }), { state: 'action', from: 'here' });
+        for (const onMirror of [false, true]) {
+            assert.deepEqual(need({ onMirror }), { state: 'n/a', from: null }, 'Android or a desktop: an offer');
+            assert.deepEqual(need({ onMirror, ios: true, installed: true }), { state: 'n/a', from: null }, 'already on the Home Screen');
+        }
+    });
+
+    test('…and on the Pages mirror too, from the main address — never "all set" on a phone that cannot be notified', () => {
+        // The reported defect (Nov 2026 review): the mirror's iPhone reported `n/a`, because the app is
+        // never installed FROM the mirror, and the summary closed over a phone that can receive nothing.
+        const mirror = installNeed({ ios: true, installed: false, onMirror: true });
+        assert.deepEqual(mirror, { state: 'action', from: 'main-address' });
+        const s = summarise({ ...ALL_OK, install: mirror.state, notifications: 'n/a' });
+        assert.notEqual(s.tone, 'all-set');
         assert.deepEqual(s.items, ['Add the app to your Home Screen']);
     });
 

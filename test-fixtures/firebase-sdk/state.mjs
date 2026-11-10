@@ -20,6 +20,9 @@ export const state = {
     currentUser: /** @type {any} */ (null),
     /** writes that should fail, by path prefix → an error code (fails once) or { code, times } */
     failNext: /** @type {Map<string, string | { code: string, times: number }>} */ (new Map()),
+    /** writes the server has not acknowledged yet, by path prefix → a promise the next such write
+     *  waits on before it resolves (once). Recorded in `ops` at once: it was SENT. */
+    holdNext: /** @type {Map<string, Promise<any>>} */ (new Map()),
     /** reauthenticateWithCredential outcomes, by password → error code (absent = success) */
     reauthRejects: /** @type {Map<string, string>} */ (new Map()),
 };
@@ -27,7 +30,7 @@ export const state = {
 /** Put the recorder back to empty between tests. */
 export function resetState() {
     state.ops.length = 0; state.reads.length = 0; state.docs.clear(); state.authOps.length = 0;
-    state.currentUser = null; state.failNext.clear(); state.reauthRejects.clear();
+    state.currentUser = null; state.failNext.clear(); state.holdNext.clear(); state.reauthRejects.clear();
 }
 
 /**

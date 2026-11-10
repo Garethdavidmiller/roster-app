@@ -138,7 +138,7 @@ test('a finished SLOW save announces how long it took; a quick one announces not
 test('the notice: batched wording wins while any batched write waits, and it clears on the last', async () => {
     // A minimal document — enough for the notice's one element — so the reference counting is
     // exercised through the real exported wrapper rather than restated here.
-    const el = { id: 'slowSaveNotice', hidden: true, textContent: '', setAttribute() {} };
+    const el = { id: 'slowSaveNotice', hidden: true, textContent: '', style: { cssText: '' }, setAttribute() {} };
     const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
     globalThis.document = /** @type {any} */ ({
         getElementById: (id) => (id === 'slowSaveNotice' && el.appended ? el : null),
@@ -160,6 +160,66 @@ test('the notice: batched wording wins while any batched write waits, and it cle
         assert.equal(el.hidden, true, 'the last write landed — the notice goes');
     } finally {
         globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
+    }
+});
+
+/** A notice element that records the state it was in each time its words were set. */
+function recordingNotice() {
+    /** @type {{ text: string, hidden: boolean, unseen: boolean }[]} */ const sets = [];
+    const el = {
+        id: 'slowSaveNotice', hidden: true, appended: false, style: { cssText: '' }, _text: '',
+        setAttribute() {},
+        get textContent() { return this._text; },
+        set textContent(v) { sets.push({ text: v, hidden: this.hidden, unseen: /clip-path/.test(this.style.cssText) }); this._text = v; },
+    };
+    const doc = {
+        getElementById: (/** @type {string} */ id) => (id === 'slowSaveNotice' && el.appended ? el : null),
+        createElement: () => el,
+        body: { appendChild: (/** @type {any} */ n) => { n.appended = true; } },
+    };
+    return { el, doc, sets };
+}
+
+test('the live region is in the page, EMPTY and unseen, before its words arrive (MDN: establish it first)', async () => {
+    // A live region created, filled and un-hidden in one step is commonly not announced — assistive
+    // technology announces CHANGES to a region it already knows. So the region goes in when the save
+    // starts, empty and visually hidden, and when the save turns slow only its text changes.
+    const { el, doc, sets } = recordingNotice();
+    const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
+    globalThis.document = /** @type {any} */ (doc);
+    globalThis.__E2E = { slowSaveMs: 5 };
+    const d = deferred();
+    try {
+        const p = withSlowSaveNotice(d.p);
+        assert.equal(el.hidden, false, 'present in the page from the moment the save starts…');
+        assert.equal(el.textContent, '', '…empty…');
+        assert.match(el.style.cssText, /clip-path/, '…and not drawn: an empty navy box would flash on every save');
+        await new Promise(r => setTimeout(r, 30));
+        const words = sets.find(s => s.text !== '');
+        assert.ok(words, 'the slow line was set');
+        assert.equal(words.hidden, false, 'its words arrived in a region ALREADY exposed — the change is what is announced');
+        assert.equal(el.style.cssText, '', 'and the box is drawn once there is something to read');
+        d.resolve(); await p; await tick();
+        assert.equal(el.hidden, true, 'nothing in flight: hidden, as before');
+        assert.equal(el.textContent, '');
+    } finally {
+        d.resolve(); await tick();   // a failed assertion must not leave a write in flight for the next test
+        globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
+    }
+});
+
+test('a QUICK save leaves nothing behind — never a box, never a word', async () => {
+    const { el, doc, sets } = recordingNotice();
+    const prevDoc = globalThis.document;
+    globalThis.document = /** @type {any} */ (doc);
+    try {
+        await withSlowSaveNotice(Promise.resolve('quick'));
+        await tick();
+        assert.equal(el.hidden, true);
+        assert.equal(el.style.cssText, '');
+        assert.deepEqual(sets.filter(s => s.text !== ''), [], 'a quick save says nothing');
+    } finally {
+        globalThis.document = prevDoc;
     }
 });
 

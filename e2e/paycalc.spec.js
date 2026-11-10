@@ -221,6 +221,41 @@ test('paycalc: the payslip check is there while the payslip is in hand, and name
     expect(errors).toHaveLength(0);
 });
 
+// ── A CODE THE CALCULATOR DOES NOT RECOGNISE, SAID WHERE IT MATTERS (whole-app review, Nov 2026) ──
+// Priced on the standard 1257L allowance, and only the check line above said so — hidden until the
+// payslip's cut-off. The words are unit-tested; this pins calculate() handing computeTax's own flag to
+// the Income Tax row, the box's warning and the Year to Date line, on the payslip the page opens on.
+test('paycalc: an unrecognised tax code is named under Income Tax and the box, and the Year to Date line holds back', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));   // 20 Nov is next; 23 Oct is paid
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    const line = page.locator('#netYtdNudge');
+    await expect(line, 'premise: with 1257L the line asks for the figures').toBeVisible();
+
+    await page.locator('#taxCode').fill('OT');
+    await expect(page.locator('#summary')).toContainText("Tax code OT isn't one the calculator recognises");
+    await expect(line, 'with a wrong code the figures make the estimate worse').toBeHidden();
+    await expect(page.locator('#taxCodeWarn.show'), 'nothing flashes while the box is being typed in').toHaveCount(0);
+    await page.locator('#taxCode').blur();
+    const warn = page.locator('#taxCodeWarn');
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText('0T and D0 are written with a zero, not the letter O');
+
+    await page.locator('#taxCode').fill('0T');
+    await page.locator('#taxCode').blur();
+    await expect(warn).toBeHidden();
+    await expect(page.locator('#summary')).not.toContainText('recognises');
+    expect(errors).toHaveLength(0);
+});
+
 // A payday the calculator does not carry used to open the current payslip silently (whole-app review).
 test('paycalc: a link to a payday outside the calculator says so, and a covered one says nothing', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
@@ -280,6 +315,49 @@ test('paycalc: editing a calendar-filled box takes "Hours from calendar" away at
     await expect(page.locator('#satH')).not.toHaveClass(/roster-suggested/);
     await expect(page.locator('#satM')).not.toHaveClass(/roster-suggested/);
     await expect(page.locator('#provChips')).not.toContainText('Hours from calendar');
+});
+
+// ── A REFRESHED CALENDAR FIGURE THE MEMBER SAVES IS STILL THE CALENDAR'S (paycalc-3-1, 10 Nov 2026) ──
+// The background refresh SHOWS a changed calendar figure gold without saving it (invariant 11), and
+// the member's next edit anywhere on the payslip saves it with the rest (implicit acceptance). The
+// snapshot saying which saved figures came from the calendar must then describe what was saved —
+// autosave re-records it (`recordCalendarFigures`) — or the saved 16 below stops being gold and stops
+// following the calendar's next change.
+test('paycalc: a refreshed calendar figure the member saves keeps following the calendar', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // The calendar's answer is read from sessionStorage at each load, so a reload can change it.
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        const times = sessionStorage.getItem('rdwTimes') || '08:00-16:00';
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-07-09', type: 'rdw', value: times, source: 'manual' }] };
+    });
+    const loaded = () => expect(page.locator('#rosterStateBadge')).toContainText('Includes recorded changes', { timeout: 10000 });
+    const rdw = page.locator('#rdwH');
+
+    await page.goto('/paycalc.html');
+    await loaded();
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(rdw, 'premise: the calendar\'s 8 hours, filled and saved').toHaveValue('8');
+
+    await page.evaluate(() => sessionStorage.setItem('rdwTimes', '06:00-22:00'));
+    await page.reload();
+    await loaded();
+    await expect(rdw, 'premise: the calendar\'s new 16 hours are shown, not saved').toHaveValue('16');
+    await expect(rdw).toHaveClass(/roster-suggested/);
+
+    await page.locator('#otH').fill('1');   // an edit elsewhere saves the payslip, the gold 16 with it
+    await page.locator('#otH').blur();
+
+    await page.evaluate(() => sessionStorage.setItem('rdwTimes', '06:00-24:00'));
+    await page.reload();
+    await loaded();
+    await expect(rdw, 'the saved 16 came from the calendar, so it is still gold').toHaveClass(/roster-suggested/);
+    await expect(rdw, '…and follows the calendar to its 18 hours').toHaveValue('18');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
 // Whole-app review, Oct 2026: a SETTING change (the loan plan, the pension scheme) ran the payslip's
@@ -370,7 +448,7 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     await page.locator('#actualTaxInput').fill('540.20');
     const table = page.locator('#actualCompare table.actual-cmp');
     await expect(table).toBeVisible();
-    await expect(table).toContainText('Total pay');
+    await expect(table).toContainText('Taxable Pay');
     await expect(table).toContainText('Income Tax');
     await expect(table).toContainText('£3,808.87');
     // Only the typed lines render — an absent figure is not a £0 claim.
@@ -383,6 +461,144 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     await expect(page.locator('#actualMoreWrap')).toBeVisible();
     await expect(page.locator('#actualGrossInput')).toHaveValue('3808.87');
     await expect(page.locator('#actualCompare table.actual-cmp')).toBeVisible();
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── LIKE WITH LIKE (whole-app check, 10 Nov 2026) ──────────────────────────────────────────────
+// The payslip's pay figure is its Taxable Pay, AFTER the pension, and the comparison set it against
+// the estimate's Total pay, BEFORE it — so a perfect estimate showed the whole pension as a gap. The
+// figure typed here is the estimate's own "Pay after pension deduction", read off the summary, so the
+// row must read as a match.
+test('paycalc: the comparison sets the payslip\'s Taxable Pay against the pay after the pension', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    await page.locator('#periodSelect').selectOption({ index: 1 });
+    await expect(page.locator('#checkActualWrap')).toBeVisible();
+
+    const afterPension = page.locator('#summary .sum-row', { hasText: 'Pay after pension deduction' }).locator('.val');
+    await expect(afterPension).toBeVisible();
+    const figure = (await afterPension.textContent() ?? '').replace(/[£,]/g, '').trim();
+    expect(Number(figure)).toBeGreaterThan(0);
+
+    await clickInView(page.locator('#actualMoreBtn'));
+    await page.locator('#actualGrossInput').fill(figure);
+    const row = page.locator('#actualCompare table.actual-cmp tbody tr', { hasText: 'Taxable Pay' });
+    await expect(row).toBeVisible();
+    await expect(row.locator('td').last()).toHaveText('—');
+    await expect(row.locator('td').last()).toHaveClass(/cmp-same/);
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── THE JANUARY POINTER POINTS AT A BOX THAT CAN TAKE THE FIGURE (whole-app check, 10 Nov 2026) ──
+// The Year to Date card's "enter the confirmed figure from it in the Holiday Pay Premium card"
+// showed on the January payslip whatever that card could do: before the payslip was paid, when the
+// confirm box is locked, and to a member who joined after that premium's year, for whom the whole
+// last-year section is hidden. 15 Jan 2027 (p60) carries the 2025/26 premium.
+const JAN_2027_PAID_DAY = new Date('2027-01-20T09:00:00Z');
+
+test('paycalc: the January premium pointer waits for the payslip, then points at an open box', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // 7 Nov 2026 — the 15 Jan 2027 payslip is months away
+    await seedSession(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#periodSelect')).toHaveValue('60');
+    await expect(page.locator('#priorHppActualInput'), 'premise: the confirm box is locked').toBeDisabled();
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', true);
+
+    // From its cut-off (9 Jan) the payslip may be in hand, which is when the box opens (paycalc-2-3).
+    await page.clock.setFixedTime(new Date('2027-01-12T09:00:00Z'));
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', false);
+
+    // Once the payslip is paid the box opens, and the pointer to it shows.
+    await page.clock.setFixedTime(JAN_2027_PAID_DAY);
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#priorHppActualInput')).toBeEnabled();
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', false);
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+    await expect(page.locator('#ytdJanHppHint')).toBeVisible();
+
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── THE PASS THAT STORES LAST YEAR'S PREMIUM ALSO OFFERS IT (whole-app check, 10 Nov 2026) ─────────
+// calculate() read last year's stored premium for the January banner, then ran calcHPP — which is
+// what works that premium out and stores it when nothing is stored yet (updatePriorHpp). So the pass
+// that stored it painted the banner from nothing, and the HPP card and the banner disagreed until
+// something else recalculated. Something else usually does — a second pass follows a page load or a
+// change of payslip (the back-pay card re-prices) — which is why only the ORDER can be asserted: the
+// stored figure is taken away first, standing in for a premium not yet worked out, and the banner
+// must show within the pass that works it out, before the take-home £ is written a second time.
+test('paycalc: the January banner offers last year\'s premium on the pass that works it out', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));   // opens on 18 Dec 2026 (p59)
+    await seedSession(page, 'C. Reen');
+    const sat = JSON.stringify({ satH: 40, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0,
+        sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null });
+    await page.addInitScript((seed) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_creen_grade', 'cea');
+        localStorage.setItem('myb_pc_creen_setup', '1');
+        localStorage.setItem('myb_pc_creen_p45', seed);   // a 2025/26 payslip with premium hours
+    }, sat);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('#periodSelect')).toHaveValue('59');
+    await page.evaluate(() => {
+        localStorage.removeItem('myb_pc_creen_hpp_est_2025_26');
+        // One ordered log of every pass's take-home write and every banner show/hide.
+        const log = /** @type {string[]} */ ([]);
+        Object.assign(window, { __passLog: log });
+        const net = /** @type {HTMLElement} */ (document.getElementById('netDisplay'));
+        const banner = /** @type {HTMLElement} */ (document.getElementById('hppActiveBanner'));
+        new MutationObserver(records => {
+            for (const r of records) log.push(r.target === banner ? `banner:${banner.style.display || 'shown'}` : 'net');
+        }).observe(net, { childList: true, characterData: true, subtree: true });
+        new MutationObserver(() => log.push(`banner:${banner.style.display || 'shown'}`))
+            .observe(banner, { attributes: true, attributeFilter: ['style'] });
+    });
+
+    await page.locator('#periodSelect').selectOption('60');   // 15 Jan 2027 — carries the 2025/26 premium
+    await expect(page.locator('#priorHppAmt'), 'premise: the pass worked the premium out').toHaveText(/£\d/);
+    const premium = (await page.locator('#priorHppAmt').textContent() ?? '').trim();
+    await expect(page.locator('#hppActiveBanner')).toBeVisible();
+    await expect(page.locator('#hppBannerText')).toContainText(`Estimated Holiday Pay Premium of ${premium}`);
+    const log = /** @type {string[]} */ (await page.evaluate(() => /** @type {any} */ (window).__passLog));
+    const firstShown = log.indexOf('banner:shown');
+    const secondNet = log.indexOf('net', log.indexOf('net') + 1);
+    expect(firstShown, `the banner never showed: ${log.join(' ')}`).toBeGreaterThan(-1);
+    expect(secondNet === -1 || firstShown < secondNet,
+        `the banner waited for another pass to offer what this one worked out: ${log.join(' ')}`).toBe(true);
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+test('paycalc: a joiner is not pointed at last year\'s premium, which the card hides from them', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(JAN_2027_PAID_DAY);
+    await seedSession(page, 'J. Davies');   // started 5 May 2026 — employed for none of 2025/26
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_jdavies_grade', 'cea');
+        localStorage.setItem('myb_pc_jdavies_setup', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('60');
+    await expect(page.locator('#periodSelect')).toHaveValue('60');
+    await expect(page.locator('#priorHppSection'), 'premise: the last-year section is hidden from a joiner').toHaveClass(/hidden/);
+    await expect(page.locator('#ytdJanHppHint')).toHaveJSProperty('hidden', true);
 
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
@@ -467,11 +683,21 @@ test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and
     await expect(block).toBeVisible();
     await expect(block).toContainText('Not entered yet');
     await expect(page.locator('#fillYearBtn')).toBeVisible();
+    const lumpBefore = await page.locator('#backPayTotalAmt').textContent();
     await clickInView(page.locator('#fillYearBtn'));
 
     // The receipt: filled payslips BY DATE, plus the review-before-relying line.
     await expect(block.locator('.yearso-receipt')).toContainText(/Filled \d+ payslips? from your calendar/);
     await expect(block.locator('.yearso-receipt')).toContainText('Review the suggested hours');
+
+    // The back-pay lump accrues from those hours too (paycalc-2-2, whole-app check, 10 Nov 2026): it
+    // moves with the fill, to exactly what a fresh look at the payslip gives.
+    const lumpAfter = await page.locator('#backPayTotalAmt').textContent();
+    expect(lumpAfter, 'the fill moves the lump at once — the filled hours sit inside the award window').not.toBe(lumpBefore);
+    const viewed = await page.locator('#periodSelect').inputValue();
+    await page.locator('#periodSelect').selectOption(String(Number(viewed) - 1));
+    await page.locator('#periodSelect').selectOption(viewed);
+    await expect(page.locator('#backPayTotalAmt')).toHaveText(lumpAfter ?? '');
 
     // The entered period survived byte-for-byte — rule 1, proven against real storage.
     const entered = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_pc_gmiller_p51') || 'null'));
@@ -1361,6 +1587,74 @@ test('paycalc: the back-pay lump joins take-home ONLY when the tick is on', asyn
     expect(errors, 'Uncaught JS exceptions on the back-pay opt-in').toHaveLength(0);
 });
 
+// ── HOURS INSIDE THE AWARD WINDOW MOVE THE LUMP AT ONCE (paycalc-2-2, whole-app check, 10 Nov 2026) ──
+// The lump accrues from SAVED hours, and saving hours re-priced everything but it: 20 hours of overtime
+// on the 5 Jun payslip left the card on £476.18 until the member moved away and back (£494.93). The
+// figure must move on the edit, to exactly what a fresh look gives.
+test('paycalc: an hours edit inside the award window re-prices the back-pay lump at once', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);
+    await seedSession(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('52');   // 5 Jun 2026 — inside the 2026/27 award window
+    await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'));
+        /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+    });
+    const total = page.locator('#backPayTotalAmt');
+    await expect(total).toHaveText(/£\d/);
+    const before = await total.textContent();
+
+    await page.fill('#otH', '20');
+    await page.dispatchEvent('#otH', 'input');
+    await expect(total, 'the overtime is priced into the lump on the edit').not.toHaveText(before ?? '');
+    const moved = await total.textContent();
+    await page.locator('#periodSelect').selectOption('53');
+    await page.locator('#periodSelect').selectOption('52');
+    await expect(total, 'and to exactly what a fresh look gives').toHaveText(moved ?? '');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── A LUMP TYPED FROM THE PAYSLIP IS NOT AN ESTIMATE TO SHARPEN (whole-app check, 10 Nov 2026) ────
+// The banner's second line — "For the best estimate, fill in your hours on each payslip back to
+// 1 April …" — is the way to improve a lump WORKED OUT from hours. Typed from the payslip it is the
+// payslip's own figure, and hours change nothing, so the line has nothing to say there.
+test('paycalc: a back-pay lump typed from the payslip is not told to fill in hours', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // 7 Nov 2026 — the 28 Aug award payslip is paid
+    await seedSession(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('55');   // Paid 28 Aug 2026 · P24 — carries the 2026/27 award
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    await expect(page.locator('#bpBannerNote'), 'worked out from hours: the line is the way to sharpen it')
+        .toHaveText('For the best estimate, fill in your hours on each payslip back to 1 April 2026.');
+
+    await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'));
+        /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+    });
+    const worked = (await page.locator('#backPayTotalAmt').textContent() ?? '').replace(/[£,]/g, '').trim();
+    expect(Number(worked), 'premise: a lump worked out from hours').toBeGreaterThan(0);
+    await page.locator('#bpModeManual').check();
+    await page.locator('#bpManualAmt').fill('500.00');
+    await expect(page.locator('#bpBannerText')).toContainText('£500.00');
+    await expect(page.locator('#bpBannerNote')).toHaveText('');
+    await expect(page.locator('#bpBannerNote')).toBeHidden();
+
+    // The SAME figure as the worked-out lump, then back to hours: nothing but the source changes, so
+    // only the source can bring the line back.
+    await page.locator('#bpManualAmt').fill(worked);
+    await expect(page.locator('#bpBannerText')).not.toContainText('£500.00');
+    await expect(page.locator('#bpBannerNote')).toHaveText('');
+    await page.locator('#bpModeCompute').check();
+    await expect(page.locator('#bpBannerNote')).toHaveText(/fill in your hours on each payslip back to 1 April 2026/);
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── THE TAKE-HOME £ IS THE ENGINE'S OWN FIGURE FOR WHAT IS ON SCREEN (test audit, 7 Nov 2026) ─────
 // Every other test in this file checks that the figure MOVES, or that it agrees with itself on a
 // second look. None said what it should BE, so `calculate()` could assemble the pieces wrongly with
@@ -1484,6 +1778,12 @@ test('paycalc: "Clear all entries" needs a second tap, and disarms itself', asyn
     await expect(btn, 'a change of payslip disarms it').toHaveText('Clear all entries');
     await btn.click();
     expect(await saved(57), 'one tap on the new payslip only arms it').not.toBeNull();
+    // A double-tap is ONE gesture (whole-app review, Nov 2026): the second tap at once is not a
+    // confirmation anybody read, and it used to clear the payslip.
+    await btn.click();
+    expect(await saved(57), 'a tap straight after arming does not confirm').not.toBeNull();
+    await expect(btn).toHaveText('Select again to confirm (3)');
+    await page.clock.runFor(1000);
     await btn.click();
     await expect(btn).toHaveText('Clear all entries');
     expect(await saved(57), 'the second tap clears the payslip on screen').toBeNull();
@@ -1524,6 +1824,41 @@ test('paycalc: the Settings summary and the rate field agree about the rate a pa
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
+// ── A YEAR NOT YET CHECKED, IN A MEMBER'S FIRST SESSION (whole-app review, Nov 2026) ──────────────
+// Grade, tax code, loan and pension are single settings used for every payslip; only the "checked"
+// mark is per tax year. The banner said they "apply to 2025/26 only", the card opened announcing a
+// "New tax year 2025/26" that had ended, and the header kept the checked year's "✓ … £21.49/hr" over
+// a payslip priced at £20.74. Here 2026/27 is checked and 2025/26 is not (the state after a first
+// Save, before the one-time sweep of a later load marks the older years).
+test('paycalc: stepping back to a year not yet checked says what is true, and no "New tax year" for one that is over', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-08T12:00:00'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_grade', 'cea');
+        localStorage.setItem('myb_pc_gmiller_setup', '1');
+        localStorage.setItem('myb_pc_gmiller_setup_2026_27', '1');
+        localStorage.setItem('myb_pc_gmiller_setup_years_migrated', '1');
+    });
+    await page.goto('/paycalc.html');
+    const view = (/** @type {number} */ n) => page.evaluate((num) => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
+        for (const o of sel.options) o.selected = o.value === String(num);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }, n);
+    await expect(page.locator('#settingsHint')).toHaveText(/^✓ 2026\/27 — £/);
+    await view(47);   // paid 16 Jan 2026 — 2025/26, after its award
+    await expect(page.locator('#setupBanner')).toBeVisible();
+    await expect(page.locator('#setupBannerBody')).toContainText('Your settings apply to every payslip');
+    await expect(page.locator('#setupBannerBody')).not.toContainText('only');
+    await expect(page.locator('#settingsHint'), 'no ✓ over a year not yet checked').toHaveText('Check once per tax year — pension saves per payslip');
+    await expect(page.locator('#settingsNewYearNotice'), 'a year that is over is not a new one').toBeHidden();
+    await view(58);
+    await expect(page.locator('#settingsHint')).toHaveText(/^✓ 2026\/27 — £/);
+    expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
+});
+
 test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // The 2025/26 premium is paid on the first January payslip of 2027 (TAX_YEARS.hppPaidJan), so
@@ -1547,6 +1882,8 @@ test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on'
 
     await expect(page.locator('#hppBannerTick')).not.toBeChecked();
     await expect(page.locator('#hppBannerText')).toContainText('not added to this estimate');
+    // Confirmed, so not hedged: the figure was copied off this payslip (whole-app check, 10 Nov 2026).
+    await expect(page.locator('#hppBannerText')).toContainText('Your Holiday Pay Premium of £1,843.01 is on this payslip');
     await expect(page.locator('#provChips')).not.toContainText('Holiday Pay Premium');
     const excluded = poundsOf(await page.locator('#netDisplay').textContent());
     expect(excluded, 'the take-home figure rendered').toBeGreaterThan(0);
@@ -1656,6 +1993,32 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
 // ── AN OVER-COLLECTED YEAR IS SAID, NOT HIDDEN BEHIND £0 (72-hour review) ────────────────────────
 // computeTax reports the over-collection it clamps to £0; this pins calculate() handing it to the
 // summary — the wiring a unit test of either half cannot see.
+// A Tax Paid typed one digit short (348 for 3,480) asked for nearly a year's tax at once. Bounded by the
+// pay alone, the tax took all of it and NI came off on top: a negative take-home (whole-app review,
+// Nov 2026). This pins calculate() handing NI and loans to computeTax, and the summary saying why.
+test('paycalc: a mistyped Tax Paid never makes the take-home negative, and the summary says to check it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_sl', 'plan2');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '25142.72');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '348');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#summary')).toContainText('ask for more tax than this payslip pays');
+    const net = await page.locator('#netDisplay').textContent();
+    expect(poundsOf(net), `the take-home reads ${net}`).toBeGreaterThanOrEqual(0);
+    expect(net ?? '', 'no minus sign on the take-home').not.toMatch(/[−-]/);
+    expect(errors).toHaveLength(0);
+});
+
 test('paycalc: Year to Date figures showing tax over-collected say a refund may be due', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));
@@ -1705,10 +2068,13 @@ test('paycalc: the take-home asks for the latest Year to Date figures, and stops
     await expect(page.locator('#ytdPay')).toBeFocused();
     await expect(page.locator('#payslipCard')).toBeInViewport();
 
-    // One figure is not a pair: the estimate cannot use it yet, so the line stays.
+    // One figure is not a pair: the estimate cannot use it yet, so the line stays — and the card's chip
+    // says so too, from what computeTax did rather than from "a box has text" (whole-app review).
     await page.fill('#ytdPay', '13200');
     await page.dispatchEvent('#ytdPay', 'input');
     await expect(line).toBeVisible();
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('fill in both Taxable Pay and Tax Paid');
     // Both figures, stamped to the 23 Oct payslip: in use, so the line goes.
     await page.fill('#ytdTax', '1650');
     await page.dispatchEvent('#ytdTax', 'input');
@@ -1744,6 +2110,86 @@ test('paycalc: Year to Date figures from an older payslip are asked for again', 
     await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
     await expect(page.locator('#netYtdNudge')).toBeVisible();
     await expect(page.locator('#netYtdNudge')).toContainText('from your 23 Oct payslip');
+
+    // Doing what it asks MOVES the source (whole-app review, Nov 2026): the figures were stamped on
+    // first entry only, so re-typed ones stayed on 25 Sep — the line kept asking, and the 23 Oct
+    // payslip, straight after that old source, counted its own pay twice.
+    await page.locator('#netYtdNudgeBtn').click();
+    await page.fill('#ytdPay', '14300');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '1840');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('57');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('from your 23 Oct payslip');
+    await expect(page.locator('#netYtdNudge')).toBeHidden();
+    await page.locator('#periodSelect').selectOption('57');
+    await expect(page.locator('#netPeriod')).toContainText('23 Oct');
+    await expect(page.locator('#ytdStatusChip'), 'the 23 Oct payslip no longer counts its own pay twice').toHaveText('not in use');
+    expect(errors).toHaveLength(0);
+});
+
+// …but ONLY over figures already recorded (whole-app check, 10 Nov 2026 — the move above first fired
+// on any typing). Figures typed into empty boxes against a payslip already recorded, or after the
+// member picked one in the select, come from the payslip they chose; moving it lost that choice, and
+// for a joiner it priced a June figure as October's (the ytd-mode HPP test went to £0).
+test('paycalc: Year to Date figures typed against a payslip the member chose keep it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '56');   // the 25 Sep payslip — no figures yet
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+
+    // Into the empty boxes — both, which are one edit: the payslip already recorded stands.
+    await page.fill('#ytdPay', '11000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '1400');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('56');
+
+    // A new edit over those figures — the boxes are left first, as picking in the sheet leaves them —
+    // after picking a payslip in the select: the pick stands.
+    await page.locator('#ytdTax').blur();
+    await page.locator('#ytdSrcSelect').selectOption('55', { force: true });
+    await page.locator('#ytdSrcSelect').dispatchEvent('change');
+    await page.fill('#ytdPay', '9000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await expect(page.locator('#ytdSrcSelect')).toHaveValue('55');
+    expect(errors).toHaveLength(0);
+});
+
+// A week 1 / month 1 code never uses the figures, and the card said "✓ in use" over it all the same
+// (whole-app review, Nov 2026). The code is a setting, not a Year to Date box — so this pins that the
+// chip is written by calculate() from computeTax's own answer, on every recalculation.
+test('paycalc: under a week 1 / month 1 tax code the Year to Date card says its figures are not in use', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '13200');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '1650');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await page.locator('#taxCode').fill('1257L M1');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText('a tax code ending in W1, M1 or X works out each payslip on its own');
+    await page.locator('#taxCode').fill('1257L');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
     expect(errors).toHaveLength(0);
 });
 
@@ -2373,8 +2819,35 @@ test('paycalc: the Decimal Hours Converter reads a decimal comma as the point', 
     const answer = page.locator('#decimalHrsResult');
     await box.fill('7,5');
     await expect(answer).toHaveText('7 hrs 30 mins');
+    // Only what it can read whole (whole-app check, 10 Nov 2026): these answered "7 hrs" and "1000 hrs".
+    await box.fill('7:30');
+    await expect(answer, 'a clock time is already hours and minutes').toHaveText('7 hrs 30 mins');
+    await box.fill('1e3');
+    await expect(answer).toHaveText('–');
     await box.fill('');
     await expect(answer, 'a cleared box asks nothing, so answers nothing').toHaveText('–');
+    expect(errors).toHaveLength(0);
+});
+
+// A desk keyboard can type a clock time into an hours box; parseInt stopped at the colon, so "7:30" was
+// priced and SAVED as 7h while the box still read 7:30 (whole-app review, Nov 2026). The reading is
+// unit-tested (`hoursTextToHM`); this proves the price, the save and the blur split all use it.
+test('paycalc: "7:30" in an hours box is seven and a half hours — priced, saved and split', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    const pNum = await page.locator('#periodSelect').inputValue();
+    await page.locator('#otH').fill('7:30');
+    await expect(page.locator('#otH').locator('xpath=ancestor::div[contains(@class,"hhmm-wrap")]/..').locator('.hhmm-dec-hint'))
+        .toHaveText('= 7h 30m');
+    const saved = await page.evaluate((n) => JSON.parse(localStorage.getItem(`myb_pc_gmiller_p${n}`) ?? 'null'), pNum);
+    expect([saved?.otH, saved?.otM], 'saved as typed means, before the box is left').toEqual([7, 30]);
+    await page.locator('#otH').blur();
+    await expect(page.locator('#otH')).toHaveValue('7');
+    await expect(page.locator('#otM')).toHaveValue('30');
     expect(errors).toHaveLength(0);
 });
 
@@ -2562,6 +3035,16 @@ test('paycalc: with the keypad up, ONE tap works the controls iOS needed two for
     await expect.poll(period, '← Earlier').toBe(start - 1);
     await tapWithoutClick(page.locator('#nextBtn'));
     await expect.poll(period, 'Later →').toBe(start);
+    // 📍 and the tax-year tabs move the page as the arrows do, and were bare clicks (whole-app check,
+    // 10 Nov 2026): with the keypad up, the tap that should have jumped did nothing.
+    await tapWithoutClick(page.locator('#prevBtn'));
+    await expect.poll(period, '← Earlier, again').toBe(start - 1);
+    await tapWithoutClick(page.locator('#todayPeriodBtn'));
+    await expect.poll(period, '📍 back to the payslip being earned').toBe(start);
+    await tapWithoutClick(page.locator('#tyTab0'));
+    await expect.poll(period, 'the 2025/26 tab — that year ends with internal period 49').toBeLessThanOrEqual(49);
+    await tapWithoutClick(page.locator('#todayPeriodBtn'));
+    await expect.poll(period, '📍 from another tax year').toBe(start);
     await tapWithoutClick(page.locator('#peerPlus'));
     await expect(page.locator('#peerVal'), 'the peer-training +').toHaveText('1');
     await tapWithoutClick(page.locator('#peerMinus'));
@@ -2946,6 +3429,22 @@ test('paycalc: the pay-period picker opens on the payslip on screen', async ({ p
         return { title: shown('.picker-head b'), close: shown('.lb-close') };
     });
     expect(inPanel, 'the title and the ✕ are still on screen').toEqual({ title: true, close: true });
+});
+
+// shared-ui-5 — a search box is named by what its list holds. The payslip pickers' titles are
+// questions, which have no noun to weld onto "Search", so each box was called a bare "Search".
+test('paycalc: every payslip picker calls its search box "Search pay periods"', async ({ page }) => {
+    await openReturning(page);
+    for (const id of ['periodSelect', 'pensionOptOutFrom', 'slPaidOffFrom']) {
+        // Two of these sit in Settings rows shown only once they apply, so the trigger is pressed
+        // through the DOM: what is under test is the sheet the trigger opens, not the row around it.
+        await page.locator(`#${id}Trigger`).evaluate(el => /** @type {HTMLElement} */ (el).click());
+        const box = page.locator('.picker-sheet .picker-search-input');
+        await expect(box, `${id}: a list of payslips earns a search box`).toBeVisible();
+        await expect(box, id).toHaveAttribute('aria-label', 'Search pay periods');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.picker-sheet-overlay')).toBeHidden();
+    }
 });
 
 // PAY9 — a 3px navy stripe on two notes that sit on the navy canvas: no stripe at all, only a white

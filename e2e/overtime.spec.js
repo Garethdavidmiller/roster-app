@@ -464,6 +464,77 @@ test.describe('member surface', () => {
         // And the member is TOLD, rather than left to spot a two-digit difference.
         await expect(day.locator('.ot-day-stale')).toContainText('Your shift has changed');
         await expect(day.locator('.ot-day-stale')).toContainText('Available after 15:00');
+
+        // …and offered the way to the shift as it is now (overtime-ui-18): re-pressing "After 15:00"
+        // keeps the saved answer, so "After 20:00" was reachable only by choosing something else
+        // first. The answer pills' own size, measured at a phone's width, where that is 44px.
+        await page.setViewportSize({ width: 390, height: 844 });
+        const offer = day.getByRole('button', { name: 'Change it to after 20:00' });
+        const height = (await offer.boundingBox())?.height ?? 0;
+        expect(height).toBeGreaterThanOrEqual(44);
+        expect(height).toBe((await day.getByRole('radio').first().boundingBox())?.height);
+        await offer.click();
+        await expect(day.locator('[role="radio"][aria-checked="true"]')).toHaveText('After 20:00');
+        await expect(day.locator('.ot-day-stale')).toHaveCount(0);
+        await expect(page.locator('.ot-day').nth(1).locator('.ot-day-stale'), 'one day at a time').toHaveCount(1);
+    });
+
+    test('one answer is not a reading of the whole week to a screen reader (overtime-ui-13)', async ({ page }) => {
+        // The card was one polite live region holding the form, and every press rebuilds all seven
+        // days — measured: 15 nodes, the whole week's text, queued after a single answer, with every
+        // "Your shift has changed" note (each a role="status" of its own) re-inserted alongside.
+        await seedSession(page, 'G. Miller');
+        const dates = weekDates(W.weekStart);
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), docs: rows };
+        }, dates.map(d => ({ id: `G. Miller|${d}`, memberName: 'G. Miller', date: d,
+            type: 'shift', value: '12:00-20:00', note: '', source: 'manual' })));
+        const days = Object.fromEntries(dates.map(d => [d, { mode: 'after', from: '15:00' }]));
+        days[dates[0]] = { ...days[dates[0]], releaseRequested: true };   // a Sunday request, and its note
+        await stubOvertime(page, { windows: [openWindow({ submission: { currentRevision: 1, days } })] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day-stale')).toHaveCount(7);
+        await expect(page.locator('.ot-release-said')).toHaveCount(1);
+        await page.evaluate(() => {
+            const w = /** @type {any} */ (window);
+            w.__heard = [];
+            const ROLE_LIVE = /** @type {Record<string, string>} */ ({ status: 'polite', alert: 'assertive', log: 'polite' });
+            const liveRoot = (/** @type {Node} */ n) => {
+                for (let e = n.nodeType === 1 ? /** @type {Element} */ (n) : n.parentElement; e; e = e.parentElement) {
+                    const live = e.getAttribute('aria-live') || ROLE_LIVE[e.getAttribute('role') || ''];
+                    if (live) return live === 'off' ? null : e;
+                }
+                return null;
+            };
+            const say = (/** @type {Element} */ root, /** @type {Node} */ n) => {
+                if ((n.textContent || '').trim()) w.__heard.push(`${root.id || root.className}: ${(n.textContent || '').trim().slice(0, 60)}`);
+            };
+            new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) {
+                const root = liveRoot(n);
+                if (root) { say(root, n); continue; }
+                // …and a live region arriving INSIDE what was added: each is announced in its own right.
+                if (n.nodeType === 1) {
+                    for (const r of /** @type {Element} */ (n).querySelectorAll('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"], [role="log"]')) say(r, r);
+                }
+            } }).observe(document.body, { childList: true, subtree: true });
+        });
+        const third = page.locator('.ot-day').nth(3);
+        await third.getByRole('radio', { name: 'Not available' }).click();
+        await expect(third.locator('[role="radio"][aria-checked="true"]')).toHaveText('Not available');
+        expect(await page.evaluate(() => /** @type {any} */ (window).__heard), 'handed to a screen reader by one answer')
+            .toEqual([]);
+        // The Sunday's note is still READ: as its tick's description, whenever the keyboard is on it.
+        await expect(page.locator('.ot-release-box')).toHaveAccessibleDescription(/the roster team will decide/);
+    });
+
+    test('a form that cannot load says so to a screen reader, now the card is not a live region (overtime-ui-13)', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }));
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent [role="alert"]')).toContainText("Couldn't load overtime availability");
     });
 
     test('opening another week runs the open routine ONCE, not once per list on the page', async ({ page }) => {
@@ -607,7 +678,9 @@ test.describe('manager surface', () => {
         await seedSession(page, 'H. Croft');
         const weeks = sixWeeks();
         const created = weeks.find(w => w.exists);
-        created.reminderSentAt = NOW - 3 * 3600e3;
+        // The stamp and what the send reached, as the overview carries them since overtime-core-4 — a
+        // stamp alone now reads "attempted", because it is claimed before the send.
+        Object.assign(created, { reminderSentAt: NOW - 3 * 3600e3, reminderOutstanding: 1, reminderAccepted: 1 });
         await stubOvertime(page, { weeks });
         await page.goto('/overtime.html');
         await expect(page.locator('#otWeekCard')).toBeVisible();
@@ -922,6 +995,70 @@ test.describe('access and chrome', () => {
         await expect(page).not.toHaveURL(/overtime\.html/);
     });
 
+    test('the not-open card keeps nothing that describes a form, on either way in (overtime-ui-14)', async ({ page }) => {
+        // v25.06 tidied the PAUSED card; this one kept the hint, both caveats, and a ? and a chevron
+        // that only start() wires — two controls that did nothing.
+        const dead = ['#otMineCard .hint', '#otMineCard .btn-card-tips', '#otMineChevron', '.ot-explainer', '.ot-privacy'];
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await signInThroughOverlay(page, 'S. Silva');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
+        await seedSession(page, 'S. Silva');
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
+    });
+
+    test('a session lost over the reviewer\'s sheet takes the sheet with it (overtime-ui-4)', async ({ page }) => {
+        // The sign-in that covers the page is hidden in print, and the week behind it printed: who
+        // was asked, what they answered and who had not, from a PC whose account had just gone.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+            expected: 1, received: 0, noResponse: 1 }] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 10_000 });
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.ot-day-panel'), 'nothing of the sheet is left to print').toHaveCount(0);
+        await expect(page.locator('#otHorizonContent .ot-week-row')).toHaveCount(0);
+    });
+
+    test('switching to My availability takes the confirm bar down and disarms Create (css-overtime-guides lead)', async ({ page }) => {
+        // Fixed to the foot, the bar stayed over the member's pinned Submit bar until it was
+        // cancelled — with Create still armed for a week no longer on screen.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()], weeks: sixWeeks() });
+        await page.route('**/createOvertimeWindow', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }) }));
+        await page.goto('/overtime.html');
+        await page.locator('#otTabAll').click();
+        await page.getByRole('button', { name: 'Open now' }).first().click();
+        await expect(page.locator('#otConfirmBar')).toBeVisible();
+        await expect(page.locator('#otConfirmCreate')).toBeEnabled();
+        await page.locator('#otTabMine').click();
+        await expect(page.locator('#otConfirmBar')).toBeHidden();
+        expect(await page.evaluate(() => document.body.style.paddingBottom), 'the space held for the bar is given back').toBe('');
+        await page.locator('#otTabAll').click();
+        await expect(page.locator('#otConfirmCreate')).toBeDisabled();
+    });
+
+    test('a fault while the page loads is reported, not only drawn as "Couldn\'t load" (overtime-ui-17)', async ({ page }) => {
+        // Both loaders handle their own network failures, so the catch-all only ever receives a fault
+        // in the page itself — and it logged nothing, so the Error Log never heard of one.
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__faults = [];
+            window.addEventListener('error', (e) => { /** @type {any} */ (window).__faults.push(String(e.error ?? e.message)); });
+        });
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [{ ...openWindow(), weekStart: undefined }] });   // a form that cannot be drawn
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("Couldn't load overtime availability");
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__faults.length),
+            { message: 'the fault reached the page\'s error listeners' }).toBeGreaterThan(0);
+    });
+
     test('a reviewer DOES get the nav pill', async ({ page }) => {
         // Guard the guard: the assertion above passes against a drawer that renders no pills at all.
         await seedSession(page, 'H. Croft');
@@ -1028,6 +1165,310 @@ test.describe('access and chrome', () => {
         await stubOvertime(page, { weeks: sixWeeks() });
         await page.goto('/overtime.html');
         await expect(page.locator('#otConfirmBar')).toBeHidden();
+    });
+});
+
+// ── WHAT THE STYLESHEET OWES THE READER (whole-app fix, 10 Nov 2026) ───────────────────────────────
+// Each of these was a fault in overtime.css alone, invisible to the behaviour tests above: a print
+// that showed what it should not, a sheet that came out blank, a focused control under a pinned bar,
+// a ring the colour of the page, a fade below AA. Measured on the rendered page, never read off the CSS.
+test.describe('overtime.css — print, focus and contrast', () => {
+    const CREATED = { ...W, exists: true, state: 'created', canCreate: false, expected: 6, received: 4, noResponse: 2 };
+    const PEOPLE = ['L. Springer', 'A. Hared', 'M. Robson', 'J. Davies', 'I. Cooper', 'A. Panchal'];
+
+    /**
+     * The reviewer's sheet for one created week, with six people on it — two grades if asked, which
+     * is what puts the grade lens on the page. @param {any} page
+     */
+    async function reviewerSheet(page, weeks = [CREATED], { twoGrades = false } = {}) {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks });
+        const days = Object.fromEntries(weekDates(W.weekStart).map((d, i) => [d, { mode: i % 2 ? 'unavailable' : 'all_day' }]));
+        await page.addInitScript(({ people, days, at, twoGrades }) => {
+            window.__E2E = { ...(window.__E2E || {}), docsByPath: {
+                participants: people.map((id, i) => ({ id, grade: twoGrades && i % 2 ? 'CES' : 'CEA', rosterOrder: i + 1, createdAt: at })),
+                submissions: people.slice(0, 4).map(id => ({ id, currentRevision: 1, firstAcceptedAt: at, updatedAt: at, days })),
+                revisions: [],
+            } };
+        }, { people: PEOPLE, days, at: W.initialDeadlineAt - 3 * 86_400_000, twoGrades });
+    }
+
+    /** Reviewer day panels that get a box — an ancestor's `display: none` included. @param {any} page */
+    const shownDays = (page) => page.locator('.ot-day-panel[data-date]').evaluateAll(els =>
+        els.filter(e => e.getClientRects().length > 0).length);
+
+    test('with the sign-in up, the paper says sign in — never the sheet beneath the card', async ({ page }) => {
+        // A session can go mid-visit, and page-session.js lays the sign-in over the loaded workspace
+        // without clearing it. The card itself is chrome and hidden in print, so Ctrl+P on a shared PC
+        // printed the names and answers from under it (one sheet: the scroll lock pins the body).
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await expect(page.locator('#otWeekContent')).toContainText('L. Springer');
+        // Scrolled into the sheet, as a reviewer at work is — the sign-in's scroll lock keeps that offset.
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 8000 });
+
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.app'), 'nothing behind the sign-in prints').toBeHidden();
+        const { notice, top } = await page.evaluate(() => ({
+            notice: getComputedStyle(document.body, '::before').content,
+            top: document.body.getBoundingClientRect().top,
+        }));
+        expect(notice).toContain('Sign in to see overtime availability');
+        expect(top, 'the notice is drawn on the sheet, not at the old scroll offset above it').toBeGreaterThanOrEqual(0);
+    });
+
+    test('a collapsed "Who is available" still prints its sheet, and a view with no week says why', async ({ page }) => {
+        // The card's header does not print, so a card collapsed on screen printed one blank sheet. And a
+        // reviewer with no week open printed a blank sheet too — the horizon is hidden on paper.
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.locator('#otWeekChevron').click();
+        await expect(page.locator('#otWeekBody')).not.toHaveClass(/\bopen\b/);
+        expect(await shownDays(page), 'collapsed on screen').toBe(0);
+        await page.emulateMedia({ media: 'print' });
+        expect(await shownDays(page), 'the SHEET still carries the week').toBe(7);
+
+        await page.emulateMedia({ media: 'screen' });
+        await reviewerSheet(page, [{ ...W, exists: false, state: 'not-created', canCreate: true }]);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otHorizonContent .ot-week-row')).toHaveCount(1);
+        await expect(page.locator('#otWeekCard')).toBeHidden();
+        await page.emulateMedia({ media: 'print' });
+        expect(await page.evaluate(() => getComputedStyle(document.body, '::before').content))
+            .toContain('No week is open, so there is nothing to print');
+    });
+
+    /**
+     * Press Tab `presses` times from where focus is; for each control it lands on inside `scope`, the
+     * share of the control under `bar`. Real key presses, so the browser's own scroll-into-view runs.
+     * @param {any} page @param {{ bar: string, scope: string, presses: number }} o
+     */
+    async function underBar(page, { bar, scope, presses }) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const seen = [];
+        for (let i = 0; i < presses; i++) {
+            await page.keyboard.press('Tab');
+            const m = await page.evaluate(({ bar, scope }) => {
+                const a = document.activeElement, b = document.querySelector(bar);
+                if (!a || !b || !a.closest(scope) || b.contains(a)) return null;
+                const r = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+                const under = Math.max(0, Math.min(r.bottom, br.bottom) - Math.max(r.top, br.top));
+                return { what: (a.textContent || '').trim().slice(0, 30), covered: r.height ? Math.round(100 * under / r.height) : 0 };
+            }, { bar, scope });
+            if (m) seen.push(m);
+        }
+        return seen;
+    }
+
+    test('a Tab never leaves the focused answer under the pinned Submit bar', async ({ page }) => {
+        // Tab scrolls only to the window's edge, and the Submit bar is pinned over the bottom 55px of
+        // it — so the next day's options landed under the bar (100% at 1280×720 and at 390×844).
+        for (const [w, h] of [[1280, 720], [390, 844]]) {
+            await page.setViewportSize({ width: w, height: h });
+            await seedSession(page, 'G. Miller');
+            await stubOvertime(page, { windows: [openWindow()] });
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day').first().waitFor();
+            const seen = await underBar(page, { bar: '.ot-submit-bar', scope: '.ot-day', presses: 24 });
+            expect(seen.length, 'the walk reached the day rows').toBeGreaterThan(6);
+            expect(seen.filter(s => s.covered > 0), `focused and under the bar at ${w}×${h}`).toEqual([]);
+            // A line of feedback makes the bar ~97px, not 55px — the clearance has to grow with it. The
+            // refusal leaves focus in the first unanswered day, so the walk starts at the top of the form.
+            await page.locator('.ot-submit').click();
+            await expect(page.locator('.ot-submit-bar .ot-feedback')).toContainText('before submitting');
+            const later = await underBar(page, { bar: '.ot-submit-bar', scope: '.ot-day', presses: 20 });
+            await expect(page.locator('.ot-submit-bar .ot-feedback'), 'the message stayed up for the walk').toContainText('before submitting');
+            expect(later.filter(s => s.covered > 0), `under the taller bar at ${w}×${h}`).toEqual([]);
+        }
+    });
+
+    test('…and nothing the reviewer tabs to sits under the confirm bar', async ({ page }) => {
+        // The reviewer's bar is fixed, 173px tall on a phone and 81px on a desktop; its space is
+        // reserved at the page's foot, but a Tab still scrolled controls only to the window's edge.
+        for (const [w, h] of [[390, 844], [1280, 720]]) {
+            await page.setViewportSize({ width: w, height: h });
+            await reviewerSheet(page, [{ ...W, weekEnding: '2026-08-29', exists: false, state: 'not-created', canCreate: true }, CREATED]);
+            await page.route('**/createOvertimeWindow', r => r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, window: { ...W, weekEnding: '2026-08-29', expectedCount: 6 } }) }));
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day-panel').first().waitFor();
+            await page.locator('[data-create]').first().click();
+            await expect(page.locator('#otConfirmBar')).toBeVisible();
+            const seen = await underBar(page, { bar: '#otConfirmBar', scope: 'main.app', presses: 40 });
+            expect(seen.length, 'the walk reached the workspace').toBeGreaterThan(10);
+            expect(seen.filter(s => s.covered > 0), `focused and under the bar at ${w}×${h}`).toEqual([]);
+        }
+    });
+
+    /**
+     * WCAG contrast of `fg` composited over `bg`, both as the page computes them (any CSS colour —
+     * oklch, rgba — goes through a canvas to sRGB). @param {any} page @param {string} fg @param {string} bg
+     */
+    const contrastOn = (page, fg, bg) => page.evaluate(([fg, bg]) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        const px = (/** @type {string[]} */ ...layers) => {
+            ctx.clearRect(0, 0, 1, 1);
+            for (const c of layers) { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); }
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map(v => v / 255);
+        };
+        const lum = (/** @type {number[]} */ c) => c.map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const [a, b] = [lum(px(bg, fg)), lum(px(bg))].sort((x, y) => y - x);
+        return (a + 0.05) / (b + 0.05);
+    }, [fg, bg]);
+
+    test('a tab panel, a Tab stop on the navy page, shows a ring that is not navy', async ({ page }) => {
+        // shared.css's fallback ring is navy, the canvas's own colour, so focus on a panel drew nothing.
+        await seedSession(page, 'G. Miller');   // a reviewer with a form of his own: the strip shows
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await expect(page.locator('#otTabs')).toBeVisible();
+        await page.locator('#otTabMine').focus();
+        await page.keyboard.press('Tab');
+        const ring = await page.evaluate(() => {
+            const a = /** @type {Element} */ (document.activeElement), cs = getComputedStyle(a);
+            return { id: a.id, visible: a.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth),
+                colour: cs.outlineColor, ground: getComputedStyle(document.body).backgroundColor };
+        });
+        expect(ring.id, 'Tab from the strip reaches the panel').toBe('otMinePanel');
+        expect(ring.visible).toBe(true);
+        expect(ring.style).toBe('solid');
+        expect(ring.width).toBeGreaterThanOrEqual(2);
+        expect(await contrastOn(page, ring.colour, ring.ground), 'the ring against the navy it is drawn on')
+            .toBeGreaterThanOrEqual(3);
+    });
+
+    test('a past week is recessed, not faded — its chosen View keeps AA', async ({ page }) => {
+        // `opacity: 0.86` on the row multiplied every colour in it; once the chosen fill became the
+        // page's blue-violet (v25.16) a chosen past week's View measured 4.32:1. The row is still
+        // read and still opened, so css-tokens.md's rule applies: recess it, do not fade it.
+        await reviewerSheet(page);
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [CREATED],
+                retained: [{ ...W, weekEnding: '2026-08-08', finalDeadlineAt: Date.parse('2026-07-28T11:00:00Z') }] }),
+        }));
+        await page.goto('/overtime.html');
+        const past = page.locator('.ot-week-row--past');
+        await expect(past).toHaveCount(1);
+        const view = past.getByRole('button', { name: 'View' });
+        await view.click();
+        await expect(view).toHaveAttribute('aria-pressed', 'true');
+        await page.mouse.move(0, 0);
+        // The fill and ink move together over --dur-fast; measure the colours they arrive at.
+        await view.evaluate(b => Promise.all(b.getAnimations().map(a => a.finished)));
+        const m = await view.evaluate(b => {
+            let opacity = 1;
+            for (/** @type {Element|null} */ let n = b; n; n = n.parentElement) opacity *= Number(getComputedStyle(n).opacity);
+            const live = /** @type {Element} */ (document.querySelector('.ot-week-row:not(.ot-week-row--past)'));
+            return { opacity, ink: getComputedStyle(b).color, fill: getComputedStyle(b).backgroundColor,
+                past: getComputedStyle(/** @type {Element} */ (b.closest('.ot-week-row'))).backgroundColor,
+                live: getComputedStyle(live).backgroundColor };
+        });
+        expect(m.opacity, 'nothing on the way up fades it').toBe(1);
+        expect(await contrastOn(page, m.ink, m.fill), 'the chosen View').toBeGreaterThanOrEqual(4.5);
+        expect(m.past, 'a past week still reads as set apart from a live one').not.toBe(m.live);
+    });
+
+    test('the mouse over an answer tints an unchosen pill and leaves the chosen one as it is', async ({ page }) => {
+        // `opacity: 0.75` on hover took a chosen pill's white-on-green from 6.0:1 to 3.6:1 for as long
+        // as the mouse rested on it — the fade admin's identical pill dropped at v25.51.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        const day = page.locator('.ot-day').first();
+        await day.waitFor();
+        test.skip(!await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches),
+            'a hover is a mouse decision; the rule is gated on it');
+        const chosen = day.locator('.ot-mode--yes').first(), other = day.locator('.ot-mode--yes').nth(1);
+        await chosen.click();
+        await expect(chosen).toHaveAttribute('aria-checked', 'true');
+        /** @param {any} l */
+        const look = (l) => l.evaluate((/** @type {Element} */ p) => ({ opacity: getComputedStyle(p).opacity, fill: getComputedStyle(p).backgroundColor }));
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(250);    // past the fill's --dur-fast transition
+        const rest = await look(chosen);
+        await chosen.hover();
+        await page.waitForTimeout(250);
+        expect(await look(chosen), 'the chosen pill is not repainted under the mouse').toEqual(rest);
+        await other.hover();
+        await page.waitForTimeout(250);
+        const hovered = await look(other);
+        expect(hovered.opacity, 'nothing fades').toBe('1');
+        expect(hovered.fill, 'an unchosen pill answers the mouse with a tint').not.toBe('rgba(0, 0, 0, 0)');
+    });
+
+    test('on a phone the reviewer\'s small controls meet the compact touch tier', async ({ page }) => {
+        // The grade lens, Refresh, Copy summary and Stop asking measured 22–24px on a coarse pointer —
+        // smaller than the 31px tabs that started the tier. Touch only: a fine pointer would pass by
+        // not applying it, which is a guard that has quietly stopped guarding.
+        await reviewerSheet(page, [CREATED], { twoGrades: true });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        test.skip(!await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'the 36px floor is scoped to touch');
+        const controls = await page.locator('.ot-grade, .ot-refresh-btn, .ot-copy-btn, .ot-person-btn').evaluateAll(els => els
+            .filter(el => el.getBoundingClientRect().height > 0)
+            .map(el => ({ kind: el.classList[0], h: Math.round(el.getBoundingClientRect().height) })));
+        expect([...new Set(controls.map(c => c.kind))].sort(), 'all four kinds are on the page')
+            .toEqual(['ot-copy-btn', 'ot-grade', 'ot-person-btn', 'ot-refresh-btn']);
+        expect(controls.filter(c => c.h < 36)).toEqual([]);
+    });
+
+    test('Copy summary wears the recipe of the Refresh button beside it', async ({ page }) => {
+        // Two chips on one line, and the second (v22.05) invented its own look — the mistake the
+        // Refresh button's comment records — at 23px against its neighbour's 24px.
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        const look = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+            const cs = getComputedStyle(el);
+            return [cs.fontSize, cs.fontWeight, cs.padding, cs.borderTopColor, cs.backgroundColor, cs.color, cs.borderRadius];
+        });
+        expect(await look('.ot-copy-btn')).toEqual(await look('.ot-refresh-btn'));
+    });
+
+    test('the header shares the column at every width, and no text on the page is pure black', async ({ page }) => {
+        // The header was capped only from 768px, so between 581 and 767px its burger and badge hung
+        // outside the cards (94px each side at 767). And the body set no colour, so any text that did
+        // not set its own was pure black — every other card page gives its body --text-dark.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        for (const w of [375, 600, 700, 767, 900]) {
+            await page.setViewportSize({ width: w, height: 800 });
+            await page.goto('/overtime.html');
+            await page.locator('.ot-day').first().waitFor();
+            const edges = await page.evaluate(() => [document.querySelector('.app-header'), document.querySelector('main.app')]
+                .map(e => { const r = /** @type {Element} */ (e).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; }));
+            expect(edges[0], `the header's edges are the column's at ${w}px`).toEqual(edges[1]);
+        }
+        // The page's own header and content; the drawer is shared chrome with its own palette.
+        const black = await page.evaluate(() => [...document.querySelectorAll('.app-header *, main.app *')]
+            .filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()))
+            .filter(e => e.getClientRects().length && getComputedStyle(e).color === 'rgb(0, 0, 0)')
+            .map(e => `${e.tagName.toLowerCase()}.${e.className}`));
+        expect(black, 'text in pure black').toEqual([]);
+    });
+
+    test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
+        // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
+        // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
+        // reset `.card-body`, which on this page is already 0 — the inset is the collapsible body's.
+        await page.setViewportSize({ width: 703, height: 1000 });
+        await reviewerSheet(page);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.emulateMedia({ media: 'print' });
+        const m = await page.evaluate(() => ({
+            pad: getComputedStyle(/** @type {Element} */ (document.getElementById('otWeekBody'))).paddingLeft,
+            app: /** @type {Element} */ (document.querySelector('main.app')).getBoundingClientRect().width,
+        }));
+        expect(m.pad, 'no inset on the printed card').toBe('0px');
+        expect(m.app, 'the sheet spans the printable width').toBeGreaterThanOrEqual(700);
     });
 });
 
@@ -1644,7 +2085,7 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
         const base = await reads(page);
         // Read where a refetch WOULD start, not 250ms later (test audit, 7 Nov 2026). The handler's
-        // refetch begins its reads synchronously — refreshSelectedIfStale → renderWeekDetail →
+        // refetch begins its reads synchronously — refreshIfStale → renderWeekDetail →
         // loadWeekDetail → getDocs, with no await before them — so a read it was going to start is
         // counted by the time `dispatchEvent` returns; the second count, a task later, also catches
         // one started after a microtask hop. A sleep proved neither, and passed on a page whose
@@ -2332,6 +2773,138 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect.poll(() => calls, 'the card was rebuilt from a fresh read').toBeGreaterThanOrEqual(3);
         await expect(row).toContainText('Nothing was submitted');
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+    });
+
+    // overtime-ui-9: the two paths that keep the form (it absorbed its own move, or it holds unsent
+    // answers) returned before anything else was painted, so an answered week that had just CLOSED
+    // went on reading "Submitted — you can still change it · Open" beneath it.
+    /** One Tuesday 12:00 the two weeks share: the answered week's LAST deadline. @param {any} page @param {boolean} onScreenMoves */
+    async function answeredWeekCloses(page, onScreenMoves) {
+        await seedSession(page, 'G. Miller');
+        const onScreen = { ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null,
+            ...(onScreenMoves ? { initialDeadlineAt: NOW + 60_000 } : {}) };
+        const answered = { ...onScreen, weekEnding: '2026-08-29', weekStart: '2026-08-23', phase: 'FINAL_OPEN',
+            initialDeadlineAt: NOW - 7 * 86_400_000, finalDeadlineAt: NOW + 60_000, submission: { currentRevision: 1, days: {} } };
+        const reads = { calls: 0 };
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => {
+            reads.calls += 1;
+            const windows = reads.calls === 1 ? [onScreen, answered]
+                : [{ ...onScreen, phase: onScreenMoves ? 'FINAL_OPEN' : 'INITIAL_OPEN' }, { ...answered, phase: 'CLOSED' }];
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW, windows }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        const row = page.locator('.ot-week-row', { has: page.locator('[data-openweek="2026-08-29"]') });
+        await expect(row).toContainText('Submitted — you can still change it');
+        return { row, reads };
+    }
+
+    test('the form taking its own phase move in place still repaints the week that CLOSED beneath it (overtime-ui-9)', async ({ page }) => {
+        const { row, reads } = await answeredWeekCloses(page, true);
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('.ot-phase-chip'), 'the form took its move in place').toHaveText('Still open');
+        await expect(row).toContainText('Submitted — now final');
+        await expect(row.locator('[data-openweek]')).toHaveText('View');
+        await expect(page.locator('.ot-history-title').first(), 'it moved to the closed list').toHaveText('Previous forms');
+        expect(reads.calls, 'painted from the resync\'s own read — the form was not rebuilt').toBe(2);
+    });
+
+    test('a form holding unsent answers keeps them, and the week that CLOSED beneath it is repainted (overtime-ui-9)', async ({ page }) => {
+        const { row, reads } = await answeredWeekCloses(page, false);
+        for (let i = 0; i < 5; i++) await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(row).toContainText('Submitted — now final');
+        expect(reads.calls, 'the card was not reloaded').toBe(2);
+        await expect(page.locator('.ot-day--set')).toHaveCount(5);
+    });
+
+    test('a save that lands after another week was opened paints nothing under the new form (overtime-ui-15)', async ({ page }) => {
+        // Submit on a slow connection, then open another week and Leave. The first form's save used to
+        // land by painting the week lists — with a row for the week now on screen — under the new form.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06', finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        /** @type {(v?: any) => void} */ let release = () => {};
+        const held = new Promise((r) => { release = r; });
+        await page.route('**/submitOvertimeAvailability', async (/** @type {any} */ r) => { await held; await r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, revision: 1, created: true, phase: 'FINAL_OPEN', serverNow: NOW }) }); });
+        await trackEndpointUse(page, 'submitOvertimeAvailability');
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        for (let i = 0; i < 7; i++) await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('Saving');
+        await page.locator('[data-openweek="2026-09-12"]').click();
+        await page.getByRole('button', { name: 'Leave', exact: true }).click();
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+        await expect(page.locator('.ot-back-to-list')).toBeVisible();
+        release();
+        await expect.poll(async () => (await endpointUse(page, 'submitOvertimeAvailability')).bodiesRead,
+            { message: 'the first form\'s save never landed' }).toBeGreaterThanOrEqual(1);
+        await expect(page.locator('.ot-history'), 'no week list under a form that is not its own').toHaveCount(0);
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+    });
+
+    test('answers the member chose to leave are not guarded while the next form loads (overtime-ui-15)', async ({ page }) => {
+        // The old form's handle outlived its "Leave" until the next form's roster read returned, so
+        // for that long the page still warned about answers that were no longer anywhere.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06', finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        await page.goto('/overtime.html');
+        const armed = () => page.evaluate(() => {
+            const e = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        const hold = (/** @type {boolean} */ on) => page.evaluate((v) => { /** @type {any} */ (window).__E2E.docsHeld = v; }, on);
+        for (const [leave, lands] of [[() => page.locator('[data-openweek="2026-09-12"]').click(), '12 September 2026'],
+            [() => page.locator('.ot-back-to-list').click(), '5 September 2026']]) {
+            await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
+            expect(await armed(), 'the answer on screen is guarded').toBe(true);
+            await hold(true);
+            await leave();
+            await page.getByRole('button', { name: 'Leave', exact: true }).click();
+            await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
+            expect(await armed(), 'left by choice, so nothing is guarded while the next form loads').toBe(false);
+            await hold(false);
+            await expect(page.locator('.ot-form-week')).toContainText(String(lands));
+        }
+    });
+
+    test('a form whose card was replaced while its roster loaded is not adopted (overtime-ui-15)', async ({ page }) => {
+        // Open another week; while its roster read is out, a resync rebuilds the card (here: nothing
+        // is open any more). The opened form used to land anyway — the page's form, with a "Back"
+        // button under the card that had replaced it.
+        await seedSession(page, 'G. Miller');
+        const lead = winOver({ phase: 'INITIAL_OPEN' });
+        const answered = winOver({ weekEnding: '2026-08-29', weekStart: '2026-08-23', finalDeadlineAt: NOW + 60_000,
+            submission: { currentRevision: 1, days: {} } });
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => {
+            calls += 1;
+            const windows = calls === 1 ? [lead, answered] : calls === 2 ? [lead, { ...answered, phase: 'CLOSED' }] : [];
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW, windows }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+        await page.locator('[data-openweek="2026-08-29"]').click();
+        await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('#otMineContent')).toContainText('No overtime availability forms are open');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+        await expect.poll(() => page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; return e.docReadsSettled === e.docReads; }),
+            { message: 'the held roster read never landed' }).toBe(true);
+        await expect(page.locator('.ot-back-to-list'), 'nothing of the replaced form reaches the card').toHaveCount(0);
+        await expect(page.locator('#otMineContent')).toContainText('No overtime availability forms are open');
     });
 
     test('leaving a form with unsubmitted answers asks first', async ({ page }) => {
@@ -3230,6 +3803,37 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await expect(page.locator('.nav-panel-pill--calendar')).toHaveCount(1);
     });
 
+    test('signed out, the drawer refuses a document at source, as the locked Calendar does (contracts-a lead)', async ({ page }) => {
+        // The drawer was wired with the always-open default, so a visitor with no session (this page
+        // sheds a PIN holder's identity too) fired a read the rules refuse online and the device's
+        // cache may answer offline — and was told it failed, not what would open it.
+        await off(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
+        const before = await reads();
+        /** @type {any[]} */ const popups = [];
+        page.on('popup', (p) => popups.push(p));
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-link--circular').click();
+        await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+        expect(await reads(), 'no read is issued').toBe(before);
+        expect(popups.length, 'and no blank tab is opened for it').toBe(0);
+    });
+
+    test('…while a signed-in member\'s tap still reads (contracts-a lead, guard the guard)', async ({ page }) => {
+        await off(page);
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
+        const before = await reads();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-link--circular').click();
+        await expect.poll(reads, { message: 'the member\'s tap reads the circular' }).toBeGreaterThan(before);
+    });
+
     test('the paused card says only that, and the page chrome still works', async ({ page }) => {
         // v25.05 replaced the form with the note and left the rest of the card describing a form
         // (the hint, the two caveats) behind a ? and a chevron that nothing wired; the drawer logo
@@ -3394,5 +3998,81 @@ test.describe('the member form on an iPhone', () => {
         await end.blur();
         await expect(day.locator('.ot-custom-hint'), 'both times were not taken into the answer').toHaveText('');
         await expect(page.locator('.ot-submit')).toContainText('6 days still to answer');
+    });
+});
+
+test.describe('the keyboard stays where the reviewer left it (overtime-ui-12)', () => {
+    // Every press in the workspace rebuilt it, and focus fell to <body>: a keyboard user started again
+    // from the burger after every chip, every Refresh and every Stop asking.
+    /** A created week for a reviewer, its participants seeded as `docs`. @param {any} page @param {any[]} docs */
+    async function reviewerWeek(page, docs) {
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, docs);
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [{ ...W, exists: true, state: 'created',
+                canCreate: false, expected: docs.length, received: docs.length, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+    }
+    const TWO_GRADES = [
+        { id: 'A. One', memberName: 'A. One', grade: 'CEA', rosterOrder: 1 },
+        { id: 'B. Two', memberName: 'B. Two', grade: 'CES', rosterOrder: 2 },
+    ];
+
+    test('a grade or day chip pressed from the keyboard keeps it', async ({ page }) => {
+        await reviewerWeek(page, TWO_GRADES);
+        const grade = page.locator('[data-grade="CES"]');
+        await grade.focus();
+        await page.keyboard.press('Enter');
+        await expect(grade).toHaveAttribute('aria-pressed', 'true');
+        await expect(grade, 'the repainted chip has the keyboard').toBeFocused();
+        const day = page.locator('[data-glance]').nth(2);
+        await day.focus();
+        await page.keyboard.press('Enter');
+        await expect(day).toHaveAttribute('aria-pressed', 'true');
+        await expect(day).toBeFocused();
+    });
+
+    test('Refresh from the keyboard hands it to the new Refresh once the week is read', async ({ page }) => {
+        await reviewerWeek(page, TWO_GRADES);
+        await page.locator('.ot-refresh-btn').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.ot-refresh-btn')).toHaveText('Refresh');
+        await expect(page.locator('.ot-refresh-btn')).toBeFocused();
+    });
+
+    test('after Ask again the keyboard is on that person\'s Stop asking', async ({ page }) => {
+        const row = { id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1 };
+        await page.route('**/withdrawOvertimeParticipant', async (/** @type {any} */ r) => {
+            await page.evaluate((back) => { /** @type {any} */ (window).__E2E.docs = [back]; }, row);   // the server put them back
+            await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW }) });
+        });
+        await reviewerWeek(page, [{ ...row, withdrawn: true, withdrawnBy: 'H. Croft' }]);
+        await page.locator('[data-ask-again="G. Miller"]').focus();
+        await page.keyboard.press('Enter');
+        await page.locator('.dialog-btn-confirm').click();
+        await expect(page.locator('[data-stop-asking="G. Miller"]')).toBeFocused();
+    });
+
+    test('the confirm bar takes the keyboard when it asks, says so aloud, and Cancel gives it back', async ({ page }) => {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        await page.route('**/createOvertimeWindow', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }) }));
+        await page.goto('/overtime.html');
+        const open = page.getByRole('button', { name: 'Open now' }).first();
+        await open.focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#otConfirmCancel'), 'to the answer that changes nothing').toBeFocused();
+        await expect(page.locator('#otConfirmLive')).toContainText('Open the availability form for');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#otConfirmBar')).toBeHidden();
+        await expect(open, 'back to the row that asked').toBeFocused();
     });
 });
