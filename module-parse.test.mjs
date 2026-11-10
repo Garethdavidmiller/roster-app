@@ -8,7 +8,7 @@
 // browsers do (ES module goal) without executing anything, so a module that
 // would brick its page fails CI instead.
 //
-// Run with: node --experimental-vm-modules --test module-parse.test.mjs
+// Run with: node --experimental-vm-modules scripts/run-tests.mjs module-parse.test.mjs
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

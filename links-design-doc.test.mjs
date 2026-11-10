@@ -1,6 +1,6 @@
 /**
  * links-design-doc.test.mjs — the design doc ↔ object mapping (v19.94).
- * Run: node --test links-design-doc.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-design-doc.test.mjs   (part of `npm run test:hygiene`)
  *
  * Eleven sites in links-app.js built these objects by hand, in four shapes, with two near-identical
  * copies of the write payload. The way that fails is silent — a field left out of one site is not an

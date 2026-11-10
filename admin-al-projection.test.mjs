@@ -1,6 +1,6 @@
 /**
  * admin-al-projection.test.mjs — the three layers of an AL booking must agree.
- * Run: node --test admin-al-projection.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs admin-al-projection.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHAT THIS PINS ─────────────────────────────────────────────────────────────────────────────
  *

@@ -1,7 +1,7 @@
 /**
  * links-design-store.test.mjs — the concurrency protocol, driven against a fake Firestore.
  *
- * Run: node --test links-design-store.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-design-store.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS FILE IS THE POINT OF THE EXTRACTION ────────────────────────────────────────────────
  *

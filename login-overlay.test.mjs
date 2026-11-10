@@ -1,6 +1,6 @@
 /**
  * Unit tests for the login-overlay.js sign-in CORE: runNamedSignIn().
- * Run with: node --experimental-test-module-mocks --test login-overlay.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs login-overlay.test.mjs
  *
  * WHY THIS EXISTS: the suite covered session helpers and overlay presence, but NOT the sign-in
  * click path — which is exactly where the v14.72–75 login-freeze regressions lived (local session

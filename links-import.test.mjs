@@ -1,6 +1,6 @@
 /**
  * links-import.test.mjs — the design importer, which is a TRUST BOUNDARY.
- * Run: node --test links-import.test.mjs   (no mocks; part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-import.test.mjs   (no mocks; part of `npm run test:hygiene`)
  *
  * ORGANISED BY THE FAILURE, not by the function. Text pasted from outside is a claim about a
  * design, and the question this suite asks of every case is which of two things happened to a

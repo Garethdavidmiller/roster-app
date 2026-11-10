@@ -1,7 +1,7 @@
 /**
  * paycalc-roster-suggestions.test.mjs
  * Tests for getRosterSuggestion, fetchOverridesForPeriod, and override priority.
- * Run with: node --experimental-test-module-mocks --test paycalc-roster-suggestions.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-roster-suggestions.test.mjs
  *
  * firebase-client.js is mocked via mock.module() because it imports Firebase
  * from CDN URLs that are unreachable in Node.

@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * newlink-render.test.mjs — every surface the new link page can show, built in Node.
- * Run: node --test newlink-render.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs newlink-render.test.mjs   (part of `npm run test:hygiene`)
  *
  * The page's three rules (newlink-render.js header) are properties of its HTML, so they are tested on the HTML the real
  * builders produce from the real data: EVENLY (A to Z, no recommendation, in every state), NOT YOUR ROSTER (each

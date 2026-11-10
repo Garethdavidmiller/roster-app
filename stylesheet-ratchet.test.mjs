@@ -1,6 +1,6 @@
 /**
  * stylesheet-ratchet.test.mjs — an already-large stylesheet may not get larger (v25.23).
- * Run: node --test stylesheet-ratchet.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs stylesheet-ratchet.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *

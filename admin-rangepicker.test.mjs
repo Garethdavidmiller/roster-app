@@ -1,6 +1,6 @@
 /**
  * Unit tests for the pure date-range maths in admin-rangepicker.js.
- * Run with: node --test admin-rangepicker.test.mjs
+ * Run with: node scripts/run-tests.mjs admin-rangepicker.test.mjs
  *
  * getDateRange() feeds the AL and absence save pipelines — an off-by-one
  * here writes a wrong number of override documents to Firestore.

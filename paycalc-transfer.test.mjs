@@ -1,6 +1,6 @@
 /**
  * Unit tests for paycalc-transfer.js — pay-data backup and restore.
- * Run: node --test paycalc-transfer.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs paycalc-transfer.test.mjs   (part of `npm run test:hygiene`)
  *
  * The import path decides whether to overwrite a member's entire pay history, and the blob it acts
  * on is a FILE the member obtained from somewhere. So the two things worth testing hardest are the

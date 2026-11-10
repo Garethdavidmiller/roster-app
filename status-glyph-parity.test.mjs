@@ -1,7 +1,7 @@
 /**
  * status-glyph-parity.test.mjs — a decorative glyph stays out of the announcement (v21.85).
  *
- * Run: node --test status-glyph-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs status-glyph-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * `status-text.js` exists so that `✓ Settings saved` is READ as "Settings saved". Nothing stops the
  * next status line being written the old way: `el.textContent = '✓ Saved'` is shorter, it is what

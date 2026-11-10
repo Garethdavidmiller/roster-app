@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * paycalc-year-card.test.mjs — THE "THIS TAX YEAR SO FAR" BLOCK AND ITS BULK-FILL CONTROL.
- * Run with: node --experimental-test-module-mocks --test paycalc-year-card.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-year-card.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

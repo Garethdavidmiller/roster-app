@@ -1,6 +1,6 @@
 /**
  * paycalc-backpay-state.test.mjs — the back-pay card's figure decisions (v19.93).
- * Run: node --test paycalc-backpay-state.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs paycalc-backpay-state.test.mjs   (part of `npm run test:hygiene`)
  *
  * `paycalc-backpay.js` was the only module in the paycalc family with no test file of its own, and
  * four of its ten exports were untested — including `calcBackPay`, which produces the lump sum. The

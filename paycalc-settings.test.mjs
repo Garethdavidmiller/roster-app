@@ -9,7 +9,7 @@
  *   assert the WRAPPERS delegate to it correctly (compared against the real functions, not magic
  *   numbers, so award/pension figure changes don't churn this file).
  *
- * Run: node --experimental-test-module-mocks --test paycalc-settings.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs paycalc-settings.test.mjs
  * Mock strategy mirrors paycalc-periods.test.mjs (firebase-client / session / ls / roster-data /
  * roster-suggestions stubbed; paycalc-calc + paycalc-migrations are REAL).
  */

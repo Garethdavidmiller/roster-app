@@ -1,6 +1,6 @@
 /**
  * calendar-legend.test.mjs — A KEY TO A GRID THAT IS NOT THERE.
- * Run with: node --test calendar-legend.test.mjs
+ * Run with: node scripts/run-tests.mjs calendar-legend.test.mjs
  *
  * ── ORGANISED BY WHAT A WRONG ANSWER COSTS ──────────────────────────────────────────────────────
  *

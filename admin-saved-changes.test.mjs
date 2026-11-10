@@ -1,7 +1,7 @@
 /**
  * admin-saved-changes.test.mjs — THE CONTROLS MUST SURVIVE THEIR OWN SUCCESS, AND THE LIST MUST NOT
  * SAY MORE THAN IT KNOWS.
- * Run with: node --experimental-test-module-mocks --test admin-saved-changes.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs admin-saved-changes.test.mjs
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
  *

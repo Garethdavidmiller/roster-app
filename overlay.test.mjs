@@ -1,7 +1,7 @@
 /**
  * Unit tests for overlay.js: trapFocus, initCardCollapse, lockBodyScroll,
  * and unlockBodyScroll.
- * Run with: node --test overlay.test.mjs
+ * Run with: node scripts/run-tests.mjs overlay.test.mjs
  *
  * overlay.js imports one module, card-collapse.js (re-exported, so initCardCollapse is tested here
  * through it), and that imports nothing; otherwise only browser globals. A minimal stub is provided

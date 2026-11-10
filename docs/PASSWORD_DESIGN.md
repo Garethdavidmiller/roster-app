@@ -82,7 +82,7 @@ recovery story at a fraction of the risk surface of codes/questions/emails.
 
 ### 3.1 Before
 Before this design the typed password was only a **local gate** (`login-overlay.js` — normalise,
-compare to `getSurname(name)`); the real Firebase credential was **derived** from the name in
+compare to `getSurname(name)`, since removed); the real Firebase credential was **derived** from the name in
 `ensureFirebaseSession` (`session.js` — `normaliseSurname` + pad-to-6). The typed value never reached
 Firebase.
 
@@ -130,7 +130,7 @@ session, login screen skipped) — with **no password available**:
   keyboard) — **except in three cases** (AUTH_AND_SESSIONS.md invariant 23): it is REFUSED when this
   device's session began before the admin's last reset of the account (`resetAt`), HELD when that time
   cannot be confirmed, and SKIPPED after a definitive rejection on this device. Without the first, a
-  reset's sign-out of other devices (§5, `revoke: true`) would be undone by the very next load.
+  reset's sign-out of other devices (§5 — every reset revokes) would be undone by the very next load.
 - **Firebase session evicted, member migrated:** they **cannot be silently re-authenticated —
   ever.** The named session fails → the login overlay is shown again. **Honest UX cost:** migrated
   members are occasionally asked to sign in again. Inherent to real passwords, not a bug. (On paycalc —
@@ -198,23 +198,28 @@ The admin-only Cloud Function **`resetMemberPassword`** (`functions/auth-endpoin
 - Validates the target name against `roster-members.json` `activeMembers` (server-owned list — never
   trust a raw client name). Unprovisioned member → clear error ("run Set up accounts first").
 - `email = nameToEmail(name)`, `password = nameToPassword(name)` — **reusing** the existing helpers
-  (the `surname-parity` test guards the algorithm); `getUserByEmail` →
-  `getAuth().updateUser(uid, { password })`. `revokeRefreshTokens(uid)` behind an **optional `revoke`
-  flag**: `true` for real resets (kick lost/stolen sessions), `false` only where signing the member out
-  is not the point.
-- Server-stamps `passwordStatus.resetAt` (Admin SDK bypasses rules), and tells the member on their own
+  (the `surname-parity` test guards the algorithm); `getUserByEmail`, then:
+- Server-stamps `passwordStatus.resetAt` FIRST (Admin SDK bypasses rules). A stamp that cannot be
+  written stops the reset — 503, nothing changed — because a stamp written after the password would let
+  a lost device sign itself straight back in (AUTH_AND_SESSIONS.md 23).
+- `getAuth().updateUser(uid, { password })`, then `revokeRefreshTokens(uid)` on every reset
+  (`revoke: false` was retired on 10 Nov 2026: nothing sent it). It tells the member on their own
   devices — never naming the new password (`.claude/rules/notifications.md` → `password-reset`).
 - **Nothing else clobbers custom passwords:** `setupRosterAuth` sets a password on `createUser` (first
-  creation), and otherwise uses `updateUser` for enable/disable — with one exception: an existing
+  creation), and otherwise uses `updateUser` for enable/disable — with two exceptions. An existing
   account at a roster email carrying NO custom claims (one the server never stamped, so registered from
-  outside) is TAKEN BACK — its password reset to the surname default, its display name to the roster's,
-  `disabled: false`, its refresh tokens revoked and `resetAt` stamped (reported as "taken back"). A
-  member's own provisioned account always carries claims, so re-running "Set up accounts" is safe for
-  migrated members. The guard is `mustReclaim` (`functions/member-identity.js`), tested in
+  outside) is TAKEN BACK — `resetAt` stamped first, then its password reset to the surname default, its
+  display name to the roster's, `disabled: false` and its refresh tokens revoked (reported as "Reset to
+  the default password and signed out"). And a DISABLED account (a leaver's) is reset the same way
+  before it is re-enabled, so a returning name never inherits the old password. A member's own
+  provisioned account always carries claims, so re-running "Set up accounts" is safe for migrated
+  members. The guard is `mustReclaim` (`functions/member-identity.js`), tested in
   `auth-endpoints.test.mjs`.
 
-**Operations UI:** a per-member Reset button (confirm dialog) in the Account status card. The card's
-error path handles a not-yet-deployed function gracefully ("try again shortly").
+**Operations UI:** a per-member Reset button (confirm dialog) in the Account status card. A refusal
+is shown in a dialog in the server's own words; a reply that is not one — an HTML error page, from a
+function not yet deployed, say — reads "The server answered <status> without a reason this page can
+show. Nothing was reset."
 
 ---
 
@@ -225,7 +230,7 @@ Named to avoid collision with the client `auth-state.js` module. Doc ID = displa
 
 | Field | Written by | Meaning |
 |-------|-----------|---------|
-| `resetAt` | **Admin SDK only** (reset function, and the take-back in Set up accounts) | last forced back to surname |
+| `resetAt` | **Admin SDK only** (reset function, and the take-back and the re-enable in Set up accounts) | last forced back to surname |
 | `passwordSetAt` | the member's client, after `updatePassword` resolves | last set their own |
 
 - **Migrated = Y** ⇔ `passwordSetAt` exists AND is newer than any `resetAt` (`isPasswordMigrated` in
@@ -261,8 +266,9 @@ and **the ≥90% metric that gates C5**.
 > compel", and it does nothing: for an un-migrated member the call rewrites the password to the
 > surname it already is, stamps `resetAt`, and signs nobody out — and migrated status
 > (`passwordSetAt > 0 && passwordSetAt >= resetAt`) is false before and after. So the overlay gates on
-> `!isPasswordMigrated` (the shared tested helper), never on `resetAt` being present, and `revoke:true`
-> keeps its real purpose — genuine break-glass, where signing the member out is the point.
+> `!isPasswordMigrated` (the shared tested helper), never on `resetAt` being present, and a reset keeps
+> its real purpose — genuine break-glass, where signing the member out is the point. (`revoke: false`
+> itself was retired on 10 Nov 2026, so every reset now signs the member out.)
 
 **Rollback (the one-way door):** Phase 0+1 was hosting-revertible **only until the first member set a
 custom password** — reverted code derives the surname and would lock migrated members out. Members
@@ -301,7 +307,7 @@ members (always 2 attempts until they migrate) — expected, and transitional.
 |---|----------|--------|
 | 1 | Phase 1 = **nudge** (banner); force arrives in Phase 2 | ✅ Confirmed + shipped v18.63 |
 | 2 | Password rules: **≥8 chars, surname hard-block, trim whitespace, confirm field** | ✅ Confirmed + shipped v18.63 |
-| 3 | Revoke other devices: **yes on real resets** (`revoke` flag) | ✅ Confirmed + shipped v18.63 |
+| 3 | Revoke other devices: **yes on every reset** (the `revoke` flag was retired 10 Nov 2026) | ✅ Confirmed + shipped v18.63 |
 | 4 | Reset button: **admin-only** (not managers) | ✅ Confirmed + shipped v18.63 |
 | 5 | Go/no-go on building Phase 0+1 | ✅ Given — Phase 0+1 built v18.63 |
 | 6 | Phase 2 compels **everyone, at their next sign-in**, with no forced sign-out (owner, 25 Jul 2026) | ✅ Shipped v18.92 — §11 |

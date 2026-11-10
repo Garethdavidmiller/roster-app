@@ -1,6 +1,6 @@
 /**
  * trains-change.test.mjs — what the Trains page says changes in December.
- * Run with: node --test trains-change.test.mjs   (no mocks; part of test:hygiene)
+ * Run with: node scripts/run-tests.mjs trains-change.test.mjs   (no mocks; part of test:hygiene)
  *
  * The page's whole value is one sentence per train — "6 minutes later", "Will run to Birmingham" —
  * and a wrong one is worse than none, because a member of staff repeats it to a passenger. So the

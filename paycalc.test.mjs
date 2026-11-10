@@ -1,5 +1,5 @@
 // paycalc.test.mjs — unit tests for paycalc-calc.js
-// Run with: node --test paycalc.test.mjs
+// Run with: node scripts/run-tests.mjs paycalc.test.mjs
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';

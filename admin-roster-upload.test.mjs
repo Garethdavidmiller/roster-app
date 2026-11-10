@@ -7,7 +7,7 @@
  * in roster-review-states.js and re-exported from here), the chunked save and its stale-claim
  * retry, the review table's pure formatters, and the day-drift gate — `detectShiftedRow`, the
  * circuit breaker, and the words each of them puts on screen.
- * Run with: node --experimental-test-module-mocks --test admin-roster-upload.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs admin-roster-upload.test.mjs
  *
  * The blocks written since v22.16 are organised by what a WRONG ANSWER COSTS rather than by
  * function, and the costs here are not symmetrical. Writing a week onto the wrong days, or

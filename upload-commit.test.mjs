@@ -1,7 +1,7 @@
 /**
  * upload-commit.test.mjs — the ambiguous-commit verdict (v21.86).
  *
- * Run: node --test upload-commit.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs upload-commit.test.mjs   (part of `npm run test:hygiene`)
  *
  * The defect this rule exists for is a live document pointing at a Storage object that has already
  * been deleted — the button 404s, nothing errors, and the upload that caused it reported success.

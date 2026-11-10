@@ -1,6 +1,6 @@
 /**
  * Unit tests for client-errors.js (pure error-log ordering/retention).
- * Run with: node --test client-errors.test.mjs
+ * Run with: node scripts/run-tests.mjs client-errors.test.mjs
  */
 
 import { test, describe } from 'node:test';

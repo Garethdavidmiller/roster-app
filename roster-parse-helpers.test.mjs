@@ -2,7 +2,7 @@
  * Unit tests for functions/roster-parse-helpers.js
  *
  * Pure functions only — no Firebase, no secrets, no HTTP.
- * Run: node --test roster-parse-helpers.test.mjs
+ * Run: node scripts/run-tests.mjs roster-parse-helpers.test.mjs
  *
  * @nodeps-safe — runs on a bare checkout with nothing installed. It is listed in `test:functions`
  * only for convenience (it is about a `functions/` module), and `scripts/test-nodeps.mjs` reads

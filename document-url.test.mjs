@@ -1,6 +1,6 @@
 /**
  * document-url.test.mjs — what a server answer MEANS for a member trying to open a document.
- * Run (no mocks): node --test document-url.test.mjs   (part of test:hygiene)
+ * Run (no mocks): node scripts/run-tests.mjs document-url.test.mjs   (part of test:hygiene)
  *
  * WHY THIS FILE EXISTS. This rule lived in `firebase-client.js` for about an hour, where nothing
  * could have tested it: that module statically imports the Firebase SDK from the gstatic CDN, so

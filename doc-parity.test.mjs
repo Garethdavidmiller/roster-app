@@ -1,6 +1,6 @@
 /**
  * doc-parity.test.mjs — the documentation is checked, not merely reviewed (v20.11).
- * Run: node --test doc-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs doc-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY A REVIEW IS NOT ENOUGH ──────────────────────────────────────────────────────────────────
  *

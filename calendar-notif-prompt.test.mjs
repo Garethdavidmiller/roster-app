@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * calendar-notif-prompt.test.mjs — the two ACCESS rules behind the Calendar's notification strip.
- * Run: node --experimental-test-module-mocks --test calendar-notif-prompt.test.mjs   (part of test:unit)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-notif-prompt.test.mjs   (part of test:unit)
  *
  * WHY THIS FILE EXISTS (v24.28 review). module-coverage-parity counted calendar-notif-prompt.js as
  * named only because a COMMENT in coordinator-ratchet.test.mjs mentions it. Nothing loaded it — and

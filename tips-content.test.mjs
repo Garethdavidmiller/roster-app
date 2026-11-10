@@ -1,6 +1,6 @@
 /**
  * Static guard for the four pages' CARD_TIPS content.
- * Run: node --test tips-content.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs tips-content.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THIS FILE EXISTS — a real staff-reported error, v19.13:
  *

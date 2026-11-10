@@ -1,6 +1,6 @@
 /**
  * Unit tests for admin-overrides.js pure/near-pure exports.
- * Run with: node --experimental-test-module-mocks --test admin-overrides.test.mjs
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs admin-overrides.test.mjs
  *
  * firebase-client.js is mocked — it imports Firebase from CDN URLs unreachable in Node.
  * global.document is stubbed so validateShiftRules' DOM marking no-ops cleanly.

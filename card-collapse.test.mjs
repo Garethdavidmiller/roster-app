@@ -1,7 +1,7 @@
 /**
  * card-collapse.test.mjs — the deep link that opens a collapsed card by name (`openCardNamedByHash`), and
  * overlay.js still handing out both card functions.
- * Run: node --test card-collapse.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs card-collapse.test.mjs   (part of `npm run test:hygiene`)
  *
  * `initCardCollapse` is tested by overlay.test.mjs, through overlay.js's re-export. The deep link had no
  * Node test, and its rules are the kind that look right and are not: it opens the card through the SAME

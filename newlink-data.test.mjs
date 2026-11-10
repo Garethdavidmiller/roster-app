@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * newlink-data.test.mjs — the new link page says what the pack says.
- * Run: node --test newlink-data.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs newlink-data.test.mjs   (part of `npm run test:hygiene`)
  *
  * `newlink-data.js` is GENERATED from the pack's own figures (docs/links-26/tooling/newlink-data.mjs, reading
  * what-it-means-data.mjs — the same module the one-page sheet prints from). The danger with a generated copy is the one

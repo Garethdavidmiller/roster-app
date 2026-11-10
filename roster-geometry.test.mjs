@@ -1,7 +1,7 @@
 /**
  * roster-geometry.test.mjs — the PDF's own grid as a witness, organised by what a wrong answer COSTS.
  *
- * Run: node --test roster-geometry.test.mjs   (part of `npm run test:functions` — the adapter cases
+ * Run: node scripts/run-tests.mjs roster-geometry.test.mjs   (part of `npm run test:functions` — the adapter cases
  * need `pdfjs-dist` from functions/node_modules; everything else here is pure).
  *
  * @nodeps-safe — the pdfjs cases SKIP THEMSELVES by name when the parser is absent (see

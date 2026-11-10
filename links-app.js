@@ -321,9 +321,9 @@ export function init() {
      * reason for measuring each separately, and it still applies to any future pairing.
      *
      * **The bilingual row is gone, and the summary says why rather than leaving a hole.** A design
-     * is now the main roster WIDENED (20 → `ROTATING_LINES`) and excludes the bilingual roster entirely, so a
-     * bilingual figure would be a comparison against a rotation the proposal does not replace. The
-     * summary names the comparator — the main 20-line cycle, which the design replaces — and reads
+     * is now the main roster WIDENED (`CONFIG.MAIN_ROSTER_WEEKS` → `ROTATING_LINES`) and excludes the bilingual
+     * roster entirely, so a bilingual figure would be a comparison against a rotation the proposal does not
+     * replace. The summary names the comparator — the main cycle, which the design replaces — and reads
      * the length from `ROTATING_LINES` rather than restating it,
      * so its absence reads as a decision and not as a missing number.
      */

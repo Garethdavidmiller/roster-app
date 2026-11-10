@@ -1,6 +1,6 @@
 /**
  * coordinator-ratchet.test.mjs — an already-large module may not get larger.
- * Run: node --test coordinator-ratchet.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs coordinator-ratchet.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── THE RULE THIS ENFORCES ──────────────────────────────────────────────────────────────────────
  *

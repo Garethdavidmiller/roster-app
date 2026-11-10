@@ -1,6 +1,6 @@
 /**
  * page-visibility-parity.test.mjs — `hidden` must actually hide.
- * Run: node --test page-visibility-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs page-visibility-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── THE TRAP ────────────────────────────────────────────────────────────────────────────────────
  *
@@ -46,8 +46,8 @@
  *
  * ── AND THE OPPOSITE FAULT (v20.80) ─────────────────────────────────────────────────────────────
  *
- * The same file also guards hiding that works TOO well. Three pages hide their entire `.container`
- * until `body.auth-ready`, and their header lives inside it — so until their module graph has loaded
+ * The same file also guards hiding that works TOO well. Three pages hide their entire `.container`,
+ * and their header with it, until `body.auth-ready` — so until their module graph has loaded
  * and run they are a blank navy screen with nothing on it, not even a burger. That is the intended
  * anti-flash behaviour doing exactly what it should and being indistinguishable from a broken page.
  *

@@ -1,6 +1,6 @@
 /**
  * overtime-answer.test.mjs — the working copy's transitions on the Overtime form.
- * Run: node --test overtime-answer.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs overtime-answer.test.mjs   (part of `npm run test:hygiene`)
  *
  * Three independent statements share one answer object — the overtime mode, the willingness tick
  * and the Sunday-release request — and an external review of v23.85 found two transitions that

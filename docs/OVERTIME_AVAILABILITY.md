@@ -100,7 +100,9 @@ roster from a page that is quietly empty.
 The planning horizon is the answer. `getOvertimeManagerOverview` computes its week rows **from the
 calendar**, not from Firestore, then marks which of them have windows — so a missing week is a row
 that says *Opens automatically overnight* (or, once overdue, *Did not open overnight · create it
-here*) rather than a row that is absent. A missed week keeps its row until its
+here* — or, for a week past the roster's last year (`CONFIG.MAX_YEAR`), which nothing can create until
+it is raised, *Cannot open · past the end of the app's roster · tell the admin*) rather than a row that
+is absent. A missed week keeps its row until its
 Saturday has passed, and the card's collapsed chip counts what is *missing* ("2 without a form"),
 never what exists.
 
@@ -114,10 +116,12 @@ when adding copy:
 1. **A week is named once per surface.** The heading names it ("Week ending Saturday 29 August
    2026"); the span beneath locates it ("Sun 23 – Sat 29 Aug"). Never label the span "Roster
    week …" — that restates the heading it sits under.
-2. **One verb for the boundary: a form CLOSES.** Open forms say "Closes <deadline>", closed ones
-   "Closed <deadline>". The same instant had been "Changes close", "Closed — the final deadline
-   was", "Closes" and "Answers due" on one page; only the reviewer's horizon keeps "Answers due"
-   for the FIRST deadline, because it genuinely is a different boundary.
+2. **Two deadlines, and each keeps its name.** The FIRST is when answers are DUE: "Answers due
+   <deadline>", and "Answers were due <deadline>" once it has passed. The FINAL one is when the form
+   CLOSES: a row in the member's list of weeks says "Closes <deadline>" or "Closed <deadline>", and
+   so does the reviewer's horizon. The member's form head names both, because they are different
+   boundaries (`deadlineLines`, `overtime-phase.js`): "Answers due …" and "Changes close …"; a closed
+   form says "Closed …", and a form that opened after its first deadline names only "Answer by …".
 3. **Every green pill completes "Available …"** — All day · Before 07:00 · After 15:00 · Before &
    after duty · Custom times — and "Not available" stands apart as the charcoal answer. The
    recorded CHIP keeps the full form ("Available all day"): chips stand alone on the reviewer's
@@ -706,7 +710,9 @@ these signals and act on the item they belong to:
   a day-lens-aware print (#11) is worth it only if someone actually prints. (The grade lens IS
   honoured on paper already.)
 - **Screen-reader use of the lens strips** — the aria-live tightening (#14) and sticky filter
-  strips (#13) wait for a real user report; both are cheap once a direction is known.
+  strips (#13) wait for a real user report; both are cheap once a direction is known. (The member's
+  form card stopped being a live region in Nov 2026, so one answer is no longer read out as the whole
+  week; the reviewer's horizon and week cards still are.)
 
 Two review items are records rather than signals: the server-file split (#16) stays governed by the
 coordinator ratchet, and a member rename already has its recovery route (`uid` on the participant

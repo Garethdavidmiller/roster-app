@@ -1,6 +1,6 @@
 /**
  * Unit tests for calendar-member.js — team member selection logic.
- * Run: node --experimental-test-module-mocks --test calendar-member.test.mjs
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-member.test.mjs
  *
  * Tests stale-member detection, session-based auto-selection, hidden-member
  * filtering on BOTH sides (the saved-name lookup and the dropdown the page builds),

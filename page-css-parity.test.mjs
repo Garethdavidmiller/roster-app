@@ -1,6 +1,6 @@
 /**
  * page-css-parity.test.mjs — a page may only use classes its OWN stylesheets define (v20.09).
- * Run: node --test page-css-parity.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs page-css-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── THE BUG THIS EXISTS FOR ─────────────────────────────────────────────────────────────────────
  *

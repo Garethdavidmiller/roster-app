@@ -1,6 +1,6 @@
 /**
  * notice-archive.test.mjs — the App Notices archive read and written as storage, with no drawer.
- * Run: node --test notice-archive.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs notice-archive.test.mjs   (part of `npm run test:hygiene`)
  *
  * The archive's write rules (dedupe, the 180-day prune, the legacy migration, the cap) and the posting-
  * date window are also pinned in nav-panel.test.mjs, through nav-panel.js's re-export — the import every

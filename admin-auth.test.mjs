@@ -1,6 +1,6 @@
 /**
  * admin-auth.test.mjs — the provisioning audit AS THE CARD RUNS IT.
- * Run with: node --experimental-test-module-mocks --test admin-auth.test.mjs   (part of `test:unit`)
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs admin-auth.test.mjs   (part of `test:unit`)
  *
  * ── WHY THE CARD AND NOT THE RULE ───────────────────────────────────────────────────────────────
  *

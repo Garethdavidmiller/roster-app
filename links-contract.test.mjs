@@ -1,6 +1,6 @@
 /**
  * links-contract.test.mjs — the generator will not produce a link that pays the wrong hours.
- * Run: node --test links-contract.test.mjs   (no mocks; part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-contract.test.mjs   (no mocks; part of `npm run test:hygiene`)
  *
  * ── THE RULE ────────────────────────────────────────────────────────────────────────────────────
  *

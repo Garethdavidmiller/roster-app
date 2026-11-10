@@ -1,7 +1,7 @@
 /**
  * links-shortlist.test.mjs — "Keep only the shortlist" (v25.09).
  *
- * Run: node --test links-shortlist.test.mjs   (part of `npm run test:hygiene`)
+ * Run: node scripts/run-tests.mjs links-shortlist.test.mjs   (part of `npm run test:hygiene`)
  *
  * Three layers, because each can be right while the next is wrong: the RULES (`links-shortlist.js`
  * — what counts as an older design, and when the row is offered), the MOVE (the store's existing

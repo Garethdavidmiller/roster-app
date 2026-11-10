@@ -1,5 +1,5 @@
 // Unit tests for perf-stats.js — the pure latency maths (Project 0 instrumentation).
-// Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
+// Run with: node scripts/run-tests.mjs perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, EARLY_ROSTER, summariseEarlyRoster, EARLY_ROSTER_FROM, earlyRosterShareLabel, shareLabel, compactPct, UPDATE_OPENS, UPDATE_OPENS_FROM, summariseUpdateOpens, CLEAN_TIMINGS_FROM, shareMeasuredBefore, perfRecordFullness, createPerfBatcher } from './perf-stats.js';
