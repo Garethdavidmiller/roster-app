@@ -93,13 +93,17 @@ export function weekStartForMonth(displayed, today) {
  *   showing, so switching into the team grid opens on that month rather than dragging the reader
  *   back to today. See `weekStartForMonth`. Optional: omitted, the grid opens on today's week,
  *   which is what it always did.
+ * @param {Function} [deps.onMonthRead]  the repaint for a month read that lands later: the
+ *   coordinator's SHARED one, which repaints whichever surface is live by then. Team View may have
+ *   been left, and `refreshFromCache` then does nothing — a swipe onto that month sat on "Checking
+ *   this month" although it had been read (10 Nov 2026). Omitted, `refreshFromCache`.
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
  * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void, isGridShown: () => boolean, isGridConfirmed: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
                                 getSelectedMemberIndex, isFirstRun, renderCalendar, getDisplayedMonth,
-                                _pushOverlayState, _clearOverlayHistory }) {
+                                onMonthRead, _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
 
@@ -578,10 +582,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      * `ensureOverridesCached` is deduped by `fetchedMonths`, so a month already owned by the calendar
      * fetch is a no-op here (the cache already holds its data — no re-query, no eviction) and only a
      * genuinely un-fetched month (e.g. a week navigated outside the 3-month window) triggers one
-     * authoritative fetch. `refreshFromCache` repaints the CURRENT week/grade from cache (focus-
-     * preserving, and a no-op once team view is exited), so a late fetch can never render a stale week
-     * — which also subsumes the old fetch-token guard. A Sun–Sat week can straddle two months, so
-     * ensure each distinct month the week touches.
+     * authoritative fetch. A month that lands later repaints whichever surface is live (`onMonthRead`):
+     * in Team View that is `refreshFromCache`, which redraws the CURRENT week/grade from cache (focus-
+     * preserving), so a late fetch can never render a stale week — which also subsumes the old
+     * fetch-token guard. A Sun–Sat week can straddle two months, so ensure each distinct month the
+     * week touches.
      * @param {Date[]} weekDates  the 7 Sun–Sat dates of the shown week
      */
     function ensureTeamWeekCached(weekDates) {
@@ -593,14 +598,14 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             const key = monthKey(d.getFullYear(), d.getMonth());
             if (seen.has(key)) continue;
             seen.add(key);
-            ensureOverridesCached(d.getFullYear(), d.getMonth(), refreshFromCache);
+            ensureOverridesCached(d.getFullYear(), d.getMonth(), onMonthRead ?? refreshFromCache);
         }
     }
 
     /**
      * Re-render the grid from the ALREADY-populated shared cache, no re-fetch (v18.21). Called by the
-     * initial 3-month fetch's success path when team view is active, and by `ensureTeamWeekCached`
-     * when a month it needed has just landed. `skipFetch` avoids a redundant query / fetch↔render
+     * initial 3-month fetch's success path when team view is active, and by the coordinator's repaint
+     * when a month the week needed has just landed. `skipFetch` avoids a redundant query / fetch↔render
      * loop. Focus preservation (v18.22, same v16.69 pattern): this async repaint can land right after
      * a keyboard navigation restored focus, and without capture/restore it dropped focus to <body>.
      */

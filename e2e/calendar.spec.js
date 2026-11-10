@@ -488,6 +488,56 @@ test('calendar: the legend follows the grid across a SWIPE, in both directions',
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// ── A READ TEAM VIEW STARTED, LANDING DURING A SWIPE ONTO ITS MONTH (10 Nov 2026, cal-ui-5) ─────────
+// The incoming month is built at pointerdown as "Checking this month". When its read — started by Team
+// View, then left — landed mid-gesture, its only waiter was Team View's repaint, which does nothing once
+// Team View is closed, and the commit found the month settled and asked for nothing: the live month sat
+// on the wait panel although it had been read. Every waiter must repaint whatever surface is live.
+test('calendar: a month read by Team View that lands mid-swipe is drawn when the swipe commits', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse drag drives the gesture here');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // first read: Aug–Oct
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });
+    await page.locator('#teamViewBtn').click();                       // opens on 27 Sep – 3 Oct
+    for (let i = 0; i < 5; i++) await page.locator('#tvNextWeek').click();
+    await expect(page.locator('#tvWeekJump')).toHaveText('1–7 Nov 2026');
+    await expect(page.locator('.tv-pending'), 'premise: November is being read, for Team View').toBeVisible();
+    await page.locator('#teamViewBtn').click();                       // back to October
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+
+    const live = '#calendarDisplay > .calendar-container:not(.carousel-panel)';
+    for (let attempt = 0; ; attempt++) {
+        expect(attempt, 'the drag never took hold in four attempts').toBeLessThan(4);
+        const box = /** @type {any} */ (await page.locator('#calendarDisplay').boundingBox());
+        const y = box.y + box.height / 2;
+        await page.mouse.move(box.x + box.width - 20, y);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width - 90, y, { steps: 6 });
+        const dragging = await page.waitForFunction((sel) => /translate3d\(-/.test(
+            /** @type {HTMLElement|null} */ (document.querySelector(sel))?.style.transform || ''), live, { timeout: 2000 })
+            .then(() => true, () => false);
+        if (!dragging) { await page.mouse.up(); continue; }
+        await expect(page.locator('#calendarDisplay > .carousel-panel').last(), 'premise: November built while unread')
+            .toHaveAttribute('data-override-state', 'loading');
+        // The read lands NOW, mid-gesture.
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+        await expect.poll(() => page.evaluate(() => {
+            const e = /** @type {any} */ (window).__E2E; return (e.docReadsSettled || 0) >= (e.docReads || 0);
+        })).toBe(true);
+        await page.mouse.move(box.x + 20, y, { steps: 6 });
+        await page.mouse.up();
+        break;
+    }
+    await page.waitForFunction(() => document.querySelectorAll('.month-year').length === 1
+        && document.querySelector('.month-year')?.textContent === 'November 2026', null, { timeout: 10000 });
+    await expect(page.locator(live), 'the month that was read is drawn, not left waiting')
+        .toHaveAttribute('data-override-state', 'render');
+});
+
 // A BALANCED LEGEND AT 1024px (polish round 2). As a flex row the keys wrapped greedily, so a busy
 // month — RDW, leave, an absence and an Other day on top of the fixed keys — put "✂️ Pay cut-off" and
 // "💷 Payday" alone on a second line (measured: 10 keys over 2). The four conditional keys are

@@ -173,6 +173,7 @@ const teamView = initTeamView({
     isFirstRun,
     renderCalendar,
     getDisplayedMonth: () => ({ month: getDisplayMonth(), year: getDisplayYear() }),
+    onMonthRead: _repaintAfterMonthRead,   // a read Team View starts may land after it has been left
     _pushOverlayState,
     _clearOverlayHistory,
 });
@@ -457,7 +458,8 @@ function renderCalendar() {
 
 // The one callback for a month read that lands later — stable, so several waits on one month repaint
 // once. Deliberately unguarded by member: the read is everyone's, so a member switched mid-read is
-// waiting on it too, and so is a Team View opened on that month.
+// waiting on it too, and so is a Team View opened on that month. Team View waits with it as well, so
+// a read it started still repaints the Calendar if it lands after Team View is left (10 Nov 2026).
 function _repaintAfterMonthRead() {
     if (teamView.isTeamViewMode()) teamView.refreshFromCache(); else renderCalendarWhenIdle();
 }
