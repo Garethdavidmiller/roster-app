@@ -12,6 +12,7 @@
         "*.test.mjs",
         "*.test.js",
         "purify.es.mjs",
+        "pdfjs",
         "generate-sri.mjs",
         "scripts",
         "functions",

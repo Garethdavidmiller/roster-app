@@ -7,7 +7,7 @@
  * if you…" and the proposal whose weeks are drawn. Every word of HTML is `newlink-render.js`; every figure is the
  * generated `newlink-data.js` (from the pack's own tooling, docs/links-26/tooling/newlink-data.mjs); every decision —
  * the phase, the closing date, the audience — is `newlink-config.js`. Nothing here reads the network: once opened, the
- * page works offline.
+ * page works offline. Only the pack's files need a connection, and they open in the app's PDF viewer (pdf-viewer.js).
  *
  * ── WHY THE PAGE EXISTS ────────────────────────────────────────────────────────────────────────
  *
@@ -39,6 +39,8 @@ import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { initPdfViewer } from './pdf-viewer.js';
+import { isPlainClick } from './pdf-viewer-core.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { CLOSES, STARTS, TIMETABLE_STARTS, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
@@ -103,6 +105,7 @@ function start(member) {
 
     renderStatic();
     wireChoices(cards);
+    wirePack();
     markPageReady();
     // The status speaks of TODAY — which dates have come — and an installed app is not reloaded when it is reopened:
     // iOS keeps it resident for days (iPhone audit, Nov 2026). So it is drawn again whenever the page comes back.
@@ -129,6 +132,25 @@ function renderStatic() {
     setHTML('nlSayList', renderList(HAVE_YOUR_SAY));
     setHTML('nlPackList', renderPack(PACK, PACK_BASE));
     setHTML('nlHowList', renderList(NOTES));
+}
+
+/**
+ * The pack's files open in the app's PDF viewer, on this page (pdf-viewer.js — why: pdf-viewer-core.js's header). One
+ * listener on the list, so a redraw of it keeps working. A click with a modifier is left alone: Ctrl, Cmd or the middle
+ * button asks the browser for a tab, and the link is still a real link to the file.
+ */
+function wirePack() {
+    const list = document.getElementById('nlPackList');
+    const viewer = initPdfViewer();
+    if (!list || !viewer) return;
+    list.addEventListener('click', (e) => {
+        if (!isPlainClick(e)) return;
+        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('a.nl-file'));
+        const file = link && PACK.find(f => f.path === link.dataset.file);
+        if (!link || !file) return;
+        e.preventDefault();
+        viewer.open({ url: link.href, title: file.label, kicker: file.design ?? 'For all three', pages: file.pages });
+    });
 }
 
 /** The day the status card was last drawn for. @type {string} */

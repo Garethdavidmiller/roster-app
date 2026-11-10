@@ -307,3 +307,67 @@ describe('service worker — a JS module (Oct 2026 production review)', () => {
         assert.ok(keys.some(k => k.endsWith('/calendar-app.js')));
     });
 });
+
+// ── THE PACK UNDER docs/ IS LEFT TO THE NETWORK (v25.67) ─────────────────────────────────────────
+// The New link pack's PDFs live under docs/ on the GitHub Pages mirror, and the in-app PDF viewer
+// (pdf-viewer.js) reads them from there. The worker's cache-first branch used to answer them — and keep
+// each one for the life of the release, so a pack file updated under the same name stayed old on that
+// phone until the next version. They are documents, not the app: the worker does not answer them at all.
+// The viewer's OWN files (pdfjs/) are app assets and stay with the worker.
+/**
+ * Boot the real worker and send it one request; report whether it answered.
+ * @param {{ origin: string, scope: string, path: string, destination?: string, mode?: string }} o
+ */
+function answers(o) {
+    const { api } = makeCaches({ [CACHE]: { './__precache-complete': 'ok' } });
+    /** @type {Record<string, Function>} */
+    const listeners = {};
+    const ctx = {
+        self: {
+            registration: { scope: o.scope, navigationPreload: null },
+            location: { origin: o.origin },
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = fn; },
+            skipWaiting() {}, clients: { claim: async () => {} },
+        },
+        caches: api,
+        fetch: async () => new Response('%PDF-1.7', { status: 200, headers: { 'content-type': 'application/pdf' } }),
+        setTimeout: (/** @type {Function} */ fn, /** @type {number} */ ms) => setTimeout(fn, (ms || 0) / SPEED),
+        clearTimeout,
+        console: { log() {}, warn() {}, error() {} },
+        Request, Response, Headers, URL, AbortController, Promise,
+    };
+    vm.createContext(ctx);
+    vm.runInContext(SW_SRC, ctx, { filename: 'service-worker.js' });
+    let responded = false;
+    listeners.fetch({
+        request: { url: `${o.origin}${o.path}`, method: 'GET', headers: new Headers(), mode: o.mode ?? 'cors', destination: o.destination ?? '', credentials: 'same-origin' },
+        respondWith: () => { responded = true; },
+        waitUntil: () => {},
+    });
+    return responded;
+}
+
+describe('service worker — the pack under docs/ goes to the network, never to the cache (v25.67)', () => {
+    const MIRROR = { origin: 'https://garethdavidmiller.github.io', scope: 'https://garethdavidmiller.github.io/roster-app/' };
+    const FIREBASE = { origin: ORIGIN, scope: SCOPE };
+
+    test('on the mirror, where the pack is served, a pack PDF is not answered by the worker', () => {
+        assert.equal(answers({ ...MIRROR, path: '/roster-app/docs/links-26/links-26-rules.pdf' }), false,
+            'the viewer\'s fetch of a pack file must reach the network — the worker kept it for a whole release');
+        assert.equal(answers({ ...MIRROR, path: '/roster-app/docs/links-26/presentations/x.pdf', mode: 'navigate', destination: 'document' }), false,
+            'nor a pack file opened on its own');
+    });
+
+    test('nor on Firebase, whose scope is the whole host', () => {
+        assert.equal(answers({ ...FIREBASE, path: '/docs/links-26/links-26-rules.pdf' }), false);
+    });
+
+    test('the viewer\'s own library is still the worker\'s — it is part of the app', () => {
+        assert.equal(answers({ ...MIRROR, path: '/roster-app/pdfjs/pdf.min.mjs', destination: 'script' }), true);
+        assert.equal(answers({ ...FIREBASE, path: '/pdf-viewer.js', destination: 'script' }), true);
+    });
+
+    test('only docs/ AT THE SCOPE is a document: a file merely named docs-something is not', () => {
+        assert.equal(answers({ ...FIREBASE, path: '/docs-index.png', destination: 'image' }), true);
+    });
+});

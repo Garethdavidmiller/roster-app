@@ -72,6 +72,9 @@ const NO_INDICATOR_EXEMPT = [
     // Programmatically focused panel wrapper — never a Tab target (see overlay.js).
     '.lb-content:focus',
     '.lb-content:focus-visible',
+    // The PDF viewer's panel (newlink.html): the same programmatically focused wrapper, tabindex="-1".
+    '.pdf-viewer-panel:focus',
+    '.pdf-viewer-panel:focus-visible',
     // #hourlyRate is the only .pfx--readonly field and carries tabindex="-1".
     '.pfx--readonly input:not([type="checkbox"]):not([type="radio"]):focus',
     // The option ROWS carry the ring (`:has(input:focus-visible)` on the row) because the row is

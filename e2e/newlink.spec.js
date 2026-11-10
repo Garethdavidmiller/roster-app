@@ -275,15 +275,161 @@ test.describe('new link', () => {
         await expect(frame).toHaveAttribute('aria-label', /^Balanced V6’s 26 weeks$/);
     });
 
-    test('the pack opens each PDF in a new tab from where docs/ is served', async ({ page }) => {
+    // ── THE PACK OPENS ON THE PAGE, IN THE APP'S PDF VIEWER (owner, 10 Nov 2026) ─────────────────────────────────────
+    // "The pdfs on the new links page don't have a close button like the huddle pdf does. This is particularly an issue on
+    // iphone": an app installed from the github.io address opened them in its own window, where an iPhone has no way back.
+    // They now open in pdf-viewer.js — drawn by the vendored PDF.js, in a panel with a ✕. The files are served here from
+    // the repository itself (the real PDFs), so the test needs no network and reads exactly what the mirror serves.
+    const MIRROR_PACK = 'https://garethdavidmiller.github.io/roster-app/docs/links-26/';
+    /** Serve the pack's address from the repository; `answer` may replace a file's response. @param {import('@playwright/test').Page} page */
+    async function servePack(page, answer = /** @type {null|((route: import('@playwright/test').Route) => Promise<void>)} */ (null)) {
+        await page.route(`${MIRROR_PACK}**`, async (route) => {
+            if (answer) return answer(route);
+            const path = decodeURIComponent(new URL(route.request().url()).pathname.replace('/roster-app/', ''));
+            return route.fulfill({ path, contentType: 'application/pdf', headers: { 'access-control-allow-origin': '*' } });
+        });
+    }
+    /**
+     * Console errors — a CSP refusal (eval, a worker, the fetch) is logged there, not thrown. The page's own Firebase reads
+     * are left out: with no emulator behind them they answer 404 here (the member's password status), nothing to do with
+     * the viewer. @param {import('@playwright/test').Page} page
+     */
+    function consoleErrors(page) {
+        /** @type {string[]} */ const errs = [];
+        page.on('console', m => {
+            const where = m.location()?.url ?? '';
+            if (m.type() === 'error' && !/\.googleapis\.com\//.test(where)) errs.push(`${m.text()} — ${where}`);
+        });
+        return errs;
+    }
+    /** Is the canvas drawn — not blank white? Reads its pixels. @param {import('@playwright/test').Locator} canvas */
+    const inked = (canvas) => canvas.evaluate((/** @type {HTMLCanvasElement} */ c) => {
+        const d = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d')).getImageData(0, 0, c.width, c.height).data;
+        let dark = 0;
+        for (let i = 0; i < d.length; i += 16) if (d[i] + d[i + 1] + d[i + 2] < 600) dark++;
+        return dark;
+    });
+
+    test('the pack: every file is listed, a real link to where docs/ is served', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
         const links = page.locator('#nlPackList a.nl-file');
         await expect(links).toHaveCount(PACK.length);   // what the generated data lists — since 8 Nov 2026 each shortlisted link's presentation and proposal sheet, and the rules
         for (const a of await links.all()) {
-            await expect(a).toHaveAttribute('target', '_blank');
+            // Still a real link, so a Ctrl- or middle-click gives a desktop reader a tab of its own.
             await expect(a).toHaveAttribute('href', /^https:\/\/garethdavidmiller\.github\.io\/roster-app\/docs\/links-26\/.+\.pdf$/);
+            await expect(a).toHaveAttribute('aria-haspopup', 'dialog');
         }
+        await expect(page.locator('#nlPackList')).toContainText('The files open on this page, and need a connection.');
+    });
+
+    test('a pack file opens ON THE PAGE, drawn, with a ✕ that comes back — no tab, no leaving the app', async ({ page, context }) => {
+        const errors = collectFatalErrors(page);
+        const logged = consoleErrors(page);
+        await servePack(page);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const file = PACK.find(f => f.design && f.pages > 1) ?? PACK[0];
+        const link = page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`);
+        // From the KEYBOARD: Enter on the link is the click a keyboard user makes, and it leaves focus on the link in
+        // every engine (WebKit does not focus a link on a mouse click), so the ✕ has somewhere to send it back to.
+        await link.focus();
+        await page.keyboard.press('Enter');
+
+        const viewer = page.locator('#pdfViewer');
+        await expect(viewer).toHaveClass(/\bopen\b/);
+        expect(context.pages(), 'the file opened here, not in a tab of its own').toHaveLength(1);
+        expect(new URL(page.url()).pathname, 'and the page under it stayed where it was').toBe('/newlink.html');
+        await expect(page.locator('#pdfViewerTitle')).toHaveText(file.label);
+        await expect(page.locator('#pdfViewerMeta')).toHaveText(`${file.design} · PDF · ${file.pages} pages`);
+        await expect(viewer).toHaveAttribute('role', 'dialog');
+
+        // EVERY PAGE has its box, named for a screen reader; the first is DRAWN — real ink, not a white rectangle.
+        const pages = page.locator('#pdfViewerSheet .pdf-viewer-page');
+        await expect(pages).toHaveCount(file.pages);
+        await expect(pages.first()).toHaveAttribute('aria-label', `Page 1 of ${file.pages}`);
+        const first = pages.first().locator('canvas');
+        await expect(first).toHaveCount(1, { timeout: 20_000 });
+        expect(await inked(first), 'the first page has something drawn on it').toBeGreaterThan(200);
+        await expect(page.locator('#pdfViewerStatus')).toHaveText('');
+        // Its words reach a screen reader, which cannot read a drawing.
+        await expect(pages.first().locator('.visually-hidden')).not.toHaveText('', { timeout: 10_000 });
+        // In a browser tab the file may also open on its own — to print or save it.
+        await expect(page.locator('#pdfViewerFoot')).toBeVisible();
+        await expect(page.locator('#pdfViewerOutside')).toHaveAttribute('href', MIRROR_PACK + file.path);
+
+        // ZOOM: the page grows and is drawn again, sharper — not the old drawing stretched.
+        const before = await pages.first().evaluate(e => e.getBoundingClientRect().width);
+        await expect(page.locator('#pdfViewerZoomOut')).toBeDisabled();
+        await page.locator('#pdfViewerZoomIn').click();
+        await expect(page.locator('#pdfViewerZoomLevel')).toHaveText('150%');
+        await expect.poll(() => pages.first().evaluate(e => e.getBoundingClientRect().width)).toBeCloseTo(before * 1.5, -1);
+        await expect.poll(() => pages.first().locator('canvas').evaluate((/** @type {HTMLCanvasElement} */ c) => c.width), { timeout: 15_000 })
+            .toBeGreaterThanOrEqual(Math.floor(before * 1.5));
+        await expect(page.locator('#pdfViewerZoomOut')).toBeEnabled();
+
+        // THE ✕ comes back to the page, with focus where it was.
+        await page.locator('#pdfViewerClose').click();
+        await expect(viewer).not.toHaveClass(/\bvisible\b/);
+        await expect(link).toBeFocused();
+        expect(errors).toEqual([]);
+        expect(logged, 'no CSP refusal, no failed worker, nothing PDF.js complained about').toEqual([]);
+    });
+
+    test('the viewer closes on Escape and Back too, and opens the next file fresh', async ({ page }) => {
+        await servePack(page);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const files = PACK.slice(-2);
+        // The tap is the viewer's: the link's own default — a tab of its own, which in an app installed from the mirror is
+        // the trap — is CANCELLED. Asked of the click itself, because whether a stray tab has appeared yet is a matter of
+        // timing: counting tabs straight after the viewer opened passed with the cancel deleted (mutation, 10 Nov 2026).
+        const cancelled = await page.locator(`#nlPackList a.nl-file[data-file="${files[0].path}"]`).evaluate((a) => {
+            const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+            a.dispatchEvent(click);
+            return click.defaultPrevented;
+        });
+        expect(cancelled, 'a plain tap opens the viewer INSTEAD of the link').toBe(true);
+        await expect(page.locator('#pdfViewer')).toHaveClass(/\bopen\b/);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#pdfViewer')).not.toHaveClass(/\bvisible\b/);
+
+        await page.locator(`#nlPackList a.nl-file[data-file="${files[1].path}"]`).click();
+        await expect(page.locator('#pdfViewerTitle')).toHaveText(files[1].label);
+        await expect(page.locator('#pdfViewerSheet .pdf-viewer-page')).toHaveCount(files[1].pages, { timeout: 20_000 });
+        // Android's Back button is a history step: it closes the viewer and leaves the reader on the page.
+        await page.goBack();
+        await expect(page.locator('#pdfViewer')).not.toHaveClass(/\bvisible\b/);
+        expect(new URL(page.url()).pathname).toBe('/newlink.html');
+    });
+
+    test('a file that does not arrive says why and offers Try again — which works once it can', async ({ page }) => {
+        let fail = /** @type {'gone'|'offline'|null} */ ('gone');
+        await servePack(page, async (route) => {
+            const cors = { 'access-control-allow-origin': '*' };   // GitHub Pages sends it on every answer, a 404 included
+            if (fail === 'gone') return route.fulfill({ status: 404, body: 'Not Found', headers: cors });
+            if (fail === 'offline') return route.abort('internetdisconnected');
+            const path = decodeURIComponent(new URL(route.request().url()).pathname.replace('/roster-app/', ''));
+            return route.fulfill({ path, contentType: 'application/pdf', headers: cors });
+        });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const file = PACK[PACK.length - 1];
+        await page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`).click();
+        const status = page.locator('#pdfViewerStatus');
+        await expect(status).toHaveText('This file is no longer in the pack. Reload the page to see the current files.');
+        await expect(page.locator('#pdfViewerRetry')).toBeVisible();
+        await expect(page.locator('#pdfViewerZoomIn')).toBeDisabled();
+
+        fail = 'offline';
+        await page.locator('#pdfViewerRetry').click();
+        await expect(status).toHaveText('This file needs a connection. Check your signal, then try again.');
+
+        fail = null;
+        await page.locator('#pdfViewerRetry').click();
+        await expect(page.locator('#pdfViewerSheet .pdf-viewer-page')).toHaveCount(file.pages, { timeout: 20_000 });
+        await expect(status).toHaveText('');
+        await expect(page.locator('#pdfViewerRetry')).toBeHidden();
     });
 
     // WHO IT IS NOT FOR (owner, 8 Nov 2026: "This link will only apply to people with the normal CEA contract and NOT the
