@@ -464,6 +464,18 @@ describe('computeCellStates — review state machine', () => {
         assert.deepEqual(gone(other), ['copyA', 'copyB'], 'a new value: both replaced');
     });
 
+    // Whole-app fix, Nov 2026: a day the response does not carry fell back to 'RD' on ANY day — on a
+    // worked base day a pre-ticked rest day, against the rule that a blank weekday is a question.
+    // Today's server always sends seven days; this is the fallback for a reply that does not.
+    test('a day the reply does not carry is a question, never a rest day', () => {
+        for (const missing of [undefined, '']) {
+            const states = computeCellStates({ parsed: [{ memberName: mname, shifts: missing === undefined ? {} : { [WD]: missing } }], dates: [WD] }, []);
+            const c = states.get(`${mname}|${WD}`);
+            assert.deepEqual([c.state, c.chosen], ['UNREADABLE', null], JSON.stringify(missing));
+            assert.deepEqual(collectRosterWrites(states), [], 'nothing is written until it is answered');
+        }
+    });
+
     test('stale roster_import, PDF now matches base → REMOVE_IMPORT (delete, write nothing)', () => {
         const c = run(base, [{ memberName: mname, date: WD, value: differ, type: 'shift', source: 'roster_import', id: 'i1' }]);
         assert.equal(c.state, 'REMOVE_IMPORT');

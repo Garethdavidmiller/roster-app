@@ -132,7 +132,10 @@ export function computeCellStates(parsedResult, existingOverrides) {
         const drift = alignment.byMember.get(entry.memberName) || null;
 
         for (const date of parsedResult.dates) {
-            let parsedShift  = entry.shifts?.[date] || 'RD';
+            // A day the response does not carry is a QUESTION, not a rest day (whole-app fix, Nov
+            // 2026): 'RD' here was a pre-ticked rest day over a worked base day, against the blank-cell
+            // rule. Unreachable from today's server, which always sends all seven days.
+            let parsedShift  = entry.shifts?.[date] || `${UNKNOWN_PREFIX}no value for this day in the read — check the PDF`;
             // Bare 'RDW' = the AI omitted the shift time. The server passes it through so the
             // review can flag it, but there is NO edit affordance and it previously classified
             // as a default-ticked DIFF whose save produced {type:'rdw', value:'RDW'} — which
