@@ -809,6 +809,21 @@ test('links: the line-order switches change the design, and say what each one co
     expect(on).toMatch(/weekends off \d+→\d+/);
 });
 
+// THE LINE-ORDER NOTE STATES THE MINIMUM REST FROM THE CONSTANT (links-analysis-14's twin, routed here).
+// The note is load-bearing copy — it names the two things no switch turns off — and it TYPED "12 hours".
+// Both are 12 today, so the served links-design.js has the minimum moved, and the note must follow it.
+test('links: the line-order note states the minimum rest the generator applies, not a typed figure', async ({ page }) => {
+    const ANCHOR = 'export const MIN_REST_MINUTES = 12 * 60;';
+    await page.route('**/links-design.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        if (!src.includes(ANCHOR)) throw new Error(`links: links-design.js no longer contains "${ANCHOR}" — re-point the test.`);
+        await route.fulfill({ response: res, body: src.replace(ANCHOR, 'export const MIN_REST_MINUTES = 11 * 60;'), contentType: 'text/javascript' });
+    });
+    await openLinksWithDesign(page);
+    await expect(page.locator('.gen-obj-note')).toContainText('no order is used that leaves less than 11 hours between a Saturday finish');
+});
+
 test('links: every line-order switch OFF leaves the generated order untouched', async ({ page }) => {
     // Re-sorting by an empty objective set would hand back a different design for no stated reason.
     // Since v20.98 the generator refuses targets that cannot pay the contracted week, and the
@@ -823,7 +838,7 @@ test('links: every line-order switch OFF leaves the generated order untouched', 
     await page.goto('/links.html');
     await linksOpened(page);   // was a 600ms sleep (test audit, 7 Nov 2026) — see the helper
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
-    // Every switch, read from OBJECTIVES rather than hardcoded — a new objective added without a
+    // Every switch, read from the page's own checkboxes rather than hardcoded — a new objective added without a
     // line here would leave the reorder running and this test asserting "untouched" about a design
     // that had in fact been re-sorted. That is exactly what happened when `variety` arrived.
     const switches = await page.evaluate(() =>

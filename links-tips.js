@@ -35,7 +35,7 @@
  * `links-rotation-parity.test.mjs` enforces across every `links-*.js` file including this one.
  */
 
-import { ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
+import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } from './links-design.js';
 
 export const CARD_TIPS = {
     'links-grid': {
@@ -77,12 +77,16 @@ export const CARD_TIPS = {
         title: 'Check staffing coverage',
         sections: [{ items: [
             { icon: '📊', html: 'Each cell shows how many people are <strong>on duty during that hour</strong> — rows are days, columns are hours of the day' },
-            { icon: '🔵', html: 'Darker blue = more people on at once' },
+            // A cell counts everyone on duty at ANY point in its hour (links-analysis-1), so "at once" was wrong.
+            { icon: '🔵', html: 'Darker blue = more people on duty at some point in that hour' },
             // Since the staffed window (v19.54) a gap is any hour the station is OPEN with nobody on —
             // the opening and closing hours included — and a shut hour is grey. The card's own note
             // (links-analysis.js) says the same; this used to call a blank cell "nobody on duty" and a
             // gap a mid-day hole (links-app-13).
             { icon: '🔴', html: 'A red <strong>0</strong> means a gap — the station is open and nobody is on duty, at the open and the close as much as mid-day' },
+            // …and a gap SHORTER than the hour shows no 0 at all: the train note is asked to the minute
+            // (links-analysis-1) and is what names it.
+            { icon: '⏳', html: 'A gap <strong>shorter than an hour</strong> — one shift ending before the next begins — still shows a number, because the cell counts everyone on at any point in that hour. The note under the table names any trains that run in it with nobody on duty.' },
             { icon: '⬜', html: 'A <strong>grey</strong> hour is outside the <strong>staffed window</strong>, set at the top of this card — the station is shut, so nobody on is not a gap. A number on grey means someone is rostered while it is shut.' },
             { icon: '🟡', html: '<strong>SP</strong> column = spares on standby that day (no fixed time, so they aren\'t in the hourly cells)' },
             { icon: '💡', html: 'This shows the real <em>shape</em> of the day — opens, the morning build, the afternoon peak, and the taper to close. Updates live as you edit cells.' },
@@ -96,7 +100,7 @@ export const CARD_TIPS = {
         sections: [{ items: [
             { icon: '🔄', html: `<strong>All lines designed</strong> — every one of the ${ROTATING_LINES} rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can't be authorised until they are all filled.` },
             { icon: '✅', html: '<strong>Weekends off</strong> — a full weekend = Saturday rest + the following Sunday rest. Aim for at least 40% of weeks.' },
-            { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition between two <em>timed</em> shifts across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround. A spare day has no times, so a transition either side of one can\'t be measured and isn\'t counted.' },
+            { icon: '⏱️', html: `<strong>Rest between shifts</strong> — checks every transition between two <em>timed</em> shifts across the rotation for less than ${MIN_REST_MINUTES / 60} hours rest. Late-to-early next morning is the classic short turnaround. A spare day has no times, so a transition either side of one can't be measured and isn't counted.` },
             { icon: '📅', html: `<strong>Longest run</strong> — how many consecutive working days appear anywhere in the ${ROTATING_LINES}-line cycle. More than ${DEFAULT_MAX_RUN} days is flagged — a design aim, not a limit.` },
             { icon: '⚖️', html: '<strong>Shift balance</strong> — how the worked days split between early, late, and spare across the full rotation.' },
             // The rest of the card (links-app-13): the panel explained the first section's rows and none

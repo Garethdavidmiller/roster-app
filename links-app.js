@@ -2498,6 +2498,9 @@ export function init() {
     // sentence). Stamped from ROTATING_LINES so the HTML cannot go stale independently of the
     // constant — which is exactly what happened to fifteen prose copies of "28" (v19.98).
     for (const el of document.querySelectorAll('.js-rotating-lines')) el.textContent = String(TOTAL_POS);
+    // …and the minimum rest the reorder is held to, in the line-order card's load-bearing note, from the
+    // generator's own MIN_REST_MINUTES (links-analysis-14's twin): a typed "12" outlives a moved minimum.
+    for (const el of document.querySelectorAll('.js-min-rest-hours')) el.textContent = String(MIN_REST_MINUTES / 60);
     // Same for the two numeric ceilings the markup carries. A spare week is a whole line, so at
     // least one line has to be left to work — hence TOTAL_POS - 1 rather than TOTAL_POS.
     document.getElementById('genSpareLines')?.setAttribute('max', String(TOTAL_POS - 1));
