@@ -943,8 +943,9 @@ describe('every workflow that installs also caches the install', () => {
 
 // ── THE LOCAL TEST SERVER NEVER PICKS A PORT THE BROWSER REFUSES (3 Nov 2026) ──────────────────────
 //
-// e2e/dev-server.mjs gives each checkout its own port, base + (path hash % SPREAD), so two worktrees
-// never adopt each other's server. Chromium refuses port 4045 outright (net::ERR_UNSAFE_PORT, before
+// e2e/dev-server.mjs derives each checkout's port, base + (path hash % SPREAD), so two worktrees USUALLY
+// get two ports; when they do not, e2e/server-identity.mjs refuses the other checkout's server
+// (server-identity.test.mjs). Chromium refuses port 4045 outright (net::ERR_UNSAFE_PORT, before
 // any request) and 4001 + 44 is 4045: one checkout path in 120 failed EVERY browser test with an error
 // naming no file of ours, and nothing guarded it. These read the bases from the configs and try every
 // value the hash can take, so no future base, spread or refused port escapes them by not being listed.
@@ -974,7 +975,7 @@ describe('the local test server never picks a port the browser refuses', () => {
             if (a >= b) continue;
             const shared = [...reach.get(a)].filter(p => reach.get(b).has(p));
             assert.deepEqual(shared.slice(0, 5), [],
-                `bases ${a} and ${b} can both derive port${shared.length > 1 ? 's' : ''} ${shared.slice(0, 5).join(', ')}${shared.length > 5 ? ` (${shared.length} in all)` : ''}: two checkouts' servers on one port adopt each other's files`);
+                `bases ${a} and ${b} can both derive port${shared.length > 1 ? 's' : ''} ${shared.slice(0, 5).join(', ')}${shared.length > 5 ? ` (${shared.length} in all)` : ''}: two checkouts' servers on one port collide, and one of the two runs is refused`);
         }
     });
 
@@ -989,8 +990,8 @@ describe('the local test server never picks a port the browser refuses', () => {
     });
 
     test('only a refused port moves, and never onto a port another checkout uses', () => {
-        // Moving to the NEXT port would land on another checkout's, and two checkouts on one port adopt
-        // each other's server — the silent wrong-bytes failure the module exists to prevent.
+        // Moving to the NEXT port would land on another checkout's, and two checkouts on one port is a
+        // collision — refused now by server-identity.mjs, but still a lost run for whoever came second.
         const unmoved = new Set();
         const moved = new Set();
         for (const base of bases) {
@@ -1018,7 +1019,9 @@ describe('the local test server never picks a port the browser refuses', () => {
         mkdirSync(dir);
         const was = process.cwd();
         const ci = process.env.CI;
+        const pinned = process.env.E2E_DEV_PORT;
         delete process.env.CI;   // CI keeps the base port by design; this is the local derivation
+        delete process.env.E2E_DEV_PORT;   // a pin would pass these checks without deriving anything
         try {
             process.chdir(dir);
             const port = devServerPort(4001);
@@ -1029,6 +1032,7 @@ describe('the local test server never picks a port the browser refuses', () => {
         } finally {
             process.chdir(was);
             if (ci !== undefined) process.env.CI = ci;
+            if (pinned !== undefined) process.env.E2E_DEV_PORT = pinned;
             rmSync(parent, { recursive: true, force: true });
         }
     });
