@@ -59,8 +59,8 @@ describe('writing a day the app forbids', () => {
             assert.equal(n.guarded, null, 'recorded, so not reported as refused');
         }
         assert.equal(normaliseCellValue('TRG RDW 09:00-17:00', 'RD', SUN).value, '09:00-17:00');
-        assert.equal(shiftValueToOverrideType('MEET 10:00-14:00', 'RD', SUN), 'rdw', 'never an `other` record on a Sunday');
-        assert.equal(shiftValueToOverrideType('10:00-14:00', '06:00-14:00', SUN), 'rdw', 'and never a correction to rest');
+        assert.equal(shiftValueToOverrideType('MEET 10:00-14:00', SUN), 'rdw', 'never an `other` record on a Sunday');
+        assert.equal(shiftValueToOverrideType('10:00-14:00', SUN), 'rdw', 'and never a correction to rest');
     });
 
     test('a BARE Other day on a Sunday is refused under its OWN reason, so the review holds it (owner, 7 Nov 2026)', () => {
@@ -82,8 +82,8 @@ describe('writing a day the app forbids', () => {
 
     test('a rewritten Sunday cannot then be typed as the thing it claimed to be', () => {
         // The guard and the type mapping have to agree, or the value says RD and the type says AL.
-        assert.equal(shiftValueToOverrideType('AL', 'RD', SUN), 'correction');
-        assert.equal(shiftValueToOverrideType('SICK', 'RD', SUN), 'correction');
+        assert.equal(shiftValueToOverrideType('AL', SUN), 'correction');
+        assert.equal(shiftValueToOverrideType('SICK', SUN), 'correction');
     });
 });
 
@@ -124,7 +124,16 @@ describe('losing the overtime (the v16.23 marker rule)', () => {
     });
 
     test('and the marked form types as rdw, not as a plain shift', () => {
-        assert.equal(shiftValueToOverrideType('RDW|14:30-22:00', 'RD', MON), 'rdw');
+        assert.equal(shiftValueToOverrideType('RDW|14:30-22:00', MON), 'rdw');
+    });
+
+    test('a caller still passing the old base-shift argument is refused, never silently undated', () => {
+        // The base shift was an argument nobody read (whole-app fix, Nov 2026). A three-argument call
+        // left behind would put a shift where the DATE belongs, and the Sunday rule would quietly stop
+        // applying — a Sunday AL typed as annual leave. Loud instead.
+        assert.throws(() => shiftValueToOverrideType('AL', /** @type {any} */ ('RD')), /not an ISO date/);
+        assert.equal(shiftValueToOverrideType('AL', null), 'annual_leave', 'no date is still allowed');
+        assert.equal(shiftValueToOverrideType('AL', SUN), 'correction', 'and the Sunday rule still reads the date');
     });
 
     test('a value the guards rewrote to RD drops the marker — RDW|RD is not a thing', () => {
@@ -143,7 +152,7 @@ describe('refusing a legitimate value', () => {
         // The Sunday rule forbids AL, absence and Other. It does not forbid WORKING a Sunday;
         // rewriting this to RD would erase somebody's overtime.
         assert.equal(normaliseCellValue('09:00-17:00', 'RD', SUN).value, '09:00-17:00');
-        assert.equal(shiftValueToOverrideType('09:00-17:00', 'RD', SUN), 'rdw');
+        assert.equal(shiftValueToOverrideType('09:00-17:00', SUN), 'rdw');
     });
 
     test('an explicit rest day stays a rest day', () => {

@@ -1697,6 +1697,20 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await expect(trigger).toHaveText(/9 Sep 2026/);
 });
 
+// ── The week the roster form offers first (owner, 10 Nov 2026; import-client-3) ─────────────────
+// The rule is unit-tested (admin-roster-upload.test.mjs → defaultWeekEnding). This is the wiring: on
+// a Thursday — the day the final roster is released — the form offers the FOLLOWING week.
+test('operations: on a Thursday the roster form offers the following week', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-11-12T10:00:00Z') });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.clock.runFor(2000);
+    await expect(page.locator('#rosterWeekEnding')).toHaveValue('2026-11-21');
+    await page.evaluate(() => document.getElementById('rosterUploadBody')?.classList.add('open'));
+    await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText(/Sat 21 Nov 2026/);
+});
+
 // ── The app's own dropdown on Operations (v23.38) ──────────────────────────────────────────────
 // select-sheet-parity.test.mjs proves the RULE — that every select is enhanced or declared native.
 // It cannot prove the enhancement WORKS, and "the rule tested, the wiring not" is this repo's named
@@ -1851,19 +1865,52 @@ test('operations: a roster apply signed out mid-save closes the review rather th
 // looked only at what was on screen, so a roster save in several parts whose review the admin had
 // dismissed ("Upload a different file") read as not busy — and an update's reload, or a notification
 // tap, would take the page away with the later parts unsent. Asked here the way the worker asks.
-test('operations: a roster save still sending is busy, even once its review has been dismissed', async ({ page }) => {
+test('operations: a roster save still sending is busy, even with its review off the screen', async ({ page }) => {
     await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, holdCommits: true }; });
     await seedSession(page, 'G. Miller');
     await openRosterReview(page);
     await page.locator('#rosterApplyBtn').click();                     // the first part is held on the device
-    await page.locator('#rosterCancelBtn').click();                    // "Upload a different file"
-    await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+    // "Upload a different file" is refused while a save is out (import-client-1, the next test), so
+    // the review is taken off the screen directly: what is proved is that the check reads the
+    // WRITES, not the screen — the screen's three checks all read "not busy" from here.
+    await page.locator('#rosterReviewSection').evaluate(el => el.classList.remove('visible'));
     const busy = await page.evaluate(() => new Promise(resolve => {
         const ch = new MessageChannel();
         ch.port1.onmessage = (e) => resolve(e.data?.busy);
         navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
     }));
     expect(busy, 'a reload now would strand the parts not yet sent').toBe(true);
+});
+
+// Whole-app fix, Nov 2026 (import-client-1): while a save waited for the server, any touch in the
+// review ran the outcome refresh, which handed the Save button back — and a second press wrote a
+// second copy of every row, because the import mints new document ids. The review is now out of
+// reach until the save settles, and nothing re-arms the button meanwhile.
+test('operations: a roster save still sending keeps its button, whatever is touched meanwhile', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const save = page.locator('#rosterApplyBtn');
+    await expect(save).toHaveText(/Save 3 changes/);
+    await save.click();
+    await expect(save).toHaveText(/Saving 3 changes/);
+    await expect(save).toBeDisabled();
+    // Out of reach while it sends: the review, and the two buttons that would start another one.
+    await expect(page.locator('#rosterChangeList')).toHaveJSProperty('inert', true);
+    await expect(page.locator('#rosterCancelBtn')).toBeDisabled();
+    await expect(page.locator('#rosterParseBtn')).toBeDisabled();
+    await expect(page.locator('#rosterFileInput')).toBeDisabled();
+    // A change that DOES reach the review's handler — a script's click, which `inert` does not stop —
+    // still does not give the button back.
+    await page.evaluate(() => { const t = /** @type {HTMLElement} */ (document.querySelector('.roster-tick')); t.click(); t.click(); });
+    await expect(save).toBeDisabled();
+    await expect(save).toHaveText(/Saving 3 changes/);
+    await save.click({ force: true });
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 3 changes applied');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length),
+        'one save, so one copy of each row').toBe(3);
+    await expect(page.locator('#rosterChangeList')).toHaveJSProperty('inert', false);
 });
 
 // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record outranks an import, so "Use new
@@ -2384,9 +2431,12 @@ test('operations: a roster read that looks a day out is refused, and writes noth
     expect(hovered.text, 'the remedy\'s words vanish into its fill under the pointer').not.toBe(hovered.fill);
     expect(hovered.text).toBe('rgb(255, 255, 255)');
 
-    // No per-row escape hatch: a tick on a refused read does nothing at all.
+    // No per-row escape hatch: a tick on a refused read does nothing at all — and SAYS so, disabled
+    // and off the Tab order like every control of a refused read (whole-app fix, Nov 2026).
     const firstTick = page.locator('.roster-tick').first();
-    await firstTick.click();
+    await expect(firstTick).toBeDisabled();
+    await expect(page.locator('.roster-person-section button:not([disabled])')).toHaveCount(0);
+    await firstTick.click({ force: true });
     await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
 
     // THE HARD GATE, ISOLATED. Everything above is satisfied by `chosen: false` alone — deleting
@@ -2470,6 +2520,37 @@ test('operations: three rows the PDF\'s own grid refused REFUSE the read, withou
     await expect(page.locator('#rosterApplyBtn')).toBeHidden();
 });
 
+// Whole-app fix, Nov 2026 (import-client-13): on a refused read the primary button says "Read the
+// roster again" — and it only cleared the form, the chosen PDF with it, so nothing was read until the
+// admin found the same file again. It now reads it again.
+test('operations: "Read the roster again" on a refused read reads the same PDF again', async ({ page }) => {
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    const three = teamMembers.filter(m => !m.hidden && !m.managerOnly && m.rosterType === 'main').slice(0, 3);
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        weekEnding: '2026-08-08', rosterType: 'cea', dates: DATES, crossCheck: 'complete', missingMembers: [], choices: {},
+        geometryRefused: three.map(m => m.name),
+        parsed: three.map(m => ({ memberName: m.name, shifts: { ...honest(m), [DATES[1]]: '22:00-06:00' } })),
+    });
+    await expect(page.locator('.roster-alignment-stop')).toBeVisible();
+    // The second read is a good one — the route registered last answers first.
+    let reads = 0;
+    await page.route('**/parseRosterPDF*', route => { reads++; return route.fulfill({ status: 200,
+        contentType: 'application/json', body: JSON.stringify(ROSTER_REVIEW_PARSE) }); });
+    await page.locator('#rosterCancelBtn').click();
+    await expect(page.locator('#rosterApplyBtn')).toHaveText(/Save 3 changes/);
+    await expect(page.locator('.roster-alignment-stop')).toHaveCount(0);
+    expect(reads, 'the PDF was read again').toBe(1);
+    await expect(page.locator('#rosterFileName')).toHaveText('roster.pdf');
+    // …and the ordinary button is still "Upload a different file", which clears the form as before.
+    await expect(page.locator('#rosterCancelBtn')).toHaveText('Upload a different file');
+    await page.locator('#rosterCancelBtn').click();
+    await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+    await expect(page.locator('#rosterParseBtn')).toBeDisabled();
+    expect(reads).toBe(1);
+});
+
 test('operations: the review says when the PDF layout check did not run', async ({ page }) => {
     // THE WIRING, which is what escaped: `geometry.status` had been in the response for nine
     // versions and no client code read it, so a fail-open witness produced a review that looked
@@ -2522,6 +2603,41 @@ test('operations: the review HANDS OVER the original PDF to check against', asyn
     expect(again.suggestedFilename()).toBe('roster.pdf');
 });
 
+
+// ── CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026) ──
+// The rules are unit-tested (admin-roster-upload.test.mjs → "a Christmas-week import"). What only the
+// page shows is the row: unticked, saying why, asking no swap question — and a tick there written.
+test('operations: a Christmas-week roster leaves 25 and 26 December unticked, and a tick there is written', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    const me = teamMembers.find(m => m.name === 'G. Miller');
+    const dates = ['2026-12-20', '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25', '2026-12-26'];
+    const shifts = Object.fromEntries(dates.map(d => [d, getBaseShift(me, new Date(d + 'T12:00:00'))]));
+    shifts['2026-12-22'] = shifts['2026-12-22'] === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00';
+    shifts['2026-12-25'] = 'AL';
+    shifts['2026-12-26'] = '13:30-21:00';
+    await openRosterReview(page, { weekEnding: '2026-12-26', rosterType: 'cea', dates, crossCheck: 'complete',
+        missingMembers: [], choices: {}, geometry: { status: 'complete' }, parsed: [{ memberName: 'G. Miller', shifts }] },
+        { noSavedEntries: true });
+    const row = (/** @type {string} */ d) => page.locator(`.roster-change-row[data-key="G. Miller|${d}"]`);
+    const save = page.locator('#rosterApplyBtn');
+
+    await expect(row('2026-12-22').locator('.roster-tick')).toHaveAttribute('aria-pressed', 'true');
+    await expect(row('2026-12-26').locator('.roster-tick')).toHaveAttribute('aria-pressed', 'false');
+    await expect(row('2026-12-26')).toContainText('Not selected — the app’s Christmas leave decides 25 and 26 December.');
+    await expect(row('2026-12-25')).toContainText('The app’s Christmas leave decides 25 and 26 December, so nothing is recorded.');
+    await expect(row('2026-12-25').locator('[data-swap]'), 'no swapped-day question on Christmas Day').toHaveCount(0);
+    await expect(save).toHaveText(/Save 1 change$/);
+    await expect(page.locator('#rosterOutcome')).toContainText('1 day not selected — the app’s Christmas leave decides 25 and 26 December');
+
+    await row('2026-12-26').locator('.roster-tick').click();   // a Boxing Day really worked, ticked on purpose
+    await expect(save).toHaveText(/Save 2 changes/);
+    await save.click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 2 changes applied');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || [])
+        .map((/** @type {any} */ w) => [w.date, w.value]).sort());
+    expect(written).toEqual([['2026-12-22', shifts['2026-12-22']], ['2026-12-26', '13:30-21:00']]);
+});
 
 // ── A DAY THE IMPORT DECLINED TO RECORD MUST STILL APPEAR (v23.97) ────────────────────────────
 //
@@ -2832,6 +2948,30 @@ test('operations: an entered RDW is written as RDW, not as an ordinary shift', a
     expect(written[0].value).toBe('09:00-17:00');
 });
 
+// The summary is counted from the Save's own writes now (whole-app fix, Nov 2026), and the entry
+// control is the one that knows an unreadable cell was ANSWERED with nothing to record — it is handed
+// to the count. Without it, "Rest day — leave it" went on being reported as a cell nobody could read.
+test('operations: leave entered on a rest day and answered "Rest day" is an answer, not an unread cell', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    const me = teamMembers.find(m => m.name === 'G. Miller');
+    const base = (/** @type {string} */ d) => getBaseShift(me, new Date(d + 'T12:00:00'));
+    const rest = ROSTER_REVIEW_DATES.slice(1).find(d => base(d) === 'RD');
+    test.skip(!rest, 'G. Miller has no weekday rest day in the fixture week');
+    const shifts = Object.fromEntries(ROSTER_REVIEW_DATES.map(d => [d, base(d)]));
+    shifts[/** @type {string} */ (rest)] = 'UNKNOWN|SEE CEM';
+    await openRosterReview(page, { weekEnding: '2026-08-08', rosterType: 'cea', dates: ROSTER_REVIEW_DATES,
+        crossCheck: 'complete', missingMembers: [], choices: {}, geometry: { status: 'complete' },
+        parsed: [{ memberName: 'G. Miller', shifts }] }, { noSavedEntries: true });
+    const outcome = page.locator('#rosterOutcome');
+    await expect(outcome).toContainText("1 cell couldn't be read");
+    const row = page.locator('.roster-change-row', { hasText: 'SEE CEM' });
+    await row.locator('.roster-choice-btn--enter').click();
+    await row.locator('.roster-entry-pill', { hasText: /^AL$/ }).click();
+    await row.locator('.roster-entry-swap-btn[data-entry-swap="no"]').click();
+    await expect(row.locator('.roster-act')).toHaveText('Not recorded');
+    await expect(outcome).not.toContainText("couldn't be read");
+});
+
 test('operations: the entry control never offers a type Sunday forbids', async ({ page }) => {
     // Sunday is uncontracted, so AL, Absent and a plain Shift may never be written to one — six
     // numbered enforcement layers say so, and this control consults that list rather than keeping
@@ -2887,11 +3027,85 @@ test('operations: an options row keeps its own words while an entry is half-fini
     await expect(tag).not.toHaveClass(/act-read/);
     await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
 
-    // A picked READING, then the entry un-finished beside it: still answered, and it says so.
+    // A picked READING, then the entry un-finished beside it: still answered, and it says so. Picking
+    // the reading closes the editor (whole-app fix, Nov 2026), so it is opened again to un-finish it.
     await row.locator('.roster-choice-btn[data-opt="0"]').click();
+    await btn.click();
     await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
     await expect(tag).toHaveClass(/act-choice/);
     await expect(tag).toHaveText('Your choice');
+});
+
+// Whole-app fix, Nov 2026 (import-client-2): an options row was patched in place by four paths that
+// each updated a different subset, so Skip stayed lit beside a finished entry, a picked reading stayed
+// lit while Save wrote the entry typed after it, and Skip left an editor saying "this day will be
+// saved". One painter now applies the render's rules on every path; what is lit is what Save writes.
+test('operations: an options row lights only the answer Save will write, and Skip closes the editor', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row[data-key="G. Miller|2026-08-07"]');   // readings: AL · Rest
+    const reading = row.locator('.roster-choice-btn[data-opt="0"]');
+    const skip = row.locator('.roster-choice-btn--skip');
+    const enter = row.locator('.roster-choice-btn--enter');
+    const lit = async (/** @type {string[]} */ on) => {
+        for (const [name, b] of /** @type {const} */ ([['reading', reading], ['skip', skip], ['enter', enter]])) {
+            await expect(b, name).toHaveAttribute('aria-pressed', String(on.includes(name)));
+        }
+    };
+    await lit(['skip']);
+
+    // (a) An entry finished: the entry is the answer, and Skip goes out.
+    await enter.click();
+    await row.locator('.roster-entry-pill', { hasText: /^Absent$/ }).click();
+    await lit(['enter']);
+    await expect(enter).toHaveText('Entered — change it');
+
+    // (d) A reading picked after it: the reading is the answer, and the editor beside it goes.
+    await reading.click();
+    await lit(['reading']);
+    await expect(row.locator('.roster-entry')).toHaveCount(0);
+    await expect(enter).toHaveText('Neither — enter it');
+
+    // (c) An entry finished after the reading: the reading goes out.
+    await enter.click();
+    await row.locator('.roster-entry-pill', { hasText: /^Absent$/ }).click();
+    await lit(['enter']);
+
+    // (b) Skip: nothing is the answer, and the editor closes as Skip all closes it.
+    await skip.click();
+    await lit(['skip']);
+    await expect(row.locator('.roster-entry')).toHaveCount(0);
+    await expect(enter).toHaveText('Neither — enter it');
+    await expect(row.locator('.roster-act')).toHaveText("Couldn't read");
+
+    // What is lit is what is written: the reading, once, and nothing else for the day.
+    await reading.click();
+    await page.locator('#rosterApplyBtn').click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 4 changes applied');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || [])
+        .filter((/** @type {any} */ w) => w.date === '2026-08-07').map((/** @type {any} */ w) => [w.type, w.value]));
+    expect(written).toEqual([['annual_leave', 'AL']]);
+});
+
+// Whole-app fix, Nov 2026 (import-client-14): the editor is redrawn on every press inside it, and the
+// pressed control was one of the elements replaced — so keyboard focus fell to the page body on every
+// pill, chip and answer. It now lands on the same control in the new editor.
+test('operations: a key press inside the entry editor keeps focus on the control pressed', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await row.locator('.roster-choice-btn--enter').focus();
+    await page.keyboard.press('Enter');
+    const pill = row.locator('.roster-entry-pill[data-entry-type="other"]');
+    await pill.focus();
+    await page.keyboard.press('Enter');
+    await expect(row.locator('.roster-entry-pill[data-entry-type="other"]')).toBeFocused();
+    const chip = row.locator('.roster-entry-flavour').first();
+    await chip.focus();
+    await page.keyboard.press('Space');
+    await expect(row.locator('.roster-entry-flavour').first()).toBeFocused();
+    await expect(row.locator('.roster-entry-flavour').first()).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('operations: App speed states the stored-copy share against the versions that can count it', async ({ page }) => {
@@ -3168,6 +3382,29 @@ test.describe('operations: the roster read, cut off', () => {
         await expect(trigger, 'the read is over: the trigger follows its field back').toBeEnabled();
     });
 
+    // Whole-app fix, Nov 2026 (import-client-12): the form is locked while a read is out, but the
+    // week sits behind the date picker's trigger, which ignores its input's `disabled` — so a week
+    // picked mid-read changed the form while the review that came back was for the week SENT. The
+    // picker sets the value and fires `change` (date-picker.js's contract), which is what this does.
+    test('a week picked while the read is out is put back — the form keeps the week that was sent', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.route('**/parseRosterPDF*', () => { /* never answered: the read is still running */ });
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        const week = page.locator('#rosterWeekEnding');
+        const pick = (/** @type {string} */ iso) => week.evaluate((el, v) => {
+            /** @type {HTMLInputElement} */ (el).value = v;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, iso);
+        await pick('2026-08-08');
+        await page.locator('#rosterParseBtn').click();
+        await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
+        await pick('2026-08-15');
+        await expect(week).toHaveValue('2026-08-08');
+        await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText(/Sat 8 Aug 2026/);
+    });
+
     test('Safari\'s "Load failed" seconds in is a dropped connection, not a large PDF', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         // Safari's own words for a network failure, at once — no read can have been slow by then.
@@ -3194,6 +3431,45 @@ test.describe('operations: the roster read, cut off', () => {
         await page.locator('#rosterParseBtn').click();
         await expect(page.locator('#rosterParseFeedback')).toContainText('The connection dropped before it finished.');
         await page.context().setOffline(false);
+    });
+
+    // Whole-app fix, Nov 2026 (import-client-10): a parse that runs past the function's own limit is
+    // answered by the platform, not the handler — a gateway error whose body is not JSON — and it was
+    // reported as "Unexpected error — please try again or contact support". There is no support.
+    test('a gateway timeout with no words of its own says the read took too long', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.route('**/parseRosterPDF*', route => route.fulfill({ status: 504, contentType: 'text/plain', body: 'upstream request timeout' }));
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        await page.locator('#rosterParseBtn').click();
+        const feedback = page.locator('#rosterParseFeedback');
+        await expect(feedback).toContainText("Couldn't read the roster: The server stopped the read because it took too long.");
+        await expect(feedback).not.toContainText('support');
+    });
+
+    // …and a body that STALLS after its headers (the pwa review's lead): the bound was cleared when
+    // the headers arrived, so `response.json()` waited for ever with the form locked on "Reading…".
+    // The stand-in's body read rejects with an AbortError when the request's signal aborts — what a
+    // real fetch does (a ReadableStream errored by hand reaches `json()` as "Failed to fetch" instead).
+    test('a reply whose body stalls is still ended by the read\'s own bound', async ({ page }) => {
+        await page.clock.install({ time: new Date('2026-11-10T10:00:00Z') });
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            const real = window.fetch;
+            /** @type {any} */ (window).fetch = (/** @type {any} */ input, /** @type {any} */ init) => {
+                if (!String(input instanceof Request ? input.url : input).includes('parseRosterPDF')) return real(input, init);
+                const json = () => new Promise((_, reject) => init?.signal?.addEventListener('abort',
+                    () => reject(new DOMException('The operation was aborted.', 'AbortError'))));
+                return Promise.resolve({ ok: true, status: 200, json });
+            };
+        });
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        await page.locator('#rosterParseBtn').click();
+        await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
+        await page.clock.runFor(131_000);
+        await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Parsing took longer than expected.");
+        await expect(page.locator('#rosterParseBtn')).toHaveText('Read roster');
     });
 });
 
