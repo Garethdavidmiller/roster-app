@@ -2771,6 +2771,29 @@ test.describe('operations: the roster read, cut off', () => {
             'Reading the PDF — this takes about 15 seconds. Keep this screen open until it finishes.');
     });
 
+    // Whole-app fix, Nov 2026 (import-client-12): the form is locked while a read is out, but the
+    // week sits behind the date picker's trigger, which ignores its input's `disabled` — so a week
+    // picked mid-read changed the form while the review that came back was for the week SENT. The
+    // picker sets the value and fires `change` (date-picker.js's contract), which is what this does.
+    test('a week picked while the read is out is put back — the form keeps the week that was sent', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.route('**/parseRosterPDF*', () => { /* never answered: the read is still running */ });
+        await page.goto('/operations.html');
+        await choosePdf(page);
+        const week = page.locator('#rosterWeekEnding');
+        const pick = (/** @type {string} */ iso) => week.evaluate((el, v) => {
+            /** @type {HTMLInputElement} */ (el).value = v;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, iso);
+        await pick('2026-08-08');
+        await page.locator('#rosterParseBtn').click();
+        await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
+        await pick('2026-08-15');
+        await expect(week).toHaveValue('2026-08-08');
+        await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText(/Sat 8 Aug 2026/);
+    });
+
     test('Safari\'s "Load failed" seconds in is a dropped connection, not a large PDF', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         // Safari's own words for a network failure, at once — no read can have been slow by then.

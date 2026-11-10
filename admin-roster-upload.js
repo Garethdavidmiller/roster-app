@@ -294,6 +294,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     // Any touch in the review re-ran refreshOutcome, which handed Save back mid-save; a roster import
     // mints new ids, so the second press wrote a second copy of every row (slow-save.js's rule 2).
     let _saving = false;
+    let _readWeek = '';   // the week ending a read in flight was SENT with — see the week's change listener
     const lockForSave = (/** @type {boolean} */ on) => {
         _saving = on; changeList.inert = on; cancelBtn.disabled = on; fileInput.disabled = on;
         parseBtn.disabled = on || !fileInput.files?.length;
@@ -308,6 +309,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     // it here: if the user picks a date that isn't a Saturday, we move it forward
     // to the next Saturday automatically.
     weekEndingEl.addEventListener('change', () => {
+        // LOCKED WHILE A READ IS OUT (whole-app fix, Nov 2026): the date picker's trigger does not follow
+        // the input's `disabled`, so a week picked mid-read is put back here, before the trigger re-reads
+        // the value — the form must show the week that was SENT, which is the week the review is for.
+        if (_readWeek) { weekEndingEl.value = _readWeek; return; }
         if (!weekEndingEl.value) return;
         const picked = parseISODate(weekEndingEl.value);
         const day    = picked.getDay(); // 0=Sun … 6=Sat
@@ -368,6 +373,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         rosterTypeEl.disabled       = true;
         weekEndingEl.disabled       = true;
         fileInput.disabled          = true;
+        _readWeek                   = weekEnding;
 
         // What a failure's words depend on (`parseFailureLine`): when the read went, and if it was left.
         let readStartedAt = 0, leftDuringRead = false;
@@ -466,6 +472,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             rosterTypeEl.disabled = false;
             weekEndingEl.disabled = false;
             fileInput.disabled    = false;
+            _readWeek             = '';
         }
     });
 
