@@ -39,7 +39,7 @@ import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
-    demandAt, demandBucket, peakCars, peakHours, summariseDemand, describeHours, describeMovements,
+    demandAt, demandBucket, peakCars, peakHours, dutySpans, summariseDemand, describeHours, describeMovements,
 } from './links-demand.js';
 import { escapeHtml } from './roster-data.js';
 
@@ -120,9 +120,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // the prose. Two calls would be two chances for the cells and the sentence under them to
         // disagree about the very comparison the card exists to make.
         const sum = summariseDemand({
-            profile: DEC_2026_DEMAND,
             movements: DEC_2026_MOVEMENTS,
-            hourly,
+            spans: dutySpans(design.patterns, TOTAL_POS),
             days: DAYS,
             windowFor: (day) => rowMinutes(windowForDay(win, day)),
         });
@@ -173,10 +172,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `<tbody>${rows}</tbody>` +
             demandBody(sum, minH, maxH) +
             `</table></div>` +
-            `<p class="cov-heat-note">Each cell shows how many people are on duty during that hour — darker means more. ` +
+            `<p class="cov-heat-note">Each cell counts everyone on duty at any point in that hour — darker means more. ` +
             `Red 0 = the station is open and nobody is on. Grey = outside the staffed window. ` +
             `SP = spares on standby (no fixed time). Peak this week: ${maxCount}.${gapNote}${outNote}</p>` +
-            demandNote(sum, minH, maxH);
+            demandNote(sum, minH, maxH, hourly);
     }
 
     /**
@@ -240,14 +239,23 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      * @param {ReturnType<typeof summariseDemand>} sum
      * @param {number} minH
      * @param {number} maxH
+     * @param {Record<string, {hours: number[]}>} hourly - the cells above, to say when a gap is inside one
      */
-    function demandNote(sum, minH, maxH) {
-        // A FINDING: the station is open, trains are running, nobody is on.
+    function demandNote(sum, minH, maxH, hourly) {
+        // A FINDING: the station is open, a train runs, nobody is on. Asked train by train, to the
+        // minute (`summariseDemand`), and named by clock hour. A gap INSIDE an hour leaves its cell
+        // showing the people who were on for the rest of it, so the sentence says so — otherwise the
+        // finding and the table above it read as a contradiction.
         const nUnc = sum.uncovered.length;
+        const inside = sum.uncovered.filter(e => (hourly?.[e.day]?.hours?.[e.hour] ?? 0) > 0).length;
+        const insideNote = !inside ? ''
+            : `${inside === nUnc ? (nUnc === 1 ? 'That hour shows' : 'Those hours show') : `${inside} of them show`} ` +
+              `people on duty in the table above: the gap is inside the hour, and a cell counts everyone on at any point in it. `;
         const uncovered = nUnc
-            ? `<span class="dem-finding">Trains run in ${nUnc} staffed hour${nUnc === 1 ? '' : 's'} ` +
-              `with nobody on duty</span> (${escapeHtml(describeHours(sum.uncovered))}). `
-            : `Every staffed hour with trains in it has someone on duty. `;
+            ? `<span class="dem-finding">Trains run with nobody on duty in ${nUnc} staffed hour${nUnc === 1 ? '' : 's'}</span> ` +
+              `(${escapeHtml(describeHours(sum.uncovered))}): ${sum.uncoveredMv} train movement${sum.uncoveredMv === 1 ? '' : 's'} a week. ` +
+              insideNote
+            : `Every train inside the staffed window has someone on duty when it arrives or departs. `;
 
         // A FACT, never a finding — see links-demand.js. The last trains and the 05:5x first
         // departure are like this on every design there has ever been, so an amber flag here would
@@ -328,12 +336,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         el.hidden = false;
 
         const checks = runDesignChecks(design.patterns, ROTATING_LINES);
-        const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
         const win = normaliseWindow(design.window);
         const sum = summariseDemand({
-            profile: DEC_2026_DEMAND,
             movements: DEC_2026_MOVEMENTS,
-            hourly,
+            spans: dutySpans(design.patterns, TOTAL_POS),
             days: DAYS,
             windowFor: (day) => rowMinutes(windowForDay(win, day)),
         });

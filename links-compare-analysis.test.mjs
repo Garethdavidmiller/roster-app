@@ -151,6 +151,19 @@ test('an hour with trains and nobody on is found, and named', () => {
     assert.ok(r.service.uncovered.b.where.every(w => w.day === 'sun'), 'and every one is on the Sunday');
 });
 
+test('a gap inside the hour is found here too — the comparison asks what the card asks', () => {
+    // Earlies to 14:20 and lates from 15:25: every hour has somebody on for part of it, and 98 trains
+    // a week meet nobody. Rule 1: the comparison reads cover exactly as the Coverage card does.
+    /** @type {Record<string, any>} */ const gap = {};
+    for (let i = 1; i <= ROTATING_LINES; i++) {
+        const t = i <= ROTATING_LINES / 2 ? '06:20-14:20' : '15:25-23:55';
+        gap[String(i)] = { sun: t, mon: t, tue: t, wed: t, thu: t, fri: t, sat: t };
+    }
+    const r = compareDesigns(PT, { patterns: gap });
+    assert.equal(r.service.uncovered.b.hours, 14, 'hours 14 and 15, on all seven days');
+    assert.deepEqual([...new Set(r.service.uncovered.b.where.map(w => w.hour))], [14, 15]);
+});
+
 // ── v24.25: the three things review found compare mode stating more strongly than the card does ──
 
 /** Every rotating line works `wk` Mon–Thu, `fri` on Friday, and rests at the weekend. */

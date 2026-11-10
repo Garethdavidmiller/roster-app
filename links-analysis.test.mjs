@@ -829,6 +829,31 @@ describe('the hard-limit summaries', () => {
     });
 });
 
+// ── A GAP INSIDE AN HOUR REACHES THE CARD AND THE STRIP (whole-app review, Nov 2026) ─────────────
+// Earlies to 14:20 and lates from 15:25: 65 minutes a day with nobody on, and every cell either side
+// shows people on duty, because a cell counts anyone on at any point in its hour. Asked by the hour,
+// the card said every staffed hour had someone on duty and the strip said there were no gaps. The
+// question is asked train by train now (links-demand.test.mjs); this pins that both renderers ask it.
+test('a gap inside the hour is named on the card and counted on the strip', () => {
+    const p = /** @type {Record<string, any>} */ ({});
+    for (let i = 1; i <= ROTATING_LINES; i++) {
+        const t = i <= ROTATING_LINES / 2 ? '06:20-14:20' : '15:25-23:55';
+        p[String(i)] = { sun: t, mon: t, tue: t, wed: t, thu: t, fri: t, sat: t };
+    }
+    resetDom();
+    const a = initLinksAnalysis({ getDesign: () => ({ patterns: p }) });
+    a.renderCoverageChart();
+    const card = els.coverageHeatmap.innerHTML.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(card, /Trains run with nobody on duty in 14 staffed hours/, 'the card does not name the gap');
+    assert.match(card, /98 train movements a week/);
+    assert.match(card, /Those hours show people on duty in the table above: the gap is inside the hour/,
+        'the card does not say why the cells above it show people on duty');
+    assert.doesNotMatch(card, /Every train inside the staffed window has someone on duty/);
+    a.renderSummary();
+    assert.match(els.linksSummary.innerHTML, /sum-chip--bad"><span aria-hidden="true">⛔<\/span><strong>14<\/strong>/,
+        'the strip does not count the hours with trains and nobody on');
+});
+
 // ── A STORED CELL IS TEXT, NEVER MARKUP (whole-app review, Nov 2026) ─────────────────────────────
 // The short-turnaround row quotes the two times it measured, cut from the stored cell. The time
 // readers anchor one END of the string each (`^HH:MM-`, `-HH:MM$`), so `15:25-<anything>-23:55` reads
