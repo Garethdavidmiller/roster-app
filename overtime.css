@@ -1669,8 +1669,12 @@ html:has(#otConfirmBar:not([hidden])) { --ot-confirm-clear: calc(212px + env(saf
    filter (page-visibility-parity guards the markup-hidden case, not this one). */
 .ot-day-panel[hidden] { display: none !important; }
 
-/* A week that has already run: quieter than a live one, still openable. */
-.ot-week-row--past { opacity: 0.86; }
+/* A week that has already run: quieter than a live one, still openable — and still READ, so it is
+   recessed rather than faded (css-tokens.md → "`opacity` on a group"): the sunken surface and a
+   lighter title. At `opacity: 0.86` a chosen past week's View measured 4.32:1, under AA, once the
+   chosen fill took the page's colour (v25.16). */
+.ot-week-row--past { background: var(--surface-sunken); }
+.ot-week-row--past .ot-week-title { color: var(--text-mid); }
 
 
 /* ═══════════════════════════════════════════════════════════════════════════

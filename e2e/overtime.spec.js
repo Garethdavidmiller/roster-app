@@ -1203,6 +1203,37 @@ test.describe('overtime.css — print, focus and contrast', () => {
             .toBeGreaterThanOrEqual(3);
     });
 
+    test('a past week is recessed, not faded — its chosen View keeps AA', async ({ page }) => {
+        // `opacity: 0.86` on the row multiplied every colour in it; once the chosen fill became the
+        // page's blue-violet (v25.16) a chosen past week's View measured 4.32:1. The row is still
+        // read and still opened, so css-tokens.md's rule applies: recess it, do not fade it.
+        await reviewerSheet(page);
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [CREATED],
+                retained: [{ ...W, weekEnding: '2026-08-08', finalDeadlineAt: Date.parse('2026-07-28T11:00:00Z') }] }),
+        }));
+        await page.goto('/overtime.html');
+        const past = page.locator('.ot-week-row--past');
+        await expect(past).toHaveCount(1);
+        const view = past.getByRole('button', { name: 'View' });
+        await view.click();
+        await expect(view).toHaveAttribute('aria-pressed', 'true');
+        await page.mouse.move(0, 0);
+        await expect.poll(() => view.evaluate(b => getComputedStyle(b).backgroundColor)).not.toBe('rgb(255, 255, 255)');
+        const m = await view.evaluate(b => {
+            let opacity = 1;
+            for (/** @type {Element|null} */ let n = b; n; n = n.parentElement) opacity *= Number(getComputedStyle(n).opacity);
+            const live = /** @type {Element} */ (document.querySelector('.ot-week-row:not(.ot-week-row--past)'));
+            return { opacity, ink: getComputedStyle(b).color, fill: getComputedStyle(b).backgroundColor,
+                past: getComputedStyle(/** @type {Element} */ (b.closest('.ot-week-row'))).backgroundColor,
+                live: getComputedStyle(live).backgroundColor };
+        });
+        expect(m.opacity, 'nothing on the way up fades it').toBe(1);
+        expect(await contrastOn(page, m.ink, m.fill), 'the chosen View').toBeGreaterThanOrEqual(4.5);
+        expect(m.past, 'a past week still reads as set apart from a live one').not.toBe(m.live);
+    });
+
     test('the call sheet uses the paper: no card inset, and not the phone column', async ({ page }) => {
         // A4's printable column (~703px at this page's margins) is under the 768px breakpoint, so the
         // phone layout's 560px cap held the sheet to four-fifths of the paper; and the "no inset" rule
