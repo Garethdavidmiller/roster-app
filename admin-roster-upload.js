@@ -256,9 +256,11 @@ export async function fetchOverridesForWeek(dates) {
  * @param {boolean}  opts.currentIsAdmin - Whether the user has admin rights
  * @param {string}   opts.parseUrl       - Cloud Function URL for parseRosterPDF
  * @param {Function} opts.getIdToken     - Async function returning the current user's Firebase ID token
- * @param {Function} opts.loadOverrides  - Refreshes the override cache and week grid after a save
+ * @param {Function} [opts.loadOverrides] - IGNORED (whole-app fix, Nov 2026): Operations has no Saved
+ *   Changes list to refresh, so the call did nothing, and its import pulled twelve Admin modules onto
+ *   the page. Accepted only until operations-app.js stops passing it.
  */
-export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdToken, loadOverrides }) {
+export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdToken }) {
     if (!currentIsAdmin) return;
 
     const esc = escapeHtml;  // local alias
@@ -506,7 +508,6 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const refused = await _saveOverrideBatches(toWrite, currentUser);
             const applied = toWrite.length - refused;
 
-            await loadOverrides();   // re-read: the new doc ids are not known here
             // The older copies a written row took with it are SAID, never silent (48-hour review) —
             // as Admin's delete names them. A refused row removed none.
             const dups = toWrite.reduce((n, w) => n + (w.deleteOnly || !(typeof w.value === 'string' && isZeroLengthRange(w.value)) ? (w.alsoDelete?.length ?? 0) : 0), 0);
@@ -529,16 +530,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // A sign-out is AMBIGUOUS even on chunk 1 (the batch may still land): close as partial (v24.39).
             if (_applyErr?.partialCommit || _applyErr?.code === SIGNED_OUT_CODE) {
                 // Earlier chunks committed before the failure — partial import is live in Firestore.
-                // Resync the Saved-changes list and CLOSE the review (its remaining rows are now
-                // ambiguous against the partially-applied state; a fresh re-upload re-reads truth
-                // via the v16.25 fail-closed conflict-read) (v16.25).
-                try { await loadOverrides(); } catch { /* best-effort */ }
+                // CLOSE the review (its remaining rows are now ambiguous against the partially-applied
+                // state; reading the roster again re-reads the truth via the v16.25 fail-closed
+                // conflict-read) (v16.25). This page has no Saved Changes list, so none is named.
                 reviewSection.classList.remove('visible');
                 _parsedResult = null;
                 _cellStates   = null;
                 applyFeedback.textContent = _applyErr.code === SIGNED_OUT_CODE
-                    ? signedOutLine('this roster', 'Saved Changes before applying again')
-                    : "The connection dropped part-way — some of the roster may already be saved. The saved changes list has been refreshed; re-read the roster to check before applying again.";
+                    ? signedOutLine('this roster', 'what was saved by reading the roster again')
+                    : 'The connection dropped part-way — some of the roster may already be saved. Read the roster again to check what was saved before applying it again.';
                 applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
                 applyBtn.disabled    = true;
                 applyBtn.textContent = 'Save changes';
