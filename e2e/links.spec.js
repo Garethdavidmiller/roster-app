@@ -2547,6 +2547,62 @@ test('links: pressing Generate again produces a different, named design', async 
     expect(await gridText()).not.toBe(first);
 });
 
+// ── A repeat is admitted, never renumbered (whole-app fix, Nov 2026 — links-app-2) ──────────────────
+// An attempt whose three seeded starts all fail the cover-spread and boundary-rest filters falls back
+// to DESIGN 1's order (links-adjacency.js), and the status line compared each press only with the one
+// before it: on the default table the third press was design 1's grid, cell for cell, under "Design 3
+// … Design 2 scored better". So the property is checked over EVERY press, not pinned to the press that
+// falls back today — which one does is the optimiser's business — and the switches-off half is the
+// case that repeats on every press whatever the optimiser does.
+test('links: a generated design that repeats an earlier one says which design it is', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await linksOpened(page);
+    const status = page.locator('#linksSaveStatus');
+    /** Press Build, confirm, and wait for THIS press's line (every press after the first is numbered). */
+    const press = async () => {
+        const before = await status.textContent();
+        await page.locator('#genApplyBtn').click();
+        await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+        await expect(status).not.toHaveText(before ?? '');
+        return {
+            grid: await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText),
+            said: await status.textContent() ?? '',
+        };
+    };
+    /** Each press names the FIRST earlier design with its grid, and claims no repeat it does not have. */
+    const checkPresses = (/** @type {Array<{grid: string, said: string}>} */ runs) => {
+        runs.forEach((r, i) => {
+            if (i === 0) return;
+            expect(r.said, `press ${i + 1}`).toContain(`Design ${i + 1} — `);
+            const first = runs.findIndex(x => x.grid === r.grid);
+            if (first < i) expect(r.said, `press ${i + 1} is design ${first + 1}'s grid`).toContain(`Same arrangement as design ${first + 1} —`);
+            else expect(r.said, `press ${i + 1} is a new grid`).not.toContain('Same arrangement');
+        });
+    };
+
+    // The default table, every switch on: today the third press falls back to design 1.
+    const onRuns = [];
+    for (let i = 0; i < 4; i++) onRuns.push(await press());
+    checkPresses(onRuns);
+
+    // Every switch off: the order is left alone, so EVERY press is design 1 again — and says so, by
+    // the first design that wore it, not by whichever came just before.
+    for (const id of await page.evaluate(() => [...document.querySelectorAll('.gen-objectives input[type="checkbox"]')].map(el => el.id))) {
+        await page.locator('#' + id).uncheck();
+    }
+    const offRuns = [];
+    for (let i = 0; i < 3; i++) offRuns.push(await press());
+    checkPresses(offRuns);
+    expect(offRuns[2].said).toContain('Same arrangement as design 1 —');
+});
+
 // ── The families that carry a 30px COMMITMENT keep it (v22.65) ─────────────────────────────────
 // The sweep above is the app's enforced floor: 24px, WCAG 2.2 SC 2.5.8 AA, applied everywhere.
 // This is narrower and stricter, and it exists because 24 is a floor rather than a target.

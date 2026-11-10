@@ -1465,7 +1465,11 @@ export function init() {
         let _genAttempt = 0;
         /** @type {{c: number, n: number}|null} best-so-far on the ticked objectives */
         let _genBest = null;
-        let _genLastOrder = '';
+        /** Every line order these inputs have produced → the first design that wore it (links-app-2). An
+         *  attempt whose three seeded starts all fail the spread and rest filters falls back to DESIGN 1's
+         *  order, and a later one can land on an earlier one's — comparing with the PREVIOUS press alone
+         *  missed both, and called design 1 "Design 3". @type {Map<string, number>} */
+        const _genSeen = new Map();
 
         document.getElementById('genApplyBtn')?.addEventListener('click', async () => {
             const errEl = document.getElementById('genError');
@@ -1599,7 +1603,7 @@ export function init() {
             // to attempt 0, the canonical design. The fingerprint is the whole input surface, so a
             // designer who nudges one headcount is not silently handed variant 4 of the new targets.
             const _fp = JSON.stringify([genSlots, genSpareLines, _on, _target, _blockTarget, _maxRunTarget]);
-            if (_fp === _genFingerprint) { _genAttempt += 1; } else { _genAttempt = 0; _genBest = null; _genLastOrder = ''; }
+            if (_fp === _genFingerprint) { _genAttempt += 1; } else { _genAttempt = 0; _genBest = null; _genSeen.clear(); }
             _genFingerprint = _fp;
             const _ord = reorderLines(generated, {
                 on: _on, longWeekendTarget: _target, blockTarget: _blockTarget,
@@ -1696,19 +1700,20 @@ export function init() {
             // tracking as well as the display.
             const _orderKey = _ord.order.join(',');
             const _c = cost(_ord.after, _on, _target, _blockTarget);
+            const _sameAs = _genSeen.get(_orderKey);   // the first design that wore this order, if any
+            if (_sameAs === undefined) _genSeen.set(_orderKey, _genAttempt + 1);
             let _explore;
             if (_genAttempt === 0) {
                 _genBest = { c: _c, n: 1 };
                 _explore = ' Generate again for a different line order — same cover, different arrangement.';
-            } else if (_orderKey === _genLastOrder) {
-                _explore = ` Same arrangement as design ${_genAttempt} — generate again to keep exploring.`;
+            } else if (_sameAs !== undefined) {
+                _explore = ` Same arrangement as design ${_sameAs} — generate again to keep exploring.`;
             } else if (!_genBest || _c < _genBest.c) {
                 _genBest = { c: _c, n: _genAttempt + 1 };
                 _explore = ' The best arrangement so far on the ticked objectives.';
             } else {
                 _explore = ` Design ${_genBest.n} scored better on the ticked objectives — reload and generate ${_genBest.n} time${_genBest.n === 1 ? '' : 's'} to get it back.`;
             }
-            _genLastOrder = _orderKey;
 
             const _label = _genAttempt > 0 ? `Design ${_genAttempt + 1} — ` : '';
             const _statusText = _label + how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.') + _missed + _explore;
