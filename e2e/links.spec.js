@@ -1854,6 +1854,26 @@ test('links paint bar: Tab shows which chip has focus, and the ARMED chip still 
     expect(both.armed).toMatch(/inset/);
 });
 
+test('links grid: the three totals columns are set apart from Saturday by a heavier rule', async ({ page }) => {
+    // The stylesheet promised "a heavier rule and a sunken fill" and drew only the fill: the rule's
+    // selector was `:first-of-type`, which counts elements, so it asked for the line number's cell.
+    await openMixedDesign(page);
+    const edges = await page.evaluate(() => {
+        const left = (/** @type {Element|null} */ el) => (el ? getComputedStyle(el).borderLeftWidth : 'missing');
+        const row = (/** @type {string} */ sel) => [...document.querySelectorAll(sel)].map(left);
+        return {
+            head: row('#linksGridTable thead th.col-total'),
+            body: row('#linksGridBodyRows tr:nth-child(3) td.tot-cell'),
+            foot: row('#linksCoverageFoot td.tot-cell'),
+            saturday: left(document.querySelector('#linksGridTable thead th:nth-child(8)')),
+        };
+    });
+    for (const where of ['head', 'body', 'foot']) {
+        expect(edges[where], `${where}: the first totals cell carries the heavier rule, the other two do not`).toEqual(['2px', '1px', '1px']);
+    }
+    expect(edges.saturday, 'the day columns keep the hairline').toBe('1px');
+});
+
 test('links grid: a mouse stroke paints every cell it crosses, and a touch does not stroke', async ({ page }) => {
     // Press and drag painted NOTHING — the grid listened for `click` alone, and a click whose press
     // and release land on different cells goes to the row — while two comments said a drag-paint

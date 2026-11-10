@@ -841,8 +841,10 @@ body.auth-ready .container { display: grid; }
     width: 68px;
     min-width: 68px;
 }
-.links-grid th.col-total:first-of-type,
-.links-grid td.tot-cell:first-of-type { border-left: 2px solid var(--border-mid); }
+/* The FIRST totals cell is the one after a day cell: `:first-of-type` counts elements, not classes,
+   so it asked for the row's first th or td (the line number) and the heavier rule was never drawn. */
+.links-grid th:not(.col-total) + th.col-total,
+.links-grid td:not(.tot-cell) + td.tot-cell { border-left: 2px solid var(--border-mid); }
 .col-total-sub {
     display: block;
     font-weight: 400;
