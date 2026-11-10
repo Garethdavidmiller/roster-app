@@ -371,6 +371,26 @@ test('settings: the password card is a real form under the member\'s name — Ne
     expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
 });
 
+// ── THE FIRST SAVE KEEPS THE KEYBOARD'S PLACE (Nov 2026 review) ─────────────────────────────────
+// A member on the surname default saves their first password and the form folds away behind "Change
+// password" — with focus inside it, on Confirm after Done, or on Save. Focus fell to the page, so a
+// keyboard or screen-reader user was put back at the top of it. It lands on Change password.
+for (const [how, save] of /** @type {const} */ ([['Done on the keyboard', 'enter'], ['the Save button', 'click']])) {
+    test(`settings: a first password saved with ${how} leaves focus on Change password`, async ({ page }) => {
+        await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+            authUser: true, authUserEmail: 'g.miller@myb-roster.local' }; });
+        await openSettings(page, { configured: false, noPush: true });
+        await page.locator('#pwCurrent').fill('miller');
+        await page.locator('#pwNew').fill('a-real-password-9');
+        await page.locator('#pwConfirm').fill('a-real-password-9');
+        if (save === 'enter') await page.locator('#pwConfirm').press('Enter');
+        else await page.locator('#pwSaveBtn').click();
+        await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+        await expect(page.locator('#pwForm'), 'premise: the first save folds the form away').toBeHidden();
+        await expect(page.locator('#pwChangeBtn')).toBeFocused();
+    });
+}
+
 test('settings: a password change the SERVER refuses is never submitted to the password manager', async ({ page }) => {
     // No Firebase user: the stub refuses the re-authentication, as a wrong current password would.
     await openSettings(page, { configured: false, noPush: true });

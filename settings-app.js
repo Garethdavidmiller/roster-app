@@ -685,19 +685,20 @@ export function init() {
             setFeedback(res && res.statusRecorded === false
                 ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
                 : '✓ Password updated. Use it the next time you sign in.', 'ok');
-            // NOTHING TO RETIRE ON THE CALENDAR ANY MORE (v21.84). This used to write the
-            // `pw-own-2026` done-flag, because that notice asked for exactly what has just
-            // happened and would otherwise keep returning to someone who had done it. Its
-            // replacement is addressed to the SIGNED-OUT only, so it retires itself the moment
-            // this member has a session — the audience is re-checked on every load. One page
-            // reaching across to silence another page's notice was a real coupling, and the
-            // audience rule removed the need for it rather than tidying it up.
+            // NOTHING TO RETIRE ON THE CALENDAR ANY MORE (v21.84). This used to write the `pw-own-2026`
+            // done-flag; that notice's replacement is addressed to the SIGNED-OUT only, so it retires
+            // itself once this member has a session (the audience is re-checked on every load) — one
+            // page no longer reaches across to silence another page's notice.
             curEl.value = newEl.value = confEl.value = '';
             // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
             // reveal state the member chose, so the NEXT password typed into this card — possibly
             // by someone else on a shared device — would appear in the clear with no warning.
             setRevealed(false);
+            // A first save folds the form away with focus in it, or already dropped to the page by the
+            // disabled Save: it goes to Change password, which brings the form back (Nov 2026 review).
+            const follow = !!form?.contains(document.activeElement) || document.activeElement === document.body;
             refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
+            if (follow && form?.hidden) changeBtn?.focus();
         };
 
         /**
