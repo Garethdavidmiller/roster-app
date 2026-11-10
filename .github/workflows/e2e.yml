@@ -175,16 +175,27 @@ jobs:
           # anyway — a served file moved under `docs/` listed only its new, excluded path, so the
           # deletion of a served file passed as "nothing served changed". Without it, a rename is a
           # deletion plus an addition, and both names are judged.
-          RUNTIME=$(git diff --name-only --no-renames origin/main...HEAD \
-            | grep -vE "[.]md$|^[.]github/|^docs/|^[.]claude/|[.]test[.]mjs$|^e2e/|^scripts/|^experiments/|^test-fixtures/|^package(-lock)?[.]json$|^jsconfig[.]json$|^eslint[.]config[.]js$|^playwright[^/]*[.]mjs$|^githooks/" || true)
+          #
+          # The root dot-files and generate-sri.mjs joined on 10 Nov 2026 (review): tooling the app
+          # never fetches (.gitignore, .prettierrc, .firebaserc, .nojekyll), so a change to one alone
+          # failed this job and could only be quieted by burning a version — which redeploys an
+          # unchanged app and makes every device download the whole precache again. Only a NAME that
+          # starts with a dot: a file inside a dot-directory is not covered by it.
+          # workflow-hygiene.test.mjs holds this list to deploy-hosting.yml's paths-ignore, which
+          # answers the same question for the deploy, and names each deliberate difference.
+          #
+          # NUL-separated from git to git (10 Nov 2026 review), so no name is split at a space,
+          # quoted, or read as a pattern on its way to the landed check below.
+          mapfile -d '' -t RUNTIME < <(git diff -z --name-only --no-renames origin/main...HEAD \
+            | grep -zvE "[.]md$|^[.]github/|^docs/|^[.]claude/|[.]test[.]mjs$|^e2e/|^scripts/|^experiments/|^test-fixtures/|^package(-lock)?[.]json$|^jsconfig[.]json$|^eslint[.]config[.]js$|^playwright[^/]*[.]mjs$|^githooks/|^[.][^/]+$|^generate-sri[.]mjs$")
 
-          if [ -z "$RUNTIME" ]; then
+          if [ "${#RUNTIME[@]}" -eq 0 ]; then
             echo "No served file changed - keeping v$OURS is correct."
             exit 0
           fi
 
           echo "Served files changed:"
-          echo "$RUNTIME" | sed "s/^/  /"
+          printf '  %s\n' "${RUNTIME[@]}"
 
           # ── A BRANCH ALREADY ON MAIN CANNOT BE GATED AGAINST MAIN ────────────────────────────
           #
@@ -207,7 +218,14 @@ jobs:
           # holds identical content for every file the branch touches. A branch that would still
           # change something reaches the comparison below exactly as before — including the case
           # this job exists for, another branch taking your version while you sat in CI.
-          if [ -z "$(git diff --name-only --no-renames origin/main HEAD -- $(echo "$RUNTIME" | tr "\n" " ") || true)" ]; then
+          #
+          # ONE NAME PER ARGUMENT, MATCHED LITERALLY (10 Nov 2026 review). The list used to reach git
+          # through an unquoted $( ), so `new feature/app.js` became two paths that exist nowhere,
+          # the diff came back empty, and an unbumped served change passed as "landed". A comparison
+          # that fails is not "landed" either: it falls through to the version check.
+          STILL=$(GIT_LITERAL_PATHSPECS=1 git diff --name-only --no-renames origin/main HEAD -- "${RUNTIME[@]}") \
+            || STILL="(the comparison with main failed)"
+          if [ -z "$STILL" ]; then
             echo "main already carries every served change on this branch - it has landed. Nothing left to gate."
             exit 0
           fi

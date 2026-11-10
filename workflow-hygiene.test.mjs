@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -1204,21 +1204,31 @@ describe('the version guard exempts only what cannot go stale', () => {
      * caches can, plus what carries policy at the edge.
      */
     const e2eSrc = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    // Found by the diff it filters, whatever the list is assigned to, and reported INSIDE a test: an
+    // assertion thrown while this block is being set up registers none of its tests, and a run
+    // narrowed with --test-name-pattern then passes having checked nothing (10 Nov 2026).
     const exclusion = (() => {
-        const from = e2eSrc.indexOf('RUNTIME=$(');
-        assert.ok(from > -1, 'the version job no longer builds a RUNTIME file list');
-        const m = /grep -vE "([^"]+)"/.exec(e2eSrc.slice(from));
-        assert.ok(m, 'the version job no longer filters its file list');
-        return new RegExp(m[1]);
+        const from = e2eSrc.indexOf('--name-only --no-renames origin/main...HEAD');
+        const m = from > -1 ? /grep -z?vE "([^"]+)"/.exec(e2eSrc.slice(from)) : null;
+        return m ? new RegExp(m[1]) : null;
     })();
     /** True when the guard would DEMAND a version bump for a change to this path. */
-    const needsBump = (/** @type {string} */ path) => !exclusion.test(path);
+    const needsBump = (/** @type {string} */ path) => {
+        assert.ok(exclusion, 'the version job no longer filters the files it diffs against main with grep -vE');
+        return !exclusion.test(path);
+    };
+
+    test('the version job\'s exclusion list is found', () => {
+        assert.ok(exclusion, 'the version job no longer filters the files it diffs against main with grep -vE');
+    });
 
     test('a change that cannot reach a device is exempt', () => {
         for (const f of ['package.json', 'package-lock.json', 'jsconfig.json', 'eslint.config.js',
                          'playwright.config.mjs', 'playwright.visual.mjs', 'githooks/pre-commit',
                          'docs/AI_MAP.md', 'CLAUDE.md', 'workflow-hygiene.test.mjs',
-                         'e2e/pages.spec.js', 'scripts/bump-version.mjs']) {
+                         'e2e/pages.spec.js', 'scripts/bump-version.mjs',
+                         // 10 Nov 2026 review: tooling the app never fetches.
+                         '.gitignore', '.prettierrc', '.firebaserc', '.nojekyll', 'generate-sri.mjs']) {
             assert.equal(needsBump(f), false,
                 `${f} cannot go stale on a device — the service worker does not cache it — so `
                 + 'demanding a version bump for it is a false alarm, and false alarms are how this '
@@ -1231,10 +1241,48 @@ describe('the version guard exempts only what cannot go stale', () => {
                          'paycalc.css', 'shared.css', 'manifest.json',
                          // Not cached, but policy at the edge: the CSP header, the cache rules and
                          // the security rules all change what a device is allowed to do.
-                         'firebase.json', 'firestore.rules', 'storage.rules']) {
+                         'firebase.json', 'firestore.rules', 'storage.rules',
+                         // A file INSIDE a dot-directory is served (hosting-ignore-parity measured it):
+                         // only a NAME starting with a dot is exempt, never a path beneath one.
+                         '.well-known/assetlinks.json', 'icons/.cache/icon.png']) {
             assert.equal(needsBump(f), true,
                 `${f} is exempt from the version guard. If that was done to quiet a failing job, `
                 + 'it disarmed the guard for precisely the files it exists to protect.');
+        }
+    });
+
+    test('it exempts whatever the Hosting deploy skips, except where a stale copy can still reach a device', () => {
+        // THE THIRD LIST (10 Nov 2026 review). deploy-hosting.yml's paths-ignore answers "can a change
+        // to this alone reach the served app?" and hosting-ignore-parity holds it to firebase.json.
+        // This exclusion answers nearly the same question for the version, and was held to neither:
+        // generate-sri.mjs, skipped by the deploy, still demanded a bump here. So every pattern the
+        // deploy skips must be exempt here too, unless it is named below with the reason it is not.
+        const hosting = readFileSync(join(WF_DIR, 'deploy-hosting.yml'), 'utf8');
+        const skips = [...hosting.slice(hosting.indexOf('paths-ignore:'), hosting.indexOf('workflow_dispatch:'))
+            .matchAll(/^\s*-\s+(.+?)\s*$/gm)].map(m => m[1].replace(/^(['"])(.*)\1$/, '$2'));
+        assert.ok(skips.length > 20, `only ${skips.length} paths-ignore entries read — the reader has stopped matching`);
+        /** @type {Record<string, string>} */
+        const STILL_BUMPS = {
+            'functions/**': 'a Functions change is versioned (CLAUDE.md → Version bumping)',
+            'firestore.rules': 'security rules are versioned (CLAUDE.md → Version bumping)',
+            'storage.rules': 'security rules are versioned (CLAUDE.md → Version bumping)',
+            'firestore.indexes.json': 'left for the owner to decide (10 Nov 2026 review); it demands a bump until then',
+            '**/*.pdf': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+            '**/*.jpg': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+            '**/*.jpeg': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+            '**/*.zip': 'the Pages mirror serves the whole tree, and the service worker keeps what the app opens',
+        };
+        // Never committed, so never in a diff: either answer would be right.
+        const NEVER_COMMITTED = ['.git/**', 'example-payslips/**', 'playwright-report/**', 'test-results/**'];
+        /** A path that pattern matches — the three shapes hosting-ignore-parity allows the skip list. */
+        const sample = (/** @type {string} */ p) => p.endsWith('/**') ? `${p.slice(0, -2)}x.js` : p.startsWith('**/*') ? `x${p.slice(4)}` : p;
+        for (const p of Object.keys(STILL_BUMPS)) assert.ok(skips.includes(p), `${p} is no longer skipped by the deploy — drop it from the list here`);
+        for (const p of skips) {
+            if (NEVER_COMMITTED.includes(p)) continue;
+            assert.equal(needsBump(sample(p)), p in STILL_BUMPS, p in STILL_BUMPS
+                ? `${sample(p)} is exempt from the version guard, but ${STILL_BUMPS[p]}`
+                : `deploy-hosting.yml skips a deploy for ${p}, so a change to it alone cannot reach a device — but the version `
+                    + `guard still demands a bump for ${sample(p)}. Exempt it in e2e.yml's version job, or name it here with a reason.`);
         }
     });
 
@@ -1270,6 +1318,117 @@ describe('the version guard exempts only what cannot go stale', () => {
         const job = e2eSrc.slice(e2eSrc.indexOf('  version:'), e2eSrc.indexOf('  unit:'));
         assert.match(job, /::error::/, 'the version job must annotate the failure');
         assert.match(job, /exit 1/, 'the version job must FAIL, not warn');
+    });
+
+    // RUN, NOT READ (10 Nov 2026 review). The landed check was asserted by regex and never run, and it
+    // handed its file list to git through an unquoted $( ): `new feature/app.js` became two paths that
+    // exist nowhere, the diff came back empty, and an unbumped served change passed as "landed". So the
+    // job's own script runs here, in a throwaway repository with a bare `origin`, on a branch off main.
+    describe('run against a real repository', () => {
+        const script = stepScript(e2eSrc, 'A runtime change must claim a version main has not');
+        const GIT_ENV = { GIT_AUTHOR_NAME: 'ci', GIT_AUTHOR_EMAIL: 'ci@example.invalid', GIT_COMMITTER_NAME: 'ci',
+            GIT_COMMITTER_EMAIL: 'ci@example.invalid', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+        const MAIN = { 'roster-data.js': "export const APP_VERSION = '25.64';\n", 'index.html': '<p>one</p>\n' };
+
+        /**
+         * Builds main, then a branch that writes `files` (with `bump` as its version), and — with
+         * `alsoOnMain` — gives main the same files, as a squash merge would. Runs the job's script there.
+         * @param {Record<string, string>} files
+         * @param {{ bump?: string, alsoOnMain?: boolean, failLandedDiff?: boolean }} [o]
+         */
+        const verdict = (files, o = {}) => {
+            const dir = realpathSync(mkdtempSync(join(tmpdir(), 'version-guard-')));
+            const work = join(dir, 'work');
+            const env = { ...process.env, ...GIT_ENV };
+            const git = (/** @type {string[]} */ ...args) => execFileSync('git', args, { cwd: work, env, stdio: 'pipe' });
+            const write = (/** @type {Record<string, string>} */ fs) => {
+                for (const [f, body] of Object.entries(fs)) {
+                    mkdirSync(dirname(join(work, f)), { recursive: true });
+                    writeFileSync(join(work, f), body);
+                }
+            };
+            try {
+                mkdirSync(work);
+                execFileSync('git', ['init', '-q', '--bare', '-b', 'main', join(dir, 'origin.git')], { env, stdio: 'pipe' });
+                git('init', '-q', '-b', 'main');
+                git('remote', 'add', 'origin', join(dir, 'origin.git'));
+                write(MAIN);
+                git('add', '-A');
+                git('commit', '-qm', 'main');
+                git('push', '-q', 'origin', 'main');
+                git('checkout', '-qb', 'feature');
+                const mine = o.bump ? { ...files, 'roster-data.js': `export const APP_VERSION = '${o.bump}';\n` } : files;
+                write(mine);
+                git('add', '-A');
+                git('commit', '-qm', 'feature');
+                if (o.alsoOnMain) {
+                    git('checkout', '-q', 'main');
+                    write(mine);
+                    git('add', '-A');
+                    git('commit', '-qm', 'the same change, squash-merged');
+                    git('push', '-q', 'origin', 'main');
+                    git('checkout', '-q', 'feature');
+                }
+                writeFileSync(join(dir, 'version.sh'), script);
+                const bin = join(dir, 'bin');
+                mkdirSync(bin);
+                // A git that fails the landed check's comparison and nothing else, for the one case
+                // that cannot be produced honestly: that comparison failing.
+                const real = execFileSync('bash', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+                writeFileSync(join(bin, 'git'), '#!/usr/bin/env bash\n'
+                    + 'if [ "$1" = diff ] && [[ " $* " == *" origin/main HEAD "* ]]; then echo "fatal: simulated" >&2; exit 128; fi\n'
+                    + `exec ${JSON.stringify(real)} "$@"\n`, { mode: 0o755 });
+                const PATH = o.failLandedDiff ? `${bin}:${process.env.PATH}` : process.env.PATH;
+                try {
+                    return { status: 0, out: execFileSync('bash', ['-e', join(dir, 'version.sh')],
+                        { cwd: work, env: { ...env, PATH, RUNNER_TEMP: dir }, encoding: 'utf8', stdio: 'pipe' }) };
+                } catch (/** @type {any} */ e) {
+                    return { status: e.status, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
+                }
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        test('tooling the app never fetches needs no bump', () => {
+            const r = verdict({ '.gitignore': 'x\n', '.prettierrc': '{}\n', '.firebaserc': '{}\n', '.nojekyll': '', 'generate-sri.mjs': '//\n' });
+            assert.equal(r.status, 0, `a change to tooling alone failed the guard:\n${r.out}`);
+            assert.match(r.out, /No served file changed/);
+        });
+
+        test('a served change without a bump is refused, and with one it passes', () => {
+            const refused = verdict({ 'index.html': '<p>two</p>\n' });
+            assert.equal(refused.status, 1, refused.out);
+            assert.match(refused.out, /::error::This branch changes served files but its version \(v25\.64\) does not exceed main/);
+            const bumped = verdict({ 'index.html': '<p>two</p>\n' }, { bump: '25.65' });
+            assert.equal(bumped.status, 0, bumped.out);
+            assert.match(bumped.out, /v25\.65 is above v25\.64/);
+        });
+
+        test('a served file whose name has a space in it is still checked, not waved through as landed', () => {
+            const r = verdict({ 'new feature/app.js': 'export {};\n' });
+            assert.equal(r.status, 1, `an unbumped served change passed:\n${r.out}`);
+            assert.doesNotMatch(r.out, /it has landed/);
+        });
+
+        test('a name git would read as a pattern is matched as a name', () => {
+            // `:(glob)z` is pathspec magic for "a file called z". Matched as a pattern it finds nothing to
+            // compare, which reads as "landed"; literally, it is the new file it is.
+            const r = verdict({ ':(glob)z': 'export {};\n' });
+            assert.equal(r.status, 1, `an unbumped served change passed:\n${r.out}`);
+        });
+
+        test('a branch main already carries is let through, by content', () => {
+            const r = verdict({ 'index.html': '<p>two</p>\n' }, { alsoOnMain: true });
+            assert.equal(r.status, 0, r.out);
+            assert.match(r.out, /it has landed/);
+        });
+
+        test('a comparison with main that fails is not taken for "landed"', () => {
+            const r = verdict({ 'index.html': '<p>two</p>\n' }, { failLandedDiff: true });
+            assert.equal(r.status, 1, `a failed comparison let an unbumped change through:\n${r.out}`);
+            assert.match(r.out, /does not exceed main/);
+        });
     });
 });
 
