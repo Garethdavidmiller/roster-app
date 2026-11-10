@@ -713,8 +713,9 @@ open directly instead (`nav-panel.js`).
 ### `calendar-team-view.js`
 Team Week View — the grade-wide week grid toggled from the Calendar header.
 - `initTeamView({...deps})` → `{ toggleTeamView, isTeamViewMode, restoreTeamView, jumpToCurrentWeek,
-  refreshFromCache, refetchShownWeek, isGridShown, isGridConfirmed }`. The coordinator injects the
-  override cache, the shared `ensureOverridesCached`, member and render callbacks, and the history hooks.
+  refreshFromCache, refetchShownWeek, isGridShown }`. The coordinator injects the override cache, the
+  shared `ensureOverridesCached` and the shared repaint a month read lands with (`onMonthRead`), member
+  and render callbacks, and the history hooks.
 - **Its overrides come from the SHARED month fetch**, never a fetcher of its own: a second authoritative
   reconciler racing the first evicts what it loaded (`CALENDAR_DATA.md` 6; `ensureTeamWeekCached` says
   why). `refreshFromCache` repaints from the cache with no read; `refetchShownWeek` re-reads released

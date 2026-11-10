@@ -99,7 +99,7 @@ export function weekStartForMonth(displayed, today) {
  *   this month" although it had been read (10 Nov 2026). Omitted, `refreshFromCache`.
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
- * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void, isGridShown: () => boolean, isGridConfirmed: () => boolean }}
+ * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void, isGridShown: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
                                 getSelectedMemberIndex, isFirstRun, renderCalendar, getDisplayedMonth,
@@ -108,10 +108,9 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     // ── STATE ─────────────────────────────────────────────────────────────────
 
     let teamViewMode = false;
-    /** What the last team render was allowed to SHOW — the `decideDisplay` verdict for the week, not
-     *  a boolean derived from it. Both questions the boot metric asks (is a grid up? is it confirmed
-     *  against the server?) are answers to this one value, and deriving them from two separate flags
-     *  is how they would come to disagree. See `isGridShown` / `isGridConfirmed` below.
+    /** What the last team render was allowed to SHOW — the `decideDisplay` verdict for the week, kept
+     *  whole rather than as a boolean, so the boot metric's question (is a grid up?) is answered from
+     *  the same value the render used. See `isGridShown` below.
      *  @type {'loading'|'unavailable'|'stale'|'render'} */
     let _lastRenderDisplay = 'loading';
 
@@ -662,10 +661,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *
      * It used to be installed by the About lightbox's own print button, which meant the paper the
      * roster landed on depended on WHICH ROUTE you printed by: the button gave A4 landscape, while
-     * Ctrl+P, the browser's File → Print, the `p` keyboard shortcut in `calendar-app.js` and
-     * AirPrint all fell through to the stylesheet's portrait — measured, by rendering the same page
-     * both ways (297×210 against 210×297). A seven-column grid of shift times is a landscape
-     * document whichever control the reader happened to use.
+     * Ctrl+P, the browser's File → Print and AirPrint all fell through to the stylesheet's portrait
+     * — measured, by rendering the same page both ways (297×210 against 210×297). (The `p` key does
+     * not print here: `calendar-app.js` stops Team View's keys before it.) A seven-column grid of
+     * shift times is a landscape document whichever control the reader happened to use.
      *
      * Owning it here also retires the leak it used to guard against. The rule is present exactly
      * while team view is, so it cannot linger into a later portrait calendar print; the old
@@ -773,14 +772,5 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         /** @returns {boolean} did the last team render draw SHIFT DATA, rather than the withheld
          *  "checking"/"couldn't check" panel? False before the first render. */
         isGridShown: () => teamViewMode && _lastRenderDisplay !== 'loading' && _lastRenderDisplay !== 'unavailable',
-        // ── AND WHETHER IT IS CONFIRMED (v21.37, external review) ───────────────────────────────
-        // The boot ladder's last rung. Team View could reach "Shifts shown" and never "Confirmed",
-        // because the metric returned as soon as it had answered the first question — so a launch
-        // that restores straight into Team View was counted in one stage and not the other. That is
-        // not a roster fault (the grid was correct either way), but LATENCY.md decides whether
-        // Phase 2 is worth doing from the GAP between those two rungs, and a whole surface missing
-        // from the far end inflates it. A measurement that is about to inform an architectural
-        // decision has to count the same loads at both ends.
-        isGridConfirmed: () => teamViewMode && _lastRenderDisplay === 'render',
     };
 }

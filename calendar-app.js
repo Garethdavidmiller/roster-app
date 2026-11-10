@@ -2,13 +2,14 @@
 /**
  * calendar-app.js — Calendar UI for index.html.
  *
- * Owns: month carousel, Team Week View, notification wiring, month-jump picker,
- *   day-detail lightbox, About lightbox wiring.
- * Does NOT own: rendering (calendar-renderer.js), override cache (calendar-overrides.js),
- *   member selection (calendar-member.js), swipe (calendar-swipe.js),
- *   sync chip + initial fetch (calendar-initial-fetch.js),
- *   AL lightbox (calendar-al-lightbox.js), roster data (roster-data.js).
- * Edit here for: calendar state, event wiring, initial data fetch.
+ * Owns: the page's wiring — month navigation (buttons, keys, Today), `renderCalendar` and the
+ *   first-run prompt, the month-jump picker, the About and Team-help lightbox wiring, the access
+ *   bootstrap that starts the workspace, and the member's own-roster copy (paint and save).
+ * Does NOT own: rendering (calendar-renderer.js), Team Week View (calendar-team-view.js), override
+ *   cache (calendar-overrides.js), member selection (calendar-member.js), swipe (calendar-swipe.js),
+ *   sync chip + initial fetch (calendar-initial-fetch.js), the AL and day-detail panels
+ *   (calendar-al-lightbox.js), the notification strip (calendar-notif-prompt.js).
+ * Edit here for: event wiring, and the order the page starts in.
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
@@ -152,9 +153,10 @@ let openAboutLightbox = null;
 // NOT deferred behind Calendar access, and checked rather than assumed (v20.12). This attaches
 // handlers; it fetches nothing. The AL lightbox's own Firestore read happens in its `onOpen`, fired
 // by `#alBtn`, which lives inside `#calendarControls` — hidden while locked, so out of the
-// accessibility tree and out of tab order. And that read is a plain `getDocs`, which is SERVER-first,
-// so the tightened rule denies it outright: there is no cache path here for the gate to have to
-// cover. Same reasoning for `initCalendarTooltip`/`initCalendarKeyboard` further down — with
+// accessibility tree and out of tab order. And that read REFUSES an answer the offline cache gave —
+// `getDocs` falls back to the cache on a dead signal, where no rule is asked (CALENDAR_DATA.md 16) —
+// so nothing it shows comes from a read the server did not answer. Same reasoning for
+// `initCalendarTooltip`/`initCalendarKeyboard` further down — with
 // `#calendarDisplay` empty they have nothing to act on, and the keyboard ACTS only inside it, so the
 // stored copy painted in the lock slot before the grant (v24.59) is read, never used.
 const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc });
@@ -403,9 +405,8 @@ function renderCalendar() {
         const calendarContainer = buildCalendarContainer(getDisplayMonth(), getDisplayYear(), {
             onDayDetail: /** @param {any} cell */ (cell) => openDayDetail?.(cell),
             // No button while the initial 3-month fetch is still running: the sync chip in the
-            // header is already the retry for that, and a second control racing a per-month fetch
-            // against the in-flight range fetch is the v18.76 two-authoritative-reconcilers bug
-            // (the later, staler snapshot evicts what the earlier one just loaded).
+            // header is already the retry for that read, and this render starts no read of its own
+            // until it settles (below), so a Try again then would leave "Checking" with nothing behind it.
             onRetryMonth: _initialFetchInProgress ? undefined : retryMonth,
             checking: _initialFetchInProgress,   // the first check is running: "couldn't check" would be false
         });
@@ -815,10 +816,10 @@ try {
                 // Just print. The paper is decided by which VIEW is open, not by which control
                 // reached the printer — `calendar-team-view.js`'s `applyTeamPrintPage` installs the
                 // landscape @page while team view is active and removes it on the way out (v23.20).
-                // Before that this function owned the rule, so Ctrl+P, File → Print, the `p`
-                // shortcut and AirPrint all printed the week grid portrait while this button
-                // printed it landscape; and the v16.21 leak-clearing dance here existed only
-                // because removal depended on an `afterprint` iOS may never fire.
+                // Before that this function owned the rule, so Ctrl+P, File → Print and AirPrint all
+                // printed the week grid portrait while this button printed it landscape (the `p` key
+                // is not a route here: Team View's keys stop before it); and the v16.21 leak-clearing
+                // dance here existed only because removal depended on an `afterprint` iOS may never fire.
                 printFn() { window.print(); },
             });
             if (!about) return;
@@ -1024,8 +1025,8 @@ initHuddleViewer({ authReady, docAccess: documentAccess });
 initDocViewer({ authReady, docAccess: documentAccess, accessDecided: new Promise(r => { _accessDecided = r; }) });   // same gate
 
 
-// `calendarAccessReady` is imported at the top of the module — it is consumed by initInitialFetch
-// and by the telemetry block below.
+// `calendarAccessReady` (imported above) gates the initial fetch and the swipe hint; the telemetry
+// block below waits on `calendarAuthReady` instead, and says why.
 
 
 // ============================================
@@ -1277,9 +1278,7 @@ initCalendarAccess({
     _accessDecided(t);
 }, _accessDecided);
 
-// The page's one-time notices (timetable-2026, ytd-figures-2026, install-app-2026, and whatever
-// /new-notice adds next). `sign-in-2026` (v23.23) and `al-booking-2026` (v24.91) were retired early,
-// by decision rather than expiry — calendar-notices.js says why.
-// Their wiring lives in calendar-notices.js — see its header for why they left this file. They
-// queue behind the forced set-password step (below), the way the paycalc YTD notice does.
+// The page's one-time notices live in calendar-notices.js (the /new-notice skill keeps the table of
+// current ones; that header says which left early, and why they left this file). They queue behind
+// the forced set-password step (above), the way the paycalc YTD notice does.
 initCalendarNotices({ after: _passwordForceSettled });
