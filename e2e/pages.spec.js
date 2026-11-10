@@ -567,6 +567,44 @@ test('App Notices: an empty archive shows its message, with no empty list left i
         'an empty group is still offered to a screen reader').toHaveCount(0);
 });
 
+// A TIPS TITLE STAYS CLEAR OF ITS ✕ (whole-app review, Nov 2026). The picker sheet's head reserves room for its ✕ and
+// the Tips panel's title did not: "🙋 Password Reset Requests" ran 8px under the glyph at 360px. Every line of the
+// title is measured, because the ✕ sits beside the first and a wrapped second line still reaches its target.
+test('Tips: a long panel title stays clear of the panel\'s ✕ on a small phone', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await seedSession(page, 'G. Miller');   // admin — Operations lets them in
+    await page.goto('/operations.html');
+    await page.locator('.btn-card-tips[data-card="reset-requests"]').click();
+    await expect(page.locator('#tipsLbTitle')).toHaveText(/Password Reset Requests/);
+    const m = await page.evaluate(() => {
+        const range = document.createRange();
+        range.selectNodeContents(/** @type {HTMLElement} */ (document.getElementById('tipsLbTitle')));
+        const lines = [...range.getClientRects()];
+        return { textRight: Math.max(...lines.map(r => r.right)), closeLeft: /** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose')).getBoundingClientRect().left };
+    });
+    expect(m.textRight, `the title's text ends at ${m.textRight}, the ✕'s target starts at ${m.closeLeft}`).toBeLessThanOrEqual(m.closeLeft);
+});
+
+// A HIDDEN TOUCH-ONLY LINE STAYS HIDDEN ON A TOUCH SCREEN (whole-app review, Nov 2026). `.touch-only` shows itself on a
+// coarse pointer with `display: revert`, which rolls back past the `hidden` attribute, so the Calendar's and Trains'
+// swipe hints each needed a rule in their own page to stay hidden. The shared utility honours `hidden` itself now.
+test.describe('touch-only on a touch screen', () => {
+    test.use({ hasTouch: true });
+    test('a touch-only line the code has hidden stays hidden, and one it has not shows', async ({ page }) => {
+        await page.goto('/settings.html');
+        expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'premise: a coarse pointer').toBe(true);
+        const shown = await page.evaluate(() => [true, false].map(hidden => {
+            const line = document.createElement('p');
+            line.className = 'touch-only';
+            line.hidden = hidden;
+            line.textContent = 'Swipe the table sideways';
+            document.body.append(line);
+            return getComputedStyle(line).display;
+        }));
+        expect(shown, 'the hidden line, then the shown one').toEqual(['none', 'block']);
+    });
+});
+
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
 // registered the service worker only after their sign-in gate, so a release landing while somebody
 // sat on the sign-in screen left them working on the old release under the new worker. Operations

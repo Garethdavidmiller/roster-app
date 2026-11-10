@@ -7,7 +7,7 @@
 ::view-transition-old(root),
 ::view-transition-new(root) {
     animation-duration: var(--dur-med);
-    animation-timing-function: ease;
+    animation-timing-function: var(--ease-standard);
 }
 /* Everything that moves in this file stands still under reduced motion, each component's rule beside it
    (a page answers for its own). The page crossfade escaped once, as the logo's grow and the turning
@@ -995,7 +995,7 @@ input.visually-hidden[autocomplete="username"] { font-size: var(--type-medium); 
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: opacity var(--dur-base) var(--ease-standard);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     cursor: pointer;
@@ -1032,7 +1032,7 @@ body.lb-open #stickyTotal { display: none !important; }
     position: relative;
     cursor: default;
     transform: scale(0.88);
-    transition: transform 0.25s var(--ease-spring);
+    transition: transform var(--dur-slow) var(--ease-spring);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -1083,7 +1083,7 @@ body.lb-open #stickyTotal { display: none !important; }
     line-height: 1;
     cursor: pointer;
     padding: 6px;
-    transition: color var(--dur-med) ease;
+    transition: color var(--dur-med) var(--ease-standard);
     touch-action: manipulation;
     min-width: 44px;
     min-height: 44px;
@@ -1670,7 +1670,7 @@ button.lightbox-bug-link {
     text-align: left;
     cursor: pointer;
     box-sizing: border-box;
-    transition: border-color 0.12s, background-color 0.12s;
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 .date-trigger::after { content: "📅"; font-size: var(--type-button); line-height: 1; flex: 0 0 auto; }
 .date-trigger--empty { color: var(--text-light); }
@@ -1689,7 +1689,7 @@ button.lightbox-bug-link {
     background: var(--surface);
     border-radius: var(--radius-xl);
     padding: 20px;
-    width: min(340px, calc(100vw - 40px));
+    width: min(var(--modal-standard), var(--modal-cap));   /* the one idiom (css-tokens.md → Overlay sizing) */
     max-height: 88vh;
     max-height: 88dvh;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
@@ -2075,6 +2075,9 @@ button.lightbox-bug-link {
     .touch-only { display: revert; }
     .lightbox-tip.touch-only { display: flex; justify-content: center; }
 }
+/* `revert` rolls back past the `hidden` attribute (a presentational hint), so a touch-only line the code had
+   hidden showed anyway; the Calendar's and Trains' swipe hints each carried a page rule for it. */
+.touch-only[hidden] { display: none; }
 
 .lightbox-tip-key {
     font-size: var(--type-badge);
@@ -2296,7 +2299,7 @@ button.lightbox-bug-link {
     inset: -12px;
 }
 .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-.help-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary-blue) 25%, transparent); } /* navy ring — the ? button sits on light card headers, where gold (~1.5:1) was near-invisible */
+.help-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); } /* navy ring — the ? button sits on light card headers, where gold (~1.5:1) was near-invisible */
 @media (hover: hover) and (pointer: fine) {
     .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 }
@@ -2397,7 +2400,7 @@ button.lightbox-bug-link {
     z-index: var(--z-drawer);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.25s var(--ease-standard), visibility 0.25s;
+    transition: opacity var(--dur-slow) var(--ease-standard), visibility var(--dur-slow);
 }
 .nav-panel-overlay.open {
     opacity: 1;
@@ -2433,7 +2436,7 @@ button.lightbox-bug-link {
        so it stays visible through the slide-out, then hides — same pattern as
        .nav-panel-overlay. */
     visibility: hidden;
-    transition: transform 0.25s var(--ease-standard), visibility 0.25s;
+    transition: transform var(--dur-slow) var(--ease-standard), visibility var(--dur-slow);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2619,10 +2622,7 @@ button.lightbox-bug-link {
     .nav-panel-pill--newlink:hover    { background: var(--al-hover); }
     .nav-panel-pill--links:hover      { background: color-mix(in oklch, var(--purple) 91%, black); }
     .nav-panel-pill--settings:hover   { background: var(--indigo-hover); }
-}
-/* The one pill hover gated on `hover` alone, without its siblings' `pointer: fine` — as it shipped. */
-@media (hover: hover) {
-    .nav-panel-pill--overtime:hover { background: color-mix(in oklch, var(--ot) 91%, black); }
+    .nav-panel-pill--overtime:hover   { background: color-mix(in oklch, var(--ot) 91%, black); }
 }
 
 /* The collapsed Reference count (v20.06) — quiet-status tier (600), the weight css-tokens.md
@@ -2711,7 +2711,7 @@ button.lightbox-bug-link {
 .nav-panel-guides-arrow {
     font-size: var(--type-body);
     color: var(--accent-gold-dark);
-    transition: transform 0.2s;
+    transition: transform var(--dur-base) var(--ease-standard);
     line-height: 1;
 }
 /* KEYED ON `aria-expanded`, NEVER ON AN `.open` CLASS: a second copy of the state once left the arrow
@@ -2744,7 +2744,7 @@ button.lightbox-bug-link {
     text-decoration: none;
     color: var(--nav-text);
     font-size: var(--type-body);
-    transition: background 0.1s;
+    transition: background var(--dur-fast) var(--ease-standard);
 }
 /* `display: flex` above beats the UA's [hidden] rule, so a hidden drawer link still rendered — the
    document hand-off link nav-panel.js builds showed as an empty, focusable, unnamed row under the
@@ -3238,7 +3238,7 @@ button.nav-panel-link--notices {
     -webkit-appearance: none;
     appearance: none;
     font-family: inherit;
-    transition: border-color 0.12s, background-color 0.12s;
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 .login-field select,
 .login-field .fieldpick {
@@ -3325,7 +3325,7 @@ button.nav-panel-link--notices {
     color: var(--text-light);
     text-decoration: none;
     display: inline-block;
-    transition: color 0.12s;
+    transition: color var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
 /* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
@@ -3566,7 +3566,7 @@ body.auth-ready .boot-placeholder { display: none; }
 }
 .card-toggle-arrow {
     font-size: var(--type-micro); color: var(--text-light);
-    transition: transform 0.25s; flex-shrink: 0;
+    transition: transform var(--dur-slow) var(--ease-standard); flex-shrink: 0;
     padding: 3px 0 0 12px; line-height: 1.5;
 }
 .card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
@@ -3766,6 +3766,9 @@ body.auth-ready .boot-placeholder { display: none; }
     font-weight: 800;
     color: var(--primary-blue);
     margin-bottom: 16px;
+    /* Clear of the ✕, as `.picker-head` is: the 44px `.lb-close` at `right: 14px` takes the panel's last 58px,
+       and 28px of padding + 32 = 60. "🙋 Password Reset Requests" ran 8px under it at 360px (Nov 2026). */
+    padding-right: 32px;
 }
 .tips-lb-section {
     font-size: var(--type-badge);
