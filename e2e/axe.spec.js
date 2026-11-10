@@ -434,6 +434,52 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // THE "FROM YOUR CALENDAR" CARD IN THE STATES THAT ASK THE MEMBER TO CHECK SOMETHING (whole-app
+    // check, 10 Nov 2026). The two scans above answer the recorded-changes read and type no hours, so
+    // they never drew the four orange pairs these states draw — and all four failed AA: the
+    // "⚠ Scheduled only" badge (2.85:1), a row's "16h 30m entered" once the hours differ (3.04:1), the
+    // "Includes an 8h estimate — check" / "Possible overtime" chip (4.31:1) and the white "Overtime"
+    // chip under Show days (3.2:1). Thu 9 Jul 2026 is a rest day for G. Miller and Tue 30 Jun a worked
+    // one, so an untimed Training day and a two-hour longer shift give the estimate chip and the OT day.
+    test('paycalc — the calendar card when the recorded changes could not be read', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+        await seedSession(page);
+        await seedMember(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.failGetDocs = true;
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#rosterStateBadge')).toHaveClass(/base-only/);
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('paycalc — the calendar card when the hours differ, with its days shown', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+        await seedSession(page);
+        await seedMember(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+            w.__E2E.docs = [
+                { id: 'o1', memberName: 'G. Miller', date: '2026-07-09', value: 'TRG', type: 'other', source: 'manual' },
+                { id: 'o2', memberName: 'G. Miller', date: '2026-06-30', value: '06:20-16:20', type: 'shift', source: 'manual' },
+            ];
+        });
+        await page.goto('/paycalc.html');
+        // The rows open showing the calendar's own figures ("matches"), which carry no chip.
+        await expect(page.locator('.roster-row[data-cat="rdw"]')).toBeVisible({ timeout: 10000 });
+        await page.locator('#rdwH').fill('16');
+        await page.locator('#rdwM').fill('30');
+        await expect(page.locator('.roster-row[data-cat="rdw"]')).toHaveClass(/roster-row--differs/);
+        await expect(page.locator('.roster-row[data-cat="rdw"] .conf-possible')).toBeVisible();
+        await page.locator('#rosterDaysToggle').click();
+        await expect(page.locator('.roster-day-chip--ot')).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('operations (admin, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/operations.html');

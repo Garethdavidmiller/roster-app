@@ -829,22 +829,12 @@ test('a page with unsaved work warns through warnOnUnload AND asks before a sign
 // browser's own prompt, and a phone never shows it, so on an iPhone it protects nothing. Overtime called
 // it alone, and a half-filled availability form was dropped by any drawer pill or About-panel link
 // without a word. A page that tracks unsaved work for the unload prompt asks in the page as well.
-//
-// ONE EXEMPTION, BY NAME: links-app.js has a capture-phase guard of its own on the drawer's links, older
-// than page-session.js's, and asks about the About panel's one leaving link (Operations) on that link.
-// The exemption is CHECKED rather than trusted — if that guard goes, the page stops being exempt.
-const OWN_LEAVE_GUARD = new Map([
-    ['links-app.js', /document\.addEventListener\('click',[\s\S]*?closest\('\.nav-panel a\[href\]'\)[\s\S]*?\},\s*true\)/],
-]);
+// (Links kept an older guard of its own, exempt here by name, until Nov 2026: it navigated by itself on
+// "Leave", so the drawer's own handling never ran. It uses the shared one now, and nothing is exempt.)
 test('a page that warns on unload also asks before a drawer or About-panel link leaves', () => {
     for (const p of APP_PAGE_ENTRIES) {
         const code = codeOf(p.coordinator);
         if (!/\bwarnOnUnload\(/.test(code)) continue;
-        const own = OWN_LEAVE_GUARD.get(p.coordinator);
-        if (own) {
-            assert.match(code, own, `${p.coordinator} is exempt for its own capture-phase drawer guard, and that guard has gone — call askBeforeLeavingByDrawer`);
-            continue;
-        }
         assert.match(code, /\baskBeforeLeavingByDrawer\(/,
             `${p.coordinator} warns on unload but lets the drawer's and the About panel's links leave without asking — call askBeforeLeavingByDrawer with the same isDirty`);
     }

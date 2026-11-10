@@ -29,10 +29,17 @@
  * countdown came to be shown to designers for ten versions after the thing that would have
  * honoured it was switched off.
  *
- * What remains is what a permanent bin needs: hide it, say who binned it and when, sort it, refuse
- * to bin the last live design, and one deliberate **Remove for good** with a transactional
- * read-and-delete. If a sweep is ever wanted, git has all of it — and it would be a Cloud Function
- * reading SERVER time, which would not have used the client store's method anyway.
+ * What remains is what a permanent bin needs: hide it, say who binned it and when, sort it, and one
+ * deliberate **Remove for good** with a transactional read-and-delete. If a sweep is ever wanted, git
+ * has all of it — and it would be a Cloud Function reading SERVER time, which would not have used the
+ * client store's method anyway.
+ *
+ * **The last saved design CAN be binned** (whole-app fix, Nov 2026 — links-app-23, the lead's decided
+ * default). `canSoftDelete` refused it, because an empty list "would empty the picker and drop the
+ * user into the 'no designs yet' state". Neither holds any more: the picker always carries the
+ * shortlisted proposals (v24.47), and Keep only the shortlist empties the saved list on purpose and
+ * opens the first of them — which is what deleting the last design now does too. The refusal had no
+ * reason left to give, and its greyed row gave none.
  */
 
 const DAY_MS = 86_400_000;
@@ -140,16 +147,30 @@ export function sortByDeleted(entries) {
 }
 
 /**
- * May a design be deleted at all?
- *
- * The workspace must always keep one LIVE design — deleting the last one would empty the picker
- * and drop the user into the "no designs yet" state, from which the way back is to generate,
- * import or open a design again. Counts live designs only: a bin with ten designs in it does not make the last
- * remaining design disposable.
- *
- * @param {number} liveCount
- * @returns {boolean}
+ * What a delete FOUND, in a sentence (whole-app fix, Nov 2026). The store's soft delete answers
+ * `'deleted'`, `'already-deleted'` (with the binned copy) or `'gone'`, and each tells the designer
+ * something different: their own delete; a colleague's, which the line — like the bin row — must
+ * attribute to THEM, never to the reader; and a design removed for good, which has no bin row at all.
+ * @param {'deleted'|'already-deleted'|'gone'} found @param {string} name @param {any} [deletedData]
+ * @returns {string}
  */
-export function canSoftDelete(liveCount) {
-    return liveCount > 1;
+export function deleteOutcomeLine(found, name, deletedData) {
+    if (found === 'gone') return `“${name}” had already been removed for good.`;
+    if (found === 'already-deleted') {
+        return `“${name}” is in Recently deleted — ${String(deletedData?.deletedBy ?? '').trim() || 'someone'} had already deleted it.`;
+    }
+    return `“${name}” is in Recently deleted.`;
+}
+
+/**
+ * Why a rename did not happen, when its design was no longer live (links-design-5): binned by a
+ * colleague — named, and in Recently deleted — or removed for good. Never "check your connection",
+ * which no retry could answer.
+ * @param {string} name @param {any} deletedData  the binned copy, or null when it was removed for good
+ * @returns {string}
+ */
+export function renameRefusedLine(name, deletedData) {
+    return deletedData
+        ? `“${name}” was not renamed — ${String(deletedData.deletedBy ?? '').trim() || 'Someone'} deleted it while it was open here. It is in Recently deleted.`
+        : `“${name}” was not renamed — it was removed for good while it was open here.`;
 }

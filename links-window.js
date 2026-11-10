@@ -103,6 +103,12 @@ export function isValidWindowRow(row) {
  * neighbour is broken would throw away a real decision. What is NOT done is per-FIELD fallback:
  * pairing a stored start with a default end would invent a window nobody chose, and it would look
  * deliberate on the printed sheet.
+ *
+ * A kept row comes back in the canonical "HH:MM" (`canonicaliseWindowTime`), as everything arriving
+ * from Firestore is canonicalised: the rest of the workspace compares these as STRINGS, so a stored
+ * "6:20" kept as typed read as a window moved from the standard 06:20 — on the masthead, in compare's
+ * mismatch flag and on the printed sheet. The editor always pads; this is for a stored value it did
+ * not write.
  * @param {any} raw
  * @returns {{monSat: {start: string, end: string}, sun: {start: string, end: string}}}
  */
@@ -111,7 +117,7 @@ export function normaliseWindow(raw) {
     for (const row of WINDOW_ROWS) {
         const stored = raw && typeof raw === 'object' ? raw[row] : null;
         out[row] = isValidWindowRow(stored)
-            ? { start: String(stored.start), end: String(stored.end) }
+            ? { start: canonicaliseWindowTime(stored.start), end: canonicaliseWindowTime(stored.end) }
             : { ...DEFAULT_WINDOW[row] };
     }
     return out;
