@@ -43,19 +43,10 @@ body {
     background: var(--primary-blue);
     min-height: 100vh;
     min-height: 100dvh;
-    padding-top:    max(20px, env(safe-area-inset-top));
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+    /* The page gutter is shared.css's (the card pages' one home for it). */
     overflow-x: hidden; overflow-x: clip;
     overscroll-behavior: none;
     color: var(--text-dark);
-}
-@media (max-width: 768px) {
-    body {
-        padding-left:  max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
-    }
 }
 
 .container {
@@ -115,6 +106,10 @@ body.auth-ready .container { display: grid; }
        viewport on desktop. hidden first as a fallback for older browsers. */
     overflow: hidden;
     overflow: clip;
+    /* NOT for a container query (there is none): the LAYOUT CONTAINMENT this brings is load-bearing.
+       Without it the first Generate stranded its button a grid's height down the page in 2 of 24
+       runs at 1280px ("pressing Generate leaves the button under your finger"); with it, 24 of 24
+       held. Measured, not explained — so keep it unless that test is re-run many times without it. */
     container-type: inline-size;
 }
 
@@ -265,8 +260,6 @@ body.auth-ready .container { display: grid; }
 @media (max-width: 767px) {
     .links-save-row { margin-inline: -16px; padding-inline: 16px; }
 }
-/* No shadow on paper — it is a scroll affordance, and there is no scrolling on paper. */
-@media print { .links-save-row { position: static; box-shadow: none; } }
 
 /* The sticky summary strip starts `hidden` until a design loads. `display: flex` out-specifies the
    attribute, so an empty strip occupied the header until then. Found by
@@ -649,18 +642,27 @@ body.auth-ready .container { display: grid; }
 /* 768px, NOT 1024 (corrected v19.77 — measured, and the old value was costing the sticky header
    across the whole tablet range for nothing).
 
-   The wrapper is `overflow-x: auto` below this so the 592px table can scroll inside a narrow card.
+   The wrapper is `overflow-x: auto` below this so the table can scroll inside a narrow card.
    But `overflow-x: auto` makes it a SCROLL CONTAINER whether or not anything overflows, and
    `position: sticky` resolves against the nearest scroll container — so the day-header row stuck to
    a box that is its own content's height, i.e. never moved, i.e. was inert.
 
-   Measured across the range (scrollWidth / clientWidth of the wrapper):
+   Measured across the range — the wrapper's width against the 675px the table needs (re-measured
+   10 Nov 2026 with the three totals columns, at the shared page gutter):
 
-       390px  338 / 592  overflows — a scroll container is genuinely needed
-       600px  548 / 592  overflows
-       768px  684 / 684  FITS
-       834px  720 / 720  FITS   <- iPad portrait
-      1000px  876 / 876  FITS
+       390px  370 / 675  overflows — a scroll container is genuinely needed
+       600px  580 / 675  overflows
+       768px  716 / 675  FITS
+       769px  691 / 675  FITS   <- the tightest: the body gutter steps up from 10px here
+       834px  752 / 675  FITS   <- iPad portrait
+      1024px  931 / 703  FITS   <- from here the totals keep one line, so the table needs 703
+
+   675 holds only because, below 1024px, the totals' names and the days note may WRAP (`.col-total`,
+   `.tot-avg-note`). Unwrapped, "Days worked" and "over 26 working lines" held that column at 96px:
+   the table needed 703, ran up to 12px into the card's gutter from 769 to 782px, and at 1.3x text
+   61px past the card's edge, cut off by its clip with no scroll. Left, measured: at 1.6x text (an
+   Android setting no width query can see) it needs 754px, so from 768 to ~830px the card still
+   cuts the last totals column; the cure is this scroll container, at the sticky header's cost.
 
    So from 768 to 1023 the wrapper was scrolling nothing and paying the sticky header for it. That
    band includes iPad portrait, and this workspace's own first-visit notice recommends "a desktop or
@@ -776,14 +778,6 @@ body.auth-ready .container { display: grid; }
     font-weight: 700;
 }
 
-/* Coverage footer label in the pos-num column */
-.cov-foot-label {
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--text-mid);
-    text-align: center;
-}
-
 /* Coverage footer */
 .links-grid tfoot td {
     background: var(--surface-sunken);
@@ -841,8 +835,10 @@ body.auth-ready .container { display: grid; }
     width: 68px;
     min-width: 68px;
 }
-.links-grid th.col-total:first-of-type,
-.links-grid td.tot-cell:first-of-type { border-left: 2px solid var(--border-mid); }
+/* The FIRST totals cell is the one after a day cell: `:first-of-type` counts elements, not classes,
+   so it asked for the row's first th or td (the line number) and the heavier rule was never drawn. */
+.links-grid th:not(.col-total) + th.col-total,
+.links-grid td:not(.tot-cell) + td.tot-cell { border-left: 2px solid var(--border-mid); }
 .col-total-sub {
     display: block;
     font-weight: 400;
@@ -862,8 +858,11 @@ body.auth-ready .container { display: grid; }
 /* A cover week's figure is a CONVENTION, not a reading of the row — see `_totalCells`. Muted and
    italic so it cannot be mistaken for a measured week; the title says which. */
 .links-grid td.tot-assumed { color: var(--text-light); font-style: italic; }
-/* At least one duty on the line could not be read, so the figure is a floor. */
+/* At least one duty on the line could not be read, so the figure is a floor — and says so with a "+"
+   as well as the orange, whose ink is only 1.56:1 from the ordinary figure's (WCAG 1.4.1). Inter
+   has no "≥". The cell's aria-label already says it, so the mark is silent where `/ ""` is read. */
 .links-grid td.tot-uncertain { color: var(--orange-text); }
+.links-grid td.tot-uncertain::after { content: "+"; content: "+" / ""; }
 /* Same figure as the Mon–Sat column beside it, i.e. no Sunday duty. Muted so the lines that DO
    work a Sunday are the ones the eye lands on. */
 .links-grid td.tot-same { color: var(--text-light); }
@@ -873,6 +872,7 @@ body.auth-ready .container { display: grid; }
 .tot-legend .lg-assumed   { font-style: italic; color: var(--text-light); }
 .tot-legend .lg-same      { color: var(--text-light); }
 .tot-legend .lg-uncertain { color: var(--orange-text); font-weight: 600; }
+.tot-legend .lg-uncertain::after { content: "+"; content: "+" / ""; }   /* the sample shows both cues */
 .links-grid tfoot td.tot-cell { line-height: 1.3; }
 .tot-avg-num {
     display: block;
@@ -886,6 +886,13 @@ body.auth-ready .container { display: grid; }
     font-size: 9px;
     font-weight: 400;
     color: var(--text-light);
+}
+/* BELOW A DESKTOP the totals' names and the days note may wrap. Unbroken, "Days worked" and "over
+   26 working lines" held the last column at 96px against the others' 68 — 28px the table did not
+   have from 769px (the 768px block above has the figures). From 1024px there is room at every text
+   size measured (1.6x included), so the desktop keeps its two-line header. */
+@media (max-width: 1023px) {
+    .links-grid th.col-total, .tot-avg-note { white-space: normal; }
 }
 
 .btn-text-link {
@@ -943,9 +950,7 @@ body.auth-ready .container { display: grid; }
     white-space: pre-line;
     line-height: 1.35;
     text-align: center;
-    transition: filter var(--dur-fast) var(--ease-standard), outline var(--dur-fast);
-    outline: 2px solid transparent;
-    outline-offset: 1px;
+    transition: filter var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
     touch-action: manipulation; /* arm/disarm taps must never trigger double-tap zoom */
 }
 .brush-chip.type-rd    { background: var(--surface); color: var(--text-light); border: 1px solid var(--border-light); }
@@ -953,8 +958,11 @@ body.auth-ready .container { display: grid; }
 .brush-chip.type-early { background: color-mix(in srgb, var(--shift-early-fill) 16%, transparent); color: var(--shift-early-text); }
 .brush-chip.type-late  { background: color-mix(in srgb, var(--shift-late-fill) 16%, transparent); color: var(--shift-late-text); }
 .brush-chip--custom    { background: var(--surface); color: var(--text-mid); border: 1px dashed var(--border-light); font-style: italic; }
-/* Armed state: solid navy ring */
-.brush-chip--active    { outline-color: var(--primary-blue); outline-width: 2px; }
+/* ARMED: a navy ring INSIDE the chip, the mark the cell under the pointer wears. A shadow, because the
+   outline is the keyboard's: when the base rule gave every chip a transparent one for this, it beat
+   the app's focus fallback and Tab crossed the bar with no ring. */
+.brush-chip--active    { box-shadow: inset 0 0 0 2px var(--primary-blue); }
+.brush-chip:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 /* Hover never repaints a chosen control (css-tokens.md): the ARMED chip keeps its own colour under
    the pointer that armed it, so it still matches the cells it paints. */
 @media (hover: hover) and (pointer: fine) {
@@ -1030,7 +1038,6 @@ body.auth-ready .container { display: grid; }
     padding-top: 14px;
     border-top: 1px solid var(--border-light);
 }
-.check-section-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .check-section-head .check-note { text-transform: none; letter-spacing: 0; font-weight: 600; }
 /* The section's headline counts, sitting at the far end of its own heading — so the reader gets
    the summary BEFORE the 24 rows, not by tallying icons afterwards. */
@@ -1286,6 +1293,7 @@ body.auth-ready .container { display: grid; }
 .gen-input:focus-visible, .gen-select:focus-visible {
     outline: var(--focus-outline);
     outline-offset: 1px;
+    box-shadow: var(--focus-ring);
     background-color: white;
 }
 .gen-actions {
@@ -1343,7 +1351,7 @@ body.auth-ready .container { display: grid; }
 .btn-set {
     background: none;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     padding: 4px 12px;
     font-size: var(--type-small);
     font-family: inherit;
@@ -1363,7 +1371,8 @@ body.auth-ready .container { display: grid; }
    so until v25.16 the filter you had just switched on turned grey under the pointer that switched it. */
 @media (hover: hover) and (pointer: fine) {
     .btn-set:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--surface-sunken); color: var(--text-dark); }
-    .btn-set--danger:hover:not(:disabled)  { color: var(--error-red); border-color: var(--error-red); }
+    /* The same (0,4,0) as the rule above, and after it: at (0,3,0) Delete's red words lost to it. */
+    .btn-set--danger:hover:not(:disabled):not([aria-pressed="true"]) { color: var(--error-red); border-color: var(--error-red); }
 }
 .btn-set:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .btn-set:disabled { opacity: 0.4; cursor: default; }
@@ -1562,6 +1571,8 @@ body.auth-ready .container { display: grid; }
 .dm-status--proposal { display: none; }
 .dm-status--saving::before { animation: dm-pulse 1s infinite; }
 @keyframes dm-pulse { 50% { opacity: 0.3; } }
+/* It loops for as long as a write is in flight — for ever, if it cannot finish. The words say it. */
+@media (prefers-reduced-motion: reduce) { .dm-status--saving::before { animation: none; } }
 .dm-status-long, .dm-status-short { overflow: hidden; text-overflow: ellipsis; }
 .dm-status-long { display: none; }
 
@@ -1608,8 +1619,12 @@ body.auth-ready .container { display: grid; }
     .dm-more { width: 52px; min-height: 44px; }
 }
 
-/* ---- The ··· More sheet ---- */
-#designMoreContent {
+/* ── The ··· More sheet and the design picker sheet (v23.32; rows moved to the shared classes
+   v23.33) — one shell for both, and it scrolls through `.lb-content`. The picker's ROWS are
+   `.picker-opt` from shared.css — the same rows `select-sheet.js` renders for every other dropdown
+   in the app, which is the point: one dropdown, one definition. See rule 1 in
+   links-design-header.js for why a native <select> stopped being the right control. */
+#designMoreContent, #designPickerContent {
     background: white;
     border-radius: var(--radius-xl);
     padding: 8px;
@@ -1618,22 +1633,6 @@ body.auth-ready .container { display: grid; }
     max-height: 85dvh;
     box-shadow: var(--shadow-3);
     text-align: left;
-    overflow-y: auto;
-}
-/* ── The design picker sheet (v23.32; rows moved to the shared classes v23.33) ────────────────
-   The shell only. Its ROWS are `.picker-opt` from shared.css — the same rows `select-sheet.js`
-   renders for every other dropdown in the app, which is the point: one dropdown, one definition.
-   See rule 1 in links-design-header.js for why a native <select> stopped being the right control. */
-#designPickerContent {
-    background: white;
-    border-radius: var(--radius-xl);
-    padding: 8px;
-    width: min(var(--modal-wide), var(--modal-cap));
-    max-height: 85vh;
-    max-height: 85dvh;
-    box-shadow: var(--shadow-3);
-    text-align: left;
-    overflow-y: auto;
 }
 .dm-picklist { display: grid; gap: 2px; padding: 4px 0 0; }
 
@@ -1791,9 +1790,6 @@ body.auth-ready .container { display: grid; }
         flex-direction: column;
         justify-content: flex-end;
     }
-    /* Cap the measure on the generator's intro prose so it doesn't run ~140ch across the
-       full ~1000px card (the grid/tables keep the full width). */
-    .links-desc { max-width: 82ch; }
 }
 .compare-col { min-width: 0; }
 .compare-col-head {
@@ -1848,9 +1844,12 @@ body.auth-ready .container { display: grid; }
 /* Read-only compare grid — no interactive feedback */
 .links-grid--compare { pointer-events: none; }
 
-/* Diff highlight — a gold outline on cells where the two designs differ */
+/* Diff highlight — a gold outline on cells where the two designs differ. The DARK gold: the brand
+   gold was 1.2-1.4:1 against the cell fills, under the 3:1 a marker needs; --gold-text is 5.4:1 or
+   more on every one (measured on rd, early, late and spare). Not a focus token: these cells take no
+   focus, and a marker borrowed from the focus family reads as one. */
 .cell-diff .shift-cell-btn {
-    outline: var(--focus-outline-gold);
+    outline: 2px solid var(--gold-text);
     outline-offset: -2px;
     position: relative;
     z-index: 1;
@@ -2071,12 +2070,14 @@ body.auth-ready .container { display: grid; }
     padding: 10px 14px 12px;
     margin: 14px 0 0;
 }
+/* The legend wears the shared `.field-eyebrow`'s values (shared.css): size, weight, colour, case
+   and tracking. */
 .gen-objectives legend {
     font-size: var(--type-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--text-mid);
+    color: var(--text-light);
     padding: 0 4px;
 }
 .gen-obj-note {
@@ -2149,7 +2150,6 @@ body.auth-ready .container { display: grid; }
 }
 .gen-input-inline { width: 52px; margin: 0 2px; }
 @media (min-width: 1024px) { .gen-obj-note { max-width: 72ch; } }
-@media print { .gen-objectives { display: none; } }
 
 /* ═══ Generator polish (v19.61) — read the WHY before changing any of this ═══ */
 
@@ -2198,7 +2198,8 @@ body.auth-ready .container { display: grid; }
     .gen-th-time,
     .gen-td-time,
     .gen-spare-row .gen-td-label,
-    .gen-total-row td:first-child {
+    .gen-total-row td:first-child,
+    .gen-hours-row .gen-td-label {   /* opaque already: the row's sunken fill */
         position: sticky;
         left: 0;
         z-index: 2;
@@ -2343,9 +2344,6 @@ body.auth-ready .container { display: grid; }
    grid container every child becomes an item — so the number box left the sentence it belongs to and
    dropped into the checkbox's column on a row of its own ("Vary the shift type, at most" / "3 |
    weeks the same"). The text has to be ONE element for it to wrap as one. */
-/* The legend matches the app's shared `.field-eyebrow` (shared.css) rather than restating a
-   near-copy of it — same size, weight, transform and tracking. */
-.gen-objectives legend { letter-spacing: 0.5px; color: var(--text-light); }
 
 /* ---- Import a design (v20.97) ----
    The paste box and its two-step confirm. It borrows the dialog family from shared.css for the
@@ -2383,8 +2381,10 @@ body.auth-ready .container { display: grid; }
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
+    /* The app's field skin, as .pt-paste wears it: a hairline and the panel's corner made the one
+       place you paste a design read as a different kind of control from the field under it. */
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -2404,7 +2404,10 @@ body.auth-ready .container { display: grid; }
     min-height: 6lh;
     max-height: 40vh;
 }
-.li-paste:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+.li-paste:focus-visible, .li-name:focus-visible {
+    background-color: white; border-color: var(--primary-blue);
+    outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring);
+}
 /* Directly after the base rule, as .pt-paste's is (paycalc.css): at equal specificity the later rule
    wins, and an override placed above its base has silently lost in this repo three times. */
 @media (pointer: coarse) {
@@ -2415,14 +2418,13 @@ body.auth-ready .container { display: grid; }
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: inherit;
     font-size: var(--type-body);
 }
-.li-name:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
 /* The design-name box beside it is a text field too, and had the same 14px with nothing to raise it
    on touch — found by the markup-aware 16px check the moment it could see the class (7 Nov 2026). */
 @media (pointer: coarse) {
@@ -2591,6 +2593,9 @@ body.auth-ready .container { display: grid; }
         justify-content: center;
         min-height: 30px;
     }
+    /* Compare mode's "Compare with:" names, 22.5px drawn: the same floor. A <button> centres its own
+       words, so no flex here — that would cost the name its ellipsis. */
+    .design-chip-name { min-height: 30px; }
 }
 
 /* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.77) ════════════════════════════════════════════════
