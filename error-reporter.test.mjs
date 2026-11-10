@@ -34,6 +34,16 @@ describe('empty and cross-origin script errors', () => {
     test("a browser extension's error is dropped", () => {
         assert.equal(reports('boom', 'chrome-extension://abcd/inject.js'), false);
     });
+    test("Safari's two current extension forms are dropped too, not logged as app errors", () => {
+        // A Safari web extension's own scheme, and the mask Safari 16+ puts over an extension script
+        // (WebKit bug 246010). Neither starts with http, so the foreign-origin rule let both through.
+        assert.equal(reports('TypeError: x', 'safari-web-extension://ABCD-1234/content.js'), false);
+        assert.equal(reports('TypeError: x', 'webkit-masked-url://hidden/'), false);
+    });
+    test('…while an unhandled rejection, which carries only the page path, is still kept', () => {
+        // The other side of the same line: matched by scheme, never by "not http".
+        assert.equal(reports('TypeError: x', '/roster-app/index.html'), true);
+    });
     test('but a crash inside the app\'s OWN CDN dependency is kept', () => {
         // The Firebase SDK and Mammoth are the app's code for this purpose — a crash in them is
         // app-breaking, so the cross-origin rule must not swallow it.
