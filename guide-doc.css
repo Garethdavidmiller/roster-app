@@ -81,15 +81,7 @@ body {
 }
 .guide-header-left { display: flex; align-items: center; gap: 12px; }
 .guide-header-icon { width: 42px; height: 42px; border-radius: 11px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
-.guide-header h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; color: white; text-transform: none; border: none; padding: 0; margin: 0; }
-/* The banner title is an h2, so it also matched the SECTION-heading rules below: `display: flex` plus
-   their gold tick BEFORE it and a hairline flex-rule AFTER it. Inside the banner the tick duplicated
-   the banner's own gold rule and the hairline had no room to fill, so it rendered as a stray "-"
-   after "Admin Guide" on screen and on every printed banner (v24.30 polish pass, measured on the
-   390px and A4 renders). The banner is a masthead, not a section: neither decoration belongs. */
-.guide-header h2 { display: block; }
-.guide-header h2::before,
-.guide-header h2::after { content: none; }
+/* The banner's title is below, after the section headings it has to override. */
 .guide-header .sub { font-size: 11px; color: rgba(255,255,255,0.66); margin-top: 3px; }
 
 /* ── Section headings ────────────────────────────────── */
@@ -108,6 +100,20 @@ h2 {
 h2::before { content: ""; width: 14px; height: 3px; border-radius: 2px; background: var(--gold); flex-shrink: 0; }
 h2::after  { content: ""; flex: 1; height: 1px; background: var(--hair); }
 h2:first-of-type { margin-top: 4px; }
+
+/* ── The banner's title ──────────────────────────────── */
+/* The banner title is an h2, so every section-heading rule above matches it too: `display: flex` plus
+   the gold tick BEFORE it and a hairline flex-rule AFTER it. Inside the banner the tick duplicated
+   the banner's own gold rule and the hairline had no room to fill, so it rendered as a stray "-"
+   after "Admin Guide" on screen and on every printed banner (v24.30 polish pass, measured on the
+   390px and A4 renders). The banner is a masthead, not a section: neither decoration belongs.
+   STATED AFTER THEM, because `h2:first-of-type` weighs the same as `.guide-header h2` and the banner's
+   title is the first h2 of its own wrapper: written above it, the banner's `margin: 0` lost to the 4px
+   on screen (paper zeroes both), so the Admin Guide banner stood 4px taller than its rule says
+   (whole-app review, Nov 2026). */
+.guide-header h2 { display: block; font-size: 17px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; color: white; text-transform: none; border: none; padding: 0; margin: 0; }
+.guide-header h2::before,
+.guide-header h2::after { content: none; }
 
 /* ── Links (v18.80 — mirrors fip/railcard) ───────────── */
 a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: rgba(0, 30, 60, 0.35); }

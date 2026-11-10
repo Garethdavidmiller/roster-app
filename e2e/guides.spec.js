@@ -407,6 +407,19 @@ test('staff guide: each button it describes wears the real button\'s colours', a
     }
 });
 
+// THE BANNER'S TITLE HAS THE MARGIN ITS OWN RULE GIVES IT (whole-app review, Nov 2026). It is an h2 and the first of its
+// own wrapper, so the section headings' `h2:first-of-type { margin-top: 4px }` — the same weight, written later — beat
+// the banner's `margin: 0` on screen, and the Admin Guide banner stood 4px taller than written (paper zeroed both).
+test('staff guide: the on-screen banner\'s title has no top margin, as on paper', async ({ page }) => {
+    for (const width of [375, 900]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/staff-guide.html');
+        const title = page.locator('.guide-header:visible h2');
+        await expect(title, 'premise: one banner is on screen — the Admin Guide\'s').toHaveCount(1);
+        expect(await title.evaluate(h => getComputedStyle(h).marginTop), `the banner title's top margin at ${width}px`).toBe('0px');
+    }
+});
+
 // The ← had no hover on four guides, and on the Railcard guide that page's `a:hover` (amber, meant for
 // links in the text) reached it — amber on navy, ~3.3:1 (desktop audit, Nov 2026). One hover now, the
 // shell's, read off the rendered arrow under a real mouse.
