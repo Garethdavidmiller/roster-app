@@ -1461,6 +1461,17 @@ describe('buildPushPayload', () => {
         assert.throws(() => buildPushPayload({ feature: 'pay', body: 'x', baseUrl: BASE }), /No headline/);
     });
 
+    test('a hash-path feature with no baseUrl throws — it never builds "undefined/#huddle" (import-server-8)', () => {
+        const hashed = Object.entries(NOTIFICATION_FEATURES).filter(([, f]) => f.hashPath).map(([k]) => k);
+        assert.ok(hashed.length >= 3, 'premise: the document features deep-link by hash path');
+        for (const feature of hashed) {
+            assert.throws(() => buildPushPayload({ feature, body: 'x' }), /No url for notification feature/, feature);
+            assert.throws(() => buildPushPayload({ feature, body: 'x', baseUrl: '' }), /No url/, `${feature}, empty base`);
+        }
+        assert.equal(buildPushPayload({ feature: 'timetable', body: 'x', url: `${BASE}/trains.html` }).url, `${BASE}/trains.html`,
+            'an explicit url still needs no base');
+    });
+
     test('enforces the length budgets: an over-long caller headline/body is clipped with an ellipsis', () => {
         const longHead = 'Payday Friday and a great many extra words that run well past the forty character title budget';
         const longBody = 'Open the Pay Calculator to estimate your pay for this period and also read a lot of additional text far beyond the eighty character body budget line';

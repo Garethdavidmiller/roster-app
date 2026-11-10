@@ -67,8 +67,8 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // Valid 24-hour clock value: hours 00–23, minutes 00–59. The regexes below only
     // constrain digit COUNT, so without this an OCR slip like "29:75-88:90" would
     // normalise to a bogus shift time and pass review as a genuine shift. Out-of-range
-    // values fall through to the unrecognised path (warn → 'RD') so they don't silently
-    // become a real working shift.
+    // values fall through to the unrecognised path (the UNKNOWN review sentinel) so they
+    // don't silently become a real working shift.
     const validHHMM = (h, m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
 
     // A WORKED RANGE NEEDS TWO DIFFERENT CLOCK TIMES (v20.39). Both times valid is not enough:
@@ -169,7 +169,7 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // Extract the leading time rather than defaulting to 'RD': if the member's base shift is also RD,
     // an 'RD' here would classify as MATCH and silently drop a genuine worked shift from the roster.
     // The extracted shift is still shown in the review table (surfaced as a DIFF when it differs from
-    // base). Genuinely unrecognised values (no valid leading time) still fall through to 'RD' below.
+    // base). Genuinely unrecognised values (no valid leading time) fall through to UNKNOWN below.
     // ACCEPTED TRADE-OFF: a hypothetical negating annotation ("06:00-12:00 CANCELLED") would also be
     // extracted as the worked time — but the old RD-default silently lost genuinely WORKED annotated
     // shifts, which is the error we have actually observed. If cancellation-style annotations ever
@@ -762,8 +762,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
     return stats;
 }
 
-// ── Huddle push notification day label ───────────────────────────────────────
-
+// ── Strict calendar dates ────────────────────────────────────────────────────
 
 /**
  * Parse a strict YYYY-MM-DD calendar date. Returns the UTC-noon Date if the string is a real
@@ -929,8 +928,10 @@ function buildPushPayload({ feature, body, baseUrl, headline, url }) {
     if (!f) throw new Error(`Unknown notification feature: ${feature}`);
     const finalHeadline = headline || f.defaultHeadline;
     if (!finalHeadline) throw new Error(`No headline for notification feature: ${feature}`);
-    const finalUrl = url || (f.hashPath ? `${baseUrl}${f.hashPath}` : undefined);
-    if (!finalUrl) throw new Error(`No url for notification feature: ${feature}`);
+    // A hash path needs the origin it hangs from: without one this built "undefined/#huddle" (import-server-8).
+    const base = typeof baseUrl === 'string' && baseUrl ? baseUrl : null;
+    const finalUrl = url || (f.hashPath && base ? `${base}${f.hashPath}` : undefined);
+    if (!finalUrl) throw new Error(`No url for notification feature: ${feature} (an event needs a url, a document a baseUrl)`);
     // Enforce the notification design language's truncation-safe budgets (.claude/rules/notifications.md:
     // title ≤ ~40 chars INCLUDING the emoji, body ≤ ~80) so the builder GUARANTEES a clean fit rather
     // than letting the OS hard-truncate a long caller-supplied headline/body mid-word. All current
@@ -1101,6 +1102,8 @@ function computeOrphanLabels(users, activeEmails) {
     return out;
 }
 
+const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
+
 /**
  * summariseAccountGaps — which active members are NOT properly set up, and which leavers still are.
  *
@@ -1125,9 +1128,9 @@ function computeOrphanLabels(users, activeEmails) {
  * everything here: an absent item reads as unknown, and a full-volume wrong one gets the whole
  * strip ignored.
  *
- * ONLY THE CLAIMS THIS APP SETS ARE COMPARED (`name`, `admin`, `manager`, `linksDesigner`). An
- * exact object comparison would report a gap for any claim added later by anything else, and a
- * false alarm on a provisioning index teaches the admin to skip it.
+ * ONLY THE CLAIMS THIS APP SETS ARE COMPARED (`MANAGED_CLAIMS`: `name`, `member`, `admin`, `manager`,
+ * `linksDesigner`). An exact object comparison would report a gap for any claim added later by
+ * anything else, and a false alarm on a provisioning index teaches the admin to skip it.
  *
  * PURE — the handler around it uses the Admin SDK and cannot run in the test sandbox, and every
  * judgement worth getting wrong is here. Tested in roster-parse-helpers.test.mjs.
@@ -1138,8 +1141,6 @@ function computeOrphanLabels(users, activeEmails) {
  *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
  * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'claims' }>, leavers: string[] }}
  */
-const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
-
 function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
     const list = Array.isArray(users) ? users : [];
     /** @type {Map<string, {disabled?: boolean, customClaims?: Record<string, any>|null}>} */
@@ -1235,8 +1236,7 @@ function isAllowedPushEndpoint(endpoint) {
     return PUSH_SERVICE_HOSTS.some(h => host === h || host.endsWith('.' + h));
 }
 
-// ── Exports ──────────────────────────────────────────────────────────────────
-
+// ── The password-reset request queue ────────────────────────────────────────
 
 /**
  * Throttle decision for a password-reset REQUEST (PASSWORD_DESIGN.md — the request queue).

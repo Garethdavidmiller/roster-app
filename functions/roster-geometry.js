@@ -428,14 +428,16 @@ function geometryCoverage(stats, reviewedNames) {
 }
 
 /**
- * How long the caller will WAIT for the witness once the model has answered — and the reason the
- * budget is on the wait rather than on the work.
+ * How long the caller will WAIT for the grid read, each time it waits — and the reason the budget
+ * is on the wait rather than on the work.
  *
- * The extraction starts before the model call and is awaited after it, so it normally runs for
- * free inside the model's own latency and costs the request nothing. What the reviewer's concern
- * is actually about (v22.39) is the tail: a pathological PDF where pdfjs never settles would hold
- * a finished parse until the Cloud Function's own 120s timeout — an OPTIONAL check extending the
- * critical path without bound, which contradicts the whole fail-open contract.
+ * Since phase 2 (v24.04) the read is awaited BEFORE the model call, because a usable grid decides
+ * which prompt is sent, so it sits on the critical path: under a second a document on the corpus,
+ * at most this budget. Only a wait that gave up is repeated after the model has answered
+ * (`settledGeometry`), so a pathological PDF costs two budgets at worst. That tail is what the bound
+ * is for (v22.39): a PDF where pdfjs never settles would otherwise hold a finished parse until the
+ * Cloud Function's own 120s timeout — an OPTIONAL check extending the critical path without bound,
+ * which contradicts the whole fail-open contract.
  *
  * **Stopping the wait is not stopping the work**, exactly as `fetch-timeout.js` says on the client
  * side. The extraction keeps running in the instance until it finishes or the instance goes; that
@@ -445,8 +447,8 @@ function geometryCoverage(stats, reviewedNames) {
  */
 const GEOMETRY_WAIT_BUDGET_MS = 8000;
 
-/** The absolute cap on the extraction itself, checked between pages. Generous: the whole point is
- *  that it normally runs concurrently with the model, and the corpus reads 12 documents in well
+/** The absolute cap on the extraction itself, checked between pages. Generous: a read that outlasts
+ *  the first wait goes on running through the model call, and the corpus reads 12 documents in well
  *  under a second each — this is for the pathological case, not the ordinary one. */
 const GEOMETRY_WORK_BUDGET_MS = 45000;
 
