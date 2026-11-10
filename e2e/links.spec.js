@@ -46,6 +46,28 @@ test('links: shows the in-place login when not signed in', async ({ page }) => {
     expect(errors, 'Uncaught JS exceptions triggering links redirect').toHaveLength(0);
 });
 
+// THE SET-PASSWORD MARKER IS SPENT AS THE PAGE OPENS. A sign-in leaves a one-shot marker, and the page
+// that opens next spends it, so "set your own password" is asked after a SIGN-IN and never on an
+// ordinary load (password-force.js: "consume BEFORE any await"). Links spent it only once the session
+// had been confirmed, so a designer who left while that was still under way carried the marker to a
+// later ordinary load, which then asked out of nowhere. The restore is held here, so the session is
+// still being confirmed for the whole test.
+test('links: a sign-in\'s set-password marker is spent as the page opens, not once the session is confirmed', async ({ page }) => {
+    const { PW_FORCE_PENDING_PREFIX } = await import('../storage-keys.js');
+    const marker = PW_FORCE_PENDING_PREFIX + 'G. Miller';
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((key) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        localStorage.setItem(key, '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authRestoreDelayMs: 15_000 });
+    }, marker);
+    await page.goto('/links.html');
+    await expect(page.locator('body.auth-ready')).toBeAttached();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), marker),
+        { message: 'spent while the session is still being confirmed', timeout: 2000 }).toBeNull();
+});
+
 // Guide links are SAME-TAB navigation since v18.81 (target="_blank" wrapped guides in Android's
 // Chrome Custom Tab / iOS's in-app Safari from the installed PWA — the "extra header on every
 // guide" staff report). So with unsaved changes a drawer guide link must now be CAUGHT by the
