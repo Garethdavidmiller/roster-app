@@ -63,14 +63,19 @@ Both grades: **140 contracted hours per period**.
 
 **Pension default** (`Smart RPS CR Scheme`, `PENSION_STEPS`, shared by both grades — the recorded
 values are payslip-confirmed for CEA, and no CES payslip history is on record): **£151.86** from the
-28 Aug 2026 payslip (the award payslip) · £147.36 from 8 May 2026 · £154.77 from 29 Aug 2025 ·
-£156.29 on the 1 Aug 2025 payslip (DERIVED from payslip totals, not read off a payslip — VAL-PAY-003;
-correct it from the real line if ever read) · £160.78 up to the 4 Jul 2025 payslip.
+28 Aug 2026 payslip (the award payslip) · **£150.74 on the 31 Jul 2026 payslip**, printed as two lines,
+£113.90 + £36.84 · £147.36 from 8 May 2026 · £154.77 from 29 Aug 2025 · £156.29 on the 1 Aug 2025
+payslip (DERIVED from payslip totals, not read off a payslip — VAL-PAY-003; correct it from the real
+line if ever read) · £160.78 up to the 4 Jul 2025 payslip. Every step from £154.77 on was re-read
+from twelve payslips, 19 Dec 2025 to 23 Oct 2026, on 10 Nov 2026, and each matches.
 
 **2026/27 is the 3.6% RMT award, payslip-confirmed on the 28 Aug 2026 payslip** (VAL-PAY-002).
-**A pay award moves the PENSION too** — the contribution is a proportion of pensionable pay, so it
-stepped £147.36 → £151.86 on the award payslip. When the next award lands, read the
-`Smart RPS CR Scheme` line off that payslip and add a `PENSION_STEPS` step (MAINTENANCE_CALENDAR.md
+**A pay award moves the PENSION too** — the contribution is a proportion of pensionable pay — **and
+the step can begin INSIDE the payslip before the award payslip.** The 2026/27 rise reached the
+pension three weeks into the 31 Jul 2026 period: that payslip prints £113.90 (21 days at the new
+£151.86) and £36.84 (7 days at the old £147.36), and the calculator holds one figure per payslip,
+so it carries their total. When the next award lands, read the `Smart RPS CR Scheme` lines off the
+award payslip AND the one before it, and add the `PENSION_STEPS` steps (MAINTENANCE_CALENDAR.md
 carries it as a checklist row).
 
 **How the step is applied.** The award applies automatically from its payslip: the hourly rate comes
