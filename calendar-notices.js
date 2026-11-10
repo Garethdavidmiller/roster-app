@@ -34,7 +34,8 @@
  *
  * That left `al-booking-2026` alone until v24.82 added `timetable-2026`, v24.86 the Year to Date
  * notice that follows it and v24.91 the install notice — the same release that retired the leave
- * reminder early, by owner decision (22 Oct 2026). Every one of them is `'members'` —
+ * reminder early, by owner decision (22 Oct 2026) — then v24.94 the final-week timetable notice and
+ * v25.61 the New link one. Every one of them is `'members'` —
  * so **no live notice addresses the signed-out audience**, and the positive direction of the
  * audience gate has nothing to exercise it. `calendar-notices.test.mjs` can still prove a notice is REFUSED to the wrong audience and
  * that every notice is gated at all; what it can no longer prove behaviourally is that a
@@ -52,6 +53,7 @@ import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
 import { teamMembers, gradeForRole } from './roster-data.js';
 import { installRoute, promptInstall, yieldToInstallNotice, retireInstallStrip } from './install-prompt.js';
+import { canOpenNewlink } from './auth-policy.js';   // the New link notice's audience — the drawer pill's own question
 
 /**
  * Open a notice once access is decided AND this device is one of its audience.
@@ -402,6 +404,76 @@ export function initCalendarNotices({ after } = {}) {
         _openWhenAudienceAllows(lb, 'members',
             () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),
             () => { decided = installRoute() ?? decided; yieldToInstallNotice(); });
+    }());
+
+    // ── The New link page: three proposals, for the colleagues it is for (v25.61; owner, 9 Nov 2026) ──
+    //
+    // "A third in sequence on calendar advertising the new links page with a description and link to
+    // that page, but only for those who can view that page." The page opened at v25.60 to everyone on a
+    // normal CEA contract and the managers; this tells them it is there. A ONE-OFF on the rule every
+    // notice here follows — any dismissal marks it done — and its body names the menu route, so
+    // "Not now" loses nothing.
+    //
+    // ONLY WHERE THE PAGE WOULD LET THEM IN. The question is the drawer pill's own, `canOpenNewlink`
+    // (auth-policy.js), and newlink-config.test.mjs holds that to the page's door for every name on
+    // the roster — so the notice, the pill and the page cannot disagree about who it is for. Asked at
+    // OPEN time through the gate, as the Year to Date notice asks its question: a member signing in at
+    // the front door on this very load has no session at wiring time. Refused, it is left unflagged.
+    // Not newlink-config.js: newlink-boundary.test.mjs keeps the proposals' modules out of the
+    // Calendar's reach, and this needs nothing from them.
+    //
+    // IN SEQUENCE, never sharing a visit. It waits for the install notice — but only where that one is
+    // this device's to get (`installRoute()`: a phone or tablet in a browser). A desktop or the
+    // installed app never gets the install notice, so waiting for its flag there would hold this one
+    // back until both had run out; the managers this is partly for are mostly on a desktop. The flag
+    // is read at WIRING time, as every follower's is, so this never comes on the load the install
+    // notice is answered. And it is wired LAST: on a load where anything else is due, that takes the
+    // screen and this one comes back next time (openNoticeIfClear).
+    //
+    // From its posting day (`STARTS` — before it, a device is left unflagged, not dismissed) to the end
+    // of Saturday 5 December (`LAST_DAY`), so it is gone before the final-week timetable reminder takes
+    // the 6th. Its words say what the page says and no more: the month the page gives, no person
+    // (the page names who leads the change), and nothing about how the choice is made. Archived on
+    // OPEN, because the link leaves the page.
+    (function () {
+        const NOTICE_ID       = 'newlink-2026';
+        const NOTICE_DATE     = '9 Nov 2026';
+        const DONE_KEY        = 'myb_notice_newlink_2026_done';
+        const STARTS          = new Date(2026, 10, 9);     // local midnight, Monday 9 November — its posting day
+        const LAST_DAY        = '5 Dec 2026';              // offered through the whole of the Saturday
+        const FOLLOWS_INSTALL = 'myb_notice_install_app_2026_done';   // …where that notice is this device's
+
+        const overlay = document.getElementById('newlinkNoticeLb');
+        if (!overlay) return;
+        if (lsGet(DONE_KEY)) return;
+        if (isNoticeExpired(LAST_DAY, 1)) { lsSet(DONE_KEY, '1'); return; }
+        if (Date.now() < STARTS.getTime()) return;
+        const installNoticeDone = !!lsGet(FOLLOWS_INSTALL);
+
+        const markDone = () => lsSet(DONE_KEY, '1');
+
+        const lb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (document.getElementById('newlinkNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('newlinkNoticeClose')),
+            onOpen() {
+                archiveNotice({
+                    id: NOTICE_ID, title: 'See the three proposals for the new link', section: 'New link',
+                    date: NOTICE_DATE,
+                    body: 'The three proposals for the new link, which starts in January 2027, are on the New link page. '
+                        + 'Nothing is decided yet — open it from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',   // the route never breaks
+                });
+            },
+            onClose() { markDone(); },
+        });
+
+        document.getElementById('newlinkNoticeGo')?.addEventListener('click', markDone);
+        document.getElementById('newlinkNoticeLater')?.addEventListener('click', () => lb.close());
+
+        // 'members' — the page is signed-in only (owner, 2 Nov 2026), so the station PIN is never told
+        // about it. A PIN unlock is not flagged seen.
+        _openWhenAudienceAllows(lb, 'members',
+            () => canOpenNewlink(getSession()?.name) && (installNoticeDone || !installRoute()));
     }());
 }
 

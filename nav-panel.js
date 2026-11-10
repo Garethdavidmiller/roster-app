@@ -916,7 +916,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // One entry per section a notice can archive under, or its chip falls back to the neutral
         // grey: Trains had none for its first two notices (v25.00). `calendar-notices.test.mjs` fails
         // on an archived section with no entry here, so the next page's notice cannot repeat that.
-        const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains' };
+        const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' };
         if (list) {
             list.innerHTML = '';
             notices.forEach(/** @param {any} n */ n => {
@@ -988,7 +988,16 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!_noticesOpen) { document.removeEventListener('keydown', _onNoticesKey); return; }
         if (_overlayAbove(noticesLightbox)) return;   // the topmost rule — see _onComingSoonKey
         if (e.key === 'Escape') { _closeNotices(); return; }
-        if (e.key === 'Tab')    { e.preventDefault(); noticesClose?.focus(); }
+        if (e.key === 'Tab') {
+            // TWO STOPS, the ✕ and the list (v25.61). The list SCROLLS — the card holds the ✕ and the heading
+            // still while a long archive moves beneath them — and a list the keyboard cannot reach cannot be
+            // scrolled: axe's scrollable-region-focusable, found when the eighth notice outgrew the panel. A
+            // hidden list (an empty archive) is no stop. Tab and Shift+Tab both cycle; nothing else here takes focus.
+            e.preventDefault();
+            const stops = [noticesClose, noticesList].filter(el => el && !el.hidden);
+            const at = stops.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+            stops[(at + (e.shiftKey ? -1 : 1) + stops.length) % stops.length]?.focus();
+        }
     }
     // Register both with resetNavPanel's teardown list (v16.23) — this init's handlers replace
     // any earlier init's (already removed by the reset that preceded this init).
@@ -1219,7 +1228,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
             <div class="lb-content" id="navNoticesContent">
                 <button type="button" id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-title">📣 App Notices</div>
-                <div id="navNoticesList" class="nav-notices-list"></div>
+                <div id="navNoticesList" class="nav-notices-list" tabindex="0" role="group" aria-label="Notices you’ve read on this device"></div>
                 <div id="navNoticesEmpty" class="nav-notices-empty" hidden>Notices you’ve read on this device appear here.</div>
             </div>
         </div>`;
