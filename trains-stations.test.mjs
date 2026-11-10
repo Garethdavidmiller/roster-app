@@ -803,8 +803,9 @@ describe('the UX pass (v24.92): leads and chips, the two lines, one train at a t
         const bands = stationBands(everyRow);
         const all = renderGrid(nowG, decG, 'dec', STATIONS, { bands });
         assert.equal((all.match(/class="tr-grid-colbtn"/g) ?? []).length, decG.columns.length);
-        assert.match(all, /<tr class="tr-grid-band"><td colspan="\d+">Main line<\/td><\/tr>/);
-        assert.match(all, /Aylesbury via Amersham<\/td>/);
+        // The label is its own span: the cell spans every column, so only the span can be pinned left (trains.css).
+        assert.match(all, /<tr class="tr-grid-band"><td colspan="\d+"><span class="tr-grid-band-label">Main line<\/span><\/td><\/tr>/);
+        assert.match(all, /<span class="tr-grid-band-label">Aylesbury via Amersham<\/span><\/td>/);
         assert.match(all, /Choose a time at the top to show only where that train stops/);
         assert.doesNotMatch(all, /tr-grid-focus|tr-col-on|aria-pressed="true"/);
         const i = decG.columns.findIndex(c => c.end === 'OXF');
@@ -821,7 +822,7 @@ describe('the UX pass (v24.92): leads and chips, the two lines, one train at a t
         assert.doesNotMatch(one, /tr-grid-band/, 'one line\'s rows alone are not banded');
         assert.doesNotMatch(renderGrid(nowG, decG, 'dec', STATIONS), /tr-grid-band/, 'no bands passed, none drawn');
         assert.doesNotMatch(renderGrid(nowG, decG, 'dec', STATIONS, { focus: 99 }), /tr-col-on/, 'an out-of-range column is ignored');
-        assert.match(renderGrid(nowG, decG, 'now', STATIONS, { bands }), /Aylesbury via Amersham<\/td>/, 'today\'s grid is banded too');
+        assert.match(renderGrid(nowG, decG, 'now', STATIONS, { bands }), /Aylesbury via Amersham<\/span><\/td>/, 'today\'s grid is banded too');
     });
 
     test('renderHeadlines: a bold lead and quieter detail; a bare text is the lead alone', () => {
