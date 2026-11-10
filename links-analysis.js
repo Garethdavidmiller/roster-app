@@ -75,15 +75,10 @@ const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
 /** "17:00" from an hour index. */
 const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
 
-/**
- * The rest between two duties in words. A negative rest is an OVERLAP — a duty past midnight into a
- * next-day start before its own finish, which imported data can carry — and is said as one: as a
- * signed figure it printed "-2h -30m rest" for a 1h 30m overlap, wrong in sign and in size.
- * @param {number} m - minutes
- */
-const restWords = (m) => (m < 0
-    ? `overlapping by ${Math.floor(-m / 60)}h ${-m % 60}m`
-    : `${Math.floor(m / 60)}h ${m % 60}m rest`);
+/** Rest between two duties, in words. Below zero it is an OVERLAP (imported data can run a duty past
+ *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. */
+const restWords = (/** @type {number} */ m) => (m < 0
+    ? `overlapping by ${Math.floor(-m / 60)}h ${-m % 60}m` : `${Math.floor(m / 60)}h ${m % 60}m rest`);
 
 /**
  * @param {object} deps
@@ -254,10 +249,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      * @param {Record<string, {hours: number[]}>} hourly - the cells above, to say when a gap is inside one
      */
     function demandNote(sum, minH, maxH, hourly) {
-        // A FINDING: the station is open, a train runs, nobody is on. Asked train by train, to the
-        // minute (`summariseDemand`), and named by clock hour. A gap INSIDE an hour leaves its cell
-        // showing the people who were on for the rest of it, so the sentence says so — otherwise the
-        // finding and the table above it read as a contradiction.
+        // A FINDING: the station open, a train running, nobody on — asked train by train to the minute
+        // (`summariseDemand`), named by clock hour. A gap INSIDE an hour leaves its cell showing who was
+        // on for the rest of it, so the sentence says so, or it and the table read as a contradiction.
         const nUnc = sum.uncovered.length;
         const inside = sum.uncovered.filter(e => (hourly?.[e.day]?.hours?.[e.hour] ?? 0) > 0).length;
         const insideNote = !inside ? ''
@@ -279,10 +273,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // Split before/after: an early start and a late finish are different business decisions,
         // and the pre-opening set is three times bigger AND permanent, so one combined list ordered
         // by time puts every unmovable movement ahead of the five Sunday ones this exists to show.
-        //
-        // Each clause carries its own noun unless it follows the other, and "Both" is said only of
-        // two (whole-app review, Nov 2026): with nothing after the finish the note read "12 run
-        // before the day's start … Both are stated", a sentence with no subject and one clause.
+        // Each clause has its own noun unless it follows the other, and "Both" means two (whole-app
+        // review, Nov 2026): it read "12 run before the day's start … Both are stated", with neither.
         const nAfter = sum.outsideAfter.length, nBefore = sum.outsideBefore.length;
         const trains = (/** @type {number} */ n) => `${n} train movement${n === 1 ? ' runs' : 's run'}`;
         const listed = (/** @type {any[]} */ entries, cap = 5) => ` (${escapeHtml(describeMovements(entries, cap))}). `;
@@ -378,11 +370,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // options still wants the live analysis of the one they are editing, and hiding it would
         // take that away to fix a labelling problem. The chip is dropped entirely when not
         // comparing, so the ordinary view is unchanged.
-        //
-        // An UNNAMED design is named too (whole-app review, Nov 2026): one fresh from the generator has
-        // no name until its first save, and generate-then-compare is the commonest way to compare, so
-        // the strip went unlabelled in exactly the case this exists for. It takes the label compare
-        // mode gives that design's column.
+        // An UNNAMED design is named too, as its compare column is (whole-app review, Nov 2026):
+        // generate-then-compare left the strip unlabelled in exactly the case this exists for.
         const unfilled = checks.unfilledLines.length;
         el.innerHTML =
             (isComparing()
@@ -405,11 +394,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // The fix is to say what the number IS rather than to add a chip. The strip is width-
             // bound (the note below measures what a fourth costs), so the fatigue chip carries both
             // figures in one label when there is a second figure to carry.
-            //
-            // "WITH TRAINS" IS IN BOTH FORMS (whole-app review, Nov 2026). The figure is staffed
-            // hours with trains and nobody on; the Coverage card's red 0s count every staffed hour
-            // with nobody on, trains or not. "No gaps in staffed hours" sat above a red 0 at Sunday
-            // 06:00 — staffed once the window opened at 06:20, and no train runs in it.
+            // "WITH TRAINS" is in both forms (whole-app review, Nov 2026): the card's red 0s count
+            // every staffed hour with nobody on, and "No gaps in staffed hours" once sat above one.
             + (sum.uncovered.length
                 ? chip('bad', '⛔', sum.uncovered.length,
                     sum.uncovered.length === 1 ? 'staffed hour with trains and nobody on' : 'staffed hours with trains and nobody on')
@@ -490,12 +476,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // app's own opinion. Everything below is attributed (company policy, ORR p3, today's link);
         // an assessing manager reading the top of the card could not tell where these came from.
         rows.push(
-            // No modifier class. Since the triage block arrived above it this heading is not the
-            // card's first child, so it takes the ordinary top margin and rule, which set the
-            // evidence off from the summary (links.css's `:first-child` rule for it matches nothing
-            // now). `links-analysis.test.mjs` fails on any class this module emits that no
-            // stylesheet defines — which is exactly how ~15 rows once shipped on a `check-info`
-            // class nothing styled.
+            // No modifier class: below the triage block this is not the first child, so it keeps the
+            // ordinary margin and rule (links.css's `:first-child` rule for it matches nothing now).
+            // `links-analysis.test.mjs` fails on any class this module emits that no stylesheet
+            // defines — exactly how ~15 rows once shipped on a `check-info` class nothing styled.
             `<div class="check-section-head"><span>This design ` +
             `<span class="check-note">shape of the week — this app's own checks</span></span>` +
             `<span class="check-section-meta">${escapeHtml(`${totalWeeks}-line rotation`)}</span></div>`
@@ -540,9 +524,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         } else {
             const cap = turnarounds.slice(0, 4);
             const more = turnarounds.length - cap.length;
-            // The two times are pieces of the STORED cell, so they are escaped like every other
-            // piece of a design on this card. The time readers anchor one end of the string each,
-            // so `15:25-<anything>-23:55` reads as a duty and its middle arrives here.
+            // The times are pieces of the STORED cell, so escaped like all design text here: the time
+            // readers anchor one end each, so `15:25-<anything>-23:55` reads as a duty.
             rows.push(
                 `<div class="check-row check-bad">` +
                 `${cross}<div class="check-body">` +
@@ -690,10 +673,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // `clear` joins the headline counts (v19.57): the clear rows are now behind a disclosure, so
         // without it the heading would understate how much was actually checked — which is the exact
         // false-assurance failure running the other way.
-        //
-        // …and NOT-APPLICABLE IS COUNTED AS ITSELF, never as clear (whole-app review, Nov 2026). The
-        // heading read "23 clear" over thirteen clear factors and ten that cannot apply — the night
-        // family among them — against this panel's own rule that the two are different answers.
+        // …and NOT-APPLICABLE is counted as itself, never as clear (whole-app review, Nov 2026): the
+        // heading read "23 clear" over 13 clear and 10 that cannot apply, against this panel's rule.
         const clearCount = fat.results.filter(r => r.status === 'clear').length;
         const naCount = fat.results.filter(r => r.status === 'n/a').length;
         const meta = [
@@ -814,8 +795,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // The night-family rollup belongs INSIDE the disclosure, not beside it (v19.57). With it
         // outside, the heading counted 17 clear while the disclosure label said 10 — both true (the
         // other 7 were in the rollup) and impossible to reconcile by looking. Everything that reports
-        // "nothing to report" now lives in one place, so the disclosure's count is the heading's clear
-        // and not-applicable counts together.
+        // "nothing to report" lives in one place: its count is the heading's clear plus not applicable.
         const nightRolled = fat.results.filter(r => r.family === NIGHT_FAMILY);
         if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
             quietRows.push(
