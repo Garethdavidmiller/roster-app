@@ -254,20 +254,27 @@ export function driftCopy(drift, escapedName) {
  * column being skipped, and saying so helps — but on a right shift that explanation is simply
  * wrong, and when the evidence is the PDF's own grid the cause is a different sentence again. A
  * confident wrong cause sends the admin looking in the wrong place, which is worse than none.
- * @param {{ direction: 'left'|'right'|null, suspects: string[], geometryRefused?: string[] }} alignment @param {string} who
+ * @param {{ direction: 'left'|'right'|null, suspects: string[], geometryRefused?: string[], byMember?: Map<string, Drift> }} alignment @param {string} who
  */
 export function stopCopy(alignment, who) {
     const n = alignment.suspects.length;
     const lead = '<span aria-hidden="true">⛔</span> <strong>This read looks one day out and has not been saved.</strong>';
     const close = ' <strong>Nothing has been selected for saving.</strong> Read the roster again; if it happens twice, check the PDF against this week by hand.';
-    if (alignment.direction === null) {
+    const refused = new Set(alignment.geometryRefused || []);
+    // ONLY ROWS THAT LINE UP SHIFTED ARE CALLED SHIFTED (whole-app fix, Nov 2026). One drifting row
+    // and two the grid refused read "3 staff line up with their usual pattern shifted a day earlier",
+    // though the two showed no drift at all — the confident wrong cause the header warns against.
+    const shifted = alignment.direction === null ? [] : alignment.suspects.filter(name => (alignment.byMember
+        ? alignment.byMember.get(name) === alignment.direction : !refused.has(name)));
+    if (!shifted.length) {
         return `${lead} On ${n} staff rows a day was read where the PDF's own table has an empty cell — ${who}. That is a sign the roster was read a column out — not everyone changing their week at once.${close}`;
     }
     const likely = alignment.direction === 'left'
         ? 'usually the blank Sunday column being skipped when the roster is read'
         : 'a sign a cell was misread when the roster was read';
-    const geo = (alignment.geometryRefused || []).length;
-    const also = geo ? ` On ${geo} of those rows the PDF's own table shows an empty cell where a day was read.` : '';
-    return `${lead} ${n} staff line up with their usual pattern shifted a day ${alignment.direction === 'left' ? 'earlier' : 'later'} — ${who}.${also} That is ${likely} — not everyone changing their week at once.${close}`;
+    const s = shifted.length, g = n - s, both = shifted.filter(name => refused.has(name)).length;
+    const more = g ? `, and on ${g} more ${g === 1 ? 'row' : 'rows'} a day was read where the PDF's own table has an empty cell` : '';
+    const also = both ? ` On ${both} of the shifted rows the PDF's own table also shows an empty cell where a day was read.` : '';
+    return `${lead} ${s} ${s === 1 ? 'person’s week lines up' : 'staff line up'} with their usual pattern shifted a day ${alignment.direction === 'left' ? 'earlier' : 'later'}${more} — ${who}.${also} That is ${likely} — not everyone changing their week at once.${close}`;
 }
 

@@ -156,9 +156,9 @@ export function computeCellStates(parsedResult, existingOverrides) {
             const christmas    = isChristmasClosureDate(date);
 
             // Unreadable PDF value (normaliseShift couldn't parse it — see UNKNOWN_PREFIX). Surface
-            // it as a skip-only UNREADABLE row so a garbled real shift isn't silently dropped, but
-            // NEVER write the sentinel: chosen stays null and the save path only writes DIFF/CONFLICT.
-            // The admin fixes the source PDF and re-uploads, or records the shift manually.
+            // it as an UNREADABLE row so a garbled real shift isn't silently dropped, but NEVER write
+            // the sentinel: chosen stays null, and the save writes only what the admin answers in
+            // place (`entered`) or a reading they pick (`options`) — rule 3.
             if (isUnknownEncoded(parsedShift)) {
                 // …EXCEPT when the server told us which two readings disagreed (v19.32). Then the row
                 // can offer them as a pick instead of being a dead end that sends the admin off to
@@ -355,8 +355,8 @@ export function computeCellStates(parsedResult, existingOverrides) {
 
             states.set(key, {
                 state,
-                /** Which guard rewrote the parsed value, or null. Only ever set on a GUARDED row;
-                 *  the renderer words the row from it. */
+                /** Which guard rewrote the parsed value, or null — whatever the state (a Sunday AL on
+                 *  a rostered Sunday is a DIFF that carries 'sunday'). A GUARDED row is worded from it. */
                 guarded,
                 parsedShift,
                 // What the row DISPLAYS and SAVES as the incoming value. Keeps the RDW| marker

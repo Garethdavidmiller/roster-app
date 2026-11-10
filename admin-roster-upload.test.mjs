@@ -2073,11 +2073,29 @@ describe('a row the PDF\'s own grid refused fails closed the same way', () => {
         assert.match(none, /empty cell/);
         assert.doesNotMatch(none, /shifted a day/);
         assert.match(none, /has not been saved/);
+        // Two rows that line up shifted and one only the grid refused: the count says which is which
+        // (whole-app fix, Nov 2026 — it said "3 staff line up … shifted").
         const left = stopCopy({ direction: 'left', suspects: ['A', 'B', 'C'], geometryRefused: ['C'] }, 'A, B, C');
-        assert.match(left, /shifted a day earlier/);
-        assert.match(left, /On 1 of those rows the PDF/);
+        assert.match(left, /2 staff line up with their usual pattern shifted a day earlier, and on 1 more row a day was read where the PDF's own table has an empty cell/);
         assert.match(left, /blank Sunday/);
-        assert.doesNotMatch(stopCopy({ direction: 'right', suspects: ['A'], geometryRefused: [] }, 'A'), /blank Sunday|of those rows/);
+        assert.doesNotMatch(stopCopy({ direction: 'right', suspects: ['A'], geometryRefused: [] }, 'A'), /blank Sunday|of the shifted rows/);
+    });
+
+    test('the stop banner counts as shifted only the rows that ARE shifted — from the real verdict', () => {
+        const rowFor = (/** @type {any} */ m, /** @type {number} */ off) => Object.fromEntries(DATES.map(d => {
+            const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
+        const drifter = others.find(/** @param {any} m */ m => detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+        const [g1, g2] = others.filter(m => m !== drifter);
+        const verdict = assessRosterAlignment({ dates: DATES, geometryRefused: [g1.name, g2.name],
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, ...[g1, g2].map(m => ({ memberName: m.name, shifts: honest(m) }))] });
+        assert.deepEqual([verdict.blocked, verdict.direction], [true, 'left'], 'fixture: one drift and two refusals block the read');
+        const copy = stopCopy(verdict, 'who');
+        assert.match(copy, /1 person’s week lines up with their usual pattern shifted a day earlier, and on 2 more rows/);
+        assert.doesNotMatch(copy, /3 staff line up/);
+        // …and a row that is BOTH shifted and refused is counted once, as shifted, with the grid's word added.
+        const both = assessRosterAlignment({ dates: DATES, geometryRefused: [drifter.name, g1.name, g2.name],
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, ...[g1, g2].map(m => ({ memberName: m.name, shifts: honest(m) }))] });
+        assert.match(stopCopy(both, 'who'), /1 person’s week lines up .* and on 2 more rows .* On 1 of the shifted rows the PDF's own table also shows an empty cell/);
     });
 });
 

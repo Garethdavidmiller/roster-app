@@ -4,7 +4,7 @@
  *
  * Owns: the little type-pill + times editor that appears under an UNREADABLE review row, and the
  *   one rule about when a half-finished entry becomes a value.
- * Does NOT own: what an unreadable cell IS (admin-roster-upload.js), the value grammar
+ * Does NOT own: what an unreadable cell IS (roster-review-states.js), the value grammar
  *   (`manualCellValue`, override-utils.js) or the guards (`normaliseCellValue`, roster-cell-rules.js).
  * Edit here for: the control's markup, or what it says while incomplete.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
@@ -56,10 +56,9 @@ import { unreadableTagClass, restOverRest } from './roster-review-states.js';
 /** What the hint under the time boxes says, in both of its states. */
 const HINT_DONE = '\u2713 this day will be saved';
 const HINT_TODO = 'Enter both times in 24-hour form, e.g. 06:20';
-/** Other days take their hours from the day underneath unless a time is given, so both boxes may
- *  stay blank — the hint has to say so, or an admin fills them in to make the tick appear. */
+/** An Other day with no flavour yet. (Its times are optional: once a flavour is chosen the draft
+ *  composes with both boxes blank, and the hint already says "this day will be saved".) */
 const HINT_FLAVOUR = 'Choose the kind of Other day above.';
-const HINT_OTHER = 'Times are optional — leave both blank to use the usual hours for that day.';
 /** The two questions, STATED (v22.51). The control carried an `aria-label` and nothing on screen,
  *  so a sighted admin met six unlabelled buttons in a grey box — and, once Other was picked, six
  *  more of them. Naming each question is what makes the second group read as a narrowing of the
@@ -83,37 +82,13 @@ const HINT_CHRISTMAS = 'The app\u2019s Christmas leave decides 25 and 26 Decembe
 const HINT_REST_AS_BASE = '\u2713 A rest day on the base roster too \u2014 nothing new is recorded for this day.';
 
 /**
- * The in-place "enter it myself" control for an unreadable cell (v22.17).
- *
- * WHY IT EXISTS. An unreadable cell with no candidate readings was a dead end: the row said
- * "check the paper roster" and the only way to act was to finish the review, leave for the
- * Admin page, and remember the person and the day. The real Supervisor roster carries cells like
- * `SEE NATHAN` and `See CEM`, which no parser will read as a shift, so this is not a rare corner.
- * Answering the question where it is asked is the fix.
- *
- * The pills are generated from `PILL_TYPES` — the ONE declaration of which pills exist and in
- * what order — so this row and Change a Shift cannot drift apart. Sunday exclusions come from
- * `isForbiddenOnSunday`, consulted rather than restated: that list has six numbered enforcement
- * layers and a seventh copy is how one of them goes stale — which is why the note naming what a
- * Sunday DOES allow is derived from that same call rather than written out.
+ * The in-place "enter it myself" control for an unreadable cell (v22.17). Why it exists, the three
+ * rules it keeps and why the times are text boxes are the module header's; it is not repeated here.
  *
  * Both groups state their question on screen (v22.51). They had an `aria-label` and nothing else,
  * so a sighted admin met six unlabelled buttons in a grey box, then six more; and the two reasons a
  * control is locked — a Sunday, a rest day — lived in `title` attributes, which a phone never shows.
- *
- * ── WHY THE TIMES ARE TEXT AND NOT `<input type="time">` ───────────────────────────────────
- *
- * `type="time"` was written first — it validates by construction and needs no formatter, which
- * is a real argument. It was replaced on a MEASUREMENT. Chromium renders that control from the
- * OS/browser format settings, not from the page, so it showed `06:00 AM` / `02:00 PM` even with
- * `navigator.language` forced to `en-GB` (checked, because the obvious explanation — an en-US
- * test browser — turned out to be the wrong one). Every other time on this page is 24-hour, and
- * the shift badges beside this control read `13:30-21:00`, so a 12-hour box in the one place the
- * admin TYPES is both inconsistent and genuinely ambiguous.
- *
- * Text does not weaken the guard: `manualCellValue` requires `HH:MM` on both boxes, so a
- * half-typed or malformed time simply produces no entry and writes nothing. What it needs
- * instead is to SAY so, which is what the hint under the boxes is for.
+ * The note naming what a Sunday DOES allow is derived from `isForbiddenOnSunday` (rule 2).
  *
  * @param {string} key @param {any} s @param {string} date
  */
@@ -228,7 +203,7 @@ export function redrawEntry(rowEl, key, st) {
  * Open or close a row's entry control, in place.
  *
  * Where it goes differs by row and this is the only place that knows: after the whole pick GROUP
- * on a CONFLICT row that offers readings, and after the button itself on an UNREADABLE row that
+ * on an UNREADABLE row that offers readings, and after the button itself on one that
  * does not — matching where the review's own render puts it.
  *
  * @param {any} rowEl the `.roster-change-row` @param {any} btn the pressed button
@@ -361,7 +336,7 @@ function entryHint(d, st) {
     // that is not on screen — every other error it raises is about times and reads correctly here.
     if (!d.flavour && d.type === 'other') return HINT_FLAVOUR;
     if (error) return esc(error.charAt(0).toUpperCase() + error.slice(1));
-    return d.type === 'other' ? HINT_OTHER : HINT_TODO;
+    return HINT_TODO;   // an Other day always composes or names its error (composeOtherValue), so it never gets here
 }
 
 /**
