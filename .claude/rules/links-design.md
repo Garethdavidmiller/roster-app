@@ -304,8 +304,9 @@ nothing** — `A → B`, and the reader decides.
 - **Both windows are always stated** — compare diffs cells, not windows (The staffed operating window,
   below).
 - With two or more designs: two read-only grids side by side from 1024px and stacked below, gold
-  outlines on differing cells, and the two columns kept on the same day as either scrolls. Each column
-  keeps `overflow-x: auto`. The main grid stays **rendered** in compare mode, hidden on screen only
+  outlines on differing cells, and the two columns kept on the same day as either scrolls. The outline
+  is the DARK gold, `--gold-text`, at 5.4:1 or more on every cell fill: the brand gold measured
+  1.2–1.4:1, under the 3:1 a marker needs. Each column keeps `overflow-x: auto`. The main grid stays **rendered** in compare mode, hidden on screen only
   (`body.links-compare-on` inside `@media screen`), so print always outputs the active design;
   `#printDesignName` names the sheet.
 
@@ -382,12 +383,11 @@ kept, because the reload's hide keeps the copy above.
   carries **no status tint** — a coloured chip would read as one more finding. Naming the design was
   chosen over hiding the strip: a designer comparing options still wants live analysis of the one they
   are editing.
-- **Accepted, not fixed: compare columns scroll with no right-edge cue.** The grid wrapper and the
-  generator table carry the `local`/`scroll` gradient cue on a phone; a compare column cannot, because
-  its cells are TRANSPARENT, so a wrapper fade would show THROUGH them and tint the end of every column,
-  gold outlines included. That was measured from the computed backgrounds, not assumed. The
-  alternative is a narrower cell, which hurts the single-design view. Revisit only with a real
-  complaint.
+- **Compare columns carry the same right-edge cue as the single grid.** Each column is a
+  `.links-grid-wrapper`, so on a phone it wears the same `local`/`scroll` gradient. Its cells are
+  transparent, so the shade shows through them at the visible end of a column while more remains, and
+  that shade is the cue. The `local` layer masks it once the column's end is reached, and the gold
+  outlines stay intact. Rendered with and without the gradient, 10 Nov 2026.
 
 ### Paint mode
 
@@ -735,7 +735,9 @@ The HOURS averages are `weeklyHours`, so the page cannot state a design's hours 
 average divides by the WORKING lines (invariant 7), because a cover week does not record which days it
 works; that is also how `TARGET_DAYS_PER_WEEK` is derived, so the measured figure is comparable with the
 target. Both divisors are printed on screen. A cover week's hours show as the contracted week, muted and
-italic, because that is a convention rather than a reading; its days are a dash — unknown, not none. The
+italic, because that is a convention rather than a reading; its days are a dash — unknown, not none. A
+total that is a FLOOR (a duty on the line could not be read) is orange and ends in "+", so it is not
+told by its colour alone; the "+" is silent where the cell's label already says it. The
 `.tot-legend` line under the grid says what each style means. Rules in `lineTotals`; pinned by
 `links-design.test.mjs`.
 
@@ -1222,8 +1224,12 @@ and the window editor are hidden.
 - **The grid's day header sticks from 768px up.** Below that the table really does overflow, so the
   wrapper is `overflow-x: auto`, which makes it a scroll container and leaves the sticky `thead` inert
   (an accepted phone constraint, KNOWN_LIMITATIONS.md → Links). From 768px the table fits, the wrapper is
-  `overflow-x: visible`, and the header sticks. Do not add a `max-height` without resetting it at that
-  breakpoint and in `@media print`, where a clipped sheet is silent on screen.
+  `overflow-x: visible`, and the header sticks. It fits there only because, below 1024px, the totals'
+  names and the days note may wrap (`links.css` has the measurements). At large Android text it still
+  clips the last totals column at the narrow end of that band, and keeping the sticky header against
+  restoring the scroll container is the owner's decision (KNOWN_LIMITATIONS.md → Links). Do not add a
+  `max-height` without resetting it at that breakpoint and in `@media print`, where a clipped sheet is
+  silent on screen.
 - **The paint bar sticks above the day header from 768px on a fine pointer**, and the header sticks
   beneath it at the bar's measured height (`--brush-bar-h`), so the lower lines can be painted without
   scrolling back up. Not on a phone, where the bar is already counted as a cost to the screen.
