@@ -3337,6 +3337,45 @@ test('calendar: the leave panel refuses a balance served from the offline cache'
     await expect(page.locator('#alLbTaken')).toHaveText('—');
 });
 
+// …AND A BALANCE THIS DEVICE SAVED EARLIER IS LABELLED AS ONE until a read confirms it (10 Nov 2026,
+// cal-ui-2). The saved copy has no age limit: the member who reads "6 left" from a copy saved before
+// three more days were recorded must be told it was not checked — the month grid's words for the same
+// state (CALENDAR_DATA.md 18) — rather than shown it as current, and the figures stay.
+/** Seed a saved balance for G. Miller's 2026 that no read would produce: 20 taken, 6 booked, of 32. */
+const seedSavedBalance = (/** @type {import('@playwright/test').Page} */ page) => page.addInitScript(() => {
+    localStorage.setItem('myb_al_stats_G. Miller|2026', JSON.stringify(
+        { taken: 20, booked: 6, entitlement: 32, breakdown: null, carry: null, christmas: null }));
+});
+
+test('calendar: the leave panel labels a saved balance it could not check, and keeps it', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await seedSavedBalance(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — couldn\'t check for changes');
+    await expect(page.locator('#alLbError')).toBeVisible();
+    await expect(page.locator('#alLbTaken'), 'the saved figures stay').toHaveText('20');
+    await expect(page.locator('#alLbRemaining')).toHaveText('6');
+});
+
+test('calendar: the leave panel says a saved balance is being checked, and drops that once it is', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await seedSavedBalance(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbTaken')).toHaveText('20');
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — checking for changes…');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(page.locator('#alLbTaken'), 'the server\'s answer replaces the copy').toHaveText('0');
+    await expect(page.locator('#alLbError')).toBeHidden();
+});
+
 // ── THE LEAVE PANEL'S YEAR AND ITS SECOND ROUTE (v24.46, owner) ─────────────────────────────────
 // "As we are nearing the end of the year I would like to be able to tap right and see 2027's", and a
 // second button to the recorded-leave list. The figures are asserted, not just the label: a year

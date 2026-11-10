@@ -85,17 +85,20 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   // one-shot getDocs is SERVER-first in the Firestore SDK (the persistent cache is only its
   // offline fallback), so every open previously sat on '…' for a full network round-trip.
   // Rendering the previous successful result instantly — then refreshing it from the (now
-  // member-narrowed) server query — is the app's stale-while-revalidate/last-good pattern
-  // (team view keeps its last-good grid the same way). Module-local key: not in storage-keys.js
-  // (that file is only for keys shared across files).
+  // member-narrowed) server query — is the app's stale-while-revalidate/last-good pattern.
+  // LABELLED AS A SAVED COPY until that refresh lands (10 Nov 2026, CALENDAR_DATA.md 18): it has no
+  // age limit, and leave recorded since it was saved is not in it. Module-local key: not in
+  // storage-keys.js (that file is only for keys shared across files).
   /** @param {string} name @param {string|number} year */
   const _alMemoKey = (name, year) => `myb_al_stats_${name}|${year}`;
 
   const statsEl  = document.querySelector('.al-lb-stats');
   const remLblEl = document.getElementById('alLbLblRemaining');
 
-  // The markup's own words are the could-not-load answer, kept to put back after another line.
+  // The markup's own words are the could-not-load answer, kept to put back after another line. A
+  // status, so a check failing while the panel is open is spoken (the month grid's label is one too).
   const LOAD_FAILED = alErrorEl?.textContent ?? '';
+  alErrorEl?.setAttribute('role', 'status');
   /** The line under the figures, for when they are not a confirmed balance — or there are none.
    *  @param {string|null} text */
   function noteLine(text) {
@@ -183,14 +186,15 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
 
     if (!member) { paintPlaceholder('—'); if (firstRun) noteLine('Choose your name first to see your leave.'); return; }
 
-    // Instant paint from the last successful load (if any) while the refresh runs; else the
-    // '…' placeholders as before. A malformed memo falls through to placeholders.
+    // Instant paint from the last successful load (if any) while the refresh runs, labelled as the
+    // saved copy it is; else the '…' placeholders as before. A malformed memo falls through to placeholders.
     /** @type {any} */
     let memo = null;
     try { memo = JSON.parse(lsGet(_alMemoKey(/** @type {any} */ (member).name, yearStr)) || 'null'); } catch { /* placeholder path */ }
     const memoShown = !!(memo && Number.isFinite(memo.taken) && Number.isFinite(memo.booked) && Number.isFinite(memo.entitlement));
     if (memoShown) {
       renderALStats(memo);
+      noteLine('Saved copy — checking for changes…');
     } else {
       paintPlaceholder('…');   // also resets a prior load's low/empty colour (v16.22)
     }
@@ -252,7 +256,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       // selector), but `renderALStats` would otherwise do `null - taken - booked` and paint a
       // NEGATIVE remaining as confidently as a real one — null coerces to 0, so the arithmetic
       // that looks like it would fail loudly instead succeeds quietly.
-      if (entitlement === null) { paintPlaceholder('—'); return; }
+      if (entitlement === null) { paintPlaceholder('—'); noteLine(null); return; }
       // WHAT THE ENTITLEMENT IS MADE OF — the Admin banner's own line (`entitlementNote`), so the two
       // cannot describe one number differently. This panel built its own until v25.37 as
       // `22 base + ${entitlement - 22} BH lieu`, hidden for a pro-rated year because that literal 22 is
@@ -265,14 +269,20 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       const christmas = christmasLeaveLine(christmasLeaveDates({ member, year, overrides: memberOverrides }));
       const fresh = { taken, booked, entitlement, breakdown, carry, christmas };
       renderALStats(fresh);
+      noteLine(null);   // confirmed: no longer a saved copy
       // Persist the last-known-good memo so the NEXT open paints instantly (best-effort).
       lsSet(_alMemoKey(/** @type {any} */ (member).name, yearStr), JSON.stringify(fresh));
     } catch (e) {
       if (myGen !== _alLoadGen) return;   // a newer load superseded this one — don't clobber its result
-      // Memo already on screen → keep the last-good figures silently (the team-view failure
-      // model: no partial/blank clobber, minimal noise) and log for the developer. No memo →
+      // Memo already on screen → keep the last-good figures, no partial or blank clobber, but SAY
+      // they were not checked — the month grid's words for the same state (CALENDAR_DATA.md 18). A
+      // balance is read to plan leave, so a silent one read as current (10 Nov 2026). No memo →
       // the original visible error state.
-      if (memoShown) { console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e); return; }
+      if (memoShown) {
+        console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e);
+        noteLine('Saved copy — couldn\'t check for changes');
+        return;
+      }
       console.error('[AL lightbox] Failed:', e);
       paintPlaceholder('—');
       noteLine(LOAD_FAILED);
