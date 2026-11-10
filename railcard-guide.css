@@ -15,7 +15,7 @@
     --red:      #c62828;
     --red-bg:   #ffebee;
     --navy-bg:  #eef1f6;
-    --navy-tag-bg: #e2e7f0;  /* light-navy tag fill (three-layer OFFICIAL chip) */
+    --navy-tag-bg: #e2e7f0;  /* light-navy fill: the Chiltern-sourced pill, the follows-the-ticket cutoff */
 }
 
 /* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, print)
@@ -103,7 +103,6 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
 }
 .rc-name {
     font-size: 15px;
@@ -190,9 +189,7 @@ body {
     border-radius: 3px;
     white-space: nowrap;
 }
-.tl-tag.official { color: var(--navy);  background: var(--navy-tag-bg); }
 .tl-tag.local    { color: var(--amber); background: var(--amber-bg); }
-.tl-tag.check    { color: var(--red);   background: var(--red-bg); }
 
 .rc-layers {
     margin-top: 7px;
@@ -224,7 +221,6 @@ body {
 .rc-layer-lbl.official { color: var(--navy); }
 .rc-layer-lbl.local    { color: var(--amber); }
 .rc-layer-lbl.check    { color: var(--red); }
-.rc-layers a { color: var(--amber); font-weight: 600; }
 
 /* ── Gotchas list ────────────────────────── */
 .gotchas {
@@ -316,7 +312,6 @@ body {
 .pt-photo { font-weight: 600; }
 .pt-photo.green { color: var(--green); }
 .pt-photo.amber { color: var(--amber); }
-.pt-photo.red   { color: var(--red); }
 
 /* ── Digital railcards info ──────────────── */
 .digital {

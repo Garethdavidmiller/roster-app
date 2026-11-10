@@ -175,7 +175,7 @@ h2.section:first-of-type { margin-top: 4px; }
 /* The tint is for WHITE cards. The gotcha is already amber and the notes block carries its own
    fill, so they take the marker class (the register test requires it on every Draft-anchored
    block) but keep their own background — their `to confirm` pill is what carries the state. */
-.gotcha.rr-card--draft, .rr-notes.rr-card--draft { background: var(--amber-bg); }
+.gotcha.rr-card--draft { background: var(--amber-bg); }
 .rr-notes.rr-card--draft { background: var(--white); }
 
 .rr-top {
@@ -282,7 +282,6 @@ h2.section:first-of-type { margin-top: 4px; }
     color: var(--light);
 }
 .rr-val { color: var(--text); }
-.rr-val.ok { color: var(--green); font-weight: 600; }
 .rr-cutoff { display: block; font-weight: 600; }
 .rr-cutoff.no { color: var(--red); }
 .rr-cutoff.ok { color: var(--green); }
@@ -431,9 +430,12 @@ h2.section:first-of-type { margin-top: 4px; }
     body { background: #fff; font-size: 10.5pt; }
     main { max-width: none; padding: 0 8mm 8mm; }
     .chip-bar { display: none !important; }   /* and the footer back link: guide-shell.css */
-    .source-banner { border-bottom: 2pt solid var(--amber); print-color-adjust: exact; }
+    /* The prefixed twin as well, as every other guide stylesheet writes it: Chromium read only
+       `-webkit-print-color-adjust` until 136, and dropped these fills on paper without it. */
+    .source-banner { border-bottom: 2pt solid var(--amber); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .rr-card, .rr-no-item, .check-item, .gotcha, .quick, .rr-notes {
         break-inside: avoid;
+        -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
     /* The gradient does not reproduce reliably on every printer, and a card that loses its draft
