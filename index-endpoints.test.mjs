@@ -623,12 +623,105 @@ describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', 
         assert.match(out.body.error, /declined/);
     });
 
-    test('a request the API refuses is the AI service failing, not an unreadable answer', async () => {
-        buildWire({ status: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'refused on the wire' } } });
-        const out = await call(index.parseRosterPDF, rosterRequest());
+    // A REFUSAL IS NOT AN OUTAGE (cross-area lead, whole-app check 10 Nov 2026). A retired model id,
+    // a request the model will not take, a rejected key: each fails the same way every time, and
+    // "Could not reach the AI service — please try again in a moment" sent the admin round a retry
+    // that cannot work. roster-prompt.js names the case: a model that rejects a setting "would fail
+    // every upload as 'Could not reach the AI service'".
+    for (const [status, type] of [[400, 'invalid_request_error'], [401, 'authentication_error'],
+        [403, 'permission_error'], [404, 'not_found_error']]) {
+        test(`an HTTP ${status} is the AI service refusing, said so, and not worth a retry`, async () => {
+            buildWire({ status, body: { type: 'error', error: { type, message: 'refused on the wire' } } });
+            const out = await call(index.parseRosterPDF, rosterRequest());
+            assert.equal(out.code, 502);
+            assert.match(out.body.error, new RegExp(`refused the request \\(HTTP ${status}\\)`));
+            assert.doesNotMatch(out.body.error, /try again in a moment/, 'a permanent refusal told the admin to retry');
+            assert.doesNotMatch(out.body.error, /unreadable/, 'a refusal is not an unreadable answer');
+            assert.equal(wire.requests.length, 1, `a ${status} was retried, and the same request is refused every time`);
+        });
+    }
+
+    for (const [status, type] of [[529, 'overloaded_error'], [429, 'rate_limit_error']]) {
+        test(`a TRANSIENT HTTP ${status} is still "try again in a moment" — after the SDK's own retries`, async () => {
+            buildWire({ status, body: { type: 'error', error: { type, message: 'busy' } } });
+            const out = await call(index.parseRosterPDF, rosterRequest());
+            assert.equal(out.code, 502);
+            assert.match(out.body.error, /Could not reach the AI service — please try again in a moment/,
+                `a ${status} clears on its own, and was reported as a refusal`);
+            assert.equal(wire.requests.length, 3, 'retried twice before the admin is told');
+        });
+    }
+});
+
+describe('one copy of the request plumbing — the drifted copies\' answers, corrected (functions-core-8)', () => {
+    // The body reader and the admin gate were written out five times each and the copies drifted:
+    // a right PIN posted as a Buffer was charged as a wrong one, and parseRosterPDF alone refused a
+    // lower-case "bearer". request-helpers.js is now the one copy; these run it through the handlers.
+    test('a right PIN in a Buffer body unlocks — it is not read as a wrong guess', async () => {
+        const { ops } = build();
+        const req = withHelpers({ method: 'POST', headers: { origin: 'https://myb-roster.web.app', 'x-forwarded-for': STATION_IP },
+            body: Buffer.from(JSON.stringify({ pin: FIXTURE_PIN })) });
+        const out = await call(index.unlockCalendarViewer, req);
+        assert.equal(out.code, 200, `answered ${out.code}: ${JSON.stringify(out.body)}`);
+        assert.ok(minted(ops), 'no token was minted for the right PIN');
+    });
+
+    test('parseRosterPDF takes the bearer scheme in any case, as every other admin gate does', async () => {
+        build();
+        const out = await call(index.parseRosterPDF, rosterRequest({ auth: 'bearer tok' }));
+        assert.equal(out.code, 200, `a lower-case scheme answered ${out.code}`);
+    });
+});
+
+describe('parseRosterPDF: a model that never answers gets the handler\'s answer, not the platform\'s kill', () => {
+    // functions-core-7 (whole-app check, 10 Nov 2026). The SDK gives a call like this ten minutes
+    // per attempt and two retries, inside a function the platform ends at 120 s — so on a stall the
+    // platform killed the request first and the admin saw the page's "Unexpected error" fallback,
+    // never the handler's own answer. The handler now holds the whole call (attempts and the SDK's
+    // waits between them) to one deadline measured from the request's arrival.
+    //
+    // A REAL SDK against a server that accepts the request and never answers. `AbortSignal.timeout`
+    // is wrapped to record the deadline the handler asks for and to make it fire in 150 ms, so the
+    // test exercises the real arithmetic and the real SDK's abort without waiting a minute and a half.
+    const stall = { server: null, url: '', sockets: new Set() };
+    before(async () => {
+        stall.server = http.createServer(() => { /* accepts, never answers */ });
+        stall.server.on('connection', (s) => { stall.sockets.add(s); s.on('close', () => stall.sockets.delete(s)); });
+        await new Promise((resolve) => stall.server.listen(0, '127.0.0.1', resolve));
+        stall.url = `http://127.0.0.1:${stall.server.address().port}`;
+    });
+    after(() => {
+        for (const s of stall.sockets) s.destroy();
+        return new Promise((resolve) => stall.server.close(resolve));
+    });
+
+    test('the call is held to a deadline that leaves the function time to answer, and says so', async () => {
+        build();
+        AI.wire = class extends RealAnthropic {
+            constructor(opts) { super({ ...opts, baseURL: stall.url }); }
+        };
+        const asked = [];
+        const realTimeout = AbortSignal.timeout;
+        AbortSignal.timeout = (ms) => { asked.push(ms); return realTimeout.call(AbortSignal, 150); };
+        let out = null;
+        let bound;
+        try {
+            const pending = call(index.parseRosterPDF, rosterRequest()).then((o) => { out = o; });
+            // Bounded: on a handler with no deadline this would otherwise wait out the SDK's ten minutes.
+            await Promise.race([pending, new Promise((resolve) => { bound = setTimeout(resolve, 5_000); })]);
+        } finally {
+            clearTimeout(bound);
+            AbortSignal.timeout = realTimeout;
+        }
+        assert.equal(asked.length, 1, 'the model call carried no deadline of its own');
+        const limitMs = index.parseRosterPDF.__endpoint.timeoutSeconds * 1000;
+        const { GEOMETRY_WAIT_BUDGET_MS } = require('./functions/roster-geometry.js');
+        assert.ok(asked[0] >= 60_000, `a ${asked[0]} ms deadline would cut off an ordinary read (~15 s, slower under load)`);
+        assert.ok(asked[0] + GEOMETRY_WAIT_BUDGET_MS + 5_000 <= limitMs,
+            `a ${asked[0]} ms deadline leaves the post-model geometry wait and the answer no room inside ${limitMs} ms`);
+        assert.ok(out, 'the handler did not answer when its deadline passed');
         assert.equal(out.code, 502);
-        assert.match(out.body.error, /Could not reach the AI service/);
-        assert.equal(wire.requests.length, 1, 'a 400 was retried, and the same request is refused every time');
+        assert.match(out.body.error, /did not answer in time/);
     });
 });
 
@@ -1338,6 +1431,24 @@ describe('parseRosterPDF: a left-shifted row is repaired or sent to review, neve
         assert.equal(out.code, 200);
         assert.match(out.body.parsed[0].shifts[SUN], /^UNKNOWN\|05:30-11:30 was read for Sunday/,
             'a disputed Sunday the witness did not check must reach the admin, not be written either way');
+    });
+
+    // import-server-3 (whole-app check, 10 Nov 2026). Whether the roster HAS a Sunday column was the
+    // one header test written out by hand — exactly "sun" or "sunday" — beside `headerToDayIndex`, the
+    // single source every other layer resolves headers through. Dated headers ("Sun 30/08") were mapped
+    // to the right days everywhere else, and the Sunday repair alone switched itself off.
+    test('the same drifted week with DATED headers is realigned too', async () => {
+        const dated = DAY_HEADERS.map((h, i) => `${h} ${String(30 + i > 31 ? 30 + i - 31 : 30 + i).padStart(2, '0')}/${30 + i > 31 ? '09' : '08'}`);
+        const relabel = (/** @type {Record<string, string>} */ row) =>
+            Object.fromEntries(Object.entries(row).map(([k, v]) => [dated[DAY_HEADERS.indexOf(k)], v]));
+        build({ aiReply: JSON.stringify({ columnHeaders: dated,
+            parsed: [{ memberName: 'L. Springer', ...relabel({ ...DRIFTED, Sat: 'BLANK' }) }],
+            sundayScan: { 'L. Springer': 'BLANK' } }) });
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        const s = out.body.parsed[0].shifts;
+        assert.deepEqual(['2026-08-30', '2026-08-31', '2026-09-03', '2026-09-05'].map(d => s[d]),
+            ['RD', '05:30-11:30', '05:30-11:30', 'RD'], `headers ${dated.join(', ')} switched the Sunday repair off`);
     });
 });
 

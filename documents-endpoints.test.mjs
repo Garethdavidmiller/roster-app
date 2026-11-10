@@ -30,6 +30,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
+import { teamMembers, gradeForRole } from './roster-data.js';
 
 const require = createRequire(import.meta.url);
 const fnDir = new URL('./functions/', import.meta.url).pathname;
@@ -38,8 +39,40 @@ const storagePath = require.resolve('firebase-admin/storage', { paths: [fnDir] }
 const pushPath    = require.resolve('./functions/push.js');
 const authPath    = require.resolve('firebase-admin/auth', { paths: [fnDir] });
 const docsPath    = require.resolve('./functions/documents.js');
+// The pay reminder's audience and send. Reloaded with documents.js on every build: a cached copy would
+// keep the push transport and the Auth fake of whichever build loaded it FIRST, and record its sends there.
+const payPath     = require.resolve('./functions/pay-reminder.js');
+const webpushPath = require.resolve('web-push', { paths: [fnDir] });
+
+/** The REAL server-owned roster — the pay reminder's audience is read from it. */
+const ROSTER = require('./functions/roster-members.json');
+const { nameToEmail } = require('./functions/roster-parse-helpers.js');
 
 const SERVER_TS = { __serverTimestamp: true };
+
+/**
+ * The Auth world every roster member lives in: one account per name, at the email that name
+ * derives to, with the claims Set up accounts stamps. `getUserByEmail` is what the pay reminder
+ * resolves its audience through; an unknown email is `user-not-found`, exactly as the SDK says it.
+ * @param {(email: string) => any} [override]  return a record, or throw, for one email
+ */
+function rosterAccounts(override) {
+    /** @type {Map<string, any>} */
+    const byEmail = new Map();
+    for (const name of ROSTER.activeMembers) {
+        const email = nameToEmail(name).toLowerCase();
+        byEmail.set(email, { uid: `uid:${name}`, email, customClaims: { name, member: name } });
+    }
+    return async (/** @type {string} */ email) => {
+        const key = String(email).toLowerCase();
+        if (override) {
+            const got = override(key);
+            if (got !== undefined) return got;
+        }
+        if (!byEmail.has(key)) throw Object.assign(new Error('no user'), { code: 'auth/user-not-found' });
+        return byEmail.get(key);
+    };
+}
 
 // ── fakes ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -48,12 +81,13 @@ function makeDb(seed = {}) {
     const store = new Map(Object.entries(seed));
     const deletes = /** @type {string[]} */ ([]);
     /** @type {Error|null} */ let txError = null;
-    const snapFor = (/** @type {string} */ path) => ({
-        exists: store.has(path),
-        id: path.split('/')[1],
-        data: () => store.get(path),
-        ref: refFor(path),
-    });
+    /** @type {Error|null} */ let latestReadError = null;
+    // A snapshot holds the data AS READ, like Firestore's: a lazy `() => store.get(path)` would show a
+    // transaction the write it made after reading, which the real SDK never does.
+    const snapFor = (/** @type {string} */ path) => {
+        const data = store.get(path);
+        return { exists: store.has(path), id: path.split('/')[1], data: () => data, ref: refFor(path) };
+    };
     const refFor = (/** @type {string} */ path) => ({
         path,
         get: async () => snapFor(path),
@@ -73,6 +107,7 @@ function makeDb(seed = {}) {
                     .sort((a, b) => String((store.get(b) || {})[field])
                         .localeCompare(String((store.get(a) || {})[field])));
                 const page = (/** @type {number} */ n) => {
+                    if (latestReadError) throw latestReadError;
                     const docs = sorted().slice(0, n).map(snapFor);
                     return { empty: docs.length === 0, docs };
                 };
@@ -97,7 +132,8 @@ function makeDb(seed = {}) {
             });
         },
     };
-    return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; } };
+    return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; },
+        failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; } };
 }
 
 /** @param {string[]} existingObjects  Storage paths that already exist */
@@ -139,6 +175,8 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
     const fsFake = makeDb(seed);
     const stFake = makeStorage(objects);
     const sends = /** @type {{payload: any, tag: string}[]} */ ([]);
+    /** Every TARGETED send, with the uids it was addressed to. */
+    const targeted = /** @type {{payload: any, uids: string[], tag: string}[]} */ ([]);
     const stub = (/** @type {string} */ p, /** @type {any} */ exports) => {
         require.cache[p] = /** @type {any} */ ({ id: p, filename: p, loaded: true, exports });
     };
@@ -161,15 +199,21 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
             }
             return tokenClaims;
         },
+        getUserByEmail: rosterAccounts(),
     }) });
     stub(storagePath, { getStorage: () => ({ bucket: () => stFake.bucket }) });
     stub(pushPath, {
         setupWebPush: () => {},
         fanOutPush: async (/** @type {any} */ payload, /** @type {string} */ tag) => { sends.push({ payload, tag }); },
-        // Present so a handler reaching for the targeted sender is CAUGHT by an assertion — every
-        // notification in this domain is a broadcast by design (.claude/rules/notifications.md).
-        sendTargetedPush: async () => { throw new Error('documents domain must not use sendTargetedPush'); },
+        // Recorded APART from the broadcasts. The documents are broadcasts and the pay reminder is
+        // targeted (owner decision, 10 Nov 2026), so a handler on the wrong sender shows up as a
+        // send in the wrong array — never as the right count in the right one.
+        sendTargetedPush: async (/** @type {any} */ payload, /** @type {string[]} */ uids, /** @type {string} */ tag) => {
+            targeted.push({ payload, uids, tag });
+            return uids.length;
+        },
     });
+    delete require.cache[payPath];
     delete require.cache[docsPath];
     const { buildDocumentEndpoints } = require('./functions/documents.js');
     /** @type {{year: number, month: number, day: number}} */
@@ -185,8 +229,9 @@ function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}
         MAX_FILE_BYTES: maxFileBytes,
         MAX_HUDDLE_HTML_CHARS: 200_000,
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
+        rosterMembers: ROSTER,
     });
-    return { eps, sends, setNow: (/** @type {any} */ n) => { now = n; },
+    return { eps, sends, targeted, setNow: (/** @type {any} */ n) => { now = n; },
         setClaims: (/** @type {any} */ c) => { tokenClaims = c; },
         setRevoked: (/** @type {boolean} */ r) => { tokenRevoked = r; }, ...fsFake, ...stFake };
 }
@@ -306,6 +351,7 @@ describe('ingestHuddle — the happy path, executed to its side effects', () => 
         assert.equal(out.body.storageUrl, doc.storageUrl);
 
         // ONE broadcast, in the design language — through the REAL buildPushPayload.
+        assert.equal(b.targeted.length, 0, 'the Huddle is for everybody — never a targeted send');
         assert.equal(b.sends.length, 1);
         assert.equal(b.sends[0].payload.title, '📋 Latest Huddle');
         assert.equal(b.sends[0].payload.tag, 'huddle');
@@ -360,6 +406,57 @@ describe('ingestHuddle — the happy path, executed to its side effects', () => 
         assert.ok(b.deleted.includes('huddles/2026-04-01-aa.pdf'));
         assert.ok(b.deleted.includes('huddles/2026-04-01.pdf'));
         assert.ok(!b.deleted.includes('huddles/2026-08-01-bb.pdf'));
+    });
+});
+
+// ── A BIG .docx MUST NOT TAKE THE INGEST DOWN (functions-core-3, whole-app check 10 Nov 2026) ───
+//
+// The ingest accepts files up to 20 MB and declared no memory, so it ran on the platform default
+// (256 MiB). Measured on its own sequence: converting a 10 MB .docx peaks near 240 MB, a 19 MB one
+// near 350 MB, before the Storage and Firestore clients — and the HTML that comes out of anything
+// that size is millions of characters, far over the cap, and thrown away. A killed instance writes
+// nothing, notifies nobody, and staff keep reading yesterday's Huddle.
+describe('a large .docx Huddle is stored without a conversion whose HTML could never be kept', () => {
+    const mammothPath = require.resolve('mammoth', { paths: [fnDir] });
+    /** A file that passes the .docx signature check, of exactly `bytes` bytes. */
+    const docxOf = (/** @type {number} */ bytes) => Buffer.concat([Buffer.from([0x50, 0x4B, 0x03, 0x04]), Buffer.alloc(bytes - 4, 0x20)]);
+    /** @param {(calls: number[]) => Promise<void>} body */
+    const withMammoth = async (body) => {
+        const calls = /** @type {number[]} */ ([]);
+        require.cache[mammothPath] = /** @type {any} */ ({ id: mammothPath, filename: mammothPath, loaded: true, exports: {
+            convertToHtml: async (/** @type {{buffer: Buffer}} */ { buffer }) => { calls.push(buffer.length); return { value: '<p>Huddle</p>' }; },
+        } });
+        try { await body(calls); } finally { delete require.cache[mammothPath]; }
+    };
+
+    test('the ingest declares enough memory for the files it accepts', () => {
+        const b = build();
+        const mb = b.eps.ingestHuddle.__endpoint.availableMemoryMb;
+        assert.ok(Number.isFinite(mb) && mb >= 512,
+            `ingestHuddle runs on ${typeof mb === 'number' ? `${mb} MB` : 'the platform default (256 MiB)'} for files up to 20 MB`);
+    });
+
+    test('a .docx over the conversion limit is stored, announced and opened as a file — never converted', async () => {
+        await withMammoth(async (calls) => {
+            const b = build();
+            const out = await ingest(b.eps, { filename: 'huddle.docx', body: docxOf(2 * 1024 * 1024 + 1) });
+            assert.equal(out.code, 200);
+            assert.deepEqual(calls, [], 'a conversion ran whose HTML could only be discarded');
+            const doc = b.store.get('huddles/2026-08-30');
+            assert.equal(doc.fileType, 'docx');
+            assert.equal(doc.htmlContent, undefined, 'no inline HTML — the viewer offers the file instead');
+            assert.equal(b.sends.length, 1, 'and staff are still told it arrived');
+        });
+    });
+
+    test('an ordinary .docx is still converted for the in-app viewer', async () => {
+        await withMammoth(async (calls) => {
+            const b = build();
+            const out = await ingest(b.eps, { filename: 'huddle.docx', body: docxOf(40 * 1024) });
+            assert.equal(out.code, 200);
+            assert.deepEqual(calls, [40 * 1024]);
+            assert.equal(b.store.get('huddles/2026-08-30').htmlContent, '<p>Huddle</p>');
+        });
     });
 });
 
@@ -450,11 +547,88 @@ describe('the create triggers — who notifies, and the halves of the double-pus
         const b = build();
         await b.eps.onCircularCreated.run(snapEvent('2026-08-30', {}));
         await b.eps.onNewsletterCreated.run(snapEvent('2026-08-30', {}));
+        assert.equal(b.targeted.length, 0, 'a document arrival is for everybody — never a targeted send');
         assert.equal(b.sends.length, 2);
         assert.equal(b.sends[0].payload.title, '📰 Latest Retail Circular');
         assert.equal(b.sends[0].payload.tag, 'circular');
         assert.equal(b.sends[1].payload.title, '🗞️ Latest Marylebone Newsletter');
         assert.equal(b.sends[1].payload.tag, 'newsletter');
+    });
+});
+
+// ── "Latest" means the latest — and a hand upload never silences the automatic one ──────────────
+//
+// Whether staff were told used to be decided by "was a document CREATED for this date". Two real
+// sequences break that (functions-core-1, whole-app check 10 Nov 2026):
+//  · The card files a hand upload under TODAY; the automatic flow files the evening Huddle under the
+//    day it was RECEIVED — also today. So a Huddle uploaded by hand in the morning made that
+//    evening's automatic Huddle a "re-send", and nobody was told the next day's plan had arrived.
+//  · A back-filled OLDER document was announced as "Latest …", and the tap opened the newer one
+//    staff had already read.
+// The re-send guard keeps its real job: the automatic flow arriving on its OWN earlier upload (a
+// retry, or two concurrent runs) stays silent.
+describe('a notice says "Latest" only of the latest, and a hand upload never silences the automatic Huddle', () => {
+    const snapEvent = (/** @type {string} */ date, /** @type {any} */ data) =>
+        ({ params: { date }, data: data === undefined ? undefined : { data: () => data } });
+
+    test('the automatic Huddle that lands on a hand-uploaded date IS announced', async () => {
+        const b = build({
+            seed: { 'huddles/2026-08-30': { date: '2026-08-30', storagePath: 'huddles/2026-08-30-man1.pdf', fileType: 'pdf', uploadedBy: 'G. Miller' } },
+            objects: ['huddles/2026-08-30-man1.pdf'],
+        });
+        const out = await ingest(b.eps, { date: '2026-08-30' });
+        assert.equal(out.code, 200);
+        assert.equal(b.store.get('huddles/2026-08-30').uploadedBy, 'power-automate');
+        assert.equal(b.sends.length, 1, 'a Huddle uploaded by hand this morning silenced this evening\'s automatic one');
+        assert.equal(b.sends[0].payload.tag, 'huddle');
+    });
+
+    test('the automatic flow arriving on its OWN earlier upload stays silent (a retry, a double run)', async () => {
+        const b = build({
+            seed: { 'huddles/2026-08-30': { date: '2026-08-30', storagePath: 'huddles/2026-08-30-pa1.pdf', fileType: 'pdf', uploadedBy: 'power-automate' } },
+            objects: ['huddles/2026-08-30-pa1.pdf'],
+        });
+        assert.equal((await ingest(b.eps, { date: '2026-08-30' })).code, 200);
+        assert.equal(b.sends.length, 0);
+    });
+
+    test('an automatic Huddle OLDER than the latest is stored, and not announced as "Latest"', async () => {
+        const b = build({ seed: { 'huddles/2026-08-31': { date: '2026-08-31', storagePath: 'huddles/2026-08-31-x.pdf', fileType: 'pdf', uploadedBy: 'G. Miller' } } });
+        const out = await ingest(b.eps, { date: '2026-08-30' });
+        assert.equal(out.code, 200);
+        assert.ok(b.store.has('huddles/2026-08-30'), 'the back-filled Huddle is still kept');
+        assert.equal(b.sends.length, 0, 'a tap on "Latest Huddle" would have opened the 31st, which staff already had');
+    });
+
+    for (const [name, collection, older, newer] of [
+        ['onCircularCreated', 'circulars', '2026-10-30', '2026-11-06'],
+        ['onNewsletterCreated', 'newsletters', '2026-09-01', '2026-10-01'],
+        ['onHuddleCreated', 'huddles', '2026-08-29', '2026-08-30'],
+    ]) {
+        test(`${name}: a back-filled older document is not announced; the newest still is`, async () => {
+            const doc = (/** @type {string} */ d) => ({ date: d, storagePath: `${collection}/${d}-a.pdf`, fileType: 'pdf', uploadedBy: 'G. Miller' });
+            const b = build({ seed: { [`${collection}/${older}`]: doc(older), [`${collection}/${newer}`]: doc(newer) } });
+            await b.eps[name].run(snapEvent(older, doc(older)));
+            assert.equal(b.sends.length, 0, `${older} was announced as the latest while ${newer} is`);
+            await b.eps[name].run(snapEvent(newer, doc(newer)));
+            assert.equal(b.sends.length, 1, 'the newest document must still be announced');
+        });
+    }
+
+    test('when the latest cannot be read, the arrival is still announced — silence is the failure nobody sees', async () => {
+        const b = build({ seed: { 'circulars/2026-11-06': { date: '2026-11-06', storagePath: 'circulars/2026-11-06-a.pdf' } } });
+        b.failLatestRead(Object.assign(new Error('unavailable'), { code: 14 }));
+        await b.eps.onCircularCreated.run(snapEvent('2026-11-06', { date: '2026-11-06' }));
+        assert.equal(b.sends.length, 1);
+    });
+
+    test('an ingest dated after London\'s tomorrow is refused before Storage — it would shadow every later Huddle', async () => {
+        const b = build();                                           // now = 30 Aug 2026
+        const out = await ingest(b.eps, { date: '2026-09-01' });
+        assert.equal(out.code, 400);
+        assert.equal(b.saved.length, 0);
+        assert.equal(b.store.size, 0);
+        assert.equal((await ingest(b.eps, { date: '2026-08-31' })).code, 200, 'tomorrow is a real date for a Huddle, as on the card');
     });
 });
 
@@ -466,18 +640,167 @@ describe('sendPayReminderNotification — a daily schedule that must fire on exa
         b.setNow({ year: 2026, month: 7, day: 30 });            // Sun 30 Aug 2026 — not a cutoff
         await b.eps.sendPayReminderNotification.run({});
         assert.equal(b.sends.length, 0);
+        assert.equal(b.targeted.length, 0);
     });
 
     test('a cutoff Saturday sends the pay reminder deep-linked to the payday six days on', async () => {
         const b = build();
         b.setNow({ year: 2026, month: 1, day: 7 });             // Sat 7 Feb 2026 — the first cutoff
         await b.eps.sendPayReminderNotification.run({});
-        assert.equal(b.sends.length, 1);
-        const p = b.sends[0].payload;
+        assert.equal(b.sends.length, 0, 'the pay reminder is never a broadcast (owner decision, 10 Nov 2026)');
+        assert.equal(b.targeted.length, 1);
+        const p = b.targeted[0].payload;
         assert.equal(p.tag, 'pay-reminder');
         assert.match(p.title, /^💷 Payday Friday — /);
         assert.ok(p.url.includes('payday=2026-02-13'), `deep link carries the payday: ${p.url}`);
         assert.match(p.body, /13 February/);
+    });
+});
+
+// ── WHOSE PHONES the pay reminder reaches (owner decision, 10 November 2026) ────────────────────
+//
+// The block above stubs the transport, which answers "was it sent" and not "to whose phone". A
+// targeted send is only as narrow as the uids it is handed AND the owner query that turns them into
+// devices, so this block runs the REAL push.js — its owner query, its endpoint guard, its fail-closed
+// branches — against a fake web-push that records the ENDPOINTS it was asked to reach.
+//
+// The expected audience is not typed here. It comes from the client's own `gradeForRole`, the
+// function the Pay Calculator turns a member away with, so pricing another grade there without
+// adding it to PAY_REMINDER_GRADES (functions/pay-reminder.js) fails this block rather than missing
+// those members.
+
+/** Everybody the Pay Calculator prices, among the people on the roster today (a leaver is hidden). */
+const PRICED = new Set(teamMembers
+    .filter(m => !m.hidden && !m.managerOnly && gradeForRole(m.role) !== null)
+    .map(m => m.name));
+const roleOf = (/** @type {string} */ name) => (teamMembers.find(m => m.name === name) || {}).role;
+const deviceOf = (/** @type {string} */ name) => `https://fcm.googleapis.com/fcm/send/${encodeURIComponent(name)}`;
+const LEGACY_DEVICE = 'https://fcm.googleapis.com/fcm/send/legacy-unowned';
+const PIN_DEVICE    = 'https://fcm.googleapis.com/fcm/send/shared-pin-pc';
+
+/**
+ * Every member on the server roster has one subscribed phone. Beside them sit the two devices a
+ * targeted send must never reach: a legacy record with no owner, and a station PC on the PIN account.
+ * @param {{ lookup?: (email: string) => any }} [opts]  answer (or throw) for particular emails
+ */
+function buildDeviceWorld({ lookup } = {}) {
+    const subs = [
+        ...ROSTER.activeMembers.map((/** @type {string} */ name) => ({ id: `dev:${name}`, owner: `uid:${name}`, endpoint: deviceOf(name) })),
+        { id: 'legacy', owner: undefined, endpoint: LEGACY_DEVICE },
+        { id: 'pin-pc', owner: 'calendar-viewer', endpoint: PIN_DEVICE },
+    ];
+    const sent = /** @type {{endpoint: string, payload: any}[]} */ ([]);
+    const docFor = (/** @type {any} */ s) => ({
+        id: s.id,
+        data: () => ({ endpoint: s.endpoint, keys: { p256dh: 'p', auth: 'a' }, owner: s.owner }),
+        ref: { delete: async () => {} },
+    });
+    const collection = (/** @type {string} */ name) => {
+        assert.equal(name, 'pushSubscriptions', `the pay reminder read the ${name} collection`);
+        return {
+            get: async () => ({ docs: subs.map(docFor), size: subs.length, empty: subs.length === 0 }),
+            where: (/** @type {string} */ field, /** @type {string} */ op, /** @type {any} */ value) => {
+                // The operator is part of the query: '!=' would be everybody else's phones.
+                if (op !== '==') throw new Error(`fake where(): only '==' is modelled, got ${JSON.stringify(op)}`);
+                const hit = subs.filter((/** @type {any} */ s) => s[field] === value);
+                return { get: async () => ({ docs: hit.map(docFor), size: hit.length, empty: hit.length === 0 }) };
+            },
+        };
+    };
+    const stub = (/** @type {string} */ p, /** @type {any} */ exports) => {
+        require.cache[p] = /** @type {any} */ ({ id: p, filename: p, loaded: true, exports });
+    };
+    stub(firePath, { getFirestore: () => ({ collection }), FieldValue: { serverTimestamp: () => SERVER_TS } });
+    stub(authPath, { getAuth: () => ({ getUserByEmail: rosterAccounts(lookup) }) });
+    stub(storagePath, { getStorage: () => ({ bucket: () => makeStorage().bucket }) });
+    stub(webpushPath, {
+        setVapidDetails: () => {},
+        sendNotification: async (/** @type {any} */ sub, /** @type {string} */ payload) => {
+            sent.push({ endpoint: sub.endpoint, payload: JSON.parse(payload) });
+        },
+    });
+    delete require.cache[pushPath];   // the REAL transport, loaded against the fakes above
+    delete require.cache[payPath];
+    delete require.cache[docsPath];
+    const { buildDocumentEndpoints } = require('./functions/documents.js');
+    const eps = buildDocumentEndpoints({
+        HUDDLE_SECRET: { value: () => 'huddle-secret' },
+        VAPID_PRIVATE_KEY: { value: () => 'vapid-private' },
+        VAPID_PUBLIC_KEY: 'vapid-public',
+        STAFF_SITE_URL: 'https://myb-roster.web.app',
+        readRawBody: async (/** @type {any} */ req) => req._rawBody,
+        nowInLondon: () => ({ year: 2026, month: 10, day: 14 }),   // Sat 14 Nov 2026 — the cutoff before payday 20 Nov
+        isRetriableFirestoreError: () => false,
+        MAX_FILE_BYTES: 20 * 1024 * 1024,
+        MAX_HUDDLE_HTML_CHARS: 200_000,
+        ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
+        rosterMembers: ROSTER,
+    });
+    return { eps, sent, reached: () => new Set(sent.map(s => s.endpoint)) };
+}
+
+describe('the pay reminder reaches CEA and CES phones only — never a Dispatcher\'s or a manager\'s', () => {
+
+    test('the roster holds every audience this block is about, so it cannot pass by being empty', () => {
+        const onRoster = (/** @type {string} */ role) => ROSTER.activeMembers.filter((/** @type {string} */ n) => roleOf(n) === role);
+        for (const role of ['CEA', 'CES', 'Dispatcher', 'Management']) {
+            assert.ok(onRoster(role).length > 0, `no ${role} member on the server roster — the test below would prove nothing about them`);
+        }
+        assert.ok([...PRICED].every(n => ['CEA', 'CES'].includes(roleOf(n))),
+            'gradeForRole now prices a grade beyond CEA and CES — decide whether the pay reminder goes to it (PAY_REMINDER_GRADES, functions/pay-reminder.js)');
+    });
+
+    test('a cutoff Saturday reaches every CEA and CES phone, and no Dispatcher or manager phone', async () => {
+        const w = buildDeviceWorld();
+        await w.eps.sendPayReminderNotification.run({});
+        const reached = w.reached();
+        for (const name of ROSTER.activeMembers) {
+            assert.equal(reached.has(deviceOf(name)), PRICED.has(name),
+                PRICED.has(name)
+                    ? `a ${roleOf(name)} member's phone was not sent the pay reminder`
+                    : `a ${roleOf(name)} member's phone was sent the pay reminder — the calculator turns them away`);
+        }
+        assert.ok(!reached.has(LEGACY_DEVICE), 'a record with no owner was reached — a targeted send never guesses an owner');
+        assert.ok(!reached.has(PIN_DEVICE), 'the shared PIN PC was reached');
+        assert.equal(w.sent.length, reached.size, 'a phone was sent the reminder twice');
+        for (const s of w.sent) {
+            assert.equal(s.payload.tag, 'pay-reminder');
+            assert.ok(s.payload.url.endsWith('/paycalc.html?payday=2026-11-20'), s.payload.url);
+            assert.match(s.payload.body, /20 November/);
+        }
+    });
+
+    test('when no member can be resolved, nothing is sent — never a fall-back to everyone', async () => {
+        const w = buildDeviceWorld({ lookup: () => { throw Object.assign(new Error('auth unavailable'), { code: 'auth/internal-error' }); } });
+        await w.eps.sendPayReminderNotification.run({});
+        assert.deepEqual(w.sent, [], 'an Auth outage turned the targeted reminder into a broadcast');
+    });
+
+    test('one member whose lookup fails is skipped, and everyone else is still reached', async () => {
+        const skipped = ROSTER.cea[0];
+        const w = buildDeviceWorld({ lookup: (email) => {
+            if (email === nameToEmail(skipped).toLowerCase()) throw Object.assign(new Error('blip'), { code: 'auth/internal-error' });
+            return undefined;
+        } });
+        await w.eps.sendPayReminderNotification.run({});
+        const reached = w.reached();
+        assert.ok(!reached.has(deviceOf(skipped)));
+        assert.equal(reached.size, PRICED.size - 1, 'one failed lookup cost more than that one member');
+    });
+
+    test('a roster email linked to the shared PIN account is refused — the PIN PCs are not that member', async () => {
+        // A PIN holder can link a roster email to the shared account before Set up accounts reaches
+        // that member. The lookup then answers with the VIEWER's uid, and every station PC on the PIN
+        // would get a reminder meant for one person. Set up accounts and the admin reset refuse the
+        // same account (isViewerAccount); so does this.
+        const linked = ROSTER.ces[0];
+        const w = buildDeviceWorld({ lookup: (email) => (email === nameToEmail(linked).toLowerCase()
+            ? { uid: 'calendar-viewer', email, customClaims: { calendarViewer: true } }
+            : undefined) });
+        await w.eps.sendPayReminderNotification.run({});
+        const reached = w.reached();
+        assert.ok(!reached.has(PIN_DEVICE), 'the PIN account was treated as the member whose email it holds');
+        assert.equal(reached.size, PRICED.size - 1);
     });
 });
 
