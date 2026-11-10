@@ -137,10 +137,11 @@
 
         .calendar-day.today.today-pulse {
             animation: todayPulse 0.5s ease-out forwards;
-            /* Fallback box-shadow for browsers without @property */
-            box-shadow: 0 3px 10px var(--gold-glow), 0 0 0 1px var(--primary-blue);
-            /* Animated variant: --accent-gold oklch with a VARIABLE alpha (@property-driven) — cannot
-               route through a static token; documented exception to the no-literal rule. */
+            /* --accent-gold's own oklch with a VARIABLE alpha (@property-driven): a restated copy, because
+               forwarding the token takes `color-mix()` with a calc() percentage, not verified on the oldest
+               Safari the app supports. calendar-controls-parity.test.mjs fails the day the two differ. No
+               "fallback" declaration before it: where the var() fails this computes to `none`, never to
+               an earlier line. */
             box-shadow: 0 3px 10px oklch(84.7% 0.1734 92.3deg / var(--today-glow-alpha)), 0 0 0 1px var(--primary-blue);
         }
 
@@ -1607,7 +1608,6 @@
             border-collapse: collapse;
             width: 100%;
             min-width: 500px;
-            font-size: var(--type-small);
         }
         .team-table thead th {
             background: var(--primary-blue);
@@ -1621,8 +1621,7 @@
             top: 0;
             z-index: 2;
         }
-        .team-table th.tv-name-col,
-        .team-table td.tv-name-col {
+        .team-table th.tv-name-col {
             position: sticky;
             left: 0;
             z-index: 2;
@@ -1690,8 +1689,7 @@
             .team-table tbody th.tv-name-col,
             .tv-cell { font-size: var(--type-small); }
             .tv-day-num { font-size: var(--type-body); }
-            .team-table th.tv-name-col,
-            .team-table td.tv-name-col { max-width: none; }
+            .team-table th.tv-name-col { max-width: none; }
         }
         /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
         /* #teamInfoLightbox uses .lb-overlay — no unique properties */
@@ -2012,25 +2010,12 @@
                 border-color: var(--border-mid) !important;
             }
 
-            .calendar-day.early-shift {
-                background: var(--early-cell) !important;
-            }
-
-            .calendar-day.late-shift {
-                background: var(--blue-light) !important;
-            }
-
+            /* Early, Late, Spare and RDW have no print rule of their own: their screen fills print as they
+               are (the `*` rule above), on the 1px grey edge every cell gets here. Rules restating only the
+               fill were removed — they changed nothing. */
             .calendar-day.night-shift {
                 background: var(--night-cell-bg) !important;
                 border-color: var(--night-cell-border) !important;
-            }
-
-            .calendar-day.spare-day {
-                background: var(--purple-light) !important;
-            }
-
-            .calendar-day.rdw-day {
-                background: var(--rdw-light) !important;
             }
 
             .calendar-day.al-day {
@@ -2098,7 +2083,6 @@
             }
 
             .legend-item {
-                font-size: 8px !important;
                 margin: 0 !important;
             }
 
@@ -2152,15 +2136,14 @@
             /* No cap on paper: an A4 sheet is under 1024px wide, so the phone cap above would apply
                and print the first screenful of names with the rest cut off, silently. */
             .team-table-wrap { overflow: visible; max-height: none; }
-            .team-table { min-width: 0; width: 100%; font-size: 9px; }
+            .team-table { min-width: 0; width: 100%; }
             .team-table thead th {
                 background: var(--primary-blue) !important;
                 position: static;
             }
             .team-table thead .tv-today-col { background: var(--accent-gold) !important; }
             .tv-cell { white-space: normal; }
-            .team-table th.tv-name-col,
-            .team-table td.tv-name-col { position: static; }
+            .team-table th.tv-name-col { position: static; }
             /* A NAME IS NEVER ELLIPSISED ON PAPER. On screen the narrow name column ellipsises, and a
                member who needs the full name can scroll or tap; paper has neither, so "R.
                Forrester-Black…" would be unrecoverable. A DOM check cannot see it — with `overflow:
@@ -2712,19 +2695,20 @@
         /* '…' while loading and '—' when there is nothing: muted, so they cannot pass for figures. */
         .al-lb-stats.is-pending .al-lb-val,
         .al-lb-stats.is-pending #alLbRemaining { color: rgba(255,255,255,0.35); }   /* the id rule above outranks a class */
-        /* 320px: four min-content cells at 10px labels overran the card by the width of "ENTITLEMENT"
-           (measured on a Dispatcher's breakdown). Tighter cell padding and no tracking buys it back. */
-        @media (max-width: 359px) {
-            .al-lb-stat { padding-inline: 3px; }
-            .al-lb-lbl  { letter-spacing: 0; }
-            #alLightboxContent { padding-inline: 14px; }
-        }
         .al-lb-lbl {
             font-size: var(--type-micro);
             font-weight: 600;
             color: rgba(255,255,255,0.6);
             text-transform: uppercase;
             letter-spacing: 0.3px;
+        }
+        /* 320px: four min-content cells at 10px labels overran the card by the width of "ENTITLEMENT"
+           (measured on a Dispatcher's breakdown). Tighter cell padding and no tracking buys it back.
+           AFTER `.al-lb-lbl`: placed above it, the tracking half lost on source order and never applied. */
+        @media (max-width: 359px) {
+            .al-lb-stat { padding-inline: 3px; }
+            .al-lb-lbl  { letter-spacing: 0; }
+            #alLightboxContent { padding-inline: 14px; }
         }
         /* Wraps (v24.46 polish): nowrap clipped "22 base + 5 BH lieu" at the card edge at 320px. */
         .al-lb-breakdown {
@@ -3101,7 +3085,7 @@
         #monthJumpCancel {
             background: var(--bg-faint);
             color: var(--text-mid);
-            border: 1.5px solid var(--border-light) !important;
+            border: 1.5px solid var(--border-light);   /* the id outranks `.month-jump-actions button`'s `border: none` */
         }
         @media (hover: hover) and (pointer: fine) {
             #monthJumpConfirm:hover { background: var(--primary-blue-dark); }
@@ -3264,6 +3248,7 @@
             content: '';
             position: absolute;
             inset: 0;
+            transform: none;   /* the 25th's ::after is also the 🎄, whose translateX(-50%) left half the cell unswept */
             background: linear-gradient(
                 90deg,
                 rgba(255,255,255,0) 0%,

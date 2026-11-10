@@ -19,7 +19,8 @@
 //   4. the month heading row keeps `flex-wrap: wrap`, the net that stops "September 2026" splitting
 //      on the commonest Android width and under text scaling no width query can see;
 //   5. every control on the page's navy surfaces names the gold or light focus ring, never leaving
-//      the navy fallback to draw on navy.
+//      the navy fallback to draw on navy;
+//   6. the today pulse's literal gold is still --accent-gold's value.
 //
 // Comments are stripped before matching, so a rule can't hide inside one — or be invented by one.
 
@@ -93,4 +94,16 @@ test('5. every control on the Calendar\'s navy surfaces names a ring drawn for a
     const wrong = ON_NAVY.filter(s => !/^var\(--focus-outline-(?:gold|light)\)$/.test(ring[s] ?? ''))
         .map(s => `${s} → ${ring[s] ?? 'no rule: the navy fallback'}`);
     assert.deepEqual(wrong, [], 'a control on navy needs --focus-outline-gold or --focus-outline-light');
+});
+
+// The today pulse animates the gold's ALPHA, so it carries the token's channels as a literal (index.css
+// says why it is not forwarded). A restated copy drifts from the token it mirrors (css-tokens.md); this
+// is the line that notices.
+test('6. the today pulse\'s gold is --accent-gold\'s own value, restated exactly', () => {
+    const shared = readFileSync(new URL('./shared.css', import.meta.url), 'utf8');
+    const token = /--accent-gold:\s*oklch\(([^)]+)\)/.exec(shared)?.[1].trim();
+    const pulse = RULES.find(r => r.selector === '.calendar-day.today.today-pulse');
+    assert.ok(token && pulse, 'the token and the pulse rule are both found');
+    const copy = /oklch\(([^/)]+)\/\s*var\(--today-glow-alpha\)\)/.exec(pulse.body)?.[1].trim();
+    assert.equal(copy, token, 'the pulse restates a gold that is no longer --accent-gold');
 });
