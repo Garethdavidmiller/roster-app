@@ -1559,6 +1559,41 @@ test('paycalc: the Settings summary and the rate field agree about the rate a pa
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
+// ── A YEAR NOT YET CHECKED, IN A MEMBER'S FIRST SESSION (whole-app review, Nov 2026) ──────────────
+// Grade, tax code, loan and pension are single settings used for every payslip; only the "checked"
+// mark is per tax year. The banner said they "apply to 2025/26 only", the card opened announcing a
+// "New tax year 2025/26" that had ended, and the header kept the checked year's "✓ … £21.49/hr" over
+// a payslip priced at £20.74. Here 2026/27 is checked and 2025/26 is not (the state after a first
+// Save, before the one-time sweep of a later load marks the older years).
+test('paycalc: stepping back to a year not yet checked says what is true, and no "New tax year" for one that is over', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-08T12:00:00'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_grade', 'cea');
+        localStorage.setItem('myb_pc_gmiller_setup', '1');
+        localStorage.setItem('myb_pc_gmiller_setup_2026_27', '1');
+        localStorage.setItem('myb_pc_gmiller_setup_years_migrated', '1');
+    });
+    await page.goto('/paycalc.html');
+    const view = (/** @type {number} */ n) => page.evaluate((num) => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
+        for (const o of sel.options) o.selected = o.value === String(num);
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }, n);
+    await expect(page.locator('#settingsHint')).toHaveText(/^✓ 2026\/27 — £/);
+    await view(47);   // paid 16 Jan 2026 — 2025/26, after its award
+    await expect(page.locator('#setupBanner')).toBeVisible();
+    await expect(page.locator('#setupBannerBody')).toContainText('Your settings apply to every payslip');
+    await expect(page.locator('#setupBannerBody')).not.toContainText('only');
+    await expect(page.locator('#settingsHint'), 'no ✓ over a year not yet checked').toHaveText('Check once per tax year — pension saves per payslip');
+    await expect(page.locator('#settingsNewYearNotice'), 'a year that is over is not a new one').toBeHidden();
+    await view(58);
+    await expect(page.locator('#settingsHint')).toHaveText(/^✓ 2026\/27 — £/);
+    expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
+});
+
 test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on', async ({ page }) => {
     const errors = collectFatalErrors(page);
     // The 2025/26 premium is paid on the first January payslip of 2027 (TAX_YEARS.hppPaidJan), so

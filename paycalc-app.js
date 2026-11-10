@@ -168,6 +168,8 @@ export function init() {
     // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
     // per browser session. Cleared on page reload. Uses tax year label as the key.
     const _settingsPrompted = new Set();
+    /** The Settings header's hint as the markup writes it, put back over a tax year not yet checked. @type {string|null} */
+    let _settingsHintDefault = null;
 
     // The default period num selected on page load (first upcoming payday). Used by
     // the ● today-period button to know when to show itself.
@@ -355,8 +357,12 @@ export function init() {
       const tyConfirmed = lsGet(settingsKey(ty));
       // Always keep the title current so the hardcoded HTML default never shows stale text.
       /** @type {HTMLElement} */ (document.getElementById('setupBannerTitle')).textContent = `👋 Estimate your take-home for ${ty.label}`;
+      // The card's header hint is written on BOTH branches: written only once checked, it kept
+      // "✓ 2026/27 — £21.49/hr" over a 2025/26 payslip priced at £20.74. An unchecked year gets back
+      // the markup's own hint, read before the first write.
+      const _hintEl = /** @type {HTMLElement} */ (document.getElementById('settingsHint'));
+      _settingsHintDefault ??= _hintEl.textContent ?? '';
       if (tyConfirmed) {
-        // Confirmed — hide banner, update card header hint with saved values.
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
         // The rate THIS payslip was paid at, as the rate field shows it (periodRate), with the field's
         // "pre-rise" qualifier — never the year's settled rate over a payslip priced at the old one.
@@ -364,15 +370,18 @@ export function init() {
         const rate = (_hintRate || numVal('hourlyRate') || (GRADES[getGrade()]?.rate ?? GRADES.cea.rate)).toFixed(2);
         // No tax code here: beside the period chip it wrapped onto a second line at 390px, and the
         // year, the rate and its pre-rise position are the at-a-glance facts. The code is in the card.
-        /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent =
-          `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise' : ''}`;
+        setStatus(_hintEl, `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise' : ''}`);
       } else {
+        _hintEl.textContent = _settingsHintDefault;
+        // What is TRUE (whole-app review): grade, tax code, loan and pension are single settings used
+        // for every payslip of every year; only the "checked" mark is per tax year.
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
-          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
+          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your settings apply to every payslip — you'll be asked to check them again when a new tax year starts.`;
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
-        // Auto-open settings once per session per TY — only for returning users (new users
-        // already see the settings card open). Show the in-card notice for returning users.
-        if (!_settingsPrompted.has(ty.label)) {
+        // Auto-open settings once per session per TY — only for returning users (new users already
+        // see the settings card open) — with the "New tax year" notice. Never for a year that is
+        // over: it is not new, and its settings are the ones every payslip already uses.
+        if (!_settingsPrompted.has(ty.label) && 48 + ty.last >= todaysPeriodNum()) {
           _settingsPrompted.add(ty.label);
           if (lsGet(SK.setup)) {
             setSettingsCardOpen(true);
