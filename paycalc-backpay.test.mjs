@@ -165,7 +165,7 @@ const IDS = [
     'bpIncludeTick', 'bpManualAmt', 'bpModeManual', 'bpModeCompute', 'bpAwardScope',
     'backPayTotalLabel', 'backPayPeriodWrap', 'bpEstimateNote', 'bpOrderWarn', 'bpRatesLine',
     'bpRateField', 'bpLondonField', 'bpRisePctField', 'bpModeManualWhy', 'bpComputeFields',
-    'bpManualWrap', 'periodSelect',
+    'bpManualWrap', 'periodSelect', 'bpRisePct',
 ];
 globalThis.document = /** @type {any} */ (doc);
 
@@ -173,7 +173,7 @@ const { SK, periodKey } = await import('./paycalc-migrations.js');
 const { getPeriods, CONFIG: PERIOD_CONFIG, payslipPeriodNum } = await import('./paycalc-periods.js');
 const { awardRatesFor, awardFromForYear } = await import('./paycalc-calc.js');
 const { resolveAuthoritativeRates } = await import('./paycalc-backpay-state.js');
-const { calcBackPay, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
+const { calcBackPay, prefillBackPay, raiseByPercent, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
     await import('./paycalc-backpay.js');
 const { getEffectiveContr, getProRateFactor } = await import('./paycalc-settings.js');
 const { _decodeHours } = await import('./paycalc-hpp.js');
@@ -514,5 +514,33 @@ describe('"Enter the amount from your payslip" opens once that payslip can be in
         calcBackPay();
         assert.equal(els.bpModeManual.disabled, false,
             'payslips are issued before they pay: from the cut-off the member may hold it (payslipMayBeInHand)');
+    });
+});
+
+// ── AN AWARD FLAGGED AS ACCEPTED (paycalc-2-23) ─────────────────────────────────────────────────
+// The "accepted, not yet paid" branch is dormant: no year carries `rateUnconfirmed`. When the next
+// one does, the percentage it opens with must be THAT year's. The old free-standing constant still
+// held 2026/27's 3.6% after it was paid, so flagging any later year offered last year's rise as an
+// accepted award and priced a lump from it.
+describe('a year flagged as accepted opens with its own offered percentage, or none', () => {
+    test('a flagged year with no percentage on record opens blank and prices nothing', () => {
+        TY.rateUnconfirmed = true;   // the shape a year is in once flagged (restored below)
+        try {
+            openCard();
+            for (const id of ['oldRate', 'newRateInput', 'oldLondon', 'newLondon', 'bpRisePct']) els[id].value = '';
+            prefillBackPay();
+            assert.equal(els.bpRisePct.value, '', 'no percentage is on record for this year, so none may be offered');
+            // …and what the coordinator's "Pay rise %" step would then do with whatever was offered.
+            const pct = parseFloat(els.bpRisePct.value);
+            if (pct > 0) {
+                els.newRateInput.value = raiseByPercent(parseFloat(els.oldRate.value), pct).toFixed(2);
+                els.newLondon.value = raiseByPercent(parseFloat(els.oldLondon.value), pct).toFixed(2);
+            }
+            const out = calcBackPay();
+            assert.equal(out.bpAmount, 0, 'a lump was priced from a rise nobody has announced');
+            assert.doesNotMatch(els.bpAwardScope.innerHTML, /Yours is roughly/);
+        } finally {
+            delete TY.rateUnconfirmed;
+        }
     });
 });

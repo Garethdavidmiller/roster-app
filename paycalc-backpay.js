@@ -31,13 +31,20 @@ import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecor
 
 import { setStatus } from './status-text.js';
 /**
- * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Pre-fills the
- * back-pay card's "Pay rise %" so an UNCONFIRMED award year (`ty.rateUnconfirmed`) opens with a live
- * estimate. DORMANT right now — the 2026/27 award is confirmed (paid on the 28 Aug 2026 payslip; no TAX_YEARS
- * entry carries `rateUnconfirmed`) — and re-arms when the NEXT award year is added with
- * `rateUnconfirmed: true`. Update the % then.
+ * The pay award OFFERED for a tax year whose award is accepted but not yet on a payslip
+ * (`ty.rateUnconfirmed`), as a percentage, KEYED BY THAT YEAR'S LABEL. It pre-fills the back-pay
+ * card's "Pay rise %", so such a year opens with a live estimate.
+ *
+ * Keyed by year rather than one free-standing figure (paycalc-2-23): a single constant still held the
+ * 2026/27 award's 3.6% after that award was paid, and would have re-armed for whichever year was next
+ * flagged — offering last year's percentage as an accepted award. A flagged year with no entry opens
+ * with the box blank and estimates nothing until a figure is typed: invariant 1.
+ *
+ * EMPTY while no award is pending. When the NEXT award is announced, flag its tax year and add
+ * `'<year>': <announced %>` here (.claude/rules/paycalc.md → "When the NEXT award is announced").
+ * @type {Readonly<Record<string, number>>}
  */
-const PENDING_AWARD_PCT = 3.6;
+const PENDING_AWARD_PCT = Object.freeze({});
 
 // The award tax year the card's rate/London/%/manual boxes were last prefilled for. The card follows
 // the VIEWED payslip's award year (v17.86), so this changes whenever the member navigates across a
@@ -190,11 +197,13 @@ export function prefillBackPay() {
     // the "Pay rise %" helper (defaulted below) or manual entry.
     if (!oldRateEl.value)   oldRateEl.value   = getStoredRateForYear(ty).toFixed(2);
     if (!oldLondonEl.value) oldLondonEl.value = ty.londonAllow.toFixed(2);
-    // Default the "Pay rise %" to the currently offered award so the card opens with an estimate.
-    // The coordinator's _applyBpRisePct() then derives the New rate/London from it. Adjustable —
-    // and only for the unconfirmed award year (once real rates are known this branch isn't taken).
+    // Default the "Pay rise %" to THIS year's offered award, when one is on record, so the card opens
+    // with an estimate. The coordinator's _applyBpRisePct() then derives the New rate/London from it.
+    // Adjustable — and only for the unconfirmed award year (once real rates are known this branch
+    // isn't taken).
     const pctEl = /** @type {HTMLInputElement | null} */ (document.getElementById('bpRisePct'));
-    if (pctEl && !pctEl.value) pctEl.value = String(PENDING_AWARD_PCT);
+    const offered = PENDING_AWARD_PCT[ty.label];
+    if (pctEl && !pctEl.value && offered != null) pctEl.value = String(offered);
   } else {
     // Settled award (e.g. 2025/26): the NEW rate is on record too, so prefill it — a historic
     // award opens fully populated (CEA 2025/26: old £20.06 → new £20.74). No "Pay rise %" default

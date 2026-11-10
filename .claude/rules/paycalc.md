@@ -81,8 +81,8 @@ keyed on `TAX_YEARS['2026/27'].londonAllowFrom`. The **arrears** back to 1 Apr 2
 **opt-in** back-pay lump (below), never auto-added to take-home.
 
 **When the NEXT award is announced:** add its tax year to `TAX_YEARS` with `rateUnconfirmed: true`
-and reset `PENDING_AWARD_PCT` (`paycalc-backpay.js` — dormant while no award is pending) to the
-announced figure. When its payslip lands: bump `GRADES.rate` + labels, set the year's
+and add the announced figure to `PENDING_AWARD_PCT` under that year's label (`paycalc-backpay.js` —
+empty while no award is pending). When its payslip lands: bump `GRADES.rate` + labels, set the year's
 `AWARD_RATES.rate`, add the following year with `pre` = this rate, set the year's
 `londonAllow`/`londonAllowPre`/`londonAllowFrom` on `TAX_YEARS`, drop `rateUnconfirmed`, and add the
 `PENSION_STEPS` step from the award payslip.
