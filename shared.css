@@ -479,6 +479,7 @@
     --on-navy-settings: oklch(82% 0.14 272.0deg);
     --on-navy-trains:   oklch(82% 0.14 357.0deg);
     --on-navy-ops:      oklch(82% 0.15 64.1deg);
+    --on-navy-newlink:  oklch(82% 0.11 182.5deg);   /* the New link pill's teal (`--al`'s hue) — v25.61 */
 
     --focus-outline: 2px solid var(--primary-blue);
     --focus-outline-gold: 2px solid var(--accent-gold);
@@ -1750,6 +1751,9 @@ button.lightbox-bug-link {
 .notice-badge--ops      { background: var(--orange);      color: var(--primary-blue); }
 .notice-badge--calendar { background: var(--accent-gold); color: var(--primary-blue); }
 .notice-badge--trains   { background: var(--raspberry);   color: white; }
+/* The New link pill's teal under white type, as the drawer wears it (5.19:1 — css-tokens.md); first worn by
+   `newlink-2026` (v25.61). */
+.notice-badge--newlink  { background: var(--al);          color: white; }
 
 /* THE CARD — three zones, and a surface that reads (v23.32).
    Use class="lb-content notice-lb-content" on every notice content div, and put the children in
@@ -1938,7 +1942,7 @@ button.lightbox-bug-link {
    the sheet — a white dialog's keeps its navy ring. e2e/pages.spec.js reads each computed ring. */
 .notice-lb-content .lb-close:focus-visible, #iconLightboxClose:focus-visible, #navNoticesClose:focus-visible,
 #navComingSoonClose:focus-visible, .notice-lb-content .btn-action:focus-visible, .lightbox-bug-link:focus-visible,
-.lightbox-print-btn:focus-visible, .notice-cta:focus-visible, .notice-later:focus-visible {
+.lightbox-print-btn:focus-visible, .notice-cta:focus-visible, .notice-later:focus-visible, #navNoticesList:focus-visible {
     outline: var(--focus-outline-gold); outline-offset: 2px;
 }
 
@@ -2858,6 +2862,7 @@ button.nav-panel-link--notices {
 /* The Trains pill's raspberry, lifted to the same lightness as the three above so it reads on the
    navy archive panel — the pill's own L51% is a FILL under white text, too dark to be text here. */
 .notices-item-section--trains   { color: var(--on-navy-trains); }
+.notices-item-section--newlink  { color: var(--on-navy-newlink); }
 .notices-item-date {
     font-size: var(--type-badge);
     color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */

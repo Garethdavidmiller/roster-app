@@ -187,7 +187,7 @@ test('the shared controls on a navy surface name a ring drawn for one', () => {
     const ON_NAVY = ['.app-icon:focus-visible', '#iconLightboxClose:focus-visible', '.notice-lb-content .lb-close:focus-visible',
         '#navNoticesClose:focus-visible', '#navComingSoonClose:focus-visible', '.lightbox-bug-link:focus-visible',
         '.lightbox-print-btn:focus-visible', '.notice-cta:focus-visible', '.notice-later:focus-visible',
-        '.notice-lb-content .btn-action:focus-visible'];
+        '.notice-lb-content .btn-action:focus-visible', '#navNoticesList:focus-visible'];
     /** @type {Record<string, string>} */ const ring = {};
     for (const m of src.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)) {
         for (const s of selectorList((m[1].split(';').pop() ?? '').trim().replace(/\s+/g, ' '))) {

@@ -479,6 +479,42 @@ test('keyboard focus is visible on the navy surfaces the shared code draws', asy
     }
 });
 
+// A LONG APP NOTICES ARCHIVE SCROLLS, AND THE KEYBOARD CAN SCROLL IT (v25.61). The list moves beneath a still
+// ✕ and heading, and its only Tab stop was the ✕ — so a keyboard could not reach the list to scroll it, which axe
+// names scrollable-region-focusable. It surfaced when the New link notice made the archive scan's eighth entry and
+// the list outgrew the panel; a member's archive holds up to 50, and on a phone far fewer scroll. The static floor
+// (focus-ring-parity) names the ring rule; this proves the keys reach the list, the ring is drawn, and it scrolls.
+// It does NOT guard the list's tabindex: Chromium makes a scroller focusable by itself, so this passes here without
+// one (measured) — WebKit does not. The tabindex's guard is axe.spec.js → "App Notices open over a light page".
+test('App Notices: a long archive is reached and scrolled from the keyboard, with a ring you can see', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify(
+        Array.from({ length: 14 }, (_, i) => ({ id: `probe-${i}`, section: 'Pay', title: `Notice ${i + 1}`, date: '21 Oct 2026',
+            body: 'A body long enough to take two lines in the panel, as a real notice does.',
+            archivedAt: '2026-10-21T09:00:00.000Z' })))));
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    // The panel puts focus on its ✕ 60ms after opening; keys sent before that would race it, which no person can.
+    await expect(page.locator('#navNoticesClose'), 'it opens with the ✕ focused').toBeFocused();
+    const list = page.locator('#navNoticesList');
+    expect(await list.evaluate(el => el.scrollHeight > el.clientHeight), 'premise: fourteen notices overflow the panel').toBe(true);
+    const gold = await ringColourOf(page, '--focus-outline-gold');
+    expect(await tabToRing(page, '#navNoticesList'), 'Tab reaches the list, ringed in the sheet\'s gold')
+        .toEqual({ style: 'solid', width: '2px', colour: gold });
+    await page.keyboard.press('End');
+    await expect.poll(() => list.evaluate(el => el.scrollTop), 'End scrolls the focused list to its last notice').toBeGreaterThan(0);
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#navNoticesClose'), 'and Tab goes round to the ✕ — the panel keeps focus').toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(list, 'Shift+Tab comes back to the list').toBeFocused();
+});
+
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
 // registered the service worker only after their sign-in gate, so a release landing while somebody
 // sat on the sign-in screen left them working on the old release under the new worker. Operations

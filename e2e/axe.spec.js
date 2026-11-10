@@ -801,7 +801,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.setViewportSize({ width: 1366, height: 900 });
         await seedSession(page);
         await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify(
-            ['Trains', 'Pay', 'Links', 'Settings', 'Operations', 'Calendar', 'General']
+            ['Trains', 'Pay', 'Links', 'Settings', 'Operations', 'Calendar', 'New link', 'General']
                 .map((section, i) => ({ id: `probe-${i}`, section, title: `A ${section} notice`, date: '21 Oct 2026',
                     body: 'Body text.', archivedAt: '2026-10-21T09:00:00.000Z' })))));
         await page.goto('/admin.html');
@@ -811,7 +811,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
         await page.locator('.nav-panel-link--notices').click();
         await expect(page.locator('#navNoticesLightbox')).toBeVisible();
-        await expect(page.locator('#navNoticesContent .notices-item')).toHaveCount(7);
+        await expect(page.locator('#navNoticesContent .notices-item')).toHaveCount(8);
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
         // At the sheet's lightest point, not where each one happens to sit: the list scrolls, and
@@ -819,7 +819,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         const measured = await contrastOnSheet(page, '#navNoticesContent', '.notices-item-section, .notices-item-date, .notices-item-body', { lightest: true });
         const low = measured.filter(m => m.ratio < 4.5);
         expect(low, `below 4.5:1 on the sheet: ${low.map(m => `${m.text} ${m.ratio}:1`).join(' · ')}`).toEqual([]);
-        expect(measured.length, 'a section label, a date and a body for each of the seven notices').toBe(21);
+        expect(measured.length, 'a section label, a date and a body for each of the eight notices').toBe(24);
     });
 
     // …and EMPTY, its one line (Nov 2026). "Notices you've read on this device appear here." was white
@@ -1032,6 +1032,23 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await expect(page.locator('#timetableSoonNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('the New link notice open (calendar) — the New link badge on the glass (v25.61)', async ({ page }) => {
+        // The teal New link badge under white type, a pairing no other notice carries (5.19:1 on paper — css-tokens.md;
+        // this is where it is measured on the glass). Members the page admits, 9 November to 5 December, and on a phone
+        // only after the install notice: the seeders mark that one answered, so clearing this flag alone is the setup,
+        // on every project.
+        await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await seedMemberSession(page, 'G. Miller');
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#newlinkNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });

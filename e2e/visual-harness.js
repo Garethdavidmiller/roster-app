@@ -52,6 +52,7 @@ export function dismissOneTimeOverlays(page) {
             'myb_notice_ytd_figures_2026_done': '1', // the Year to Date calendar notice (v24.86)
             'myb_notice_install_app_2026_done': '1', // the install calendar notice (v24.91)
             'myb_notice_timetable_soon_2026_done': '1', // the final-week calendar notice, 6–12 Dec 2026 (v24.96)
+            'myb_notice_newlink_2026_done': '1', // the New link calendar notice, 9 Nov – 5 Dec 2026 (v25.61)
         };
         for (const [k, v] of Object.entries(flags)) {
             try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }

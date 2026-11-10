@@ -72,6 +72,7 @@ export function seedSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
+        localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
         // The Links first-visit panel ("How Links works") joined them at the 1.63 upgrade, for the
         // reason above: it opens after load and covers the burger, and Overtime's every-page sweep
@@ -99,7 +100,8 @@ export function seedSession(page, name = 'G. Miller') {
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
 export function clearNoticeFlags(page, keys = ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done',
-                                               'myb_notice_install_app_2026_done', 'myb_notice_timetable_soon_2026_done']) {
+                                               'myb_notice_install_app_2026_done', 'myb_notice_timetable_soon_2026_done',
+                                               'myb_notice_newlink_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -144,6 +146,7 @@ export function seedMember(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
+        localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
     }, name);
 }
 
@@ -340,6 +343,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
+        localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }

@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures.js';
+import { CONFIG, teamMembers } from '../roster-data.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
@@ -1548,6 +1549,98 @@ test('the Calendar\'s three notices come one per load — timetable, Year to Dat
     await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
     await page.waitForTimeout(2500);
     await expect(page.locator('.notice-lb-content:visible'), 'all three answered: nothing more').toHaveCount(0);
+    expect(errors).toHaveLength(0);
+});
+
+// ── The New link notice: only where the page would let them in, after the install notice (v25.61) ───
+//
+// What calendar-notices.test.mjs cannot see, because it fakes the page: that a real colleague's real
+// sign-in reaches the gate, that the link really lands them ON the New link page (which turns away
+// anybody the notice should not have told), and that on a real phone the order holds across reloads.
+// Who it is for, every name on the roster, and the dates are pinned there.
+const NEWLINK_NOTICE_DAY = new Date('2026-11-10T09:00:00Z');   // the day after its posting; offered to 5 Dec
+/** Somebody on the roster who fits — found, not named, so a leaver cannot break a test (newlink.spec.js's rule),
+ *  and never on a role list, which would reach the page by that list instead. @param {string} what
+ *  @param {(m: any) => boolean} fits @returns {string} */
+function rosterSomeone(what, fits) {
+    const roles = [...CONFIG.ADMIN_NAMES, ...(CONFIG.MANAGER_NAMES || []), ...(CONFIG.NEWLINK_PREVIEW || [])];
+    const m = teamMembers.find(x => !x.hidden && !x.managerOnly && !roles.includes(x.name) && fits(x));
+    if (!m) throw new Error(`the roster has no ${what}`);
+    return m.name;
+}
+const NEWLINK_COLLEAGUE = rosterSomeone('CEA on a normal contract', m => m.role === 'CEA' && !m.bilingualContract);
+const NOT_NEWLINK       = rosterSomeone('CEA on a bilingual contract', m => m.role === 'CEA' && m.bilingualContract);
+
+test('New link notice: a colleague the page is for is told, and its link takes them onto the page (v25.61)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
+    await seedSession(page, NEWLINK_COLLEAGUE);
+    await seedMemberSession(page, NEWLINK_COLLEAGUE);
+    await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);   // after the seeders: last write wins
+    await page.goto('/');
+    const notice = page.locator('#newlinkNoticeLb');
+    await expect(notice, 'on a desk there is no install notice to wait for, and on a phone the seeders answered it')
+        .toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    await expect(page.locator('#newlinkNoticeContent .lightbox-app-name')).toHaveText('See the three proposals for the new link');
+    // The flag is read AS THE LINK IS PRESSED, not on the page it opens: the init scripts run again on that navigation,
+    // and the one that re-enabled this notice for the test clears the flag — in whichever order they happen to run.
+    // A document listener bubbles after the link's own, and sessionStorage survives the navigation untouched.
+    await page.evaluate(() => document.addEventListener('click', () => {
+        sessionStorage.setItem('__newlinkDoneAtClick', localStorage.getItem('myb_notice_newlink_2026_done') ?? 'unset');
+    }));
+    await page.locator('#newlinkNoticeGo').click();
+    await expect(page).toHaveURL(/\/newlink\.html$/);
+    await expect(page.locator('.nl-name-title').first(), 'the page let them in — the notice told somebody it is for')
+        .toBeVisible({ timeout: 15_000 });
+    expect(await page.evaluate(() => sessionStorage.getItem('__newlinkDoneAtClick')), 'the link marks it done as it is pressed').toBe('1');
+    const filed = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_app_notices') || '[]')
+        .filter((/** @type {any} */ n) => n.id === 'newlink-2026').map((/** @type {any} */ n) => n.section));
+    expect(filed, 'archived on open, under its own section').toEqual(['New link']);
+    expect(errors).toHaveLength(0);
+});
+
+test('New link notice: never for a colleague the page turns away — and not flagged (v25.61)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
+    await seedSession(page, NOT_NEWLINK);
+    await seedMemberSession(page, NOT_NEWLINK);
+    await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);
+    await page.goto('/');
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    await page.waitForTimeout(2500);                          // past the 1,500ms defer
+    await expect(page.locator('#newlinkNoticeLb')).not.toHaveClass(/\bopen\b/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_newlink_2026_done')), 'refused, so left unflagged').toBeNull();
+    expect(errors).toHaveLength(0);
+});
+
+test('on a phone, the New link notice comes the load after the install notice — never both at once (v25.61)', async ({ page }, info) => {
+    // The owner's "third in sequence", on a real page across real reloads. The session is seeded WITHOUT the
+    // seeders' notice flags, as in the test above this block: here the flags are the subject. By 10 November the
+    // October notices have ended and flag themselves; the install notice is still running.
+    test.skip(!isTouchProject(info), 'the install notice is offered only on a touch screen');
+    test.setTimeout(90_000);
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
+    await page.addInitScript((n) => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: n, ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
+        }));
+        localStorage.setItem('myb_roster_selected_member', n);
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true });
+    }, NEWLINK_COLLEAGUE);
+    await page.goto('/');
+    for (const [lb, answer] of [['#installNoticeLb', '#installNoticeClose'],
+                                ['#newlinkNoticeLb', '#newlinkNoticeLater']]) {
+        await expect(page.locator(lb)).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await page.locator(answer).click();
+        await expect(page.locator(lb)).not.toHaveClass(/\bopen\b/);
+        await page.waitForTimeout(2500);                      // past the defer: nothing follows on this load
+        await expect(page.locator('.notice-lb-content:visible'), `nothing after ${lb} on its own load`).toHaveCount(0);
+        await page.reload();
+    }
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    await page.waitForTimeout(2500);
+    await expect(page.locator('.notice-lb-content:visible'), 'both answered: nothing more').toHaveCount(0);
     expect(errors).toHaveLength(0);
 });
 
