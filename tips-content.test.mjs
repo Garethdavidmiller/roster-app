@@ -133,6 +133,26 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
     });
 });
 
+// ── WHAT OPERATIONS' RESET QUEUE QUOTES (Nov 2026 review) ───────────────────────────────────────
+// The queue's hint quoted "ask the admin to reset my password" while the sign-in link reads "Can’t get
+// in? Ask the admin to reset your password" — a quote nobody could find on the screen it names. Both
+// the hint and the ? panel are held to the link's own words, read from login-overlay.js.
+describe('operations — the reset queue quotes the sign-in link as it reads', () => {
+    const m = /const RESET_BTN_LABEL = ([\s\S]*?);\n/.exec(readFileSync('login-overlay.js', 'utf8'));
+    assert.ok(m, 'login-overlay.js: RESET_BTN_LABEL not found — update this test to read the link from its new home');
+    const link = String(new Function(`return (${m[1]});`)()).replace(/<[^>]+>/g, '');
+
+    test('the card hint quotes the link\'s opening words', () => {
+        const hint = /<span class="hint">Staff who tapped “([^”]+)”/.exec(readFileSync('operations.html', 'utf8'))?.[1];
+        assert.ok(hint && link.startsWith(hint), `operations.html quotes "${hint}"; the link reads "${link}"`);
+    });
+
+    test('the ? panel quotes the link in full', () => {
+        const first = readCardTips('operations-tips.js')['reset-requests'].sections[0].items[0].html;
+        assert.equal(/“([^”]+)”/.exec(first)?.[1], link);
+    });
+});
+
 for (const { js, html, scope } of PAGES) {
     describe(`${js} — tips content`, () => {
         const tips = readCardTips(js, scope);
