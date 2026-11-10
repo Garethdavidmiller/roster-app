@@ -130,7 +130,8 @@ const ALL_DAY_ON_DUTY = 'Any time around my shift';
  */
 export async function renderWeekForm(host, win, memberName, { onSaved }) {
     const dates = weekDates(win.weekStart);
-    const closed = win.phase === 'CLOSED';
+    // `let`: a send the server refuses as closed closes the form where it stands (`closeHere`).
+    let closed = win.phase === 'CLOSED';
 
     host.innerHTML = `<div class="ot-state">Loading your roster…</div>`;
     const ctx = await loadRosterContext(memberName, dates);
@@ -177,10 +178,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     function shell() {
         return `<div class="ot-form-head">${headInner()}</div>
             ${ctx.knowledge === 'error' ? `
-                <div class="ot-roster-warning" role="status">
-                    Couldn't confirm your current MYB roster. You can still enter availability using
-                    custom times.
-                </div>` : ''}
+                <div class="ot-roster-warning" role="status">${rosterWarning()}</div>` : ''}
             ${closed ? '' : `
                 <!-- The cap note (v21.22, reworded v21.24). It states the rule the roster is planned
                      under, which nothing said out loud until v21.22. Its job CHANGED when the
@@ -293,6 +291,12 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
 
     function paintHead() {
         if (headHost) headHost.innerHTML = headInner();
+    }
+
+    /** What a failed roster read means here — and on a CLOSED form, nothing is left to enter (overtime-ui-16). */
+    function rosterWarning() {
+        return 'Couldn\'t confirm your current MYB roster.'
+            + (closed ? '' : ' You can still enter availability using custom times.');
     }
 
     /** Has the member changed anything that is not on the server? @returns {boolean} */
@@ -788,6 +792,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // The receipt's time moves with a real change and not with a no-op. `serverNow` is the
             // instant the server decided the write — the one it now stamps `acceptedAt` with.
             const at = !r.data.noop && typeof r.data.serverNow === 'number' ? r.data.serverNow : null;
+            // The SERVER's phase at the moment it decided (overtime-ui-5): accepted at 12:03 on the
+            // first deadline's day, the head must stop saying "Answers due" — the page keeps no timer.
+            if (r.data.phase === 'INITIAL_OPEN' || r.data.phase === 'FINAL_OPEN') win.phase = r.data.phase;
             win.submission = {
                 ...(win.submission || {}),
                 days: sent,
@@ -824,11 +831,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }
         submitBtn.disabled = false;
         if (r.code === 'revision-conflict') { showConflict(r); return; }
-        if (r.code === 'closed') {
-            say('This form closed before your answers reached the server. Speak to a Manager.', 'warn');
-            return;
-        }
-        if (r.code === 'cancelled') return;   // the member navigated away; nothing to report
+        if (r.code === 'closed') { closeHere(); return; }
 
         // A refusal that names a DAY gets copy that names the day, and the page walks there —
         // the message and the scroll agreeing about where the problem is. Everything else gets
@@ -837,6 +840,29 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const failDate = typeof r.data?.date === 'string' ? r.data.date : null;
         say(submitFailureCopy(r.code, failDate ? shortDate(failDate) : null), 'warn');
         if (failDate) focusDay(failDate);
+    }
+
+    /**
+     * The server refused the send because the form has CLOSED (overtime-ui-5) — the page never decides
+     * that on its own clock (header rule 2), so this is where it learns. Left as it was, the form kept
+     * every control live, Submit enabled and the leave-guard armed over answers nothing will take. So
+     * it becomes the closed form where it stands: what the server HOLDS, read-only, and why.
+     */
+    function closeHere() {
+        closed = true;
+        win.phase = 'CLOSED';
+        for (const d of Object.keys(answers)) delete answers[d];
+        Object.assign(answers, win.submission?.days ? deepCopy(win.submission.days) : {});
+        for (const sel of ['.ot-bulk-row', '.ot-cap-note']) host.querySelector(sel)?.remove();
+        submitBtn?.remove();
+        const warning = host.querySelector('.ot-roster-warning');
+        if (warning) warning.innerHTML = rosterWarning();
+        paintHead();
+        paintDays();
+        say('This form closed before your answers reached the server, so '
+            + (win.submission ? 'this change was not saved — what you submitted earlier stands. '
+                : 'nothing was submitted for this week. ')
+            + 'If your circumstances have changed, speak to a Manager.', 'warn');
     }
 
     /**

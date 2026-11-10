@@ -57,16 +57,18 @@ function fakeEl(extra = {}) {
         querySelector: () => null,
         querySelectorAll: () => [],
         appendChild() {}, focus() {}, scrollIntoView() {},
+        removed: false, remove() { this.removed = true; },
         ...extra,
     };
 }
 
-/** The host, answering the four selectors `renderWeekForm` reads back out of its own markup. */
+/** The host, answering the selectors `renderWeekForm` reads back out of its own markup. */
 function fakeHost() {
     const parts = {
         '.ot-days': fakeEl(), '.ot-feedback': fakeEl(),
         '.ot-submit': fakeEl(), '.ot-form-head': fakeEl(),
         '.ot-bulk-unavailable': fakeEl(),
+        '.ot-bulk-row': fakeEl(), '.ot-cap-note': fakeEl(), '.ot-roster-warning': fakeEl(),
     };
     return Object.assign(fakeEl({ querySelector: (/** @type {string} */ s) => parts[s] || null }), { parts });
 }
@@ -112,16 +114,17 @@ mock.module('./overtime-data.js', {
 
 mock.module('./overlay.js', { namedExports: { confirmDialog: async () => true } });
 
+/** A rest day — the roster every day has unless a case says otherwise. */
+const REST = { shift: 'RD', isRest: true, hasTime: false, overnight: false, start: '', end: '', rosteredMinutes: 0 };
+/** The roster a case wants: a day's context by date, or `'error'` for a read that failed. */
+let rosterFor = /** @type {((date: string) => any) | 'error'} */ (() => REST);
+
 mock.module('./overtime-roster.js', {
     namedExports: {
         rosterBadge: () => '',
-        loadRosterContext: async (_m, dates) => ({
-            knowledge: 'authoritative',
-            byDate: Object.fromEntries(dates.map(d => [d, {
-                shift: 'RD', isRest: true, hasTime: false, overnight: false,
-                start: '', end: '', rosteredMinutes: 0,
-            }])),
-        }),
+        loadRosterContext: async (_m, dates) => (rosterFor === 'error'
+            ? { knowledge: 'error', byDate: {} }
+            : { knowledge: 'authoritative', byDate: Object.fromEntries(dates.map(d => [d, /** @type {Function} */ (rosterFor)(d)])) }),
     },
 });
 
@@ -173,6 +176,7 @@ beforeEach(() => {
     liveHost = null;
     duringSubmit = null;
     created = [];
+    rosterFor = () => REST;
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -509,5 +513,75 @@ describe('the receipt names the save that just happened', () => {
         await f.submit();
         await created.find(e => e.textContent === 'Show the saved version').fire('click');
         assert.equal(f.win.submission.updatedAt, NOW);
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('the phase the server answers with is the phase the form shows (overtime-ui-5)', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    // The page keeps no timer (overtime-app.js says why), so a form opened at 11:52 on deadline day
+    // learns of 12:00 only from an answer already in hand: the submit response carries the server's
+    // phase, and the form threw it away.
+
+    test('a save accepted after the first deadline moves the head on, as the server says', async () => {
+        submitResults = [{ ok: true, data: { revision: 4, phase: 'FINAL_OPEN', serverNow: Date.parse('2026-08-25T11:03:00Z') } }];
+        const f = await mountForm();
+        await f.fillWeek();
+        await f.submit();
+        assert.equal(f.win.phase, 'FINAL_OPEN');
+        const head = f.host.parts['.ot-form-head'].innerHTML;
+        assert.match(head, /Answers were due/, 'the first deadline is past tense');
+        assert.doesNotMatch(head, /Answers due /, 'not "Answers due" a deadline the server has passed');
+    });
+
+    test('a `closed` refusal leaves a read-only form showing the record, not live controls', async () => {
+        // It said "This form closed…" and left every control live, Submit enabled, the leave-guard
+        // armed over answers nothing would take, and the update reload held for a busy page.
+        submitResults = [{ ok: false, code: 'closed', status: 409, data: { error: 'closed', phase: 'CLOSED' } }];
+        const f = await mountForm({ win: { submission: { days: answeredWeek('all_day'), currentRevision: 3 } } });
+        await f.fillWeek();                                  // "Not available" ×7 — edits the server now refuses
+        await f.submit();
+        assert.equal(f.win.phase, 'CLOSED');
+        assert.equal(f.handle.isDirty(), false, 'nothing is left that could be submitted');
+        assert.equal(f.host.parts['.ot-submit'].removed, true, 'Submit is gone');
+        assert.equal(f.host.parts['.ot-bulk-row'].removed, true, 'and the all-week shortcut with it');
+        const days = f.host.parts['.ot-days'].innerHTML;
+        assert.doesNotMatch(days, /data-mode=/, 'no option can be pressed');
+        assert.equal((days.match(/Available all day/g) || []).length, 7, 'it shows what was RECORDED');
+        assert.doesNotMatch(days, /Not available/, 'not the refused edits');
+        assert.match(f.feedback(), /not saved/);
+        assert.match(f.feedback(), /what you submitted earlier stands/);
+        assert.equal(calls.filter(c => c.call === 'submit').length, 1);
+    });
+
+    test('…and with nothing submitted before, it says nothing was', async () => {
+        submitResults = [{ ok: false, code: 'closed', status: 409, data: { error: 'closed', phase: 'CLOSED' } }];
+        const f = await mountForm({ win: { submission: null } });
+        await f.fillWeek();
+        await f.submit();
+        assert.match(f.feedback(), /nothing was submitted for this week/);
+        assert.equal((f.host.parts['.ot-days'].innerHTML.match(/Not answered/g) || []).length, 7);
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('a closed form does not invite answers (overtime-ui-16)', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    test('a failed roster read on a CLOSED form does not say availability can still be entered', async () => {
+        rosterFor = 'error';
+        const closed = await mountForm({ win: { phase: 'CLOSED' } });
+        assert.match(closed.host.innerHTML, /Couldn't confirm your current MYB roster\./);
+        assert.doesNotMatch(closed.host.innerHTML, /still enter availability/);
+        const open = await mountForm();
+        assert.match(open.host.innerHTML, /still enter availability using custom times/, 'an open form still says what works');
+    });
+
+    test('and a form the server CLOSES under the member drops that sentence too', async () => {
+        rosterFor = 'error';
+        submitResults = [{ ok: false, code: 'closed', status: 409, data: { error: 'closed', phase: 'CLOSED' } }];
+        const f = await mountForm();
+        await f.submit();
+        assert.doesNotMatch(f.host.parts['.ot-roster-warning'].innerHTML, /still enter availability/);
+        assert.match(f.host.parts['.ot-roster-warning'].innerHTML, /Couldn't confirm your current MYB roster\./);
     });
 });
