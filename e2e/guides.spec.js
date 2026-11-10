@@ -603,8 +603,10 @@ for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'fip-guid
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip-guide.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
-    // reveal France, and open it.
-    await page.locator('#countrySearch').fill('spain');
+    // reveal France, and open it. Not "spain": the finder reads each card's whole text, and since
+    // Nov 2026 France's card names TGV OUIGO Spain among the trains FIP does not cover, which is
+    // exactly what somebody searching "spain" should see. Only Portugal's card says "Portugal".
+    await page.locator('#countrySearch').fill('portugal');
     await expect(page.locator('#country-fr')).toBeHidden();
     await page.locator('.cf-popular a[href="#country-fr"]').click();
     await expect(page.locator('#country-fr')).toBeVisible();
@@ -650,9 +652,11 @@ test('fip: the booking-reach table answers per country, and the finder leaves it
     // difference between "you cannot go" and "buy it when you arrive".
     await expect(table).toContainText('buy it at a ticket office when you get there');
 
-    // The finder must not touch it: filter to one country and the table stays put.
-    await page.locator('#countrySearch').fill('spain');
+    // The finder must not touch it: filter to one country and the table stays put. ("portugal", not
+    // "spain", for the reason in the shortcut test above: "spain" also shows France's card.)
+    await page.locator('#countrySearch').fill('portugal');
     await expect(page.locator('#country-fr')).toBeHidden();
+    await expect(page.locator('#country-pt')).toBeVisible();
     await expect(table).toBeVisible();
 });
 
