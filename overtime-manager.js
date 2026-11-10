@@ -59,7 +59,7 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
  * @param {HTMLElement} host
  * @param {any} win the window row from the planning horizon (carries the stored milestones)
  * @param {{ participants: any[], submissions: Map<string, any>,
- *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
+ *   roster?: Record<string, Record<string, any>> }} data
  * @param {{ dates: string[], now: number, grade?: string, onGrade?: (g: string) => void,
  *   day?: string, onDay?: (d: string) => void, onRefresh?: () => void,
  *   onAsk?: (memberName: string, ask: boolean) => void, refreshFailed?: boolean, printedAt?: number }} opts
@@ -249,7 +249,7 @@ const ADDED_LATER_TOLERANCE_MS = 60_000;
  * The whole surface as one string. Pure — same inputs, same output, no DOM reads.
  * @param {any} win
  * @param {{ participants: any[], submissions: Map<string, any>,
- *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
+ *   roster?: Record<string, Record<string, any>> }} data
  * @param {{ dates: string[], now: number, grade: string, day?: string, canRefresh?: boolean,
  *   refreshFailed?: boolean, printedAt?: number }} state
  */

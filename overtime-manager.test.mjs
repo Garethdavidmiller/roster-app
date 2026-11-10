@@ -59,7 +59,7 @@ function render(over = {}) {
     const host = fakeHost();
     renderWeekDetail(/** @type {any} */ (host), { ...WIN, ...over.win },
         { participants: over.participants || PARTICIPANTS, submissions: over.submissions || submissions(),
-          roster: over.roster || {}, rosterKnown: over.rosterKnown !== false },
+          roster: over.roster || {} },
         { dates: DATES, now: over.now || Date.parse('2026-08-19T09:00:00Z'), grade: over.grade });
     return host.innerHTML;
 }
@@ -758,7 +758,7 @@ describe('Awaiting rows offer the control, and say nothing untrue about the rost
         // every row carried one — and the one it carried was the FAILURE placeholder, because the
         // row passes no date. So it announced an outage in data that had been read perfectly well
         // two panels up. Not showing a duty and failing to read one are different statements.
-        const html = render({ roster: {}, rosterKnown: true });
+        const html = render({ roster: {} });
         assert.equal(/Roster unavailable/.test(panelNamed(html, 'Awaiting a form')), false);
     });
 });
