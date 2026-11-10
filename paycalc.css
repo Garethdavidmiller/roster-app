@@ -105,7 +105,7 @@
       background-image: var(--caret-chevron);
       background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
       cursor: pointer; touch-action: manipulation;
-      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
     }
     #periodSelect:focus-visible,
     #periodSelectTrigger:focus-visible { border-color: var(--primary-blue); outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); background-color: white; }
@@ -114,7 +114,7 @@
       flex: 1;
       padding: 10px 14px;
       background: var(--primary-blue); color: white;
-      border: none; border-radius: var(--radius-md);
+      border: none; border-radius: var(--radius-button);   /* the period field's corner, above it */
       font-family: inherit; font-size: var(--type-label); font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       transition: background var(--dur-med), transform var(--dur-fast) var(--ease-standard); white-space: nowrap;
@@ -128,7 +128,7 @@
       flex: 0 0 auto;
       width: 38px; height: 38px; padding: 0;
       background: var(--accent-gold); color: var(--primary-blue);
-      border: none; border-radius: var(--radius-md);
+      border: none; border-radius: var(--radius-button);
       font-family: inherit; font-size: var(--type-micro); font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       transition: background var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
@@ -162,7 +162,7 @@
     }
     .save-status {
       font-size: var(--type-micro); color: var(--text-faint);
-      transition: color 0.3s;
+      transition: color var(--dur-slower);
     }
     .save-status.saved   { color: var(--success-text); }
     .save-status.corrupt { color: var(--warning-amber); font-weight: 600; }
@@ -255,7 +255,7 @@
     #payBreakBar.pbb-visible { display: flex; }
     .pbb-seg {
       border-radius: 3px; min-width: 3px;
-      transition: flex-grow 0.35s var(--ease-standard);
+      transition: flex-grow var(--dur-slower) var(--ease-standard);
     }
     .pbb-pension { background: var(--accent-gold); }
     .pbb-tax     { background: var(--primary-blue); }
@@ -358,7 +358,7 @@
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
     /* A containing block, so the clip reaches a picker's 1px select (select-sheet-parity contract 12;
        `.collapsible-body`, below, has the measurement). */
-    .bd-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+    .bd-body { position: relative; max-height: 0; overflow: hidden; transition: max-height var(--dur-slower) var(--ease-standard); }
     /* A FINITE cap so the open/close can animate (max-height: none cannot), well above the tallest
        real content: ≤ ~13 back-pay rows (one award year) or the ~20-line result breakdown, ~550–800px.
        Print unclips it. In `em`, as every cap on this page is (see `.collapsible-body.open`): 1400px at
@@ -520,7 +520,7 @@
       font-variant-numeric: tabular-nums;
       font-size: var(--type-medium); font-weight: 600;
       text-align: center; color: var(--text-dark); background-color: var(--field-bg);
-      touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      touch-action: manipulation; transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
       letter-spacing: 0.5px;
       -moz-appearance: textfield;
     }
@@ -617,7 +617,7 @@
       border: var(--field-border); border-radius: var(--radius-field);
       font-family: inherit; font-size: var(--type-medium); font-weight: 600;
       color: var(--text-dark); background-color: var(--field-bg);
-      touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      touch-action: manipulation; transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
     }
     /* Brighten to white when active — the field 'fills in' on focus. The OUTLINE is stated, never
        left to the browser: unstated, the UA's `outline: auto` painted an AMBER ring on Android
@@ -742,7 +742,7 @@
       width: 100%; font-size: var(--type-medium); padding: 8px 10px 8px 26px;
       border: var(--field-border); border-radius: var(--radius-field);
       background-color: var(--field-bg);
-      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+      transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
     }
     .check-actual input:not([type="checkbox"]):not([type="radio"]):focus-visible {
       border-color: var(--primary-blue); box-shadow: var(--focus-ring);
@@ -838,7 +838,7 @@
     .hpp-toggle-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     .hpp-toggle-arrow { font-size: var(--type-micro); }   /* glyph-swapped, so never rotated (.show-more-arrow) */
     /* `position: relative` — a containing block, as `.bd-body`'s is. */
-    .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height var(--dur-slower) var(--ease-standard); }
     /* 448px at the 14px it is set in (it was 400): about 216px of text at default size grew to 829px at
        twice the size, faster than the text, because a narrow column wraps more lines. */
     .hpp-note-body.open { max-height: 32em; }
@@ -1520,7 +1520,7 @@
     position: relative; padding: 8px 29px 8px 10px;   /* the right 29px: the arrow's place, below */
     background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius);
     font-family: inherit; text-align: left;
-    cursor: pointer; touch-action: manipulation; transition: background 0.12s, border-color 0.12s;
+    cursor: pointer; touch-action: manipulation; transition: background var(--dur-fast), border-color var(--dur-fast);
   }
   .roster-row-icon  { font-size: var(--type-body); flex-shrink: 0; width: 20px; text-align: center; }
   .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); min-width: 0; }

@@ -1289,6 +1289,7 @@ body.auth-ready .container { display: grid; }
 .gen-input:focus-visible, .gen-select:focus-visible {
     outline: var(--focus-outline);
     outline-offset: 1px;
+    box-shadow: var(--focus-ring);
     background-color: white;
 }
 .gen-actions {
@@ -1346,7 +1347,7 @@ body.auth-ready .container { display: grid; }
 .btn-set {
     background: none;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     padding: 4px 12px;
     font-size: var(--type-small);
     font-family: inherit;
@@ -2388,8 +2389,10 @@ body.auth-ready .container { display: grid; }
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
+    /* The app's field skin, as .pt-paste wears it: a hairline and the panel's corner made the one
+       place you paste a design read as a different kind of control from the field under it. */
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -2409,7 +2412,10 @@ body.auth-ready .container { display: grid; }
     min-height: 6lh;
     max-height: 40vh;
 }
-.li-paste:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
+.li-paste:focus-visible, .li-name:focus-visible {
+    background-color: white; border-color: var(--primary-blue);
+    outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring);
+}
 /* Directly after the base rule, as .pt-paste's is (paycalc.css): at equal specificity the later rule
    wins, and an override placed above its base has silently lost in this repo three times. */
 @media (pointer: coarse) {
@@ -2420,14 +2426,13 @@ body.auth-ready .container { display: grid; }
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: inherit;
     font-size: var(--type-body);
 }
-.li-name:focus { background-color: white; outline: var(--focus-outline); outline-offset: 1px; }
 /* The design-name box beside it is a text field too, and had the same 14px with nothing to raise it
    on touch — found by the markup-aware 16px check the moment it could see the class (7 Nov 2026). */
 @media (pointer: coarse) {

@@ -1903,6 +1903,48 @@ test('links: with reduced motion the "Saving…" dot holds still', async ({ page
     }
 });
 
+test('links: the generator\'s boxes and the Import fields wear the app\'s field recipe', async ({ page }) => {
+    // css-tokens.md: every focusable field carries the 4px --focus-ring, inside a modal included, and
+    // the thing a member types into wears --field-border and --radius-field. The generator's number
+    // boxes and time selects had the outline alone; the Import dialog's two fields had the outline
+    // alone, on a 1px hairline under the 16px PANEL corner.
+    await openMixedDesign(page);
+    const token = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.cssText = 'box-shadow: var(--focus-ring); border: var(--field-border); border-radius: var(--radius-field)';
+        document.body.append(probe);
+        const cs = getComputedStyle(probe);
+        const t = { ring: cs.boxShadow, edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
+        probe.remove();
+        return t;
+    });
+    const look = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const cs = getComputedStyle(el);
+        return { focus: el.matches(':focus-visible'), ring: cs.boxShadow,
+                 edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`, corner: cs.borderTopLeftRadius };
+    }));
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    for (const sel of ['.gen-slot-count', '.gen-slot-time']) {
+        await page.locator(sel).first().focus();
+        expect(await look(sel), `${sel} with focus`).toMatchObject({ focus: true, ring: token.ring });
+    }
+    // The setup buttons beside them are pills, and wore the dialog corner (--radius-xl), which looks
+    // the same only while a pill is under 40px tall — chip-radius-parity reads chip NAMES, not this.
+    expect(await page.locator('#genSetLoadBtn').evaluate(el => {
+        const probe = document.createElement('i'); probe.style.borderRadius = 'var(--radius-pill)'; document.body.append(probe);
+        const pill = getComputedStyle(probe).borderTopLeftRadius; probe.remove();
+        return getComputedStyle(el).borderTopLeftRadius === pill;
+    }), 'a set button wears the pill corner').toBe(true);
+    await sheetAction(page, 'importDesignBtn');
+    await expect(page.locator('#linksImportText')).toBeFocused();   // the dialog opens on the paste box
+    await page.locator('#linksImportText').blur();
+    for (const sel of ['#linksImportText', '#linksImportName']) {
+        expect(await look(sel), `${sel} at rest`).toMatchObject({ edge: token.edge, corner: token.corner });
+        await page.locator(sel).focus();
+        expect(await look(sel), `${sel} with focus`).toMatchObject({ focus: true, ring: token.ring, corner: token.corner });
+    }
+});
+
 test('links grid: a mouse stroke paints every cell it crosses, and a touch does not stroke', async ({ page }) => {
     // Press and drag painted NOTHING — the grid listened for `click` alone, and a click whose press
     // and release land on different cells goes to the row — while two comments said a drag-paint

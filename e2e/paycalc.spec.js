@@ -2736,6 +2736,66 @@ test('paycalc: with reduced motion "How is this calculated?" opens without slidi
     }
 });
 
+test('paycalc: the period buttons share the corner of the period field above them', async ({ page }) => {
+    // "← Earlier", "Later →" and 📍 wore --radius-md, the 16px PANEL corner, directly under a 12px
+    // field: two corners a few pixels apart in one card, which css-tokens.md → Corners calls
+    // "assembled rather than designed". Every action button takes --radius-button.
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#prevBtn').click();   // off the current payslip, so 📍 is offered
+    await expect(page.locator('#todayPeriodBtn')).toBeVisible();
+    const corners = await page.evaluate(() => Object.fromEntries(['periodSelectTrigger', 'periodSelect', 'prevBtn', 'nextBtn', 'todayPeriodBtn']
+        .map(id => /** @type {HTMLElement|null} */ (document.getElementById(id)))
+        .filter(el => el && el.getClientRects().length)
+        .map(el => [/** @type {HTMLElement} */ (el).id, getComputedStyle(/** @type {HTMLElement} */ (el)).borderTopLeftRadius])));
+    const field = corners.periodSelectTrigger ?? corners.periodSelect;
+    expect(field, 'the premise: the period field is on screen').toBeTruthy();
+    for (const id of ['prevBtn', 'nextBtn', 'todayPeriodBtn']) expect(corners[id], `#${id} against the field above it`).toBe(field);
+});
+
+test('paycalc: every transition on the page takes its timing from the motion tokens', async ({ page }) => {
+    // css-tokens.md → Motion vocabulary: "Use these tokens, not inline cubic-bezier(...) or a bare
+    // ease." paycalc.css hand-wrote nine — the same 0.2s four times over, and two content reveals at
+    // 0.4s and 0.35s with a bare `ease` beside siblings on --dur-slower. Read from the stylesheet the
+    // browser parsed, so a comment cannot count and a rule inside a media query cannot hide.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const found = await page.evaluate(() => {
+        const sheet = [...document.styleSheets].find(s => s.href?.endsWith('/paycalc.css'));
+        if (!sheet) return null;
+        /** @type {string[]} */ const off = [];
+        let read = 0;
+        const walk = (/** @type {CSSRuleList} */ rules) => {
+            for (const rule of /** @type {any[]} */ ([...rules])) {
+                if (rule.cssRules) walk(rule.cssRules);
+                if (!rule.style) continue;
+                // The shorthand as written; a longhand only where no shorthand set it (a shorthand's
+                // `none` reports its longhands' initial `ease`, which nobody wrote).
+                const props = rule.style.getPropertyValue('transition') ? ['transition'] : ['transition-duration', 'transition-timing-function'];
+                for (const prop of props) {
+                    const v = rule.style.getPropertyValue(prop);
+                    if (!v) continue;
+                    read++;
+                    const bare = v.replace(/var\([^)]*\)/g, '').replace(/(^|[\s,])0m?s(?=$|[\s,])/g, '$1');
+                    if (/\d(?:\.\d+)?m?s\b/.test(bare) || /(?<![-\w])ease(?![-\w])/.test(bare) || /cubic-bezier\(/.test(bare)) {
+                        off.push(`${rule.selectorText} { ${prop}: ${v} }`);
+                    }
+                }
+            }
+        };
+        walk(sheet.cssRules);
+        return { read, off };
+    });
+    expect(found, 'the premise: paycalc.css is on the page').not.toBeNull();
+    expect(found?.read, 'the premise: transitions were read').toBeGreaterThan(10);
+    expect(found?.off, 'a timing written out by hand').toEqual([]);
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 
