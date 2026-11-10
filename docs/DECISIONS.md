@@ -304,6 +304,21 @@ shown that yet.
   both engines stay first class; this is a decision about where the check runs, not about whether it
   matters.
 
+- **The Hosting deploy's gate runs as parallel jobs** (owner, 10 Nov 2026). The tests and the upload
+  were one job, so the two Chrome projects ran back to back: v25.68's and v25.69's deploys took 38m24s
+  and 37m10s of a 40-minute limit, and #1737 doubled the limit to 80 so the next release could not be
+  cut off. The owner then chose the cure over the margin: `check`, `smoke` (one job per Playwright
+  project) and `csp` run side by side and `deploy` waits for all of them — the split `e2e.yml`'s
+  pull-request checks have used since 3 Nov 2026, where each half takes 16 to 18 minutes — so a
+  release waits for the slowest job, not the sum. **What it costs:** every job installs its own
+  dependencies (runner minutes, free on a public repository), and a refused re-run now spends the
+  gate's time before it is refused. **What keeps it the same gate is wiring, and
+  `workflow-hygiene.test.mjs` holds every wire:** the deploy needs each gate job, the matrix names
+  exactly the config's projects, the failure reporter needs every job (a gate job that runs out of
+  time leaves the deploy skipped, which nothing else would report), and only the deploy job can sign
+  in to Google. When a half outgrows its 40 minutes, shard within the project, as `e2e.yml`'s webkit
+  job does. The account is the comment at the top of `deploy-hosting.yml`'s `jobs:`.
+
 - **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
   `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
   app already leans on `:has()` in several stylesheets, and the other uses fail *worse*: an unsupported

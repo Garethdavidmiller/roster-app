@@ -586,9 +586,11 @@ run, or a re-run, publishes the newest commit Hosting released from `main` — n
 private window — past the splash, no red errors in the console (the deployment health check at the top
 of CLAUDE.md).
 
-**What it means for a release.** The mirror updates after a Hosting deploy finishes (about
-twenty-five minutes after a merge), not a minute after the push; the first, v25.65, went live about
-nine minutes after its Hosting run ended. A push that changes only docs or tests republishes neither
+**What it means for a release.** The mirror updates after a Hosting deploy finishes, not a minute
+after the push. A deploy lasts as long as its slowest gate job plus about a minute: the browser
+tests, 16 to 18 minutes each in November 2026, since they became parallel jobs on 10 November (in
+one job they had reached 38). The mirror's own publish then takes under a minute (40 and 55 seconds
+on 10 November 2026; the first, v25.65, took about nine). A push that changes only docs or tests republishes neither
 origin, exactly as Hosting already behaves. A failed gate leaves BOTH origins on the previous release,
 and the issue says so.
 
