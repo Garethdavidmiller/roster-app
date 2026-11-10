@@ -187,6 +187,9 @@ body.auth-ready .container { display: grid; }
 .huddle-upload-btn {
     display: block;
     width: 100%;
+    /* `font-family: inherit` on every button and the email field here (Nov 2026): a control does not
+       inherit the page font, and these nine were Arial on the station PC, Roboto on Android. */
+    font-family: inherit;
     padding: 11px 16px;
     min-height: 44px;
     background: var(--primary-blue);
@@ -287,7 +290,7 @@ body.auth-ready .container { display: grid; }
     border-radius: var(--radius-pill); padding: 2px 7px;
 }
 .roster-skip-all-btn {
-    font-size: var(--type-badge); font-weight: 600;
+    font-family: inherit; font-size: var(--type-badge); font-weight: 600;
     color: var(--text-mid);
     background: none;
     border: 1px solid var(--border-light);
@@ -656,7 +659,7 @@ body.auth-ready .container { display: grid; }
     flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
     border-radius: 6px; border: 2px solid var(--success-green);
     background: var(--success-green); color: white;
-    font-size: var(--type-body); font-weight: 900; line-height: 1;
+    font-family: inherit; font-size: var(--type-body); font-weight: 900; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; transition: background var(--dur-med), border-color var(--dur-med);
 }
@@ -724,7 +727,7 @@ body.auth-ready .container { display: grid; }
 }
 .roster-choice-btn {
     flex: 1 1 auto;
-    font-size: var(--type-badge); font-weight: 700;
+    font-family: inherit; font-size: var(--type-badge); font-weight: 700;
     padding: 7px 11px; border-radius: 8px;
     border: 1.5px solid var(--border-light);
     background: white; color: var(--text-mid);
@@ -1051,6 +1054,7 @@ body.auth-ready .container { display: grid; }
     font-weight: 600;
 }
 .email-set-btn {
+    font-family: inherit;
     font-size: var(--type-badge);
     padding: 3px 10px;
     border: 1px solid var(--border-mid);
@@ -1098,6 +1102,7 @@ body.auth-ready .container { display: grid; }
 .email-set-input {
     flex: 1;
     min-width: 200px;
+    font-family: inherit;
     font-size: var(--type-medium);
     padding: 6px 10px;
     border: 2px solid var(--border-mid);
@@ -1114,6 +1119,7 @@ body.auth-ready .container { display: grid; }
     background-color: white;
 }
 .email-set-save {
+    font-family: inherit;
     font-size: var(--type-small);
     font-weight: 600;
     padding: 6px 14px;
@@ -1242,6 +1248,7 @@ body.auth-ready .container { display: grid; }
 .acct-email--none { font-style: italic; color: var(--text-faint); }
 .btn-acct-reset {
     flex-shrink: 0;
+    font-family: inherit;
     font-size: var(--type-badge);
     padding: 3px 10px;
     border: 1px solid var(--border-mid);
@@ -1974,6 +1981,7 @@ body.auth-ready .container { display: grid; }
     border: none;
     background: transparent;
     padding: 6px 14px;
+    font-family: inherit;
     font-size: var(--type-small);
     font-weight: 700;
     color: var(--text-mid);

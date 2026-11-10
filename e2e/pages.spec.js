@@ -9,7 +9,8 @@
  * operations.spec.js, settings.spec.js and guides.spec.js, moved test for test and unchanged.
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
-import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled, signInThroughOverlay } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled, signInThroughOverlay,
+    openRosterReview, stubUsageReads, stubPerfReads } from './helpers.js';
 import { teamMembers, CONFIG } from '../roster-data.js';
 import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
@@ -326,6 +327,57 @@ test('the sign-in and set-password screens never scroll sideways, on any page', 
         await expect(page.locator('#pwForceOverlay')).toBeVisible();
         expect(await sideways('#pwForceOverlay'), `${url}: the set-password screen scrolls sideways`).toBeLessThanOrEqual(0);
     }
+});
+
+// ── EVERY CONTROL A PAGE STYLES IS SET IN INTER (css-admin-ops-9, Nov 2026) ───────────────────────────
+// A <button> or an <input> does not inherit the page's font — the browser gives it the platform's — so
+// each rule that styles one has to say `font-family: inherit`, and on Admin and Operations eighteen did
+// not: "Upload Huddle", the review's ticks and choices, Reset, Set email, Mon–Fri, the month toggle were
+// Arial on the station PC beside Inter. The baselines were drawn with the wrong font in them, and
+// nothing read a control's font. This reads every control carrying a class the page's OWN stylesheet
+// styles, with the surfaces that build controls on demand opened first.
+test('every control Admin and Operations style is set in Inter', async ({ page }) => {
+    test.setTimeout(90_000);
+    const offInter = (/** @type {string} */ sheet) => page.evaluate((file) => {
+        /** @type {Set<string>} */
+        const own = new Set();
+        /** @param {CSSRuleList} rules */
+        const walk = (rules) => {
+            for (const r of /** @type {any} */ (rules)) {
+                if (r.selectorText) for (const m of r.selectorText.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) own.add(m[1]);
+                if (r.cssRules) walk(r.cssRules);
+            }
+        };
+        for (const s of document.styleSheets) if ((s.href || '').endsWith('/' + file)) walk(s.cssRules);
+        const off = new Set();
+        for (const el of document.querySelectorAll('button, input, select, textarea')) {
+            if (el.matches('input[type="checkbox"], input[type="radio"], input[type="file"]')) continue;
+            if (![...el.classList].some(c => own.has(c))) continue;
+            if (!/^"?Inter\b/.test(getComputedStyle(el).fontFamily)) off.add(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`);
+        }
+        return { read: own.size, off: [...off] };
+    }, sheet);
+
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const admin = await offInter('admin.css');
+    expect(admin.read, 'premise: admin.css was read').toBeGreaterThan(100);
+    expect(admin.off, 'Admin controls drawn in the platform font').toEqual([]);
+
+    await stubUsageReads(page, {});
+    await stubPerfReads(page, {});
+    await openRosterReview(page);   // the review's ticks, choices and skip-all
+    await page.evaluate(() => {
+        for (const id of ['accountStatusBody', 'usageBody', 'pageSpeedBody']) document.getElementById(id)?.classList.add('open');
+        for (const id of ['usageToggleHeader', 'pageSpeedToggleHeader']) document.getElementById(id)?.click();
+    });
+    await page.locator('.acct-row .email-set-btn').first().click();   // the email form, built on demand
+    await expect(page.locator('.email-set-input')).toBeVisible();
+    await expect(page.locator('.speed-toggle-btn').first(), 'premise: a month toggle is drawn').toBeAttached();
+    const ops = await offInter('operations.css');
+    expect(ops.read, 'premise: operations.css was read').toBeGreaterThan(100);
+    expect(ops.off, 'Operations controls drawn in the platform font').toEqual([]);
 });
 
 // ── THE FIRST CARD SITS THE SAME DISTANCE UNDER THE HEADER ON EVERY PAGE (desktop audit, Nov 2026) ─

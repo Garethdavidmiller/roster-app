@@ -430,6 +430,7 @@
             background: var(--primary-blue);
             color: white;
             border: none;
+            font-family: inherit;   /* a <button> does not inherit the page font: it was Arial on the station PC */
             font-size: var(--type-medium);
             font-weight: 700;
             min-width: 44px;
@@ -626,6 +627,7 @@
             background: white;
             border: 1.5px solid var(--border-light);
             color: var(--text-mid);
+            font-family: inherit;
             font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
@@ -1244,13 +1246,13 @@
         .al-confirm-bar .btn-confirm-save {
             background: var(--al-confirm-accent); color: var(--primary-blue);
             border: none; border-radius: var(--radius-button);
-            padding: 7px 14px; font-size: var(--type-label); font-weight: 700;
+            padding: 7px 14px; font-family: inherit; font-size: var(--type-label); font-weight: 700;
             cursor: pointer; touch-action: manipulation;
         }
         .al-confirm-bar .btn-confirm-cancel {
             background: white; color: var(--text-mid);
             border: 1.5px solid var(--border-light); border-radius: var(--radius-button);
-            padding: 7px 14px; font-size: var(--type-label); font-weight: 600;
+            padding: 7px 14px; font-family: inherit; font-size: var(--type-label); font-weight: 600;
             cursor: pointer; touch-action: manipulation;
         }
         .al-confirm-bar .btn-confirm-save:focus-visible,
@@ -1565,7 +1567,7 @@
         .rp-clear {
             display: none; flex-shrink: 0;
             background: none; border: none; padding: 4px 6px;
-            font-size: var(--type-medium); color: var(--text-light); cursor: pointer;
+            font-family: inherit; font-size: var(--type-medium); color: var(--text-light); cursor: pointer;
             touch-action: manipulation; line-height: 1;
             border-radius: 50%; transition: color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
             min-width: 44px;
@@ -1585,6 +1587,7 @@
             background: none;
             border: none;
             color: var(--primary-blue);
+            font-family: inherit;
             font-size: 22px;
             line-height: 1;
             cursor: pointer;
@@ -2158,12 +2161,12 @@
         .unsaved-discard-btn {
             background: white; color: var(--warning-amber);
             border: none; border-radius: var(--radius-button);
-            padding: 10px 16px; min-height: 36px; font-size: var(--type-label); font-weight: 600; cursor: pointer;
+            padding: 10px 16px; min-height: 36px; font-family: inherit; font-size: var(--type-label); font-weight: 600; cursor: pointer;
         }
         .unsaved-keep-btn {
             background: transparent; color: white;
             border: 1.5px solid rgba(255,255,255,0.6); border-radius: var(--radius-button);
-            padding: 10px 16px; min-height: 36px; font-size: var(--type-label); cursor: pointer;
+            padding: 10px 16px; min-height: 36px; font-family: inherit; font-size: var(--type-label); cursor: pointer;
         }
         .unsaved-discard-btn:focus-visible,
         .unsaved-keep-btn:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
@@ -2512,7 +2515,7 @@
    min-content is one chip, never the sum — prevents the touch-layout blowout at 360px. */
 .other-flavour-group { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .other-flavour-btn {
-    font-size: var(--type-badge); font-weight: 700;
+    font-family: inherit; font-size: var(--type-badge); font-weight: 700;
     padding: 3px 10px; border-radius: var(--radius-pill);
     border: 1.5px solid var(--other);
     background: white; color: var(--other);
