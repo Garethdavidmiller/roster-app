@@ -1113,6 +1113,59 @@ test('guides: each side of the page takes its own safe-area inset', async ({ pag
     }
 });
 
+// …and so does the chip bar, below 800px, where the shell gave both its sides the LEFT inset (from 800px its sides
+// are the column's own edges, each with its own inset already).
+test('guides: on a phone the chip bar takes each side\'s own safe-area inset', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'safe-area emulation is a Chromium DevTools call');
+    await page.setViewportSize({ width: 390, height: 800 });
+    const cdp = await page.context().newCDPSession(page);
+    for (const [left, right] of [[0, 44], [44, 0]]) {
+        await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left, bottom: 0, right } });
+        for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+            await page.goto(`/${guide}.html`);
+            const pad = await page.locator('.chip-bar').evaluate(el => [getComputedStyle(el).paddingLeft, getComputedStyle(el).paddingRight]);
+            expect(pad, `${guide}, a ${left || right}px inset on the ${left ? 'left' : 'right'}`)
+                .toEqual([`${Math.max(12, left)}px`, `${Math.max(12, right)}px`]);
+        }
+    }
+});
+
+// ── WITH NO SCRIPT, THE CHIP BAR NEVER PARKS UNDER THE HEADER (whole-app fix, 10 Nov 2026) ────────────────────
+// The bar's sticky `top` is the header's height, which only the page's script measures; the stylesheet's own
+// figure is a guess. Stuck at it with no script, the bar sat under the header's last 24–41px at 360–390px (the
+// header is 78px on FIP and 95px on Railcard and Rangers there, up to 138px at 320px). No one guess fits every
+// header — taller than FIP's, it pushes that bar, which sits straight under the header, down over the page — and
+// with no script the chips do nothing anyway (a script wires them), so the bar stays where the page puts it.
+test.describe('guides with JavaScript off', () => {
+    test.use({ javaScriptEnabled: false });
+
+    test('the chip bar never parks under the header, and is not pushed over the page', async ({ page }) => {
+        const geo = () => page.evaluate(() => {
+            const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+            const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect();
+            const at = bar.getBoundingClientRect();
+            bar.style.position = 'static';   // where the page itself puts the bar
+            const flow = bar.getBoundingClientRect().top;
+            bar.style.position = '';
+            return { hdrBottom: hdr.bottom, top: at.top, bottom: at.bottom, flow };
+        });
+        for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+            for (const width of [320, 390, 1280]) {
+                await page.setViewportSize({ width, height: 800 });
+                await page.goto(`/${guide}.html`);
+                await page.evaluate(() => document.fonts.ready);
+                const rest = await geo();
+                expect(Math.abs(rest.top - rest.flow), `${guide} at ${width}px: at the top of the page the bar is moved from its place (${rest.top} against ${rest.flow})`)
+                    .toBeLessThanOrEqual(0.5);
+                await page.evaluate(() => window.scrollTo(0, 1500));
+                const s = await geo();
+                expect(s.bottom <= s.hdrBottom + 0.5 || s.top >= s.hdrBottom - 0.5,
+                    `${guide} at ${width}px, scrolled: the bar (${s.top}–${s.bottom}px) is part-hidden under the header (ends ${s.hdrBottom}px)`).toBe(true);
+            }
+        }
+    });
+});
+
 test('fip: a focused country row shows its whole ring, inside the card that clips it', async ({ page }) => {
     // The card clips its content (`overflow: hidden`) and the browser's own ring is drawn outside the
     // row, so keyboard focus showed a hairline with its corners cut off.

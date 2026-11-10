@@ -230,7 +230,7 @@ button, input, select, textarea { font-family: inherit; }
     top: 54px;   /* refined by the page's JS to the measured header height */
     z-index: 9;
     background: var(--bg);
-    padding: 7px max(12px, env(safe-area-inset-left)) 8px;
+    padding: 7px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
     display: flex;
     gap: 5px;
     overflow-x: auto;
@@ -239,6 +239,15 @@ button, input, select, textarea { font-family: inherit; }
     border-bottom: 1px solid var(--border);
 }
 .chip-bar::-webkit-scrollbar { display: none; }
+/* With no script the bar is not sticky (whole-app fix, 10 Nov 2026). Its `top` above is a guess the page's
+   script replaces with the measured header, and stuck at the guess the bar sat under the header's last
+   24–41px at 360–390px. No one figure fits every header (78px on FIP, 95px on Railcard and Rangers there,
+   up to 138px at 320px): one taller than FIP's pushes that bar, which sits straight under its header, down
+   over the page. With no script the chips do nothing either, so the bar keeps its place in the page. An
+   engine without the `scripting` feature drops the rule and keeps the guess. */
+@media (scripting: none) {
+    .chip-bar { position: static; }
+}
 /* The chips start where the text starts (polish round 2). The bar is full-bleed and the content
    column is not: every chip-bar guide centres a 760px column with 16px of inner padding, so at 1280
    the first chip sat at x=12 and the first line of text at x=276 — the quick-nav read as belonging
