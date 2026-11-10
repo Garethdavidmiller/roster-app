@@ -1983,6 +1983,38 @@ test('links: the generator\'s boxes and the Import fields wear the app\'s field 
     }
 });
 
+test('links grid: from 769px the grid stays inside its card, and at 1.3x text nothing is cut off', async ({ page }, info) => {
+    // From 768px the wrapper stops scrolling (for the sticky day header), on the word of a measurement
+    // taken before the three totals columns existed. Since, "Days worked" and its "over 26 working
+    // lines" note held the last column at 96px: the table ran into the card's gutter from 769 to
+    // 782px, and at 1.3x text up to 61px past the card's edge, cut off with no scroll to reach it.
+    test.skip(isTouchProject(info), 'a tablet-width window');
+    await openMixedDesign(page, { width: 769, height: 900 });
+    const fit = () => page.evaluate(() => {
+        const table = /** @type {Element} */ (document.getElementById('linksGridTable')).getBoundingClientRect();
+        const card = /** @type {Element} */ (document.getElementById('linksGridCard'));
+        const body = /** @type {Element} */ (card.querySelector('.card-body'));
+        const content = body.getBoundingClientRect().right - parseFloat(getComputedStyle(body).paddingRight);
+        return { scrolls: getComputedStyle(/** @type {Element} */ (document.getElementById('linksGridWrapper'))).overflowX !== 'visible',
+                 intoGutter: Math.round((table.right - content) * 10) / 10, pastCard: Math.round((table.right - card.getBoundingClientRect().right) * 10) / 10 };
+    });
+    for (const width of [769, 775, 782]) {
+        await page.setViewportSize({ width, height: 900 });
+        const f = await fit();
+        expect(f.scrolls, `the premise at ${width}px: the wrapper does not scroll`).toBe(false);
+        expect(f.intoGutter, `${width}px: the table's right edge against the card's content edge`).toBeLessThanOrEqual(0.5);
+    }
+    // Android's text scaling, which no width query sees: every element's own size × 1.3, read first.
+    await page.evaluate(() => {
+        const all = /** @type {[HTMLElement, number][]} */ ([...document.querySelectorAll('*')].map(el => [el, parseFloat(getComputedStyle(el).fontSize)]));
+        for (const [el, px] of all) if (px) el.style.fontSize = (px * 1.3) + 'px';
+    });
+    for (const width of [769, 800]) {
+        await page.setViewportSize({ width, height: 900 });
+        expect((await fit()).pastCard, `${width}px at 1.3x text: the table against the card's clipping edge`).toBeLessThanOrEqual(0.5);
+    }
+});
+
 test('links grid: a total that is only a floor says so with a "+", not by its colour alone', async ({ page }) => {
     // A line with a duty time nobody could read totals what it CAN read, so its three figures are a
     // floor. That was carried by an orange ink 1.56:1 from the ordinary figure's, and the legend named

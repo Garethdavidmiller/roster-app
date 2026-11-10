@@ -637,18 +637,27 @@ body.auth-ready .container { display: grid; }
 /* 768px, NOT 1024 (corrected v19.77 — measured, and the old value was costing the sticky header
    across the whole tablet range for nothing).
 
-   The wrapper is `overflow-x: auto` below this so the 592px table can scroll inside a narrow card.
+   The wrapper is `overflow-x: auto` below this so the table can scroll inside a narrow card.
    But `overflow-x: auto` makes it a SCROLL CONTAINER whether or not anything overflows, and
    `position: sticky` resolves against the nearest scroll container — so the day-header row stuck to
    a box that is its own content's height, i.e. never moved, i.e. was inert.
 
-   Measured across the range (scrollWidth / clientWidth of the wrapper):
+   Measured across the range — the wrapper's width against the 675px the table needs (re-measured
+   10 Nov 2026 with the three totals columns, at the shared page gutter):
 
-       390px  338 / 592  overflows — a scroll container is genuinely needed
-       600px  548 / 592  overflows
-       768px  684 / 684  FITS
-       834px  720 / 720  FITS   <- iPad portrait
-      1000px  876 / 876  FITS
+       390px  370 / 675  overflows — a scroll container is genuinely needed
+       600px  580 / 675  overflows
+       768px  716 / 675  FITS
+       769px  691 / 675  FITS   <- the tightest: the body gutter steps up from 10px here
+       834px  752 / 675  FITS   <- iPad portrait
+      1024px  931 / 675  FITS
+
+   675 holds only because the totals' names and the days note may WRAP (`.col-total`,
+   `.tot-avg-note`). Unwrapped, "Days worked" and "over 26 working lines" held that column at 96px:
+   the table needed 703, ran up to 12px into the card's gutter from 769 to 782px, and at 1.3x text
+   61px past the card's edge, cut off by its clip with no scroll. Left, measured: at 1.6x text (an
+   Android setting no width query can see) it needs 754px, so from 768 to ~830px the card still
+   cuts the last totals column; the cure is this scroll container, at the sticky header's cost.
 
    So from 768 to 1023 the wrapper was scrolling nothing and paying the sticky header for it. That
    band includes iPad portrait, and this workspace's own first-visit notice recommends "a desktop or
@@ -814,7 +823,9 @@ body.auth-ready .container { display: grid; }
 .links-grid th.col-total {
     background: var(--surface-sunken);
     line-height: 1.2;
-    white-space: nowrap;
+    /* The names may wrap, as the days note under them may: unbroken, they held the last column at
+       96px against the others' 68, which the table did not have from 769px (the 768px block above). */
+    white-space: normal;
     /* Sized to their content ("36h 20m" is the widest string) rather than sharing the table's
        spare width equally with the day columns — the day cells carry two lines of time and are
        what the designer is actually reading. */
@@ -872,6 +883,7 @@ body.auth-ready .container { display: grid; }
     font-size: 9px;
     font-weight: 400;
     color: var(--text-light);
+    white-space: normal;   /* "over 26 working lines" unbroken held the days column at 96px */
 }
 
 .btn-text-link {
