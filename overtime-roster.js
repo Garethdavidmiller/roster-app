@@ -34,7 +34,7 @@
 
 import { db, COLLECTIONS, collection, query, where, getDocs } from './firebase-client.js';
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, toOverrideRecord } from './override-utils.js';
+import { isRestShift, collectOverrideRecords, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { shiftSpanMinutes, rosterBadge } from './overtime-format.js';
 
@@ -81,12 +81,14 @@ export async function loadRosterContext(memberName, dates) {
         // cache on, an unreachable server does not throw — the cache answers, possibly with nothing
         // for a week it never read, which is the swallowed failure above wearing a success.
         if (snap?.metadata?.fromCache) return { knowledge: 'error', byDate: {} };
-        snap.forEach((/** @type {any} */ d) => {
-            const data = d.data();
-            // `toOverrideRecord` deliberately does NOT carry the date — it is the record shape the
-            // cache stores UNDER a key, so the date comes from the document itself.
-            if (data && typeof data.date === 'string') overrides[data.date] = toOverrideRecord(data);
-        });
+        // ONE WINNER PER DAY, THE CALENDAR'S (overtime-core-2, Nov 2026). A manual record and a
+        // roster import for one day coexist by design, and this kept whichever document the query
+        // returned LAST — Firestore's document-id order, so the answer hung on a random id. It now
+        // runs the Calendar's own pipeline: `collectOverrideRecords` (the shared validation), then
+        // `shouldReplaceOverride` per day, exactly as `reconcileRangeIntoCache` picks its winners.
+        for (const { date, record } of collectOverrideRecords(snap)) {
+            if (shouldReplaceOverride(overrides[date], record)) overrides[date] = record;
+        }
     } catch (_) {
         return { knowledge: 'error', byDate: {} };
     }
@@ -127,11 +129,11 @@ export async function loadRosterForMembers(memberNames, dates) {
             where('date', 'in', dates),
         ));
         if (snap?.metadata?.fromCache) return { knowledge: 'error', byMember: {} };   // as above
-        snap.forEach((/** @type {any} */ d) => {
-            const data = d.data();
-            if (!data || typeof data.date !== 'string' || typeof data.memberName !== 'string') return;
-            (byName[data.memberName] ||= {})[data.date] = toOverrideRecord(data);
-        });
+        // The same winner per member and day as the loader above — and as the Calendar.
+        for (const { memberName, date, record } of collectOverrideRecords(snap)) {
+            const days = (byName[memberName] ||= {});
+            if (shouldReplaceOverride(days[date], record)) days[date] = record;
+        }
     } catch (_) {
         return { knowledge: 'error', byMember: {} };
     }
@@ -163,9 +165,12 @@ function resolveWeek(member, dates, overrides) {
         // `getBaseShift` takes a DATE, not an ISO string — passing the string would skip the
         // Christmas rule and mis-key the roster lookup, silently, on exactly the weeks that matter
         // most. `parseISODate` is the app's own noon-anchored parse (DST-safe).
-        const base = getBaseShift(member, parseISODate(date));
-        const eff = resolveDayShift(overrides[date] || null, base, isSunday(date),
-            isChristmasLeaveDay(member, parseISODate(date)));
+        const day = parseISODate(date);
+        const base = getBaseShift(member, day);
+        // Before the member started there is no roster at all: `getBaseShift` already says rest,
+        // and a record must not undo it — the guard the Calendar, Team Week and the legend apply.
+        const override = isBeforeMemberStart(member, day) ? null : (overrides[date] || null);
+        const eff = resolveDayShift(override, base, isSunday(date), isChristmasLeaveDay(member, day));
         // The hours slot an override may carry (an RDW time, an Other day's actual times) is more
         // specific than the shift value, so it wins when present — the same precedence the calendar
         // renders from.
