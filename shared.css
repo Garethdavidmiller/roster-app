@@ -2831,6 +2831,10 @@ button.nav-panel-link--notices {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
+/* `display: flex` above out-specifies the UA's `[hidden]` rule, so the list nav-panel.js hides for an
+   EMPTY archive stayed in the panel: a 0px box that still took the column's gap (the message sat 20px
+   under the heading, not 10) and was still read out as an empty "Notices you've read" group. */
+.nav-notices-list[hidden] { display: none; }
 .notices-item {
     background: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.1);

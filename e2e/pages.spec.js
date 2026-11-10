@@ -515,6 +515,37 @@ test('App Notices: a long archive is reached and scrolled from the keyboard, wit
     await expect(list, 'Shift+Tab comes back to the list').toBeFocused();
 });
 
+// AN EMPTY ARCHIVE IS ITS MESSAGE AND NOTHING ELSE (whole-app review, Nov 2026). nav-panel.js hides the list when
+// there is nothing archived, and `display: flex` beat the `hidden` attribute, so the list stayed: a 0px box that took
+// the column's gap a second time and was still read out as an empty "Notices you've read" group. Playwright's own
+// `toBeHidden()` cannot see this — a box 0px tall already counts as hidden — so the box and the role are asked.
+test('App Notices: an empty archive shows its message, with no empty list left in the panel', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.removeItem('myb_app_notices'));
+    await page.goto('/settings.html');
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await expect(page.locator('#navNoticesEmpty'), 'the empty archive says so').toBeVisible();
+    // Layout offsets, not client rects: the panel is still scaling in from 0.88, and a rect would read the gap short.
+    const m = await page.evaluate(() => {
+        const list = /** @type {HTMLElement} */ (document.getElementById('navNoticesList'));
+        const panel = /** @type {HTMLElement} */ (document.getElementById('navNoticesContent'));
+        const heading = /** @type {HTMLElement} */ (panel.querySelector(':scope > .nav-cs-title'));
+        const message = /** @type {HTMLElement} */ (document.getElementById('navNoticesEmpty'));
+        return { hidden: list.hidden, boxes: list.getClientRects().length, gap: parseFloat(getComputedStyle(panel).rowGap),
+                 under: message.offsetTop - (heading.offsetTop + heading.offsetHeight) };
+    });
+    expect(m.hidden, 'premise: nav-panel.js hides the list of an empty archive').toBe(true);
+    expect(m.boxes, 'the hidden list is still laid out').toBe(0);
+    expect(Math.round(m.under), 'the message sits one gap under the heading, not two').toBe(m.gap);
+    await expect(page.getByRole('group', { name: /Notices you.ve read on this device/ }),
+        'an empty group is still offered to a screen reader').toHaveCount(0);
+});
+
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
 // registered the service worker only after their sign-in gate, so a release landing while somebody
 // sat on the sign-in screen left them working on the old release under the new worker. Operations
