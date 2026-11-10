@@ -345,6 +345,37 @@ test('re-locked mid-session: the keyboard does not move the month behind the car
     expect(await viewed()).toEqual(before);
 });
 
+// A re-lock takes down what the grant put up (whole-app review, Nov 2026). The two offer strips and
+// the swipe hint are shown with an INLINE `display`, which beats the browser's own `[hidden]`, so the
+// `hidden` the gate sets (calendar-access.js) needs index.css's `!important` id rule to win: without
+// it a strip stayed on screen above the sign-in card. Put up here exactly as their modules do, at a
+// phone's width (from 1024px the strips do not show at all).
+test('a re-lock takes the offer strips and the swipe hint down with the rest of the workspace', async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 800 });
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const ids = ['notifPrompt', 'installPrompt', 'swipeHint'];
+    await page.evaluate((list) => {
+        for (const id of list) /** @type {HTMLElement} */ (document.getElementById(id)).style.display = id === 'swipeHint' ? 'block' : 'flex';
+    }, ids);
+    for (const id of ids) await expect(page.locator(`#${id}`), `premise: #${id} is up`).toBeVisible();
+
+    await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    // ONE-SHOT, read as the card arrives: an auto-retrying toBeHidden() waited out the hint's own
+    // fade timer and passed with its rule deleted (measured).
+    const left = await page.evaluate((list) => list.filter((id) => {
+        const el = /** @type {HTMLElement} */ (document.getElementById(id));
+        return getComputedStyle(el).display !== 'none' || el.getBoundingClientRect().height > 0;
+    }), ids);
+    expect(left, 'left on screen above the sign-in card').toEqual([]);
+});
+
 // Whole-app review, Oct 2026: the one-time swipe hint started its 6s timer on a LOCKED Calendar, where
 // it is hidden with the workspace, and marked itself seen — used up on nothing.
 test('a first visit that begins locked does not use up the swipe hint', async ({ page }, info) => {
