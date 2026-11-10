@@ -1396,7 +1396,7 @@ What ONE week-grid save does about the annual leave in it. Pure — no DOM, no F
 ### `admin-al-spare-note.js`
 The one sentence the Annual Leave booking preview says about Spare days. Pure; a module of its own so the wording is unit-tested, because the template literal it replaced was ungrammatical for months with nothing able to read it (header).
 - `spareShiftNote(spareCount, totalDays)` → plain text, or `''`; three branches, because English has three: "This is a Spare day" (a one-day booking), "1 of these days is a Spare day", "N of these days are Spare days".
-- `countSpareDays(memberObj, dates, ovByDate)` → how many dates are STILL Spare, read through `resolveEffectiveShift` (a Spare day since given a shift is not counted; a saved Spare override is). Sundays never count.
+- `countSpareDays(memberObj, dates, ovByDate)` → how many dates are STILL Spare, read through `resolveEffectiveShift` (a Spare day since given a shift is not counted; a saved Spare override is), and COST a day by `consumesEntitlement` — so never a Sunday, 25/26 December or a Spare turn saved on a base rest day, which is free (owner, 10 Nov 2026).
 - **A day is a day** (owner decision): every branch ends "uses 1 day of annual leave", and nothing may suggest a Spare day costs more. It carries 📋, never ⚠ (information, not a caution), and is in the third person, because a manager books for somebody else from the same card. Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
 
 ### `admin-period-dates.js`
