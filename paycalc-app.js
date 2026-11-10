@@ -164,6 +164,7 @@ export function init() {
     let _bpPNum       = 0; // period number that receives the back pay (0 = none)
     let _bpIsEstimate = false; // lump derives from an unconfirmed award → label it "estimated"
     let _bpIncluded   = false; // the card's opt-in tick — the lump only joins the take-home when true
+    let _bpFromPayslip = false; // the lump was typed from the payslip, so hours cannot sharpen it
 
     // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
     // per browser session. Cleared on page reload. Uses tax year label as the key.
@@ -910,7 +911,7 @@ export function init() {
         rootId: 'bpActiveBanner', textId: 'bpBannerText', tickId: 'bpBannerTick', noteId: 'bpBannerNote',
         available: _bpAvailableHere, included: _bpIncluded,
         copy: backPayBannerCopy({
-          thisPeriod: _bpThisPeriod, amount: _bpAmount, isEstimate: _bpIsEstimate,
+          thisPeriod: _bpThisPeriod, amount: _bpAmount, isEstimate: _bpIsEstimate, fromPayslip: _bpFromPayslip,
           aprilYear: _bpAvailableHere ? _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4) : '',
         }),
       });
@@ -937,16 +938,22 @@ export function init() {
     // Adopt what calcBackPay()/prefillBackPay() return, and re-price only if it changed.
     /** @param {{ bpAmount: any, bpPNum: any, bpIsEstimate?: boolean, bpIncluded?: boolean }} _
      *  (bpVarAmount is deliberately not tracked: nothing consumes it since HPP stopped taking back
-     *  pay, and any change to it moves bpAmount too, so the re-price still fires.) */
+     *  pay, and any change to it moves bpAmount too, so the re-price still fires.) The amount source
+     *  is read off the card's own radio once the card has settled it — calcBackPay can put a manual
+     *  pick back to compute — and is part of the state, because a typed lump can equal the worked-out
+     *  one to the penny and the banner's note must still follow the switch. */
     function _applyBpState({ bpAmount, bpPNum, bpIsEstimate = false, bpIncluded = false }) {
+      const fromPayslip = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpModeManual'))?.checked);
       if (bpPNum !== _bpPNum ||
           bpIsEstimate !== _bpIsEstimate ||
           bpIncluded   !== _bpIncluded   ||
+          fromPayslip  !== _bpFromPayslip ||
           Math.abs(bpAmount    - _bpAmount)    > 0.001) {
         _bpAmount     = bpAmount;
         _bpPNum       = bpPNum;
         _bpIsEstimate = bpIsEstimate;
         _bpIncluded   = bpIncluded;
+        _bpFromPayslip = fromPayslip;
         calculate();
       }
     }

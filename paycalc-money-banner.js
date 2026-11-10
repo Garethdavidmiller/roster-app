@@ -35,14 +35,19 @@ import { fmt } from './paycalc-format.js';
  * between the two sentences — never the availability, which is only whether there is anything to
  * offer.
  *
+ * The note says how to sharpen a lump WORKED OUT from hours, so it is empty for one the member typed
+ * from the payslip (`fromPayslip`, the card's "Enter the amount from your payslip"): hours change
+ * nothing there, and the payslip's own figure has nothing left to sharpen.
+ *
  * @param {object} s
  * @param {number} s.thisPeriod   the lump actually added to this estimate (0 = opted out)
  * @param {number} s.amount       the lump available on this payslip
  * @param {boolean} s.isEstimate  the award is not yet confirmed
  * @param {string} s.aprilYear    the tax year the award backdates to, e.g. "2026"
+ * @param {boolean} [s.fromPayslip]  the lump was typed from the payslip rather than worked out
  * @returns {{ text: string, note: string }}
  */
-export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear }) {
+export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, fromPayslip = false }) {
     return {
         text: thisPeriod > 0
             ? `✓ Includes ${isEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(thisPeriod)}`
@@ -51,7 +56,7 @@ export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear })
             : isEstimate
                 ? `ℹ️ Estimated back pay lump sum of ${fmt(amount)} could land on this payslip — not added to this estimate`
                 : `ℹ️ Your back pay lump sum of ${fmt(amount)} will land on this payslip — not added to this estimate`,
-        note: `For the best estimate, fill in your hours on each payslip back to 1 April ${aprilYear}.`,
+        note: fromPayslip ? '' : `For the best estimate, fill in your hours on each payslip back to 1 April ${aprilYear}.`,
     };
 }
 

@@ -109,9 +109,16 @@ describe('dropping the hedge — an unconfirmed figure reading as settled', () =
 });
 
 describe('the notes, which differ on purpose', () => {
-    test('back pay always explains how to improve the estimate', () => {
+    test('back pay always explains how to improve a lump worked out from hours', () => {
         assert.match(BP().note, /back to 1 April 2026\.$/);
         assert.match(BP({ thisPeriod: 1240 }).note, /back to 1 April 2026\.$/);
+        assert.match(BP({ fromPayslip: false }).note, /fill in your hours/);
+    });
+
+    test('…and says nothing of hours for a lump typed from the payslip, which hours cannot change', () => {
+        // Whole-app check, 10 Nov 2026: the payslip's own figure has nothing left to sharpen.
+        assert.equal(BP({ fromPayslip: true }).note, '');
+        assert.equal(BP({ fromPayslip: true, thisPeriod: 1240 }).note, '');
     });
 
     test('HPP prompts only where there is something to do', () => {

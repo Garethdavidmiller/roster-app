@@ -1475,6 +1475,44 @@ test('paycalc: the back-pay lump joins take-home ONLY when the tick is on', asyn
     expect(errors, 'Uncaught JS exceptions on the back-pay opt-in').toHaveLength(0);
 });
 
+// ── A LUMP TYPED FROM THE PAYSLIP IS NOT AN ESTIMATE TO SHARPEN (whole-app check, 10 Nov 2026) ────
+// The banner's second line — "For the best estimate, fill in your hours on each payslip back to
+// 1 April …" — is the way to improve a lump WORKED OUT from hours. Typed from the payslip it is the
+// payslip's own figure, and hours change nothing, so the line has nothing to say there.
+test('paycalc: a back-pay lump typed from the payslip is not told to fill in hours', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);   // 7 Nov 2026 — the 28 Aug award payslip is paid
+    await seedSession(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('55');   // Paid 28 Aug 2026 · P24 — carries the 2026/27 award
+    await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    await expect(page.locator('#bpBannerNote'), 'worked out from hours: the line is the way to sharpen it')
+        .toHaveText('For the best estimate, fill in your hours on each payslip back to 1 April 2026.');
+
+    await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'));
+        /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+    });
+    const worked = (await page.locator('#backPayTotalAmt').textContent() ?? '').replace(/[£,]/g, '').trim();
+    expect(Number(worked), 'premise: a lump worked out from hours').toBeGreaterThan(0);
+    await page.locator('#bpModeManual').check();
+    await page.locator('#bpManualAmt').fill('500.00');
+    await expect(page.locator('#bpBannerText')).toContainText('£500.00');
+    await expect(page.locator('#bpBannerNote')).toHaveText('');
+    await expect(page.locator('#bpBannerNote')).toBeHidden();
+
+    // The SAME figure as the worked-out lump, then back to hours: nothing but the source changes, so
+    // only the source can bring the line back.
+    await page.locator('#bpManualAmt').fill(worked);
+    await expect(page.locator('#bpBannerText')).not.toContainText('£500.00');
+    await expect(page.locator('#bpBannerNote')).toHaveText('');
+    await page.locator('#bpModeCompute').check();
+    await expect(page.locator('#bpBannerNote')).toHaveText(/fill in your hours on each payslip back to 1 April 2026/);
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── THE TAKE-HOME £ IS THE ENGINE'S OWN FIGURE FOR WHAT IS ON SCREEN (test audit, 7 Nov 2026) ─────
 // Every other test in this file checks that the figure MOVES, or that it agrees with itself on a
 // second look. None said what it should BE, so `calculate()` could assemble the pieces wrongly with

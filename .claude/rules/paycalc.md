@@ -451,7 +451,8 @@ coordinator gates the gross addition (`_bpThisPeriod`) on it.
   estimate" ("will land" once the award is confirmed; with the view-card link), so the estimate stays
   discoverable without inflating anyone's figure uninvited. Both carry a second line
   (`.bp-banner-note`, owner request Jul 2026): "For the best estimate, fill in your hours on each
-  payslip back to 1 April <award year>." (`paycalc-money-banner.js`) — the year derives from the award
+  payslip back to 1 April <award year>." (`paycalc-money-banner.js`) — except for a lump typed from the
+  payslip (manual mode), which hours cannot change, so it has no second line — the year derives from the award
   tax-year label, so it rolls forward untouched. Every surface labels an unconfirmed award via
   `_bpIsEstimate`. Once the award is confirmed the same flow computes the REAL lump (settled prefill +
   real payment period) with plain labels — still opt-in.
