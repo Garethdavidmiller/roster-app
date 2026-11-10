@@ -1454,7 +1454,7 @@ Where a hash on `admin.html` lands. Admin is a page of folded cards, so a link h
 
 ### `admin-rangepicker.js`
 The inline date-range calendar both range cards use, through `admin-range-booking.js`.
-- `buildRangePicker(prefix, { onViewYearChange? })` — a swipeable month grid wired to the hidden `#{prefix}From` / `#{prefix}To` inputs, with chip labels and a clear button; returns `{ reset() }`. `onViewYearChange` fires when the DISPLAYED month crosses into another year, never on build. A swipe turns the month past `SWIPE_THRESHOLD` or `SWIPE_VELOCITY`, and month names come from `MONTH_NAMES` (all `roster-data.js`). Pointer capture is on the grid, never the clip (CLAUDE.md → architecture decisions).
+- `buildRangePicker(prefix, { onViewYearChange? })` — a swipeable month grid wired to the hidden `#{prefix}From` / `#{prefix}To` inputs, with chip labels and a clear button; returns `{ reset({ keepView? }) }` — `keepView`, which a save passes, clears the range but leaves the month on screen. `onViewYearChange` fires when the DISPLAYED month crosses into another year, never on build. Its arrows, keys and swipe move only between `CONFIG.MIN_YEAR` and `MAX_YEAR`, as the Calendar's. A swipe turns the month past `SWIPE_THRESHOLD` or `SWIPE_VELOCITY`, and month names come from `MONTH_NAMES` (all `roster-data.js`). Pointer capture is on the grid, never the clip (CLAUDE.md → architecture decisions).
 - `getDateRange(fromVal, toVal)` — pure: the inclusive ISO date list; `null` when reversed, `[]` when either input is empty. Tested by `admin-rangepicker.test.mjs`.
 
 ### `date-picker.js`

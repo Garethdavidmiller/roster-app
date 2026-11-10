@@ -7,7 +7,7 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
-import { teamMembers, getBaseShift } from '../roster-data.js';
+import { teamMembers, getBaseShift, CONFIG } from '../roster-data.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -666,6 +666,127 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     const backAgain = await read();
     expect(backAgain, 'the banner latched on the later year instead of tracking the picker')
         .toEqual(thisYear);
+});
+
+// ── A PRESS WHOSE RELEASE NEVER REACHES THE LEAVE PICKER (whole-app check, 10 Nov 2026) ──────────
+// The month grid started listening on ANY press and stopped only on a release delivered to it, so a
+// press released off the grid — or a right-click, whose release the context menu keeps — left the
+// month following the mouse with no button held, and the next click turned the page instead of
+// choosing a day. The Calendar's swipe has both guards (calendar-swipe.js); the picker now has them.
+test('admin: a press released off the leave picker does not leave the month following the mouse', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    await page.locator('#alToggleHeader').click();
+    const grid = page.locator('#alRpGrid');
+    const label = page.locator('#alRpLabel');
+    await expect(label).toHaveText('July 2026');
+    const box = /** @type {any} */ (await grid.boundingBox());
+    const midY = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width / 2, midY);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y - 120);   // straight off the grid, in one move
+    await page.mouse.up();                                        // released where the grid cannot hear it
+    await page.mouse.move(box.x + 12, midY);                      // back over it, with no button held
+    await page.mouse.move(box.x + box.width - 12, midY, { steps: 6 });
+    expect(await grid.evaluate(g => g.style.transform), 'the month followed a mouse with no button held').toBe('');
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-07-20"]').click();
+    await expect(label, 'the click turned the page instead of choosing the day').toHaveText('July 2026');
+    await expect(page.locator('#alRpFrom')).toHaveText('Mon 20 Jul');
+});
+
+test('admin: a right-click on the leave picker is not the start of a swipe', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    await page.locator('#alToggleHeader').click();
+    const grid = page.locator('#alRpGrid');
+    const box = /** @type {any} */ (await grid.boundingBox());
+    const midY = box.y + box.height / 2;
+    // The press whose release the context menu keeps: a right-button pointerdown, and nothing after.
+    // Dispatched, because a headless browser draws no menu to take the release.
+    await grid.evaluate((g, at) => g.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true,
+        pointerType: 'mouse', pointerId: 1, button: 2, buttons: 2, clientX: at.x, clientY: at.y })), { x: box.x + box.width / 2, y: midY });
+    await page.mouse.move(box.x + 12, midY);
+    await page.mouse.move(box.x + box.width - 12, midY, { steps: 6 });
+    expect(await grid.evaluate(g => g.style.transform), 'a right-press started a swipe').toBe('');
+});
+
+// ── THE LEAVE PICKER STOPS WHERE THE CALENDAR DOES (whole-app check, 10 Nov 2026) ──────────────
+// Nothing bounded it — a run reached 2086 — so leave could be recorded in a year the Calendar cannot
+// show and that has no bank holidays to count against. Its arrows, its keys and its swipe stop at
+// CONFIG's years now; each is checked at both ends, and the way back from each end still works.
+test('admin: the leave picker stops at the first and last months the Calendar shows', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'buttons, keys and a mouse');
+    const label = page.locator('#alRpLabel');
+    const grid  = page.locator('#alRpGrid');
+    /** Drag across the grid with the mouse, `dir` -1 leftwards (the next month) or +1 rightwards,
+     *  running `held` while the button is still down. */
+    const drag = async (/** @type {number} */ dir, held = async () => {}) => {
+        const box = /** @type {any} */ (await grid.boundingBox());
+        const y = box.y + box.height / 2, mid = box.x + box.width / 2;
+        await page.mouse.move(mid, y);
+        await page.mouse.down();
+        await page.mouse.move(mid + dir * box.width * 0.45, y, { steps: 8 });
+        await held();
+        await page.mouse.up();
+    };
+    /** Mid-drag at a bound, the one neighbour there is — none is drawn past it. */
+    const oneNeighbour = () => expect(page.locator('#alRpClip .rp-adj-panel'), 'a month past the bound, drawn to swipe on to').toHaveCount(1);
+    const open = async (/** @type {string} */ iso) => {
+        await page.clock.setFixedTime(new Date(`${iso}T09:00:00Z`));
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#alToggleHeader').click();
+    };
+    // The clock FIRST, so the seeded session's expiry is reckoned on it, not on the real date.
+    await page.clock.setFixedTime(new Date(`${CONFIG.MAX_YEAR}-12-10T09:00:00Z`));
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+
+    const last = `December ${CONFIG.MAX_YEAR}`;
+    await open(`${CONFIG.MAX_YEAR}-12-10`);
+    await expect(label).toHaveText(last);
+    await expect(page.locator('#alRpNext'), 'an arrow onto a month the Calendar cannot show').toBeDisabled();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${CONFIG.MAX_YEAR}-12-31"]`).focus();
+    await page.keyboard.press('PageDown');
+    await page.keyboard.press('ArrowRight');
+    await expect(label, 'a key past the last month').toHaveText(last);
+    await expect(page.locator(`#alRpGrid .rp-day[data-iso="${CONFIG.MAX_YEAR}-12-31"]`)).toBeFocused();
+    await drag(-1, oneNeighbour);
+    await expect.poll(() => grid.evaluate(g => g.style.transform), { message: 'the grid snaps back' }).toBe('');
+    await expect(label, 'a swipe past the last month').toHaveText(last);
+    // The snap-back's end — it also ends the cooldown that ignores a press straight after a swipe.
+    await expect.poll(() => grid.evaluate(g => g.style.willChange), { message: 'the snap-back finishes' }).toBe('');
+    await drag(+1);
+    await expect(label, 'the swipe back still turns the page').toHaveText(`November ${CONFIG.MAX_YEAR}`);
+    const next = page.locator('#alRpNext');
+    await expect(next, 'the arrows follow a swipe, not only a render').toBeEnabled();
+    await next.focus();
+    await page.keyboard.press('Enter');
+    await expect(label).toHaveText(last);
+    await expect(next).toBeDisabled();
+    await expect(next, 'the arrow just pressed keeps the keyboard').toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(label, 'the arrow pressed again at the bound').toHaveText(last);
+
+    const first = `January ${CONFIG.MIN_YEAR}`;
+    await open(`${CONFIG.MIN_YEAR}-01-10`);
+    await expect(label).toHaveText(first);
+    const prev = page.locator('#alRpPrev');
+    await expect(prev, 'an arrow onto a month the Calendar cannot show').toBeDisabled();
+    await prev.focus();
+    await page.keyboard.press('Enter');
+    await expect(label, 'the arrow pressed at the bound').toHaveText(first);
+    await page.locator(`#alRpGrid .rp-day[data-iso="${CONFIG.MIN_YEAR}-01-01"]`).focus();
+    await page.keyboard.press('PageUp');
+    await page.keyboard.press('ArrowLeft');
+    await expect(label, 'a key before the first month').toHaveText(first);
+    await drag(+1, oneNeighbour);
+    await expect.poll(() => grid.evaluate(g => g.style.transform), { message: 'the grid snaps back' }).toBe('');
+    await expect(label, 'a swipe before the first month').toHaveText(first);
+    await page.locator('#alRpNext').click();
+    await expect(label).toHaveText(`February ${CONFIG.MIN_YEAR}`);
+    await expect(page.locator('#alRpPrev')).toBeEnabled();
 });
 
 // ── "Recording for <name>" on the AL and Absence cards (v22.45) ──────────────────────────────
