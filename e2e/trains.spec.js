@@ -433,6 +433,56 @@ test.describe('trains', () => {
         await expect(page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]')).toHaveCount(0);
     });
 
+    // ── THE TWO DECEMBER CHANGES ARE TWO SHAPES (whole-app review, 10 Nov 2026) ──────────────────
+    // "New stop" and "no longer stops" were a green ring and a red one of the same lightness, so with
+    // red-green colour blindness, or on a black-and-white printer, the key showed two identical rings
+    // for opposite meanings, and the grid's cells carry no words. Compared here as a greyscale printer
+    // sees them: the INSIDES of the two rings must not be the same picture. At 4× so a 12px dot is
+    // 48 pixels, sampled on one grid, because the two sit at different fractional offsets and a
+    // pixel-by-pixel comparison of the raw captures compared misaligned images (measured).
+    test.describe('the December dots', () => {
+        test.use({ deviceScaleFactor: 4 });
+        test('where they stop: "new stop" and "no longer stops" differ in shape, not only in colour', async ({ page }) => {
+            await page.setViewportSize({ width: 393, height: 900 });
+            await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+            await seedSession(page, 'C. Reen');
+            await page.goto('/trains.html');
+            await page.locator('[data-view="grid"]').click();
+            await page.locator('[data-grid="dec"]').click();
+            const key = page.locator('#trPattern .tr-grid-key');
+            await expect(key, 'premise: the December key names both changes').toContainText('no longer stops');
+            const shot = async (/** @type {string} */ kind) => (await key.locator(`.tr-dot--${kind}`).screenshot()).toString('base64');
+            const pair = [await shot('new'), await shot('lost')];
+            // Decoded in a blank page, where a canvas has no stylesheet or CSP in its way.
+            const lab = await page.context().newPage();
+            const apart = await lab.evaluate(async ([a, b]) => {
+                /** The middle 40% of a capture — inside any ring — in greyscale, on a 16×16 grid. */
+                const inside = async (/** @type {string} */ png) => {
+                    const img = new Image();
+                    img.src = `data:image/png;base64,${png}`;
+                    await img.decode();
+                    const c = document.createElement('canvas');
+                    c.width = img.width; c.height = img.height;
+                    const g = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
+                    g.drawImage(img, 0, 0);
+                    const d = g.getImageData(0, 0, c.width, c.height).data;
+                    const out = [];
+                    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) {
+                        const x = Math.floor(c.width * (0.3 + 0.4 * (i + 0.5) / 16)), y = Math.floor(c.height * (0.3 + 0.4 * (j + 0.5) / 16));
+                        const k = 4 * (y * c.width + x);
+                        out.push(0.2126 * d[k] + 0.7152 * d[k + 1] + 0.0722 * d[k + 2]);
+                    }
+                    return out;
+                };
+                const [p, q] = [await inside(a), await inside(b)];
+                return p.reduce((sum, v, i) => sum + Math.abs(v - q[i]), 0) / p.length;
+            }, pair);
+            await lab.close();
+            // Measured in Chromium: 97.5 for the plus and the slash, 25 for the two plain rings they replaced.
+            expect(apart, 'in greyscale the insides of the two symbols are nearly the same picture').toBeGreaterThan(60);
+        });
+    });
+
     // Every view at phone width, with the widest content each holds open. The basic-hour grid
     // scrolls inside its own box, and v24.74 shipped with its screen-reader words escaping that box
     // and stretching the PAGE to 444px on a 390px phone — the whole page scrolled sideways.
