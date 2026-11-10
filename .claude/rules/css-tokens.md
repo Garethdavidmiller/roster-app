@@ -349,8 +349,8 @@ cannot carry white text at WCAG AA (2.15:1), so darker variants exist for those 
 
 | Token | L | Duty |
 |-------|---|------|
-| `--orange` (bright) | 77% | Ambient/identity colour only, never under white text: **Operations page identity** (nav pill, `#opsBadge`, ops notice badge), the paycalc Saturday pay badge's border, the admin overwrite-pending / correction pills |
-| `--orange-deep` | 54% | Fill carrying **white text**: the admin `.pill-correction.active` only |
+| `--orange` (bright) | 77% | Ambient/identity colour only, never under white text: **Operations page identity** (nav pill, `#opsBadge`, ops notice badge), the paycalc Saturday pay badge's border, the admin correction pills |
+| `--orange-deep` | 54% | Fill carrying **white text**: the admin `.pill-correction.active` and the overwrite badge's "⚠ Removing" state |
 | `--orange-text` | 44% | Darkened orange **text on white / `--orange-light`**: `.badge-sat` text, `.pill-correction` idle text — the orange-family analogue of `--rdw-text`/`--other-text`/`--absence-text` |
 | `--early-cell` / `--early-cell-border` | = `--orange-light` / `--orange` | **Early-shift CALENDAR surfaces only** (month-grid cell tint + border, legend swatch, Team-View cell + key dot, print rule) — the original bright amber. The cell has no white-text rule (dark date number), so it can be the full bright orange. Kept as named tokens so it stays a one-line lever. |
 | `--early-badge` | 57% | **☀️ Early BADGE fill only** (`.badge-early`, screen + print; white text). The BRIGHTEST true orange that still clears WCAG AA under white text — L57% at the original hue = **4.64:1** (owner: "closest to original"). This is the accessible ceiling; above ~L57% white text fails (a brighter badge would need dark text). |

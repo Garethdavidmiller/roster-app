@@ -1100,12 +1100,14 @@
 
 
 
-        /* "Has override" badge — shown when a day already has a saved override.
-           Turns blue-teal when the row is active (about to replace that override). */
+        /* "Has override" badge — shown when a day already has a saved override. Its own colours are
+           the "⚠ Removing" state (a saved day unticked): `--orange-deep`, because white text on the
+           bright `--orange` was 2.16:1 (css-tokens.md → "The orange family"). Blue while the row is
+           active (about to replace that override), green while untouched (below). */
         .overwrite-badge {
             font-size: var(--type-micro);
             font-weight: 700;
-            background: var(--orange);
+            background: var(--orange-deep);
             color: white;
             border: none;
             padding: 2px 7px;

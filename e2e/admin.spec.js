@@ -1472,6 +1472,40 @@ test('admin: "AL left" in the card header is readable when only a few days remai
     expect(ratio, '"AL left: N" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
 });
 
+// Unticking a day that holds a saved change stages its removal, and the badge beside its date says
+// so in the badge's own colours — which were white on the bright orange, 2.16:1, the one pairing
+// css-tokens.md forbids. The a11y scan never unticks a saved row.
+test('admin: the "Removing" badge on an unticked saved day is readable', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-11-12', type: 'rdw', value: '13:30-21:00', note: '' }],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    const row = page.locator('.week-panel .day-row[data-date="2026-11-12"]');
+    await expect(row.locator('.overwrite-badge')).toContainText('Saved');
+    await row.locator('.col-check input').click();
+    const badge = row.locator('.overwrite-badge');
+    await expect(badge).toContainText('Removing');
+    const ratio = await badge.evaluate(async el => {
+        await Promise.all(el.getAnimations().map(a => a.finished));   // its fill eases between states
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        /** @param {string} css */
+        const rgb = (css) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        /** @param {number[]} c */
+        const lum = (c) => c.map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+            .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const cs = getComputedStyle(el);
+        const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+    });
+    expect(ratio, 'the "Removing" badge is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
+});
+
 test('admin: the recorded-dates list shows one year at a time, and only years that have leave',
     async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
