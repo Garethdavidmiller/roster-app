@@ -1048,6 +1048,18 @@ test('admin: a member\'s locked member field reads as locked, not as broken', as
     expect(style).toEqual({ opacity: '1', cursor: 'default' });
 });
 
+// shared-ui-5 — a search box is named by what its list holds. The member picker's title is a question,
+// which has no noun to weld onto "Search", so its box was called a bare "Search".
+test('admin: the member picker calls its search box "Search staff"', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMemberTrigger').click();
+    const box = page.locator('.picker-sheet .picker-search-input');
+    await expect(box, 'premise: the staff list earns a search box').toBeVisible();
+    await expect(box).toHaveAttribute('aria-label', 'Search staff');
+});
+
 test('admin: a member booking their own leave is not told whose leave it is', async ({ page }) => {
     // Not a cosmetic preference. This member cannot change the selector, so the row could only ever
     // say their own name back to them — and an empty `.card-member-for` (the failure mode if the

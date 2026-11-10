@@ -1215,7 +1215,7 @@ export function init() {
     // control on the page is the whole point of the top bar; see select-sheet.js's hidden-select
     // note, and `select-sheet-parity.test.mjs`, which now refuses a hidden id in this list.
     initSelectSheets([
-        { id: 'fieldMember',          title: 'Which member are you working on?' },
+        { id: 'fieldMember',          title: 'Which member are you working on?', searchLabel: 'Search staff' },
         { id: 'overridesMonthFilter', title: 'Show which month?' },
     ], { createLightbox });
 
