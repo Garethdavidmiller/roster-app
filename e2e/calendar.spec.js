@@ -3224,6 +3224,29 @@ test('huddle: offline with nothing cached, a tap says it could not load — neve
     await expect(body).not.toContainText('No Daily Huddle has been uploaded yet');
 });
 
+test('circular: offline with nothing cached, the viewer and the drawer say they could not connect — never "none uploaded"', async ({ page }) => {
+    // The Huddle's rule, which the one-shot Circular/Newsletter read never got (documents-client.js →
+    // `latestIn`, whole-app review 10 Nov 2026): an empty answer from the cache alone is a read that failed.
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true };
+        window.open = /** @type {any} */ (() => ({ opener: null, close() {}, location: {} }));
+    });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });   // offline from here
+    await page.evaluate(() => { location.hash = '#circular'; });
+    const body = page.locator('#docViewerBody');
+    await expect(body).toContainText("Couldn't load this document.", { timeout: 10_000 });
+    await expect(body).not.toContainText('has been uploaded yet');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-link--newsletter').click();
+    await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
+    await expect(page.locator('#navComingSoonLightbox')).not.toContainText('No newsletter has been uploaded yet');
+});
+
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((stored) => {

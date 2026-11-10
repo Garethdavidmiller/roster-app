@@ -54,6 +54,9 @@ import { SIGNED_OUT_CODE } from './claim-retry.js';
  */
 const RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
 
+/** What `latestIn` throws when only this device's cache answered, empty — see `latestIn`. */
+const CACHE_ONLY_EMPTY = 'documents/cache-only-empty';
+
 /**
  * Verify a chosen file's leading bytes (magic number) actually match its declared type before it is
  * uploaded. Browser uploads otherwise trust only the file extension / reported MIME, so a renamed
@@ -328,12 +331,22 @@ export function buildDocumentClient({
     /**
      * Read the most recent document in a date-keyed collection (one-shot).
      * A row with no `storageUrl` is treated as absent — it points at nothing.
+     *
+     * ONLY THE SERVER CAN SAY "NONE" (whole-app review, 10 Nov 2026) — the Huddle listener's rule
+     * (`subscribeToLatestHuddle` below, and its viewer), which these one-shot reads never got. Offline,
+     * `getDocs` resolves from this device's cache (CALENDAR_DATA.md 16), and an EMPTY cache is a read
+     * that could not be made, not a document that does not exist. It is thrown, so both callers — the
+     * drawer and the in-app viewer — say they could not connect, with a way to try again, instead of
+     * "No … has been uploaded yet".
      * @param {string} collectionName
      * @returns {Promise<any>} the latest document's data, or null
      */
     async function latestIn(collectionName) {
         const q = query(collection(db, collectionName), orderBy('date', 'desc'), limit(1));
         const snap = await getDocs(q);
+        if (snap.empty && snap.metadata?.fromCache) {
+            throw Object.assign(new Error('Only this device\'s cache answered, and it holds none.'), { code: CACHE_ONLY_EMPTY });
+        }
         if (snap.empty) return null;
         const data = snap.docs[0].data();
         return data.storageUrl ? data : null;
@@ -370,10 +383,12 @@ export function buildDocumentClient({
         uploadNewsletter: (date, file, uploadedBy) =>
             uploadDoc(collections.newsletters, date, file, uploadedBy),
 
-        /** @returns {Promise<any>} the latest Retail Circular, or null if none uploaded */
+        /** @returns {Promise<any>} the latest Retail Circular, or null if the server says none is
+         *  uploaded; rejects when only an empty cache answered (`latestIn`) */
         getLatestCircular: () => latestIn(collections.circulars),
 
-        /** @returns {Promise<any>} the latest Newsletter, or null if none uploaded */
+        /** @returns {Promise<any>} the latest Newsletter, or null if the server says none is uploaded;
+         *  rejects when only an empty cache answered (`latestIn`) */
         getLatestNewsletter: () => latestIn(collections.newsletters),
 
         /**

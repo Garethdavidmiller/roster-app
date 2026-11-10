@@ -466,3 +466,40 @@ describe('what the three collections do differently', () => {
         assert.ok(h);
     });
 });
+
+// ── ONLY THE SERVER CAN SAY "NONE" (whole-app review, 10 Nov 2026) ──────────────────────────────────
+// Offline, `getDocs` resolves from the device's cache, and an EMPTY cache said "No Weekly Retail
+// Circular has been uploaded yet" in the drawer and the viewer alike — the exact false claim the Huddle
+// viewer was fixed for. Both callers already answer a rejection with "couldn't connect" and a retry.
+describe('the latest Circular or Newsletter: an empty cache is not "none uploaded"', () => {
+    /** A client whose one-shot read answers with `snap`. */
+    const reading = (snap) => buildDocumentClient({
+        db: {}, collections: { huddles: 'h', circulars: 'c', newsletters: 'n' },
+        fs: { doc: () => ({}), getDoc: async () => ({ exists: () => false }), setDoc: async () => {}, onSnapshot: () => () => {},
+              runTransaction: async () => {}, serverTimestamp: () => 'TS', where: () => ({}), collection: () => ({}),
+              query: () => ({}), orderBy: () => ({}), limit: () => ({}), getDocs: async () => snap },
+        getStorageSdk: async () => ({}), uploadBytesWithClaimRetry: async () => {},
+        utils: { isDocxUpload: () => false, uploadMimeType: () => '', legacyDocPath: () => '', versionedDocPath: () => '' },
+        resolveUploadCommit: () => 'retry', pruneOldDocs: async () => {},
+    });
+
+    test('an EMPTY answer from this device\'s cache alone is a read that failed', async () => {
+        const client = reading({ empty: true, docs: [], metadata: { fromCache: true } });
+        for (const read of [client.getLatestCircular, client.getLatestNewsletter]) {
+            await assert.rejects(read, (/** @type {any} */ e) => e.code === 'documents/cache-only-empty',
+                'an offline device was told nothing has been uploaded');
+        }
+    });
+
+    test('the SERVER\'s empty answer is "none uploaded" — the gate is a gate, not a disablement', async () => {
+        const client = reading({ empty: true, docs: [], metadata: { fromCache: false } });
+        assert.equal(await client.getLatestCircular(), null);
+        assert.equal(await client.getLatestNewsletter(), null);
+    });
+
+    test('a document the cache DOES hold is still returned — a saved copy is a copy, not a failure', async () => {
+        const row = { date: '2026-11-06', storageUrl: 'https://example.invalid/c.pdf', fileType: 'pdf' };
+        const client = reading({ empty: false, docs: [{ id: 'x', data: () => row }], metadata: { fromCache: true } });
+        assert.deepEqual(await client.getLatestCircular(), row);
+    });
+});
