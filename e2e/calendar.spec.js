@@ -2056,6 +2056,81 @@ for (const [width, scale] of [[320, 1.0], [360, 1.0], [412, 1.0], [320, 1.3], [3
     });
 }
 
+/** Every finite animation and transition on the page run to its end — a wait, never a sleep. */
+const settleMotion = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => Promise.all(
+    document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null))));
+
+/** A colour token as this page computes it, for comparing with a computed fill. */
+const resolvedColour = (/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ name) => page.evaluate((n) => {
+    const probe = document.body.appendChild(document.createElement('div'));
+    probe.style.backgroundColor = `var(${n})`;
+    const value = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return value;
+}, name);
+
+// ─── THE HEADER LOGO KEEPS STILL FOR A MEMBER WHO ASKED FOR LESS MOTION (whole-app fix, 10 Nov 2026) ─
+// The logo opens About, and under a mouse it grows to 1.12× — decoration that exists to move. The
+// sub-pages' logo stops for reduced motion (shared.css .app-icon); this one went on growing, on a
+// 0.12s transition, exactly as it does for everybody else. The premise is measured first, so the
+// test can see the grow it says is gone.
+test('calendar: with reduced motion the header logo does not grow under the mouse', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedMember(page);
+    await seedMemberSession(page);
+    const hovered = async (/** @type {'reduce' | 'no-preference'} */ motion) => {
+        await page.emulateMedia({ reducedMotion: motion });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('.title-icon').hover();
+        await settleMotion(page);
+        return page.locator('.title-icon').evaluate(el => ({
+            transform: getComputedStyle(el).transform, duration: getComputedStyle(el).transitionDuration }));
+    };
+    expect((await hovered('no-preference')).transform, 'premise: for everybody else the logo grows').toBe('matrix(1.12, 0, 0, 1.12, 0, 0)');
+    expect(await hovered('reduce'), 'no grow, and no transition to run one').toEqual({ transform: 'none', duration: '0s' });
+});
+
+// ─── A MONTH ARROW AT A BOUND OFFERS A MOUSE NOTHING (whole-app fix, 10 Nov 2026) ─────────────────
+// At the last month the Calendar shows, Next is `aria-disabled` and faded (calendar-app.js) — never
+// `disabled`, which drops a keyboard user's focus — and pressing it does nothing. It still offered
+// the hand, the navy hover lift and the press, so to a mouse it looked like a way forward. Prev
+// beside it keeps all three. The Today button's gold hover is read as well: the arrow is let out of
+// the shared hover rule through :where(), because a plain second :not() raises that rule over
+// Today's, Pay's and AL's own hover colours (measured: Today hovered navy).
+test('calendar: a month arrow at the last month offers a mouse no hand, no hover lift and no press', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await page.clock.setFixedTime(new Date(`${CONFIG.MAX_YEAR}-12-10T09:00:00Z`));
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('#nextMonth'), 'premise: the last month has no next').toHaveAttribute('aria-disabled', 'true');
+    const look = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { cursor: cs.cursor, fill: cs.backgroundColor, transform: cs.transform };
+    });
+    const hovered = async (/** @type {string} */ sel) => { await page.locator(sel).hover(); await settleMotion(page); return look(sel); };
+
+    const live = await hovered('#prevMonth');
+    expect(live, 'premise: a live arrow offers the hand, darkens and lifts under the mouse').toEqual({
+        cursor: 'pointer', fill: await resolvedColour(page, '--primary-blue-dark'), transform: 'matrix(1, 0, 0, 1, 0, -1)' });
+
+    expect(await hovered('#nextMonth'), 'the arrow at the bound, under the mouse').toEqual({
+        cursor: 'default', fill: await resolvedColour(page, '--primary-blue'), transform: 'none' });
+    await page.mouse.down();   // the mouse is over it: a press, held
+    await settleMotion(page);
+    const pressed = (await look('#nextMonth')).transform;
+    await page.mouse.up();
+    expect(pressed, 'a press does not squash it').toBe('none');
+
+    expect((await hovered('.controls button.today-btn')).fill, 'Today keeps its own gold hover')
+        .toBe(await resolvedColour(page, '--accent-gold-dark'));
+});
+
 // ─── ON A WIDE SCREEN THE TEAM VIEW BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86) ─────────────
 // At 1280px the two arrows sat at the far edges of a 1040px card, 400px from the label they move,
 // while the month view directly above keeps Prev · name · Next as one compact centred group. Both

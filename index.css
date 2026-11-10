@@ -149,6 +149,11 @@
             .calendar-day.today.today-pulse {
                 animation: none;
             }
+            /* The logo's grow is decoration that exists to move, so it goes rather than snapping — as the
+               sub-pages' logo does (shared.css .app-icon). The press is already neutral through --press-scale.
+               After the hover rule above, which it must out-order at equal specificity. */
+            .title-icon { transition: none; }
+            .title-icon:hover { transform: none; }
         }
 
         .controls {
@@ -314,7 +319,10 @@
         /* text-align on <option> is not supported cross-browser — omitted */
 
         @media (hover: hover) and (pointer: fine) {
-            .controls button:not(.fieldpick):hover {
+            /* `:where()` lets an arrow at a bound (below) out of the lift at NO cost in specificity: a plain
+               second `:not()` would raise this rule to (0,4,1) and beat the Today, Pay and AL hover colours
+               that follow it, which win today on order at (0,3,1). */
+            .controls button:not(.fieldpick):where(:not([aria-disabled="true"])):hover {
                 background: var(--primary-blue-dark);
                 border-color: var(--primary-blue-dark);
                 transform: translateY(-1px);
@@ -338,11 +346,16 @@
             }
         }
 
-        .controls button:not(.fieldpick):active {
+        .controls button:not(.fieldpick):where(:not([aria-disabled="true"])):active {
             transform: scale(var(--press-scale));
             opacity: 0.8;
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
         }
+        /* A month arrow at the first or last month is `aria-disabled` and faded (calendar-app.js,
+           updateNavButtonState) — never `disabled`, which would drop a keyboard user's focus. It does
+           nothing there, so it offers no hand, no hover lift and no press: Admin's picker arrows
+           (.rp-nav-btn) answer the same way. */
+        .controls button[aria-disabled="true"] { cursor: default; }
 
         .controls button.today-btn {
             background: var(--accent-gold);
