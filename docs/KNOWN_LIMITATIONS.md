@@ -767,6 +767,12 @@ The "Fill from calendar" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/B
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
+### A backup made under a member's old name does not restore under the new one
+A backup is filed under the name it was made with, so after a member is renamed on the roster it is
+refused, and the member is told to contact the admin (`NOT_ON_ROSTER`, `paycalc-transfer.js`).
+Restoring it as theirs would need a former-name record on the member. Not built (owner, 10 Nov 2026:
+renames are rare), so a rename is handled by the admin when it happens.
+
 ### A back-pay lump on an un-entered payslip is left out of "This tax year so far"
 The year summary skips a paid payslip with no saved hours wholesale (it is listed under "Not entered
 yet"), so its opt-in lump is skipped with it, while the result card shows the lump. Judged correct
@@ -1309,9 +1315,8 @@ not do, or cannot know:
   from 769px the grid stays inside its card, and at 1.3x text nothing is cut off`, `e2e/links.spec.js`).
   At 1.6× it does not. Android's Font size and Display size settings multiply, no width query can see
   them, and the table then needs 754px, so between 768px and about 830px the card's clip cuts the last
-  totals column off with no scroll to reach it. **Accepted for now, awaiting the owner's decision**
-  (asked 10 November 2026): keep the sticky day header there, or restore the scroll container, which
-  would lose the sticky header.
+  totals column off with no scroll to reach it. **Accepted: the owner kept the sticky day header**
+  (10 November 2026) over restoring the scroll container, which would lose it at those widths.
 - **Coverage heat map counts pattern positions, not a named headcount.** Every position in the
   rotation is counted, including any line not yet designed. The design is patterns-only, so there is
   no distinction between named and unnamed positions. The heat map colour scale is relative to the
