@@ -2349,6 +2349,138 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
     });
 
+    // overtime-ui-9: the two paths that keep the form (it absorbed its own move, or it holds unsent
+    // answers) returned before anything else was painted, so an answered week that had just CLOSED
+    // went on reading "Submitted — you can still change it · Open" beneath it.
+    /** One Tuesday 12:00 the two weeks share: the answered week's LAST deadline. @param {any} page @param {boolean} onScreenMoves */
+    async function answeredWeekCloses(page, onScreenMoves) {
+        await seedSession(page, 'G. Miller');
+        const onScreen = { ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null,
+            ...(onScreenMoves ? { initialDeadlineAt: NOW + 60_000 } : {}) };
+        const answered = { ...onScreen, weekEnding: '2026-08-29', weekStart: '2026-08-23', phase: 'FINAL_OPEN',
+            initialDeadlineAt: NOW - 7 * 86_400_000, finalDeadlineAt: NOW + 60_000, submission: { currentRevision: 1, days: {} } };
+        const reads = { calls: 0 };
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => {
+            reads.calls += 1;
+            const windows = reads.calls === 1 ? [onScreen, answered]
+                : [{ ...onScreen, phase: onScreenMoves ? 'FINAL_OPEN' : 'INITIAL_OPEN' }, { ...answered, phase: 'CLOSED' }];
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW, windows }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        const row = page.locator('.ot-week-row', { has: page.locator('[data-openweek="2026-08-29"]') });
+        await expect(row).toContainText('Submitted — you can still change it');
+        return { row, reads };
+    }
+
+    test('the form taking its own phase move in place still repaints the week that CLOSED beneath it (overtime-ui-9)', async ({ page }) => {
+        const { row, reads } = await answeredWeekCloses(page, true);
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('.ot-phase-chip'), 'the form took its move in place').toHaveText('Still open');
+        await expect(row).toContainText('Submitted — now final');
+        await expect(row.locator('[data-openweek]')).toHaveText('View');
+        await expect(page.locator('.ot-history-title').first(), 'it moved to the closed list').toHaveText('Previous forms');
+        expect(reads.calls, 'painted from the resync\'s own read — the form was not rebuilt').toBe(2);
+    });
+
+    test('a form holding unsent answers keeps them, and the week that CLOSED beneath it is repainted (overtime-ui-9)', async ({ page }) => {
+        const { row, reads } = await answeredWeekCloses(page, false);
+        for (let i = 0; i < 5; i++) await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(row).toContainText('Submitted — now final');
+        expect(reads.calls, 'the card was not reloaded').toBe(2);
+        await expect(page.locator('.ot-day--set')).toHaveCount(5);
+    });
+
+    test('a save that lands after another week was opened paints nothing under the new form (overtime-ui-15)', async ({ page }) => {
+        // Submit on a slow connection, then open another week and Leave. The first form's save used to
+        // land by painting the week lists — with a row for the week now on screen — under the new form.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06', finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        /** @type {(v?: any) => void} */ let release = () => {};
+        const held = new Promise((r) => { release = r; });
+        await page.route('**/submitOvertimeAvailability', async (/** @type {any} */ r) => { await held; await r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, revision: 1, created: true, phase: 'FINAL_OPEN', serverNow: NOW }) }); });
+        await trackEndpointUse(page, 'submitOvertimeAvailability');
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        for (let i = 0; i < 7; i++) await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('Saving');
+        await page.locator('[data-openweek="2026-09-12"]').click();
+        await page.getByRole('button', { name: 'Leave', exact: true }).click();
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+        await expect(page.locator('.ot-back-to-list')).toBeVisible();
+        release();
+        await expect.poll(async () => (await endpointUse(page, 'submitOvertimeAvailability')).bodiesRead,
+            { message: 'the first form\'s save never landed' }).toBeGreaterThanOrEqual(1);
+        await expect(page.locator('.ot-history'), 'no week list under a form that is not its own').toHaveCount(0);
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+    });
+
+    test('answers the member chose to leave are not guarded while the next form loads (overtime-ui-15)', async ({ page }) => {
+        // The old form's handle outlived its "Leave" until the next form's roster read returned, so
+        // for that long the page still warned about answers that were no longer anywhere.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06', finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        await page.goto('/overtime.html');
+        const armed = () => page.evaluate(() => {
+            const e = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        const hold = (/** @type {boolean} */ on) => page.evaluate((v) => { /** @type {any} */ (window).__E2E.docsHeld = v; }, on);
+        for (const [leave, lands] of [[() => page.locator('[data-openweek="2026-09-12"]').click(), '12 September 2026'],
+            [() => page.locator('.ot-back-to-list').click(), '5 September 2026']]) {
+            await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
+            expect(await armed(), 'the answer on screen is guarded').toBe(true);
+            await hold(true);
+            await leave();
+            await page.getByRole('button', { name: 'Leave', exact: true }).click();
+            await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
+            expect(await armed(), 'left by choice, so nothing is guarded while the next form loads').toBe(false);
+            await hold(false);
+            await expect(page.locator('.ot-form-week')).toContainText(String(lands));
+        }
+    });
+
+    test('a form whose card was replaced while its roster loaded is not adopted (overtime-ui-15)', async ({ page }) => {
+        // Open another week; while its roster read is out, a resync rebuilds the card (here: nothing
+        // is open any more). The opened form used to land anyway — the page's form, with a "Back"
+        // button under the card that had replaced it.
+        await seedSession(page, 'G. Miller');
+        const lead = winOver({ phase: 'INITIAL_OPEN' });
+        const answered = winOver({ weekEnding: '2026-08-29', weekStart: '2026-08-23', finalDeadlineAt: NOW + 60_000,
+            submission: { currentRevision: 1, days: {} } });
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => {
+            calls += 1;
+            const windows = calls === 1 ? [lead, answered] : calls === 2 ? [lead, { ...answered, phase: 'CLOSED' }] : [];
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW, windows }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+        await page.locator('[data-openweek="2026-08-29"]').click();
+        await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('#otMineContent')).toContainText('No overtime availability forms are open');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+        await expect.poll(() => page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; return e.docReadsSettled === e.docReads; }),
+            { message: 'the held roster read never landed' }).toBe(true);
+        await expect(page.locator('.ot-back-to-list'), 'nothing of the replaced form reaches the card').toHaveCount(0);
+        await expect(page.locator('#otMineContent')).toContainText('No overtime availability forms are open');
+    });
+
     test('leaving a form with unsubmitted answers asks first', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06',

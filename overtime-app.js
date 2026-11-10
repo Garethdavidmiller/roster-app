@@ -74,6 +74,19 @@ export function init() {
     /** Which week that form is for, so a resync knows whether a moved window is the visible one. */
     /** @type {string|null} */
     let currentFormWeek = null;
+    /** The landing layout's list painter, so a resync can repaint the rows without the form. @type {(() => void)|null} */
+    let repaintLists = null;
+    /** A form is about to be replaced: drop every handle to it FIRST (overtime-ui-15) — kept through the
+     *  next form's roster read, `confirmDiscard` asked about answers the member had already left. */
+    function releaseForm() { currentForm = null; currentFormWeek = null; repaintLists = null; }
+    /** …and the new one is adopted only if nothing replaced it while its roster was read: an older
+     *  read landing last must not make a detached form the one every guard asks. @returns {boolean} */
+    function adopt(/** @type {HTMLElement} */ holder, /** @type {HTMLElement} */ host, /** @type {any} */ form,
+        /** @type {string} */ week, /** @type {(() => void)|null} */ lists = null) {
+        if (holder.parentNode !== host) return false;
+        currentForm = form; currentFormWeek = week; repaintLists = lists;
+        return true;
+    }
     // The service worker, BEFORE the access gate below (whole-app review, Oct 2026) — the sign-in and
     // "not open to you" branches return early, and a signed-out view must still take an update, as
     // Operations and Links do. A release must not take a half-answered form, or a submit on its way,
@@ -337,15 +350,16 @@ export function init() {
                 // Record every move on the window objects — the week LIST rows read `phase` too, and
                 // leaving them stale would be the same lie in a quieter place.
                 for (const w of moved) w.phase = phases.get(w.weekEnding);
-                // The form on screen is the only one that can absorb a change in place. If it took
-                // the new phase, nothing else is needed; if it refused (it is closing), rebuild.
+                // The form on screen is the only one that can absorb a change in place; if it refused
+                // (it is closing), rebuild. When only ANOTHER week moved (they share Tuesday 12:00s), a
+                // rebuild would wipe this form, so it is skipped only when there are answers to lose.
+                // A form KEPT either way has the rows beneath it repainted, or a week that has just
+                // closed goes on saying "you can still change it" (overtime-ui-9).
                 const onScreen = currentForm && currentFormWeek
                     && moved.some((/** @type {any} */ w) => w.weekEnding === currentFormWeek);
-                if (onScreen && currentForm.setPhase(phases.get(currentFormWeek))) return;
-                // Only ANOTHER week moved (they share Tuesday 12:00s): a rebuild would wipe this form,
-                // so skip it only when there are answers to lose — a clean form rebuilds, or the list
-                // rows beneath it keep the old phase.
-                if (currentForm && !onScreen && currentForm.isDirty()) return;
+                const kept = onScreen ? currentForm.setPhase(phases.get(currentFormWeek))
+                    : !!currentForm && currentForm.isDirty();
+                if (kept) { repaintLists?.(); return; }
                 await loadMine();
             } finally {
                 resyncing = false;
@@ -416,8 +430,7 @@ export function init() {
         // The form on screen is about to be replaced whatever happens below, so the handle to it
         // must go now. A stale one would let a later resync call `setPhase` on a detached node —
         // and, worse, let `confirmDiscard` warn about unsaved answers that are no longer anywhere.
-        currentForm = null;
-        currentFormWeek = null;
+        releaseForm();
         const r = await OTD.getMyOvertimeState();
         if (!r.ok) { mineFailed = true; renderError(host); return; }
 
@@ -474,9 +487,8 @@ export function init() {
      * @param {HTMLElement} host @param {any[]} windows
      */
     async function renderMine(host, windows) {
-        const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED')
-            .sort((/** @type {any} */ a, /** @type {any} */ b) => a.finalDeadlineAt - b.finalDeadlineAt);
-        const closed = windows.filter((/** @type {any} */ w) => w.phase === 'CLOSED');
+        releaseForm();
+        const { open, closed } = byPhase(windows);
         // With nothing open, the newest CLOSED week is still what they came to look at (read-only).
         const lead = open.find((/** @type {any} */ w) => !w.submission)
             || open[0] || closed[closed.length - 1];
@@ -488,19 +500,27 @@ export function init() {
         // Re-render the LISTS after a save, not the form: the row for a week just submitted has to
         // stop saying "Not submitted yet", and the outstanding-count nudge below has to recount.
         // Re-rendering the form as well would throw away the confirmation the member is reading.
-        currentForm = await renderWeekForm(holder, lead, String(currentUser),
-            { onSaved: () => paintLists() });
-        currentFormWeek = lead.weekEnding;
-        paintLists();
+        const form = await renderWeekForm(holder, lead, String(currentUser), { onSaved: () => paintLists() });
+        if (adopt(holder, host, form, lead.weekEnding, paintLists)) paintLists();
 
+        // The phases are read AGAIN at every paint — a resync moves `phase` on these same objects
+        // (overtime-ui-9) — and a form that has left the page paints nothing: its save can land
+        // after the member opened another week (overtime-ui-15).
         function paintLists() {
+            if (holder.parentNode !== host) return;
             while (holder.nextSibling) host.removeChild(holder.nextSibling);
-            appendWeekList(host, open.filter((/** @type {any} */ w) => w !== lead),
-                'Other open weeks', windows);
-            appendWeekList(host, closed.filter((/** @type {any} */ w) => w !== lead),
-                'Previous forms', windows);
-            appendOutstandingNudge(host, open, lead);
+            const now = byPhase(windows);
+            appendWeekList(host, now.open.filter((/** @type {any} */ w) => w !== lead), 'Other open weeks', windows);
+            appendWeekList(host, now.closed.filter((/** @type {any} */ w) => w !== lead), 'Previous forms', windows);
+            appendOutstandingNudge(host, now.open, lead);
         }
+    }
+
+    /** The member's weeks by phase, the open ones soonest-closing first. @param {any[]} windows */
+    function byPhase(windows) {
+        const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED')
+            .sort((/** @type {any} */ a, /** @type {any} */ b) => a.finalDeadlineAt - b.finalDeadlineAt);
+        return { open, closed: windows.filter((/** @type {any} */ w) => w.phase === 'CLOSED') };
     }
 
     /**
@@ -564,11 +584,12 @@ export function init() {
                 if (!w) return;
                 // Opening another week DESTROYS the form on screen. Ask first if it holds work.
                 if (!await confirmDiscard()) return;
+                releaseForm();
                 const holder = document.createElement('div');
                 cardHost.innerHTML = '';
                 cardHost.appendChild(holder);
-                currentForm = await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
-                currentFormWeek = w.weekEnding;
+                const form = await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
+                if (!adopt(holder, cardHost, form, w.weekEnding)) return;
                 // A way BACK to the list. Opening a week replaces the whole card, so without this
                 // the member is stranded on one form with no route to the others.
                 if (windows.length > 1) appendBackToList(cardHost, windows);
