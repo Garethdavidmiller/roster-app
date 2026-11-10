@@ -657,6 +657,49 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
     expect(errors, 'Uncaught JS exceptions on signed-in settings.html').toHaveLength(0);
 });
 
+// ── WIRED BEFORE THE SIGN-IN DECISION (Nov 2026 review) ─────────────────────────────────────────
+// The service worker, the error reporter, the forced password overlay and the ? panels were wired
+// AFTER initAuthorised(), which has no try/catch on the signed-in path — so one card whose wiring threw
+// took all four with it, including the reporter that would have told the admin. A card's wiring is
+// made to throw here (a source patch, LOUD if its anchor moves), and each of the four must still run.
+test('settings (signed in): a card whose wiring throws takes nothing else down with it', async ({ page }) => {
+    await forcePasswordSet(page);
+    await page.route('**/settings-app.js', async route => {
+        const res = await route.fetch();
+        const anchor = '    function initApp() {\n';
+        const src = await res.text();
+        if (!src.includes(anchor)) throw new Error('settings-app.js: the initApp() anchor moved — update this test');
+        await route.fulfill({ response: res, contentType: 'text/javascript',
+            body: src.replace(anchor, `${anchor}        throw new Error('e2e: a card’s wiring threw');\n`) });
+    });
+    await page.addInitScript(() => {
+        // A fresh sign-in (its one-shot marker) by a member still on the surname default, with a named
+        // Firebase identity — the three things the forced overlay asks for (password-force.js).
+        localStorage.setItem('myb_pw_force_pending_G. Miller', '1');
+        /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true, authUserEmail: 'g.miller@myb-roster.local' };
+        const sw = navigator.serviceWorker;
+        if (!sw) return;
+        const ask = sw.getRegistration.bind(sw);
+        sw.getRegistration = (...a) => { /** @type {any} */ (window).__swAsked = true; return ask(...a); };
+    });
+    const thrown = [];
+    page.on('pageerror', e => thrown.push(e.message));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await expect.poll(() => thrown.some(m => m.includes('a card’s wiring threw')), { message: 'premise: the wiring threw' }).toBe(true);
+
+    await expect(page.locator('#pwForceOverlay'), 'the forced password overlay still compels').toBeVisible();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__swAsked === true), 'the service worker is still registered').toBe(true);
+    // The reporter is listening: a later failure reaches the Error Log.
+    await page.evaluate(() => { Promise.reject(new Error('e2e: a later failure')); });
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .some((/** @type {any} */ w) => /clientErrors/.test(w.path) && w.data?.message === 'e2e: a later failure')),
+    { message: 'the error reporter is still running' }).toBe(true);
+    // And the ? panels open (behind the mandatory overlay, so through the button's own handler).
+    await page.locator('.btn-card-tips[data-card="work-email"]').dispatchEvent('click');
+    await expect(page.locator('#tipsLbTitle')).toHaveText('Work Email');
+});
+
 // ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
 // The login overlay and the forced overlay both offer a reveal; this card asked for an 8+ character
 // password TWICE with no way to see either, which is where a mistyped password comes from.

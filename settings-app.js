@@ -35,17 +35,87 @@ import { initPasswordForce, withTimeout, settleOrTimeout } from './password-forc
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 
-/**
- * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
- * settings-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks inline module scripts).
- * Wrapping it means a test can `import { init }` WITHOUT the coordinator auto-running (the last
- * of the five write coordinators to get this seam, v17.09). Body unchanged — same statements,
- * same order, one indent level in.
- */
 /** True from a password save's first write until its outcome is known — the two writes (re-auth,
  *  then the update) must never have a release's reload land between them (v24.61, iOS audit B2). */
 let _passwordSaving = false;
 
+/** Ceiling on each password network call. Same 8s budget as sign-in and the forced overlay. */
+const SAVE_TIMEOUT_MS = 8000;
+
+// ── The `?` panels ──────────────────────────────────────────────────────────────────────────────
+// Static content at module scope, so it exists before anything in init() runs (Nov 2026 review): it
+// was a `const` declared half-way down init(), still in its temporal dead zone while the cards wired.
+const CARD_TIPS = {
+    'password': {
+        title: 'Password',
+        sections: [
+            { items: [
+                { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
+                { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven\'t changed it yet), then a new one of <strong>at least 8 characters</strong>.' },
+                { icon: '↩️', html: 'Forgotten it? On the sign-in screen select <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
+                { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
+            ]},
+        ],
+    },
+    'work-email': {
+        title: 'Work Email',
+        sections: [
+            { items: [
+                { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong> — the one the company already sends things to.' },
+                { icon: '🔑', html: 'It is saved so that one day you can reset your own password by email. That is not built yet — today a reset goes through the admin, and the <strong>“Can’t get in?”</strong> link on the sign-in screen asks them for you.' },
+                { icon: '🔒', html: 'Only you and the admin can see it. It is not shown to your manager or to anyone else.' },
+            ]},
+        ],
+    },
+    'notifications': {
+        title: 'Notifications',
+        sections: [
+            // FOUR, not two. Circular and Newsletter have been pushed to everybody since
+            // v13.58/59 and this list never mentioned them — so a member turning
+            // notifications on was agreeing to two things and receiving four.
+            { heading: 'What you\'ll get', items: [
+                { icon: '📋', html: '<strong>Daily Huddle</strong> — when the day\'s Huddle has been uploaded.' },
+                { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
+                { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
+                { icon: '💷', html: '<strong>Pay reminder</strong> — on the cut-off Saturday, six days before payday, to enter your hours.' },
+            ]},
+            { heading: 'How it works', items: [
+                { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
+                { icon: '🔕', html: 'Select <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
+                { icon: '🚫', html: 'If you chose <strong>Don\'t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone\'s own settings.' },
+            ]},
+            { heading: 'iPhone users', items: [
+                // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
+                { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap your browser’s Share button (under ••• on iOS 26 or later), then Add to Home Screen.' },
+            ]},
+        ],
+    },
+    // ADDED v20.09. This card was the only one of the four with no `?`, which reads as a
+    // control that failed to render rather than as a card too simple to need one — and it is
+    // not too simple: it is the one place in the app where something does NOT follow your
+    // account, which is the opposite of every expectation the rest of the app sets.
+    'pay-data': {
+        title: 'Pay Calculator Data',
+        sections: [
+            { heading: 'Why this card exists', items: [
+                { icon: '💾', html: 'Your pay calculator figures are saved <strong>on this device</strong>, not to your account — so they do not follow you to a new phone, and they do not appear at a different web address.' },
+                { icon: '🔒', html: 'That is deliberate: <strong>pay data is never sent to the server</strong>. The trade is that moving it is something you have to do yourself.' },
+            ]},
+            { heading: 'Moving it', items: [
+                { icon: '📄', html: 'The button opens the <strong>pay calculator</strong>, where you can download a backup or copy it as text — the controls live there because that is where the data is.' },
+                { icon: '⚠️', html: 'Restoring <strong>replaces</strong> what is on the device — it does not merge. Take a backup of the new device first if it already has figures on it.' },
+                { icon: '🙋', html: 'A backup belongs to the member who made it. Restoring somebody else\'s is refused, because staff share devices.' },
+            ]},
+        ],
+    },
+};
+
+/**
+ * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
+ * settings-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks inline module scripts).
+ * Wrapping it means a test can `import { init }` WITHOUT the coordinator auto-running (the last
+ * of the five write coordinators to get this seam, v17.09).
+ */
 export function init() {
     reloadIfRestoredForSomeoneElse();
     // Listen for the browser's install offer NOW, before the sign-in wait (Sep 2026 review):
@@ -162,6 +232,18 @@ export function init() {
         });
     }
 
+    // ── Wired BEFORE the sign-in decision, as Operations does (Nov 2026 review) ──────────────────────
+    // initAuthorised() has no try/catch on the signed-in path, so a throw in any card's wiring used to
+    // skip all four of these. Hold a release's reload while a save is on its way (v24.61): the contact
+    // card's writes are counted by slow-save, the password card's two-step write by `_passwordSaving`.
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => writesInFlight() > 0 || _passwordSaving), isBusy: () => writesInFlight() > 0 || _passwordSaving });
+    sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
+    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
+    // critical path. `currentUser` is read LATE, inside the callback: on the in-place sign-in path it is
+    // refreshed only inside initAuthorised(), so passing it now would pass null and never compel anyone.
+    sessionReady.then(() => initPasswordForce(currentUser));
+    initTipsLightbox(CARD_TIPS);   // the ? buttons are static markup, signed in or not
+
     // Page-access via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7). Settings'
     // policy is "any named user" (role null) — no 'forbidden' path. The snapshot maps the LOCAL
     // session-existence flag (isAuthenticated = !!currentSession) to an optimistic 'named' status —
@@ -183,15 +265,6 @@ export function init() {
     } else {
         initAuthorised();
     }
-    // Hold a release's reload while a save is on its way (v24.61): the contact card's writes are
-    // counted by slow-save, the password card's two-step write by the flag above.
-    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => writesInFlight() > 0 || _passwordSaving), isBusy: () => writesInFlight() > 0 || _passwordSaving });
-    sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
-    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
-    // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
-    // sign-in path the module loaded signed-out and the identity is only refreshed inside
-    // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
-    sessionReady.then(() => initPasswordForce(currentUser));
 
     /**
      * The authorised (signed-in) init body. Called directly on a normal already-signed-in load, or from
@@ -475,81 +548,7 @@ export function init() {
         }
     }
 
-    // ── Tips lightbox ─────────────────────────────────────────────────────────────
-    // Wired unconditionally at module scope (same pattern as admin-app.js and
-    // operations-app.js) so the ? buttons always get stopPropagation regardless of
-    // auth state. Previously lived inside initApp() — if initApp() wasn't called
-    // (stale session, auth race) the ? buttons had no handler and the click bubbled
-    // up to the card header, toggling the card instead of opening the lightbox.
-    const CARD_TIPS = {
-            'password': {
-                title: 'Password',
-                sections: [
-                    { items: [
-                        { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
-                        { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven\'t changed it yet), then a new one of <strong>at least 8 characters</strong>.' },
-                        { icon: '↩️', html: 'Forgotten it? On the sign-in screen select <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
-                        { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
-                    ]},
-                ],
-            },
-            'work-email': {
-                title: 'Work Email',
-                sections: [
-                    { items: [
-                        { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong> — the one the company already sends things to.' },
-                        { icon: '🔑', html: 'It is saved so that one day you can reset your own password by email. That is not built yet — today a reset goes through the admin, and the <strong>“Can’t get in?”</strong> link on the sign-in screen asks them for you.' },
-                        { icon: '🔒', html: 'Only you and the admin can see it. It is not shown to your manager or to anyone else.' },
-                    ]},
-                ],
-            },
-            'notifications': {
-                title: 'Notifications',
-                sections: [
-                    // FOUR, not two. Circular and Newsletter have been pushed to everybody since
-                    // v13.58/59 and this list never mentioned them — so a member turning
-                    // notifications on was agreeing to two things and receiving four.
-                    { heading: 'What you\'ll get', items: [
-                        { icon: '📋', html: '<strong>Daily Huddle</strong> — when the day\'s Huddle has been uploaded.' },
-                        { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
-                        { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
-                        { icon: '💷', html: '<strong>Pay reminder</strong> — on the cut-off Saturday, six days before payday, to enter your hours.' },
-                    ]},
-                    { heading: 'How it works', items: [
-                        { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
-                        { icon: '🔕', html: 'Select <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
-                        { icon: '🚫', html: 'If you chose <strong>Don\'t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone\'s own settings.' },
-                    ]},
-                    { heading: 'iPhone users', items: [
-                        // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
-                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap your browser\u2019s Share button (under ••• on iOS 26 or later), then Add to Home Screen.' },
-                    ]},
-                ],
-            },
-            // ADDED v20.09. This card was the only one of the four with no `?`, which reads as a
-            // control that failed to render rather than as a card too simple to need one — and it is
-            // not too simple: it is the one place in the app where something does NOT follow your
-            // account, which is the opposite of every expectation the rest of the app sets.
-            'pay-data': {
-                title: 'Pay Calculator Data',
-                sections: [
-                    { heading: 'Why this card exists', items: [
-                        { icon: '💾', html: 'Your pay calculator figures are saved <strong>on this device</strong>, not to your account — so they do not follow you to a new phone, and they do not appear at a different web address.' },
-                        { icon: '🔒', html: 'That is deliberate: <strong>pay data is never sent to the server</strong>. The trade is that moving it is something you have to do yourself.' },
-                    ]},
-                    { heading: 'Moving it', items: [
-                        { icon: '📄', html: 'The button opens the <strong>pay calculator</strong>, where you can download a backup or copy it as text — the controls live there because that is where the data is.' },
-                        { icon: '⚠️', html: 'Restoring <strong>replaces</strong> what is on the device — it does not merge. Take a backup of the new device first if it already has figures on it.' },
-                        { icon: '🙋', html: 'A backup belongs to the member who made it. Restoring somebody else\'s is refused, because staff share devices.' },
-                    ]},
-                ],
-            },
-    };
-    initTipsLightbox(CARD_TIPS);
-
     // ── Password card (PASSWORD_DESIGN.md — self-service chosen password + migration status) ────────
-    /** Ceiling on each password network call. Same 8s budget as sign-in and the forced overlay. */
-    const SAVE_TIMEOUT_MS = 8000;
 
     function initPasswordCard() {
         const curEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwCurrent'));
@@ -807,18 +806,6 @@ export function init() {
 }
 
 /**
- * The conditional "Install on this device" card (v22.13; its own card since v22.37, owner review).
- *
- * It earns its place because installing makes push possible on iOS and makes pay data saved IN
- * the installed app durable — the two subjects this page is about, and neither something a member
- * knows. The whole CARD is conditional: it appears only while there is an install to offer, since
- * a permanent "✓ Installed" row would be a card that never does anything again. Chromium's
- * `beforeinstallprompt` (never on WebKit, never inside an installed PWA) is the offer on Android;
- * it is single-use, so the card goes the moment it is spent, or on `appinstalled`. On an iPhone the
- * card states the taps instead — and, since the Home Screen app keeps storage of its own, what does
- * NOT come with the install: the sign-in, and the pay figures (iPhone audit, 7 Nov 2026).
- */
-/**
  * Hold the browser's install offer from page start until the Device card can use it.
  * @returns {{ event: any, onChange: null | (() => void) }}
  */
@@ -841,6 +828,18 @@ function captureInstallOffer() {
     return offer;
 }
 
+/**
+ * The conditional "Install on this device" card (v22.13; its own card since v22.37, owner review).
+ *
+ * It earns its place because installing makes push possible on iOS and makes pay data saved IN
+ * the installed app durable — the two subjects this page is about, and neither something a member
+ * knows. The whole CARD is conditional: it appears only while there is an install to offer, since
+ * a permanent "✓ Installed" row would be a card that never does anything again. Chromium's
+ * `beforeinstallprompt` (never on WebKit, never inside an installed PWA) is the offer on Android;
+ * it is single-use, so the card goes the moment it is spent, or on `appinstalled`. On an iPhone the
+ * card states the taps instead — and, since the Home Screen app keeps storage of its own, what does
+ * NOT come with the install: the sign-in, and the pay figures (iPhone audit, 7 Nov 2026).
+ */
 function initDeviceCard(/** @type {(state: import('./settings-status.js').CardState, chip?: string) => void} */ report,
                         /** @type {{ event: any, onChange: null | (() => void) }} */ offer,
                         /** @type {boolean} */ holdsPayFigures) {
