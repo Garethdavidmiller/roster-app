@@ -262,6 +262,18 @@ export function init() {
     /** Bumped whenever another design becomes the working copy, so a save that lands after a
      *  switch knows the page no longer shows what it saved (see `saveChanges`). */
     let activation = 0;
+    /** True until the read of the designs has answered, either way (links-app-1). The page is on screen
+     *  from `auth-ready` and that read lands later, REPLACING the working copy when it does — so until
+     *  then nothing that would make or open a design is offered: the masthead's two buttons are
+     *  disabled, the empty state says it is loading, and Build the link says to wait. */
+    let listLoading = true;
+    /** The loading state's words, read once from the markup, which is WRITTEN as the loading state (the
+     *  page is on screen before the coordinator renders anything) — one copy, so a retry says what the
+     *  first load said. */
+    const LOADING_COPY = {
+        title: document.querySelector('#linksEmptyState .links-empty-title')?.textContent ?? '',
+        msg:   document.getElementById('linksEmptyMsg')?.innerHTML ?? '',
+    };
     let loadFailed      = false;
     // The concurrency baseline. `loadedRevision` is the exact identity (v22.18) and moves only to
     // a revision this page committed or read; `loadedUpdatedAt` is the fallback for a design nobody
@@ -604,6 +616,14 @@ export function init() {
         }
 
         header?.render(_headerState());
+        // Until the designs are in, the picker and ··· More are shut (links-app-1, `listLoading`): the
+        // load replaces the working copy when it lands. The face's `disabled` is otherwise the
+        // masthead's own decision, so it is overridden only while loading; both start disabled in
+        // the markup, because nothing renders the masthead before the load does.
+        const moreBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('designMoreBtn'));
+        const pickerBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('designPickerBtn'));
+        if (moreBtn) moreBtn.disabled = listLoading;
+        if (pickerBtn && listLoading) pickerBtn.disabled = true;
 
         // Print-only masthead. It named the design and nothing else, which left a printed sheet
         // with no way to tell WHICH version of that design you were holding (v19.45) — and the
@@ -1133,19 +1153,27 @@ export function init() {
             // VISIBLE; it would still be wrong, and the next design to load would flash it. This is
             // the one place the summary needs asking for by name.
             renderSummary();
-            // The empty state has a TITLE and ACTIONS as well as this sentence (v19.66), and a load
-            // FAILURE is not the same state as "you have not made one yet" — offering "No designs
-            // yet" to someone whose designs exist but did not load would be a lie, and inviting
-            // them to generate a new one is how a connection blip turns into a duplicate design.
+            // The empty state has a TITLE and ACTIONS as well as this sentence (v19.66), and FOUR
+            // states, of which only the last two may offer to make a design. While the list is still
+            // LOADING, whatever was made would be replaced when it landed (links-app-1). A load
+            // FAILURE — or a cached answer that cannot tell "none" from "never read here"
+            // (links-app-5) — is not "you have not made one yet": offering "No designs yet" to
+            // someone whose designs exist but did not load would be a lie, and inviting them to
+            // generate a new one is how a connection blip turns into a duplicate design.
+            const state = listLoading ? 'loading' : loadFailed ? 'failed' : binnedOnLoad && _bin().length ? 'binned' : 'empty';
+            const offers = state === 'binned' || state === 'empty';
             const emptyMsg   = document.getElementById('linksEmptyMsg');
             const emptyTitle = document.querySelector('#linksEmptyState .links-empty-title');
-            const emptyActs  = document.querySelector('#linksEmptyState .links-empty-actions');
-            if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : binnedOnLoad && _bin().length ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
-            if (emptyMsg) emptyMsg.innerHTML = loadFailed
-                ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
-                : binnedOnLoad && _bin().length ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
+            const emptyActs  = /** @type {HTMLElement|null} */ (document.querySelector('#linksEmptyState .links-empty-actions'));
+            const retry      = document.getElementById('linksEmptyRetry');
+            if (emptyTitle) emptyTitle.textContent = state === 'loading' ? LOADING_COPY.title : state === 'failed' ? 'Couldn’t load your designs' : state === 'binned' ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
+            if (emptyMsg) emptyMsg.innerHTML = state === 'loading' ? LOADING_COPY.msg
+                : state === 'failed' ? `Check your connection and try again. Nothing has been lost — saved designs are kept on the server.`
+                : state === 'binned' ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
                 : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
-            if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
+            if (emptyActs) emptyActs.style.display = offers ? '' : 'none';
+            // An installed app has no reload button, so "refresh the page" was advice with nothing to press.
+            if (retry) retry.style.display = state === 'failed' ? '' : 'none';
             _setGridHint(false);
             _renderOverLengthNotice();   // `design` is null here, so this hides it
             if (wrapper)    wrapper.style.display    = 'none';
@@ -1157,7 +1185,7 @@ export function init() {
             // Auto-expand the generator so the user sees it without having to discover it.
             // Shares `_openGenerator` with the empty state's button — see the note there for why
             // the ARIA sync has to be explicit, and what happened when only one site did it.
-            if (!loadFailed) _openGenerator();
+            if (offers) _openGenerator();
             renderBrushBar();
             renderCoverageCard();
             renderDesignChecks();
@@ -1424,6 +1452,8 @@ export function init() {
         defaultSlotTime: EARLY_SHIFTS[0] || '06:20-14:20',
     });
     const refreshGenTargetsForDesign = targets.refreshForDesign;
+    /** Build the link's answer while the designs are still loading; the load clears it when it lands. */
+    const STILL_LOADING = 'Your saved designs are still loading — build the link once they are in.';
 
     (function initGenerator() {
         if (!document.getElementById('genSlotRows')) return;
@@ -1444,6 +1474,9 @@ export function init() {
             // beside a fresh red error it would read as describing this press.
             const _mirrorEl = document.getElementById('genStatus');
             if (_mirrorEl) { _mirrorEl.hidden = true; _mirrorEl.textContent = ''; }
+            // Not until the designs are in (links-app-1): the load replaces the working copy when it
+            // lands, so a design built before it would vanish under it, unasked.
+            if (listLoading) { if (errEl) errEl.textContent = STILL_LOADING; return; }
 
             const { slots: genSlots, spareLines: genSpareLines } = targets.getTable();
             if (genSlots.length === 0) {
@@ -2074,11 +2107,17 @@ export function init() {
     });
 
     const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live
+    const binMoves = new Set();    // old-length designs whose move STARTED and has not failed or been skipped
     /** A collection read → live designs, the bin, and the legacy singleton. One rule for both readers.
      *  A binned design keeps its patterns so a restore is a field-clearing merge (v19.41); every
-     *  doc → object mapping is links-design-doc.js (v19.94). `binOld` is false for a CACHED read, which may not claim a move it cannot make.
-     *  @param {Array<{id: string, data: any}>} docs @param {boolean} [binOld] */
-    function _splitDocs(docs, binOld = true) {
+     *  doc → object mapping is links-design-doc.js (v19.94). `binOld(id)` says whether a design drawn
+     *  for the old length is shown in the bin: on a SERVER load, one whose move has not already failed
+     *  (the move follows, `_binPre26`); on a cached load, none; and on a refresh, only one whose move
+     *  this page started — a refresh starts none, so it may claim none (whole-app fix, Nov 2026: after
+     *  an offline load moved nothing, a refresh showed the old designs in the bin with no move made,
+     *  and restoring one said that someone else had restored it).
+     *  @param {Array<{id: string, data: any}>} docs @param {(id: string) => boolean} binOld */
+    function _splitDocs(docs, binOld) {
         /** @type {any[]} */ const named = [], binned = [], toBin = [];
         let legacyData = null;
         for (const { id, data } of docs) {
@@ -2086,7 +2125,7 @@ export function init() {
             if (hasName && isDeleted(data)) binned.push(binEntryFromDoc(id, data));
             // A design drawn for the old link length goes to the bin (owner, 3 Oct 2026; rule: isPre26Design).
             // Shown there AT ONCE; the soft-delete write follows in the background (_binPre26).
-            else if (hasName && binOld && isPre26Design(data) && !binFailed.has(id)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
+            else if (hasName && isPre26Design(data) && binOld(id)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
             else if (hasName) named.push(designFromDoc(id, data));
             else if (id === LEGACY_DOC_ID && data.patterns) legacyData = data;
         }
@@ -2098,7 +2137,7 @@ export function init() {
      *  grid if the read failed. The open design, its baseline and `dirty` are not a bin row's. */
     async function _refreshLists() {
         try {
-            const { named, binned } = _splitDocs(await store.loadAll());
+            const { named, binned } = _splitDocs(await store.loadAll(), (id) => binMoves.has(id));
             designs = named; _sortDesigns(); library.setBin(sortByDeleted(binned));
         } catch (err) { console.error('[Links] List refresh failed:', err); }
         renderDesignPicker(); library.renderBinList(); compare.renderCompare();
@@ -2118,20 +2157,31 @@ export function init() {
         // Settled OUTSIDE the bin (48-hour review): stop claiming it; an empty page opens it, as a load would.
         const backInList = () => { binnedOnLoad--; _refreshLists().then(() => { if (!design && !loadFailed) _activateDesign(designs[0]); say(); }); };
         for (const id of ids) {
+            binMoves.add(id);   // a refresh now shows it in the bin too, until the move says otherwise
             library.trackBinMove(id, store.binIfStill(id, currentUser, isPre26Design)
-                .then((/** @type {string} */ r) => { if (r === 'skipped') backInList(); })   // restored or redrawn since: show it live
+                .then((/** @type {string} */ r) => { if (r === 'skipped') { binMoves.delete(id); backInList(); } })   // restored or redrawn since: show it live
                 // A FAILED move leaves it live on the server; in the bin, a Restore blamed a colleague (Oct 2026).
-                .catch((/** @type {any} */ err) => { console.error('[Links] Binning an old-length design failed:', err); binFailed.add(id); failed++; backInList(); }));
+                .catch((/** @type {any} */ err) => { console.error('[Links] Binning an old-length design failed:', err); binMoves.delete(id); binFailed.add(id); failed++; backInList(); }));
         }
     }
 
     async function loadDesigns() {
+        listLoading = true;
         loadFailed = false;
-        activation++;
+        /** @type {any} */ let open = null;   // what the working copy becomes once the list is in
         try {
             await sessionReady;
             const snap = await getDocs(DESIGNS_COL);
-            const { named, binned, legacyData, toBin } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })), !snap.metadata?.fromCache);
+            // A CACHED answer (offline, or the server out of reach) is whatever this device happened
+            // to keep — which can be nothing at all (links-app-5). With no live design in it, it
+            // cannot tell "you have none" from "this device never read them", so it is the FAILED
+            // state, never "No designs yet" and its create actions; and it never reaches the one-time
+            // migration below, which needs a server's word that the collection is empty. A cached
+            // answer that HOLDS designs is shown — stale, but real — and moves nothing to the bin.
+            const fromCache = !!snap.metadata?.fromCache;
+            const { named, binned, legacyData, toBin } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })),
+                (id) => !fromCache && !binFailed.has(id));
+            if (fromCache && named.length === 0) throw new Error('a cached read holds no live design, so whether any exist is unknown');
             _binPre26(toBin);
 
             // ONE-TIME migration of combined-28 — and it has to STAY one-time (Oct 2026 review). The
@@ -2159,24 +2209,30 @@ export function init() {
 
             // Re-open the design (or proposal) active last visit, else the first saved one. Nothing
             // saved opens NOTHING: the empty state offers the shortlist rather than choosing for you.
-            const d = [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0];
-            if (d) {
-                activeProposalId = isProposalId(d.id) ? d.id : null;
-                activeDesignId  = activeProposalId ? null : d.id;
-                lsSet(ACTIVE_KEY, d.id);
-                design          = workingCopy(d);
-                ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(d));
-                updateLastSaved(d.updatedBy, lastSaveTime(d));
-            } else {
-                design = null;
-                activeDesignId = null; activeProposalId = null;
-            }
+            open = [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0] || null;
         } catch (err) {
             console.error('[Links] Load failed:', err);
-            design = null;
             loadFailed = true;
         }
+        // The working copy is replaced HERE, so this is where `activation` moves (links-app-1) — not
+        // before the awaits, where it told anything in flight that the page had moved on while the
+        // page still showed exactly what it had before.
+        activation++;
+        if (open) {
+            activeProposalId = isProposalId(open.id) ? open.id : null;
+            activeDesignId  = activeProposalId ? null : open.id;
+            lsSet(ACTIVE_KEY, open.id);
+            design          = workingCopy(open);
+            ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(open));
+            updateLastSaved(open.updatedBy, lastSaveTime(open));
+        } else {
+            design = null;
+            activeDesignId = null; activeProposalId = null;
+        }
         dirty = false;
+        listLoading = false;
+        const genErr = document.getElementById('genError');
+        if (genErr?.textContent === STILL_LOADING) genErr.textContent = '';
         renderDesignPicker();
         renderGrid();
         renderBrushBar();
@@ -2374,7 +2430,16 @@ export function init() {
     // BOOT
     // ============================================
     // A kept draft is offered once the list is in, never over a FAILED load: its design is not there to restore onto.
-    loadDesigns().then(() => { if (!loadFailed) return draftSlot.offer({ ask: confirmDialog, apply: restoreDraft }); })
+    const openDesigns = () => loadDesigns().then(() => { if (!loadFailed) return draftSlot.offer({ ask: confirmDialog, apply: restoreDraft }); })
         .catch((err) => console.error('[Links] The unsaved-changes offer failed:', err));
+    // A failed load's "Try again" (links-app-5): back to the loading state, then the same read. Nothing
+    // is open to lose — a failed load opens nothing — and the button is hidden until it settles.
+    document.getElementById('linksEmptyRetry')?.addEventListener('click', () => {
+        listLoading = true;
+        renderDesignPicker();
+        renderGrid();
+        openDesigns();
+    });
+    openDesigns();
 
 }

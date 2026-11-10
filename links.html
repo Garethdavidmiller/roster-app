@@ -332,7 +332,7 @@
                 <div id="designPickerWrap" class="design-picker-wrap">
                     <div class="design-masthead" id="designMasthead">
                         <div class="dm-title">
-                            <button type="button" class="dm-picker" id="designPickerBtn" aria-haspopup="dialog" aria-label="Choose which design to edit">
+                            <button type="button" class="dm-picker" id="designPickerBtn" aria-haspopup="dialog" aria-label="Choose which design to edit" disabled>
                                 <span class="dm-eyebrow" aria-hidden="true"><span id="designEyebrow">Editing</span> <span class="dm-count" id="designCount"></span></span>
                                 <span class="dm-face" aria-hidden="true"><span class="dm-face-name" id="designFaceName"></span><span class="dm-chev"></span></span>
                             </button>
@@ -349,7 +349,7 @@
                             </div>
                             <div class="dm-actions">
                                 <button type="button" id="linksSaveBtnTop" class="btn-save dm-save" disabled>Save</button>
-                                <button type="button" id="designMoreBtn" class="dm-more" aria-label="More actions for this design" aria-haspopup="dialog">···</button>
+                                <button type="button" id="designMoreBtn" class="dm-more" aria-label="More actions for this design" aria-haspopup="dialog" disabled>···</button>
                             </div>
                         </div>
                     </div>
@@ -361,16 +361,21 @@
                     </div>
                 </div>
 
-                <!-- Empty state: shown before any design is loaded or created -->
+                <!-- Empty state: shown before any design is loaded or created. WRITTEN AS THE LOADING
+                     STATE, with no actions: the page is on screen from auth-ready and the designs land
+                     later, replacing whatever was made meanwhile. `renderGrid` writes the other three
+                     states (no designs, the previous length's designs moved to the bin, a failed load)
+                     and reads these words back for a retry, so they live here once. -->
                 <div id="linksEmptyState" class="links-empty-state">
                     <span class="links-empty-icon" aria-hidden="true">🔗</span>
-                    <p class="links-empty-title">No designs yet</p>
-                    <p class="links-empty-msg" id="linksEmptyMsg">Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap"><span class="js-rotating-lines">26</span>-line</span> grid.</p>
-                    <div class="links-empty-actions">
+                    <p class="links-empty-title">Loading your designs…</p>
+                    <p class="links-empty-msg" id="linksEmptyMsg">Reading the saved designs. Starting or building a new one waits until the list is in, so nothing is made twice.</p>
+                    <div class="links-empty-actions" style="display:none">
                         <button type="button" class="btn-save" id="linksEmptyGenerate">Go to Auto-generate</button>
                         <button type="button" class="btn-text-link" id="linksEmptyProposals">Open a shortlisted proposal</button>
                         <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
                     </div>
+                    <button type="button" class="btn-save" id="linksEmptyRetry" style="display:none">Try again</button>
                 </div>
 
                 <!-- A design saved against a LONGER rotation than the current one (v19.98). Written

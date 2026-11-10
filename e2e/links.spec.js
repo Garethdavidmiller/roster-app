@@ -2309,6 +2309,117 @@ test('links: when EVERY design was a 24-line one, the empty page says where they
     expect(created, 'the legacy grid was re-migrated into a new design').toEqual([]);
 });
 
+// ── Until the designs are in, nothing can make one (whole-app fix, Nov 2026 — links-app-1) ──────────
+// The page is on screen from auth-ready and the designs land later — on a poor connection, many
+// seconds later — REPLACING the working copy when they do. It used to say "No designs yet" with its
+// three actions live in that window, and a design built or started then was swept away by the load,
+// unasked, with the Save button reading "Saved". The read is HELD here, so the window is as wide as
+// the test wants rather than the few milliseconds the hermetic stub normally gives it.
+test('links: until the designs have loaded, nothing offers to make one the load would replace', async ({ page }) => {
+    await seedContractTargets(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docsHeld = true;
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva',
+            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: '14:00-22:00', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } } }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();   // on screen: auth-ready has landed
+
+    // It says it is loading, and offers nothing: no empty-state actions, and the masthead's two shut.
+    await expect(page.locator('#linksEmptyState .links-empty-title')).toHaveText('Loading your designs…');
+    await expect(page.locator('#linksEmptyGenerate')).toBeHidden();
+    await expect(page.locator('#linksEmptyNew')).toBeHidden();
+    await expect(page.locator('#linksEmptyRetry')).toBeHidden();
+    await expect(page.locator('#designMoreBtn'), 'New, Import and the rest wait for the list').toBeDisabled();
+    await expect(page.locator('#designPickerBtn')).toBeDisabled();
+    // Build the link, reached by opening its card by hand, says to wait — and opens no dialog.
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genApplyBtn').click();
+    await expect(page.locator('#genError')).toContainText('still loading');
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+
+    // The list lands: the saved design opens, untouched, and everything wakes.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(activeDesignName(page)).toHaveText('Option A');
+    await expect(page.locator('#designMoreBtn')).toBeEnabled();
+    await expect(page.locator('#designPickerBtn')).toBeEnabled();
+    await expect(page.locator('#genError'), 'the "still loading" line goes with the wait').toHaveText('');
+    await expect(page.locator('#linksSaveBtnTop'), 'nothing unsaved').toBeDisabled();
+    await page.locator('#genApplyBtn').click();
+    await expect(page.locator('.dialog-overlay'), 'Build the link now asks, as on any open design').toBeVisible();
+});
+
+// An answer served from the OFFLINE CACHE is what this device happened to keep — which can be
+// nothing (links-app-5). With no live design in it the page cannot tell "you have none" from "this
+// device never read them", so it is the failed state, with a way to try again; and the one-time
+// migration of the legacy singleton waits for a server's word that the collection is empty, rather
+// than queueing a second "Design 1" from whatever the cache held.
+test('links: an offline answer with no design in it is "couldn\'t load", and Try again reads afresh', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const p = /** @type {any} */ ({});
+        for (let i = 1; i <= 26; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docsFromCache = true;   // the read is answered from this device's cache
+        w.__E2E.docs = [{ id: 'combined-28', patterns: p, updatedAt: 1_700_000_000_000, updatedBy: 'G. Miller' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksEmptyState .links-empty-title')).toHaveText('Couldn’t load your designs');
+    await expect(page.locator('#linksEmptyMsg')).toContainText('try again');
+    await expect(page.locator('#linksEmptyNew'), 'no invitation to make a duplicate').toBeHidden();
+    await expect(page.locator('#linksEmptyGenerate')).toBeHidden();
+    await expect(page.locator('#linksEmptyRetry')).toBeVisible();
+    const added = () => page.evaluate(() => (/** @type {any} */ (window).__E2E?.setWrites || []).filter((/** @type {any} */ w) => w.added).length);
+    expect(await added(), 'the legacy grid was migrated from a cached read').toBe(0);
+
+    // The server answers now: Try again reads it, and the one-time migration runs — once.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = false; });
+    await page.locator('#linksEmptyRetry').click();
+    await expect(activeDesignName(page)).toHaveText('Design 1');
+    await expect(page.locator('#linksEmptyState')).toBeHidden();
+    expect(await added()).toBe(1);
+});
+
+// A REFRESH starts no move to the bin, so it may claim none (whole-app fix, Nov 2026). An offline
+// load moves nothing — the move is a transaction — and shows the old-length designs live. A list
+// refresh after the connection returned put them in the bin all the same, with no move made, and a
+// Restore of one then said that SOMEONE ELSE had restored it.
+test('links: a refresh after an offline load does not show the old-length designs in the bin unmoved', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const p = /** @type {any} */ ({});
+        for (let i = 1; i <= 24; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docsFromCache = true;
+        w.__E2E.docs = [{ id: 'old24', name: 'Old 24', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+                        { id: 'gone', name: 'Binned X', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva',
+                          deletedAt: 1_760_000_000_000, deletedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(activeDesignName(page), 'an offline load shows it live, and moves nothing').toHaveText('Old 24');
+    // Back online, a colleague has already restored the binned one: restoring it here REFRESHES the lists.
+    await page.evaluate(() => {
+        const e2e = /** @type {any} */ (window).__E2E;
+        e2e.docsFromCache = false;
+        e2e.txDocs = [{ id: 'gone', name: 'Binned X', patterns: {}, updatedAt: 1_780_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList .bin-restore').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText('already been restored');
+    await expect(page.locator('#designBinList'), 'a refresh claimed a move nobody made').not.toContainText('Old 24');
+    await expect(designOptions(page).filter({ hasText: 'Old 24' })).toHaveCount(1);
+    const binned = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.setWrites || []).filter((/** @type {any} */ w) => w.data?.deletedAt).length);
+    expect(binned, 'nothing was moved to the bin').toBe(0);
+});
+
 // The one-time migration of the pre-v12 singleton created its design at revision 1 and kept the list
 // entry without it, so the first save met a revision it did not hold: a false "this design changed"
 // (whole-app review, Oct 2026). Dead in production — every real collection has held a design — but
