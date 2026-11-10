@@ -505,6 +505,76 @@ export function collectRosterWrites(cellStates) {
 }
 
 /**
+ * What the review's summary and its Save button say (whole-app fix, Nov 2026).
+ *
+ * COUNTED FROM THE WRITES `collectRosterWrites` RETURNS, so the button cannot promise one number
+ * while Save writes another. It was a second pass over the same state in the coordinator, kept in
+ * step with the collector only by a browser test asserting what was written.
+ *
+ * `answeredWithNothing` is the entry control's `entryLeftAsRest`, PASSED IN rather than imported:
+ * that module imports this one, and the state machine must not import the widget
+ * (roster-cell-rules.js header). An unreadable row answered "a rest day — nothing to record" writes
+ * nothing and is not a cell nobody could read.
+ * @param {Map<string, any>} cellStates
+ * @param {(st: any) => boolean} [answeredWithNothing]
+ * @returns {{ blocked: boolean, updates: number, clears: number, conflictsTotal: number,
+ *             conflictsSwitched: number, unreadable: number, heldBack: number, anySuspect: boolean }}
+ */
+export function reviewOutcome(cellStates, answeredWithNothing = () => false) {
+    const all = [...cellStates.values()];
+    const writes = collectRosterWrites(cellStates);
+    const clears = writes.filter(w => w.deleteOnly).length;
+    const conflicts = all.filter(st => st.state === 'CONFLICT');
+    const answered = (/** @type {any} */ st) => (typeof st.chosen === 'number' && !!st.options?.[st.chosen])
+        || (st.chosen === 'entered' && !!st.entered) || answeredWithNothing(st);
+    return {
+        blocked: all.some(st => st.rosterBlocked),
+        updates: writes.length - clears,
+        clears,
+        conflictsTotal: conflicts.length,
+        conflictsSwitched: conflicts.filter(st => st.chosen === 'pdf').length,
+        unreadable: all.filter(st => st.state === 'UNREADABLE' && !answered(st)).length,
+        // SAY WHAT IS BEING WITHHELD (v22.16 polish): a suspect member's rows are unticked, so they
+        // reach no count above, and the summary went silent about the one thing that had changed.
+        // Only rows STILL unticked: one the admin has checked and ticked is counted as a write.
+        heldBack: all.filter(st => st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length,
+        anySuspect: all.some(st => st.drift),
+    };
+}
+
+/**
+ * The summary above the review list, as HTML — '' when there is nothing to say. Every value in it
+ * is a count, so nothing here needs escaping.
+ * @param {ReturnType<typeof reviewOutcome>} o
+ * @returns {string}
+ */
+export function outcomeHtml(o) {
+    const line = (/** @type {string} */ cls, /** @type {string} */ k, /** @type {number} */ n, /** @type {string} */ words) =>
+        `<div class="ro-line ${cls}"><span class="ro-k">${k}</span><span><strong>${n}</strong> ${words}</span></div>`;
+    const lines = [];
+    if (o.updates > 0) lines.push(line('ro-up', '✓', o.updates, `shift${o.updates !== 1 ? 's' : ''} will be updated`));
+    if (o.clears > 0) lines.push(line('ro-clear', '✓', o.clears, `old ${o.clears !== 1 ? 'entries' : 'entry'} will be cleared`));
+    if (o.conflictsTotal > 0) {
+        const kept = o.conflictsTotal - o.conflictsSwitched;
+        const detail = o.conflictsSwitched > 0
+            ? `${o.conflictsSwitched} switched to the new roster, ${kept} kept as you saved`
+            : 'kept as you saved — change below if needed';
+        lines.push(line('ro-choice', '?', o.conflictsTotal, `${o.conflictsTotal !== 1 ? 'days need' : 'day needs'} your choice — ${detail}`));
+    }
+    if (o.unreadable > 0) lines.push(line('ro-read', '⚠', o.unreadable, `cell${o.unreadable !== 1 ? 's' : ''} couldn't be read — nothing saved`));
+    if (o.heldBack > 0) {
+        lines.push(line('ro-read', '⚠', o.heldBack,
+            `day${o.heldBack !== 1 ? 's' : ''} held back — the week may be a day out, so nothing there is selected`));
+    }
+    if (!lines.length) return '';
+    const hint = (o.updates > 0 || o.clears > 0)
+        ? `<p class="ro-hint">Ticked rows will save — tap a ✓ to skip that row.${
+            o.anySuspect ? ' Rows flagged as possibly a day out start unticked; tick only what you have checked against the PDF.' : ''}</p>`
+        : '';
+    return `<h4 class="ro-h">When you tap “Save changes”</h4>${lines.join('')}${hint}`;
+}
+
+/**
  * The inner HTML of a GUARDED review row (v24.41 layout; v24.42 question). Pure, so the markup the
  * admin answers is tested beside the rule it asks about.
  *

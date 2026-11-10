@@ -914,6 +914,71 @@ describe('collectRosterWrites — what one Save writes', () => {
     });
 });
 
+// ── THE SUMMARY AND THE SAVE BUTTON COUNT THE SAVE'S OWN WRITES (whole-app fix, Nov 2026) ─────────
+// They were a second pass over the same state, in the coordinator, held to the collector only by a
+// browser test asserting what was written. `reviewOutcome` counts what `collectRosterWrites` returns.
+describe('reviewOutcome — what the summary and the Save button say', () => {
+    const D = '2026-06-16';
+    const states = (/** @type {any[]} */ list) => new Map(list.map((s, i) => [`P${i}|${D}`,
+        { baseShift: '06:00-14:00', manualId: null, manualDupIds: [], ...s }]));
+
+    test('every write the collector returns is counted, a delete as a clear — and nothing else is', async () => {
+        const { reviewOutcome } = await import('./roster-review-states.js');
+        const m = states([
+            { state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' },
+            { state: 'DIFF', chosen: false, parsedShift: '07:00-15:00' },
+            { state: 'REMOVE_IMPORT', chosen: true, manualId: 'i1' },
+            // "Rest day — leave it" over an old import DELETES it: a clear, not a shift updated.
+            { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'AL', chosen: 'free', manualId: 'i2', manualValue: '10:00-18:00' },
+            { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'SICK', chosen: 'swapped' },
+            { state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm1' },
+            { state: 'CONFLICT', chosen: null, parsedShift: '07:00-15:00', manualId: 'm2' },
+            { state: 'UNREADABLE', chosen: 0, options: [{ display: '07:00-15:00' }] },
+        ]);
+        const o = reviewOutcome(m);
+        const writes = collectRosterWrites(m);
+        assert.equal(o.updates + o.clears, writes.length, 'the button promises exactly what Save writes');
+        assert.equal(o.clears, writes.filter(w => w.deleteOnly).length);
+        assert.deepEqual([o.updates, o.clears, o.conflictsTotal, o.conflictsSwitched], [4, 2, 2, 1]);
+        assert.equal(o.blocked, false);
+    });
+
+    test('an unread cell is one nobody has answered — a reading, an entry, or "nothing to record"', async () => {
+        const { reviewOutcome } = await import('./roster-review-states.js');
+        const u = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x' };
+        const m = states([{ ...u, chosen: null }, { ...u, chosen: 'entered', entered: { display: '07:00-15:00' } },
+            { ...u, chosen: null, leftAsRest: true }]);
+        assert.equal(reviewOutcome(m).unreadable, 2, 'without the entry control, an answered rest day still looks unread');
+        assert.equal(reviewOutcome(m, (/** @type {any} */ st) => !!st.leftAsRest).unreadable, 1,
+            'the entry control says which rows were answered "nothing to record"');
+    });
+
+    test('held back counts only drifted rows still unticked, and a refused read is reported as one', async () => {
+        const { reviewOutcome } = await import('./roster-review-states.js');
+        const o = reviewOutcome(states([{ state: 'DIFF', chosen: false, drift: 'left', parsedShift: '07:00-15:00' },
+            { state: 'DIFF', chosen: true, drift: 'left', parsedShift: '07:00-15:00' }]));
+        assert.deepEqual([o.heldBack, o.updates, o.anySuspect], [1, 1, true]);
+        assert.equal(reviewOutcome(states([{ state: 'DIFF', chosen: true, rosterBlocked: true }])).blocked, true);
+    });
+
+    test('the summary words: one line per kind, the hint only when something saves, nothing when empty', async () => {
+        const { reviewOutcome, outcomeHtml } = await import('./roster-review-states.js');
+        const zero = { blocked: false, updates: 0, clears: 0, conflictsTotal: 0, conflictsSwitched: 0, unreadable: 0, heldBack: 0, anySuspect: false };
+        assert.equal(outcomeHtml(zero), '', 'nothing to say is no summary at all');
+        const html = outcomeHtml({ ...zero, updates: 1, clears: 2, conflictsTotal: 2, conflictsSwitched: 1, unreadable: 1, heldBack: 3, anySuspect: true });
+        for (const words of ['<strong>1</strong> shift will be updated', '<strong>2</strong> old entries will be cleared',
+            '<strong>2</strong> days need your choice — 1 switched to the new roster, 1 kept as you saved',
+            '<strong>1</strong> cell couldn\'t be read — nothing saved',
+            '<strong>3</strong> days held back — the week may be a day out', 'Ticked rows will save',
+            'Rows flagged as possibly a day out start unticked']) {
+            assert.ok(html.includes(words), `missing: ${words}`);
+        }
+        assert.ok(!outcomeHtml({ ...zero, unreadable: 2 }).includes('Ticked rows will save'), 'no hint when nothing saves');
+        assert.ok(outcomeHtml(reviewOutcome(states([{ state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' }])))
+            .includes('<strong>1</strong> shift will be updated'), 'through the counts');
+    });
+});
+
 // ── A MEETING PRINTED WITH ITS TIMES ON A SUNDAY (6 Nov 2026 review) ────────────────────────────
 // v25.38 began reading `MTG` over `10:00-14:00` as `MEET 10:00-14:00`, and the Sunday guard made any
 // Other day a rest day — so on a rest Sunday nothing was written, a re-upload of a week imported

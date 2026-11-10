@@ -16,7 +16,7 @@ import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -587,13 +587,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         // Recompute what pressing "Save changes" will actually do, and refresh BOTH the Save
         // button (label carries the running count + disables when nothing will be written) and
-        // the plain-language outcome summary above the list. Presentation only — the state
-        // machine (computeCellStates) and the `chosen` model are unchanged.
+        // the plain-language outcome summary above the list. The counts and the words are
+        // roster-review-states.js's (`reviewOutcome`, `outcomeHtml`), taken from the Save's own writes.
         function refreshOutcome() {
             if (_saving) return;   // never re-arm Save while one is sending (see lockForSave)
+            const o = reviewOutcome(cellStates, entryLeftAsRest);
             // A refused read has no outcome to summarise (v22.16): "Save 41 changes" beside
             // "nothing has been selected" is what makes a safety gate read as a suggestion.
-            if ([...cellStates.values()].some(st => st.rosterBlocked)) {
+            if (o.blocked) {
                 // The Save button is REMOVED, not relabelled (v22.16 polish). Leaving it in place
                 // reading "Read the roster again" put an instruction on a dead control while the
                 // button that actually does that — "Upload a different file" — sat underneath it
@@ -610,60 +611,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             applyBtn.hidden = false;
             cancelBtn?.classList.remove('roster-cancel-btn--primary');
             if (cancelBtn) cancelBtn.textContent = 'Upload a different file';
-            let updates = 0, clears = 0, conflictsTotal = 0, conflictsSwitched = 0, unreadable = 0;
-            for (const st of cellStates.values()) {
-                if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
-                else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
-                // "Rest day — leave it" over an old import DELETES it: a clear, not a shift updated (whole-app review).
-                else if (st.state === 'GUARDED')       { const gw = guardedWrites(st, '', ''); if (gw.length) { if (gw[0].deleteOnly) clears++; else updates++; } }
-                else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
-                else if (st.state === 'UNREADABLE')    {
-                    // A resolved one is an update, not an outstanding "couldn't read" — otherwise the
-                    // banner keeps reporting a problem the admin has just fixed.
-                    if (typeof st.chosen === 'number' && st.options?.[st.chosen]) updates++;
-                    else if (st.chosen === 'entered' && st.entered) updates++;
-                    else if (!entryLeftAsRest(st)) unreadable++;   // answered "rest day": nothing to save, nothing unread
-                }
-            }
-            const writes = updates + clears;
+            const writes = o.updates + o.clears;
             applyBtn.disabled    = writes === 0;
             applyBtn.textContent = writes === 0 ? 'Nothing to save' : `Save ${writes} change${writes !== 1 ? 's' : ''}`;
-
-            const lines = [];
-            if (updates > 0)
-                lines.push(`<div class="ro-line ro-up"><span class="ro-k">✓</span><span><strong>${updates}</strong> shift${updates !== 1 ? 's' : ''} will be updated</span></div>`);
-            if (clears > 0)
-                lines.push(`<div class="ro-line ro-clear"><span class="ro-k">✓</span><span><strong>${clears}</strong> old ${clears !== 1 ? 'entries' : 'entry'} will be cleared</span></div>`);
-            if (conflictsTotal > 0) {
-                const kept   = conflictsTotal - conflictsSwitched;
-                const detail = conflictsSwitched > 0
-                    ? `${conflictsSwitched} switched to the new roster, ${kept} kept as you saved`
-                    : 'kept as you saved — change below if needed';
-                lines.push(`<div class="ro-line ro-choice"><span class="ro-k">?</span><span><strong>${conflictsTotal}</strong> ${conflictsTotal !== 1 ? 'days need' : 'day needs'} your choice — ${detail}</span></div>`);
-            }
-            if (unreadable > 0)
-                lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${unreadable}</strong> cell${unreadable !== 1 ? 's' : ''} couldn't be read — nothing saved</span></div>`);
-
-            // SAY WHAT IS BEING WITHHELD (v22.16 polish). A suspect member's rows are unticked, so
-            // they contribute to no count above — and the summary went silent about the one thing
-            // that had changed. A withheld row is an outcome; "nothing will happen to these" is
-            // exactly what the admin needs to read before they scroll past them.
-            // Only rows STILL unticked are held back: one the admin has checked and ticked is counted
-            // above, and counting it here too said the same day was both saving and withheld.
-            const heldBack = [...cellStates.values()].filter(st =>
-                st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length;
-            if (heldBack > 0)
-                lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${heldBack}</strong> `
-                    + `day${heldBack !== 1 ? 's' : ''} held back — the week may be a day out, so nothing there is selected</span></div>`);
-
-            if (lines.length === 0) { outcomeEl.hidden = true; outcomeEl.innerHTML = ''; return; }
-            outcomeEl.hidden = false;
-            const anySuspect = [...cellStates.values()].some(st => st.drift);
-            const hint = (updates > 0 || clears > 0)
-                ? `<p class="ro-hint">Ticked rows will save — tap a ✓ to skip that row.${
-                    anySuspect ? ' Rows flagged as possibly a day out start unticked; tick only what you have checked against the PDF.' : ''}</p>`
-                : '';
-            outcomeEl.innerHTML = `<h4 class="ro-h">When you tap “Save changes”</h4>${lines.join('')}${hint}`;
+            const html = outcomeHtml(o);
+            outcomeEl.hidden = !html;
+            outcomeEl.innerHTML = html;
         }
 
         // ---- Cross-check confidence note (v16.70) ----
