@@ -14,6 +14,16 @@ import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { setStatus } from './status-text.js';
 import { isDiagnosticEntry } from './client-errors.js';
 import { attentionBadge } from './operations-attention.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
+import { withSlowSaveNotice } from './slow-save.js';
+
+/** A line under a control that says what became of its write, as the Account status rows do.
+ *  @param {string} text @returns {HTMLSpanElement} */
+function writeLine(text) {
+    const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: text });
+    msg.setAttribute('role', 'alert');
+    return msg;
+}
 /**
  * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void, onWithdraw?: () => void}} [opts]
  *   `onWithdraw` (v25.06) — the count has become UNKNOWN (a refresh failed): the strip withdraws its
@@ -103,9 +113,18 @@ async function initErrorLog(opts = {}) {
             allBtn.addEventListener('click', async () => {
                 allBtn.disabled = true;
                 allBtn.textContent = 'Resolving…';
-                const count   = unresolvedShown.length;
-                const results = await Promise.allSettled(unresolvedShown.map(e => resolveClientError(e.id)));
-                const failedItems = unresolvedShown.filter((_, i) => results[i].status === 'rejected');
+                bar.querySelector('.email-set-error')?.remove();
+                // The batch is captured ONCE (Nov 2026 review). A row's own Resolve finishing meanwhile
+                // replaces `unresolvedShown` with a shorter array, and matching the results by index
+                // against THAT blamed a neighbour — "try again" then re-stamped a row that had resolved.
+                const batch   = unresolvedShown;
+                const count   = batch.length;
+                const results = await Promise.allSettled(batch.map(e => withSlowSaveNotice(resolveClientError(e.id))));
+                // …and a failure the row's own Resolve has since made good is no failure.
+                const failedItems = batch.filter((e, i) => results[i].status === 'rejected' && unresolvedShown.some(u => u.id === e.id));
+                // An outcome nobody knows (signed out mid-write, or refused by the page's write gate after
+                // one) is said so, and the button stays off: another press would only be refused.
+                const unknown = results.map(r => (r.status === 'rejected' ? unconfirmedWriteLine(r.reason, 'this batch of resolves', 'the Error Log') : null)).find(Boolean);
                 if (failedItems.length) {
                     // Retry only the ones that FAILED — re-resolving the already-succeeded rows would
                     // reset their 90-day retention clock and inflate the count.
@@ -115,9 +134,10 @@ async function initErrorLog(opts = {}) {
                     // _syncResolveAllBtn because it sets its own "✗ N didn't resolve" button text,
                     // so the header chip stranded on the pre-resolve count).
                     _setCountChip();
-                    allBtn.disabled = false;
-                    allBtn.textContent = `✗ ${failedItems.length} didn't resolve — try again`;
-                    errStatus.textContent = `${succeeded} resolved, ${failedItems.length} failed`;
+                    allBtn.disabled = !!unknown;
+                    allBtn.textContent = unknown ? `${failedItems.length} not confirmed` : `✗ ${failedItems.length} didn't resolve — try again`;
+                    if (unknown) bar.append(writeLine(unknown));
+                    errStatus.textContent = `${succeeded} resolved, ${failedItems.length} ${unknown ? 'not confirmed' : 'failed'}`;
                     return;   // leave the list as-is so the admin can retry just the failures
                 }
                 content.setAttribute('aria-busy', 'true');
@@ -208,7 +228,9 @@ async function initErrorLog(opts = {}) {
                 resolveBtn.addEventListener('click', async () => {
                     resolveBtn.disabled = true;
                     try {
-                        await resolveClientError(err.id);
+                        // withSlowSaveNotice (Nov 2026 review): a write the server has not answered
+                        // says so, as Admin's and Settings' do, rather than sitting on a disabled button.
+                        await withSlowSaveNotice(resolveClientError(err.id));
                         row.classList.add('error-row--resolved');
                         resolveBtn.remove();
                         // Prune this doc from the resolve-all snapshot: without this, a later
@@ -217,7 +239,12 @@ async function initErrorLog(opts = {}) {
                         unresolvedShown = unresolvedShown.filter(u => u.id !== err.id);
                         _syncResolveAllBtn();
                         errStatus.textContent = `Error from ${err.memberName ?? 'unknown'} marked resolved`;
-                    } catch {
+                    } catch (e) {
+                        // An UNKNOWN outcome is not a failure (AUTH_AND_SESSIONS 22): the write may still
+                        // land, and the page's write gate refuses the next one — so it says which, and
+                        // Resolve stays off rather than inviting a press that can only be refused.
+                        const unknown = unconfirmedWriteLine(e, 'this resolve', 'the Error Log');
+                        if (unknown) { actions.append(writeLine(unknown)); return; }
                         resolveBtn.disabled = false;
                         resolveBtn.textContent = '✗ Failed — try again';
                         setTimeout(() => { resolveBtn.textContent = '✓ Resolve'; }, 3000);

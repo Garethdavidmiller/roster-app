@@ -1135,6 +1135,113 @@ for (const [label, rows, badge] of [
     });
 }
 
+/** Hold every Resolve before its write; `window.__E2E.calls` lists them, oldest first, each with
+ *  `res()` / `rej(err)` to land it. @param {import('@playwright/test').Page} page */
+const holdResolves = (page) => page.addInitScript(() => {
+    const w = /** @type {any} */ (window);
+    w.__E2E.calls = [];
+    w.__E2E.resolveGate = (/** @type {string} */ id) => new Promise((res, rej) => w.__E2E.calls.push({ id, res, rej }));
+});
+const ERR_ROWS = [{ id: 'e0', message: 'boom zero' }, { id: 'e1', message: 'boom one' }, { id: 'e2', message: 'boom two' }];
+
+// ── AN ERROR LOG RESOLVE OF UNKNOWN OUTCOME IS NOT A FAILURE (Nov 2026 review) ──────────────────
+// AUTH_AND_SESSIONS 22. A Resolve abandoned at a sign-out may still land, and the page's write gate
+// refuses every later write until reload — so "✗ Failed — try again" sent the admin into a refusal
+// that said the same thing every time. Both write paths now say which kind it was, and stay off.
+test('operations error log: a Resolve signed out mid-write is unconfirmed, not failed, and stays off', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E.failSetCode = 'auth/signed-out-during-request'; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const first = page.locator('.error-row').first();
+    await first.locator('.error-resolve-btn').click();
+    await expect(first).toContainText('signed out before this resolve was confirmed');
+    await expect(first.locator('.error-resolve-btn')).toBeDisabled();
+    // The gate refuses the next write before it is sent — and the row says that, not "Failed".
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failSetCode = null; });
+    const second = page.locator('.error-row').nth(1);
+    await second.locator('.error-resolve-btn').click();
+    await expect(second).toContainText('An earlier change on this page was not confirmed');
+    await expect(second.locator('.error-resolve-btn')).toBeDisabled();
+});
+
+test('operations error log: "Resolve all shown" signed out mid-write is unconfirmed, and stays off', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E.failSetCode = 'auth/signed-out-during-request'; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const all = page.locator('.error-resolve-all-btn');
+    await all.click();
+    await expect(page.locator('.error-log-toolbar')).toContainText('signed out before this batch of resolves was confirmed');
+    await expect(all).toBeDisabled();
+    await expect(all).not.toContainText('try again');
+});
+
+// ── "RESOLVE ALL SHOWN" NAMES THE ROWS THAT FAILED (Nov 2026 review) ────────────────────────────
+// It matched its results BY INDEX against the shown list, which a row's own Resolve finishing in the
+// meantime replaces with a shorter one — so the card blamed a neighbour, and "try again" re-stamped a
+// row that had resolved while dropping the one that had not.
+test('operations error log: "Resolve all shown" retries the row that failed, not its neighbour', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await holdResolves(page);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    await page.locator('.error-row').first().locator('.error-resolve-btn').click();   // e0's own Resolve — held
+    await page.locator('.error-resolve-all-btn').click();                              // e0, e1, e2 — held
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.calls.map((/** @type {any} */ c) => c.id))).toEqual(['e0', 'e0', 'e1', 'e2']);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[0].res());    // the row's own write lands first…
+    await expect(page.locator('.error-row').first()).toHaveClass(/error-row--resolved/);   // …and prunes the list
+    await page.evaluate(() => {
+        const [, b0, b1, b2] = /** @type {any} */ (window).__E2E.calls;
+        b0.res(); b1.rej(new Error('e2e: refused')); b2.res();                       // e1 genuinely fails
+    });
+    const all = page.locator('.error-resolve-all-btn');
+    await expect(all).toHaveText("✗ 1 didn't resolve — try again");
+    await all.click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.calls.slice(4).map((/** @type {any} */ c) => c.id)),
+        { message: 'the retry must be for the row that failed' }).toEqual(['e1']);
+});
+
+test('operations error log: a batch failure that the row\'s own Resolve made good is not reported', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS);
+    await holdResolves(page);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    await page.locator('.error-row').first().locator('.error-resolve-btn').click();
+    await page.locator('.error-resolve-all-btn').click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.calls.length)).toBe(4);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[0].res());
+    await expect(page.locator('.error-row').first()).toHaveClass(/error-row--resolved/);
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const [, b0, b1, b2] = w.__E2E.calls;
+        w.__E2E.errorRows = [];                                    // what the refresh will read back
+        b0.rej(new Error('e2e: refused')); b1.res(); b2.res();      // e0's batch write fails — but e0 IS resolved
+    });
+    await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
+});
+
+// ── A RESOLVE WAITING ON THE SERVER SAYS SO (Nov 2026 review) ───────────────────────────────────
+// Admin (v24.21) and Settings (v24.38) explain a write the server has not answered; Operations' writes
+// sat on a silently disabled button. Every one now goes through withSlowSaveNotice.
+test('operations error log: a Resolve, and Resolve all shown, waiting on the server say so', async ({ page }) => {
+    await stubErrorLog(page, ERR_ROWS.slice(0, 2));
+    await holdResolves(page);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E.slowSaveMs = 200; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const notice = page.locator('#slowSaveNotice');
+    await page.locator('.error-row').first().locator('.error-resolve-btn').click();
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('Still sending');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[0].res());
+    await expect(notice).toBeHidden();
+    await page.locator('.error-resolve-all-btn').click();
+    await expect(notice).toBeVisible();
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.calls[1].res());
+    await expect(notice).toBeHidden();
+});
+
 // ── A REFUSED RESET SAYS WHY, AND OFFERS NO RETRY (whole-app review, Oct 2026) ──────────────────
 // A 404 "run Set up accounts first", a 409 "linked to the shared PIN" or a 403 all became a bare
 // "Retry" that could never succeed, with the server's sentence only in the console.
