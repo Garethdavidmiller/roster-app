@@ -458,8 +458,9 @@
       .show-more-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
     }
     .show-more-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-    .show-more-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); }
-    .show-more-btn.open .show-more-arrow { transform: rotate(180deg); }
+    /* No rotation for this arrow or the HPP note's: the script swaps their glyph (▼ shut, ▲ open —
+       `_setDisclosure`), and a rotation as well turned the ▲ back into a ▼, open or shut. */
+    .show-more-arrow { font-size: var(--type-micro); }
     .hours-extra { display: none; }
     .hours-extra.open { display: block; }
 
@@ -834,8 +835,7 @@
     }
     .hpp-toggle-btn:active { color: var(--text-mid); }
     .hpp-toggle-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
-    .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
-    .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
+    .hpp-toggle-arrow { font-size: var(--type-micro); }   /* glyph-swapped, so never rotated (.show-more-arrow) */
     /* `position: relative` — a containing block, as `.bd-body`'s is. */
     .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
     .hpp-note-body.open { max-height: 400px; }
@@ -1289,7 +1289,7 @@
       #noticeYtdLightbox, #noticeYtdContent,
       #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
-      .show-more-arrow, .hpp-toggle-arrow, .card-toggle-arrow,
+      .card-toggle-arrow,
       .save-status, .stepper button, .pbb-seg {
         transition: none !important;
         animation: none !important;

@@ -2417,6 +2417,35 @@ test('paycalc: the Training Days stepper draws its focus ring whole', async ({ p
     }
 });
 
+test('paycalc: a disclosure arrow points down when shut and up when open', async ({ page }) => {
+    // The script swaps these two arrows' glyph (▼ → ▲) AND the stylesheet turned an open one by 180°,
+    // so after a quarter-second spin the ▲ faced down again: shut and open looked the same. What is
+    // asserted is the way the arrow FACES — glyph and rotation together — not either one alone.
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const facing = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const t = getComputedStyle(el).transform;
+        const turned = t !== 'none' && new DOMMatrixReadOnly(t).a < 0;   // a half turn
+        return (el.textContent?.trim() === '▲') !== turned ? 'up' : 'down';
+    }));
+    if (!await page.locator('#hppCardBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    }
+    for (const [button, arrow] of [['#hoursShowMore', '.show-more-arrow'], ['#hppToggleBtn', '.hpp-toggle-arrow']]) {
+        const btn = page.locator(button);
+        await btn.scrollIntoViewIfNeeded();
+        expect(await facing(`${button} ${arrow}`), `${button} shut`).toBe('down');
+        await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'true');
+        expect(await facing(`${button} ${arrow}`), `${button} open`).toBe('up');
+        await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'false');
+        expect(await facing(`${button} ${arrow}`), `${button} shut again`).toBe('down');
+    }
+});
+
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────
 // Each block below is one finding, proved where a member meets it: the page, not the helper.
 
