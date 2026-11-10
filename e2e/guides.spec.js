@@ -568,6 +568,30 @@ test('guides: the footer back link is one control with one wording on every guid
     expect(new Set(seen).size, `one recipe, got: ${seen.join(' | ')}`).toBe(1);
 });
 
+// ONE UNDER A MOUSE TOO (whole-app review, Nov 2026). The recipe above was one at rest and three when
+// hovered, because each page's own `a:hover` reached the link: amber words on Railcard, a gold underline
+// on FIP, nothing at all on Rangers. Read off the rendered link, at rest and under a real mouse.
+test('guides: the footer back link answers a mouse the same way on every guide', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
+    const seen = [];
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        const link = page.locator('main a.guide-back-link');
+        await link.scrollIntoViewIfNeeded();
+        const look = () => link.evaluate(a => {
+            const s = getComputedStyle(a);
+            return `words ${s.color}, underline ${s.textDecorationColor}`;
+        });
+        await page.mouse.move(0, 0);
+        const rest = await look();
+        await link.hover();
+        const hovered = await look();
+        expect(hovered, `${guide}: the link answers a mouse`).not.toBe(rest);
+        seen.push(`${rest} → ${hovered}`);
+    }
+    expect(new Set(seen).size, `one hover, got: ${seen.join(' | ')}`).toBe(1);
+});
+
 // ADDED TO THE HOME SCREEN, A GUIDE IS THE APP (iPhone audit, 7 Nov 2026). Each guide asked iOS to run
 // it as an app with its own title and no manifest, so "Add to Home Screen" from a guide made a guide
 // app: its own icon, its own storage, signed out. page-contract-parity reads the markup; this follows

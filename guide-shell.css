@@ -196,6 +196,12 @@ button, input, select, textarea { font-family: inherit; }
     touch-action: manipulation;
 }
 .guide-back-link:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; border-radius: 3px; }
+/* One hover too (whole-app review, Nov 2026): each page's own `a:hover` reached the link — amber words on
+   Railcard, a gold underline on FIP, nothing on Rangers. FIP's is the one kept: the words stay navy, and
+   the underline takes the shell's gold, the header ←'s hover. (0,2,0) outranks a page's `a:hover`. */
+@media (hover: hover) and (pointer: fine) {
+    .guide-back-link:hover { color: var(--navy); text-decoration-color: var(--gold); }
+}
 
 /* ── Anchor landing under the sticky header ─────────────────────────────────
    A search hit or an in-page link lands on an id; without a scroll margin the heading sits UNDER
