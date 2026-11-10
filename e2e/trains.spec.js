@@ -531,6 +531,53 @@ test.describe('trains', () => {
         expect(g.ringTop, 'the ring\'s top edge is inside the scroll box that clips it').toBeGreaterThanOrEqual(g.boxTop - 0.5);
     });
 
+    // "A TAB is a button" (css-tokens.md → Corners): Overtime's and New link's tabs are 12px; every strip
+    // here — the views, the days, a station's direction, the grid's timetable — was on the 16px card-like
+    // corner. Read from every tab on the page, shown or not, against the token as this page resolves it.
+    test('every tab on the page wears the button corner', async ({ page }) => {
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await expect(page.locator('.tr-tab').first()).toBeVisible();
+        const g = await page.evaluate(() => {
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.borderTopLeftRadius = 'var(--radius-button)';
+            const button = getComputedStyle(probe).borderTopLeftRadius;
+            probe.remove();
+            const tabs = [...document.querySelectorAll('.tr-tab')];
+            return { button, count: tabs.length, off: tabs.map(t => getComputedStyle(t).borderTopLeftRadius).filter(r => r !== button) };
+        });
+        expect(g.count, 'premise: the four strips\' tabs are all found').toBeGreaterThanOrEqual(10);
+        expect(g.off, `every tab is on --radius-button (${g.button})`).toEqual([]);
+    });
+
+    // A hover tint gated on WIDTH alone stays on a touch tablet's tapped row — the browser keeps :hover
+    // on whatever was last touched. Every other hover in these sheets waits for a mouse; the grid's row
+    // tint did not. Read from the stylesheet the page actually parsed, so a new rule is held to it too.
+    test('every hover tint in the stylesheet waits for a mouse', async ({ page }) => {
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await expect(page.locator('.tr-tab').first()).toBeVisible();
+        const g = await page.evaluate(() => {
+            const sheet = [...document.styleSheets].find(s => s.href?.endsWith('/trains.css'));
+            /** @type {string[]} */ const ungated = [];
+            let hovers = 0;
+            const walk = (/** @type {CSSRuleList} */ rules, /** @type {string[]} */ gates) => {
+                for (const r of rules) {
+                    if (r instanceof CSSMediaRule) walk(r.cssRules, [...gates, r.media.mediaText]);
+                    else if (r instanceof CSSStyleRule) {
+                        if (!r.selectorText.includes(':hover')) continue;
+                        hovers++;
+                        if (!gates.some(m => /\(hover:\s*hover\)/.test(m))) ungated.push(`${gates.join(' · ') || 'no gate'} → ${r.selectorText}`);
+                    } else if (r instanceof CSSGroupingRule) walk(r.cssRules, gates);
+                }
+            };
+            if (sheet) walk(sheet.cssRules, []);
+            return { found: !!sheet, hovers, ungated };
+        });
+        expect(g.found && g.hovers >= 5, `premise: trains.css and its hover rules are read (${g.hovers})`).toBe(true);
+        expect(g.ungated, 'a hover tint not gated on (hover: hover)').toEqual([]);
+    });
+
     // Every view at phone width, with the widest content each holds open. The basic-hour grid
     // scrolls inside its own box, and v24.74 shipped with its screen-reader words escaping that box
     // and stretching the PAGE to 444px on a 390px phone — the whole page scrolled sideways.

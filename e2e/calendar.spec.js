@@ -2131,6 +2131,65 @@ test('calendar: a month arrow at the last month offers a mouse no hand, no hover
         .toBe(await resolvedColour(page, '--accent-gold-dark'));
 });
 
+// ─── THE LOADING SHAPE IS THE GRID'S SHAPE (whole-app fix, 10 Nov 2026) ───────────────────────────
+// The boot skeleton exists so that nothing moves when the real grid replaces it, and says its sizes are
+// the real grid's. Its corners were the desktop cell's 16px at every width, where a phone's cells and
+// day heads are 6px. The real skeleton is mounted (calendar-lock-slot.js), over a drawn month.
+for (const width of [390, 800]) {
+    test(`calendar: the loading skeleton wears the real grid's corners at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await seedMember(page);
+        await seedMemberSession(page);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        const corners = await page.evaluate(async () => {
+            const radius = (/** @type {string} */ s) => getComputedStyle(/** @type {Element} */ (document.querySelector(s))).borderTopLeftRadius;
+            const real = { cell: radius('.calendar-day:not(.other-month)'), head: radius('.day-header') };
+            const { showBootSkeleton } = await import('./calendar-lock-slot.js');
+            showBootSkeleton();
+            return { real, boot: { cell: radius('.cal-boot-cell'), head: radius('.cal-boot-days span') } };
+        });
+        expect(corners.boot, `the skeleton's corners are the grid's (${JSON.stringify(corners.real)})`).toEqual(corners.real);
+    });
+}
+
+// ─── THE LEAVE PANEL'S LABELS LOSE THEIR TRACKING AT 320px (whole-app fix, 10 Nov 2026) ────────────
+// The 320px rule that buys back the width of "ENTITLEMENT" sat ABOVE the label's own rule, so its
+// tracking half lost on source order and had never applied. Measured against the 0.3px it has above.
+test('calendar: at 320px the leave panel\'s labels drop their tracking', async ({ page }) => {
+    await seedMember(page);
+    await seedMemberSession(page);
+    const tracking = async (/** @type {number} */ width) => {
+        await page.setViewportSize({ width, height: 700 });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#alBtn').click();
+        await expect(page.locator('#alLightboxContent')).toBeVisible();
+        return page.locator('.al-lb-lbl').first().evaluate(el => getComputedStyle(el).letterSpacing);
+    };
+    expect(await tracking(375), 'premise: the labels are tracked at a phone\'s usual width').toBe('0.3px');
+    expect(['normal', '0px'], 'no tracking at 320px').toContain(await tracking(320));
+});
+
+// ─── WHILE DECEMBER LOADS, THE 25TH SHIMMERS WHOLE (whole-app fix, 10 Nov 2026) ────────────────────
+// The loading shimmer and the Christmas tree are both a cell's ::after at equal specificity. The shimmer
+// won but kept the tree's translateX(-50%), so on the 25th it swept half the cell, shifted off its left
+// edge. The class the first load sets while its read is out (calendar-initial-fetch.js) is set by hand:
+// the stubbed reads answer before a frame of it could be read.
+test('calendar: while December loads, the 25th\'s shimmer covers its own cell', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day.christmas-day')).toBeVisible();
+    expect(await page.locator('.calendar-day.christmas-day').evaluate(el => getComputedStyle(el, '::after').transform),
+        'premise: the tree is centred by a transform').not.toBe('none');
+    await page.evaluate(() => document.querySelector('#calendarDisplay .calendar-grid')?.classList.add('calendar-fetching'));
+    expect(await page.locator('.calendar-fetching .calendar-day.christmas-day').evaluate(el => getComputedStyle(el, '::after').transform),
+        'the shimmer is not moved by the tree\'s transform').toBe('none');
+});
+
 // ─── ON A WIDE SCREEN THE TEAM VIEW BAR IS A CLUSTER, NOT A FULL-WIDTH ROW (v22.86) ─────────────
 // At 1280px the two arrows sat at the far edges of a 1040px card, 400px from the label they move,
 // while the month view directly above keeps Prev · name · Next as one compact centred group. Both
