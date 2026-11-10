@@ -209,6 +209,17 @@ describe('cache-load-failure guard (Finding #2)', () => {
         auth.currentUser = null;
     });
 
+    // admin-2-11 (whole-app check, 10 Nov 2026): the leave-year save refuses here too, and says WHY —
+    // as a bare message, `saveFailureMessage` read it as "check your connection".
+    test('…and the leave-year save refuses as well, in words that say why', async () => {
+        const { saveFailureMessage } = await import('./claim-retry.js');
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        const err = await setLeaveYear({ memberName: 'G. Miller', date: '2027-01-05', leaveYear: 2026, changedBy: 'G. Miller' }).catch(e => e);
+        auth.currentUser = null;
+        assert.match(String(err?.message), /cache\/load-failed/);
+        assert.equal(saveFailureMessage(err), "This member's saved changes couldn't be loaded, so nothing was saved. Reload the page, then try again.");
+    });
+
     // A READ THE SERVER DID NOT ANSWER IS NOT A LOAD (v24.48, external review). Offline, `getDocs`
     // resolves from this device's cache — empty for a member it never read — and granting authority
     // from that let a save go ahead believing the member had no bookings.
@@ -539,6 +550,69 @@ describe('the leave-year choice — what is written', () => {
         assert.ok(written, 'the shift was not written');
         assert.equal(written.type, 'shift');
         assert.ok(!('leaveYear' in written));
+    });
+
+    // admin-2-11 (whole-app check, 10 Nov 2026): the save's own refusals carry the words, so the panel
+    // does not tell somebody who has been signed out to check their connection.
+    test('its own refusals say why, through saveFailureMessage — never "check your connection"', async () => {
+        const { saveFailureMessage } = await import('./claim-retry.js');
+        seed([leave()]);
+        const invalid = await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2025, changedBy: MEMBER }).catch(e => e);
+        assert.equal(saveFailureMessage(invalid), "That year can't be chosen for this day, so nothing was saved.");
+        mockAuth.currentUser = null;
+        const signedOut = await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }).catch(e => e);
+        assert.equal(saveFailureMessage(signedOut), "You've been signed out, so nothing was saved — please sign in again.");
+        assert.equal(_batchWrites.length, 0, 'nothing was written');
+    });
+});
+
+// admin-2-4 (whole-app check, 10 Nov 2026): the range cards NAME the Sundays a booking sets as rest
+// days, from `rangeSundayCorrections` (admin-al-projection.js), before the write. That is only true
+// while the writer below sets exactly those, so the two rules are run side by side on real members'
+// worked and rested Sundays — leave and absence, with nothing, a rest day, worked overtime, a worked
+// shift or leave already on the Sunday, and a day either side — until the writer reads the shared
+// rule itself.
+describe('recordRangeOverrides sets as rest days exactly the Sundays the range cards name', () => {
+    test('every kind of record already on the day, leave and absence alike', async () => {
+        const { rangeSundayCorrections } = await import('./admin-al-projection.js');
+        const { formatISO, getBaseShift, parseISODate } = await import('./roster-data.js');
+        mockAuth.currentUser = { uid: 'x', getIdToken: async () => {} };
+        const already = [null, { type: 'correction', value: 'RD' }, { type: 'rdw', value: '08:00-16:00' },
+            { type: 'shift', value: '08:00-16:00' }, { type: 'annual_leave', value: 'AL' }];
+        /** Two worked and one rested Sunday for each of the first members who have both. */
+        const cases = [];
+        for (const m of teamMembers.filter(x => !x.hidden)) {
+            const worked = [], rested = [];
+            for (let d = new Date(2026, 5, 7); d.getFullYear() < 2028 && (worked.length < 2 || !rested.length); d.setDate(d.getDate() + 7)) {
+                (isRestShift(getBaseShift(m, d)) ? rested : worked).push(formatISO(d));
+            }
+            if (worked.length >= 2 && rested.length) cases.push({ m, sundays: [...worked.slice(0, 2), rested[0]] });
+            if (cases.length >= 4) break;
+        }
+        assert.ok(cases.length >= 2, 'premise: members with worked and rested Sundays');
+        /** @type {Record<string, number>} which kinds met a WORKED Sunday — each must, or its half of the rule went unread */
+        const met = {};
+        for (const { m, sundays } of cases) {
+            for (const sun of sundays) {
+                const day = (/** @type {number} */ n) => { const t = parseISODate(sun); t.setDate(t.getDate() + n); return formatISO(t); };
+                const dates = [day(-1), sun, day(1)];
+                for (const kind of already) {
+                    for (const type of ['annual_leave', 'sick']) {
+                        setAllOverrides(kind ? [{ id: `pre-${sun}`, memberName: m.name, date: sun, source: 'manual', createdAt: new Date(2026, 0, 1), ...kind }] : []);
+                        const expected = rangeSundayCorrections({ dates, memberObj: m, ovByDate: buildMemberDateMap(m.name) });
+                        _batchWrites.length = 0;
+                        const res = await recordRangeOverrides({ type, value: type === 'sick' ? 'SICK' : 'AL', memberName: m.name, dates, changedBy: 'A. Admin' });
+                        const written = _batchWrites.filter(w => w.type === 'correction').map(w => w.date);
+                        assert.deepEqual(written, res.workingCount ? expected : [], `${m.name}, ${type}, ${kind?.type ?? 'nothing'} on ${sun}`);
+                        assert.equal(res.sundayCount, written.length, 'the count the card checks its receipt against');
+                        if (res.workingCount && !isRestShift(getBaseShift(m, parseISODate(sun)))) met[kind?.type ?? 'nothing'] = (met[kind?.type ?? 'nothing'] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+        assert.deepEqual(Object.keys(met).sort(), ['annual_leave', 'correction', 'nothing', 'rdw', 'shift'],
+            'premise: every kind of record was met on a worked Sunday, beside a booking that wrote');
+        mockAuth.currentUser = null;
     });
 });
 

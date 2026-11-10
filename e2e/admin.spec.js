@@ -7,7 +7,7 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
-import { teamMembers, getBaseShift } from '../roster-data.js';
+import { teamMembers, getBaseShift, CONFIG } from '../roster-data.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -688,6 +688,179 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     const backAgain = await read();
     expect(backAgain, 'the banner latched on the later year instead of tracking the picker')
         .toEqual(thisYear);
+});
+
+// ── AND STRAIGHT AFTER A BOOKING IT STAYS ON THE YEAR JUST BOOKED (whole-app check, 10 Nov 2026) ──
+// The save reset the picker to today's month, which crossed the year back and told the banner to
+// switch, so a manager who had just booked January read THIS year's figures under "✓ Recorded". The
+// owner's decided default: keep showing the year just booked. Through the real save.
+test('admin: straight after booking next year’s leave, the picker and the banner stay on that year', async ({ page }) => {
+    test.setTimeout(40_000);
+    const me = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const works = (/** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(getBaseShift(me, d));
+    /** @type {string[]} */ let pair = [];
+    for (let d = new Date(2027, 0, 4); d.getMonth() === 0 && !pair.length; d.setDate(d.getDate() + 1)) {
+        const next = new Date(d); next.setDate(d.getDate() + 1);
+        if (works(d) && works(next)) pair = [iso(d), iso(next)];
+    }
+    expect(pair, 'premise: two working days running in January 2027 on G. Miller\'s line').toHaveLength(2);
+    const AL_DATES = [];
+    for (let d = 1; d <= 26; d++) AL_DATES.push(`2026-06-${String(d).padStart(2, '0')}`);
+
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.authUser = true;          // a write needs the signed-in Firebase user, as every save test here
+        w.__E2E.docs = dates.map((/** @type {string} */ d, /** @type {number} */ i) => ({
+            id: 'al' + i, memberName: 'G. Miller', date: d, type: 'annual_leave', value: 'AL', note: '',
+        }));
+    }, AL_DATES);
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#alToggleHeader').click();
+    const label  = page.locator('#alRpLabel');
+    const taken  = page.locator('#alBannerTaken');
+    const booked = page.locator('#alBannerBooked');   // leave after today — the whole of 2027's
+    await expect(taken, 'premise: this year\'s leave is on record').not.toHaveText('0');
+    for (let i = 0; i < 2; i++) await page.locator('#alRpNext').click();
+    await expect(label).toHaveText('January 2027');
+    await expect(taken, 'premise: the banner moved to 2027 with the picker').toHaveText('0');
+    await expect(booked).toHaveText('0');
+
+    await page.locator(`#alRpGrid .rp-day[data-iso="${pair[0]}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${pair[1]}"]`).click();
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []).length),
+        { message: 'premise: the booking was written' }).toBeGreaterThan(0);
+    await expect(page.locator('#alFeedback')).toContainText('Recorded');
+    await expect(page.locator('#alRpFrom'), 'the range clears').toHaveText('Choose start');
+    await expect(label, 'the picker went back to today’s month').toHaveText('January 2027');
+    await expect(taken, 'the banner switched to this year’s figures under the receipt').toHaveText('0');
+    await expect(booked, 'the banner counts the days just booked, in the year they were booked in').toHaveText('2');
+});
+
+// ── A PRESS WHOSE RELEASE NEVER REACHES THE LEAVE PICKER (whole-app check, 10 Nov 2026) ──────────
+// The month grid started listening on ANY press and stopped only on a release delivered to it, so a
+// press released off the grid — or a right-click, whose release the context menu keeps — left the
+// month following the mouse with no button held, and the next click turned the page instead of
+// choosing a day. The Calendar's swipe has both guards (calendar-swipe.js); the picker now has them.
+test('admin: a press released off the leave picker does not leave the month following the mouse', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    await page.locator('#alToggleHeader').click();
+    const grid = page.locator('#alRpGrid');
+    const label = page.locator('#alRpLabel');
+    await expect(label).toHaveText('July 2026');
+    const box = /** @type {any} */ (await grid.boundingBox());
+    const midY = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width / 2, midY);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y - 120);   // straight off the grid, in one move
+    await page.mouse.up();                                        // released where the grid cannot hear it
+    await page.mouse.move(box.x + 12, midY);                      // back over it, with no button held
+    await page.mouse.move(box.x + box.width - 12, midY, { steps: 6 });
+    expect(await grid.evaluate(g => g.style.transform), 'the month followed a mouse with no button held').toBe('');
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-07-20"]').click();
+    await expect(label, 'the click turned the page instead of choosing the day').toHaveText('July 2026');
+    await expect(page.locator('#alRpFrom')).toHaveText('Mon 20 Jul');
+});
+
+test('admin: a right-click on the leave picker is not the start of a swipe', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a mouse');
+    await deskAdmin(page, { width: 1366, height: 900 });
+    await page.locator('#alToggleHeader').click();
+    const grid = page.locator('#alRpGrid');
+    const box = /** @type {any} */ (await grid.boundingBox());
+    const midY = box.y + box.height / 2;
+    // The press whose release the context menu keeps: a right-button pointerdown, and nothing after.
+    // Dispatched, because a headless browser draws no menu to take the release.
+    await grid.evaluate((g, at) => g.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true,
+        pointerType: 'mouse', pointerId: 1, button: 2, buttons: 2, clientX: at.x, clientY: at.y })), { x: box.x + box.width / 2, y: midY });
+    await page.mouse.move(box.x + 12, midY);
+    await page.mouse.move(box.x + box.width - 12, midY, { steps: 6 });
+    expect(await grid.evaluate(g => g.style.transform), 'a right-press started a swipe').toBe('');
+});
+
+// ── THE LEAVE PICKER STOPS WHERE THE CALENDAR DOES (whole-app check, 10 Nov 2026) ──────────────
+// Nothing bounded it — a run reached 2086 — so leave could be recorded in a year the Calendar cannot
+// show and that has no bank holidays to count against. Its arrows, its keys and its swipe stop at
+// CONFIG's years now; each is checked at both ends, and the way back from each end still works.
+test('admin: the leave picker stops at the first and last months the Calendar shows', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'buttons, keys and a mouse');
+    const label = page.locator('#alRpLabel');
+    const grid  = page.locator('#alRpGrid');
+    /** Drag across the grid with the mouse, `dir` -1 leftwards (the next month) or +1 rightwards,
+     *  running `held` while the button is still down. */
+    const drag = async (/** @type {number} */ dir, held = async () => {}) => {
+        const box = /** @type {any} */ (await grid.boundingBox());
+        const y = box.y + box.height / 2, mid = box.x + box.width / 2;
+        await page.mouse.move(mid, y);
+        await page.mouse.down();
+        await page.mouse.move(mid + dir * box.width * 0.45, y, { steps: 8 });
+        await held();
+        await page.mouse.up();
+    };
+    /** Mid-drag at a bound, the one neighbour there is — none is drawn past it. */
+    const oneNeighbour = () => expect(page.locator('#alRpClip .rp-adj-panel'), 'a month past the bound, drawn to swipe on to').toHaveCount(1);
+    const open = async (/** @type {string} */ iso) => {
+        await page.clock.setFixedTime(new Date(`${iso}T09:00:00Z`));
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#alToggleHeader').click();
+    };
+    // The clock FIRST, so the seeded session's expiry is reckoned on it, not on the real date.
+    await page.clock.setFixedTime(new Date(`${CONFIG.MAX_YEAR}-12-10T09:00:00Z`));
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+
+    const last = `December ${CONFIG.MAX_YEAR}`;
+    await open(`${CONFIG.MAX_YEAR}-12-10`);
+    await expect(label).toHaveText(last);
+    await expect(page.locator('#alRpNext'), 'an arrow onto a month the Calendar cannot show').toBeDisabled();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${CONFIG.MAX_YEAR}-12-31"]`).focus();
+    await page.keyboard.press('PageDown');
+    await page.keyboard.press('ArrowRight');
+    await expect(label, 'a key past the last month').toHaveText(last);
+    await expect(page.locator(`#alRpGrid .rp-day[data-iso="${CONFIG.MAX_YEAR}-12-31"]`)).toBeFocused();
+    await drag(-1, oneNeighbour);
+    await expect.poll(() => grid.evaluate(g => g.style.transform), { message: 'the grid snaps back' }).toBe('');
+    await expect(label, 'a swipe past the last month').toHaveText(last);
+    // The snap-back's end — it also ends the cooldown that ignores a press straight after a swipe.
+    await expect.poll(() => grid.evaluate(g => g.style.willChange), { message: 'the snap-back finishes' }).toBe('');
+    await drag(+1);
+    await expect(label, 'the swipe back still turns the page').toHaveText(`November ${CONFIG.MAX_YEAR}`);
+    const next = page.locator('#alRpNext');
+    await expect(next, 'the arrows follow a swipe, not only a render').toBeEnabled();
+    await next.focus();
+    await page.keyboard.press('Enter');
+    await expect(label).toHaveText(last);
+    await expect(next).toBeDisabled();
+    await expect(next, 'the arrow just pressed keeps the keyboard').toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(label, 'the arrow pressed again at the bound').toHaveText(last);
+
+    const first = `January ${CONFIG.MIN_YEAR}`;
+    await open(`${CONFIG.MIN_YEAR}-01-10`);
+    await expect(label).toHaveText(first);
+    const prev = page.locator('#alRpPrev');
+    await expect(prev, 'an arrow onto a month the Calendar cannot show').toBeDisabled();
+    await prev.focus();
+    await page.keyboard.press('Enter');
+    await expect(label, 'the arrow pressed at the bound').toHaveText(first);
+    await page.locator(`#alRpGrid .rp-day[data-iso="${CONFIG.MIN_YEAR}-01-01"]`).focus();
+    await page.keyboard.press('PageUp');
+    await page.keyboard.press('ArrowLeft');
+    await expect(label, 'a key before the first month').toHaveText(first);
+    await drag(+1, oneNeighbour);
+    await expect.poll(() => grid.evaluate(g => g.style.transform), { message: 'the grid snaps back' }).toBe('');
+    await expect(label, 'a swipe before the first month').toHaveText(first);
+    await page.locator('#alRpNext').click();
+    await expect(label).toHaveText(`February ${CONFIG.MIN_YEAR}`);
+    await expect(page.locator('#alRpPrev')).toBeEnabled();
 });
 
 // ── "Recording for <name>" on the AL and Absence cards (v22.45) ──────────────────────────────
@@ -2070,6 +2243,85 @@ test('admin: an armed Saved Changes delete says so in its accessible name, and s
     await expect(btn).not.toHaveClass(/confirming/);
 });
 
+// ── A DELETE FROM THE KEYBOARD HANDS FOCUS ON (whole-app check, 10 Nov 2026) ─────────────────────
+// Both lists re-render on a delete and destroy the ✕ that held focus, and a focused element that is
+// removed hands focus to <body>: a keyboard user's next Tab began again at the burger. Focus now goes
+// to the ✕ that took the deleted one's place, and when none is left, to the line that says what
+// happened. One test per list, each through the real delete.
+test('admin: a Recorded dates ✕ pressed from the keyboard hands focus on, never to the top of the page', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    const me = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const works = (/** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(getBaseShift(me, d));
+    // Two single days a week apart, with working days between them, so they are two periods.
+    const firstWorked = (/** @type {Date} */ from) => { const d = new Date(from); while (!works(d)) d.setDate(d.getDate() + 1); return d; };
+    const a = firstWorked(new Date(2026, 2, 2));
+    const days = [iso(a), iso(firstWorked(new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7)))];
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((ds) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            authUser: true,
+            docs: ds.map((/** @type {string} */ date, /** @type {number} */ i) => ({ id: 'k' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })),
+        });
+    }, days);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    const dels = page.locator('#alBookedBody .btn-period-delete');
+    await expect(dels, 'premise: two periods, two ✕').toHaveCount(2);
+
+    await dels.first().focus();
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Confirm?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(1);
+    await expect(dels.first(), 'the ✕ that took its place').toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Confirm?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(0);
+    // No ✕ left, but the list stays — it still shows the year's Christmas leave — so focus goes to
+    // the year chip it is showing. (A list that empties and hides hands it to #alFeedback instead:
+    // admin-booked-periods.test.mjs, where no Christmas row keeps the box open.)
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active'), 'none left: the year the list is showing').toBeFocused();
+});
+
+test('admin: a Saved Changes ✕ pressed from the keyboard hands focus on, never to the top of the page', async ({ page }) => {
+    await page.clock.setFixedTime(LEAVE_LIST_DAY);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            authUser: true,
+            docs: [
+                { id: 's1', memberName: 'G. Miller', date: '2026-09-01', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 's2', memberName: 'G. Miller', date: '2026-09-08', type: 'annual_leave', value: 'AL', note: '' },
+            ],
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#overridesToggleHeader').click();
+    const dels = page.locator('#overrideTableBody .btn-delete');
+    await expect(dels, 'premise: two rows, two ✕').toHaveCount(2);
+
+    await dels.first().focus();
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Delete?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(1);
+    await expect(dels.first(), 'the ✕ that took its place').toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(dels.first()).toHaveText('Delete?');
+    await page.keyboard.press('Enter');
+    await expect(dels).toHaveCount(0);
+    await expect(page.locator('#listFeedback'), 'none left: the line that says what happened').toBeFocused();
+});
+
 test('admin: a Saved Changes row is one row — controls side by side, under 64px', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -2084,7 +2336,10 @@ test('admin: a Saved Changes row is one row — controls side by side, under 64p
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#overridesToggleHeader').click();
-    const card = page.locator('.override-card').first();
+    // The list is newest first (whole-app check, 10 Nov 2026 — it had been in whatever order the
+    // member's read arrived), so the 1 September row is found by its date, not by its place.
+    await expect(page.locator('.override-card .btn-edit').first(), 'newest first').toHaveAttribute('data-date', '2026-09-08');
+    const card = page.locator('.override-card').filter({ has: page.locator('.btn-edit[data-date="2026-09-01"]') });
     await expect(card).toBeVisible();
 
     const g = await card.evaluate(el => {
