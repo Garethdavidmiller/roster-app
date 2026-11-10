@@ -119,6 +119,8 @@ export function init() {
             // hardest: overtime wires the drawer even for a signed-out visitor ("so an unauthorised
             // visitor can leave", above), so the refusal was reachable without a race.
             authReady: sessionReady,
+            // No session, no document: this page sheds a PIN holder's identity, so a read is refused or cache-answered (contracts-a lead).
+            canReadDocuments: () => !!currentUser,
             currentPage: 'overtime',
             memberName: currentUser,
             isAdmin: !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser),

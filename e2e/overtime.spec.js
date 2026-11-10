@@ -3499,6 +3499,37 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await expect(page.locator('.nav-panel-pill--calendar')).toHaveCount(1);
     });
 
+    test('signed out, the drawer refuses a document at source, as the locked Calendar does (contracts-a lead)', async ({ page }) => {
+        // The drawer was wired with the always-open default, so a visitor with no session (this page
+        // sheds a PIN holder's identity too) fired a read the rules refuse online and the device's
+        // cache may answer offline — and was told it failed, not what would open it.
+        await off(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
+        const before = await reads();
+        /** @type {any[]} */ const popups = [];
+        page.on('popup', (p) => popups.push(p));
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-link--circular').click();
+        await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+        expect(await reads(), 'no read is issued').toBe(before);
+        expect(popups.length, 'and no blank tab is opened for it').toBe(0);
+    });
+
+    test('…while a signed-in member\'s tap still reads (contracts-a lead, guard the guard)', async ({ page }) => {
+        await off(page);
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
+        const before = await reads();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-link--circular').click();
+        await expect.poll(reads, { message: 'the member\'s tap reads the circular' }).toBeGreaterThan(before);
+    });
+
     test('the paused card says only that, and the page chrome still works', async ({ page }) => {
         // v25.05 replaced the form with the note and left the rest of the card describing a form
         // (the hint, the two caveats) behind a ? and a chevron that nothing wired; the drawer logo
