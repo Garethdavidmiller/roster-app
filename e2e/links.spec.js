@@ -3388,6 +3388,18 @@ test('links: editing a grid cell uses the app sheet, and cancelling changes noth
     await expect(cellBtn).toHaveText('SP');
 });
 
+// THE SHEET'S SEARCH BOX SAYS WHAT IT SEARCHES (whole-app fix, Nov 2026 — shared-ui-5, lead-5). The
+// sheet's title is the CELL, "Line 1 · Sun", which names a place rather than the list, so the box was
+// called "Search line 1 · sun" and then, by the shared rule for a title that is not plain words, just
+// "Search". The coordinator knows what the list holds, and names the box itself.
+test('links: the shift sheet\'s search box is called "Search shift times"', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.locator('tr[data-pos="1"] .shift-cell-btn').first().click();
+    const box = page.locator('.picker-sheet .picker-search-input');
+    await expect(box, 'premise: the shift list is long enough to be given a search box').toBeVisible();
+    await expect(box).toHaveAccessibleName('Search shift times');
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.

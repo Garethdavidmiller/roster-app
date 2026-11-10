@@ -1584,6 +1584,8 @@ export function init() {
 
         openOptionSheet({
             title: `Line ${pos} · ${dayLabel}`,
+            // The title names the CELL, not the list, so the search box is named here (shared-ui-5).
+            searchLabel: 'Search shift times',
             groups: readGroups(holder),
             current,
             createLightbox,
