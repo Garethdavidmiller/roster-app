@@ -4,7 +4,7 @@
  *
  * Owns: the three views built from a week's data — By day, Awaiting, and the change indicators.
  * Every WORD comes from `overtime-format.js`; the READ is `loadWeekDetail` in `overtime-data.js`;
- * the planning horizon that got the reviewer here belongs to `overtime-app.js`.
+ * the planning horizon that got the reviewer here belongs to `overtime-review-controller.js`.
  *
  * ── NO FIREBASE IMPORT, DELIBERATELY ────────────────────────────────────────────────────────────
  *
@@ -48,6 +48,7 @@ import {
     shortDate, deadlineLabel, printedLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
     isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
     declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow, weekAvailabilitySummary, reminderLine,
+    gradeScopeLabel, putBackWindow,
 } from './overtime-format.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
@@ -58,23 +59,28 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
  * @param {HTMLElement} host
  * @param {any} win the window row from the planning horizon (carries the stored milestones)
  * @param {{ participants: any[], submissions: Map<string, any>,
- *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
+ *   roster?: Record<string, Record<string, any>> }} data
  * @param {{ dates: string[], now: number, grade?: string, onGrade?: (g: string) => void,
  *   day?: string, onDay?: (d: string) => void, onRefresh?: () => void,
- *   onAsk?: (memberName: string, ask: boolean) => void }} opts
+ *   onAsk?: (memberName: string, ask: boolean) => void, refreshFailed?: boolean, printedAt?: number }} opts
  *   `grade` is the reviewer's standing choice, handed back in by the coordinator; `onGrade` is how
  *   it gets there. See below. `day`/`onDay` are the same pair for the DAY lens, but with a narrower
  *   lifetime: the coordinator hands the day back only across a SAME-WEEK re-render (a refresh must
  *   not throw away the lens the reviewer is looking through), and resets it on a week switch,
  *   because a day's values are this window's dates. `onRefresh`, when provided, renders a Refresh
  *   control beside the freshness line — the data here is a one-shot snapshot, and without it the
- *   only route to current answers was leaving the week and coming back. `onAsk` is the only
+ *   only route to current answers was leaving the week and coming back; `refreshFailed` says a newer
+ *   read of this snapshot did not arrive, so it is still the one drawn; `printedAt` is the corrected
+ *   clock at THIS paint, for the sheet's "Printed …" line (never the snapshot's `now`, and never the
+ *   device clock — `stampPrinted` moves it on as the sheet prints). `onAsk` is the only
  *   MUTATION this module can start: it hands the decision straight back out, because writing is
  *   the coordinator's job and this module is a pure render everywhere else — which is what makes
  *   it testable with a two-line fake DOM.
+ * @returns {{ grade: string }} the grade the workspace opened on
  */
 export function renderWeekDetail(host, win, data,
-    { dates, now, grade: initialGrade = 'ALL', onGrade, day: initialDay = 'ALL', onDay, onRefresh, onAsk }) {
+    { dates, now, grade: initialGrade = 'ALL', onGrade, day: initialDay = 'ALL', onDay, onRefresh, onAsk,
+        refreshFailed = false, printedAt = now }) {
     /**
      * The grade currently in view. `ALL` is not a grade — no participant can carry it as one.
      *
@@ -108,21 +114,55 @@ export function renderWeekDetail(host, win, data,
      */
     let day = (initialDay === 'ALL' || dates.includes(initialDay)) ? initialDay : 'ALL';
     paint();
+    // Which grade it OPENED on — not the one handed in, when that fell back above — so the card
+    // header's chip counts the people the card does (overtime-ui-8).
+    return { grade };
 
     function paint() {
-        host.innerHTML = build(win, data, { dates, now, grade, day, canRefresh: !!onRefresh });
-        wireGlance(host, next => { day = next; onDay?.(next); paint(); });
-        wireGrades(host, next => { grade = next; onGrade?.(next); paint(); });
+        host.innerHTML = build(win, data, { dates, now, grade, day, canRefresh: !!onRefresh, refreshFailed, printedAt });
+        wireGlance(host, next => { day = next; onDay?.(next); paint(); refocus(host, 'data-glance', next); });
+        wireGrades(host, next => { grade = next; onGrade?.(next); paint(); refocus(host, 'data-grade', next); });
         wireAsk(host, onAsk);
         wireRefresh(host, onRefresh);
         // The thunk reads the SAME lens state the panels were built from — grade-filtered,
         // withdrawn-excluded, day-narrowed — so the copied text cannot disagree with the screen.
+        // Its scope and "as at" are the print head's own (`gradeScopeLabel`, the same `now`).
         wireCopy(host, () => weekAvailabilitySummary({
             weekEnding: win.weekEnding, dates,
             participants: ofGrade((data.participants || []).filter(p => !isWithdrawn(p)), grade),
-            submissions: data.submissions, day,
+            submissions: data.submissions, day, grade, asAt: now,
         }));
     }
+}
+
+/**
+ * Put the keyboard on the successor of a control a repaint replaced. Every press in the workspace
+ * rebuilds it, and focus then fell to <body>: a keyboard user started again from the burger after
+ * every chip (overtime-ui-12). Matched by value, not by selector, so no name or grade needs escaping.
+ * @param {HTMLElement|null} host @param {string} attr @param {string} value
+ * @returns {boolean} whether a successor was found
+ */
+export function refocus(host, attr, value) {
+    if (typeof host?.querySelectorAll !== 'function') return false;
+    const next = /** @type {HTMLElement|undefined} */ (Array.from(host.querySelectorAll(`[${attr}]`))
+        .find(n => n.getAttribute(attr) === value));
+    next?.focus();
+    return !!next;
+}
+
+/** Focus fell out of the page (its element was replaced) rather than being moved on by the reader. */
+export const focusLost = () => !document.activeElement || document.activeElement === document.body;
+
+/**
+ * Restamp the sheet's "Printed …" line with the moment it prints (overtime-ui-7): drawn at paint, it
+ * named the time the week was OPENED, so two printouts an hour apart carried one stamp — on the line
+ * whose job is to put them in order. The page calls this on `beforeprint`; iOS sends none for AirPrint,
+ * so there the line keeps its paint-time stamp, which is the best that engine allows.
+ * @param {HTMLElement|null} host the workspace @param {number} nowMs the corrected clock
+ */
+export function stampPrinted(host, nowMs) {
+    const line = host?.querySelector?.('.ot-print-printed');
+    if (line) line.textContent = printedLabel(nowMs);
 }
 
 /**
@@ -151,7 +191,7 @@ function wireCopy(host, summaryText) {
 /**
  * Wire the Refresh control. Same guard shape as the other wire fns: a host with no query surface
  * (the unit tests' two-line fake) simply leaves the markup inert.
- * @param {HTMLElement} host @param {(() => void) | undefined} onRefresh
+ * @param {HTMLElement} host @param {(() => any) | undefined} onRefresh resolves once the week has repainted
  */
 function wireRefresh(host, onRefresh) {
     if (typeof host?.querySelector !== 'function' || !onRefresh) return;
@@ -165,7 +205,10 @@ function wireRefresh(host, onRefresh) {
         // discarded, so there is no state in which a disabled button survives.
         btn.disabled = true;
         btn.textContent = 'Refreshing…';
-        onRefresh();
+        // The new button takes the keyboard back — unless the reader moved on while it read.
+        Promise.resolve(onRefresh()).then(() => {
+            if (focusLost()) /** @type {HTMLElement|null} */ (host.querySelector('.ot-refresh-btn'))?.focus();
+        });
     });
 }
 
@@ -227,10 +270,11 @@ const ADDED_LATER_TOLERANCE_MS = 60_000;
  * The whole surface as one string. Pure — same inputs, same output, no DOM reads.
  * @param {any} win
  * @param {{ participants: any[], submissions: Map<string, any>,
- *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
- * @param {{ dates: string[], now: number, grade: string, day?: string, canRefresh?: boolean }} state
+ *   roster?: Record<string, Record<string, any>> }} data
+ * @param {{ dates: string[], now: number, grade: string, day?: string, canRefresh?: boolean,
+ *   refreshFailed?: boolean, printedAt?: number }} state
  */
-function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }) {
+function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false, refreshFailed = false, printedAt = now }) {
     const { submissions } = data;
     // WITHDRAWN COMES OFF FIRST, before the grade filter and before anything is counted. A person
     // who has left is not somebody the week is short of an answer from, and leaving them in the
@@ -242,31 +286,34 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
     const grades = gradesPresent(active);
     const participants = ofGrade(active, grade);
     const received = participants.filter(p => submissions.has(p.memberName)).length;
-    const scope = grade === 'ALL' ? 'All grades' : `${grade} only`;
+    const scope = gradeScopeLabel(grade);
 
+    // The reasons for this head live here, not in the markup, where every paint shipped them to the
+    // reviewer's browser (overtime-ui-17).
+    //
+    // THE PRINT HEAD is paper only (the card header above names the week on screen — v20.62 — but it
+    // is chrome and does not print, and a sheet of names with no week on it can be acted on). It
+    // carries TWO times (v23.27): "as at" is how fresh the DATA is; "Printed" is when the PAPER was
+    // produced, which is what orders two printouts of one snapshot — so it carries the year (a
+    // printout goes in a folder) and is restamped as it prints (`stampPrinted`, on `beforeprint`;
+    // iOS fires none for AirPrint, so there it stays the moment the sheet was drawn). The grade lens
+    // IS carried onto paper, unlike the day lens, which makes the scope line mandatory: four CEAs with
+    // no scope line read as the whole team.
+    //
+    // THE FRESHNESS LINE, on screen too: everything here is a one-shot snapshot, and without "as at"
+    // the page reads as current for as long as it is open. It is the print head's own sentence, so
+    // screen and paper cannot disagree, and Refresh is the route to current answers.
+    //
+    // THE CURRENT NOTE's second sentence is a boundary, not a caution (owner, Aug 2026): what people
+    // offer is time AROUND their rostered duty, never an offer to change or give it up. "All day"
+    // beside an early shift had three readings, and the dangerous one costs a member the shift they
+    // planned their week around. Here, and not only in the help, because a tip is opt-in.
     return `
         <div class="ot-detail-head">
-            <!-- No week name here ON SCREEN. The card header states it two lines above, in
-                 otWeekHint, and repeating it immediately below was the same duplication as the page
-                 title removed at v20.62 — a surface that has not decided where its subject is named.
-                 PRINT is the exception, and the reason is that the card header is chrome and does
-                 not print: a sheet of names with no week on it is worse than no sheet, because it
-                 can be acted on. So the week is emitted here and shown only on paper. -->
             <div class="ot-print-head" aria-hidden="true">
                 <div class="ot-print-title">Overtime availability — ${esc(weekLabel(win.weekEnding))}</div>
                 <div class="ot-print-asat">${esc(asAtLine(now))}</div>
-                <!-- TWO DIFFERENT FACTS, and a printed sheet needs both (v23.27, external review).
-                     the as-at line above says how fresh the DATA is — answers keep arriving until the
-                     deadline, so a sheet carrying only that is undated as a physical object. This
-                     says when the PAPER was produced. A reviewer holding two printouts of the same
-                     week cannot tell which is the later one from the as-at line, because both were
-                     taken from snapshots that may share it; the printed-at line is what orders them.
-                     The stamp carries the YEAR, which the deadline lines deliberately do not — a
-                     deadline is days away, a printout goes in a folder. -->
-                <div class="ot-print-printed">${esc(printedLabel(Date.now()))}</div>
-                <!-- The grade filter IS carried into print, unlike the day filter — printing one
-                     grade's availability is a real thing to want. That makes stating it mandatory:
-                     a sheet showing four CEAs with no scope line reads as the whole team. -->
+                <div class="ot-print-printed">${esc(printedLabel(printedAt))}</div>
                 <div class="ot-print-scope">${esc(scope)}</div>
             </div>
             <div class="ot-detail-meta">
@@ -274,25 +321,22 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                 final deadline ${esc(deadlineLabel(win.finalDeadlineAt))}
             </div>
             <div class="ot-detail-counts">${esc(countsCopy(participants.length, received))}</div>
-            <!-- FRESHNESS, on screen and not only on paper. Everything below is a one-shot
-                 snapshot: it does not live-update, and answers keep arriving right up to the
-                 deadline. Without this line the page reads as current for as long as it is left
-                 open, and without the button the only route to current answers was leaving the
-                 week and coming back. The line reuses the print head's asAtLine so screen and
-                 paper cannot disagree about what "as at" means. -->
             <div class="ot-detail-asat">${esc(asAtLine(now))}${canRefresh
                 ? ' <button type="button" class="ot-refresh-btn">Refresh</button>' : ''}
                 <button type="button" class="ot-copy-btn">Copy summary</button>
                 <span class="ot-copy-status" role="status"></span></div>
+            ${refreshFailed ? `<div class="ot-reminder-line ot-reminder-line--warn" role="status">Couldn't refresh `
+                + `just now — still showing availability as at ${esc(deadlineLabel(now))}.</div>` : ''}
             ${(() => {
                 // The reminder audit (v22.05): whether the deadline-morning reminder actually went
-                // out, without reading Cloud Function logs. reminderLine owns the four states,
-                // including the deliberate silence on CLOSED weeks (pre-feature windows must not
-                // wear a permanent false alarm).
+                // out, and what it reached (overtime-core-4), without reading Cloud Function logs.
+                // reminderLine owns the states, including the deliberate silence on CLOSED weeks
+                // (pre-feature windows must not wear a permanent false alarm).
                 // A week OPENED after its initial deadline never had a reminder morning, so the
                 // FINAL_OPEN "none recorded" warning would be a false alarm there.
                 const late = frozenAt(data.participants) >= win.initialDeadlineAt;
-                const r = late ? null : reminderLine(win.phase, win.initialDeadlineAt, win.reminderSentAt);
+                const r = late ? null : reminderLine(win.phase, win.initialDeadlineAt, win.reminderSentAt,
+                    win.reminderOutstanding, win.reminderAccepted);
                 return r ? `<div class="ot-reminder-line ot-reminder-line--${r.tone}">${esc(r.text)}</div>` : '';
             })()}
             ${win.audience === 'restricted'
@@ -300,14 +344,6 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                   + `${participants.length === 1 ? 'participant' : 'participants'}</div>`
                 : ''}
         </div>
-        <!-- TWO sentences, and the second one is a boundary rather than a caution (owner, Aug 2026).
-             Availability is offered AROUND what somebody is already rostered; it is never an offer
-             to move or give up a rostered duty. "All day" beside an 07:00–15:00 shift had three
-             readings and the app committed to none, and the dangerous one — that the clerk may take
-             the duty away — costs a member the shift they planned their week around. It lives here
-             rather than only in the help panel because a tip is opt-in and this is a rule.
-             (No backticks in this comment: it sits inside a template literal, and one would end it
-             — the same trap that broke the calendar lock panel earlier.) -->
         <div class="ot-current-note">
             Availability reflects what staff submitted before the final cut-off. Confirm directly
             with the employee before arranging short-notice cover.
@@ -319,7 +355,7 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
         ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {},
             { now, frozenAt: frozenAt(active) })).join('')}
         ${awaitingPanel(participants, submissions, { now, frozenAt: frozenAt(active) })}
-        ${askedPanel(participants, submissions, win.phase === 'CLOSED')}
+        ${askedPanel(participants, submissions, win.phase === 'CLOSED', putBackWindow(Number(win.initialDeadlineAt), now))}
         ${withdrawnPanel(ofGrade(withdrawn, grade), win.phase === 'CLOSED',
             { initialDeadlineAt: win.initialDeadlineAt, finalDeadlineAt: win.finalDeadlineAt, now })}`;
 }
@@ -417,6 +453,8 @@ function glanceStrip(dates, participants, submissions, activeDay) {
                     <span class="ot-glance-count">${n}</span>
                 </button>`;
     }).join('');
+    // The note says what the numbers ARE: a bare row of counts invites the reading the tones no
+    // longer offer — that a bigger number is a solved day.
     return `
         <div class="ot-glance" role="group" aria-label="Staff with some availability, by day — choose a day to show only that day">
             <button type="button" class="ot-glance-day ot-glance-day--all" data-glance="ALL" aria-pressed="${activeDay === 'ALL'}">
@@ -424,8 +462,6 @@ function glanceStrip(dates, participants, submissions, activeDay) {
             </button>
             ${chips}
         </div>
-        <!-- Says what the numbers ARE. Without it a bare row of counts invites the reading the
-             tones no longer offer — that a bigger number is a solved day. -->
         <p class="ot-glance-note">Each number is how many people offered SOME availability that
         day — not whether it covers the shift you need.</p>`;
 }
@@ -573,6 +609,8 @@ function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, up
     if (answerAnchorStale(day, ctx)) flags.push('Roster changed since this answer');
     // Only where there IS an answer to date. A row in "No response" has nothing to be old.
     const age = day ? declaredAgo(updatedAt, meta.now || 0) : null;
+    // A Sunday-release request sits BESIDE the answer, never merged into it (invariants 1 and 14):
+    // two different things the member said about one day, and collapsing them would lose one.
     return `
         <div class="ot-person">
             <span class="ot-person-name">${esc(p.memberName)}</span>
@@ -586,9 +624,6 @@ function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, up
                 // carried one.
                 : `<span class="ot-person-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(ctx)}</span>`}
             ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
-            <!-- BESIDE the answer, never merged into it (invariant 1, and 14): the overtime answer
-                 and a request to come off a contracted Sunday are two different things the member
-                 said about one day, and collapsing them would lose one of them. -->
             ${releaseRequestLine(day) ? `<span class="ot-release-flag">${esc(releaseRequestLine(day))}</span>` : ''}
             ${age ? `<span class="ot-person-age"><span class="visually-hidden">Said </span>${esc(age)}</span>` : ''}
             ${meta.stopAsking
@@ -665,8 +700,9 @@ function awaitingPanel(participants, submissions, meta = {}) {
  * @param {any[]} participants the ACTIVE population, already grade-filtered
  * @param {Map<string, any>} submissions
  * @param {boolean} [closed] the week's final deadline has passed
+ * @param {string} [putBack] until when a stop made now can be undone (`putBackWindow`)
  */
-function askedPanel(participants, submissions, closed = false) {
+function askedPanel(participants, submissions, closed = false, putBack = 'until the first deadline') {
     if (!participants.length) return '';
     return `
         <div class="ot-day-panel ot-day-panel--muted">
@@ -675,7 +711,7 @@ function askedPanel(participants, submissions, closed = false) {
                 ? 'This week has closed, so who was asked can no longer be changed.'
                 : `Everyone counted on this page. Use <strong>Stop asking</strong>
                 when somebody has left or moved role — their answers are kept, they come out of the
-                counts, and you can put them back while the week is open.`}</div>
+                counts, and you can put them back ${esc(putBack)}.`}</div>
             ${participants.map(p => `
                 <div class="ot-person">
                     <span class="ot-person-name">${esc(p.memberName)}</span>

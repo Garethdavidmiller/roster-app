@@ -57,6 +57,7 @@ const { storedMilestones, toMillis, publicHead } = OT;
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
+const { isViewerAccount } = require('./calendar-viewer-auth');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
 const WINDOWS = 'overtimeWindows';
@@ -98,9 +99,14 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return sendTargetedPush(payload, uids, tag);
         }
         : async (_payload, _uids, tag) => { console.warn(`${tag} push not configured — nothing sent`); return 0; });
+    // The shared Calendar PIN account is refused even when a roster email has been linked to it:
+    // the devices it owns are the station's shared PCs, not the member's phone — as `uidForMember`
+    // (pay-reminder.js) refuses it for the pay reminder.
     const uidForName = (notify && notify.uidForName) || (async (name) => {
-        try { return (await getAuth().getUserByEmail(nameToEmail(name))).uid; }
-        catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
+        try {
+            const u = await getAuth().getUserByEmail(nameToEmail(name));
+            return u && u.uid && !isViewerAccount(u) ? u.uid : null;
+        } catch { return null; }   // no account (or lookup hiccup) → this member is skipped, never guessed
     });
 
     /**
@@ -1029,6 +1035,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 //
                 // A week that cannot grow reports `null`, which the client already reads as "no
                 // offer" — the same answer a CLOSED week has always given.
+                const creatable = OT.validateWeekEnding(weekEnding, { nowMs, maxRosterYear: rosterMembers.maxRosterYear });
                 const canGrow = OT.phaseFor(milestones, nowMs) === 'INITIAL_OPEN';
                 const canAdd = doc && canGrow
                     ? Math.max(0, audienceFor(milestones.weekStart).length
@@ -1046,12 +1053,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     // What that attempt reached (overtime-core-4): null where unrecorded — unknown, never 0.
                     reminderOutstanding: doc && Number.isInteger(doc.reminderOutstanding) ? doc.reminderOutstanding : null,
                     reminderAccepted:    doc && Number.isInteger(doc.reminderAccepted) ? doc.reminderAccepted : null,
-                    state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding)),
+                    // A week past the roster's last year says so rather than "overnight" (overtime-core-6).
+                    state: OT.windowRowState(milestones, nowMs, !!doc, overdue.has(weekEnding),
+                        creatable.error === 'beyond-horizon'),
                     audience: doc ? doc.audience : null,
                     canAdd,
-                    canCreate: !doc && OT.validateWeekEnding(weekEnding, {
-                        nowMs, maxRosterYear: rosterMembers.maxRosterYear,
-                    }).ok,
+                    canCreate: !doc && creatable.ok,
                     // `participantCount` deliberately does NOT go over the wire. It exists so the
                     // line above can compare like with like, and shipping it would put the raw
                     // population back within reach of a client doing exactly the subtraction that

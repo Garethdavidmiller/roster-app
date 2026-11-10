@@ -430,7 +430,7 @@ tests stay live. Feature design: `OVERTIME_AVAILABILITY.md`. Server: `functions/
 **`overtime-app.js`** — the coordinator: the access gate (a courtesy; the server is the boundary), the
 member's form, the reviewer's workspace (`overtime-review-controller.js`), and a tab strip drawn only
 once both surfaces are known to exist. `init()` is invoked by **`overtime-boot.js`** (CSP forbids an
-inline call). Its header argues the two rules to keep: the planning horizon is drawn from the CALENDAR,
+inline call). The controller's header argues the two rules to keep: the planning horizon is drawn from the CALENDAR,
 not Firestore, because "nobody created the window" leaves no trace; and only the newest read of a week
 may paint. `wireDeadlineResync` re-reads state when the page becomes visible near a deadline and
 rebuilds a form only when its phase has closed it. Loading, empty and failed are three different
@@ -452,16 +452,21 @@ false for a closed week; checked against its server twin by `overtime-parity.tes
 nothing; `overtime-format.js` re-exports all six.
 
 **`overtime-format.js`** — the pure words and time arithmetic both sides share; keep it Node-loadable.
-*Dates*, in Europe/London: `shortDate` · `longDate` · `weekLabel` · `weekSpan` · `printedLabel` (carries
+*Dates*, in Europe/London: `shortDate` · `longDate` · `weekLabel` · `weekSpan` · `weekDates` (a week's
+seven ISO dates — the one client copy, for the form and the reviewer) · `printedLabel` (carries
 the year: it stamps paper) · `asAtLine` · `declaredAgo` · `receiptLine`. *The form's rules:*
 `dayUnfinished` / `unfinishedDates` (the count and the day an error walks to come from one list) ·
-`reconcileVerdict` · `conflictIsOurs` · `modesFor` (shortcuts only where an authoritative duty time
+`reconcileVerdict` · `conflictIsOurs` · `writeOutcomeUnknown` (a timeout, a cut-off answer or a 5xx the
+server did not name: re-read, never "failed" — every Overtime write asks it) · `modesFor` (shortcuts only where an authoritative duty time
 exists; one both-sides answer a day; an overnight duty withholds `after` and `before_after`) ·
 `offersFullTwelve` · `shiftSpanMinutes` · `sameAnswer` · `answerAnchorStale` · `submitFailureCopy`.
 *Answers:* `answerCopy` · `answerTone` · `isUnavailable` · `isAvailableAnswer` (not `!isUnavailable` —
 they differ on a missing day) · `rosterBadge` · `deriveHistory`. *Reviewer:* `rowStateCopy` ·
-`countsCopy` (never drops "no response") · `weekSummary` · `weekAvailabilitySummary` (the clipboard
-text; every section named, an empty one says "nobody") · `reminderLine` · `isWithdrawn` / `withdrawnLine`
+`countsCopy` (never drops "no response") · `weekAvailabilitySummary` (the clipboard
+text; every section named, an empty one says "nobody"; it states its grade scope and "as at", as the
+sheet does) · `gradeScopeLabel` (that scope line, shared with the printed sheet) · `reminderLine`
+(from what the send reached, where the server recorded it) · `putBackWindow` (until when a Stop
+asking pressed now can be undone — the restore rule's promise, in words) · `isWithdrawn` / `withdrawnLine`
 (the server holds a twin of the first; `overtime-parity.test.mjs` checks the copies agree AND are right).
 It re-exports `deadlineLabel`, `phaseCopy`, `phaseChip`, `phaseTone` and `deadlineLines` from
 `overtime-phase.js`, and the six clock exports.
@@ -481,7 +486,7 @@ server.
   `where('memberName','==',…)`**: the rules would return everyone's without it. `authoritative` or
   `error`, never `cached`, because the options it generates get submitted.
 - `loadRosterForMembers(memberNames, dates)` — the reviewer's one unfiltered read of a week; never
-  called from the member's side. A failed roster read does not fail the week (`rosterKnown`).
+  called from the member's side. A failed roster read does not fail the week: the roster comes back empty and each row's badge says "Roster unavailable".
 - `rosterBadge` — re-exported from `overtime-format.js`, where the reviewer's rows can reach it.
 - **Rules the headers argue, which an edit must not undo:** no default answer and no copy from last
   week; Submit refuses on press and names the first unanswered day rather than sitting disabled; the
@@ -511,8 +516,17 @@ The reviewer's workspace for one selected week — By day, Awaiting, the partici
 sheet — rendered from data handed in (paused — see the Overtime entry). It performs no reads
 (`loadWeekDetail` in `overtime-data.js` does) and imports only DOM-free modules, so
 `overtime-manager.test.mjs` drives it with a two-line fake DOM.
-- `renderWeekDetail(host, win, data, { dates, now, grade?, onGrade?, day?, onDay?, onRefresh?, onAsk? })`
-  — the single export; the surface is a pure function of `(data, state)`.
+- `renderWeekDetail(host, win, data, { dates, now, grade?, onGrade?, day?, onDay?, onRefresh?, onAsk?,
+  refreshFailed?, printedAt? })` → `{ grade }` — the surface is a pure function of `(data, state)`;
+  `refreshFailed` keeps a snapshot whose newer read did not arrive, and says so; the returned grade is
+  the one it OPENED on (All grades when the carried grade is not in this week), which the card's chip counts.
+- `stampPrinted(host, nowMs)` — restamps the sheet's "Printed …" line as it prints (`beforeprint`); iOS
+  fires none for AirPrint, so there it keeps the paint's stamp.
+- `refocus(host, attr, value)` → whether a successor was found — puts the keyboard on the control that
+  replaced the one pressed (matched by value, so nothing needs escaping); `focusLost()` — focus fell to
+  `<body>` rather than being moved on by the reader. Every press here repaints the workspace, so a chip,
+  Refresh, and (in the controller) Stop asking, Ask again and the confirm bar's Cancel each hand the
+  keyboard on rather than dropping it.
 - **Rules its header and comments argue:** three sections per date — Available, Not available, No
   response — that never merge, an empty one still showing its heading; GRADE re-renders every count, DAY
   only hides rows; the grade is the reviewer's and survives a week switch (`overtime-review-controller.js`
@@ -2012,8 +2026,8 @@ The Admin week grid's swipe gesture and week arrows, which share one cooldown so
 
 ### `overtime-review-controller.js`
 The reviewer's side of `overtime.html`: the planning horizon, the week selection, the detail workspace, the grade and day lenses, the creation preview and the confirm bar. Overtime is paused — `docs/OVERTIME_AVAILABILITY.md` → Paused.
-- `createReviewController({ el, esc, renderLoading, renderError, detailRefreshDebounceMs })` → `{ loadHorizon, selectWeek, wireConfirmBar, refreshSelectedIfStale }`. The four DOM helpers are the page's, injected.
-- **The invariant it owns:** its eight pieces of state agree about which week is on screen, and with nothing else on the page — generation tickets so only the newest read paints, `selectedWeek` re-checked after every await, a grade lens that survives a week change and a day lens that does not. The header names each one.
+- `createReviewController({ el, esc, renderLoading, renderError, detailRefreshDebounceMs })` → `{ loadHorizon, selectWeek, wireConfirmBar, refreshIfStale, standDown }`. `refreshIfStale` re-reads the week AND the horizon, on one debounce; `standDown({ clear })` is the page saying the reviewer's side has left the screen — a tab switch takes the confirm bar down and disarms Create, and a lost session (`clear`) also empties both cards, so nothing prints from behind the sign-in. The four DOM helpers are the page's, injected.
+- **The invariant it owns:** its state agrees about which week is on screen, and with nothing else on the page — generation tickets so only the newest read paints, `selectedWeek` re-checked after every await, a grade lens that survives a week change and a day lens that does not. The header names each one.
 - It renders through `overtime-manager.js` and reads through `overtime-data.js`; session, identity, tabs and the member's form stay with `overtime-app.js`.
 - Tested by `overtime-review-controller.test.mjs`, the only kind of test that can choose which of two in-flight reads resolves last.
 

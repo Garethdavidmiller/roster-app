@@ -29,14 +29,13 @@
  *     least produces a true message.
  */
 
-// WHERE THE WEEK STANDS moved to overtime-phase.js at v23.84 (this file had hit its ratchet again).
-// Re-exported here so nothing that imports from overtime-format.js had to change, and imported back
-// for the three lines in this file that still print a deadline.
+// WHERE THE WEEK STANDS moved to overtime-phase.js at v23.84; re-exported so no importer had to
+// change, and `deadlineLabel` imported back for the words here that print a deadline.
 import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 import { getShiftBadge, formatISO, isSunday } from './roster-data.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
-import { printedStamp, londonDate, londonClock } from './date-format.js';
+import { printedStamp, londonDate, londonClock, MONTH_ABB } from './date-format.js';
 
 // THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
 // deadline, as against the words this module puts a deadline into. Re-exported here so every
@@ -46,11 +45,6 @@ export {
     SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS, clockOffset, submitDisposition, shouldResyncClock,
     canRestoreNow,
 } from './overtime-clock.js';
-
-
-
-
-
 
 /**
  * Has this day been ANSWERED, or merely started?
@@ -122,6 +116,15 @@ export function reconcileVerdict(stateOk, freshSubmission, pendingMutationId, wi
 }
 
 /**
+ * Did a WRITE end without saying whether it happened? A timeout, a cut-off answer, or an error the
+ * server did not name (`http-5xx` — a function out of time answers so) may each have been written, so
+ * only a re-read can tell (overtime-ui-10) — never "it failed". Every Overtime write asks this.
+ * @param {{ ok: boolean, code?: string, status?: number }} r
+ */
+export const writeOutcomeUnknown = (r) => !r.ok && (r.code === 'timeout' || r.code === 'network'
+    || (Number(r.status) >= 500 && r.code === `http-${r.status}`));
+
+/**
  * Did WE win the write the server is now refusing as a conflict?
  *
  * Almost always not — somebody else saved — but the exception is this member's own timed-out
@@ -152,10 +155,9 @@ export function conflictIsOurs(pendingMutationId, lastMutationId) {
  * `start === end` outright, and the server's `before_after` check treats a non-advancing pair as a
  * transposition. A value like that is malformed, not a round-the-clock shift.
  *
- * The consequence was small and in the wrong direction — 1440 is over the 12-hour gate, so the
- * "Up to 12 hours" pill would be withheld on the strength of a garbage reading. `modesFor` needs a
- * POSITIVE fact to withhold, and null is not one, so returning null offers the pill. Withholding an
- * option is a real cost to the member; offering one on a day whose roster is nonsense is not.
+ * The consequence was small and in the wrong direction: 1440 is over the 12-hour gate, so the
+ * willingness tick would be withheld on a garbage reading. `offersFullTwelve` needs a POSITIVE fact
+ * to withhold, and null is not one — withholding costs the member; asking on a nonsense roster does not.
  * @param {string|null|undefined} start @param {string|null|undefined} end
  * @returns {number|null}
  */
@@ -174,8 +176,8 @@ export function shiftSpanMinutes(start, end) {
  * Are two stored day answers the same declaration?
  *
  * Structural and order-independent, because the two sides come from different producers — the
- * form's `buildAnswer` and the server's canonicalised copy — whose key ORDER may differ while the
- * answer does not. A `JSON.stringify` comparison would call those different, and the form would
+ * form's transitions (overtime-answer.js) and the server's canonicalised copy — whose key ORDER may
+ * differ while the answer does not. A `JSON.stringify` comparison would call those different, and the form would
  * mark a day "changed" that the member has not touched.
  * @param {any} a @param {any} b
  */
@@ -186,7 +188,6 @@ export function sameAnswer(a, b) {
 // ── Words ───────────────────────────────────────────────────────────────────────────────────────
 
 const DAY_NAMES   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
  * Parse "YYYY-MM-DD" into its parts without going near a timezone.
@@ -203,7 +204,7 @@ function parts(iso) {
  */
 export function shortDate(iso) {
     const p = parts(iso);
-    return `${DAY_NAMES[p.dow].slice(0, 3)} ${p.d} ${MONTH_SHORT[p.m - 1]}`;
+    return `${DAY_NAMES[p.dow].slice(0, 3)} ${p.d} ${MONTH_ABB[p.m - 1]}`;
 }
 
 /**
@@ -232,6 +233,17 @@ export function weekLabel(weekEnding) {
  */
 export function weekSpan(weekStart, weekEnding) {
     return `${shortDate(weekStart)} – ${shortDate(weekEnding)}`;
+}
+
+/**
+ * The seven Sunday→Saturday ISO dates of a roster week — the one client copy, for the member's form
+ * and the reviewer's workspace alike. Mirrors the server's `weekDates`, which is authoritative. UTC
+ * arithmetic throughout, so no device time zone can move a date.
+ * @param {string} weekStart
+ */
+export function weekDates(weekStart) {
+    const [y, m, d] = String(weekStart).split('-').map(Number);
+    return Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
 }
 
 /**
@@ -369,6 +381,9 @@ export function rowStateCopy(state) {
         // Still opens automatically, but late enough to be worth a look: the first deadline has
         // gone, so anyone answering now misses the draft roster.
         case 'not-created-initial-passed': return { label: 'No form yet · first deadline has passed', tone: 'bad' };
+        // Past the last roster year the app holds (`CONFIG.MAX_YEAR`): the server refuses to make it,
+        // overnight or by hand, until the admin raises the year — so no promise, and no button.
+        case 'not-created-beyond-roster':  return { label: 'Cannot open · past the end of the app\'s roster · tell the admin', tone: 'bad' };
         default:                           return { label: 'Missed · no form was opened, so nobody was asked', tone: 'bad' };
     }
 }
@@ -440,10 +455,8 @@ export function countsCopy(expected, received) {
  * by the server as inverted) and unknown rosters — so every day still has a both-sides answer,
  * and a SAVED all_day on a worked day still renders (the form re-adds a stored mode to the list).
  *
- * The same review settled why this stays a single-select at all: twelve hours is the ceiling every
- * plan is subject to, not something a member grants — so "before & after AND up to 12 hours" adds
- * nothing to "before & after". The form now says so (the cap note in overtime-form.js), and the
- * 12-hour pill is worded as what it really is: willingness for the LONGEST day allowed.
+ * It stays a single-select because twelve hours is the ceiling every plan is held to, not something a
+ * member grants — the form states it (the cap note); willingness for that longest day is the tick.
  * @param {{hasTime?: boolean, overnight?: boolean, rosteredMinutes?: number|null}|null} ctx
  * @returns {string[]}
  */
@@ -490,7 +503,10 @@ export function offersFullTwelve(ctx) {
 export function submitFailureCopy(code, dayLabel) {
     if (dayLabel) return `Your answer for ${dayLabel} couldn't be accepted — choose that day again and resubmit.`;
     switch (code) {
-        case 'network':    return 'Couldn\'t reach the server. Check your connection and try again.';
+        // Nothing left the phone: its sign-in could not be refreshed for want of a network
+        // (overtime-core-3). Never "reload" — that throws the unsent answers away. (`network` and a
+        // code-less 5xx never arrive here: the form reconciles them, `writeOutcomeUnknown`.)
+        case 'offline':    return 'Couldn\'t reach the server, so nothing was sent. Check your connection and try again — your answers are still here.';
         case 'no-session': return 'Your sign-in has expired. Reload the page and sign in again.';
         // Server-side refusals: the request ARRIVED, so connection advice would be a false lead.
         case 'write-failed': return 'The server couldn\'t save just now. Try again in a moment.';
@@ -598,6 +614,20 @@ export function withdrawnLine(participant) {
         // 1am in summer read as the previous day — on the one line that attributes a change.
         ? `, ${shortDate(formatISO(londonDate(participant.withdrawnAt)))}` : '';
     return `Stopped${by}${when}`;
+}
+
+/**
+ * Until when a Stop asking pressed NOW can be undone — the one promise the confirmation and the
+ * panel note make (overtime-ui-2). Restoring is not the mirror of withdrawing: somebody stopped on or
+ * before the first deadline can be put back only until it, anybody stopped after it while the week
+ * is open (`canRestoreNow`; OVERTIME_AVAILABILITY.md). An unknown deadline under-promises.
+ * @param {number} initialDeadlineAt @param {number} nowMs
+ */
+export function putBackWindow(initialDeadlineAt, nowMs) {
+    if (Number.isFinite(initialDeadlineAt) && initialDeadlineAt > 0 && Number.isFinite(nowMs)) {
+        return nowMs > initialDeadlineAt ? 'while the week is open' : `until the first deadline, ${deadlineLabel(initialDeadlineAt)}`;
+    }
+    return 'until the first deadline';
 }
 
 /**
@@ -820,19 +850,9 @@ function stableStringify(v) {
     return `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
 }
 
-/**
- * A one-line summary of a whole week's answers, for a list row.
- * Counts rather than enumerates: seven answers do not fit on a phone row, and "available on 3 days"
- * is what a person actually wants from a summary.
- * @param {Record<string, any>} days
- */
-export function weekSummary(days) {
-    const values = Object.values(days || {});
-    if (!values.length) return 'No answers';
-    const available = values.filter(d => d && d.mode && d.mode !== 'unavailable').length;
-    if (available === 0) return 'Not available on any day';
-    if (available === values.length) return 'Available on every day';
-    return `Available on ${available} of ${values.length} days`;
+/** The grades a sheet or a copied summary covers: "All grades" or "CES only". @param {string} grade */
+export function gradeScopeLabel(grade) {
+    return grade === 'ALL' ? 'All grades' : `${grade} only`;
 }
 
 /** The reviewer's flag, worded once — `releaseRequestLine` owns it, so the copy and the screen match. */
@@ -855,13 +875,18 @@ const RELEASE_LABEL = releaseRequestLine({ releaseRequested: true });
  * is decided. Its own line, because it is a second thing said about the day (invariant 1). Named on
  * every Sunday — "nobody" in words, by the rule above — and on any other day only if somebody asked.
  *
- * @param {{ weekEnding: string, dates: string[], participants: any[],
- *   submissions: Map<string, any>, day?: string }} arg  `day` narrows to one date ('ALL' = week)
+ * IT STATES ITS GRADE AND ITS AGE, AS THE SHEET DOES (overtime-ui-1). A CES-only copy with neither
+ * pasted into an email as the whole team, answered as at no time: "No response: nobody".
+ *
+ * @param {{ weekEnding: string, dates: string[], participants: any[], submissions: Map<string, any>,
+ *   day?: string, grade?: string, asAt?: number }} arg  `day` narrows to one date ('ALL' = week);
+ *   `grade` is the lens the participants were filtered by; `asAt` when the data was read
  * @returns {string}
  */
-export function weekAvailabilitySummary({ weekEnding, dates, participants, submissions, day = 'ALL' }) {
+export function weekAvailabilitySummary({ weekEnding, dates, participants, submissions, day = 'ALL', grade = 'ALL', asAt = 0 }) {
     const scope = (day && day !== 'ALL') ? [day] : dates;
-    const lines = [`Overtime availability — ${weekLabel(weekEnding)}`];
+    const lines = [`Overtime availability — ${weekLabel(weekEnding)}`, gradeScopeLabel(grade),
+        ...(asAt ? [asAtLine(asAt)] : [])];
     for (const date of scope) {
         /** @type {string[]} */ const avail = [];
         /** @type {string[]} */ const unavail = [];
@@ -890,23 +915,35 @@ export function weekAvailabilitySummary({ weekEnding, dates, participants, submi
 }
 
 /**
- * The reminder-audit line: did the deadline-morning reminder to non-responders actually go out?
- * `reminderSentAt` is stamped server-side by the scheduler (functions/overtime.js) and reaches the
- * horizon row via getOvertimeManagerOverview; until v22.05 nothing displayed it, so "did the
- * reminder fire?" meant reading Cloud Function logs.
+ * The reminder-audit line (v22.05): did the deadline-morning reminder to non-responders go out, without
+ * reading Cloud Function logs? The scheduler (functions/overtime.js) stamps `reminderSentAt`.
  *
- * Three honest states and one deliberate silence:
- *  - sent            → state it, with when.
- *  - due but not yet → say when it is expected (INITIAL_OPEN only — it fires that deadline's morning).
- *  - overdue, unsent → warn, while the week is still live (FINAL_OPEN) and the fact is actionable.
- *  - CLOSED, unsent  → nothing. The week is history, and every window created before the reminder
- *                      feature existed would otherwise wear a permanent false alarm.
+ * The stamp is CLAIMED before the send (two overlapping runs must not both send), so alone it says
+ * only that a send was ATTEMPTED. What the send reached is recorded after it (overtime-core-4):
+ * `outstanding` is how many had said nothing (leaving out anyone that run had just asked), and
+ * `accepted` how many DEVICES took the push. Null = not recorded (every stamp from before Nov
+ * 2026), which is unknown, never zero.
+ *
+ * Once stamped: none outstanding → not needed; accepted → sent, which reaches only devices with
+ * notifications on; nothing accepted → reached nobody (a warning while the week is live); outcome
+ * not recorded → attempted. Unstamped: due (INITIAL_OPEN) → when to expect it; FINAL_OPEN → warn,
+ * while the fact is actionable; CLOSED → nothing, or every window from before the reminder existed
+ * would wear a permanent false alarm.
  *
  * @param {string} phase @param {number} initialDeadlineAt @param {number|null|undefined} reminderSentAt
+ * @param {number|null} [outstanding] @param {number|null} [accepted]
  * @returns {{ text: string, tone: 'ok'|'note'|'warn' }|null}
  */
-export function reminderLine(phase, initialDeadlineAt, reminderSentAt) {
-    if (reminderSentAt) return { text: `Reminder to non-responders sent ${deadlineLabel(reminderSentAt)}.`, tone: 'ok' };
+export function reminderLine(phase, initialDeadlineAt, reminderSentAt, outstanding = null, accepted = null) {
+    if (reminderSentAt) {
+        const when = deadlineLabel(reminderSentAt);
+        if (!Number.isInteger(outstanding) || !Number.isInteger(accepted)) return { text: `Reminder to non-responders attempted ${when}.`, tone: 'note' };
+        if (outstanding === 0) return { text: `No reminder was needed on ${when}.`, tone: 'ok' };
+        if (/** @type {number} */ (accepted) > 0) return { text: `Reminder to non-responders sent ${when}, to those with notifications switched on.`, tone: 'ok' };
+        return phase === 'CLOSED'
+            ? { text: `The reminder on ${when} reached nobody.`, tone: 'note' }
+            : { text: `The reminder on ${when} reached nobody — contact non-responders directly.`, tone: 'warn' };
+    }
     if (phase === 'INITIAL_OPEN') return { text: 'Non-responders are reminded on the morning of the initial deadline.', tone: 'note' };
     if (phase === 'FINAL_OPEN') return { text: 'No non-responder reminder is recorded for this week.', tone: 'warn' };
     return null;

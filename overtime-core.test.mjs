@@ -375,6 +375,22 @@ describe('the missing window — the failure nothing else catches', () => {
         assert.notEqual(C.windowRowState(m, m.finalDeadlineAt, true),
                         C.windowRowState(m, m.finalDeadlineAt, false));
     });
+
+    test('a week past the ROSTER\'s last year says so, at every phase — it will never open overnight (overtime-core-6)', () => {
+        // `validateWeekEnding` refuses it (`beyond-horizon`), so the scheduler skips it every night
+        // and `weeksNeedingWindows` never lists it — it could never be "overdue". As plain
+        // `not-created` it read "Opens automatically overnight", daily, with no Create button: the
+        // one fault the monitor over the scheduler stayed quiet about. The cause is a CONFIG year
+        // nobody raised, and only its own state can say that.
+        const m = C.deriveMilestones(WEEK_SEP);
+        for (const t of [m.initialDeadlineAt - 1, m.initialDeadlineAt, m.finalDeadlineAt, m.finalDeadlineAt + 9e8]) {
+            assert.equal(C.windowRowState(m, t, false, false, true), 'not-created-beyond-roster', `at ${t}`);
+        }
+        // A week that exists is reported as itself — the flag is about why one cannot be made.
+        assert.equal(C.windowRowState(m, m.initialDeadlineAt - 1, true, false, true), 'created');
+        // And without the flag nothing moves.
+        assert.equal(C.windowRowState(m, m.initialDeadlineAt - 1, false), 'not-created');
+    });
 });
 
 describe('withdrawal — the one exception to the freeze, and its bounds', () => {

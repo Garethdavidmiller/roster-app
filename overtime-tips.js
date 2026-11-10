@@ -64,6 +64,9 @@ export const CARD_TIPS = {
                     { icon: '➕', html: 'What you offer is time <strong>around whatever you are already rostered</strong>. Saying you are available never puts your rostered shift at risk, and never means you would rather work a different one.' },
                     { icon: '⏱️', html: 'A working day is never planned past <strong>12 hours in total</strong>, whatever you answer — you do not need to choose anything to get that limit.' },
                     { icon: '☑️', html: 'The tick under a day — <strong>I\'d work up to a full 12-hour day</strong> — is a separate question from when you are free. Leave it alone and you are simply available in the hours you chose; tick it and you are saying the roster team may build you a long day, counting anything you are already rostered. It is not offered where the day already reaches twelve hours.' },
+                    // Added in the overtime-ui sweep (Nov 2026): the tick shipped at v23.81 with no line
+                    // here. It must never read as granted (OVERTIME_AVAILABILITY.md invariant 14).
+                    { icon: '🙋', html: 'On a Sunday you are rostered to work, <strong>Ask to be taken off this Sunday</strong> asks the roster team to take you off it. It is a request, not a change to your roster: the roster team decides, and your roster shows what they decided.' },
                     { icon: '🧾', html: 'A submitted form says so at the top, with when you last changed it. That line is still there when you come back to it.' },
                     { icon: '✅', html: 'The <strong>released roster</strong> is the only place that shows overtime you have actually been given.' },
                     { icon: '🔒', html: 'Managers and the admin can see what you submit. Forms are kept for around 13 weeks and then deleted.' },
@@ -105,8 +108,10 @@ export const CARD_TIPS = {
                     { icon: '📁', html: '<strong>Previous weeks</strong> lists the weeks that have already run and are still kept — around 13 weeks — so you can look back at what was available when a decision was made.' },
                     // Added with the feature (v20.95). Without it the only way to discover the
                     // control is to notice a small button on a row you are trying to scroll past.
-                    { icon: '🚪', html: '<strong>Stop asking</strong>, beside a name in <em>Who is being asked</em>, is for somebody who has left. They come out of that week\'s counts, stop seeing it on their own page, and a <strong>Not being asked</strong> note names them at the bottom. Their form is kept, and <strong>Ask again</strong> puts them back.' },
-                    { icon: '↩️', html: '<strong>Ask again</strong> is offered while the <strong>first deadline is still ahead</strong>, and after it only for somebody stopped <em>since</em> that deadline — so an accidental press can always be undone, while somebody stood down before the cut-off is not put back into a deadline they were never asked about. They join again from the next week.' },
+                    { icon: '🚪', html: '<strong>Stop asking</strong>, beside a name in <em>Who is being asked</em>, is for somebody who has left. They come out of that week\'s counts, stop seeing it on their own page, and a <strong>Not being asked</strong> note names them at the bottom. Their form is kept.' },
+                    // NOT "always undone" (overtime-ui-2): a press made before the first deadline can
+                    // be undone only until it, however long the week then stays open.
+                    { icon: '↩️', html: '<strong>Ask again</strong> puts them back. It is offered while the <strong>first deadline is still ahead</strong>, and after it only for somebody stopped <em>since</em> that deadline. So a press made before the first deadline can be undone until that deadline, and one made after it until the week closes. Somebody stood down before the cut-off is not put back into a deadline they were never asked about — they join again from the next week.' },
                     { icon: '🔒', html: 'It works one week at a time, and only while that week is open. A closed week is the record the roster was planned from, so who was asked can no longer be changed.' },
                 ],
             },
@@ -144,6 +149,9 @@ export const CARD_TIPS = {
                     { icon: '🕐', html: '<strong>Submitted after initial deadline</strong> — nothing was received from that person until planning had already started.' },
                     { icon: '✏️', html: '<strong>Changed after initial deadline</strong> shows what that day used to say. It appears only on days that actually moved, so wherever you see it, something changed there.' },
                     { icon: '🔄', html: '<strong>Roster changed since this answer</strong> is the opposite: they have not changed their mind — their shift has moved under an answer that was tied to it.' },
+                    // The last two had no line here until the overtime-ui sweep (Nov 2026).
+                    { icon: '🆕', html: '<strong>Added after this week opened</strong> — they were asked after the week began, so a name under <em>No response</em> may simply be new to it rather than gone quiet.' },
+                    { icon: '🙋', html: '<strong>Asked to come off this Sunday</strong> sits beside that person\'s answer, never in place of it: their availability stands as they gave it, and the request changes no roster until the roster team decides.' },
                 ],
             },
             {

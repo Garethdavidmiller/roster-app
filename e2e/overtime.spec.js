@@ -464,6 +464,77 @@ test.describe('member surface', () => {
         // And the member is TOLD, rather than left to spot a two-digit difference.
         await expect(day.locator('.ot-day-stale')).toContainText('Your shift has changed');
         await expect(day.locator('.ot-day-stale')).toContainText('Available after 15:00');
+
+        // …and offered the way to the shift as it is now (overtime-ui-18): re-pressing "After 15:00"
+        // keeps the saved answer, so "After 20:00" was reachable only by choosing something else
+        // first. The answer pills' own size, measured at a phone's width, where that is 44px.
+        await page.setViewportSize({ width: 390, height: 844 });
+        const offer = day.getByRole('button', { name: 'Change it to after 20:00' });
+        const height = (await offer.boundingBox())?.height ?? 0;
+        expect(height).toBeGreaterThanOrEqual(44);
+        expect(height).toBe((await day.getByRole('radio').first().boundingBox())?.height);
+        await offer.click();
+        await expect(day.locator('[role="radio"][aria-checked="true"]')).toHaveText('After 20:00');
+        await expect(day.locator('.ot-day-stale')).toHaveCount(0);
+        await expect(page.locator('.ot-day').nth(1).locator('.ot-day-stale'), 'one day at a time').toHaveCount(1);
+    });
+
+    test('one answer is not a reading of the whole week to a screen reader (overtime-ui-13)', async ({ page }) => {
+        // The card was one polite live region holding the form, and every press rebuilds all seven
+        // days — measured: 15 nodes, the whole week's text, queued after a single answer, with every
+        // "Your shift has changed" note (each a role="status" of its own) re-inserted alongside.
+        await seedSession(page, 'G. Miller');
+        const dates = weekDates(W.weekStart);
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), docs: rows };
+        }, dates.map(d => ({ id: `G. Miller|${d}`, memberName: 'G. Miller', date: d,
+            type: 'shift', value: '12:00-20:00', note: '', source: 'manual' })));
+        const days = Object.fromEntries(dates.map(d => [d, { mode: 'after', from: '15:00' }]));
+        days[dates[0]] = { ...days[dates[0]], releaseRequested: true };   // a Sunday request, and its note
+        await stubOvertime(page, { windows: [openWindow({ submission: { currentRevision: 1, days } })] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day-stale')).toHaveCount(7);
+        await expect(page.locator('.ot-release-said')).toHaveCount(1);
+        await page.evaluate(() => {
+            const w = /** @type {any} */ (window);
+            w.__heard = [];
+            const ROLE_LIVE = /** @type {Record<string, string>} */ ({ status: 'polite', alert: 'assertive', log: 'polite' });
+            const liveRoot = (/** @type {Node} */ n) => {
+                for (let e = n.nodeType === 1 ? /** @type {Element} */ (n) : n.parentElement; e; e = e.parentElement) {
+                    const live = e.getAttribute('aria-live') || ROLE_LIVE[e.getAttribute('role') || ''];
+                    if (live) return live === 'off' ? null : e;
+                }
+                return null;
+            };
+            const say = (/** @type {Element} */ root, /** @type {Node} */ n) => {
+                if ((n.textContent || '').trim()) w.__heard.push(`${root.id || root.className}: ${(n.textContent || '').trim().slice(0, 60)}`);
+            };
+            new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) {
+                const root = liveRoot(n);
+                if (root) { say(root, n); continue; }
+                // …and a live region arriving INSIDE what was added: each is announced in its own right.
+                if (n.nodeType === 1) {
+                    for (const r of /** @type {Element} */ (n).querySelectorAll('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"], [role="log"]')) say(r, r);
+                }
+            } }).observe(document.body, { childList: true, subtree: true });
+        });
+        const third = page.locator('.ot-day').nth(3);
+        await third.getByRole('radio', { name: 'Not available' }).click();
+        await expect(third.locator('[role="radio"][aria-checked="true"]')).toHaveText('Not available');
+        expect(await page.evaluate(() => /** @type {any} */ (window).__heard), 'handed to a screen reader by one answer')
+            .toEqual([]);
+        // The Sunday's note is still READ: as its tick's description, whenever the keyboard is on it.
+        await expect(page.locator('.ot-release-box')).toHaveAccessibleDescription(/the roster team will decide/);
+    });
+
+    test('a form that cannot load says so to a screen reader, now the card is not a live region (overtime-ui-13)', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{}' }));
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent [role="alert"]')).toContainText("Couldn't load overtime availability");
     });
 
     test('opening another week runs the open routine ONCE, not once per list on the page', async ({ page }) => {
@@ -607,7 +678,9 @@ test.describe('manager surface', () => {
         await seedSession(page, 'H. Croft');
         const weeks = sixWeeks();
         const created = weeks.find(w => w.exists);
-        created.reminderSentAt = NOW - 3 * 3600e3;
+        // The stamp and what the send reached, as the overview carries them since overtime-core-4 — a
+        // stamp alone now reads "attempted", because it is claimed before the send.
+        Object.assign(created, { reminderSentAt: NOW - 3 * 3600e3, reminderOutstanding: 1, reminderAccepted: 1 });
         await stubOvertime(page, { weeks });
         await page.goto('/overtime.html');
         await expect(page.locator('#otWeekCard')).toBeVisible();
@@ -920,6 +993,70 @@ test.describe('access and chrome', () => {
         await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
         await page.locator('#appIcon').click();
         await expect(page).not.toHaveURL(/overtime\.html/);
+    });
+
+    test('the not-open card keeps nothing that describes a form, on either way in (overtime-ui-14)', async ({ page }) => {
+        // v25.06 tidied the PAUSED card; this one kept the hint, both caveats, and a ? and a chevron
+        // that only start() wires — two controls that did nothing.
+        const dead = ['#otMineCard .hint', '#otMineCard .btn-card-tips', '#otMineChevron', '.ot-explainer', '.ot-privacy'];
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await signInThroughOverlay(page, 'S. Silva');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
+        await seedSession(page, 'S. Silva');
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
+    });
+
+    test('a session lost over the reviewer\'s sheet takes the sheet with it (overtime-ui-4)', async ({ page }) => {
+        // The sign-in that covers the page is hidden in print, and the week behind it printed: who
+        // was asked, what they answered and who had not, from a PC whose account had just gone.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+            expected: 1, received: 0, noResponse: 1 }] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+        await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 10_000 });
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.ot-day-panel'), 'nothing of the sheet is left to print').toHaveCount(0);
+        await expect(page.locator('#otHorizonContent .ot-week-row')).toHaveCount(0);
+    });
+
+    test('switching to My availability takes the confirm bar down and disarms Create (css-overtime-guides lead)', async ({ page }) => {
+        // Fixed to the foot, the bar stayed over the member's pinned Submit bar until it was
+        // cancelled — with Create still armed for a week no longer on screen.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()], weeks: sixWeeks() });
+        await page.route('**/createOvertimeWindow', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }) }));
+        await page.goto('/overtime.html');
+        await page.locator('#otTabAll').click();
+        await page.getByRole('button', { name: 'Open now' }).first().click();
+        await expect(page.locator('#otConfirmBar')).toBeVisible();
+        await expect(page.locator('#otConfirmCreate')).toBeEnabled();
+        await page.locator('#otTabMine').click();
+        await expect(page.locator('#otConfirmBar')).toBeHidden();
+        expect(await page.evaluate(() => document.body.style.paddingBottom), 'the space held for the bar is given back').toBe('');
+        await page.locator('#otTabAll').click();
+        await expect(page.locator('#otConfirmCreate')).toBeDisabled();
+    });
+
+    test('a fault while the page loads is reported, not only drawn as "Couldn\'t load" (overtime-ui-17)', async ({ page }) => {
+        // Both loaders handle their own network failures, so the catch-all only ever receives a fault
+        // in the page itself — and it logged nothing, so the Error Log never heard of one.
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__faults = [];
+            window.addEventListener('error', (e) => { /** @type {any} */ (window).__faults.push(String(e.error ?? e.message)); });
+        });
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [{ ...openWindow(), weekStart: undefined }] });   // a form that cannot be drawn
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("Couldn't load overtime availability");
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__faults.length),
+            { message: 'the fault reached the page\'s error listeners' }).toBeGreaterThan(0);
     });
 
     test('a reviewer DOES get the nav pill', async ({ page }) => {
@@ -1644,7 +1781,7 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
         const base = await reads(page);
         // Read where a refetch WOULD start, not 250ms later (test audit, 7 Nov 2026). The handler's
-        // refetch begins its reads synchronously — refreshSelectedIfStale → renderWeekDetail →
+        // refetch begins its reads synchronously — refreshIfStale → renderWeekDetail →
         // loadWeekDetail → getDocs, with no await before them — so a read it was going to start is
         // counted by the time `dispatchEvent` returns; the second count, a task later, also catches
         // one started after a microtask hop. A sleep proved neither, and passed on a page whose
@@ -2332,6 +2469,138 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect.poll(() => calls, 'the card was rebuilt from a fresh read').toBeGreaterThanOrEqual(3);
         await expect(row).toContainText('Nothing was submitted');
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+    });
+
+    // overtime-ui-9: the two paths that keep the form (it absorbed its own move, or it holds unsent
+    // answers) returned before anything else was painted, so an answered week that had just CLOSED
+    // went on reading "Submitted — you can still change it · Open" beneath it.
+    /** One Tuesday 12:00 the two weeks share: the answered week's LAST deadline. @param {any} page @param {boolean} onScreenMoves */
+    async function answeredWeekCloses(page, onScreenMoves) {
+        await seedSession(page, 'G. Miller');
+        const onScreen = { ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null,
+            ...(onScreenMoves ? { initialDeadlineAt: NOW + 60_000 } : {}) };
+        const answered = { ...onScreen, weekEnding: '2026-08-29', weekStart: '2026-08-23', phase: 'FINAL_OPEN',
+            initialDeadlineAt: NOW - 7 * 86_400_000, finalDeadlineAt: NOW + 60_000, submission: { currentRevision: 1, days: {} } };
+        const reads = { calls: 0 };
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => {
+            reads.calls += 1;
+            const windows = reads.calls === 1 ? [onScreen, answered]
+                : [{ ...onScreen, phase: onScreenMoves ? 'FINAL_OPEN' : 'INITIAL_OPEN' }, { ...answered, phase: 'CLOSED' }];
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW, windows }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        const row = page.locator('.ot-week-row', { has: page.locator('[data-openweek="2026-08-29"]') });
+        await expect(row).toContainText('Submitted — you can still change it');
+        return { row, reads };
+    }
+
+    test('the form taking its own phase move in place still repaints the week that CLOSED beneath it (overtime-ui-9)', async ({ page }) => {
+        const { row, reads } = await answeredWeekCloses(page, true);
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('.ot-phase-chip'), 'the form took its move in place').toHaveText('Still open');
+        await expect(row).toContainText('Submitted — now final');
+        await expect(row.locator('[data-openweek]')).toHaveText('View');
+        await expect(page.locator('.ot-history-title').first(), 'it moved to the closed list').toHaveText('Previous forms');
+        expect(reads.calls, 'painted from the resync\'s own read — the form was not rebuilt').toBe(2);
+    });
+
+    test('a form holding unsent answers keeps them, and the week that CLOSED beneath it is repainted (overtime-ui-9)', async ({ page }) => {
+        const { row, reads } = await answeredWeekCloses(page, false);
+        for (let i = 0; i < 5; i++) await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(row).toContainText('Submitted — now final');
+        expect(reads.calls, 'the card was not reloaded').toBe(2);
+        await expect(page.locator('.ot-day--set')).toHaveCount(5);
+    });
+
+    test('a save that lands after another week was opened paints nothing under the new form (overtime-ui-15)', async ({ page }) => {
+        // Submit on a slow connection, then open another week and Leave. The first form's save used to
+        // land by painting the week lists — with a row for the week now on screen — under the new form.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06', finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        /** @type {(v?: any) => void} */ let release = () => {};
+        const held = new Promise((r) => { release = r; });
+        await page.route('**/submitOvertimeAvailability', async (/** @type {any} */ r) => { await held; await r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, revision: 1, created: true, phase: 'FINAL_OPEN', serverNow: NOW }) }); });
+        await trackEndpointUse(page, 'submitOvertimeAvailability');
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        for (let i = 0; i < 7; i++) await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('Saving');
+        await page.locator('[data-openweek="2026-09-12"]').click();
+        await page.getByRole('button', { name: 'Leave', exact: true }).click();
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+        await expect(page.locator('.ot-back-to-list')).toBeVisible();
+        release();
+        await expect.poll(async () => (await endpointUse(page, 'submitOvertimeAvailability')).bodiesRead,
+            { message: 'the first form\'s save never landed' }).toBeGreaterThanOrEqual(1);
+        await expect(page.locator('.ot-history'), 'no week list under a form that is not its own').toHaveCount(0);
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+    });
+
+    test('answers the member chose to leave are not guarded while the next form loads (overtime-ui-15)', async ({ page }) => {
+        // The old form's handle outlived its "Leave" until the next form's roster read returned, so
+        // for that long the page still warned about answers that were no longer anywhere.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06', finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        await page.goto('/overtime.html');
+        const armed = () => page.evaluate(() => {
+            const e = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        const hold = (/** @type {boolean} */ on) => page.evaluate((v) => { /** @type {any} */ (window).__E2E.docsHeld = v; }, on);
+        for (const [leave, lands] of [[() => page.locator('[data-openweek="2026-09-12"]').click(), '12 September 2026'],
+            [() => page.locator('.ot-back-to-list').click(), '5 September 2026']]) {
+            await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
+            expect(await armed(), 'the answer on screen is guarded').toBe(true);
+            await hold(true);
+            await leave();
+            await page.getByRole('button', { name: 'Leave', exact: true }).click();
+            await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
+            expect(await armed(), 'left by choice, so nothing is guarded while the next form loads').toBe(false);
+            await hold(false);
+            await expect(page.locator('.ot-form-week')).toContainText(String(lands));
+        }
+    });
+
+    test('a form whose card was replaced while its roster loaded is not adopted (overtime-ui-15)', async ({ page }) => {
+        // Open another week; while its roster read is out, a resync rebuilds the card (here: nothing
+        // is open any more). The opened form used to land anyway — the page's form, with a "Back"
+        // button under the card that had replaced it.
+        await seedSession(page, 'G. Miller');
+        const lead = winOver({ phase: 'INITIAL_OPEN' });
+        const answered = winOver({ weekEnding: '2026-08-29', weekStart: '2026-08-23', finalDeadlineAt: NOW + 60_000,
+            submission: { currentRevision: 1, days: {} } });
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => {
+            calls += 1;
+            const windows = calls === 1 ? [lead, answered] : calls === 2 ? [lead, { ...answered, phase: 'CLOSED' }] : [];
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW, windows }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+        await page.locator('[data-openweek="2026-08-29"]').click();
+        await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('#otMineContent')).toContainText('No overtime availability forms are open');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+        await expect.poll(() => page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; return e.docReadsSettled === e.docReads; }),
+            { message: 'the held roster read never landed' }).toBe(true);
+        await expect(page.locator('.ot-back-to-list'), 'nothing of the replaced form reaches the card').toHaveCount(0);
+        await expect(page.locator('#otMineContent')).toContainText('No overtime availability forms are open');
     });
 
     test('leaving a form with unsubmitted answers asks first', async ({ page }) => {
@@ -3230,6 +3499,37 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await expect(page.locator('.nav-panel-pill--calendar')).toHaveCount(1);
     });
 
+    test('signed out, the drawer refuses a document at source, as the locked Calendar does (contracts-a lead)', async ({ page }) => {
+        // The drawer was wired with the always-open default, so a visitor with no session (this page
+        // sheds a PIN holder's identity too) fired a read the rules refuse online and the device's
+        // cache may answer offline — and was told it failed, not what would open it.
+        await off(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
+        const before = await reads();
+        /** @type {any[]} */ const popups = [];
+        page.on('popup', (p) => popups.push(p));
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-link--circular').click();
+        await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+        expect(await reads(), 'no read is issued').toBe(before);
+        expect(popups.length, 'and no blank tab is opened for it').toBe(0);
+    });
+
+    test('…while a signed-in member\'s tap still reads (contracts-a lead, guard the guard)', async ({ page }) => {
+        await off(page);
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
+        const before = await reads();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-link--circular').click();
+        await expect.poll(reads, { message: 'the member\'s tap reads the circular' }).toBeGreaterThan(before);
+    });
+
     test('the paused card says only that, and the page chrome still works', async ({ page }) => {
         // v25.05 replaced the form with the note and left the rest of the card describing a form
         // (the hint, the two caveats) behind a ? and a chevron that nothing wired; the drawer logo
@@ -3394,5 +3694,81 @@ test.describe('the member form on an iPhone', () => {
         await end.blur();
         await expect(day.locator('.ot-custom-hint'), 'both times were not taken into the answer').toHaveText('');
         await expect(page.locator('.ot-submit')).toContainText('6 days still to answer');
+    });
+});
+
+test.describe('the keyboard stays where the reviewer left it (overtime-ui-12)', () => {
+    // Every press in the workspace rebuilt it, and focus fell to <body>: a keyboard user started again
+    // from the burger after every chip, every Refresh and every Stop asking.
+    /** A created week for a reviewer, its participants seeded as `docs`. @param {any} page @param {any[]} docs */
+    async function reviewerWeek(page, docs) {
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, docs);
+        await page.route('**/getMyOvertimeState', (/** @type {any} */ r) => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', (/** @type {any} */ r) => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [{ ...W, exists: true, state: 'created',
+                canCreate: false, expected: docs.length, received: docs.length, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+    }
+    const TWO_GRADES = [
+        { id: 'A. One', memberName: 'A. One', grade: 'CEA', rosterOrder: 1 },
+        { id: 'B. Two', memberName: 'B. Two', grade: 'CES', rosterOrder: 2 },
+    ];
+
+    test('a grade or day chip pressed from the keyboard keeps it', async ({ page }) => {
+        await reviewerWeek(page, TWO_GRADES);
+        const grade = page.locator('[data-grade="CES"]');
+        await grade.focus();
+        await page.keyboard.press('Enter');
+        await expect(grade).toHaveAttribute('aria-pressed', 'true');
+        await expect(grade, 'the repainted chip has the keyboard').toBeFocused();
+        const day = page.locator('[data-glance]').nth(2);
+        await day.focus();
+        await page.keyboard.press('Enter');
+        await expect(day).toHaveAttribute('aria-pressed', 'true');
+        await expect(day).toBeFocused();
+    });
+
+    test('Refresh from the keyboard hands it to the new Refresh once the week is read', async ({ page }) => {
+        await reviewerWeek(page, TWO_GRADES);
+        await page.locator('.ot-refresh-btn').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.ot-refresh-btn')).toHaveText('Refresh');
+        await expect(page.locator('.ot-refresh-btn')).toBeFocused();
+    });
+
+    test('after Ask again the keyboard is on that person\'s Stop asking', async ({ page }) => {
+        const row = { id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1 };
+        await page.route('**/withdrawOvertimeParticipant', async (/** @type {any} */ r) => {
+            await page.evaluate((back) => { /** @type {any} */ (window).__E2E.docs = [back]; }, row);   // the server put them back
+            await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, serverNow: NOW }) });
+        });
+        await reviewerWeek(page, [{ ...row, withdrawn: true, withdrawnBy: 'H. Croft' }]);
+        await page.locator('[data-ask-again="G. Miller"]').focus();
+        await page.keyboard.press('Enter');
+        await page.locator('.dialog-btn-confirm').click();
+        await expect(page.locator('[data-stop-asking="G. Miller"]')).toBeFocused();
+    });
+
+    test('the confirm bar takes the keyboard when it asks, says so aloud, and Cancel gives it back', async ({ page }) => {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        await page.route('**/createOvertimeWindow', (/** @type {any} */ r) => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }) }));
+        await page.goto('/overtime.html');
+        const open = page.getByRole('button', { name: 'Open now' }).first();
+        await open.focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#otConfirmCancel'), 'to the answer that changes nothing').toBeFocused();
+        await expect(page.locator('#otConfirmLive')).toContainText('Open the availability form for');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#otConfirmBar')).toBeHidden();
+        await expect(open, 'back to the row that asked').toBeFocused();
     });
 });
