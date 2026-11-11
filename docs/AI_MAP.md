@@ -42,6 +42,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, dayCellParts, dayCellName, getSwipeDirection | `calendar-renderer.js` |
 | The month legend — which keys apply, and whether it shows at all | `calendar-legend.js` |
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
+| Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
 | The notification prompt strip and silent renewal on the Calendar — initNotifPrompt (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
 | The install strip on the Calendar, and the route the install notice asks of it — initInstallPrompt, installRoute, promptInstall, yieldToInstallNotice, retireInstallStrip, installNoticeHasTheVisit | `install-prompt.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
@@ -171,10 +172,12 @@ the access hooks, the member's own-roster copy, the month-jump picker and About.
   panel. It never diverts to a sign-in: Pay signs in in place.
 - `changeMonth(delta)` · `retryMonth(year, month)` (the month panel's Try again; it also withdraws a
   recorded sync failure) · `updateLegend()` (delegates to `calendar-legend.js`).
-- **Access hooks** (`initCalendarAccess`): `onEveryGrant` opens the override gate BEFORE anything
-  renders, sets the access-lost handler, opens the document gate and repaints a re-grant; `onGranted`
-  runs once — the workspace, the claim sweep and the forced set-password step, which the notices queue
-  behind.
+- **Access hooks** (`initCalendarAccess`): the grant itself opens the roster reads and the documents
+  before either hook runs (`calendar-access.js`). `onEveryGrant` clears a viewer's stored copy and
+  repaints a re-grant; `onGranted` runs once — the workspace, the claim sweep and the forced
+  set-password step, which the notices queue behind. Both ways of losing access end in
+  `handleAccessLost`, wired once at module scope beside the listener that clears the member's stored
+  copy on a loss. This file writes neither gate.
 - **The own-roster copy** (`calendar-snapshot.js`): painted into the lock slot before the decision,
   offered to the renderer for a month still loading, saved from settled months — only on the member's
   own calendar, signed in by name, outside Team View.
@@ -280,12 +283,15 @@ viewer's session. The header carries the design; `CALENDAR_DATA.md` 3, 4, 11 and
 `AUTH_AND_SESSIONS.md` 7–10 and 17–20 hold the invariants.
 - `initCalendarAccess({ onGranted, onEveryGrant, paintBeforeDecision?, onAwaitingInput? })` — the
   bootstrap. `onGranted` runs once (it builds the workspace); `onEveryGrant` runs on every grant,
-  including one after a re-lock, and carries everything the access-lost path turns off — bundling the
-  two is the bug `grant()`'s comment describes. `paintBeforeDecision` shows the member's stored roster
+  including one after a re-lock, and first. `grant()` writes `calendar-access-state.js` BEFORE either
+  hook and after the card has gone, so the roster reads and the documents are open when the first
+  render runs — bundling the two hooks is the bug `grant()`'s comment describes. `paintBeforeDecision` shows the member's stored roster
   while the decision runs; `onAwaitingInput` hears when a card that needs typing goes up.
 - `calendarAccessReady` — resolves on the first grant, never rejects. `calendarAuthReady` — when a
   WRITE can use the identity (today the same instant): writers await it, renderers the other.
-- `getAccessType()` → `'named'|'viewer'|'none'` · `isViewerMode()`.
+- `getAccessType()` → `'named'|'viewer'|'none'` · `isViewerMode()`. Derived: the KIND this module
+  granted, while the state says access is held — so it reads `none` the moment the state shuts, by
+  whichever route.
 - `unlockWithPin(pin)` → `{ ok }` or `{ ok:false, kind, message }` — posts the PIN to
   `unlockCalendarViewer`, signs out anyone current (and refuses if that fails), switches to session-only
   persistence, signs in with the custom token and checks the claim before granting. The PIN is never
@@ -293,7 +299,9 @@ viewer's session. The header carries the design; `CALENDAR_DATA.md` 3, 4, 11 and
 - `lockCalendar()` — the drawer's Lock. Fails closed (throws if the viewer is still current) and reloads
   onto `#staff-pin`.
 - `handleAccessLost()` — re-lock after a read refused because the session went: a member gets their own
-  card, a viewer the PIN card. The CALLER shuts the override gate first.
+  card, a viewer the PIN card. The ONE call for every route that loses access: it shuts the state
+  first, so every gate is shut before a card goes up, and still owes the card when a refused month
+  read has shut the state already.
 - **Rules an edit can break:** the gate is structural — nothing is initialised while access is `none`,
   and `calendar-overrides.js` refuses reads on its own, because the local cache never consults the
   rules; sign the old identity out BEFORE changing persistence, and check the claim BEFORE granting; the
@@ -407,11 +415,13 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
   a month with no copy is owed nothing).
 - `_initialFetchInProgress` (a live binding) · `setInitialFetchInProgress(v)` · `addFetchedMonths(keys)` ·
   `clearFetchedMonth(key)` (it also re-arms the failure repaint) — for `calendar-initial-fetch.js`.
-- **The access gate.** `setOverrideAccess(granted)` — a grant is a fresh start (every claim cleared, the
-  generation advanced); revoking clears no claim but forgets what every month was known to be, so every
-  route that loses access forgets in one place. `hasOverrideAccess()` · `setOverrideAccessLostHandler(fn)`
-  (injected, so this module never imports the access layer). The grant number itself is read only by
-  `answerStillWanted`; the `accessGeneration()` export it replaced went in v25.72.
+- **The access gate.** The answer is not kept here: every read asks `calendar-access-state.js`. This
+  module LISTENS to it — a grant is a fresh start (every claim cleared), a shut clears no claim but
+  forgets what every month was known to be — so both hold for every route. `setOverrideAccess(granted)`
+  is this module's name for that one write (a refused read shuts with it; its tests use it) ·
+  `hasOverrideAccess()` · `setOverrideAccessLostHandler(fn)` (injected, so this module never imports
+  the access layer; the page passes `handleAccessLost`). A ticket's grant number is the state's
+  `grantNumber()`, compared only by `answerStillWanted`.
 - This module's two reads are the cache's only writers, and both clear the month shift-type memo; a new
   writer must clear it too, or the legend goes stale.
 
@@ -2272,11 +2282,18 @@ How much larger than the stylesheet's sizes the phone actually draws its text, a
 - `'large'` tightens the month heading row; `'compact'` tightens the action row as well. **Compact is the step BEFORE the wrap, never instead of it.**
 
 ### `calendar-doc-access.js`
-May this Calendar read the documents? The Daily Huddle, Weekly Retail Circular and Marylebone Newsletter are visible only with the staff PIN or a password (an owner decision — CLAUDE.md). `firestore.rules` enforces that on the server; this makes the client honour it, because a read the local cache can answer never consults the rules. No imports. Tested by `calendar-doc-access.test.mjs`.
-- `hasDocumentAccess()` · `setDocumentAccess(open)` (only a literal `true` opens it; subscribers hear once per CHANGE, never on a no-op) · `onDocumentAccess(fn)` → unsubscribe · `documentAccess` — the frozen `{ has, onChange }` handle the viewers take · `_resetDocumentAccessForTests()` (test seam).
-- Opened by `calendar-app.js` on every grant (`onEveryGrant`) and shut on every access-lost path; a deliberate Lock reloads, so the default applies.
+May this Calendar read the documents? The Daily Huddle, Weekly Retail Circular and Marylebone Newsletter are visible only with the staff PIN or a password (an owner decision — CLAUDE.md). `firestore.rules` enforces that on the server; this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own: it reads `calendar-access-state.js`, its one import. Tested by `calendar-doc-access.test.mjs`.
+- `hasDocumentAccess()` · `onDocumentAccess(fn)` → unsubscribe (told once per CHANGE, never on a no-op) · `documentAccess` — the frozen `{ has, onChange }` handle the viewers take · `setDocumentAccess(open)` — this module's name for the state's one write, kept for its tests · `_resetDocumentAccessForTests()` (test seam).
+- Opens and shuts with the roster reads, by construction: a grant (`calendar-access.js`) and every way of losing access write the one state. A deliberate Lock reloads, so the default applies.
 - **Subscribers, not just a flag**: the Huddle viewer's live subscription has to START when access arrives (a notification tap that met the PIN card opens the Huddle once the PIN is in), and a Circular tap made while locked is finished on unlock.
 - Consumers: `calendar-huddle-viewer.js` and `calendar-doc-viewer.js` (`docAccess`), and `nav-panel.js` (`canReadDocuments`, which refuses before the blank tab opens). Every other page keeps the default, which is always open.
+
+### `calendar-access-state.js`
+Is Calendar access held right now? The ONE copy. `calendar-access.js` writes it (`grant`, `handleAccessLost`); the roster gate (`calendar-overrides.js`) and the document gate (`calendar-doc-access.js`) read it, so no route that loses access can shut one and leave the other. No imports. Tested by `calendar-access-state.test.mjs`.
+- `hasCalendarAccess()` · `grantNumber()` (advanced on every grant; a read's ticket carries it) · `setCalendarAccess(open)` — THE ONE WRITE · `onCalendarAccess(fn)` → unsubscribe; `fn({ open, changed })` hears every write.
+- **Three properties:** shut as loaded; only a literal `true` opens; written BEFORE anyone is told, so no listener reads through a gate in the old position and listeners need no order among themselves.
+- **Every `true` is a grant**, even over a Calendar already open: the roster reads start afresh on every grant, the documents are told only when the answer changes.
+- **A new thing that must follow access reads or listens here.** It does not get a copy; only the access layer and the two gates may write (`calendar-access-state.test.mjs` scans for a fourth).
 
 ---
 

@@ -1514,3 +1514,129 @@ describe('the cards themselves', () => {
         assert.equal(getAccessType(), 'viewer');
     });
 });
+
+// ── WHETHER ACCESS IS HELD LIVES IN ONE PLACE, AND THIS MODULE WRITES IT (Calendar step 2, v25.74) ──
+//
+// Until v25.74 this module kept its own answer (`named`, `viewer` or `none`) while the roster reads
+// and the documents each kept a flag, set by hand from the coordinator's hooks. Now there is one
+// copy, calendar-access-state.js: `grant` writes it, `handleAccessLost` shuts it, and both gates read
+// it. What that leaves THIS module to get right is ORDER, twice over, and one piece of memory:
+//   · a grant writes after the card has gone and before either hook runs;
+//   · a loss shuts before a card goes up;
+//   · and the card is still owed when a refused read has shut the state before calling here.
+// The state and the document gate are loaded for REAL below. Nothing is mocked between this module
+// and what it writes, because the write is the thing under test.
+const { hasCalendarAccess, grantNumber, setCalendarAccess, onCalendarAccess } = await import('./calendar-access-state.js');
+const { onDocumentAccess, hasDocumentAccess, _resetDocumentAccessForTests } = await import('./calendar-doc-access.js');
+
+describe('the one access state: a grant writes it, a loss shuts it first', () => {
+    /** State listeners this block added, taken off before the next test. @type {(() => void)[]} */
+    let offs = [];
+    const listen = (/** @type {(w: { open: boolean, changed: boolean }) => void} */ fn) => { offs.push(onCalendarAccess(fn)); };
+    beforeEach(() => {
+        for (const off of offs) off();
+        offs = [];
+        _resetDocumentAccessForTests();   // the documents' subscribers too
+    });
+
+    test('a member\'s grant: the workspace is back BEFORE the documents are told, and both hooks find every gate open', async () => {
+        const grid = domEl('calendarDisplay');   // created first: the module only hides what exists
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        /** @type {string[]} */ const order = [];
+        // The documents are told from INSIDE the write, and a document a locked tap was waiting for
+        // opens there and then: over the Calendar, never over a workspace still hidden.
+        onDocumentAccess(open => order.push(`documents:${open}:hidden=${grid.hidden}`));
+        assert.equal(await initCalendarAccess({
+            onEveryGrant: () => order.push(`every:${hasCalendarAccess()}:${hasDocumentAccess()}:${getAccessType()}`),
+            onGranted:    () => order.push(`granted:${hasCalendarAccess()}:${hasDocumentAccess()}:${getAccessType()}`),
+        }), 'named');
+        assert.deepEqual(order, ['documents:true:hidden=false', 'every:true:true:named', 'granted:true:true:named'],
+            'the first render (onGranted) and a re-unlock\'s repaint (onEveryGrant) must find the gates already open');
+    });
+
+    test('a PIN unlock: the card has GONE before the documents are told', async () => {
+        globalThis.window.location.hash = '#staff-pin';
+        /** @type {string[]} */ const order = [];
+        await initCalendarAccess({
+            onEveryGrant: () => order.push(`every:${hasCalendarAccess()}`),
+            onGranted:    () => order.push(`granted:${hasCalendarAccess()}`),
+        });
+        assert.notEqual(lockCardId(), null, 'premise: the PIN card is standing');
+        assert.equal(hasCalendarAccess(), false, 'premise: nothing is granted yet');
+        onDocumentAccess(open => order.push(`documents:${open}:card=${lockCardId()}`));
+        await unlockWithPin('1234');
+        assert.deepEqual(order, ['documents:true:card=null', 'every:true', 'granted:true'],
+            'a held document would have opened over a card about to be taken away');
+    });
+
+    test('`getAccessType` reads `none` the moment the state shuts, before anybody calls this module', async () => {
+        await unlockWithPin('1234');
+        assert.equal(getAccessType(), 'viewer');
+        // What a refused month read does (calendar-overrides.js), before it tells anybody.
+        setCalendarAccess(false);
+        assert.equal(getAccessType(), 'none', 'this module still reported access over gates that had shut');
+        assert.equal(isViewerMode(), false);
+    });
+
+    test('an open state this module never granted is not reported as access of any kind', () => {
+        setCalendarAccess(true);
+        assert.equal(getAccessType(), 'none');
+        handleAccessLost();
+        assert.equal(hasCalendarAccess(), false, 'handleAccessLost left a gate open because it had no card to show');
+    });
+
+    test('a VIEWER\'s card is still owed after a refused read has ALREADY shut the state', async () => {
+        await unlockWithPin('1234');
+        setCalendarAccess(false);   // the read shut first…
+        handleAccessLost();         // …and then asked for the card
+        assert.ok(lastPanelHtml().includes('calLockPin'), 'the state was already shut, so no card went up — the roster stayed on screen');
+        assert.match(document.getElementById('calLockMsg').textContent, /expired/i);
+    });
+
+    test('a MEMBER\'s card is their own after a refused read has already shut the state — never the PIN', async () => {
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        await initCalendarAccess({ onGranted: () => {} });
+        setCalendarAccess(false);
+        handleAccessLost();
+        assert.ok(lastPanelHtml().includes('calLockWho'), 'the member card was not shown');
+        assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'which card is owed was read from a state that could no longer say — a member was sent to the staff PIN');
+    });
+
+    test('`handleAccessLost` shuts the state ITSELF, and before the card goes up', async () => {
+        // The first load's route: nobody has shut anything when this is called. Until v25.74 this
+        // function shut nothing, and relied on a wrapper in the coordinator to have closed both gates.
+        await unlockWithPin('1234');
+        assert.equal(lockCardId(), null, 'premise: no card over a granted Calendar');
+        /** @type {string[]} */ const seen = [];
+        listen(({ open, changed }) => seen.push(`state:${open}:${changed}:card=${lockCardId()}`));
+        onDocumentAccess(open => seen.push(`documents:${open}:card=${lockCardId()}`));
+        handleAccessLost();
+        assert.equal(hasCalendarAccess(), false, 'the lock card went up over gates still open');
+        assert.deepEqual(seen.sort(), ['documents:false:card=null', 'state:false:true:card=null'],
+            'the card was up before the gates had shut');
+        assert.notEqual(lockCardId(), null, 'no card went up');
+    });
+
+    test('a second `handleAccessLost` writes nothing and says nothing twice', async () => {
+        await unlockWithPin('1234');
+        handleAccessLost();
+        const card = lastPanel();
+        let writes = 0;
+        listen(() => { writes++; });
+        handleAccessLost();
+        assert.equal(writes, 0);
+        assert.equal(lastPanel(), card, 'a second card was built');
+    });
+
+    test('a re-unlock is a NEW grant', async () => {
+        await unlockWithPin('1234');
+        const first = grantNumber();
+        handleAccessLost();
+        assert.equal(grantNumber(), first, 'losing access counted as a grant');
+        await unlockWithPin('1234');
+        assert.equal(grantNumber(), first + 1, 'a read still out from before the lock would settle under the new grant');
+        assert.equal(getAccessType(), 'viewer');
+    });
+});

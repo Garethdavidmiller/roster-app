@@ -401,6 +401,90 @@ test('a month read that FAILS after the Calendar re-locked is not drawn as faile
     await expect(page.locator('.calendar-pending--failed')).toHaveCount(0);
 });
 
+// ── ONE LOSS SHUTS BOTH GATES, BY EITHER ROUTE (Calendar step 2, v25.74) ─────────────────────────
+// Whether access is held is kept once (calendar-access-state.js), and the roster reads and the three
+// documents both ask it. Until v25.74 each kept a flag of its own and the page shut them one after
+// the other, separately on each of the two routes that notice a loss. Walked on a real page, one
+// route each, because only a page shows the coordinator handing BOTH routes to the one call — and
+// the documents are how a browser can see a gate left open behind the card.
+test('a re-lock by a MONTH read shuts the documents too — a Huddle tap behind the card reads nothing, and the PIN finishes it', async ({ page }) => {
+    const stored = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
+    await page.addInitScript((s) => {
+        window.__E2E = Object.assign(window.__E2E || {}, { huddleDoc: { date: '2026-09-25', storageUrl: s, fileType: 'pdf' } });
+    }, stored);
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/');   // '/', so the drawer's `./#huddle` is a hash change (see the locked Huddle test above)
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const listeners = () => page.evaluate(() => (/** @type {any} */ (window).__E2E || {}).snapshotSubs || 0);
+    await expect.poll(listeners, 'premise: the grant opened the documents, so the Huddle is listened for').toBe(1);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#calendarLock')).toBeVisible();
+
+    // Behind the card. Reads would SUCCEED again from here, so "nothing was read" is the gate's doing.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
+    const before = await docReads(page);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel a[href="./#huddle"]').click();
+    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    expect(await docReads(page), 'a re-locked Calendar read or listened for a document').toBe(before);
+
+    // The PIN opens both again: the grid, and the Huddle the tap was for — on ONE new listener.
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+    await expect(page.locator('#huddleOpenFileBtn'), 'the PIN was entered, and the Huddle the tap was for never came')
+        .toBeVisible({ timeout: 10_000 });
+    expect(await listeners(), 'one listener per grant: the first, and the one this unlock attached').toBe(2);
+});
+
+// The other route: the FIRST LOAD's own read. A PIN that was right a moment ago and a first read that
+// is refused all the same — the tokens were revoked between the two (a rotation) — so the grant is
+// lost before anything was drawn. This route calls the access layer DIRECTLY: nothing has shut the
+// state for it, as calendar-overrides.js has for a month read, so it is the one that shows
+// `handleAccessLost` shutting the state itself before its card goes up.
+//
+// ON A FIRST VISIT TOO, and that half is not a variation. With no name chosen no month is drawn, so
+// the first load is the ONLY read there is: nothing follows it to notice the loss a second time. With
+// a name chosen a month read does follow, and re-locks by the other route one read later — which is
+// why that case alone could not tell this route's wiring from its absence (measured, 11 Nov 2026:
+// with `onAccessLost: null` it stayed green).
+for (const [label, named] of /** @type {[string, boolean][]} */ ([['with a name chosen', true], ['on a first visit, no name chosen', false]])) {
+    test(`the FIRST load's read refused (${label}): the Calendar re-locks, the documents shut with it, and the PIN brings both back`, async ({ page }) => {
+        if (named) await seedMember(page);
+        await stubPinExchange(page);
+        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failGetDocs: 'permission-denied' }); });
+        await page.goto('/index.html');
+        await enterPin(page, '1234');
+        await expect(page.locator('#calLockMsg')).toContainText(/expired/i);
+        await expect(page.locator('#calendarLock')).toBeVisible();
+        await expect(page.locator('#calendarDisplay')).toBeHidden();
+
+        // Behind the card, with reads working again: a Circular link is answered with what to do, and
+        // issues nothing. Left open, the documents gate would read it here — from this device's saved
+        // copy too, which no server rule is asked about.
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
+        const before = await docReads(page);
+        await page.evaluate(() => { window.location.hash = '#circular'; });
+        await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+        expect(await docReads(page), 'a re-locked Calendar read a document').toBe(before);
+
+        // The PIN brings back both: the read the lock held, and a Calendar this page had not yet drawn.
+        await page.locator('#docViewerClose').click();
+        await expect(page.locator('#docViewer')).toBeHidden();
+        await enterPin(page, '1234');
+        await expect(page.locator('#docViewerBody')).toContainText('No Weekly Retail Circular has been uploaded yet', { timeout: 10_000 });
+        await page.locator('#docViewerClose').click();
+        await expect(page.locator('#calendarLock')).toHaveCount(0);
+        await expect(page.locator(named ? '.calendar-day' : '.first-run-prompt').first()).toBeVisible();
+    });
+}
+
 // Whole-app review, Oct 2026: after a re-lock the grid is behind the card, and the arrow keys still
 // moved — and persisted — the month there, so the next unlock opened on a different one.
 test('re-locked mid-session: the keyboard does not move the month behind the card', async ({ page }) => {
@@ -1225,6 +1309,32 @@ test('the staff PIN never sees a member\'s copy — and unlocking with it delete
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#calendarSnapshot')).toHaveCount(0);
     expect(await readSnapshotKey(page)).toBeNull();
+});
+
+// A Calendar that has LOST access keeps no copy (v24.59). Since v25.74 that is not a line in each of
+// the two access-lost handlers: the page listens for the one access state shutting, so the copy goes
+// by whichever route the loss was noticed (calendar-app.js → ACCESS LOST, BY WHICHEVER ROUTE).
+test('a member who loses access mid-session keeps NO stored copy — and is offered their own sign-in, never the PIN', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript((date) => {
+        const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+        w.__E2E.docs = [{ id: 'a', memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' }];
+    }, SNAP_DATE);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay .calendar-day').first()).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => (await readSnapshotKey(page))?.member ?? null, { timeout: 10_000, message: 'premise: there is a copy to lose' })
+        .toBe('G. Miller');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#calLockWhy')).toContainText('Calendar access has expired. Sign in again to carry on.');
+    await expect(page.locator('#calLockPin'), 'a member is never sent to the staff PIN').toHaveCount(0);
+    // ONE-SHOT, read as the card arrives: the copy goes inside the write that shuts the state, which
+    // is before the card. A retrying assertion would also pass on a copy deleted later, by anything.
+    expect(await readSnapshotKey(page), 'the copy outlived the access it was saved under').toBeNull();
 });
 
 // THE SET-PASSWORD STEP RUNS ON THE ONE GRANT. It hangs off the one-shot `onGranted`, which now

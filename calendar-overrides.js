@@ -18,6 +18,7 @@ import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { noteKnowledge, noteCheckFailed, knowledgeOf, forget as forgetKnowledge } from './calendar-data-state.js';
+import { hasCalendarAccess, grantNumber, setCalendarAccess, onCalendarAccess } from './calendar-access-state.js';
 import { lsGet, lsSet } from './ls.js';
 
 /** The error a month read answered by the OFFLINE CACHE is turned into (v24.48). */
@@ -47,17 +48,42 @@ export const rosterOverridesCache = new Map();
 //
 // Deliberately NOT wired to `calendarAccessReady`, and this is the important half: importing the
 // access module here would make the gate depend on the very promise a bypass would be trying to
-// avoid, and would add a Firebase-importing dependency to a module the tests load in Node. The
-// coordinator PUSHES the fact in. Default false, so anything that forgets to push it reads nothing.
-let _accessGranted = false;
-// Which grant a read was issued under (v24.56, auth review). A read refused under an EARLIER grant —
-// the PIN rotated, the viewer re-unlocked, and a slow read from the old token lands afterwards —
-// says nothing about the current one, and used to re-lock it: "access has expired" straight after a
-// correct PIN. Advanced on every grant. Read in ONE place, `answerStillWanted` (THE READ TICKET).
-let _accessGen = 0;
+// avoid, and would add a Firebase-importing dependency to a module the tests load in Node.
+//
+// THE ANSWER IS NOT KEPT HERE (Calendar step 2, v25.74). It is read, each time, from
+// calendar-access-state.js: the ONE copy, which imports nothing and loads shut, so a page that never
+// grants reads nothing. Until then this module kept a flag of its own, the documents' gate kept
+// another, and the coordinator set the pair by hand on a grant and on each way of losing access;
+// that module's header says what the copying risked. The grant number a read's ticket carries
+// (v24.56 — a read refused under an EARLIER grant says nothing about the current one) lives there
+// too, beside the answer it qualifies.
+
+// A GRANT IS A FRESH START, AND A SHUT FORGETS. Told by the state on every write, so both hold for
+// every route that grants or loses access, with nothing for a route to remember.
+onCalendarAccess(({ open }) => {
+    // A GRANT is a fresh start (v20.41), and it has to be, because a re-grant follows a re-lock.
+    // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost are
+    // still claimed after it returns, so without this every `ensureOverridesCached` would no-op and
+    // the re-unlocked Calendar would never read anything again — its knowledge having been forgotten
+    // by the shut below, that is a permanent wait state. `_failureRepainted` goes with it for the
+    // same reason: a failure that happened under the old session is not news the new one has heard.
+    // Harmless at boot — the first grant runs before the initial fetch claims anything. EVERY grant,
+    // one over a Calendar already open included: the grant number has moved, so no read still out
+    // can settle the months it claimed.
+    if (open) { fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); _recheckOwed.clear(); }
+    // A SHUT FORGETS WHAT EVERY MONTH WAS KNOWN TO BE, here, so every route that loses access forgets
+    // (cal-data-6, 10 Nov 2026). Only the month read's route used to: losing access through the first
+    // load's read or its chip's retry shut the gate and kept the knowledge, so after the next PIN a
+    // month read under the old grant was drawn as current — and stayed current if the new grant's own
+    // read failed, "As rostered" included. Access loss is what `forget` is for.
+    else forgetKnowledge();
+});
 
 /**
- * Open the override reads once access is confirmed, and shut them when it is lost.
+ * Open the override reads once access is confirmed, and shut them when it is lost: this module's
+ * name for THE ONE WRITE (calendar-access-state.js → `setCalendarAccess`). Used below, where a
+ * refused read shuts as it notices, and by this module's tests. The page no longer calls it (v25.74):
+ * the access layer writes the state itself, and there is no second gate left to set beside this one.
  *
  * ONE argument, and it stays one. Named and viewer access read the same data, so a second parameter
  * would only be a second thing to get wrong. It had one from v22.97 until 26 Sep 2026 — a member
@@ -66,30 +92,16 @@ let _accessGen = 0;
  *
  * @param {boolean} granted
  */
-export function setOverrideAccess(granted) {
-    _accessGranted = granted === true;
-    // A GRANT is a fresh start (v20.41), and it has to be, because a re-grant follows a re-lock.
-    // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost are
-    // still claimed after it returns, so without this every `ensureOverridesCached` would no-op and
-    // the re-unlocked Calendar would never read anything again — its knowledge having been forgotten
-    // by the shut below, that is a permanent wait state. `_failureRepainted` goes with it for the
-    // same reason: a failure that happened under the old session is not news the new one has heard.
-    // Harmless at boot — the first grant runs before the initial fetch claims anything.
-    if (_accessGranted) { _accessGen++; fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); _recheckOwed.clear(); }
-    // A SHUT FORGETS WHAT EVERY MONTH WAS KNOWN TO BE, here, so every route that loses access forgets
-    // (cal-data-6, 10 Nov 2026). Only the month read's route used to: losing access through the first
-    // load's read or its chip's retry shut the gate and kept the knowledge, so after the next PIN a
-    // month read under the old grant was drawn as current — and stayed current if the new grant's own
-    // read failed, "As rostered" included. Access loss is what `forget` is for.
-    else forgetKnowledge();
-}
+export function setOverrideAccess(granted) { setCalendarAccess(granted); }
 
 /** @returns {boolean} whether override reads are currently permitted. */
-export function hasOverrideAccess() { return _accessGranted; }
+export function hasOverrideAccess() { return hasCalendarAccess(); }
 
 /** Called when a read is refused because ACCESS has gone, rather than because the network is poor.
- *  Injected by the coordinator for the same reason `setOverrideAccess` is pushed in: this module
- *  must not import the access layer it exists to back up. */
+ *  Injected by the coordinator, because this module must not import the access layer it exists to
+ *  back up. The SHUT needs nobody — it is the one write, made here before the call, and the
+ *  documents' gate and the member's stored copy follow it. What is injected is the one thing this
+ *  module cannot do: put the lock card on screen (calendar-access.js → `handleAccessLost`). */
 /** @type {(() => void)|null} */
 let _onAccessLost = null;
 
@@ -275,7 +287,7 @@ const _monthOwner = new Map();
  * Take a ticket at the moment a read is issued (THE READ TICKET).
  * @returns {ReadTicket}
  */
-export function issueReadTicket() { return { grant: _accessGen, seq: ++_readSeq }; }
+export function issueReadTicket() { return { grant: grantNumber(), seq: ++_readSeq }; }
 
 /**
  * Is the answer to the read holding this ticket still wanted? Only while the access it was issued
@@ -295,7 +307,7 @@ export function issueReadTicket() { return { grant: _accessGen, seq: ++_readSeq 
  * @returns {boolean}
  */
 export function answerStillWanted(ticket, err) {
-    return _accessGranted && ticket.grant === _accessGen
+    return hasCalendarAccess() && ticket.grant === grantNumber()
         && /** @type {any} */ (err)?.code !== READ_SUPERSEDED;
 }
 
@@ -391,7 +403,7 @@ export async function fetchOverridesForRange(startStr, endStr, ticket = issueRea
     // the sync chip's error path is the visible, retryable place for that to surface. Silently
     // resolving would leave the Calendar showing the base roster as though it were current — the one
     // outcome this whole feature exists to prevent.
-    if (!_accessGranted) throw new Error('calendar-access-required');
+    if (!hasCalendarAccess()) throw new Error('calendar-access-required');
     const q = query(
         collection(db, COLLECTIONS.overrides),
         where('date', '>=', startStr),
@@ -465,7 +477,7 @@ export async function fetchOverridesForRange(startStr, endStr, ticket = issueRea
  * **It is no longer "no auth", and that changed at v20.12.** Firestore rules are evaluated on the
  * SERVER, so a cache hit genuinely never consults them — which used to be stated here as a harmless
  * property of an open collection and became the feature's single biggest hole the moment override
- * reads required access. The read is now gated on `_accessGranted` (THE ACCESS GATE, above): the
+ * reads required access. The read is now gated on Calendar access (THE ACCESS GATE, above): the
  * rules stop the NETWORK read, and that check stops this one. Phase 1 still runs before any network
  * read of its own; it simply runs after the access DECISION, which waits for Firebase to confirm the
  * stored sign-in.
@@ -494,7 +506,7 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
     // firestore.rules — is what stops yesterday's overrides painting before today's PIN. Returns
     // false (paints nothing) rather than throwing, because "no access yet" is indistinguishable to
     // every caller from "no cache yet", which is already this function's normal empty state.
-    if (!_accessGranted) return false;
+    if (!hasCalendarAccess()) return false;
     const ticket = issueReadTicket();
     try {
         const q = query(
@@ -553,7 +565,10 @@ export async function ensureOverridesCached(year, month, renderFn) {
     // Month navigation and the Team Week View both arrive here, so the gate covers them too — and
     // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
     // fetched and the real read after unlocking would be skipped for the rest of the session.
-    if (!_accessGranted) return;
+    // INSURANCE since v25.72, and said so because no test fails without it (measured, 11 Nov 2026):
+    // the read below is refused as it is issued, its failure stands down in silence (THE READ
+    // TICKET), and a grant clears every claim. Kept as the one layer that depends on neither.
+    if (!hasCalendarAccess()) return;
     const key = monthKey(year, month);
     if (fetchedMonths.has(key)) {
         // In flight: join it. Settled (or pre-claimed by the initial fetch, which repaints itself):
@@ -622,7 +637,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // and Team View come through HERE instead, and they are the likelier path, because by the
         // time a session expires the initial fetch is long finished.
         if (_onAccessLost && _isAccessFailure(err)) {
-            setOverrideAccess(false);   // shut the gate before anything can repaint from the cache — which forgets what we knew
+            setOverrideAccess(false);   // shut before anything can repaint from the cache: the ONE write, so the documents shut with it, and what we knew is forgotten
             try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
             return;
         }
