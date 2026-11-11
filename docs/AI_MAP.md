@@ -424,11 +424,11 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
   `clearFetchedMonth(key)` (it also re-arms the failure repaint) — for `calendar-initial-fetch.js`.
 - **The access gate.** The answer is not kept here: every read asks `calendar-access-state.js`. This
   module LISTENS to it — a grant is a fresh start (every claim cleared), a shut clears no claim but
-  forgets what every month was known to be — so both hold for every route. `setOverrideAccess(granted)`
-  is this module's name for that one write (a refused read shuts with it; its tests use it) ·
-  `hasOverrideAccess()` · `setOverrideAccessLostHandler(fn)` (injected, so this module never imports
-  the access layer; the page passes `handleAccessLost`). A ticket's grant number is the state's
-  `grantNumber()`, compared only by `answerStillWanted`.
+  forgets what every month was known to be — so both hold for every route. `hasOverrideAccess()` is
+  the gate's read. It has no write of its own: the module's one write is a refused read SHUTTING the
+  state as it notices, and nothing here can open it · `setOverrideAccessLostHandler(fn)` (injected, so
+  this module never imports the access layer; the page passes `handleAccessLost`, which puts the card
+  up). A ticket's grant number is the state's `grantNumber()`, compared only by `answerStillWanted`.
 - This module's two reads are the cache's only writers, and both clear the month shift-type memo; a new
   writer must clear it too, or the legend goes stale.
 
@@ -2289,18 +2289,18 @@ How much larger than the stylesheet's sizes the phone actually draws its text, a
 - `'large'` tightens the month heading row; `'compact'` tightens the action row as well. **Compact is the step BEFORE the wrap, never instead of it.**
 
 ### `calendar-doc-access.js`
-May this Calendar read the documents? The Daily Huddle, Weekly Retail Circular and Marylebone Newsletter are visible only with the staff PIN or a password (an owner decision — CLAUDE.md). `firestore.rules` enforces that on the server; this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own: it reads `calendar-access-state.js`, its one import. Tested by `calendar-doc-access.test.mjs`.
-- `hasDocumentAccess()` · `onDocumentAccess(fn)` → unsubscribe (told once per CHANGE, never on a no-op) · `documentAccess` — the frozen `{ has, onChange }` handle the viewers take · `setDocumentAccess(open)` — this module's name for the state's one write, kept for its tests · `_resetDocumentAccessForTests()` (test seam).
+May this Calendar read the documents? The Daily Huddle, Weekly Retail Circular and Marylebone Newsletter are visible only with the staff PIN or a password (an owner decision — CLAUDE.md). `firestore.rules` enforces that on the server; this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own and cannot change the one there is: it imports the read and the listen from `calendar-access-state.js`, and nothing else. Tested by `calendar-doc-access.test.mjs`.
+- `hasDocumentAccess()` · `onDocumentAccess(fn)` → unsubscribe (told once per CHANGE, never on a no-op) · `documentAccess` — the frozen `{ has, onChange }` handle the viewers take · `_clearDocumentSubscribersForTests()` (test seam: it drops the subscribers and shuts nothing).
 - Opens and shuts with the roster reads, by construction: a grant (`calendar-access.js`) and every way of losing access write the one state. A deliberate Lock reloads, so the default applies.
 - **Subscribers, not just a flag**: the Huddle viewer's live subscription has to START when access arrives (a notification tap that met the PIN card opens the Huddle once the PIN is in), and a Circular tap made while locked is finished on unlock.
 - Consumers: `calendar-huddle-viewer.js` and `calendar-doc-viewer.js` (`docAccess`), and `nav-panel.js` (`canReadDocuments`, which refuses before the blank tab opens). Every other page keeps the default, which is always open.
 
 ### `calendar-access-state.js`
-Is Calendar access held right now? The ONE copy. `calendar-access.js` writes it (`grant`, `handleAccessLost`); the roster gate (`calendar-overrides.js`) and the document gate (`calendar-doc-access.js`) read it, so no route that loses access can shut one and leave the other. No imports. Tested by `calendar-access-state.test.mjs`.
-- `hasCalendarAccess()` · `grantNumber()` (advanced on every grant; a read's ticket carries it) · `setCalendarAccess(open)` — THE ONE WRITE · `onCalendarAccess(fn)` → unsubscribe; `fn({ open, changed })` hears every write.
+Is Calendar access held right now? The ONE copy. `calendar-access.js` writes it (`grant`, `handleAccessLost`), and the roster gate shuts it where a read is refused because access has gone; the roster gate (`calendar-overrides.js`) and the document gate (`calendar-doc-access.js`) read it, so no route that loses access can shut one and leave the other. No imports. Tested by `calendar-access-state.test.mjs`.
+- `hasCalendarAccess()` · `grantNumber()` (advanced on every grant; a read's ticket carries it) · `setCalendarAccess(open)` — THE ONE WRITE, under ONE name and with one argument · `onCalendarAccess(fn)` → unsubscribe; `fn({ open, changed })` hears every write.
 - **Three properties:** shut as loaded; only a literal `true` opens; written BEFORE anyone is told, so no listener reads through a gate in the old position and listeners need no order among themselves.
 - **Every `true` is a grant**, even over a Calendar already open: the roster reads start afresh on every grant, the documents are told only when the answer changes.
-- **A new thing that must follow access reads or listens here.** It does not get a copy; only the access layer and the two gates may write (`calendar-access-state.test.mjs` scans for a fourth).
+- **A new thing that must follow access reads or listens here.** It does not get a copy, and no gate gets a writer of its own: a second name reads as a narrower act than it is ("shut the documents" would lock the whole Calendar). `calendar-access-state.test.mjs` counts every call of the write as written — one grant and one shut in the access layer, one shut in the roster gate, none anywhere else.
 
 ### `calendar-redraw.js`
 When may the Calendar page draw, and what does its next draw owe? One scheduler, created once by `calendar-app.js`, which hands it the swipe's answer, the surface on screen and the two draws. It decides when and on which surface; it draws nothing. No imports; the clock is handed in. Tested by `calendar-redraw.test.mjs` and the `redraw:` tests in `e2e/calendar.spec.js`.

@@ -174,13 +174,13 @@ const teamView = initTeamView({
 });
 
 // ============================================
-// WHEN THE PAGE MAY DRAW (calendar-redraw.js, v25.75)
+// WHEN THE PAGE MAY DRAW (calendar-redraw.js)
 // ============================================
-// How far start-up has got, the ONE wait for a swipe to finish, and what the next draw owes. Until
-// v25.75 those were five variables in this file with two timers between them. Every BACKGROUND
-// repaint now goes through `redraw.repaint`, and the name picker through `redraw.nameChanged`. A
-// press the reader made (Prev, Next, Today, a key, the month picker, Try again) still calls
-// `renderCalendar` itself.
+// How far start-up has got, the ONE wait for a swipe to finish, and what the next draw owes: one
+// scheduler, and its header says why they are not a variable each in this file. Every BACKGROUND
+// repaint goes through `redraw.repaint`, and the name picker through `redraw.nameChanged`. A press
+// the reader made (Prev, Next, Today, a key, the month picker, Try again) calls `renderCalendar`
+// itself.
 const redraw = createRedrawScheduler({
     gestureLive: isSwipeGestureActive,
     teamViewOn: () => teamView.isTeamViewMode(),
@@ -690,9 +690,9 @@ try {
             // retry path re-reads it and the two-phase structure is what makes the gate legible.
             authReady: calendarAccessReady,
             // A read refused because ACCESS has gone reopens the unlock card instead of looping on
-            // the sync chip's retry, which an expired session can never satisfy (v20.12). ONE call
-            // (v25.74): it shuts the access state first and only then puts the card up, so the
-            // local-cache path is never open behind it — see ACCESS LOST, BY WHICHEVER ROUTE, below.
+            // the sync chip's retry, which an expired session can never satisfy (v20.12). ONE call:
+            // it shuts the access state first and only then puts the card up, so the local-cache
+            // path is never open behind it — see ACCESS LOST, BY WHICHEVER ROUTE, below.
             onAccessLost: handleAccessLost,
         });
         _dismissSyncError = _initialFetch.dismissSyncError;
@@ -1190,14 +1190,14 @@ function _saveOwnSnapshot() {
     } catch (e) { console.warn('[Calendar] own-roster copy not saved', e); }
 }
 
-// ── ACCESS LOST, BY WHICHEVER ROUTE (Calendar step 2, v25.74) ────────────────────────────────────
+// ── ACCESS LOST, BY WHICHEVER ROUTE ──────────────────────────────────────────────────────────────
 // Two routes notice a loss mid-session: the first load (`onAccessLost`, above) and a month read
 // (navigation and Team View, through calendar-overrides.js — the likelier one, v20.15). Both end in
 // ONE call, `handleAccessLost`, which shuts the one access state and THEN puts the card up. What must
-// follow a loss listens for that write in the module that owns it; calendar-access-state.js says why
-// this file no longer shuts each gate by hand. The member's stored copy is this file's: a Calendar
-// that has lost access keeps none (v24.59). Wired before access is decided, so neither can be missing
-// when a read is refused.
+// follow a loss listens for that write in the module that owns it; this file shuts no gate, and
+// calendar-access-state.js says why. The member's stored copy is this file's: a Calendar that has
+// lost access keeps none (v24.59). Wired before access is decided, so neither can be missing when a
+// read is refused.
 setOverrideAccessLostHandler(handleAccessLost);
 onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
 
@@ -1208,8 +1208,8 @@ initCalendarAccess({
     onAwaitingInput: markAwaitingInput,
     // EVERY grant, not just the first (v20.41): what a re-lock takes away has to come back when
     // access returns, which is precisely what re-entering the PIN after a rotation is. The roster
-    // reads and the documents are no longer reopened HERE: since v25.74 the grant opens both itself,
-    // BEFORE this hook runs (calendar-access.js → `grant`, THE ONE WRITE). What is left is the page's.
+    // reads and the documents are not reopened HERE: the grant opens both itself, BEFORE this hook
+    // runs (calendar-access.js → `grant`, THE ONE WRITE). What is here is the page's.
     onEveryGrant: () => {
         // The own-roster copy belongs to a NAMED grant; the PIN viewer must not inherit one (v24.59).
         if (getAccessType() !== 'named') clearSnapshot();

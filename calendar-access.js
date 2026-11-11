@@ -94,12 +94,12 @@ const UNLOCK_TIMEOUT_MS = 15000;
 // `none`, a card, which is recoverable — and the late-identity watcher corrects it when an identity lands.
 
 /**
- * WHICH access the grant in force is: the kind, and only the kind (Calendar step 2, v25.74).
+ * WHICH access the grant in force is: the kind, and only the kind.
  *
  * Whether access is HELD is not kept here. That is `hasCalendarAccess()`, the one copy the roster
  * and document gates read too (calendar-access-state.js), so this module cannot report `named` or
- * `viewer` over gates that have shut: `getAccessType` asks the state every time. Until v25.74 a
- * `'none'` lived in this variable as well, a third copy of the same fact.
+ * `viewer` over gates that have shut: `getAccessType` asks the state every time. A `'none'` never
+ * goes in this variable: it would be a second copy of that fact.
  *
  * Null until the first grant, and again once this module has put a lock card up for an access that
  * has gone. That second null is what `handleAccessLost` goes by. A refused month read shuts the
@@ -287,11 +287,10 @@ function grant(/** @type {'named'|'viewer'} */ type) {
     hideLockPanel();
     dismissSignInForm();   // the come-back card's full-screen form is not in the slot (cal-data-9)
     setWorkspaceHidden(false);
-    // ── THE ONE WRITE (Calendar step 2, v25.74) ─────────────────────────────────────────────────
+    // ── THE ONE WRITE ───────────────────────────────────────────────────────────────────────────
     // The kind, and then the fact: from this line the roster reads and the documents are open
-    // together, because both read the state this writes (calendar-access-state.js). Until v25.74
-    // the coordinator opened each gate by hand from `_onEveryGrant`, and the two could be a line
-    // apart, or one forgotten.
+    // together, because both read the state this writes (calendar-access-state.js). Neither is
+    // opened from a hook, where the two could be a line apart, or one forgotten.
     //
     // HERE, AND NOT A LINE EARLIER OR LATER. After the card has gone and the workspace is back: the
     // write tells the documents, and a document a locked tap was waiting for opens from inside it —
@@ -307,8 +306,8 @@ function grant(/** @type {'named'|'viewer'} */ type) {
     // one-shot callback was a real dead end: after `handleAccessLost` re-locked, a viewer who entered
     // the new PIN got the workspace back with the roster reads still shut. That is not a corner —
     // revoking the viewer's tokens is a documented step of rotating the PIN, so it is the NORMAL
-    // path, and it is the one place the user has already done everything right. The gates are no
-    // longer this hook's to reopen (above); the repaint a re-unlock needs still is.
+    // path, and it is the one place the user has already done everything right. The gates are the
+    // write's to reopen (above), not this hook's; the repaint a re-unlock needs is the hook's.
     if (_onEveryGrant) { try { _onEveryGrant(); } catch (e) { console.error('[CalendarAccess] the every-grant hook failed', e); } }
     if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] start failed', e); } }
     if (_resolveAccess) { const r = _resolveAccess; _resolveAccess = null; r(); }
@@ -559,18 +558,18 @@ async function trySilentReauth(name) {
  * "couldn't update, try again" against an expired session is a loop the member cannot win, and
  * they would reasonably conclude the app is broken.
  *
- * THE ONE CALL FOR EVERY ROUTE THAT LOSES ACCESS (Calendar step 2, v25.74). The first load reaches
- * it directly (its read, or its chip's retry); a refused month read reaches it through
- * calendar-overrides.js, which has already shut the state by then. Either way the order is the
- * same: the state shuts, and only then does a card go up.
+ * THE ONE CALL FOR EVERY ROUTE THAT LOSES ACCESS. The first load reaches it directly (its read, or
+ * its chip's retry); a refused month read reaches it through calendar-overrides.js, which has
+ * already shut the state by then. Either way the order is the same: the state shuts, and only then
+ * does a card go up.
  */
 export function handleAccessLost() {
     // SHUT FIRST, and before anything below can run. The roster reads and the documents both read
     // this state, so from this line neither can serve this device's saved copy behind the card that
     // is about to appear — and everything that must follow a loss (what each month was known to be,
-    // the Huddle's subscription, the member's stored copy) is told from inside the write. Until
-    // v25.74 this function shut nothing: each caller was handed a wrapper that closed the two gates
-    // by hand first, and a re-lock without one left the local-cache read open behind the card.
+    // the Huddle's subscription, the member's stored copy) is told from inside the write. So a
+    // caller passes this function bare. Nothing has to be closed first, and a route that had to
+    // remember a wrapper could re-lock with the local-cache read still open behind the card.
     if (hasCalendarAccess()) setCalendarAccess(false);
     // Already locked: the card is up and the reason has been said. (`_grantedAs`, not the state —
     // a refused month read shuts the state before it calls here, and its card is still owed.)
@@ -608,7 +607,7 @@ export function handleAccessLost() {
  *   onEveryGrant runs on EVERY grant, including one that follows a re-lock, and before `onGranted`.
  *   Anything of the PAGE's that a re-lock takes away comes back here rather than in `onGranted`, or
  *   it stays away for the rest of the session — see the note in `grant`. The roster reads and the
- *   documents are not among them since v25.74: `grant` opens both itself, before either hook runs.
+ *   documents are not among them: `grant` opens both itself, before either hook runs.
  *   paintBeforeDecision (v24.59) puts the member's OWN stored roster in the lock slot while the
  *   decision runs, and says whether it did. It is NOT a grant: no override read opens, `onGranted`
  *   is not spent, and any card the decision puts up replaces it (the slot never stacks). Not called

@@ -60,10 +60,13 @@ function _snap(rows) {
 
 const mod = await import('./calendar-overrides.js');
 const {
-    setOverrideAccess, hasOverrideAccess, rosterOverridesCache,
+    hasOverrideAccess, rosterOverridesCache,
     fetchOverridesForRange, fetchOverridesForRangeFromCache, ensureOverridesCached, clearFetchedMonth, monthKey,
     setOverrideAccessLostHandler,
 } = mod;
+// THE ONE WRITE. The gate has no writer of its own (v25.76): it reads calendar-access-state.js, so
+// that is what a test opens and shuts — exactly as the access layer does in the app.
+const { setCalendarAccess } = await import('./calendar-access-state.js');
 // NOT mocked, and that is the point: `calendar-data-state.js` is pure and holds the module state
 // the calendar reads back to decide what it may SHOW. A month the gate was supposed to skip
 // entirely, left recorded as `error`, is the difference between a cached grid and a failure panel.
@@ -82,7 +85,7 @@ beforeEach(() => {
     calls.serverError = null;
     cacheDocs = [];
     rosterOverridesCache.clear();
-    setOverrideAccess(false);
+    setCalendarAccess(false);
     wheres = [];
     // Release every month this file touches, so one test's fetch cannot mark a month claimed for
     // the next — `fetchedMonths` is module state and does not reset with the cache.
@@ -99,10 +102,10 @@ describe('the gate is CLOSED until something opens it', () => {
 
     test('only a literal true opens it — no truthy values', () => {
         for (const v of ['yes', 1, {}, [], 'true']) {
-            setOverrideAccess(/** @type {any} */ (v));
+            setCalendarAccess(/** @type {any} */ (v));
             assert.equal(hasOverrideAccess(), false, `${JSON.stringify(v)} opened the gate`);
         }
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         assert.equal(hasOverrideAccess(), true);
     });
 });
@@ -121,7 +124,7 @@ describe('THE CACHE PAINT — the read firestore.rules cannot stop', () => {
         // The gate must be a gate, not a disablement. If this half did not pass, the test above
         // would be satisfied by a module that simply never worked.
         cacheDocs = [OVERRIDE];
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         const painted = await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31');
         assert.equal(calls.cache, 1);
         assert.equal(painted, true);
@@ -131,7 +134,7 @@ describe('THE CACHE PAINT — the read firestore.rules cannot stop', () => {
     test('a browser that unlocked YESTERDAY cannot paint today before unlocking again', async () => {
         // The exact scenario, walked end to end: unlock, populate the cache, then a fresh browser
         // session (module state re-armed to locked) with the same IndexedDB behind it.
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         cacheDocs = [OVERRIDE];
         await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31');
         assert.ok(rosterOverridesCache.size > 0);
@@ -139,7 +142,7 @@ describe('THE CACHE PAINT — the read firestore.rules cannot stop', () => {
         // New browser session: the viewer's session-only Firebase identity is gone, so the
         // coordinator never grants access — but IndexedDB survived.
         rosterOverridesCache.clear();
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         calls.cache = 0;
         const painted = await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31');
         assert.equal(painted, false);
@@ -160,7 +163,7 @@ describe('the authoritative read', () => {
     });
 
     test('it runs once access is granted', async () => {
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         await fetchOverridesForRange('2026-08-01', '2026-08-31');
         assert.equal(calls.server, 1);
     });
@@ -193,7 +196,7 @@ describe('month navigation and Team View obey the same gate', () => {
         // locked would mark the month fetched, and the real read after unlocking would be skipped
         // for the rest of the session — a month permanently stuck on the base roster.
         await ensureOverridesCached(2026, 7, () => {});
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         await ensureOverridesCached(2026, 7, () => {});
         assert.equal(calls.server, 1, 'the month was claimed while locked and never fetched');
     });
@@ -292,7 +295,7 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
     // step of rotating the staff PIN, and it lands exactly here on every viewer's next navigation.
 
     test('a permission-denied month fetch SHUTS THE GATE, forgets what was known and calls the handler', async () => {
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         // A month read while access held, so there is something to forget. Without it the forget
         // below could be deleted with this test green, and was (test audit, 7 Nov 2026): a month
         // still known `authoritative` after the session lost its right to read it would draw that
@@ -314,21 +317,21 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
     });
 
     test('SHUTTING the gate forgets what every month knew — whichever route shut it (cal-data-6)', async () => {
-        // The first load's read and its chip's retry lose access through the coordinator's wrapper,
-        // which shuts the gate and nothing else; only the month read above forgot beside it. A month
-        // still known after the lock was drawn as current by the next grant — and stayed current when
-        // that grant's own read failed.
-        setOverrideAccess(true);
+        // The forgetting hangs off the SHUT, not off the route that noticed. Only the month read above
+        // used to forget, beside its own shut; the first load's read and its chip's retry shut the
+        // gate and forgot nothing. A month still known after the lock was drawn as current by the
+        // next grant — and stayed current when that grant's own read failed.
+        setCalendarAccess(true);
         await ensureOverridesCached(2026, 5, () => {});
         assert.equal(knowledgeOf(monthKey(2026, 5)), 'authoritative', 'guard: a month must be known first');
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         assert.equal(knowledgeOf(monthKey(2026, 5)), 'unknown', 'shutting the gate kept a month known as current');
     });
 
     test('an ORDINARY network failure does NOT re-lock — that would be a loop nobody can win', async () => {
         // The whole point of separating these: an offline blip must keep the last-good calendar and
         // the retry chip. Re-locking on it would demand a PIN from someone whose PIN is fine.
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         let lost = 0;
         setOverrideAccessLostHandler(() => { lost++; });
         calls.serverError = Object.assign(new Error('unavailable'), { code: 'unavailable' });
@@ -344,7 +347,7 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
         // The PIN rotates, a read issued under the old token is still in flight, the viewer
         // re-enters the PIN — and then the old read's refusal arrives. It said "access has
         // expired" straight after a correct PIN, and dropped the new grant's claim on the month.
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         let lost = 0;
         setOverrideAccessLostHandler(() => { lost++; });
         /** @type {() => void} */ let land = () => {};
@@ -353,8 +356,8 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
         const stale = ensureOverridesCached(2026, 7, () => {});
         /** @type {any} */ (calls).serverWait = null;
         calls.serverError = null;
-        setOverrideAccess(false);
-        setOverrideAccess(true);              // the re-unlock
+        setCalendarAccess(false);
+        setCalendarAccess(true);              // the re-unlock
         land();
         await stale;
         assert.equal(lost, 0, 'an old grant\'s refusal re-locked the new one');
@@ -366,7 +369,7 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
         // `fetchOverridesForRange` throws `calendar-access-required` when the gate is already shut.
         // It arrives by a different route from Firestore's `permission-denied` and means the same
         // thing to the member, so both must reach the same recovery.
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         let lost = 0;
         setOverrideAccessLostHandler(() => { lost++; });
         // The gate short-circuits ensureOverridesCached before the fetch, so drive the throw
@@ -397,7 +400,7 @@ describe('a grant is never scoped to one member', () => {
     test('the cached read carries no member filter, whatever a stale caller passes', async () => {
         cacheDocs = [OVERRIDE];
         // A caller still passing the retired option must get the ordinary grant, not a narrowed one.
-        /** @type {any} */ (setOverrideAccess)(true, { provisionalMember: 'G. Miller' });
+        /** @type {any} */ (setCalendarAccess)(true, { provisionalMember: 'G. Miller' });
         wheres = [];
         await fetchOverridesForRangeFromCache('2026-07-01', '2026-07-31');
         assert.equal(calls.cache, 1, 'guard: the cache read must actually have run');

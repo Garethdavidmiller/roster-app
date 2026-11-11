@@ -1527,7 +1527,7 @@ describe('the cards themselves', () => {
 // The state and the document gate are loaded for REAL below. Nothing is mocked between this module
 // and what it writes, because the write is the thing under test.
 const { hasCalendarAccess, grantNumber, setCalendarAccess, onCalendarAccess } = await import('./calendar-access-state.js');
-const { onDocumentAccess, hasDocumentAccess, _resetDocumentAccessForTests } = await import('./calendar-doc-access.js');
+const { onDocumentAccess, hasDocumentAccess, _clearDocumentSubscribersForTests } = await import('./calendar-doc-access.js');
 
 describe('the one access state: a grant writes it, a loss shuts it first', () => {
     /** State listeners this block added, taken off before the next test. @type {(() => void)[]} */
@@ -1536,7 +1536,8 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
     beforeEach(() => {
         for (const off of offs) off();
         offs = [];
-        _resetDocumentAccessForTests();   // the documents' subscribers too
+        _clearDocumentSubscribersForTests();   // the documents' subscribers too, and FIRST: none hears the shut
+        setCalendarAccess(false);
     });
 
     test('a member\'s grant: the workspace is back BEFORE the documents are told, and both hooks find every gate open', async () => {

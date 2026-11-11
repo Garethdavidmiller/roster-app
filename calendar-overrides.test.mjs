@@ -114,9 +114,12 @@ const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
-    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths, oweRecheck, SERVED_FROM_CACHE,
+    ensureOverridesCached, getShiftTypesInMonth, releaseStaleMonths, oweRecheck, SERVED_FROM_CACHE,
     READ_SUPERSEDED, issueReadTicket, answerStillWanted, setOverrideAccessLostHandler,
 } = await import('./calendar-overrides.js');
+// THE ONE WRITE of whether access is held. The gate has no writer of its own (v25.76), so the tests
+// open and shut it the way the access layer does.
+const { setCalendarAccess } = await import('./calendar-access-state.js');
 // The REAL knowledge module — this suite is where a read's outcome becomes a claim about a month.
 const { knowledgeOf, noteKnowledge, decideDisplay, forget: forgetKnowledge } = await import('./calendar-data-state.js');
 
@@ -124,7 +127,7 @@ const { knowledgeOf, noteKnowledge, decideDisplay, forget: forgetKnowledge } = a
 // without it — that is the point of the gate, and this suite is about what the reads DO once they
 // are permitted, not about whether they are. The gate itself is `calendar-access-gate.test.mjs`,
 // which asserts the opposite direction: that nothing gets through while it is shut.
-setOverrideAccess(true);
+setCalendarAccess(true);
 
 // ── monthKey ──────────────────────────────────────────────────────────────────
 
@@ -431,8 +434,9 @@ describe('fetchOverridesForRange deletion reconciliation', () => {
 
 // ── WHO OWNS A MONTH'S CACHE ENTRY (v20.44) ────────────────────────────────────────────────────
 //
-// The defect these pin is the one the generation counter in calendar-initial-fetch.js does NOT
-// cover. That counter stops a late, superseded read from REPAINTING; nothing stopped it WRITING.
+// The defect these pin is the one the first load's own ordering (calendar-initial-fetch.js →
+// `standing`) does NOT cover. That stops a late, overtaken read from REPAINTING; nothing stopped it
+// WRITING.
 // `reconcileRangeIntoCache` is authoritative for its range and EVICTS what its snapshot omits, so a
 // stale snapshot landing after a fresh one silently removed the fresh data from the cache — leaving
 // the screen correct at that instant and wrong on the next render, which is the worst shape a bug
@@ -470,7 +474,7 @@ describe('a late, superseded read must not write', () => {
     beforeEach(() => {
         rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false;
         _releases.length = 0; _deferGetDocs = false;
-        setOverrideAccess(true);   // also clears month ownership — a grant is a fresh start
+        setCalendarAccess(true);   // also clears month ownership — a grant is a fresh start
     });
     afterEach(() => { _deferGetDocs = false; _releases.length = 0; });
 
@@ -616,18 +620,18 @@ describe('a settled month is re-read once it is old (Oct 2026 review)', () => {
 
 describe('a GRANT is a fresh start (v20.41)', () => {
     // The bug this pins: losing access re-locks the Calendar and forgets what every month knew (the
-    // shut, `setOverrideAccess(false)`), but the months stayed CLAIMED in fetchedMonths. Re-entering the PIN therefore came back to a
-    // Calendar that would never read anything again — every ensureOverridesCached a no-op against a
-    // claim from the previous session, every month stuck on "Checking this month", and a Try again
-    // that could not win. Revoking the viewer's tokens is a documented step of rotating the PIN, so
-    // this is the ordinary path, not a corner.
+    // shut, `setCalendarAccess(false)`), but the months stayed CLAIMED in fetchedMonths. Re-entering
+    // the PIN therefore came back to a Calendar that would never read anything again — every
+    // ensureOverridesCached a no-op against a claim from the previous session, every month stuck on
+    // "Checking this month", and a Try again that could not win. Revoking the viewer's tokens is a
+    // documented step of rotating the PIN, so this is the ordinary path, not a corner.
     beforeEach(() => { rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false; });
     // These are the only tests in the file that SHUT the gate, and the module holds it process-wide —
     // leaving it shut silently disabled every read in every suite that ran afterwards.
-    afterEach(() => { setOverrideAccess(true); });
+    afterEach(() => { setCalendarAccess(true); });
 
     test('re-granting access releases months claimed before it was lost', async () => {
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         _mockDocs = [];
         let renders = 0;
         await ensureOverridesCached(2031, 4, () => { renders++; });   // claims 2031-05
@@ -638,8 +642,8 @@ describe('a GRANT is a fresh start (v20.41)', () => {
         assert.equal(renders, 1);
 
         // Access lost, then returns (the member entered the rotated PIN).
-        setOverrideAccess(false);
-        setOverrideAccess(true);
+        setCalendarAccess(false);
+        setCalendarAccess(true);
 
         await ensureOverridesCached(2031, 4, () => { renders++; });
         assert.equal(renders, 2, 'the re-granted session must be able to read the month again');
@@ -648,10 +652,10 @@ describe('a GRANT is a fresh start (v20.41)', () => {
     test('revoking access does NOT clear the claims — only a grant does', async () => {
         // Deliberate asymmetry. Clearing on revoke would let anything that ran between the revoke and
         // the next grant re-claim months against a shut gate.
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         let renders = 0;
         await ensureOverridesCached(2032, 4, () => { renders++; });
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         await ensureOverridesCached(2032, 4, () => { renders++; });
         assert.equal(renders, 1, 'a shut gate reads nothing at all, claims or no claims');
     });
@@ -668,7 +672,7 @@ describe('a re-check that fails keeps the grid as the saved copy, never as curre
     beforeEach(() => {
         rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false; _getDocsFromCacheFlag = false;
         _deferGetDocs = false; _releases.length = 0;
-        setOverrideAccess(true);   // a grant is a fresh start: no claims, no owners, nothing owed
+        setCalendarAccess(true);   // a grant is a fresh start: no claims, no owners, nothing owed
     });
     afterEach(() => { _getDocsThrows = false; _getDocsFromCacheFlag = false; _deferGetDocs = false; _releases.length = 0; });
 
@@ -820,13 +824,13 @@ describe('an answer belongs to the grant that asked for it', () => {
         rosterOverridesCache.clear(); _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false;
         _deferGetDocs = false; _releases.length = 0; _deferCacheDocs = false; _cacheReleases.length = 0;
         forgetKnowledge();
-        setOverrideAccess(true);
+        setCalendarAccess(true);
     });
     // The module holds the gate process-wide: leave it open for the suites that follow.
     afterEach(() => {
         _deferGetDocs = false; _releases.length = 0; _deferCacheDocs = false; _cacheReleases.length = 0;
         _getDocsThrows = false; _mockCacheDocs = [];
-        setOverrideAccess(true);
+        setCalendarAccess(true);
     });
 
     const AL = (/** @type {string} */ date) => makeDoc('al-' + date, { memberName: 'A. Smith', date, value: 'AL',
@@ -839,7 +843,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         const a = ensureOverridesCached(2061, 2, () => { paintsA++; });
         await _tick();
         assert.equal(_releases.length, 1, 'premise: A is out');
-        setOverrideAccess(false); setOverrideAccess(true);   // re-locked (the shut forgets), then the PIN again
+        setCalendarAccess(false); setCalendarAccess(true);   // re-locked (the shut forgets), then the PIN again
         _deferGetDocs = false; _getDocsThrows = true;
         await ensureOverridesCached(2061, 2, () => {});
         _getDocsThrows = false;
@@ -857,7 +861,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         let paints = 0;
         const a = ensureOverridesCached(2062, 2, () => { paints++; });
         await _tick();
-        setOverrideAccess(false);   // access lost — and nobody has re-entered the PIN
+        setCalendarAccess(false);   // access lost — and nobody has re-entered the PIN
         _releases[0](); await a;
         assert.equal(rosterOverridesCache.size, 0, 'rows were written behind the lock card');
         assert.equal(knowledgeOf(key), 'unknown', 'a discarded answer is not a failure either — it is nothing');
@@ -865,7 +869,7 @@ describe('an answer belongs to the grant that asked for it', () => {
 
         // And the claim it held does not strand the next grant: the month is read again, and lands.
         _deferGetDocs = false;
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         await ensureOverridesCached(2062, 2, () => { paints++; });
         assert.equal(knowledgeOf(key), 'authoritative');
         assert.equal(paints, 1);
@@ -877,7 +881,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         _deferGetDocs = true; _mockDocs = [AL('2063-03-10')];
         const read = fetchOverridesForRange('2063-03-01', '2063-03-31');
         await _tick();
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         _releases[0]();
         await assert.rejects(read, (/** @type {any} */ e) => e.code === READ_SUPERSEDED);
         assert.equal(rosterOverridesCache.size, 0);
@@ -888,7 +892,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         const read = fetchOverridesForRange('2064-03-01', '2064-03-31');
         _getDocsFromCacheFlag = false;
         await _tick();
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         _releases[0]();
         await assert.rejects(read, (/** @type {any} */ e) => e.code === READ_SUPERSEDED,
             'guard: discarded BEFORE the cache-served branch, which would have merged the rows and thrown its own code');
@@ -903,7 +907,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         const read = fetchOverridesForRangeFromCache('2065-03-01', '2065-03-31', months);
         await _tick();
         assert.equal(_cacheReleases.length, 1, 'premise: the cache read is out');
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         _cacheReleases[0]();
         assert.equal(await read, false, 'it must report that nothing was painted');
         assert.equal(rosterOverridesCache.size, 0, 'yesterday\'s rows were written behind the lock card');
@@ -914,7 +918,7 @@ describe('an answer belongs to the grant that asked for it', () => {
         _deferCacheDocs = true; _mockCacheDocs = [AL('2066-03-10')];
         const read = fetchOverridesForRangeFromCache('2066-03-01', '2066-03-31');
         await _tick();
-        setOverrideAccess(false); setOverrideAccess(true);
+        setCalendarAccess(false); setCalendarAccess(true);
         _cacheReleases[0]();
         assert.equal(await read, false);
         assert.equal(rosterOverridesCache.size, 0);
@@ -954,17 +958,17 @@ describe('an answer belongs to the grant that asked for it', () => {
     test('the read ticket: not once access is shut, before anybody is back in', () => {
         // The half the failure paths were missing: they compared the grant number alone.
         const t = issueReadTicket();
-        setOverrideAccess(false);
+        setCalendarAccess(false);
         assert.equal(answerStillWanted(t), false);
     });
 
     test('the read ticket: once no, always no — a new grant revives no ticket from before it', () => {
         const t = issueReadTicket();
-        setOverrideAccess(false); setOverrideAccess(true);
+        setCalendarAccess(false); setCalendarAccess(true);
         assert.equal(answerStillWanted(t), false, 'an old ticket came back to life with the new grant');
         assert.equal(answerStillWanted(issueReadTicket()), true, 'while a ticket of the new grant is wanted');
         const u = issueReadTicket();
-        setOverrideAccess(true);   // granted again with no shut between: still a new grant
+        setCalendarAccess(true);   // granted again with no shut between: still a new grant
         assert.equal(answerStillWanted(u), false);
     });
 
@@ -983,12 +987,12 @@ describe('an answer belongs to the grant that asked for it', () => {
         try {
             for (const err of [Object.assign(new Error('offline'), { code: 'unavailable' }),
                                Object.assign(new Error('denied'), { code: 'permission-denied' })]) {
-                setOverrideAccess(true); forgetKnowledge();
+                setCalendarAccess(true); forgetKnowledge();
                 _deferGetDocs = true; _releases.length = 0;
                 let paints = 0;
                 const a = ensureOverridesCached(2071, 2, () => { paints++; });
                 await _tick();
-                setOverrideAccess(false);                  // locked; nobody has re-entered the PIN
+                setCalendarAccess(false);                  // locked; nobody has re-entered the PIN
                 _releases[0](err); await a;
                 assert.equal(knowledgeOf(key), 'unknown', `${err.code}: a failed month was recorded against the locked Calendar`);
                 assert.equal(paints, 0, `${err.code}: a locked Calendar was asked to repaint`);
@@ -996,7 +1000,7 @@ describe('an answer belongs to the grant that asked for it', () => {
             assert.equal(lost, 0, 'the lock had already been reported by whoever shut it');
 
             // …and the next grant reads the month for itself.
-            _deferGetDocs = false; setOverrideAccess(true);
+            _deferGetDocs = false; setCalendarAccess(true);
             let paints = 0;
             await ensureOverridesCached(2071, 2, () => { paints++; });
             assert.equal(knowledgeOf(key), 'authoritative');
@@ -1193,12 +1197,12 @@ describe('a saved copy is only a month this device once held whole', () => {
         };
         rosterOverridesCache.clear(); forgetKnowledge();
         _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false; _getDocsFromCacheFlag = false;
-        setOverrideAccess(true);
+        setCalendarAccess(true);
     });
     afterEach(() => {
         delete /** @type {any} */ (globalThis).localStorage;
         _getDocsFromCacheFlag = false; _mockDocs = []; _mockCacheDocs = [];
-        forgetKnowledge(); setOverrideAccess(true);
+        forgetKnowledge(); setCalendarAccess(true);
     });
 
     test('a month never read whole, answered by the cache with one member\'s rows, is NOT a saved copy', async () => {
@@ -1219,7 +1223,7 @@ describe('a saved copy is only a month this device once held whole', () => {
         _mockDocs = [AL('2070-04-10'), AL('2070-04-12', 'B. Jones')];
         await ensureOverridesCached(2070, 3, () => {});                 // online: every member's April
         assert.ok(JSON.parse(storage.get(KEY) ?? '[]').includes('2070-04'), 'the whole read was not recorded');
-        setOverrideAccess(true); forgetKnowledge();                     // a later open: nothing in this page's memory
+        setCalendarAccess(true); forgetKnowledge();                     // a later open: nothing in this page's memory
         /** @type {string[]} */ const months = [];
         _mockCacheDocs = _mockDocs;
         await fetchOverridesForRangeFromCache('2070-04-01', '2070-04-30', months);
@@ -1251,7 +1255,7 @@ describe('a saved copy is only a month this device once held whole', () => {
         await ensureOverridesCached(2070, 7, () => {});
         assert.equal(knowledgeOf(monthKey(2070, 7)), 'error',
             'an unreadable record restored the old rule, and one member\'s rows became a saved copy');
-        setOverrideAccess(true); forgetKnowledge(); _getDocsFromCacheFlag = false;
+        setCalendarAccess(true); forgetKnowledge(); _getDocsFromCacheFlag = false;
         await ensureOverridesCached(2070, 7, () => {});                 // online: every member's August
         assert.deepEqual(JSON.parse(storage.get(KEY) ?? 'null'), ['2070-08'], 'the next whole read did not rewrite the record');
     });
@@ -1293,11 +1297,11 @@ describe('the initial fetch after a grant', async () => {
         _deferGetDocs = false; _releases.length = 0;
         setInitialFetchInProgress(false);
         forgetKnowledge();
-        setOverrideAccess(true);       // also releases the months the boot claimed
+        setCalendarAccess(true);       // also releases the months the boot claimed
     });
 
     test('ONE cache read, unscoped — every member\'s cached rows are loaded, not one member\'s', async () => {
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         const { cacheSettled } = initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, authReady: Promise.resolve() });
         assert.equal(await cacheSettled, true);
         await _tick(10);
@@ -1311,10 +1315,10 @@ describe('the initial fetch after a grant', async () => {
 
 // ── ACCESS LOST THROUGH THE FIRST LOAD FORGETS TOO (cal-data-6, 10 Nov 2026) ───────────────────────
 // The month read's route shut the gate AND forgot what every month knew; the first load's read and
-// its chip's retry reach the coordinator's wrapper, which shut the gate only. So after the next PIN
-// a month read under the old grant was drawn as current — and stayed current, "As rostered" included,
-// when the new grant's own read failed. Driven through the REAL chip retry; the wrapper is modelled by
-// the one step of it that touches this state, `setOverrideAccess(false)` (calendar-app.js).
+// its chip's retry shut the gate only. So after the next PIN a month read under the old grant was
+// drawn as current — and stayed current, "As rostered" included, when the new grant's own read
+// failed. Driven through the REAL chip retry; `handleAccessLost` (calendar-access.js) is modelled by
+// the one step of it that touches this state, its `setCalendarAccess(false)`.
 describe('losing access through the first load\'s chip forgets what the old grant knew', async () => {
     const { initInitialFetch } = await import('./calendar-initial-fetch.js');
     const { hasOverrideAccess } = await import('./calendar-overrides.js');
@@ -1351,15 +1355,15 @@ describe('losing access through the first load\'s chip forgets what the old gran
         _deferGetDocs = false; _releases.length = 0; _mockCacheDocs = []; _mockDocs = [];
         setInitialFetchInProgress(false);
         forgetKnowledge();
-        setOverrideAccess(true);
+        setCalendarAccess(true);
     });
 
     test('the chip\'s retry is refused, the Calendar re-locks, the PIN again — and the new grant\'s read fails', async () => {
         const chip = () => headerKids.find(k => k.tag === 'button' && k.isConnected);
         _mockCacheDocs = [AL(`${thisMonth}-10`)];   // the device holds this month: phase 1 paints it
-        setOverrideAccess(true);
+        setCalendarAccess(true);
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, authReady: Promise.resolve(),
-            onAccessLost: () => setOverrideAccess(false) });
+            onAccessLost: () => setCalendarAccess(false) });
         await _tick(30);
         assert.equal(knowledgeOf(thisMonth), 'cached', 'premise: the first load painted the saved copy');
         _releases.shift()?.(OFFLINE());   // …and its server read failed on the network
@@ -1379,7 +1383,7 @@ describe('losing access through the first load\'s chip forgets what the old gran
         assert.deepEqual([knowledgeOf(thisMonth), knowledgeOf(farMonth)], ['unknown', 'unknown'],
             'what the old grant knew survived the lock');
 
-        setOverrideAccess(true);              // the new PIN
+        setCalendarAccess(true);              // the new PIN
         _mockDocs = [];
         const again = ensureOverridesCached(far.y, far.m, () => {});
         await _tick(); _releases.shift()?.(OFFLINE()); await again;
@@ -1431,7 +1435,7 @@ describe('the first load\'s failure chip and a month that then loads by itself',
         mock.timers.enable({ apis: ['setTimeout'] });
         rosterOverridesCache.clear(); forgetKnowledge();
         _mockDocs = []; _mockCacheDocs = []; _getDocsThrows = false; _deferGetDocs = true; _releases.length = 0;
-        setOverrideAccess(true);
+        setCalendarAccess(true);
     });
     afterEach(() => {
         mock.timers.reset();
@@ -1440,7 +1444,7 @@ describe('the first load\'s failure chip and a month that then loads by itself',
         _deferGetDocs = false; _releases.length = 0; _mockDocs = []; _mockCacheDocs = []; _getDocsFromCacheFlag = false;
         setInitialFetchInProgress(false);
         forgetKnowledge();
-        setOverrideAccess(true);
+        setCalendarAccess(true);
     });
 
     test('the first load fails once, the failure render\'s own read of the month works: no chip above it', async () => {
