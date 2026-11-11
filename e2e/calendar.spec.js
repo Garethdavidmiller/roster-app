@@ -597,6 +597,127 @@ test('calendar: a month read by Team View that lands mid-swipe is drawn when the
         .toHaveAttribute('data-override-state', 'render');
 });
 
+// ── THE ONE WAIT FOR A SWIPE (Calendar step 3, v25.75 — calendar-redraw.js) ─────────────────────────
+// A draw replaces `#calendarDisplay`, and the swipe's three panels live in it. So a BACKGROUND draw — a
+// read landing, a name picked in the sheet — waits for the whole gesture, and since v25.75 both wait in
+// ONE queue. The rules are unit-tested in calendar-redraw.test.mjs against a clock the test owns; what
+// only a browser answers is the wiring: that the page really asks the swipe, really holds, and really
+// settles. The gesture is a synthetic touch `pointerdown` that never moves — the pre-intent dead zone,
+// the part of a gesture with no cooldown to hide behind, and the part the v16.23 fix first missed.
+const LIVE_MONTH = '#calendarDisplay > .calendar-container:not(.carousel-panel)';
+const PARKED = '#calendarDisplay > .carousel-panel';
+/** @param {import('@playwright/test').Page} page @param {'pointerdown'|'pointercancel'} type */
+const touchGrid = (page, type) => page.evaluate((t) => {
+    const el = /** @type {HTMLElement} */ (document.getElementById('calendarDisplay'));
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new PointerEvent(t, { pointerType: 'touch', isPrimary: true, bubbles: true,
+        clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+}, type);
+/** Put the Calendar on a month whose read is out and HELD, so the spec decides when it lands. */
+async function openMonthStillBeingRead(/** @type {import('@playwright/test').Page} */ page) {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // first read: Aug–Oct
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();                          // November: outside the first read
+    await expect(page.locator(LIVE_MONTH)).toHaveAttribute('data-override-state', 'loading');
+}
+/** Let the held read land, and wait until the page has been told. */
+async function landTheRead(/** @type {import('@playwright/test').Page} */ page) {
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect.poll(() => page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E; return (e.docReadsSettled || 0) >= (e.docReads || 0);
+    })).toBe(true);
+}
+/** Pick a different name in the picker, the way the sheet does. @returns {Promise<string>} the name picked */
+const pickAnotherName = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+    const sel = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
+    const other = /** @type {HTMLOptionElement} */ ([...sel.options].find(o => o.value !== '' && o.value !== sel.value));
+    sel.value = other.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    return /** @type {string} */ (other.textContent);
+});
+
+test('redraw: a month read that lands under a resting finger is drawn only when the finger lifts', async ({ page }) => {
+    await openMonthStillBeingRead(page);
+    await touchGrid(page, 'pointerdown');
+    const parked = await page.locator(PARKED).count();
+    expect(parked, 'premise: the gesture began — the neighbouring months are parked').toBeGreaterThan(0);
+
+    await landTheRead(page);
+    await page.waitForTimeout(300);                                    // five polls of the wait
+    await expect(page.locator(LIVE_MONTH), 'the month was drawn under the finger')
+        .toHaveAttribute('data-override-state', 'loading');
+    expect(await page.locator(PARKED).count(), 'a draw wiped the panels the swipe is about to animate (v16.23)').toBe(parked);
+
+    await touchGrid(page, 'pointercancel');
+    await expect(page.locator(LIVE_MONTH), 'and it IS drawn once the finger has gone')
+        .toHaveAttribute('data-override-state', 'render');
+});
+
+test('redraw: a name picked while a finger rests on the grid is applied when it lifts — not under it, and not dropped', async ({ page }) => {
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const header = page.locator('.header');
+    const before = await header.getAttribute('data-member-name');
+
+    await touchGrid(page, 'pointerdown');
+    const parked = await page.locator(PARKED).count();
+    expect(parked, 'premise: the gesture began').toBeGreaterThan(0);
+
+    const picked = await pickAnotherName(page);
+    expect(picked, 'premise: a different name').not.toBe(before);
+    await page.waitForTimeout(300);
+    expect(await header.getAttribute('data-member-name'), 'the new name was drawn under the finger').toBe(before);
+    expect(await page.locator(PARKED).count(), 'a draw wiped the panels the swipe is about to animate').toBe(parked);
+
+    await touchGrid(page, 'pointercancel');
+    await expect(header, 'a change that is held is never dropped (v16.19)').toHaveAttribute('data-member-name', picked);
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+});
+
+// The one behaviour v25.75 CHANGED. With a timer each (60ms for the name, 120ms for the repaint) the
+// page drew twice when the finger lifted: the new name's month, then the same month again.
+test('redraw: a read and a name change held by one gesture are ONE draw when it ends', async ({ page }) => {
+    await openMonthStillBeingRead(page);
+    await touchGrid(page, 'pointerdown');
+    await landTheRead(page);                                           // held: a repaint
+    const picked = await pickAnotherName(page);                        // held: a change of name
+
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__gridsDrawn = 0;
+        new MutationObserver((records) => {
+            for (const r of records) for (const n of r.addedNodes) {
+                if (n instanceof HTMLElement && n.matches('.calendar-container:not(.carousel-panel)')) w.__gridsDrawn++;
+            }
+        }).observe(/** @type {HTMLElement} */ (document.getElementById('calendarDisplay')), { childList: true });
+    });
+    await touchGrid(page, 'pointercancel');
+    await expect(page.locator('.header')).toHaveAttribute('data-member-name', picked);
+    await expect(page.locator(LIVE_MONTH)).toHaveAttribute('data-override-state', 'render');
+    await page.waitForTimeout(400);                                    // long enough for a second timer to have fired
+    expect(await page.evaluate(() => /** @type {any} */ (window).__gridsDrawn),
+        'the new name\'s month, drawn once — not once per thing that was waiting').toBe(1);
+});
+
+// The leave panel's figures are one member's. No tap can change the name while the panel is open — it
+// is modal — so this drives the picker directly. What it pins is the scheduler's LAST step, which the
+// page hands it as `nameApplied` and which runs after the new name has been drawn.
+test('redraw: a change of name closes the leave panel — its figures would be the previous name\'s', async ({ page }) => {
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLightbox')).toBeVisible();
+    const picked = await pickAnotherName(page);
+    await expect(page.locator('#alLightbox')).toBeHidden();
+    await expect(page.locator('.header')).toHaveAttribute('data-member-name', picked);
+});
+
 // A BALANCED LEGEND AT 1024px (polish round 2). As a flex row the keys wrapped greedily, so a busy
 // month — RDW, leave, an absence and an Other day on top of the fixed keys — put "✂️ Pay cut-off" and
 // "💷 Payday" alone on a second line (measured: 10 keys over 2). The four conditional keys are
@@ -3140,6 +3261,28 @@ test('calendar: PageDown onto a month still loading keeps focus for the grid tha
     expect(await focusedDay(page), 'the grid that arrived must take the focus back').toMatch(/November 2026$/);
     await page.keyboard.press('PageDown');
     await expect(page.locator('.month-year'), 'and PageDown still pages').toHaveText('December 2026');
+});
+
+// The other half of the same rule (calendar-redraw.js → `focusWanted`): the focus is owed to the grid
+// only while it is still NOWHERE. A reader who tabbed to a control while the month loaded is not
+// pulled back into the grid when it arrives.
+test('redraw: focus moved to a control while a month loads stays there when the grid arrives', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (/** @type {any} */ (window).__E2E ??= {}).docsHeld = true; });
+    await page.locator('.calendar-day.today').focus();
+    await page.keyboard.press('PageDown');   // October
+    await expect(page.locator('.month-year')).toHaveText('October 2026');
+    await page.keyboard.press('PageDown');   // November: not read yet — the focus is now owed
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    await page.locator('#prevMonth').focus();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(page.locator('#calendarDisplay .calendar-day').first()).toBeVisible();
+    expect(await page.evaluate(() => document.activeElement?.id), 'the grid took focus from the control the reader chose')
+        .toBe('prevMonth');
 });
 
 test('calendar: closing the day panel after the grid was redrawn behind it returns focus to that day', async ({ page }, info) => {

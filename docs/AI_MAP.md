@@ -43,6 +43,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | The month legend — which keys apply, and whether it shows at all | `calendar-legend.js` |
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
+| WHEN the Calendar page may draw — the start-up stage, the one wait for a swipe, the focus owed to the next grid | `calendar-redraw.js` |
 | The notification prompt strip and silent renewal on the Calendar — initNotifPrompt (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
 | The install strip on the Calendar, and the route the install notice asks of it — initInstallPrompt, installRoute, promptInstall, yieldToInstallNotice, retireInstallStrip, installNoticeHasTheVisit | `install-prompt.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
@@ -164,9 +165,15 @@ every base-shift, date and shift-classification helper. Rules: `.claude/rules/ro
 Coordinator for `index.html`: it wires the modules below and owns what is left — month navigation,
 the access hooks, the member's own-roster copy, the month-jump picker and About. It exports nothing.
 - `renderCalendar()` — draws the month through `buildCalendarContainer` (no Try again, and `checking`,
-  while the first read runs) and shows the stale-member banner (`takeStaleMemberName`).
-  `renderCalendarWhenIdle()` defers a background render while a swipe is live; `_repaintAfterMonthRead()`
-  is the one stable callback every month read repaints through.
+  while the first read runs) and shows the stale-member banner (`takeStaleMemberName`). A press the
+  reader made calls it directly.
+- **`redraw`** (`calendar-redraw.js`) decides WHEN anything else draws: every background repaint goes
+  through `redraw.repaint(why)` and the name picker through `redraw.nameChanged()`, so neither lands
+  under a swiping finger; the start-up stage (`reach` / `reached`) tells a first grant from a
+  re-unlock and says when the "usable" timing may measure. `_repaintAfterMonthRead()` is the one
+  callback every month read repaints through — one identity, because the read keeps its waiters by it.
+  This file asks whether a gesture is live in one place only, the hand-over to the scheduler; its
+  buttons and keys still stand down during a swipe's animation (`isSwipeCooldown`).
 - `navigateToPaycalc(paydayStr)` — the one route to the calculator (`?payday=`) and its one gate,
   `personalActionsAllowed`; it returns whether it went, so a refused Enter falls through to the day
   panel. It never diverts to a sign-in: Pay signs in in place.
@@ -209,7 +216,7 @@ unlike `admin-week-swipe.js`) are in the module.
   openDayDetail, onRetryMonth })` — the incoming panel becomes the live view on commit, so it is built
   with the same `onRetryMonth` and `checking` rules as `renderCalendar`.
 - `isSwipeGestureActive()` — **background re-renders must wait on this**: a render mid-gesture detaches
-  the carousel's panels.
+  the carousel's panels. One place asks it, `calendar-redraw.js`, which holds what has to wait.
 - `isSwipeCooldown()` — true while a swipe animation runs; the buttons and keyboard wait for it.
 
 ### `calendar-al-lightbox.js`
@@ -2294,6 +2301,14 @@ Is Calendar access held right now? The ONE copy. `calendar-access.js` writes it 
 - **Three properties:** shut as loaded; only a literal `true` opens; written BEFORE anyone is told, so no listener reads through a gate in the old position and listeners need no order among themselves.
 - **Every `true` is a grant**, even over a Calendar already open: the roster reads start afresh on every grant, the documents are told only when the answer changes.
 - **A new thing that must follow access reads or listens here.** It does not get a copy; only the access layer and the two gates may write (`calendar-access-state.test.mjs` scans for a fourth).
+
+### `calendar-redraw.js`
+When may the Calendar page draw, and what does its next draw owe? One scheduler, created once by `calendar-app.js`, which hands it the swipe's answer, the surface on screen and the two draws. It decides when and on which surface; it draws nothing. No imports; the clock is handed in. Tested by `calendar-redraw.test.mjs` and the `redraw:` tests in `e2e/calendar.spec.js`.
+- `createRedrawScheduler({ gestureLive, teamViewOn, drawCalendar, drawTeam, saveName, nameApplied, setTimer? })` → `reach(stage)` · `reached(stage)` · `repaint(why)` · `nameChanged()` · `focusWanted({ onCell, nowhere })` · `focusSettled(wanted, given)` · `owed()`. Also `GESTURE_POLL_MS` (60) and `START_STAGES`.
+- **Start-up is a sequence, forward only:** `shell` (the page has loaded) → `workspace` (the first grant) → `surface` (the boot has drawn the Calendar or Team View). A re-lock does not go back.
+- **Four rules:** never while a gesture is live (v16.23); ONE wait, and what is owed is settled together — a held repaint and a held change of name are one draw; the surface is asked when the work runs, so nothing is painted into Team View (v16.21) and the name is still saved; nothing is repainted before the workspace exists.
+- **The focus debt:** a draw that replaces a focused day cell gives the new grid's anchor the focus, and a panel with no day cells owes it to the grid that follows — while focus is still nowhere.
+- **A new thing that must wait for the gesture joins the one wait.** It does not get a timer of its own; `calendar-redraw.test.mjs` fails when `calendar-app.js` asks whether a gesture is live anywhere but the hand-over.
 
 ---
 
