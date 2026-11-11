@@ -1043,3 +1043,50 @@ test('every page with a busy check holds an update while a write is unconfirmed'
     }
     assert.ok(checked >= 4, `only ${checked} pages declare a busy check — this test is checking almost nothing`);
 });
+
+test('Settings holds an update while a password save, or its "own password" record, is on its way (sign-in check, 11 Nov 2026)', () => {
+    // The record was dropped by a reload in the moment after "updated", and the card then said "still on
+    // your surname". It is counted where it STARTS (review, 11 Nov 2026: the forced change, on any page,
+    // was not counted) — `changeOwnPassword` registers it, and `writesInFlight` counts what is registered;
+    // both halves are behaviour-tested (firebase-client.test.mjs, slow-save.test.mjs). This pins the page.
+    const src = codeOf('settings-app.js');
+    const busy = src.match(/const _busy = ([^;]*);/)?.[1] ?? '';
+    assert.match(busy, /_passwordSaving/, 'the busy check forgot the password save itself');
+    assert.match(busy, /writesInFlight\(\) > 0/, 'the busy check does not count writes on their way, the record among them');
+    const reg = swRegistrationProps(src) ?? {};
+    for (const k of ['beforeReload', 'isBusy']) assert.match(reg[k] ?? '', /_busy/, `${k} does not ask the shared busy check`);
+});
+
+// ── A MESSAGE BOX THAT HIDES WHILE EMPTY IS NEVER ITS OWN LIVE REGION (review, 11 Nov 2026) ──────────
+// Each box is display:none while empty, which takes it out of the accessibility tree, and a region only
+// announces changes made while it is in the tree. "Show the box, then write" was pinned here as the cure,
+// but both happen in one task, before the tree is next updated — the order changed nothing. The region
+// is the box's always-rendered parent (calendar-lock-cards.js → `say` has the reasoning).
+test('every sign-in message box that hides while empty sits inside a live region, and is not one itself', () => {
+    const boxes = [['login-overlay.js', 'loginError'], ['login-overlay.js', 'loginStatus'], ['login-overlay.js', 'loginResetStatus'],
+        ['password-force.js', 'pwfError'], ['calendar-lock-cards.js', 'calLockMsg']];
+    for (const [file, id] of boxes) {
+        const m = codeOf(file).match(new RegExp(`<div ([^>]*)><div ([^>]*\\bid="${id}"[^>]*)></div></div>`));
+        assert.ok(m, `${file}: #${id} is not the only child of a wrapper — nothing is in the tree to hear it appear`);
+        assert.match(m[1], /aria-live="polite"/, `${file}: #${id}'s wrapper is not a live region`);
+        assert.doesNotMatch(m[2], /aria-live|role=/, `${file}: #${id} is a live region itself — hidden while empty, it cannot announce`);
+    }
+});
+
+// ── EVERY PAGE TIDIES AN EXPIRED SIGN-IN AWAY AS IT STARTS (sign-in check, 11 Nov 2026) ─────────────
+// A Firebase identity whose 60-day local session has ended must not stay live on a page reached by a
+// deep link. Each coordinator asks `reconcileExpiredIdentity` as it starts — with its DEFAULT, which signs
+// the staff PIN out too (AUTH_AND_SESSIONS 24) — except the Calendar's access gate, which admits the PIN
+// and asks it to keep a viewer. Deleting the call from Settings or Operations left every suite green.
+test('every page asks reconcileExpiredIdentity as it starts, and only the Calendar keeps a PIN viewer', () => {
+    for (const p of APP_PAGE_ENTRIES) {
+        const file = p.id === 'calendar' ? 'calendar-access.js' : p.coordinator;
+        const args = [...codeOf(file).matchAll(/\breconcileExpiredIdentity\(([^)]*)\)/g)].map(m => m[1].trim());
+        assert.ok(args.length > 0, `${file}: never asks reconcileExpiredIdentity — an expired identity stays live there`);
+        if (p.id === 'calendar') {
+            assert.ok(args.every(a => /preserveCalendarViewer:\s*true/.test(a)), `${file}: the Calendar must keep a PIN viewer (${args})`);
+        } else {
+            assert.deepEqual(args.filter(Boolean), [], `${file}: only the Calendar may ask to keep a PIN viewer (Trains asks holdsStaffPin first)`);
+        }
+    }
+});

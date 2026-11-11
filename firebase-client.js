@@ -22,7 +22,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
-import { runWithClaimRetry, abandonOnSignOut, runGatedWrite } from './claim-retry.js';
+import { runWithClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite } from './claim-retry.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -314,7 +314,7 @@ export function restoreMemberPersistence() { return _setMemberPersistence(); }
 export function setViewerPersistence() { return setPersistence(auth, browserSessionPersistence); }
 
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
+export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
@@ -697,8 +697,9 @@ export async function changeOwnPassword(memberName, newPassword) {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
     await updatePassword(user, newPassword);   // (A) the password is now genuinely changed
-    // (B) record migration — best-effort, must not undo (A), and never awaited here
-    const stamp = savePasswordSetAt(memberName).then(() => true,
+    // (B) record migration — best-effort, must not undo (A), and never awaited here. Counted until it lands,
+    // so no page's update reload can drop it (trackBackgroundWrite, claim-retry.js).
+    const stamp = trackBackgroundWrite(savePasswordSetAt(memberName)).then(() => true,
         (e) => { console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e); return false; });
     return { stamp };
 }
@@ -850,7 +851,7 @@ export async function requestPasswordReset(memberName) {
 
 /**
  * All outstanding password-reset requests, newest first (admin only — enforced by the rules).
- * @returns {Promise<Array<{memberName: string, requestedAt?: any, count?: number, provisioned?: boolean}>>}
+ * @returns {Promise<Array<{memberName: string, requestedAt?: any, count?: number, provisioned?: boolean, disabled?: boolean}>>}
  */
 export async function getResetRequests() {
     const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.resetRequests)));

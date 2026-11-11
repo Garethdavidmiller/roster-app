@@ -157,6 +157,39 @@ export function validateNewPassword(fullName, next, confirm) {
 }
 
 /**
+ * Which field a `validateNewPassword` refusal is ABOUT, so both surfaces send the caret there. Derived
+ * exactly, never from "the two boxes differ": a short new password with an empty Confirm box differs
+ * too, and Settings sent the caret to Confirm while its message spoke of the new one (sign-in check,
+ * 11 Nov 2026 — the forced change had its own exact copy since v18.94; this is now the one).
+ * @param {string} next  the new password, trimmed  @param {string} confirm  the confirmation, trimmed
+ * @returns {'new'|'confirm'}
+ */
+export function newPasswordProblemField(next, confirm) {
+    return next.length >= MIN_PASSWORD_LENGTH && next !== confirm ? 'confirm' : 'new';
+}
+
+/**
+ * What to say when CHANGING a password fails, and which field to return to — ONE ladder for Settings →
+ * Password and the forced change (sign-in check, 11 Nov 2026: the two copies had drifted apart). Each
+ * surface keeps only what is its own: `auth/requires-recent-login`, whose remedy differs by surface.
+ * Ordered by CAUSE, then by STAGE: a failure after re-authentication succeeded is never "current
+ * password incorrect", which sent members to an admin reset over a network blip.
+ * @param {string} code  the Firebase error code, '' for none
+ * @param {boolean} reauthed  whether re-authentication had already succeeded (or was not needed)
+ * @returns {{ message: string, focus: 'current'|'new'|null, escape?: true }}  `escape`: no retyping gets
+ *   past it — a rate limit, or no connection (a hang reads as one) — so the forced change offers its way out
+ */
+export function passwordChangeFailure(code, reauthed) {
+    if (code === 'auth/too-many-requests') return { message: 'Too many attempts — wait a few minutes and try again.', focus: null, escape: true };
+    if (code === 'auth/network-request-failed' || code === 'myb/timeout') return { message: 'Couldn’t connect — check your connection and try again.', focus: null, escape: true };
+    if (code === 'auth/weak-password') return { message: 'That password is too weak — choose a longer one.', focus: 'new' };
+    if (code === 'auth/missing-password') return { message: 'Enter your current password.', focus: 'current' };
+    if (!reauthed && isCredentialRejection(code)) return { message: 'Current password incorrect — try again, or ask the admin to reset it.', focus: 'current' };
+    if (!reauthed) return { message: 'Couldn’t verify your current password — try again shortly.', focus: null };
+    return { message: 'Your password wasn’t updated — try again shortly.', focus: null };
+}
+
+/**
  * Firebase Auth error codes that mean the supplied credentials are DEFINITIVELY wrong — as opposed to
  * a transient failure (network / rate-limit / provider outage / requires-recent-login). Only on one of
  * these should a candidate-ladder try the NEXT password: a non-credential failure must stop

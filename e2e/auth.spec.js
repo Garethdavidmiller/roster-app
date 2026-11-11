@@ -977,8 +977,12 @@ test('a focused sign-in field, and the picker\'s search box, wear the field ring
     await page.locator('#loginNameTrigger').click();
     const search = page.locator('.picker-search-input');
     await expect(search, 'premise: the CEA list is long enough to offer a filter').toBeVisible();
-    await search.focus();
-    expect(await search.evaluate(el => getComputedStyle(el).boxShadow), 'the picker\'s focused search box').toBe(await ringOf());
+    // Re-focused on every look (sign-in check, 11 Nov 2026): a lightbox moves focus into itself one frame
+    // after it opens (overlay.js), and on a loaded WebKit runner that landed AFTER this focus once,
+    // leaving the box unfocused. A box that never wears the ring still fails.
+    const ring = await ringOf();
+    await expect.poll(async () => { await search.focus(); return search.evaluate(el => getComputedStyle(el).boxShadow); },
+        { message: 'the picker\'s focused search box' }).toBe(ring);
 });
 
 // ── A SHORT LAPTOP WINDOW SHOWS THE WAY IN (desktop audit, Nov 2026) ────────────────────────────────

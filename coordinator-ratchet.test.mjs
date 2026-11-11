@@ -259,7 +259,11 @@ const CAPS = {
     // from 874 lines to 925. They sit beside `reconcileExpiredIdentity` and `shedCalendarViewer` on
     // purpose — when the PIN is kept and when it is shed must be answered in ONE module, because a
     // second home is a second place a bypass could be introduced. Measured 925, plus the headroom.
-    'session.js':              1000,
+    // 1000 → 1002 on 11 Nov 2026 (v25.78), a RAISE of wiring only: the sign-in fixes (v25.77) had
+    // filled the file to its cap, and the staff-PIN notice's RULE was EXTRACTED to staff-pin-ended.js
+    // rather than added here. What stays is its import and the one call made once the sign-out of
+    // the viewer has landed — which can only be made where that sign-out is.
+    'session.js':              1002,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four

@@ -121,7 +121,7 @@ export function init() {
         // No member — but the station PIN reads this page too (v24.84), so ask for it BEFORE offering a
         // sign-in: a station PC is not shown one, and keeps the PIN it unlocked the Calendar with. The
         // policy decides whether to ask at all, so dropping its flag also signs the PIN out here again.
-        const pin = admitsStaffPin('trains') ? holdsStaffPin() : reconcileExpiredIdentity().then(() => false);
+        const pin = admitsStaffPin('trains') ? holdsStaffPin(undefined, () => start(null)) : reconcileExpiredIdentity().then(() => false);
         pin.then((held) => { if (held) { start(null); return; } document.body.classList.add('auth-ready'); initLoginOverlay({
             pageLabel: 'Trains', about: SIGN_IN_ABOUT,   // the way in for the station PIN, which opens this page too (trains-render.js)
             // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.

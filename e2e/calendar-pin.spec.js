@@ -362,6 +362,50 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
     await expect(page.locator('#calendarLock')).toHaveCount(0);
 });
 
+test('a day panel open when access is lost closes with it — it does not stay over the lock card (sign-in check, 11 Nov 2026)', async ({ page }) => {
+    // The panel shows what only access may show, and until v25.77 the lock card went up UNDERNEATH it.
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailLightbox')).toHaveClass(/visible/);
+
+    // The month arrows are behind the open panel, so the loss is delivered the way a refused read
+    // delivers it: through the one call every route that loses access makes.
+    await page.evaluate(async () => {
+        const m = await import('./calendar-access.js');
+        m.handleAccessLost();
+    });
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/visible/);
+});
+
+test('Back from the PIN card the front door opened returns to the sign-in card, not out of the app (sign-in check, 11 Nov 2026)', async ({ page }) => {
+    await page.goto('/index.html');
+    await expect(page.locator('#loginPassword')).toBeVisible();
+    await page.locator('#loginAlternative').click();
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('#loginPassword')).toBeVisible();
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    expect(new URL(page.url()).pathname, 'Back left the page').toMatch(/\/(index\.html)?$/);
+});
+
+test('the front door\'s two other ways in take a 44px tap on a phone (sign-in check, 11 Nov 2026)', async ({ page }) => {
+    // "Use the staff PIN instead" and "Sign in instead" drew 36px tall — their padding alone — under the
+    // 44px target the stylesheet's own comment promised for them.
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/index.html');
+    const toPin = page.locator('#loginAlternative');
+    await expect(toPin).toBeVisible();
+    expect((await toPin.boundingBox())?.height ?? 0, '"Use the staff PIN instead"').toBeGreaterThanOrEqual(44);
+    await toPin.click();
+    const toSignIn = page.locator('#calLockSignIn');
+    await expect(toSignIn).toBeVisible();
+    expect((await toSignIn.boundingBox())?.height ?? 0, '"Sign in instead"').toBeGreaterThanOrEqual(44);
+});
+
 test('a month read that FAILS after the Calendar re-locked is not drawn as failed when the PIN is entered again', async ({ page }) => {
     // The read ticket (Calendar step 1, v25.72), through the real modules. A read that failed after a
     // re-lock, before anybody was back in, was checked against the grant number alone, and that does
@@ -912,6 +956,19 @@ test('a viewer opens Trains from the drawer and reads it, still unlocked when it
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     await expect(page.locator('#calendarLock')).toHaveCount(0);
     expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('Trains honours a PIN session that restores AFTER its check — the station is not left at a sign-in (sign-in check, 11 Nov 2026)', async ({ page }) => {
+    // The Calendar has honoured a late PIN session since cal-data-10; Trains asked once, within the
+    // 6.5s budget, and a station PC on a slow restore stood at the member sign-in for good.
+    await seedViewerAccess(page);
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 9000 }); });
+    await page.goto('/trains.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 9000 });   // the check's budget ran out first
+    await expect(page.locator('#loginOverlay')).toHaveCount(0, { timeout: 8000 });
+    await expect(page.locator('#trControls')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanelMember')).toHaveText('Staff PIN access');
 });
 
 test('Lock on the Trains page locks the station: the PIN card, and Trains asks for a sign-in again', async ({ page }) => {

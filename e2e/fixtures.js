@@ -573,7 +573,11 @@ export const browserSessionPersistence = marker('session');
 // state in a browser: the deadline passes, the UI must say it could not confirm, and then the
 // original call settles late — the case that used to be reported as a flat failure.
 // NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
+// window.__E2E.updateFailCode makes the password WRITE refuse with that code at once (sign-in check,
+// 11 Nov 2026): a failure AFTER re-authentication, which must never read as a wrong current password.
 export const updatePassword = () => {
+  const failCode = (globalThis.__E2E || {}).updateFailCode;
+  if (failCode) return Promise.reject(Object.assign(new Error('e2e update refused'), { code: failCode }));
   if (!(globalThis.__E2E || {}).hangPasswordWrite) return Promise.resolve();
   return new Promise((resolve, reject) => {
     globalThis.__E2E_releasePasswordWrite = (ok) => (ok === false
@@ -581,7 +585,16 @@ export const updatePassword = () => {
       : resolve());
   });
 };
-export const reauthenticateWithCredential = () => Promise.resolve({ user: { uid: 'test' } });
+// window.__E2E.reauthFailCode makes re-authentication REFUSE with that code (sign-in check, 11 Nov 2026):
+// the only way to reach "Current password incorrect" on a page under the stub. (No backticks here.)
+// window.__E2E.reauthDelayMs holds its answer back N ms (review, 11 Nov 2026), so a spec can act while it is out.
+export const reauthenticateWithCredential = () => {
+  const e2e = globalThis.__E2E || {};
+  const answer = () => (e2e.reauthFailCode
+    ? Promise.reject(Object.assign(new Error('e2e reauth refused'), { code: e2e.reauthFailCode }))
+    : Promise.resolve({ user: { uid: 'test' } }));
+  return e2e.reauthDelayMs ? new Promise(r => setTimeout(r, e2e.reauthDelayMs)).then(answer) : answer();
+};
 export const EmailAuthProvider = { credential: (email, password) => marker('cred:' + email + ':' + password) };
 
 // ---- storage (only operations upload uses these; included for completeness) ----

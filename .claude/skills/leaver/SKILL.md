@@ -71,5 +71,10 @@ and the account is **disabled, never deleted**. Full reasoning: OPERATIONS_REFER
 ## Returning staff
 
 Reverse it — unset `hidden`, regenerate, deploy, then Set up accounts, which **re-enables** the
-disabled account rather than creating a second one and re-applies their claim tier. A returning
-secondment usually also wants `startDate` and `noProRate: true`; see `/new-starter`.
+disabled account rather than creating a second one and re-applies their claim tier. **It never hands
+it back as it was**: the password goes back to their surname default, every other device is signed
+out, and the push records left on it are removed, exactly as an admin reset does — only then is it
+enabled, and Set up accounts lists them under "Reset to the default password and signed out". So
+tell them to sign in with their surname; the app then asks them to choose a new password. Until that
+run, Reset refuses the account as disabled and says so. A returning secondment usually also wants
+`startDate` and `noProRate: true`; see `/new-starter`.

@@ -2722,3 +2722,39 @@ describe('the calendarViewer claim is believed only on a custom-token session', 
         }
     });
 });
+
+// ── THE COUNTER WINDOW AT ANY DATE (sign-in check, 11 Nov 2026) ─────────────────────────────────────
+// isCounterMonth (v25.65) reads `int(month[5:7])`, and every month it has met so far is 10, 11 or 12:
+// nothing has yet asked it about a zero-padded month, or about a window across a year end, and the
+// emulator's clock cannot be set. So the REAL function is lifted out of firestore.rules and run against a
+// clock the test supplies. The one substitution is `request.time` → a field of the written document.
+describe('isCounterMonth at any date — zero-padded months and the year end', () => {
+    /** @type {any} */ let probeEnv;
+    before(async () => {
+        const fn = readFileSync(join(__dir, 'firestore.rules'), 'utf8').match(/function isCounterMonth\(month\) \{[\s\S]*?\n\s*\}/)?.[0];
+        assert.ok(fn, 'isCounterMonth was not found in firestore.rules');
+        const lifted = fn.replaceAll('request.time', 'request.resource.data.at');
+        assert.notEqual(lifted, fn, 'isCounterMonth no longer reads request.time — update this probe');
+        probeEnv = await initializeTestEnvironment({ projectId: 'demo-counter-month', firestore: { rules:
+            `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{db}/documents {\n${lifted}\n` +
+            `    match /probe/{id} { allow write: if isCounterMonth(request.resource.data.m); }\n  }\n}\n` } });
+    });
+    after(async () => { await probeEnv?.cleanup(); });
+    const write = (/** @type {string} */ m, /** @type {string} */ at) =>
+        setDoc(doc(probeEnv.unauthenticatedContext().firestore(), 'probe', 'x'), { m, at: Timestamp.fromDate(new Date(at)) });
+
+    test('a zero-padded month is read as its number', async () => {
+        await assertSucceeds(write('2027-01', '2027-01-15T12:00:00Z'));
+        await assertSucceeds(write('2027-09', '2027-08-15T12:00:00Z'));   // next month
+        await assertSucceeds(write('2027-08', '2027-09-15T12:00:00Z'));   // last month
+        await assertFails(write('2027-03', '2027-01-15T12:00:00Z'));      // two ahead
+        await assertFails(write('2027-06', '2027-08-15T12:00:00Z'));      // two behind
+    });
+
+    test('the window crosses a year end in both directions', async () => {
+        await assertSucceeds(write('2027-01', '2026-12-15T12:00:00Z'));   // next month, next year
+        await assertSucceeds(write('2026-12', '2027-01-15T12:00:00Z'));   // last month, last year
+        await assertFails(write('2026-11', '2027-01-15T12:00:00Z'));
+        await assertFails(write('2027-02', '2026-12-15T12:00:00Z'));
+    });
+});

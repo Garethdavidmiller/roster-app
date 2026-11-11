@@ -39,8 +39,8 @@ export function getAuthSnapshot() {
  * isolated (logged, never breaks dispatch or other listeners).
  *
  * NOTHING IN PRODUCTION SUBSCRIBES: every page decides once, from `getAuthSnapshot()`, and its
- * tests are the only callers. It is kept for the single-owner auth shell, which is future work
- * (AUTH_ARCHITECTURE.md) — so do not read a page as reacting to a later change of state.
+ * tests are the only callers. It is the store's documented API (AUTH_ARCHITECTURE.md), which no page
+ * has needed — so do not read a page as reacting to a later change of state.
  * @param {(s: AuthState) => void} listener
  * @returns {() => void}
  */

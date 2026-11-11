@@ -3345,7 +3345,7 @@ button.nav-panel-link--notices {
 button.login-back {
     background: none;
     border: none;
-    padding: 10px 8px;
+    padding: 10px 8px; min-height: 44px;   /* the padding alone drew 36px (sign-in check, 11 Nov 2026) */
     font-family: inherit;
     font-weight: 600;
     text-decoration: underline;

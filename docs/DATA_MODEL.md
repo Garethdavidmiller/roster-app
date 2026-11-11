@@ -139,12 +139,19 @@ count        int — asks since the admin last cleared the row (so "asked 3 time
 provisioned  boolean — whether a Firebase account exists at all. false ⇒ the remedy is Set up
              accounts, NOT Reset. The login overlay must never distinguish these two (it would leak
              which names are provisioned); the admin's own card has no such constraint.
+disabled     boolean — the account exists but is disabled (a leaver's, or one brought back since the
+             last Set up accounts). A reset is refused for it; the remedy is Set up accounts, which
+             re-enables it. Written beside `provisioned`, and absent with it when the lookup failed.
 notifiedAt   Firestore server timestamp — when a push about this row was last ACCEPTED by at least
              one of the admin's subscriptions. Written only after `sendTargetedPush` reports a
              non-zero count, and read only by the global coalescing decision, which asks "was the
              admin actually reached inside the window?" — never "did another request arrive?",
              which would let a first push that failed silence a second member's real request for
              the rest of the window. Absence fails OPEN (notify).
+notifyClaimedAt Firestore server timestamp — this row's request is SENDING the admin push now. Set in
+             the same transaction that reads every row's `notifiedAt`, so one request in a burst
+             claims and the rest coalesce; deleted when the send ends, and ignored once older than
+             `ADMIN_NOTIFY_CLAIM_MS`, so a sender that died cannot hold the queue.
 ```
 **Doc ID = the member name, deliberately:** the collection can therefore never exceed the roster size,
 so flooding a public endpoint is impossible BY CONSTRUCTION rather than by rate limiting.

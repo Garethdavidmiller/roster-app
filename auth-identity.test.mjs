@@ -12,7 +12,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection, sessionPredatesReset, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled,
-         validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
+         validateNewPassword, MIN_PASSWORD_LENGTH, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 
 /** Firestore Timestamp-like stub: an object exposing toMillis(). */
 const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms });
@@ -194,6 +194,74 @@ describe('validateNewPassword', () => {
 
 // The rule behind "a reset signs other devices out" (Oct 2026 production review): it is only as
 // strong as its refusals, so every way it could wave a stale device through is pinned.
+// WHICH BOX THE CARET GOES BACK TO (sign-in check, 11 Nov 2026). Settings used to send it to Confirm
+// whenever the two boxes differed, so a too-short new password with Confirm still empty left the caret
+// in Confirm under a message about the NEW password. Tied to validateNewPassword's own messages, so a
+// reordered rule cannot leave the caret pointing at the wrong box.
+describe('newPasswordProblemField — the caret follows the refusal', () => {
+    const NAME = 'L. Springer';
+    const cases = [
+        ['short', ''],                // too short, Confirm empty — the reported case
+        ['short', 'short'],           // too short and matching
+        ['longenough1', ''],          // long enough, Confirm empty — a mismatch
+        ['longenough1', 'longenough2'],
+        ['springer', 'springer'],     // matching, refused as the surname
+        ['Springer!!', 'Springer!!'],
+    ];
+    for (const [next, confirm] of cases) {
+        test(`"${next}" / "${confirm}"`, () => {
+            const message = validateNewPassword(NAME, next, confirm);
+            assert.ok(message, 'fixture check: every case is refused');
+            const expected = /match/.test(message) ? 'confirm' : 'new';
+            assert.equal(newPasswordProblemField(next, confirm), expected, message);
+        });
+    }
+});
+
+// ONE LADDER FOR BOTH PASSWORD SURFACES (sign-in check, 11 Nov 2026). The order is the content: by
+// cause first, then by STAGE — a failure after re-authentication succeeded is never "incorrect".
+describe('passwordChangeFailure — what a failed password change says, and where the caret goes', () => {
+    test('a wrong current password, before re-authentication, says so and returns to it', () => {
+        for (const code of ['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials']) {
+            const r = passwordChangeFailure(code, false);
+            assert.match(r.message, /Current password incorrect/, code);
+            assert.equal(r.focus, 'current', code);
+        }
+    });
+    test('the same code AFTER re-authentication succeeded is not blamed on the current password', () => {
+        const r = passwordChangeFailure('auth/invalid-credential', true);
+        assert.doesNotMatch(r.message, /incorrect/);
+        assert.equal(r.message, 'Your password wasn’t updated — try again shortly.');
+        assert.equal(r.focus, null);
+    });
+    test('an unknown failure before re-authentication is a verification failure, not a wrong password', () => {
+        const r = passwordChangeFailure('auth/internal-error', false);
+        assert.equal(r.message, 'Couldn’t verify your current password — try again shortly.');
+        assert.equal(r.focus, null);
+    });
+    test('the network, a time limit and a rate limit say what happened, whatever the stage', () => {
+        for (const reauthed of [false, true]) {
+            assert.match(passwordChangeFailure('auth/network-request-failed', reauthed).message, /Couldn’t connect/);
+            assert.match(passwordChangeFailure('myb/timeout', reauthed).message, /Couldn’t connect/);
+            assert.match(passwordChangeFailure('auth/too-many-requests', reauthed).message, /Too many attempts/);
+        }
+    });
+    test('only a failure no retyping gets past offers the forced change its way out (review, 11 Nov 2026)', () => {
+        for (const reauthed of [false, true]) {
+            for (const code of ['auth/too-many-requests', 'auth/network-request-failed', 'myb/timeout']) {
+                assert.equal(passwordChangeFailure(code, reauthed).escape, true, code);
+            }
+            for (const code of ['auth/weak-password', 'auth/missing-password', 'auth/invalid-credential', 'auth/internal-error', '']) {
+                assert.equal(passwordChangeFailure(code, reauthed).escape, undefined, `${code || 'no code'} trapped nobody`);
+            }
+        }
+    });
+    test('a weak new password returns to New; a missing current one to Current', () => {
+        assert.equal(passwordChangeFailure('auth/weak-password', true).focus, 'new');
+        assert.equal(passwordChangeFailure('auth/missing-password', false).focus, 'current');
+    });
+});
+
 describe('sessionPredatesReset', () => {
     test('never reset → never refused', () => {
         assert.equal(sessionPredatesReset(1000, 0), false);

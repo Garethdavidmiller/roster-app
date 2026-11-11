@@ -929,7 +929,7 @@ exports.unlockCalendarViewer = onRequest(
         // Never cached anywhere — the response carries a credential.
         res.set('Cache-Control', 'no-store');
 
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+        if (req.method !== 'POST') return req.method === 'GET' ? res.status(204).end() : res.status(405).json({ error: 'Method not allowed' });
 
         const now       = Date.now();
         const sourceKey = sourceKeyFor(clientIpOf(req));
