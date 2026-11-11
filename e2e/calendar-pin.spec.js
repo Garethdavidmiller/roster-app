@@ -814,7 +814,7 @@ test('a normal boot never shows the skeleton at all', async ({ page }) => {
 
 // ── Privilege isolation ─────────────────────────────────────────────────────────────────────────
 
-for (const [label, url] of [['Admin', '/admin.html'], ['Settings', '/settings.html']]) {
+for (const [label, url] of [['Admin', '/admin.html'], ['Settings', '/settings.html'], ['Pay', '/paycalc.html']]) {
     test(`a viewer navigating to ${label} still has to sign in as a member`, async ({ page }) => {
         // The viewer holds a Firebase identity, so a page that merely checked "is anyone signed in?"
         // would let it through. These pages check for a MEMBER, and this proves they still do.
@@ -827,6 +827,63 @@ for (const [label, url] of [['Admin', '/admin.html'], ['Settings', '/settings.ht
         await expect(page.locator('#loginOverlay')).toBeVisible();
     });
 }
+
+// ── WHAT THE VIEWER IS TOLD THERE (v25.77 — owner, 11 Nov 2026) ─────────────────────────────────
+//
+// Those pages still sign the PIN out (above) — the rule did not move. What changed is that it used to
+// happen in silence: the card said nothing, and "← Back to roster" found the roster locked again. Now
+// the card says so, and its way back opens the Calendar on the PIN BOX (`#staff-pin`), the box they
+// were using a moment ago. `#calLockPin` visible with no sign-in card is the proof of the landing:
+// `enterPin` would reach the box either way, so it cannot be what shows it. Both ways back are
+// covered, one per page: the link (Admin) and Escape (Pay), which follows wherever the link goes.
+for (const [label, pill, url, way] of [['Admin', 'admin', /admin\.html/, 'link'], ['Pay', 'pay', /paycalc\.html/, 'Escape']]) {
+    test(`a viewer who opens ${label} from the menu is told the PIN has ended, and the way back (${way}) opens the PIN box`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await stubPinExchange(page);
+        await page.goto('/index.html');
+        await enterPin(page, '1234');
+        await expect(page.locator('#calendarDisplay')).toBeVisible();
+        await page.locator('#navMenuBtn').click();
+        await page.locator(`#navPanel .nav-panel-pill--${pill}`).click();
+
+        await expect(page).toHaveURL(url);
+        await expect(page.locator('#loginNotice')).toHaveText(
+            'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.');
+        await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './#staff-pin');
+
+        if (way === 'link') await page.locator('#loginCard a.login-back').click();
+        else await page.locator('#loginPassword').press('Escape');
+        await expect(page.locator('#calLockPin')).toBeVisible();
+        await expect(page.locator('#loginCard')).toHaveCount(0);
+        await enterPin(page, '1234');
+        await expect(page.locator('#calendarDisplay')).toBeVisible();
+        expect(errors, errors.join('\n')).toEqual([]);
+    });
+}
+
+test('a visitor who never held the PIN is told nothing about it, and the way back is the roster', async ({ page }) => {
+    // The guard on the line above's other side: a card that always said it would pass every test there.
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    // The teardown that would set the line waits for the boot restore; the viewer's case shows it in
+    // well under a second here, so two seconds of nothing is the answer, not a race.
+    await page.waitForTimeout(2000);
+    await expect(page.locator('#loginNotice')).toBeEmpty();
+    await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './');
+});
+
+test("Admin's sign-in card says what Admin is for, and that the PIN does not open it — in Pay's words", async ({ page }) => {
+    // The clause is shared on purpose: a station reaches both pages from one menu (admin-app.js →
+    // ADMIN_SIGN_IN_ABOUT). If one card is reworded, this asks for the other to follow.
+    const clause = "so you sign in as yourself — the staff PIN doesn't open it.";
+    for (const url of ['/admin.html', '/paycalc.html']) {
+        await page.goto(url);
+        await expect(page.locator('#loginAbout'), url).toContainText(clause);
+    }
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginAbout')).toContainText('Record your annual leave, absences and shift changes, so they show on the Calendar.');
+    await expect(page.locator('#loginFootnote')).toHaveText('On a shared screen, sign out from the menu when you finish.');
+});
 
 // The one protected page the PIN may read (v24.84, owner, 22 Oct 2026). The loop above is the other
 // half and stays: Admin and Settings still sign the PIN out, and only auth-policy's `staffPin` flag

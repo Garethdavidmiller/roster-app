@@ -148,7 +148,7 @@ const {
     getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
     ensureNamedSession, isTransientAuthError, refreshClaimsIfStale, primeAuth,
-    reconcileExpiredIdentity, shedCalendarViewer,
+    reconcileExpiredIdentity, shedCalendarViewer, onStaffPinEnded,
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
@@ -556,6 +556,34 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(_signOutCalled, false);
     });
 
+    // ── WHAT IT REPORTS (v25.77) ──────────────────────────────────────────────────────────────
+    //
+    // The page's sign-in card says "the roster is locked again" when arriving ended the staff PIN
+    // (login-overlay.js → `sayStaffPinEnded`), and hears it through `onStaffPinEnded`. Saying it to
+    // somebody whose MEMBER identity was ended instead would be untrue: they never had the PIN.
+    // ORDER MATTERS in this file: the signal is sticky for the module's life (a page's life, in the
+    // browser), so this test must run before the first viewer teardown in the block below.
+    test('ending a MEMBER\'s lingering identity reports "ended" — and is not the staff PIN', async () => {
+        let told = 0;
+        const stop = onStaffPinEnded(() => { told += 1; });
+        auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
+        assert.equal(await reconcileExpiredIdentity(), 'ended');
+        await Promise.resolve();
+        assert.equal(told, 0, 'a member whose session expired never had the PIN; the card must not say it ended');
+        stop();
+    });
+
+    test('nothing to end reports "kept": a valid session, an anonymous identity, no user', async () => {
+        auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: 'g.miller@myb.test' });
+        store.set(AUTH_KEY, validSession());
+        assert.equal(await reconcileExpiredIdentity(), 'kept');
+        store.clear();
+        auth.currentUser = /** @type {any} */ ({ isAnonymous: true });
+        assert.equal(await reconcileExpiredIdentity(), 'kept');
+        auth.currentUser = null;
+        assert.equal(await reconcileExpiredIdentity(), 'kept');
+    });
+
     // ── preserveCalendarViewer: the DEFAULT is the security half (v20.12) ──────────────────────
     //
     // The shared Calendar viewer is a non-anonymous Firebase identity with NO local session by
@@ -576,6 +604,50 @@ describe('reconcileExpiredIdentity', () => {
     // above call bare all the time, but always with a named identity, where the flag cannot bite.
     const viewerUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false, email: null };
 
+    // These two run BEFORE any other viewer teardown here, because what they watch is sticky (see
+    // "WHAT IT REPORTS" above): the first is the only moment a card can be waiting rather than late.
+    test('a sign-out that FAILS ends nothing: "kept", and no card is told the roster is locked', async () => {
+        let told = 0;
+        const stop = onStaffPinEnded(() => { told += 1; });
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        _signOutBehavior = 'auth/network-request-failed';
+        try {
+            assert.equal(await reconcileExpiredIdentity(), 'kept', 'the PIN is still held, so nothing ended');
+        } finally { _signOutBehavior = 'ok'; }
+        await Promise.resolve();
+        assert.equal(told, 0, 'the roster is still open behind them; saying it is locked would be untrue');
+        stop();
+    });
+
+    test('ending the PIN reports "ended-staff-pin" and tells the card — waiting, or mounted after', async () => {
+        let waiting = 0;
+        const stopWaiting = onStaffPinEnded(() => { waiting += 1; });   // the card is up first: the usual order
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        assert.equal(await reconcileExpiredIdentity(), 'ended-staff-pin');
+        assert.equal(waiting, 1, 'a card already up hears it when the teardown lands, once');
+
+        // A card mounted AFTER the teardown still hears it — on a microtask, never inside the subscribe.
+        let late = 0;
+        onStaffPinEnded(() => { late += 1; });
+        assert.equal(late, 0, 'never synchronously inside the call that subscribed');
+        await Promise.resolve();
+        assert.equal(late, 1);
+
+        // …and a card gone before that microtask (signed in, rebuilt) is not called at all.
+        let gone = 0;
+        const stopGone = onStaffPinEnded(() => { gone += 1; });
+        stopGone();
+        await Promise.resolve();
+        assert.equal(gone, 0, 'unsubscribing must cancel a call already queued');
+
+        // The waiting card was told once and is not told again by a later teardown.
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity();
+        await Promise.resolve();
+        assert.equal(waiting, 1, 'each card is told once');
+        stopWaiting();
+    });
+
     test('the DEFAULT sheds the shared viewer — a bare call is a protected page, not the Calendar', async () => {
         auth.currentUser = /** @type {any} */ (viewerUser);
         // store empty → no local session, which is the viewer's permanent condition
@@ -595,7 +667,7 @@ describe('reconcileExpiredIdentity', () => {
     test('only the Calendar\'s opt-in keeps it — and only for the viewer itself', async () => {
         // The visible direction, pinned so a fix for the above cannot be "never preserve".
         auth.currentUser = /** @type {any} */ (viewerUser);
-        await reconcileExpiredIdentity({ preserveCalendarViewer: true });
+        assert.equal(await reconcileExpiredIdentity({ preserveCalendarViewer: true }), 'kept');
         assert.equal(_signOutCalled, false, 'the Calendar would otherwise re-demand the PIN on every open');
 
         // …and the opt-in is scoped to the viewer UID. A named identity whose session has expired is

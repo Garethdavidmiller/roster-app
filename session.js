@@ -862,11 +862,13 @@ export async function shedCalendarViewer() {
  *   and can never masquerade as a member. Do not make preserving it the default to "simplify" this:
  *   the whole value of the flag is that it is opt-in, per page, at the pages that want it — the ones
  *   whose policy says `staffPin: true` (auth-policy.js).
- * @returns {Promise<void>}
+ * @returns {Promise<'kept' | 'ended' | 'ended-staff-pin'>}  What it did — nothing (or it stood down, or
+ *   the sign-out failed), a member's identity, or the staff PIN. Pages ignore it; the sign-in card
+ *   hears about the PIN through `onStaffPinEnded` below.
  */
 export async function reconcileExpiredIdentity({ preserveCalendarViewer = false } = {}) {
     const gen = _authGen;
-    try { await authReady; } catch { return; }
+    try { await authReady; } catch { return 'kept'; }
     // `authReady` only guarantees persistence is SET — on a COLD restore the IndexedDB-persisted user
     // has not loaded yet, so reading auth.currentUser right here can be `null` and MISS a lingering
     // identity entirely (it would then survive that whole page load). Resolve the first restore
@@ -875,19 +877,52 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
     // what lets reconcile run reliably from a protected page opened by a direct deep-link, not just
     // the calendar (review item 7). Skip the restore wait if a newer login/logout already superseded us.
     const u = auth.currentUser || (gen === _authGen ? await restoreFirstAuthUser().catch(() => null) : null);
-    if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
-    if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
-    if (preserveCalendarViewer && isViewerUser(u)) return;   // the staff PIN, on a page that admits it — see the JSDoc
+    if (gen !== _authGen) return 'kept';                    // a login/logout now owns the identity — stand down
+    if (!u || u.isAnonymous || getSession()) return 'kept'; // no lingering NAMED identity, or a valid session exists
+    const staffPin = isViewerUser(u);
+    if (preserveCalendarViewer && staffPin) return 'kept';  // the staff PIN, on a page that admits it — see the JSDoc
     // Release this device's push record FIRST, while the expired member is still the identity — the
     // delete is theirs to make, and after the sign-out nobody can (whole-app review, Oct 2026).
     await releasePushForEndingHold();
-    if (gen !== _authGen || getSession()) return;    // a login landed while the release ran
+    if (gen !== _authGen || getSession()) return 'kept';    // a login landed while the release ran
     try {
         await firebaseSignOut(auth);
         console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');
     } catch (err) {
+        // Still signed in, so nothing ended: "the roster is locked again" would be untrue.
         console.warn('[Auth] expired-identity signOut failed:', /** @type {any} */ (err)?.message);
+        return 'kept';
     }
+    if (!staffPin) return 'ended';
+    _staffPinEndedHere = true;   // and tell each card already waiting, once (`onStaffPinEnded`)
+    const waiting = [..._staffPinEndedListeners];
+    _staffPinEndedListeners.clear();
+    for (const fn of waiting) {
+        try { fn(); } catch (err) { console.warn('[Auth] a staff-PIN listener failed:', /** @type {any} */ (err)?.message); }
+    }
+    return 'ended-staff-pin';
+}
+
+// ── THE STAFF PIN, ENDED BY ARRIVING (v25.77 — owner, 11 Nov 2026). The sign-out above is the rule
+// and stays (AUTH_AND_SESSIONS 24); its silence was the fault. The page's sign-in card now says so
+// (login-overlay.js → `sayStaffPinEnded`) and hears it HERE, the one place the PIN ends without anyone
+// asking — not a Lock, the visitor's own act, and not a member's expired identity. STICKY for the
+// page's life: the card can be up before the teardown lands, or be mounted after it.
+let _staffPinEndedHere = false;
+/** @type {Set<() => void>} */
+const _staffPinEndedListeners = new Set();
+
+/**
+ * Run `fn` once if arriving on THIS page ended the shared staff PIN: when it happens, or on a
+ * microtask if it already has.
+ * @param {() => void} fn
+ * @returns {() => void}  Unsubscribe — also stops a call already queued.
+ */
+export function onStaffPinEnded(fn) {
+    if (!_staffPinEndedHere) { _staffPinEndedListeners.add(fn); return () => { _staffPinEndedListeners.delete(fn); }; }
+    let live = true;
+    queueMicrotask(() => { if (live) fn(); });
+    return () => { live = false; };
 }
 
 /**

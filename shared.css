@@ -3352,9 +3352,9 @@ button.login-back {
     cursor: pointer;
 }
 button.login-back:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
-/* The one-line reason the card is up (an expired session). A hint, standing alone above the fields,
-   so it carries the gap `.login-field` would otherwise give it. */
-.login-notice { margin: 0 0 18px; text-align: center; }
+/* Why the card is up (login-overlay.js): EMPTY until filled, taking no room, so a late notice is announced. Left: it wraps. */
+.login-notice { margin: 0 0 18px; text-align: left; }
+.login-notice:empty { margin: 0; }
 /* A page's own explanation on its sign-in card (login-overlay.js → `about`, v25.50 — the Pay
    Calculator's): what the page is and who it is for, so a visitor it will not serve learns that from
    the card. The SUNKEN rung of the three-surface model, so it reads as context for the form rather

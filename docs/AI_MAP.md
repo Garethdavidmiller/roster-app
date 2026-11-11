@@ -823,6 +823,9 @@ admin modules. `init()` is invoked by `admin-boot.js`.
   not move them into those init functions.
 - The `fieldMember` and `fieldDate` handlers keep the AL, Absence and Change a Shift cards on one member
   (`_followMember`); "Recording for <name>" (`_syncMemberFor`) shows to managers and the admin only.
+- Its sign-in card explains the page (`ADMIN_SIGN_IN_ABOUT`, the Pay Calculator's arrangement): what Admin
+  records, that it needs the reader's own sign-in because the staff PIN does not open it — Pay's clause
+  word for word — and, for a shared screen, to sign out from the menu afterwards.
 - The AL over-entitlement confirm bar calls `triggerConfirmedALSave()` (`admin-al.js`). The recorded-dates
   list is `admin-booked-periods.js`; this file wires it (`updateALBookedBox`, `updateSickBookedBox`,
   `deletePeriodOverrides`).
@@ -958,6 +961,11 @@ designer-only Links) stays with each coordinator, after sign-in.
   exported so the unit suite drives that exact wiring through the real `session.js`.
 - `dismissLoginOverlay()` — removes the card, and releases the scroll lock only if it was the modal one
   (an inline card never took it); safe to call unconditionally on a coordinator's authorised path.
+- **When arriving ended the staff PIN** (v25.77): the modal card carries an empty status line from the
+  start, so a notice written later is announced. `onStaffPinEnded` (session.js) has it say that the PIN
+  only opens the Calendar and Trains, so the roster is locked again, and points the way back — the link
+  and Escape alike — at the Calendar's PIN box (`./#staff-pin`, `PIN_FIRST_HASH`). The inline card never
+  asks: the Calendar never ends the PIN. The words and the landing are checked in `e2e/calendar-pin.spec.js`.
 - `isAboutLinkAllowed(href)` — PURE: whether an `about` link may go on the card — a same-origin relative
   path (`./…`) only, never an absolute, protocol-relative or `javascript:` URL. `fillAbout` drops a refused
   link silently, so the rule is unit-tested rather than read (`login-overlay.test.mjs`).
@@ -1057,7 +1065,8 @@ The shared session and sign-in module: the local session, the Firebase Auth sign
 - `sessionReady` / `resolveSession(result)` — the page's one-shot "session settled" promise. The coordinator resolves it exactly once; feature modules await it.
 - `refreshClaimsIfStale(epoch)` — one forced ID-token refresh per device per claim-epoch bump.
 - `shedCalendarViewer()` — drops the shared PIN viewer before a member signs in. **Signing out BEFORE restoring member persistence is the security property** (`setPersistence` would move the viewer into IndexedDB; proven both ways in `experiments/viewer-persistence-proof/`); throws when it cannot confirm the viewer has gone (AUTH_AND_SESSIONS.md invariant 8).
-- `reconcileExpiredIdentity({ preserveCalendarViewer? })` — signs out a named Firebase identity whose local session has gone. Every protected coordinator calls it at init. Only the pages that admit the PIN keep the viewer (the Calendar's `resolveAccess`, and `holdsStaffPin` elsewhere) — never make preserving it the default.
+- `reconcileExpiredIdentity({ preserveCalendarViewer? })` → `'kept' | 'ended' | 'ended-staff-pin'` — signs out a named Firebase identity whose local session has gone. Every protected coordinator calls it at init and ignores the answer (the tests read it). Only the pages that admit the PIN keep the viewer (the Calendar's `resolveAccess`, and `holdsStaffPin` elsewhere) — never make preserving it the default.
+- `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once if arriving on THIS page ended the staff PIN: when the teardown lands, or on a microtask if it already has (sticky for the page's life). Only `reconcileExpiredIdentity` signing out the viewer counts — not a Lock, not a member's expired identity, not a sign-out that failed. Its one reader is the sign-in card (`login-overlay.js`).
 - `holdsStaffPin(budgetMs?)` — does this browser hold the station PIN, and keep it? For a page other than the Calendar whose policy admits the PIN (`admitsStaffPin`); a local member session answers `false`. Its budget, `ACCESS_DECISION_BUDGET_MS`, is shared with calendar-access.js's `resolveAccess`.
 - `signOutStaffPin()` — the drawer's Lock on such a page; throws if the viewer is still current, and never touches a member.
 - Imported by every protected coordinator and many feature modules; grep for the import rather than trusting a list. Tested by `session.test.mjs`.

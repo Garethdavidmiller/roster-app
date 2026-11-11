@@ -232,7 +232,10 @@ const CAPS = {
     // is clamped to the round number below the old one. 26 lines of room rather than the usual
     // 50–99, which is the honest cost of shrinking a file by less than the band is wide.
     // 1700 → 1731 on 7 Nov 2026 (iPhone audit), a RAISE: the week draft's wiring and the re-read on return; the rules went to unsaved-draft.js, admin-week-row-state.js and page-session.js.
-    'admin-app.js':            1731,
+    // 1731 → 1744 on 11 Nov 2026 (v25.77), a RAISE: the sign-in card's explanation, `ADMIN_SIGN_IN_ABOUT` — words
+    // handed to login-overlay.js, with no rule in them to extract, and no module of Admin's about its sign-in to hold
+    // them (Pay's sit beside its role card). Set at the measured size: the room was 2 lines, and stays spent.
+    'admin-app.js':            1744,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
