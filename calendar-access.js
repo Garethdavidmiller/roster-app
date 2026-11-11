@@ -8,6 +8,8 @@
  * Does NOT own: the RULES (calendar-access-core.js — pure, tested in Node), override fetching
  *   (calendar-overrides.js), any rendering (calendar-renderer.js / calendar-app.js), or named
  *   member authentication (session.js, which remains the sole authority on who the member is).
+ *   Nor the ANSWER once decided: whether access is held is kept ONCE, in calendar-access-state.js,
+ *   which this module WRITES (`grant`, `handleAccessLost`) and the two gates read (v25.74).
  * Edit here for: unlock UI wiring, the exchange call, the access bootstrap order.
  *
  * ── THE POINT OF THE WHOLE MODULE ───────────────────────────────────────────────────────────────
@@ -76,6 +78,7 @@ import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.
 // hands them the four collaborators they cannot import back without a cycle.
 import { initLockCards, resetUnlockFailures, hideLockPanel, showLockPanel, showSignInPanel,
          showMemberPanel, dismissSignInForm, PIN_FIRST_HASH } from './calendar-lock-cards.js';
+import { hasCalendarAccess, setCalendarAccess } from './calendar-access-state.js';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
 const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer';
@@ -90,8 +93,21 @@ const UNLOCK_TIMEOUT_MS = 15000;
 // `resolveAccess` waits for shares it, so a wedged auth layer costs it once. Past it the answer is
 // `none`, a card, which is recoverable — and the late-identity watcher corrects it when an identity lands.
 
-/** @type {'named'|'viewer'|'none'} */
-let _accessType = 'none';
+/**
+ * WHICH access the grant in force is: the kind, and only the kind (Calendar step 2, v25.74).
+ *
+ * Whether access is HELD is not kept here. That is `hasCalendarAccess()`, the one copy the roster
+ * and document gates read too (calendar-access-state.js), so this module cannot report `named` or
+ * `viewer` over gates that have shut: `getAccessType` asks the state every time. Until v25.74 a
+ * `'none'` lived in this variable as well, a third copy of the same fact.
+ *
+ * Null until the first grant, and again once this module has put a lock card up for an access that
+ * has gone. That second null is what `handleAccessLost` goes by. A refused month read shuts the
+ * state BEFORE it calls here (calendar-overrides.js), so by then the state can no longer say which
+ * card is owed — the member's own, or the PIN — or whether one is already up.
+ * @type {'named'|'viewer'|null}
+ */
+let _grantedAs = null;
 /** @type {(() => void)|null} */
 let _resolveAccess = null;
 /** @type {(() => void)|null} */
@@ -134,11 +150,12 @@ export const calendarAccessReady = /** @type {Promise<void>} */ (new Promise(res
  */
 export const calendarAuthReady = /** @type {Promise<void>} */ (new Promise(resolve => { _resolveAuth = () => resolve(); }));
 
-/** @returns {'named'|'viewer'|'none'} the access this browser currently holds. */
-export function getAccessType() { return _accessType; }
+/** @returns {'named'|'viewer'|'none'} the access this browser currently holds — `none` the moment
+ *  the state shuts, by whichever route (see `_grantedAs`). */
+export function getAccessType() { return _grantedAs !== null && hasCalendarAccess() ? _grantedAs : 'none'; }
 
 /** @returns {boolean} true when the Calendar is being viewed through the shared staff PIN. */
-export function isViewerMode() { return _accessType === 'viewer'; }
+export function isViewerMode() { return getAccessType() === 'viewer'; }
 
 // ── The decision ────────────────────────────────────────────────────────────────────────────────
 
@@ -224,7 +241,7 @@ function watchForLateNamedIdentity() {
         off = onAuthStateChanged(auth, (/** @type {any} */ u) => {
             // Only ever UPGRADES, and only from locked. A grant that already happened owns the
             // page; re-granting would run the workspace hooks a second time.
-            if (_accessType !== 'none') { stop(); return; }
+            if (getAccessType() !== 'none') { stop(); return; }
             const late = decideAccess({ session: getSession(), firebaseUser: u });
             if (late === 'viewer') { grantLateViewer(u, stop); return; }
             if (late !== 'named') return;
@@ -252,7 +269,7 @@ async function grantLateViewer(u, stop) {
     if (claims?.[CALENDAR_VIEWER_CLAIM] !== true) return;
     // Granted meanwhile, or signed out by an exchange — or an exchange is still signing it out: the
     // SDK clears `currentUser` only when its own queue runs, so that one still reads as `u` here.
-    if (_unlocking || _accessType !== 'none' || auth.currentUser !== u) return;
+    if (_unlocking || getAccessType() !== 'none' || auth.currentUser !== u) return;
     stop();
     console.warn('[CalendarAccess] a viewer session restored after the access decision — granting.');
     grant('viewer');
@@ -260,7 +277,6 @@ async function grantLateViewer(u, stop) {
 
 /** Commit an access decision exactly once, and let the Calendar start. */
 function grant(/** @type {'named'|'viewer'} */ type) {
-    _accessType = type;
     // A fresh session starts with a clean slate on the CLIENT backoff too. Without this, a member
     // who fumbled three times at boot, unlocked, and is re-locked hours later (PIN rotation) begins
     // their next attempt already one failure from the delay — punished for a mistake from a
@@ -271,15 +287,29 @@ function grant(/** @type {'named'|'viewer'} */ type) {
     hideLockPanel();
     dismissSignInForm();   // the come-back card's full-screen form is not in the slot (cal-data-9)
     setWorkspaceHidden(false);
+    // ── THE ONE WRITE (Calendar step 2, v25.74) ─────────────────────────────────────────────────
+    // The kind, and then the fact: from this line the roster reads and the documents are open
+    // together, because both read the state this writes (calendar-access-state.js). Until v25.74
+    // the coordinator opened each gate by hand from `_onEveryGrant`, and the two could be a line
+    // apart, or one forgotten.
+    //
+    // HERE, AND NOT A LINE EARLIER OR LATER. After the card has gone and the workspace is back: the
+    // write tells the documents, and a document a locked tap was waiting for opens from inside it —
+    // over the Calendar, not over a card about to be taken away. And BEFORE both hooks: the first
+    // render's month read (`_onGranted`) and a re-unlock's repaint (`_onEveryGrant`) must find the
+    // gate open and the old grant's month claims cleared. Against a shut gate the render claims
+    // nothing, and the month sits on "Checking this month" for the session (v20.41: it shipped).
+    _grantedAs = type;
+    setCalendarAccess(true);
     // TWO hooks, because a grant is two different things (v20.41). Building the workspace must happen
     // ONCE — running it twice would re-wire the swipe handler and re-launch the initial fetch. But
-    // REOPENING the override gate must happen EVERY time, and bundling the two into one one-shot
-    // callback was a real dead end: after `handleAccessLost` re-locked, a viewer who entered the new
-    // PIN got the workspace back with `_accessGranted` still false, so every read was refused at
-    // source and every month sat on "Checking this month" for ever. That is not a corner — revoking
-    // the viewer's tokens is a documented step of rotating the PIN, so it is the NORMAL path, and it
-    // is the one place the user has already done everything right.
-    if (_onEveryGrant) { try { _onEveryGrant(); } catch (e) { console.error('[CalendarAccess] gate reopen failed', e); } }
+    // what a re-lock takes away must come back on EVERY grant, and bundling the two into one
+    // one-shot callback was a real dead end: after `handleAccessLost` re-locked, a viewer who entered
+    // the new PIN got the workspace back with the roster reads still shut. That is not a corner —
+    // revoking the viewer's tokens is a documented step of rotating the PIN, so it is the NORMAL
+    // path, and it is the one place the user has already done everything right. The gates are no
+    // longer this hook's to reopen (above); the repaint a re-unlock needs still is.
+    if (_onEveryGrant) { try { _onEveryGrant(); } catch (e) { console.error('[CalendarAccess] the every-grant hook failed', e); } }
     if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] start failed', e); } }
     if (_resolveAccess) { const r = _resolveAccess; _resolveAccess = null; r(); }
     // The WRITE gate. `named` and `viewer` both already hold a user, so it is the same instant.
@@ -351,7 +381,7 @@ export async function unlockWithPin(pin) {
 
     // A staff-PIN session restored late and was granted while this exchange was out (cal-data-10):
     // there is nothing left to unlock, and signing it out to sign in again would rebuild a working gate.
-    if (_accessType !== 'none') return { ok: true };
+    if (getAccessType() !== 'none') return { ok: true };
     _unlocking = true;   // this exchange grants for itself, after its claim check — see `grantLateViewer`
     try {
         // ── The persistence switch, in the one order that is safe ───────────────────────────────
@@ -416,7 +446,7 @@ export async function unlockWithPin(pin) {
  * @returns {Promise<void>}
  */
 export async function lockCalendar() {
-    if (_accessType !== 'viewer') return;
+    if (getAccessType() !== 'viewer') return;
     // FAIL CLOSED, BECAUSE THE ALTERNATIVE IS A CONTROL THAT LIES (v20.39, audit §13).
     // This used to swallow a failed sign-out and reload anyway, on the reasoning that the reload
     // re-decides from ground truth. It does — and if the sign-out did not take, that ground truth is
@@ -447,7 +477,7 @@ export async function lockCalendar() {
  *  drawer are deliberately NOT in this list — the guides are reachable without Calendar access, and
  *  locking the whole app to read the Railcard guide would be absurd. The Huddle and the documents
  *  used to be reachable too; since v23.17 their reads sit behind `calendar-doc-access.js`, which
- *  `calendar-app.js` opens on the full grant — so the drawer still SHOWS them, and a tap while
+ *  opens with the full grant (`grant`, above) — so the drawer still SHOWS them, and a tap while
  *  locked is answered with what to do rather than with the document. */
 const WORKSPACE_IDS = ['calendarControls', 'installPrompt', 'notifPrompt', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
 
@@ -528,16 +558,25 @@ async function trySilentReauth(name) {
  * expired or was revoked, NOT that the network is poor. Those two need different words: an endless
  * "couldn't update, try again" against an expired session is a loop the member cannot win, and
  * they would reasonably conclude the app is broken.
+ *
+ * THE ONE CALL FOR EVERY ROUTE THAT LOSES ACCESS (Calendar step 2, v25.74). The first load reaches
+ * it directly (its read, or its chip's retry); a refused month read reaches it through
+ * calendar-overrides.js, which has already shut the state by then. Either way the order is the
+ * same: the state shuts, and only then does a card go up.
  */
 export function handleAccessLost() {
-    if (_accessType === 'none') return;
-    // The CALLER closes the override gate (calendar-app.js passes a wrapper that calls
-    // `setOverrideAccess(false)` first). It is not done here because this module deliberately does
-    // not import calendar-overrides.js — the gate must not depend on the access layer it protects
-    // against — but it MUST happen, or a re-lock would leave the local-cache read open and the next
-    // month navigation could paint yesterday's roster behind the unlock card.
-    const wasNamed = _accessType === 'named';
-    _accessType = 'none';
+    // SHUT FIRST, and before anything below can run. The roster reads and the documents both read
+    // this state, so from this line neither can serve this device's saved copy behind the card that
+    // is about to appear — and everything that must follow a loss (what each month was known to be,
+    // the Huddle's subscription, the member's stored copy) is told from inside the write. Until
+    // v25.74 this function shut nothing: each caller was handed a wrapper that closed the two gates
+    // by hand first, and a re-lock without one left the local-cache read open behind the card.
+    if (hasCalendarAccess()) setCalendarAccess(false);
+    // Already locked: the card is up and the reason has been said. (`_grantedAs`, not the state —
+    // a refused month read shuts the state before it calls here, and its card is still owed.)
+    if (_grantedAs === null) return;
+    const wasNamed = _grantedAs === 'named';
+    _grantedAs = null;
     document.body.classList.remove('calendar-unlocked');
     // The way back in is the way they came in. A MEMBER whose session has gone gets their own
     // card, never the PIN (CALENDAR_DATA.md 11 — this path sent everyone to the PIN card until
@@ -566,9 +605,10 @@ export function handleAccessLost() {
  *   onGranted runs ONCE, the first time access is granted. It is how `calendar-app.js` defers every
  *   piece of Calendar initialisation — the member dropdown, the render, the fetch, the swipe handler
  *   — so that none of it exists while locked. Running it twice would duplicate all of that.
- *   onEveryGrant runs on EVERY grant, including one that follows a re-lock. Anything that a re-lock
- *   TURNS OFF has to be turned back on here rather than in `onGranted`, or it stays off for the rest
- *   of the session — see the note in `grant`.
+ *   onEveryGrant runs on EVERY grant, including one that follows a re-lock, and before `onGranted`.
+ *   Anything of the PAGE's that a re-lock takes away comes back here rather than in `onGranted`, or
+ *   it stays away for the rest of the session — see the note in `grant`. The roster reads and the
+ *   documents are not among them since v25.74: `grant` opens both itself, before either hook runs.
  *   paintBeforeDecision (v24.59) puts the member's OWN stored roster in the lock slot while the
  *   decision runs, and says whether it did. It is NOT a grant: no override read opens, `onGranted`
  *   is not spent, and any card the decision puts up replaces it (the slot never stacks). Not called
@@ -676,12 +716,13 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
         new Promise(resolve => { deferTimer = setTimeout(() => resolve(null), SILENT_BEFORE_CARD_MS); }),
     ]).catch(() => false);
     // The late-identity watcher may have granted while we waited — granting twice is not harmless
-    // (`_onEveryGrant` rebuilds the override gate), so whichever route arrives second stands down.
-    if (_accessType !== 'none') return _accessType;
+    // (every grant starts the roster reads afresh), so whichever route arrives second stands down.
+    const heldNow = getAccessType();
+    if (heldNow !== 'none') return heldNow;
     if (ok) { grant('named'); return 'named'; }
     showMemberPanel(held.name);
     // `null` means the attempt is still in flight past the defer bound. A late success is still a
     // success: honour it exactly the way the watcher honours a late restore.
-    if (ok === null) silent.then(late => { if (late && _accessType === 'none') grant('named'); });
+    if (ok === null) silent.then(late => { if (late && getAccessType() === 'none') grant('named'); });
     return 'none';
 }

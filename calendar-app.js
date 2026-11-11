@@ -34,7 +34,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, markMilestone, markAwaitingInput } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
-import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, hasOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, hasOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
 import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay, showsRoster } from './calendar-data-state.js';
 import { createLegend } from './calendar-legend.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
@@ -49,7 +49,8 @@ import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initInstallPrompt } from './install-prompt.js';
 import { initNotifPrompt } from './calendar-notif-prompt.js';
-import { setDocumentAccess, hasDocumentAccess, documentAccess } from './calendar-doc-access.js';
+import { hasDocumentAccess, documentAccess } from './calendar-doc-access.js';
+import { onCalendarAccess } from './calendar-access-state.js';
 import { applyTextScale } from './text-scale.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
@@ -669,7 +670,7 @@ try {
     // behind an overlay would leave the data in the DOM for a screen reader, a devtools pane, or one
     // CSS rule going missing; there is nothing to reveal here because nothing was built.
     //
-    // The SECOND gate is `setOverrideAccess` in calendar-overrides.js, which refuses the reads at
+    // The SECOND gate is in calendar-overrides.js (THE ACCESS GATE), which refuses the reads at
     // source. Both exist because they fail differently: this one is a call-ORDER property that a
     // future edit could break silently, and that one is a refusal that it could not.
     //
@@ -723,10 +724,10 @@ try {
             // retry path re-reads it and the two-phase structure is what makes the gate legible.
             authReady: calendarAccessReady,
             // A read refused because ACCESS has gone reopens the unlock card instead of looping on
-            // the sync chip's retry, which an expired session can never satisfy (v20.12). The gate
-            // is CLOSED first: re-locking the UI while override reads stayed permitted would leave
-            // the local-cache path open behind the card.
-            onAccessLost: () => { clearSnapshot(); setOverrideAccess(false); setDocumentAccess(false); handleAccessLost(); },
+            // the sync chip's retry, which an expired session can never satisfy (v20.12). ONE call
+            // (v25.74): it shuts the access state first and only then puts the card up, so the
+            // local-cache path is never open behind it — see ACCESS LOST, BY WHICHEVER ROUTE, below.
+            onAccessLost: handleAccessLost,
         });
         _dismissSyncError = _initialFetch.dismissSyncError;
 
@@ -1223,40 +1224,39 @@ function _saveOwnSnapshot() {
     } catch (e) { console.warn('[Calendar] own-roster copy not saved', e); }
 }
 
+// ── ACCESS LOST, BY WHICHEVER ROUTE (Calendar step 2, v25.74) ────────────────────────────────────
+// Two routes notice a loss mid-session: the first load (`onAccessLost`, above) and a month read
+// (navigation and Team View, through calendar-overrides.js — the likelier one, v20.15). Both end in
+// ONE call, `handleAccessLost`, which shuts the one access state and THEN puts the card up. What must
+// follow a loss listens for that write in the module that owns it; calendar-access-state.js says why
+// this file no longer shuts each gate by hand. The member's stored copy is this file's: a Calendar
+// that has lost access keeps none (v24.59). Wired before access is decided, so neither can be missing
+// when a read is refused.
+setOverrideAccessLostHandler(handleAccessLost);
+onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
+
 initCalendarAccess({
     paintBeforeDecision: _paintSnapshotBeforeGrant,
     // A PIN or come-back card means a person is about to type: the speed sample stops there
     // (perf-reporter.js → "A sample is time somebody spent waiting"). The sign-in card says so itself.
     onAwaitingInput: markAwaitingInput,
-    // EVERY grant, not just the first (v20.41). Both of these are things the access-lost path turns
-    // OFF, so both have to come back on when access returns — which is precisely what re-entering
-    // the PIN after a rotation is. Left in the one-shot below, a re-unlocked Calendar came back with
-    // its override gate still shut: every read refused at source, every month stuck on "Checking
-    // this month", and a Try again that could not win.
+    // EVERY grant, not just the first (v20.41): what a re-lock takes away has to come back when
+    // access returns, which is precisely what re-entering the PIN after a rotation is. The roster
+    // reads and the documents are no longer reopened HERE: since v25.74 the grant opens both itself,
+    // BEFORE this hook runs (calendar-access.js → `grant`, THE ONE WRITE). What is left is the page's.
     onEveryGrant: () => {
-        // Open the override reads BEFORE building the workspace. The reverse order would let the
-        // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
-        // and leave the month unfetched for the session.
-        setOverrideAccess(true);
         // The own-roster copy belongs to a NAMED grant; the PIN viewer must not inherit one (v24.59).
         if (getAccessType() !== 'named') clearSnapshot();
-        // Month navigation and Team View reach Firestore through `ensureOverridesCached`, not
-        // through the initial fetch — so they need the same access-lost recovery, and they are the
-        // likelier path once a session has been open for a while (v20.15).
-        setOverrideAccessLostHandler(() => { clearSnapshot(); setDocumentAccess(false); handleAccessLost(); });
-        // THE DOCUMENTS OPEN ON THE GRANT (v23.17): this is where the Huddle subscription starts
-        // and a Circular tap held back by the lock is finished.
-        setDocumentAccess(true);
         // A RE-grant also repaints (v20.45). `grant()` un-hides the workspace exactly as the
         // re-lock left it, and nothing else asks for a render — every fetch in this app is pulled
         // by one — so without this the member who just entered the rotated PIN looked at the grid
         // from BEFORE the lock, up to fifteen minutes stale, until their next navigation. The
-        // repaint goes through the ordinary paths on purpose: `setOverrideAccess(true)` has just
-        // cleared the month claims, so `renderCalendar`'s own `ensureOverridesCached` re-fetches
-        // the display month and the readiness model narrates it honestly ("Checking this month" →
-        // grid) rather than this code hand-managing freshness. `restoreTeamView` is the team-side
-        // equivalent — render + week fetch — and is safe to re-enter (`_pushOverlayState` dedupes
-        // its Back handler; the chrome calls are idempotent).
+        // repaint goes through the ordinary paths on purpose: the grant has just cleared the month
+        // claims (calendar-overrides.js → A GRANT IS A FRESH START), so `renderCalendar`'s own
+        // `ensureOverridesCached` re-fetches the display month and the readiness model narrates it
+        // honestly ("Checking this month" → grid) rather than this code hand-managing freshness.
+        // `restoreTeamView` is the team-side equivalent — render + week fetch — and is safe to
+        // re-enter (`_pushOverlayState` dedupes its Back handler; the chrome calls are idempotent).
         if (_workspaceStarted) {
             if (teamView.isTeamViewMode()) teamView.restoreTeamView();
             else renderCalendarWhenIdle();
