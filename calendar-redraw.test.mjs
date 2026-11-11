@@ -235,9 +235,11 @@ describe('rule 2 — one wait, and what is owed is settled together', () => {
     test('the wait is one poll of 60ms, whatever is held behind it', () => {
         assert.equal(GESTURE_POLL_MS, 60);
         /** @type {number[]} */ const delays = [];
+        const never = (/** @type {string} */ what) => () => assert.fail(`${what} while the gesture is live`);
         const redraw = createRedrawScheduler({
-            gestureLive: () => true, teamViewOn: () => false, drawCalendar: () => {}, drawTeam: () => {},
-            saveName: () => {}, nameApplied: () => {}, setTimer: (_fn, ms) => { delays.push(ms); },
+            gestureLive: () => true, teamViewOn: () => false, drawCalendar: never('the Calendar was drawn'),
+            drawTeam: never('Team View was redrawn'), saveName: never('a name was saved'),
+            nameApplied: never('a name was applied'), setTimer: (_fn, ms) => { delays.push(ms); },
         });
         redraw.reach('workspace');
         redraw.repaint('month-read');
@@ -349,7 +351,8 @@ describe('rule 2 — one wait, and what is owed is settled together', () => {
     test('with the real clock: held, then drawn once the gesture has gone — and it polls, it does not spin', async () => {
         let live = true, draws = 0, asked = 0;
         const redraw = createRedrawScheduler({
-            gestureLive: () => { asked++; return live; }, teamViewOn: () => false, drawCalendar: () => { draws++; },
+            gestureLive: () => { asked++; return live; }, teamViewOn: () => false,
+            drawCalendar: () => { assert.equal(live, false, 'the Calendar was drawn while a gesture was live'); draws++; },
             drawTeam: () => {}, saveName: () => {}, nameApplied: () => {},
         });
         redraw.reach('workspace');
