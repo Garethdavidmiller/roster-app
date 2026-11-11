@@ -1601,14 +1601,30 @@
         }
         /* THE DATE ROW STAYS UP WHILE THE NAMES SCROLL (iPhone and desktop audits, Nov 2026). `overflow-x:
            auto` makes this box the header's scroll container and its other axis `auto` too, so uncapped it
-           was as tall as the table and the sticky `thead` left with the page. Capped by what stands round
-           it, measured (header, controls, the card's rows; the hint on a phone; the page foot). A strip or
-           larger text scrolls the page that much, scroll chains to the page at either end, and the 50%
-           floor keeps a short screen to several rows. */
+           was as tall as the table and the sticky `thead` left with the page.
+
+           ON A PHONE THE BOX TAKES WHAT THE CARD HAS LEFT (owner's phone, 10 Nov 2026), not a height worked
+           out beside it. From v25.49 to v25.72 it was `100dvh − 250px`, the measured height of what stands
+           round it, while the card reached the foot of the screen by its own route (the flex chain from
+           the body's `min-height`). Wherever the two disagreed the difference was an empty band under the
+           last name: 27px on any phone, where what stands round it came to 223px, and 82px on the owner's,
+           where the page came out 55px taller than the screen (the cause on the phone is not established;
+           a test browser does not reproduce it). A basis of `0` makes the box the card's leftover BY
+           CONSTRUCTION, whatever the card's height. `flex: 1` alone would not: its 0% basis counts as
+           `content` in an auto-height column, and the whole table would push the card past the screen.
+           THE FLOOR: sideways, or with larger text or a strip, the leftover can be two rows. There the
+           box keeps half a screen and the page scrolls by the rest; scroll chains to the page at either
+           end, so every row stays reachable. THE CEILING never binds while the flex chain bounds the box,
+           which always leaves the header, controls and the card's own rows their room. It is there for
+           an engine that ever sized the chain from the table, so the date row would still stay up.
+           Measured in Chromium and WebKit: e2e/calendar.spec.js → "the Team View table fills its card". */
         @media (max-width: 1023px) {
             .team-table-wrap {
-                max-height: max(calc(100vh - 250px), 50vh);
-                max-height: max(calc(100dvh - 250px), 50dvh);
+                flex: 1 1 0;
+                min-height: 50vh;
+                min-height: 50dvh;
+                max-height: 100vh;
+                max-height: 100dvh;
             }
         }
         @media (min-width: 1024px) {
@@ -2155,9 +2171,10 @@
                 color: var(--primary-blue);
                 margin-bottom: 6px;
             }
-            /* No cap on paper: an A4 sheet is under 1024px wide, so the phone cap above would apply
-               and print the first screenful of names with the rest cut off, silently. */
-            .team-table-wrap { overflow: visible; max-height: none; }
+            /* As tall as the table on paper: an A4 sheet is under 1024px wide, so the phone rule above
+               applies, and its ceiling, floor and zero basis would print a screenful of names with the
+               rest cut off, silently. */
+            .team-table-wrap { overflow: visible; max-height: none; flex: none; min-height: 0; }
             .team-table { min-width: 0; width: 100%; }
             .team-table thead th {
                 background: var(--primary-blue) !important;

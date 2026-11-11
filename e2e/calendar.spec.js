@@ -4353,6 +4353,47 @@ test('calendar: a printed Team View is not cut to the phone\'s scroll box', asyn
     await page.emulateMedia({ media: 'screen' });
 });
 
+// …and on a phone the names run to the foot of their card (owner's phone, 10 Nov 2026). From v25.49 the
+// box's height was worked out beside the card, the screen less 250px, while the card reached the foot of
+// the screen by its own route. Wherever the two disagreed, an empty band showed under the last name: 27px
+// on any phone, 82px on the owner's, where the page came out 55px taller than the screen. The box now
+// takes what the card has left. The second case stands in for that phone: a test browser never makes the
+// page taller than the screen by itself, so it is made so here, as the phone made it.
+// THE STRIPS ARE ANSWERED FIRST, as on the owner's phone and on every device after its first visits:
+// the notifications strip, which a test browser shows (permission never asked), and on the iPhone engine
+// the install strip, which outranks it. Either stands above the card and soaks up the band, so with one
+// on screen the old rule passed this test (measured: every size on Chrome, every size on the iPhone).
+// THE BAND IS MEASURED TO THE CARD'S LAST THING SHOWN: the swipe hint where a touch screen still shows
+// it, the box everywhere else. The floor has its own assertion, because only a short screen reaches it
+// and nothing else here would notice it gone.
+for (const [width, height, taller] of [[360, 695, 0], [360, 695, 55], [390, 844, 0], [667, 375, 0]]) {
+    test(`calendar: the Team View table fills its card at ${width}×${height}${taller ? `, the page ${taller}px taller than the screen` : ''}`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            for (const k of ['myb_notif_prompt_done', 'myb_install_prompt_done']) { try { localStorage.setItem(k, '1'); } catch { /* private mode */ } }
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#notifPrompt'), 'premise: no notifications strip above the card').toBeHidden();
+        await expect(page.locator('#installPrompt'), 'premise: no install strip above the card').toBeHidden();
+        if (taller) await page.addStyleTag({ content: `body { min-height: calc(100dvh + ${taller}px) !important; }` });
+        await page.locator('#teamViewBtn').click();
+        await expect(page.locator('.team-table tbody tr').nth(15), 'a grade long enough to need scrolling').toBeAttached();
+        const g = await page.evaluate(() => {
+            const card = /** @type {Element} */ (document.querySelector('.team-view-container'));
+            const shown = [...card.children].filter(e => e.getBoundingClientRect().height > 0);
+            const box = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            return { vh: innerHeight, card: card.getBoundingClientRect().bottom, last: shown[shown.length - 1].getBoundingClientRect().bottom,
+                wrap: box('.team-table-wrap').height, table: box('.team-table').height, pageH: document.documentElement.scrollHeight };
+        });
+        expect(g.table, 'premise: a grade taller than its box, or there is nothing to fill').toBeGreaterThan(g.wrap);
+        if (taller) expect(g.pageH - g.vh, 'premise: the page is taller than the screen, as on the owner\'s phone').toBeGreaterThanOrEqual(taller - 1);
+        expect(Math.round(g.card - g.last), 'an empty band runs under the last name').toBeLessThanOrEqual(1);
+        expect(g.wrap, 'the box is under half the screen: two or three rows where the screen is short').toBeGreaterThanOrEqual(g.vh / 2 - 1);
+    });
+}
+
 // …and a scroll DOWN the names is not the swipe the hint asks for (7 Nov 2026). With the box capped,
 // the names scroll inside it, and the hint ("← Swipe table to see all 7 days →") was retired by the
 // first scroll of any kind — so somebody reading down the list lost it, for good, before the week had
