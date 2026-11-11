@@ -783,7 +783,7 @@ describe('the no-surname-default memory (v21.62)', () => {
             store.set(AUTH_KEY_, JSON.stringify({ name: 'G. Miller', ver: 2, expiry: ms + 60 * 86_400_000, createdAt: ms }));
 
         test('a reset newer than the session ends it — with no SDK sign-in', async () => {
-            store.set(FLAG, '1');                                 // a flag from before v25.76: long ago
+            store.set(FLAG, '1');                                 // a flag from before v25.77: long ago
             sessionFrom(Date.now() - 3 * 86_400_000);
             _resetAtMs = Date.now() - 86_400_000;
             assert.equal(await ensureFirebaseSession('G. Miller'), false);
@@ -804,6 +804,30 @@ describe('the no-surname-default memory (v21.62)', () => {
             // Asked within the 6 hours: nothing at all.
             assert.equal(await ensureFirebaseSession('G. Miller'), false);
             assert.equal(_probeCalls, 1, 'a flagged device asked again inside 6 hours');
+        });
+
+        // The station's addresses share one lock-out, so a recheck must not keep it going (review, 11 Nov 2026).
+        test('a THROTTLED recheck notes when it asked too, so the next load does not ask again', async () => {
+            store.set(FLAG, String(Date.now() - 7 * 3_600_000));
+            sessionFrom(Date.now() - 86_400_000);
+            _resetAtMs = 'throttled';
+            assert.equal(await ensureFirebaseSession('G. Miller'), false);
+            assert.equal(_probeCalls, 1);
+            assert.ok(Number(store.get(FLAG)) > Date.now() - 60_000, 'a throttled recheck was not noted');
+            assert.equal(await ensureFirebaseSession('G. Miller'), false);
+            assert.equal(_probeCalls, 1, 'the next load asked again while the station was throttled');
+        });
+
+        test('an UNANSWERED recheck is asked once per attempt, not on each retry — and the next attempt asks again', async () => {
+            store.set(FLAG, String(Date.now() - 7 * 3_600_000));
+            sessionFrom(Date.now() - 86_400_000);
+            _resetAtMs = null;
+            assert.equal(await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 }), false);
+            assert.equal(_probeCalls, 1, `one attempt and its retries asked ${_probeCalls} times`);
+            assert.equal(getFirebaseAuthError(), 'auth/reset-check-unavailable', 'it must end transient, keeping the 60-day session');
+            assert.ok(Number(store.get(FLAG)) < Date.now() - 6 * 3_600_000, 'no answer was noted as one, so the next load would read it as refused');
+            assert.equal(await ensureNamedSession('G. Miller', { delayMs: 0, retries: 0 }), false);
+            assert.equal(_probeCalls, 2, 'a new sign-in attempt did not ask');
         });
     });
 
@@ -1612,6 +1636,26 @@ describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that adm
         for (const cb of [..._authCbs]) cb(v);
         await new Promise(r => setTimeout(r, 0));
         assert.equal(late, 0, 'the PIN was handed a member\'s page');
+    });
+
+    test('…nor once a sign-in has BEGUN under it (review, 11 Nov 2026)', async () => {
+        // A typed sign-in saves its session only when it succeeds, so `getSession()` alone let a restore
+        // landing under it start Trains for the PIN — and then, once the sign-in landed, for the member.
+        let late = 0;
+        assert.equal(await holdsStaffPin(60, () => { late++; }), false, 'premise: nothing held at the decision');
+        /** @type {(v?: any) => void} */ let release = () => {};
+        _signInGate = new Promise(r => { release = r; });
+        const signingIn = ensureNamedSession('G. Miller', { password: 'miller', retries: 0, delayMs: 0 });
+        const v = { ...viewer, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
+        mockAuth.currentUser = v;
+        for (const cb of [..._authCbs]) cb(v);
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(late, 0, 'the PIN page started underneath a member\'s sign-in');
+        release(); _signInGate = null;
+        await signingIn;
+        for (const cb of [..._authCbs]) cb(v);
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(late, 0, 'the watcher outlived the sign-in that superseded it');
     });
 
     test('a restore that never arrives answers within the budget — no PIN, never a hang', async () => {

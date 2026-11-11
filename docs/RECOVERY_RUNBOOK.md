@@ -506,7 +506,7 @@ only removed deliberately.
 2b. **Prove the SUCCESS path in production, by hand, BEFORE step 3.** Someone holding the PIN opens
    the live Calendar in a private window and unlocks it. There is no automated substitute: it is the
    only way the token mint is exercised against real IAM, real Auth and the real secret — the e2e
-   suite stubs the exchange (rightly — a test must not hold the secret). **A `GET` → 204 (405 before v25.76) and a WRONG
+   suite stubs the exchange (rightly — a test must not hold the secret). **A `GET` → 204 (405 before v25.77) and a WRONG
    PIN → 401 prove nothing**: `getUser`/`createUser`, `setCustomUserClaims` and `createCustomToken`
    run only for a CORRECT PIN. That is exactly how step 3 failed on 10 Aug 2026 — every correct PIN
    returned 500 from the token-mint block, and it had to be reverted within hours. If it fails, read

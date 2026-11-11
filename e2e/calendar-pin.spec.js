@@ -363,7 +363,7 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
 });
 
 test('a day panel open when access is lost closes with it — it does not stay over the lock card (sign-in check, 11 Nov 2026)', async ({ page }) => {
-    // The panel shows what only access may show, and until v25.76 the lock card went up UNDERNEATH it.
+    // The panel shows what only access may show, and until v25.77 the lock card went up UNDERNEATH it.
     await seedMember(page);
     await stubPinExchange(page);
     await page.goto('/index.html');

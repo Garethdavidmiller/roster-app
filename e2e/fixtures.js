@@ -587,9 +587,13 @@ export const updatePassword = () => {
 };
 // window.__E2E.reauthFailCode makes re-authentication REFUSE with that code (sign-in check, 11 Nov 2026):
 // the only way to reach "Current password incorrect" on a page under the stub. (No backticks here.)
+// window.__E2E.reauthDelayMs holds its answer back N ms (review, 11 Nov 2026), so a spec can act while it is out.
 export const reauthenticateWithCredential = () => {
-  const code = (globalThis.__E2E || {}).reauthFailCode;
-  return code ? Promise.reject(Object.assign(new Error('e2e reauth refused'), { code })) : Promise.resolve({ user: { uid: 'test' } });
+  const e2e = globalThis.__E2E || {};
+  const answer = () => (e2e.reauthFailCode
+    ? Promise.reject(Object.assign(new Error('e2e reauth refused'), { code: e2e.reauthFailCode }))
+    : Promise.resolve({ user: { uid: 'test' } }));
+  return e2e.reauthDelayMs ? new Promise(r => setTimeout(r, e2e.reauthDelayMs)).then(answer) : answer();
 };
 export const EmailAuthProvider = { credential: (email, password) => marker('cred:' + email + ':' + password) };
 

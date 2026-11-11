@@ -465,6 +465,24 @@ test('settings: a refusal puts the caret where its message points, and the next 
     await expect(page.locator('#pwFeedback')).toContainText('Password updated');
 });
 
+// A REFUSAL DOES NOT PULL THE CARET BACK FROM WHERE THE MEMBER HAS GONE (review, 11 Nov 2026). A save can
+// wait out the re-authentication deadline; a member who moved on meanwhile — another card, the drawer —
+// had focus yanked back to the password card when the refusal landed.
+test('settings: a refusal that lands after the member has moved on leaves their caret where they put it', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', reauthFailCode: 'auth/invalid-credential', reauthDelayMs: 1500 }; });
+    await openSettings(page, { configured: false, noPush: true });
+    await page.locator('#pwCurrent').fill('not-my-password');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwSaveBtn')).toHaveText('Saving…');
+    await page.locator('#navMenuBtn').focus();                          // the member reaches for the menu while it is out
+    await expect(page.locator('#navMenuBtn')).toBeFocused();            // premise: the caret did move
+    await expect(page.locator('#pwFeedback')).toContainText('Current password incorrect');
+    await expect(page.locator('#navMenuBtn')).toBeFocused();
+});
+
 // THE STAGE A FAILURE CAME FROM (sign-in check, 11 Nov 2026). Both surfaces read one ladder, and it asks
 // whether the current password had already been accepted: a write refused after that is never "Current
 // password incorrect", which sent members to an admin reset over a server blip.

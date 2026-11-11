@@ -246,6 +246,16 @@ describe('passwordChangeFailure — what a failed password change says, and wher
             assert.match(passwordChangeFailure('auth/too-many-requests', reauthed).message, /Too many attempts/);
         }
     });
+    test('only a failure no retyping gets past offers the forced change its way out (review, 11 Nov 2026)', () => {
+        for (const reauthed of [false, true]) {
+            for (const code of ['auth/too-many-requests', 'auth/network-request-failed', 'myb/timeout']) {
+                assert.equal(passwordChangeFailure(code, reauthed).escape, true, code);
+            }
+            for (const code of ['auth/weak-password', 'auth/missing-password', 'auth/invalid-credential', 'auth/internal-error', '']) {
+                assert.equal(passwordChangeFailure(code, reauthed).escape, undefined, `${code || 'no code'} trapped nobody`);
+            }
+        }
+    });
     test('a weak new password returns to New; a missing current one to Current', () => {
         assert.equal(passwordChangeFailure('auth/weak-password', true).focus, 'new');
         assert.equal(passwordChangeFailure('auth/missing-password', false).focus, 'current');

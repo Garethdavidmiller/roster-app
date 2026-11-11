@@ -223,6 +223,17 @@ test('a QUICK save leaves nothing behind — never a box, never a word', async (
     }
 });
 
+test('writesInFlight counts a background write no page started — the "own password" record (review, 11 Nov 2026)', async () => {
+    const { trackBackgroundWrite } = await import('./claim-retry.js');
+    const base = writesInFlight();
+    /** @type {(v?: any) => void} */ let land = () => {};
+    const p = trackBackgroundWrite(new Promise((r) => { land = r; }));
+    assert.equal(writesInFlight(), base + 1, 'a page would reload over the record');
+    land(true); await p;
+    await new Promise((r) => setImmediate(r));
+    assert.equal(writesInFlight(), base);
+});
+
 test('writesInFlight counts every wrapped write until it settles, quick or slow, success or failure (review A13)', async () => {
     // Admin's service-worker reload asks this before reloading: a range booking commits in chunks,
     // and a reload between two of them strands the rest.

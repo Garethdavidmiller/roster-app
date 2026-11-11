@@ -42,6 +42,8 @@ let tokenUser = undefined;
  *  the unlock has checked the claim. Opt-in, so the tests written before cal-data-10 are unchanged. */
 let emitOnSignIn = false;
 let sessionValue = null;
+/** session.js's sign-in/sign-out generation: a test moves it to say "a sign-in has begun". */
+let authGenValue = 0;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
 let signOutBehavior = 'ok';
@@ -156,6 +158,7 @@ mock.module('./session.js', {
     namedExports: {
         ACCESS_DECISION_BUDGET_MS: 6500,   // the real constant lives in session.js since v24.96
         getSession: () => sessionValue,
+        authGeneration: () => authGenValue,
         clearSession: () => { ops.push('clearSession'); sessionValue = null; },
         reconcileExpiredIdentity: async (opts) => {
             ops.push('reconcile:' + JSON.stringify(opts || {}));
@@ -369,6 +372,7 @@ beforeEach(async () => {
     tokenUser = undefined;
     emitOnSignIn = false;
     sessionValue = null;
+    authGenValue = 0;
     signOutBehavior = 'ok';
     silentReauthSucceeds = false;
     silentReauthUser = undefined;
@@ -461,6 +465,31 @@ describe('unlockWithPin — the happy path', () => {
         settle({ user: null, persistence: 'indexeddb' });
         assert.deepEqual(await pending, { ok: true });
         assert.ok(ops.includes('persistence:session'));
+    });
+
+    // THE CARD THAT ASKED HAS GONE (review, 11 Nov 2026): Back or "Sign in instead" mid-exchange left it
+    // granting under the card that replaced it, or switching persistence under a member's sign-in.
+    test('an exchange whose card has gone changes nothing — no sign-out, no switch, no grant', async () => {
+        currentUser = { uid: 'someone-else', isAnonymous: false };
+        const r = await unlockWithPin('1234', () => false);
+        assert.equal(r.ok, false);
+        assert.equal(getAccessType(), 'none');
+        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
+            'the exchange acted for a card that was no longer on screen');
+    });
+
+    test('a member who signed in during the wait for start-up is reloaded into — never signed out for the PIN', async () => {
+        /** @type {(v: any) => void} */ let settle = () => {};
+        bootGate = new Promise(r => { settle = r; });
+        const pending = unlockWithPin('1234');
+        await drainTurns();
+        sessionValue = { name: 'G. Miller' };                 // "Sign in instead", or another tab
+        currentUser = { uid: 'uid-miller', isAnonymous: false };
+        settle({ user: null, persistence: 'indexeddb' });
+        assert.deepEqual(await pending, { ok: true });
+        assert.ok(ops.includes('reload'), 'the page did not reload into the member');
+        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
+            'the member was signed out for the shared PIN');
     });
 
     test('a boot that never settles fails CLOSED: still locked, nothing switched, honest about why', async (t) => {
@@ -1083,6 +1112,14 @@ describe('initCalendarAccess', () => {
             assert.equal(started, 1);
         });
 
+        test('…but not once a sign-in has BEGUN since — a typed one saves its session only when it succeeds (review, 11 Nov 2026)', async () => {
+            assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
+            authGenValue++;                                       // a member submits the sign-in card
+            emitAuth(viewer({ calendarViewer: true }));           // …and the PIN session restores under it
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(getAccessType(), 'none', 'the PIN was granted underneath a member\'s sign-in');
+        });
+
         test('…only once its token carries the claim — the check the unlock itself makes', async () => {
             assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
             emitAuth(viewer({}));
@@ -1562,6 +1599,28 @@ describe('the cards themselves', () => {
         assert.equal(getAccessType(), 'none');
     });
 
+    // THE CARD ASKS WHETHER IT IS STILL THERE (review, 11 Nov 2026), through the real form handler: Back or
+    // "Sign in instead" while an exchange was out left it granting under the sign-in card.
+    test('"Sign in instead" while the exchange is out: the exchange stands down — no grant, no switch', async () => {
+        globalThis.window.location.hash = '#staff-pin';
+        await initCalendarAccess({ onGranted: () => {} });
+        /** @type {(v: any) => void} */ let answer = () => {};
+        globalThis.fetch = (/** @type {any} */ _u, /** @type {any} */ opts) => (opts?.method === 'POST'
+            ? new Promise(r => { answer = r; })
+            : Promise.resolve({ ok: false, status: 405, json: async () => ({}) }));
+        document.getElementById('calLockPin').value = '1234';
+        const pressed = document.getElementById('calLockForm')._listeners.get('submit')({ preventDefault() {} });
+        await drainTurns();
+        document.getElementById('calLockSignIn')._listeners.get('click')();   // the card is replaced
+        await waitFor(() => loginMounts.length === 1, 'the sign-in card to mount');
+        ops = [];
+        answer({ ok: true, status: 200, json: async () => ({ token: 'GOOD_TOKEN' }) });
+        await pressed;
+        assert.equal(getAccessType(), 'none', 'the PIN was granted under the sign-in card');
+        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
+            'the exchange went on for a card that was no longer on screen');
+    });
+
     // cal-data-7 (10 Nov 2026). `attemptBackoffMs` is unit-tested, and nothing pressed the card after a
     // third failure: the field's input handler set the button from the digits alone, so retyping them
     // lifted the delay at once — the helper was tested, the wiring was not.
@@ -1603,7 +1662,7 @@ describe('the cards themselves', () => {
         });
 
         test('the button counts down, and the reason stays on screen while it does (sign-in check, 11 Nov 2026)', async (t) => {
-            // Until v25.76 the first keystroke wiped the message and the button sat greyed out for up
+            // Until v25.77 the first keystroke wiped the message and the button sat greyed out for up
             // to 20 seconds with no words at all.
             t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
             const card = await pinCard();

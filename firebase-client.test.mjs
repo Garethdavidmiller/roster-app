@@ -204,8 +204,13 @@ describe('changing your own password, with the stamp left to finish on its own',
         out.stamp.then(() => { settled = true; });
         await new Promise((r) => setImmediate(r));
         assert.equal(settled, false, 'premise: the stamp is still on its way');
+        // …and every page's update reload waits for it (review, 11 Nov 2026): the forced change, on any
+        // page, used to leave it to a reload that could drop it.
+        const { backgroundWritesInFlight } = await import('./claim-retry.js');
+        assert.equal(backgroundWritesInFlight(), 1, 'the record is not counted, so a release could reload over it');
         acknowledge();
         assert.equal(await out.stamp, true, 'and it is recorded once acknowledged');
+        assert.equal(backgroundWritesInFlight(), 0, 'and no longer counted');
         assert.deepEqual(writes('passwordStatus/').map((w) => w.data), [{ passwordSetAt: SERVER_TS }]);
     });
 

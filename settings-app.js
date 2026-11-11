@@ -38,8 +38,6 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 /** True from a password save's first write until its outcome is known — the two writes (re-auth,
  *  then the update) must never have a release's reload land between them (v24.61, iOS audit B2). */
 let _passwordSaving = false;
-/** "You have set your own password" records still on their way to the server (item 14, sign-in check). */
-let _stampsInFlight = 0;
 
 /** Ceiling on each password network call. Same 8s budget as sign-in and the forced overlay. */
 const SAVE_TIMEOUT_MS = 8000;
@@ -239,7 +237,8 @@ export function init() {
     // initAuthorised() has no try/catch on the signed-in path, so a throw in any card's wiring used to
     // skip all four of these. Hold a release's reload while a save is on its way (v24.61): the contact
     // card's writes are counted by slow-save, the password card's two-step write by `_passwordSaving`.
-    const _busy = () => writesInFlight() > 0 || _passwordSaving || _stampsInFlight > 0;   // the stamp: see onWriteConfirmed
+    // writesInFlight also counts the "own password" record (claim-retry.js → trackBackgroundWrite).
+    const _busy = () => writesInFlight() > 0 || _passwordSaving;
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
     // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
@@ -677,9 +676,6 @@ export function init() {
             form?.requestSubmit();
             const done = '✓ Password updated. Use it the next time you sign in.';
             setFeedback(done, 'ok');   // a stamp that then FAILS is a soft note, and amends only this line
-            // A release's reload waits for the stamp too (sign-in check, 11 Nov 2026): it was dropped by a
-            // reload landing in the moment after "updated", and the card then said "still on your surname".
-            if (res?.stamp) { _stampsInFlight++; res.stamp.finally(() => { _stampsInFlight--; }); }
             res?.stamp?.then((/** @type {boolean} */ ok) => { if (!ok && feedback?.textContent === done)
                 setFeedback('✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)', 'ok'); });
             curEl.value = newEl.value = confEl.value = '';
@@ -736,6 +732,7 @@ export function init() {
             // The last attempt's message goes as this one starts (sign-in check, 11 Nov 2026 — a
             // "✓ Password updated" or an old refusal sat beside "Saving…").
             setFeedback('');
+            const startFocus = document.activeElement;   // see the caret, in `finally`
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
             _passwordSaving = true;
             // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"
@@ -785,7 +782,10 @@ export function init() {
                 // Not re-enabled while a write may still be in flight — onIndeterminate owns the
                 // button until the real outcome arrives, so a second save can't race the first.
                 if (!_pwIndeterminate) { _passwordSaving = false; saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
-                refocus?.focus();
+                // Only where the member left it (review, 11 Nov 2026): a save can wait out the re-auth
+                // deadline, and one who moved on meanwhile — a field, the drawer — keeps their place.
+                const here = document.activeElement;
+                if (refocus && (here === startFocus || here === saveBtn || here === document.body || !here)) refocus.focus();
             }
         });
     }

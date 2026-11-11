@@ -69,7 +69,7 @@
  */
 
 import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot, authBootstrap } from './firebase-client.js';
-import { getSession, reconcileExpiredIdentity, ensureNamedSession, ACCESS_DECISION_BUDGET_MS } from './session.js';
+import { getSession, reconcileExpiredIdentity, ensureNamedSession, authGeneration, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.js';
@@ -86,7 +86,7 @@ const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCal
 /** How long to wait on the exchange before calling it a network failure. Generous — a cold start of
  *  a rarely-called function is a real several seconds — and ABOVE the endpoint's own 20s ceiling
  *  (`timeoutSeconds`, functions/index.js; fetch-timeout.js): a client that gives up first calls a
- *  working server broken. It was 15s until v25.76. */
+ *  working server broken. It was 15s until v25.77. */
 const UNLOCK_TIMEOUT_MS = 25000;
 
 /** How long an unlock waits for the boot's persistence choice (`unlockWithPin`), and the wait. */
@@ -242,10 +242,10 @@ async function resolveAccess() {
  * it is, the viewer, never as a member — and only once its token is seen to carry the claim, the
  * check the unlock itself makes; and never during the PIN card's own exchange, which checks the
  * claim and grants for itself (`_unlocking`). NOR while a member's session is held (sign-in check,
- * 11 Nov 2026): that member's own way back owns the page (CALENDAR_DATA.md 11), and a viewer granted
- * under it ended at the PIN card, or with the member signed in to a viewer's Calendar.
+ * 11 Nov 2026): that member's own way back owns the page (CALENDAR_DATA.md 11).
  */
 function watchForLateNamedIdentity() {
+    const gen = authGeneration();   // a sign-in or sign-out begun after this owns the page (grantLateViewer)
     let off = /** @type {null | (() => void)} */ (null);
     const stop = () => { if (off) { try { off(); } catch { /* noop */ } off = null; } };
     try {
@@ -254,7 +254,7 @@ function watchForLateNamedIdentity() {
             // page; re-granting would run the workspace hooks a second time.
             if (getAccessType() !== 'none') { stop(); return; }
             const late = decideAccess({ session: getSession(), firebaseUser: u });
-            if (late === 'viewer') { grantLateViewer(u, stop); return; }
+            if (late === 'viewer') { grantLateViewer(u, stop, gen); return; }
             if (late !== 'named') return;
             stop();
             console.warn('[CalendarAccess] a named identity restored after the access decision — granting.');
@@ -268,19 +268,23 @@ function watchForLateNamedIdentity() {
  *  late viewer granted meanwhile — the exchange's own sign-in, or a restored session it is part-way
  *  through signing out — would be granted twice. */
 let _unlocking = false;
+/** A member signed in while the PIN card was on screen — the unlock must reload, not sign them out. */
+const memberSignedIn = () => !!getSession()?.name && !!auth.currentUser && !isViewerUser(auth.currentUser);
 
 /**
  * Grant a staff-PIN session that restored after the decision — see `watchForLateNamedIdentity`.
  * Asked again after the token read, because the page may have moved on while it was out.
- * @param {any} u the restored viewer @param {() => void} stop the watcher's own stop
+ * NOR once a sign-in has begun since the watcher was armed (review, 11 Nov 2026): a typed one saves
+ * its session only when it succeeds, so the session check alone granted the PIN underneath it.
+ * @param {any} u the restored viewer @param {() => void} stop the watcher's own stop @param {number} gen
  */
-async function grantLateViewer(u, stop) {
+async function grantLateViewer(u, stop, gen) {
     /** @type {any} */ let claims;
     try { claims = (await u.getIdTokenResult())?.claims; } catch { return; }
     if (claims?.[CALENDAR_VIEWER_CLAIM] !== true) return;
     // Granted meanwhile, or signed out by an exchange — or an exchange is still signing it out: the
     // SDK clears `currentUser` only when its own queue runs, so that one still reads as `u` here.
-    if (_unlocking || getAccessType() !== 'none' || auth.currentUser !== u || getSession()?.name) return;
+    if (_unlocking || getAccessType() !== 'none' || auth.currentUser !== u || getSession()?.name || authGeneration() !== gen) return;
     stop();
     console.warn('[CalendarAccess] a viewer session restored after the access decision — granting.');
     grant('viewer');
@@ -337,20 +341,16 @@ function grant(/** @type {'named'|'viewer'} */ type) {
  * that the error's stack keeps alive.
  *
  * @param {string} pin
+ * @param {() => boolean} [stillWanted]  is the card that asked still on screen? (review, 11 Nov 2026)
  * @returns {Promise<{ ok: true }|{ ok: false, kind: string, message: string }>}
  */
-export async function unlockWithPin(pin) {
+export async function unlockWithPin(pin, stillWanted = () => true) {
     if (!isCompletePin(pin)) {
         return { ok: false, kind: 'rejected', message: `Enter the ${PIN_LENGTH}-digit staff PIN.` };
     }
-    // A member signed in WHILE this card was on screen — through "Sign in instead", or in another
-    // tab. Unlocking now would sign that member out (the ladder below starts by clearing whoever is
-    // current) and replace a real identity with a shared capability. Reload instead: the boot
-    // decision then answers `named`, which is the outcome they were reaching for anyway.
-    if (getSession()?.name && auth.currentUser && !isViewerUser(auth.currentUser)) {
-        window.location.reload();
-        return { ok: true };
-    }
+    // A member signed in WHILE this card was on screen ("Sign in instead", another tab): the ladder below
+    // would sign them out for a shared capability. Reload — the boot then answers `named`.
+    if (memberSignedIn()) { window.location.reload(); return { ok: true }; }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         const f = classifyUnlockFailure({ offline: true });
         return { ok: false, kind: f.kind, message: f.message };
@@ -389,11 +389,10 @@ export async function unlockWithPin(pin) {
         return { ok: false, kind: f.kind, message: f.message };
     }
 
-    // THE BOOT'S OWN PERSISTENCE CHOICE LANDS FIRST (sign-in check, 11 Nov 2026). `authBootstrap` ends
-    // by setting the member chain for a stored member; on a start-up slow enough that this card was
-    // used first, that landed AFTER the switch below and MIGRATED the new viewer into IndexedDB — the
-    // PIN outlived the browser (reproduced with the real SDK in both engines). Normally long settled;
-    // a boot that never settles fails closed: still locked, try again.
+    // THE BOOT'S OWN PERSISTENCE CHOICE LANDS FIRST (sign-in check, 11 Nov 2026). On a start-up slow enough
+    // that this card was used first, `authBootstrap`'s member chain landed AFTER the switch below and
+    // MIGRATED the viewer into IndexedDB: the PIN outlived the browser (real SDK, both engines). A boot
+    // that never settles fails closed: still locked, try again.
     if (!(await bootSettledWithin(BOOT_SETTLE_FOR_UNLOCK_MS))) {
         const f = classifyUnlockFailure({ code: 'boot-pending' });
         return { ok: false, kind: f.kind, message: f.message };
@@ -401,6 +400,10 @@ export async function unlockWithPin(pin) {
     // A staff-PIN session restored late and was granted while this exchange was out (cal-data-10):
     // there is nothing left to unlock, and signing it out to sign in again would rebuild a working gate.
     if (getAccessType() !== 'none') return { ok: true };
+    // Asked again after the waits, which can run to 45 s (review, 11 Nov 2026): if the card that asked has
+    // gone, or a member signed in meanwhile, nothing here may sign anybody out or change persistence.
+    if (!stillWanted()) return { ok: false, kind: 'superseded', message: '' };
+    if (memberSignedIn()) { window.location.reload(); return { ok: true }; }
     _unlocking = true;   // this exchange grants for itself, after its claim check — see `grantLateViewer`
     try {
         // ── The persistence switch, in the one order that is safe ───────────────────────────────

@@ -169,8 +169,8 @@ function makeDb(seed = {}) {
         // have changed since runs the callback again (five attempts, then ABORTED). So two requests
         // deciding from the same rows cannot both act on them — and a read that bypasses the
         // transaction is not protected, exactly as in Firestore, which is what lets a test catch one.
-        async runTransaction(fn) {
-            for (let attempt = 0; attempt < 5; attempt++) {
+        async runTransaction(fn, opts) {
+            for (let attempt = 0; attempt < (opts?.maxAttempts ?? 5); attempt++) {
                 const reads = new Map();
                 /** @type {Array<{ ref: any, data: any, update: boolean }>} */
                 const writes = [];
@@ -191,6 +191,8 @@ function makeDb(seed = {}) {
             throw Object.assign(new Error('ABORTED'), { code: 10 });
         },
         _dump: (name) => Object.fromEntries(col(name)),
+        /** Another request's write landing on a collection somebody has read: its version moves. */
+        _bump: (name) => versions.set(name, version(name) + 1),
         /** What the admin's Operations card does when a reset is done: the row goes. */
         _delete: (name, id) => { col(name).delete(id); bump(name, id); },
     };
@@ -209,6 +211,9 @@ function makeDb(seed = {}) {
  * @param {number}  o.pushAccepts    how many subscriptions accept each targeted push (0 = nobody)
  * @param {number}  o.claimTxFail    the error code the reset request's CLAIM transaction (its second)
  *                                  rejects with — ABORTED (10), NOT_FOUND (5), or anything else
+ * @param {number}  o.claimConflicts how many CLAIM attempts in a row find another request's write
+ *                                  landing on the rows they read, so the transaction has to run again
+ * @param {boolean} o.vapidFail      the push keys will not load: `setupWebPush` throws
  * @param {boolean} o.pushHangs      the push service never answers — the case the reset request's
  *                                  10-second limit exists for
  * @param {object}  o.seed           starting Firestore contents, by collection
@@ -236,6 +241,8 @@ function build({
     pushHangs = false,
     pushDeferred = false,
     claimTxFail = null,
+    claimConflicts = 0,
+    vapidFail = false,
     seed = {},
     authFail = {},
     token = { admin: true, name: ADMIN },
@@ -263,9 +270,18 @@ function build({
     if (claimTxFail !== null) {
         const plainTx = db.runTransaction.bind(db);
         let n = 0;
-        db.runTransaction = (fn) => (++n === 2
+        db.runTransaction = (fn, opts) => (++n === 2
             ? Promise.reject(Object.assign(new Error('claim transaction failed'), { code: claimTxFail }))
-            : plainTx(fn));
+            : plainTx(fn, opts));
+    }
+    if (claimConflicts > 0) {
+        const plainTx = db.runTransaction.bind(db);
+        db.runTransaction = (fn, opts) => plainTx(async (tx) => {
+            let readRows = false;
+            const result = await fn({ ...tx, get: (ref) => { if (ref._query) readRows = true; return tx.get(ref); } });
+            if (readRows && claimConflicts > 0) { claimConflicts--; db._bump('resetRequests'); }
+            return result;
+        }, opts);
     }
     const users = new Map((existingUsers || []).map((u) => [u.email, u]));
     // Every passwordStatus write — the resetAt stamp — with `at`: how many Auth calls had been made
@@ -303,6 +319,7 @@ function build({
             return token;
         },
         getUserByEmail: async (email) => {
+            if (authFail.getUserByEmail === email) { const e = new Error('unavailable'); e.code = 'auth/internal-error'; throw e; }
             if (users.has(email)) return users.get(email);
             if (email === emailFor(ADMIN)) {
                 if (!adminResolves) return notFound();
@@ -356,10 +373,10 @@ function build({
     const stub = (p, exports) => { require.cache[p] = { id: p, filename: p, loaded: true, exports }; };
     stub(authPath, { getAuth: () => auth });
     stub(firePath, { getFirestore: () => db, FieldValue: firestore.FieldValue });
-    /** Settles a `pushDeferred` send: the push service answers only when the test says so. */
-    let acceptDeferred = (_n) => {};
+    /** The `pushDeferred` sends still waiting: the push service answers only when the test says so. */
+    const held = [];
     require.cache[pushPath]  = { id: pushPath, filename: pushPath, loaded: true, exports: {
-        setupWebPush: () => {},
+        setupWebPush: () => { if (vapidFail) throw new Error('VAPID private key will not load'); },
         sendTargetedPush: async (payload, uids, tag, opts) => {
             sends.push({ payload, uids, tag, opts });
             // Injectable failure, the same seam `authFail` gives the Auth calls. The reset endpoint
@@ -367,7 +384,7 @@ function build({
             // branch is unreachable from a fake that can only succeed.
             if (pushFail) throw new Error(pushFail);
             if (pushHangs) return new Promise(() => {});
-            if (pushDeferred) return new Promise((resolve) => { acceptDeferred = resolve; });
+            if (pushDeferred) return new Promise((resolve) => { held.push(resolve); });
             // The REAL sendTargetedPush returns how many subscriptions accepted the message, and
             // the reset endpoint acts on that number. A fake returning undefined would make every
             // "did it record that the admin was reached?" assertion vacuous.
@@ -396,7 +413,9 @@ function build({
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
         ...(answerFloorMs === null ? {} : { resetRequestAnswerFloorMs: answerFloorMs }),
     });
-    return { eps, sends, db, authOps, users, released, stamps, acceptPush: (n) => acceptDeferred(n) };
+    return { eps, sends, db, authOps, users, released, stamps,
+        /** Every held send answers, each accepted by `n` subscriptions. */
+        acceptPush: (n) => { for (const resolve of held.splice(0)) resolve(n); } };
 }
 
 function makeRes() {
@@ -514,7 +533,8 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         const t0 = Date.now();
         const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
         assert.equal(out.code, 200);
-        assert.ok(Date.now() - t0 >= 1_900, `a throttled repeat was answered after ${Date.now() - t0} ms`);
+        // 3 s since the claim took two attempts (review, 11 Nov 2026): one backoff of it fits under the floor.
+        assert.ok(Date.now() - t0 >= 2_900, `a throttled repeat was answered after ${Date.now() - t0} ms`);
     });
 
     // THE ADMIN'S PUSH IS A COURTESY ON TOP OF THE ROW, and two protections keep it one (test audit,
@@ -672,7 +692,7 @@ describe('coalescing counts notifications SENT, not requests arrived (v21.85)', 
         // minute. Either way nothing was delivered, so nothing may be written down as delivered.
         const { eps, db, sends } = build({ pushAccepts: 0 });
         await call(eps.requestPasswordReset, reqFor(MEMBER));
-        assert.equal(sends.length, 1, 'it was attempted');
+        assert.equal(sends.length, 2, 'it was attempted, and tried once more (review, 11 Nov 2026)');
         assert.equal(db._dump('resetRequests')[MEMBER].notifiedAt, undefined,
             'but not recorded as having reached anyone');
     });
@@ -684,7 +704,8 @@ describe('coalescing counts notifications SENT, not requests arrived (v21.85)', 
         const { eps, sends } = build({ pushAccepts: 0 });
         await call(eps.requestPasswordReset, reqFor(MEMBER));
         await call(eps.requestPasswordReset, reqFor(MEMBER2));
-        assert.equal(sends.length, 2, 'both attempts go out while none of them is landing');
+        // Two each: a push that reached nobody is tried once more (review, 11 Nov 2026).
+        assert.equal(sends.length, 4, 'both members\' pushes go out while none of them is landing');
     });
 
     test('a row written before v21.85 has no notifiedAt, and fails OPEN', async () => {
@@ -712,8 +733,15 @@ describe('a burst of reset requests rings the admin ONCE, however parallel', () 
 
     test('twenty names at once send one push, and no claim outlives it', async () => {
         assert.equal(burst.length, 20, 'fixture check: the roster has twenty names to burst with');
-        const { eps, sends, db } = build();
-        const outs = await Promise.all(burst.map((n) => call(eps.requestPasswordReset, reqFor(n))));
+        // The push is HELD while the burst runs (review, 11 Nov 2026): a fake that accepted at once
+        // stamped `notifiedAt` before the others read the rows, and the test passed with the claim deleted.
+        const { eps, sends, db, acceptPush } = build({ pushDeferred: true });
+        let answered = 0;
+        const all = Promise.all(burst.map((n) => call(eps.requestPasswordReset, reqFor(n)).then((o) => { answered++; return o; })));
+        for (let i = 0; i < 2000 && answered < burst.length - 1; i++) await new Promise((r) => setImmediate(r));
+        assert.equal(sends.length, 1, `while one push was on its way, ${sends.length} were sent`);
+        acceptPush(1);
+        const outs = await all;
         assert.ok(outs.every((o) => o.code === 200), 'every request is recorded and answered alike');
         const rows = Object.values(db._dump('resetRequests'));
         assert.equal(rows.length, burst.length, 'every request has its row');
@@ -747,11 +775,11 @@ describe('a burst of reset requests rings the admin ONCE, however parallel', () 
         assert.equal(sends.length, 1);
     });
 
-    test('a send nobody accepted, or one that threw, releases its claim', async () => {
+    test('a send nobody accepted, or one that threw, is tried once more and then releases its claim', async () => {
         for (const opts of [{ pushAccepts: 0 }, { pushFail: 'push service down' }]) {
             const { eps, db, sends } = build(opts);
             await call(eps.requestPasswordReset, reqFor(MEMBER));
-            assert.equal(sends.length, 1, `fixture check: the push was attempted (${JSON.stringify(opts)})`);
+            assert.equal(sends.length, 2, `tried, and tried once more — never a third time (${JSON.stringify(opts)})`);
             const row = db._dump('resetRequests')[MEMBER];
             assert.ok(!('notifyClaimedAt' in row), `the claim was released (${JSON.stringify(opts)})`);
             assert.equal(row.notifiedAt, undefined, 'and nothing records the admin as reached');
@@ -772,6 +800,44 @@ describe('a burst of reset requests rings the admin ONCE, however parallel', () 
         await call(eps.requestPasswordReset, reqFor(MEMBER));
         assert.equal(sends.length, 1, 'a possibly-low count still does its job, where no push does not');
     });
+
+    // A REQUEST THAT STOOD ASIDE FOR A PUSH THAT THEN REACHED NOBODY (review, 11 Nov 2026). It found the
+    // sender's claim and left the ringing to it; with no second try it waited for whoever asked next.
+    test('a push that reached nobody is tried again, carrying the request that stood aside for it', async () => {
+        const w = build({ pushDeferred: true });
+        const first = call(w.eps.requestPasswordReset, reqFor(MEMBER));
+        for (let i = 0; i < 200 && w.sends.length === 0; i++) await new Promise((r) => setImmediate(r));
+        assert.equal(w.sends.length, 1, 'fixture check: the first push is on its way');
+        const out = await call(w.eps.requestPasswordReset, reqFor(MEMBER2));
+        assert.equal(out.code, 200);
+        assert.equal(w.sends.length, 1, 'fixture check: the second request found the claim and stood aside');
+        w.acceptPush(0);                                       // the first push reaches nobody
+        for (let i = 0; i < 200 && w.sends.length === 1; i++) await new Promise((r) => setImmediate(r));
+        assert.equal(w.sends.length, 2, 'nobody was told about either request');
+        assert.match(JSON.stringify(w.sends[1].payload), /2 waiting/, 'the second try carries the queue as it stands');
+        w.acceptPush(1);
+        await first;
+        const rows = w.db._dump('resetRequests');
+        assert.ok(rows[MEMBER].notifiedAt, 'the push that got through is recorded');
+        assert.ok(!('notifyClaimedAt' in rows[MEMBER]), 'and its claim went with it');
+    });
+
+    // A BURST HELD RECORDED REQUESTS PAST THE ANSWER FLOOR (review, 11 Nov 2026): each of the SDK's five
+    // attempts backs off up to 3.4 s, while a throttled repeat never runs the claim and met the floor.
+    test('a claim that keeps losing to the burst stops after two attempts and stands aside', async () => {
+        const { eps, sends } = build({ claimConflicts: 2 });
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(out.code, 200);
+        assert.equal(sends.length, 0, 'a third attempt was made — every retry is a backoff the caller can time');
+    });
+
+    test('push keys that will not load still release the claim', async () => {
+        const { eps, db, sends } = build({ vapidFail: true });
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(out.code, 200);
+        assert.equal(sends.length, 0, 'fixture check: nothing could be sent');
+        assert.ok(!('notifyClaimedAt' in db._dump('resetRequests')[MEMBER]), 'the claim held the queue for 15 s');
+    });
 });
 
 // A DISABLED ACCOUNT (sign-in review, Nov 2026). The request recorded it as `provisioned`, so the card
@@ -787,6 +853,16 @@ describe('a disabled account is named as one, and a reset refuses it', () => {
         const row = db._dump('resetRequests')[MEMBER];
         assert.equal(row.provisioned, true);
         assert.equal(row.disabled, true);
+    });
+
+    test('a lookup that failed clears an older row\'s answers rather than keeping them', async () => {
+        const { eps, db } = build({ authFail: { getUserByEmail: emailFor(MEMBER) },
+            seed: { resetRequests: { [MEMBER]: { provisioned: false, disabled: true, requestedAt: { toMillis: () => NOW - 3_600_000 } } } } });
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(out.code, 200, 'the request is recorded however the lookup went');
+        const row = db._dump('resetRequests')[MEMBER];
+        assert.equal(row.count, 1, 'fixture check: recorded again');
+        assert.ok(!('provisioned' in row) && !('disabled' in row), `the card would read an old answer: ${JSON.stringify(row)}`);
     });
 
     test('an enabled account records disabled: false, so a merge cannot keep an old true', async () => {

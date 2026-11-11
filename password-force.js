@@ -203,7 +203,7 @@ function _mount() {
                 <input type="password" id="pwfCurrent" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
                 <div class="login-hint">Your surname in lowercase, unless you’ve already changed it.</div>
             </div>
-            <div id="pwfError" class="login-error" aria-live="polite"></div>
+            <div aria-live="polite"><div id="pwfError" class="login-error"></div></div>
             <button type="button" id="pwfSave">Set password →</button>
             </form>
             <button type="button" id="pwfEscape" class="pwf-escape" hidden>Continue for now</button>
@@ -261,9 +261,8 @@ function _show(member) {
         // `.login-error.visible` is shown. Setting textContent alone left every message in this
         // overlay INVISIBLE — a member typing a short password saw nothing happen at all — and a test
         // asserting textContent passes right through that, because textContent is set either way.
-        // VISIBLE FIRST, then the text (sign-in check, 11 Nov 2026): the box is display:none while empty,
-        // and text written into a region outside the accessibility tree is not reliably announced —
-        // the order calendar-lock-cards.js's `say` documents.
+        // The box is display:none while empty, so it is NOT the live region: its always-rendered parent is
+        // (review, 11 Nov 2026 — calendar-lock-cards.js `say` has the reasoning).
         const setError = (/** @type {string} */ msg) => {
             errorEl.classList.toggle('visible', !!msg);
             errorEl.textContent = msg;
@@ -287,7 +286,8 @@ function _show(member) {
         // "next" moves to Confirm, as Settings' card does — it saved, and called two passwords that had
         // not both been typed a mismatch. Confirm's (and the current password's) "go" saves.
         overlay.addEventListener('keydown', e => {
-            if (e.key !== 'Enter' || saveBtn.disabled || ![newEl, confEl, curEl].includes(/** @type {any} */ (e.target))) return;
+            // Not the Enter that confirms an input method's composition (review, 11 Nov 2026), with Show on.
+            if (e.key !== 'Enter' || e.isComposing || saveBtn.disabled || ![newEl, confEl, curEl].includes(/** @type {any} */ (e.target))) return;
             e.preventDefault();
             if (e.target === newEl) confEl.focus(); else saveBtn.click();
         });
@@ -316,9 +316,12 @@ function _show(member) {
                 (newPasswordProblemField(next, confirm) === 'confirm' ? confEl : newEl).focus();
                 return;
             }
+            const startFocus = document.activeElement;   // see the caret, in `finally`
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving…';
             let reauthed = false;   // which STAGE a failure came from (the shared ladder, auth-identity.js)
+            /** Where the caret goes after a refusal. @type {HTMLElement|null} */
+            let refocus = null;
             try {
                 // If the current-password field is showing we already know a plain updatePassword was
                 // refused for staleness, so reauthenticate first. credentialCandidatesFor (inside
@@ -347,18 +350,22 @@ function _show(member) {
                     // on). Ask for the current password rather than dead-ending.
                     curWrap.hidden = false;
                     setError('For your security, confirm your current password as well.');
-                    curEl.focus();
+                    refocus = curEl;
                 } else {
                     // The ladder Settings → Password reads too (auth-identity.js — the two had drifted).
                     // An empty current-password box is named rather than spent on "try again shortly".
                     const f = passwordChangeFailure(code, reauthed);
                     setError(f.message);
-                    if (f.focus === 'current') curEl.focus(); else if (f.focus === 'new') newEl.focus();
+                    refocus = f.focus === 'current' ? curEl : f.focus === 'new' ? newEl : null;
                     // A rate limit or a hang cannot be typed past (a hang is indistinguishable from
-                    // being offline — FIX, v18.94): the member must not be trapped behind either.
-                    if (code === 'auth/too-many-requests' || code === 'auth/network-request-failed' || code === 'myb/timeout') offerEscape();
+                    // being offline — FIX, v18.94): the member must not be trapped behind either. The
+                    // ladder says which (review, 11 Nov 2026: a list here had restated its causes).
+                    if (f.escape) offerEscape();
                 }
                 if (failures >= ESCAPE_AFTER_FAILURES) offerEscape();
+                // No field to point at: the way out if one is offered, else Save — never nowhere inside
+                // a mandatory overlay (review, 11 Nov 2026).
+                refocus ??= escBtn.hidden ? saveBtn : escBtn;
             } finally {
                 // NOT re-enabled after an indeterminate write — onIndeterminate owns the button from
                 // that point, because a second save racing a first that may still land is the worst
@@ -368,6 +375,10 @@ function _show(member) {
                     saveBtn.disabled = false;
                     saveBtn.textContent = 'Set password →';
                 }
+                // Only where the member left it (Settings' card does the same): a field they have
+                // moved to while the save was out keeps them.
+                const here = document.activeElement;
+                if (refocus && (here === startFocus || here === saveBtn || here === document.body || !here)) refocus.focus();
             }
         });
 

@@ -124,6 +124,40 @@ test('a password that HAS changed closes the overlay while its stamp is still on
     assert.equal(ids.pwfEscape.hidden, true, 'nothing went wrong, so no escape was offered');
 });
 
+// THE CARET AFTER A REFUSAL (review, 11 Nov 2026). With no field to point at it went nowhere — inside a
+// mandatory overlay — and once it did move, it moved even when the member had already gone elsewhere.
+test('a refusal with no field to point at puts the caret on the way out it offers', async () => {
+    setImpl = async () => { throw Object.assign(new Error('offline'), { code: 'auth/network-request-failed' }); };
+    await openOverlay();
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    await flush();
+    assert.equal(ids.pwfEscape.hidden, false, 'premise: a failure no retyping gets past offers the way out');
+    assert.equal(doc.activeElement, ids.pwfEscape, 'the caret was left nowhere inside a mandatory overlay');
+});
+
+test('…but a caret the member has moved while the save was out stays where they put it', async () => {
+    /** @type {(e: any) => void} */ let refuse = () => {};
+    setImpl = () => new Promise((_r, j) => { refuse = j; });
+    await openOverlay();
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    await flush();
+    ids.pwfToggle.focus();                                   // the member moves on while it is out
+    refuse(Object.assign(new Error('weak'), { code: 'auth/weak-password' }));
+    await flush();
+    assert.match(ids.pwfError.textContent, /too weak/, 'premise: the refusal arrived');
+    assert.equal(doc.activeElement, ids.pwfToggle, 'the caret was pulled from where the member had put it');
+});
+
+test('the Enter that confirms an input method\'s composition is left to it (review, 11 Nov 2026)', async () => {
+    await openOverlay();
+    let prevented = false;
+    ids.pwForceOverlay.fire('keydown', { key: 'Enter', isComposing: true, target: ids.pwfNew, preventDefault() { prevented = true; } });
+    assert.equal(prevented, false, 'the overlay took a composition\'s Enter');
+    assert.equal(doc.activeElement, ids.pwfNew, 'a composition\'s Enter moved the caret to Confirm');
+});
+
 test('after "Continue for now", a password change that lands late still tells the host page', async (t) => {
     // The overlay is HIDDEN by the escape, not removed, so the late outcome still reaches the page —
     // the Settings card re-reads the member's status on it. The member was already told to keep and

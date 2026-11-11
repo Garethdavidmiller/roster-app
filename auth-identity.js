@@ -176,11 +176,12 @@ export function newPasswordProblemField(next, confirm) {
  * password incorrect", which sent members to an admin reset over a network blip.
  * @param {string} code  the Firebase error code, '' for none
  * @param {boolean} reauthed  whether re-authentication had already succeeded (or was not needed)
- * @returns {{ message: string, focus: 'current'|'new'|null }}
+ * @returns {{ message: string, focus: 'current'|'new'|null, escape?: true }}  `escape`: no retyping gets
+ *   past it — a rate limit, or no connection (a hang reads as one) — so the forced change offers its way out
  */
 export function passwordChangeFailure(code, reauthed) {
-    if (code === 'auth/too-many-requests') return { message: 'Too many attempts — wait a few minutes and try again.', focus: null };
-    if (code === 'auth/network-request-failed' || code === 'myb/timeout') return { message: 'Couldn’t connect — check your connection and try again.', focus: null };
+    if (code === 'auth/too-many-requests') return { message: 'Too many attempts — wait a few minutes and try again.', focus: null, escape: true };
+    if (code === 'auth/network-request-failed' || code === 'myb/timeout') return { message: 'Couldn’t connect — check your connection and try again.', focus: null, escape: true };
     if (code === 'auth/weak-password') return { message: 'That password is too weak — choose a longer one.', focus: 'new' };
     if (code === 'auth/missing-password') return { message: 'Enter your current password.', focus: 'current' };
     if (!reauthed && isCredentialRejection(code)) return { message: 'Current password incorrect — try again, or ask the admin to reset it.', focus: 'current' };

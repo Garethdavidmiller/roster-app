@@ -34,7 +34,7 @@
  * be waiting at once and the first to finish must not take down the notice the second still needs.
  */
 
-import { hasUnconfirmedWrite } from './claim-retry.js';
+import { hasUnconfirmedWrite, backgroundWritesInFlight } from './claim-retry.js';
 
 /** How long a write may wait for the server before the app says why. */
 export const SLOW_SAVE_MS = 8000;
@@ -172,8 +172,9 @@ let _saveSeq = 0;
  * them strands the rest (review A13).
  * @returns {number}
  */
-export function writesInFlight() { return _inFlight + (hasUnconfirmedWrite() ? 1 : 0); }
-// …PLUS one while a write is UNCONFIRMED (v24.39, external review). A write abandoned on sign-out
+export function writesInFlight() { return _inFlight + backgroundWritesInFlight() + (hasUnconfirmedWrite() ? 1 : 0); }
+// …PLUS the background writes no page started (`trackBackgroundWrite`, claim-retry.js — the "own
+// password" record, review 11 Nov 2026), PLUS one while a write is UNCONFIRMED (v24.39, external review). A write abandoned on sign-out
 // settles its promise here, so the count fell to zero while Firestore still held the write — and in
 // a second tab that cache is memory-only, so an automatic reload lost it. The reader is told to
 // reload; that choice stays theirs, not the service worker's.

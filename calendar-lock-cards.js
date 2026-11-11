@@ -74,7 +74,7 @@ export { PIN_FIRST_HASH };
  * refuses one.
  *
  * @param {object} deps
- * @param {(pin: string) => Promise<{ok: boolean, kind?: string, message?: string}>} deps.unlockWithPin
+ * @param {(pin: string, stillWanted?: () => boolean) => Promise<{ok: boolean, kind?: string, message?: string}>} deps.unlockWithPin
  *   The exchange. It owns the network call, the persistence switch and the claim check; this module
  *   only reads `ok` and `message`.
  * @param {() => string} deps.getAccessType  Asked LIVE, never captured — see rule 2 in the header.
@@ -162,7 +162,7 @@ export function showLockPanel() {
     // COLD, and a cold start is the single largest number in the unlock chain — worth more than
     // every code path after it combined. The seconds a person spends reading this card and typing
     // four digits are exactly the seconds that start covers, so spend them: one fire-and-forget GET,
-    // which the handler answers with a bare 204 (a 405 until v25.76: a red console line on every
+    // which the handler answers with a bare 204 (a 405 until v25.77: a red console line on every
     // PIN card) before touching the throttle store, the secret or
     // any Firebase surface. Nothing is sent (no PIN — there isn't one yet), nothing is read from
     // the response, and a failure changes nothing (`catch` and move on) — the submit path neither
@@ -191,7 +191,7 @@ export function showLockPanel() {
                            aria-describedby="calLockHint" autocapitalize="off">
                     <p class="login-hint" id="calLockHint">One code for everyone at Marylebone. It opens the live roster — including annual leave, absence and shift changes — for as long as this browser stays open.</p>
                 </div>
-                <div class="login-error" id="calLockMsg" role="status" aria-live="polite"></div>
+                <div role="status" aria-live="polite"><div class="login-error" id="calLockMsg"></div></div>
                 <button id="calLockSubmit" type="submit" disabled>${SUBMIT_LABEL}</button>
             </form>
             <button class="login-back" id="calLockSignIn" type="button">Sign in instead</button>
@@ -215,12 +215,13 @@ export function showLockPanel() {
      *  same box in a neutral tint, so there is one live region rather than two competing ones.
      *  @param {string} text @param {boolean} isError */
     function say(text, isError) {
-        // VISIBLE FIRST, then the text. The box is `display: none` when empty, and an element that
-        // is not displayed is not in the accessibility tree — so writing the text while it is still
-        // hidden means the live region never observes a change, and whether making it visible
-        // afterwards announces anything is left to the screen reader. Setting the text while the
-        // region IS in the tree is the only order that reliably announces. (axe cannot see this:
-        // it checks that a live region exists, not that it ever spoke.)
+        // THE LIVE REGION IS THE BOX'S PARENT, never the box (review, 11 Nov 2026). The box is
+        // `display: none` when empty, which takes it out of the accessibility tree, and a region only
+        // announces changes made while it is IN the tree. Showing it and writing its text used to be
+        // ordered "visible first" here, but both happen in one task, before the tree is next updated —
+        // so the order changed nothing, and the box arrived with its text already in it. The parent is
+        // always rendered (empty, it takes no space), so the box appearing inside it is a change the
+        // region sees. (axe cannot see any of this: it checks a live region exists, not that it spoke.)
         msg.classList.toggle('visible', !!text);
         msg.classList.toggle('cal-lock-msg--info', !!text && !isError);
         msg.textContent = text;
@@ -256,12 +257,14 @@ export function showLockPanel() {
         submit.textContent = 'Unlocking…';
         say('Checking the PIN…', false);
 
-        const result = await _deps.unlockWithPin(pin);
+        // Asked while it waits whether THIS card is still on screen (review, 11 Nov 2026): Back or "Sign in
+        // instead" mid-exchange left it granting under the card that replaced it.
+        const result = await _deps.unlockWithPin(pin, () => panel.isConnected);
         // Clear the field before anything else on every path, success included. A PIN left in a
         // form field on a shared PC is readable by the next person through devtools autofill, and
         // on failure a cleared field is also what the member wants — they are retyping it anyway.
         input.value = '';
-        if (result.ok) return;   // the panel is being removed by grant(); leave it alone
+        if (result.ok || !panel.isConnected) return;   // granted (grant() removes the panel), or gone
 
         // Only a WRONG PIN counts towards the delay (sign-in check, 11 Nov 2026). A dropped connection,
         // a busy server or the server's own limit is not the member mistyping, and slowing their retry

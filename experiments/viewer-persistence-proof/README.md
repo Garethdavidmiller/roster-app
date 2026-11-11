@@ -69,7 +69,7 @@ Auth and Firestore emulators and the real Cloud Function handlers, in Chromium a
 browser that genuinely exits. **A PIN unlock, then the browser closed and reopened: locked, and
 nothing stored** — in both engines. It also found the one case this harness cannot reach: a start-up
 so slow (an `accounts:lookup` held for 16 s) that the boot's own persistence switch landed AFTER the
-unlock, which put the viewer into IndexedDB, where it survived the restart. Fixed in v25.76: the
+unlock, which put the viewer into IndexedDB, where it survived the restart. Fixed in v25.77: the
 unlock waits for `authBootstrap`, bounded, and refuses rather than racing it (`calendar-access.js`;
 `calendar-access.test.mjs` → the boot-wait tests). The rig lives outside the repository: it holds a
 made-up PIN of its own and copies of the rules and SDK, and none of that belongs in the tree.
