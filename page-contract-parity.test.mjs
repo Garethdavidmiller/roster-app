@@ -1043,3 +1043,47 @@ test('every page with a busy check holds an update while a write is unconfirmed'
     }
     assert.ok(checked >= 4, `only ${checked} pages declare a busy check — this test is checking almost nothing`);
 });
+
+test('Settings holds an update while a password save, or its "own password" record, is on its way (sign-in check, 11 Nov 2026)', () => {
+    // The record was dropped by a reload in the moment after "updated", and the card then said "still on
+    // your surname". It is counted from where the save confirms it, and the busy check reads the count.
+    const src = codeOf('settings-app.js');
+    const busy = src.match(/const _busy = ([^;]*);/)?.[1] ?? '';
+    assert.match(busy, /_passwordSaving/, 'the busy check forgot the password save itself');
+    assert.match(busy, /_stampsInFlight > 0/, 'the busy check does not count the "own password" record');
+    assert.match(src, /_stampsInFlight\+\+; res\.stamp\.finally\(\(\) => \{ _stampsInFlight--; \}\);/,
+        'the record is no longer counted from where the save confirms it (onWriteConfirmed)');
+    const reg = swRegistrationProps(src) ?? {};
+    for (const k of ['beforeReload', 'isBusy']) assert.match(reg[k] ?? '', /_busy/, `${k} does not ask the shared busy check`);
+});
+
+// ── A HIDDEN MESSAGE BOX IS SHOWN BEFORE ITS TEXT IS WRITTEN (sign-in check, 11 Nov 2026) ────────────
+// The boxes are display:none while empty, and a region outside the accessibility tree does not reliably
+// announce text written into it — the order calendar-lock-cards.js's `say` documents. The sign-in card
+// and the forced change wrote the text first.
+test('the sign-in card and the forced change show their message box before writing to it', () => {
+    for (const [file, fn] of [['login-overlay.js', /function showError\(msg\) \{([\s\S]*?)\n {4}\}/], ['password-force.js', /const setError = [^{]*\{([\s\S]*?)\n {8}\};/]]) {
+        const body = codeOf(file).match(fn)?.[1] ?? '';
+        const shown = body.search(/classList\.(?:add|toggle)\('visible'/), written = body.search(/textContent = msg/);
+        assert.ok(shown >= 0 && written >= 0, `${file}: the message writer was not found where expected`);
+        assert.ok(shown < written, `${file}: the text is written before the box is shown — a screen reader may not announce it`);
+    }
+});
+
+// ── EVERY PAGE TIDIES AN EXPIRED SIGN-IN AWAY AS IT STARTS (sign-in check, 11 Nov 2026) ─────────────
+// A Firebase identity whose 60-day local session has ended must not stay live on a page reached by a
+// deep link. Each coordinator asks `reconcileExpiredIdentity` as it starts — with its DEFAULT, which signs
+// the staff PIN out too (AUTH_AND_SESSIONS 24) — except the Calendar's access gate, which admits the PIN
+// and asks it to keep a viewer. Deleting the call from Settings or Operations left every suite green.
+test('every page asks reconcileExpiredIdentity as it starts, and only the Calendar keeps a PIN viewer', () => {
+    for (const p of APP_PAGE_ENTRIES) {
+        const file = p.id === 'calendar' ? 'calendar-access.js' : p.coordinator;
+        const args = [...codeOf(file).matchAll(/\breconcileExpiredIdentity\(([^)]*)\)/g)].map(m => m[1].trim());
+        assert.ok(args.length > 0, `${file}: never asks reconcileExpiredIdentity — an expired identity stays live there`);
+        if (p.id === 'calendar') {
+            assert.ok(args.every(a => /preserveCalendarViewer:\s*true/.test(a)), `${file}: the Calendar must keep a PIN viewer (${args})`);
+        } else {
+            assert.deepEqual(args.filter(Boolean), [], `${file}: only the Calendar may ask to keep a PIN viewer (Trains asks holdsStaffPin first)`);
+        }
+    }
+});

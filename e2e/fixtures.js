@@ -573,7 +573,11 @@ export const browserSessionPersistence = marker('session');
 // state in a browser: the deadline passes, the UI must say it could not confirm, and then the
 // original call settles late — the case that used to be reported as a flat failure.
 // NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
+// window.__E2E.updateFailCode makes the password WRITE refuse with that code at once (sign-in check,
+// 11 Nov 2026): a failure AFTER re-authentication, which must never read as a wrong current password.
 export const updatePassword = () => {
+  const failCode = (globalThis.__E2E || {}).updateFailCode;
+  if (failCode) return Promise.reject(Object.assign(new Error('e2e update refused'), { code: failCode }));
   if (!(globalThis.__E2E || {}).hangPasswordWrite) return Promise.resolve();
   return new Promise((resolve, reject) => {
     globalThis.__E2E_releasePasswordWrite = (ok) => (ok === false
@@ -581,7 +585,12 @@ export const updatePassword = () => {
       : resolve());
   });
 };
-export const reauthenticateWithCredential = () => Promise.resolve({ user: { uid: 'test' } });
+// window.__E2E.reauthFailCode makes re-authentication REFUSE with that code (sign-in check, 11 Nov 2026):
+// the only way to reach "Current password incorrect" on a page under the stub. (No backticks here.)
+export const reauthenticateWithCredential = () => {
+  const code = (globalThis.__E2E || {}).reauthFailCode;
+  return code ? Promise.reject(Object.assign(new Error('e2e reauth refused'), { code })) : Promise.resolve({ user: { uid: 'test' } });
+};
 export const EmailAuthProvider = { credential: (email, password) => marker('cred:' + email + ':' + password) };
 
 // ---- storage (only operations upload uses these; included for completeness) ----

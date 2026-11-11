@@ -639,3 +639,61 @@ describe('a read the offline cache answered is a failed load (settings-ops-1)', 
         assert.deepEqual(state.ops, [], 'no delete and no prune decided on the cache\'s copy');
     });
 });
+
+// ── WHERE A RESTORED SESSION IS KEPT IS DECIDED BY WHO IT IS (sign-in check, 11 Nov 2026) ───────────
+// `authBootstrap` migrates whoever this browser restored: the shared PIN account to THIS TAB
+// (sessionStorage, so it goes when the browser closes — AUTH_AND_SESSIONS 12) and a member to this
+// DEVICE (IndexedDB). Inverting that one condition survived thirteen suites: the PIN would have outlived
+// the browser on a station PC, and a member would have been signed out with the tab. A fresh copy of the
+// module boots against each user, because the copy the file imported booted with nobody signed in.
+describe('authBootstrap — who was restored decides where the session lives', () => {
+    const persistenceCalls = () => state.authOps.filter((o) => o.op === 'setPersistence').map((o) => o.type);
+
+    test('the PIN account is kept to this tab', async () => {
+        state.currentUser = { uid: 'calendar-viewer' };   // the uid isViewerUser recognises
+        const boot = await (await import('./firebase-client.js?boot-viewer')).authBootstrap;
+        assert.equal(boot.persistence, 'session');
+        assert.equal(boot.user, state.currentUser, 'and the restored user is handed on, not re-asked');
+        assert.deepEqual(persistenceCalls(), ['session']);
+    });
+
+    test('a member is kept on this device', async () => {
+        signIn();
+        const boot = await (await import('./firebase-client.js?boot-member')).authBootstrap;
+        assert.equal(boot.persistence, 'indexeddb');
+        assert.deepEqual(persistenceCalls(), ['indexeddb']);
+    });
+});
+
+// ── THE RESET PROBE THAT COULD NOT ASK SAYS "UNKNOWN", NEVER "NEVER RESET" (sign-in check) ──────────
+// 0 means "never reset", which lets a silent sign-in go ahead on the surname default; null means it
+// could not be confirmed, and the caller withholds that (AUTH_AND_SESSIONS 23). The catch answering 0
+// survived fourteen suites — a phone that lost the network mid-probe would have been let back in.
+describe('probeResetAtMs — every way the probe ends', () => {
+    const EMAIL = 'l.springer@myb-roster.local';
+    const json = (status, body) => new Response(JSON.stringify(body), { status });
+    const replies = (...rs) => { fetchReply = () => { const r = rs.shift(); if (r instanceof Error) throw r; return r; }; };
+
+    test('a network failure is unknown', async () => {
+        replies(new TypeError('Failed to fetch'));
+        assert.equal(await fc.probeResetAtMs(EMAIL, 'springer', MEMBER, 2_000), null);
+    });
+    test('a failure on the second request is unknown too', async () => {
+        replies(json(200, { idToken: 'rest-token' }), new TypeError('Failed to fetch'));
+        assert.equal(await fc.probeResetAtMs(EMAIL, 'springer', MEMBER, 2_000), null);
+    });
+    test('a rejected password, and a throttle, are named as such', async () => {
+        replies(json(400, { error: { message: 'INVALID_LOGIN_CREDENTIALS' } }));
+        assert.equal(await fc.probeResetAtMs(EMAIL, 'springer', MEMBER, 2_000), 'credential');
+        replies(json(400, { error: { message: 'TOO_MANY_ATTEMPTS_TRY_LATER' } }));
+        assert.equal(await fc.probeResetAtMs(EMAIL, 'springer', MEMBER, 2_000), 'throttled');
+    });
+    test('a member never reset is 0, and a reset is its time — read with the probe\'s own token', async () => {
+        replies(json(200, { idToken: 'rest-token' }), json(404, {}));
+        assert.equal(await fc.probeResetAtMs(EMAIL, 'springer', MEMBER, 2_000), 0);
+        replies(json(200, { idToken: 'rest-token' }), json(200, { fields: { resetAt: { timestampValue: '2026-11-01T09:00:00Z' } } }));
+        assert.equal(await fc.probeResetAtMs(EMAIL, 'springer', MEMBER, 2_000), Date.parse('2026-11-01T09:00:00Z'));
+        assert.equal(fetches.at(-1).init.headers.Authorization, 'Bearer rest-token');
+        assert.match(fetches.at(-1).url, /passwordStatus\/L\.%20Springer$/);
+    });
+});

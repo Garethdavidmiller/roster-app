@@ -68,7 +68,7 @@
  * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
 
-import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot } from './firebase-client.js';
+import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot, authBootstrap } from './firebase-client.js';
 import { getSession, reconcileExpiredIdentity, ensureNamedSession, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
@@ -84,9 +84,18 @@ import { hasCalendarAccess, setCalendarAccess } from './calendar-access-state.js
 const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer';
 
 /** How long to wait on the exchange before calling it a network failure. Generous — a cold start of
- *  a rarely-called function is a real several seconds, and timing out into "check the connection"
- *  on a working network is the more annoying of the two errors. */
-const UNLOCK_TIMEOUT_MS = 15000;
+ *  a rarely-called function is a real several seconds — and ABOVE the endpoint's own 20s ceiling
+ *  (`timeoutSeconds`, functions/index.js; fetch-timeout.js): a client that gives up first calls a
+ *  working server broken. It was 15s until v25.76. */
+const UNLOCK_TIMEOUT_MS = 25000;
+
+/** How long an unlock waits for the boot's persistence choice (`unlockWithPin`), and the wait. */
+const BOOT_SETTLE_FOR_UNLOCK_MS = 20000;
+function bootSettledWithin(/** @type {number} */ ms) {
+    /** @type {any} */ let timer;
+    const late = new Promise(r => { timer = setTimeout(() => r(false), ms); });
+    return Promise.race([authBootstrap.then(() => true), late]).finally(() => clearTimeout(timer));
+}
 
 // ACCESS_DECISION_BUDGET_MS — session.js's since v24.96, one constant for this decision and
 // holdsStaffPin's — is the WHOLE decision's deadline, not a per-step one (v21.29): everything
@@ -232,7 +241,9 @@ async function resolveAccess() {
  * valid PIN session the boot decision would have granted. It is granted as what `decideAccess` says
  * it is, the viewer, never as a member — and only once its token is seen to carry the claim, the
  * check the unlock itself makes; and never during the PIN card's own exchange, which checks the
- * claim and grants for itself (`_unlocking`).
+ * claim and grants for itself (`_unlocking`). NOR while a member's session is held (sign-in check,
+ * 11 Nov 2026): that member's own way back owns the page (CALENDAR_DATA.md 11), and a viewer granted
+ * under it ended at the PIN card, or with the member signed in to a viewer's Calendar.
  */
 function watchForLateNamedIdentity() {
     let off = /** @type {null | (() => void)} */ (null);
@@ -269,7 +280,7 @@ async function grantLateViewer(u, stop) {
     if (claims?.[CALENDAR_VIEWER_CLAIM] !== true) return;
     // Granted meanwhile, or signed out by an exchange — or an exchange is still signing it out: the
     // SDK clears `currentUser` only when its own queue runs, so that one still reads as `u` here.
-    if (_unlocking || getAccessType() !== 'none' || auth.currentUser !== u) return;
+    if (_unlocking || getAccessType() !== 'none' || auth.currentUser !== u || getSession()?.name) return;
     stop();
     console.warn('[CalendarAccess] a viewer session restored after the access decision — granting.');
     grant('viewer');
@@ -378,6 +389,15 @@ export async function unlockWithPin(pin) {
         return { ok: false, kind: f.kind, message: f.message };
     }
 
+    // THE BOOT'S OWN PERSISTENCE CHOICE LANDS FIRST (sign-in check, 11 Nov 2026). `authBootstrap` ends
+    // by setting the member chain for a stored member; on a start-up slow enough that this card was
+    // used first, that landed AFTER the switch below and MIGRATED the new viewer into IndexedDB — the
+    // PIN outlived the browser (reproduced with the real SDK in both engines). Normally long settled;
+    // a boot that never settles fails closed: still locked, try again.
+    if (!(await bootSettledWithin(BOOT_SETTLE_FOR_UNLOCK_MS))) {
+        const f = classifyUnlockFailure({ code: 'boot-pending' });
+        return { ok: false, kind: f.kind, message: f.message };
+    }
     // A staff-PIN session restored late and was granted while this exchange was out (cal-data-10):
     // there is nothing left to unlock, and signing it out to sign in again would rebuild a working gate.
     if (getAccessType() !== 'none') return { ok: true };

@@ -26,10 +26,11 @@ let setCalls = 0, reauthCalls = 0;
 // the auth status hard-coded (the lockout guard gone), and no escape on a rate limit (trapped).
 let authStatus = 'named';
 /** @type {null | (() => Promise<any>)} */ let setImpl = null;
+/** @type {null | (() => Promise<any>)} */ let statusImpl = null;
 /** @type {string[]} */ const lsDeleted = [];
 /** By default the first save is refused as stale, so the overlay asks for the current password; later ones land. */
 mock.module('./firebase-client.js', { namedExports: {
-    getPasswordStatus: async () => ({}),                       // not migrated — the overlay compels
+    getPasswordStatus: async () => (statusImpl ? statusImpl() : {}),   // {}: not migrated — the overlay compels
     changeOwnPassword: async () => {
         setCalls++;
         if (setImpl) return setImpl();
@@ -96,7 +97,7 @@ function enter(/** @type {any} */ target) {
     return prevented;
 }
 
-beforeEach(() => { setCalls = 0; reauthCalls = 0; authStatus = 'named'; setImpl = null; lsDeleted.length = 0; dispatched.length = 0; freshDom(); });
+beforeEach(() => { setCalls = 0; reauthCalls = 0; authStatus = 'named'; setImpl = null; statusImpl = null; lsDeleted.length = 0; dispatched.length = 0; freshDom(); });
 
 /** Let promise chains and the overlay's handlers run (setImmediate, so a mocked setTimeout cannot hold it). */
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
@@ -216,3 +217,28 @@ test('a rate-limited save offers the escape — the member cannot proceed by typ
     await Promise.race([done, settle()]);
 });
 
+
+// ── A MANDATORY SCREEN MUST NEVER BECOME A LOCKOUT (sign-in check, 11 Nov 2026) ───────────────────────
+// Two of the overlay's ways out had nothing holding them: a status read that fails lets the member
+// through rather than compelling them on a guess, and a save that cannot reach the server offers the
+// escape, as a rate limit does. Breaking either left every suite green.
+test('a status read that fails lets the member through — the overlay never opens', async () => {
+    statusImpl = async () => { throw Object.assign(new Error('offline'), { code: 'unavailable' }); };
+    assert.equal(await initPasswordForce('G. Miller'), false);
+    assert.equal(doc.activeElement, null, 'the overlay opened on a read nobody could complete');
+});
+
+test('an offline or timed-out save offers the escape too — typing again cannot help', async () => {
+    for (const code of ['auth/network-request-failed', 'myb/timeout']) {
+        freshDom(); setCalls = 0;
+        setImpl = async () => { throw Object.assign(new Error('no connection'), { code }); };
+        const { done } = await openOverlay();
+        ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+        enter(ids.pwfConfirm);
+        await settle();
+        assert.equal(setCalls, 1, `premise: the save was tried (${code})`);
+        assert.equal(ids.pwfEscape.hidden, false, `${code}: a member who cannot reach the server was left with no way out`);
+        ids.pwfEscape.click();
+        await Promise.race([done, settle()]);
+    }
+});

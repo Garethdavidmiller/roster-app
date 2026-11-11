@@ -1108,10 +1108,20 @@ describe('the endpoint tells a guesser nothing (rules 1 and 2)', () => {
         assert.equal(out.headers['Cache-Control'], 'no-store');
     });
 
-    test('a GET is refused without touching the throttle store', async () => {
+    test('a GET (the PIN card\'s warm-up) gets a quiet 204 without touching the throttle store', async () => {
+        // 204, not 405 (sign-in check, 11 Nov 2026): the warm-up is the app's own request, and a 405
+        // put a red line in the console of every PIN card — the health check reads red as broken.
         const { reads, writes } = build();
         const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN, { method: 'GET' }));
 
+        assert.equal(out.code, 204);
+        assert.deepEqual(reads, []);
+        assert.deepEqual(writes, []);
+    });
+
+    test('any other method is still refused with a 405, and touches nothing', async () => {
+        const { reads, writes } = build();
+        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN, { method: 'PUT' }));
         assert.equal(out.code, 405);
         assert.deepEqual(reads, []);
         assert.deepEqual(writes, []);

@@ -66,7 +66,7 @@ import { lsGet, lsDel } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
 import { getPasswordStatus, changeOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
-import { isPasswordMigrated, isCredentialRejection, validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
+import { isPasswordMigrated, validateNewPassword, MIN_PASSWORD_LENGTH, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 
@@ -261,9 +261,12 @@ function _show(member) {
         // `.login-error.visible` is shown. Setting textContent alone left every message in this
         // overlay INVISIBLE — a member typing a short password saw nothing happen at all — and a test
         // asserting textContent passes right through that, because textContent is set either way.
+        // VISIBLE FIRST, then the text (sign-in check, 11 Nov 2026): the box is display:none while empty,
+        // and text written into a region outside the accessibility tree is not reliably announced —
+        // the order calendar-lock-cards.js's `say` documents.
         const setError = (/** @type {string} */ msg) => {
-            errorEl.textContent = msg;
             errorEl.classList.toggle('visible', !!msg);
+            errorEl.textContent = msg;
         };
 
         // NEVER SUBMITTED ANYWHERE, AND A SUBMIT NEVER CLOSES IT (iPhone audit, Nov 2026). The form is
@@ -280,8 +283,13 @@ function _show(member) {
         // write instead of letting the member out (property 3). A focused button activates itself.
         // ALL THREE fields (48-hour review): the current-password box, revealed and focused when a
         // stale sign-in needs it, was left out, so its Enter and the phone's Go key did nothing.
+        // And the key does what the keyboard LABELS it (sign-in check, 11 Nov 2026): the new password's
+        // "next" moves to Confirm, as Settings' card does — it saved, and called two passwords that had
+        // not both been typed a mismatch. Confirm's (and the current password's) "go" saves.
         overlay.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !saveBtn.disabled && [newEl, confEl, curEl].includes(/** @type {any} */ (e.target))) { e.preventDefault(); saveBtn.click(); }
+            if (e.key !== 'Enter' || saveBtn.disabled || ![newEl, confEl, curEl].includes(/** @type {any} */ (e.target))) return;
+            e.preventDefault();
+            if (e.target === newEl) confEl.focus(); else saveBtn.click();
         });
 
         // A plain button whose name says what it will do — not a toggle as well, which read "Hide
@@ -303,17 +311,14 @@ function _show(member) {
             const invalid = validateNewPassword(member, next, confirm);
             if (invalid) {
                 setError(invalid);
-                // Focus the field the message is about. Derive the MISMATCH condition exactly rather
-                // than inferring it from "the values differ" (FIX, v18.94): a too-short password with
-                // an empty Confirm box also has differing values, so the old test sent the cursor to
-                // Confirm while the error talked about the new password. Same bug reached the shipped
-                // Settings card through the shared validator.
-                const isMismatch = next.length >= MIN_PASSWORD_LENGTH && next !== confirm;
-                (isMismatch ? confEl : newEl).focus();
+                // Focus the field the message is about — derived exactly (FIX, v18.94), and since the
+                // sign-in check (11 Nov 2026) in ONE place both password surfaces read.
+                (newPasswordProblemField(next, confirm) === 'confirm' ? confEl : newEl).focus();
                 return;
             }
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving…';
+            let reauthed = false;   // which STAGE a failure came from (the shared ladder, auth-identity.js)
             try {
                 // If the current-password field is showing we already know a plain updatePassword was
                 // refused for staleness, so reauthenticate first. credentialCandidatesFor (inside
@@ -322,6 +327,7 @@ function _show(member) {
                 // Re-auth is safe to time out as a plain failure: it changes nothing, so retrying is
                 // free and "it did not happen" is a true statement about it.
                 if (!curWrap.hidden) await withTimeout(reauthenticateWithPassword(member, curEl.value), SAVE_TIMEOUT_MS);
+                reauthed = true;
                 // The WRITE is different — see settleOrTimeout. A deadline here means "we don't know",
                 // never "it failed". It times the password change ALONE (settings-ops-2): its
                 // migration stamp, a Firestore write that can be slow where the change was not, goes
@@ -342,28 +348,15 @@ function _show(member) {
                     curWrap.hidden = false;
                     setError('For your security, confirm your current password as well.');
                     curEl.focus();
-                } else if (code === 'auth/too-many-requests') {
-                    setError('Too many attempts — wait a few minutes and try again.');
-                    offerEscape();          // they cannot proceed by typing; must not be trapped
-                } else if (code === 'auth/network-request-failed' || code === 'myb/timeout') {
-                    // A hang lands here now (FIX, v18.94) and MUST offer the escape — it is
-                    // indistinguishable to the member from being offline.
-                    setError('Couldn’t connect — check your connection and try again.');
-                    offerEscape();
-                } else if (code === 'auth/missing-password') {
-                    // Empty current-password box. Say so, rather than spending one of the three
-                    // failures on the generic "try again shortly" (auth/missing-password is not in
-                    // CREDENTIAL_REJECTION_CODES, so it used to fall through to it).
-                    setError('Enter your current password.');
-                    curEl.focus();
-                } else if (isCredentialRejection(code)) {
-                    setError('Current password incorrect — try again, or ask the admin to reset it.');
-                    curEl.focus();
-                } else if (code === 'auth/weak-password') {
-                    setError('That password is too weak — choose a longer one.');
-                    newEl.focus();
                 } else {
-                    setError('Couldn’t set your password — try again shortly.');
+                    // The ladder Settings → Password reads too (auth-identity.js — the two had drifted).
+                    // An empty current-password box is named rather than spent on "try again shortly".
+                    const f = passwordChangeFailure(code, reauthed);
+                    setError(f.message);
+                    if (f.focus === 'current') curEl.focus(); else if (f.focus === 'new') newEl.focus();
+                    // A rate limit or a hang cannot be typed past (a hang is indistinguishable from
+                    // being offline — FIX, v18.94): the member must not be trapped behind either.
+                    if (code === 'auth/too-many-requests' || code === 'auth/network-request-failed' || code === 'myb/timeout') offerEscape();
                 }
                 if (failures >= ESCAPE_AFTER_FAILURES) offerEscape();
             } finally {

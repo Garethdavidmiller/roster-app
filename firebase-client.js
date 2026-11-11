@@ -314,7 +314,7 @@ export function restoreMemberPersistence() { return _setMemberPersistence(); }
 export function setViewerPersistence() { return setPersistence(auth, browserSessionPersistence); }
 
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
+export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
@@ -850,7 +850,7 @@ export async function requestPasswordReset(memberName) {
 
 /**
  * All outstanding password-reset requests, newest first (admin only — enforced by the rules).
- * @returns {Promise<Array<{memberName: string, requestedAt?: any, count?: number, provisioned?: boolean}>>}
+ * @returns {Promise<Array<{memberName: string, requestedAt?: any, count?: number, provisioned?: boolean, disabled?: boolean}>>}
  */
 export async function getResetRequests() {
     const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.resetRequests)));

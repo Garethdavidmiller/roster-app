@@ -109,6 +109,8 @@ const uidFor   = (n) => `uid_${n.replace(/\W/g, '')}`;
 // for the wrong reason — the exact "green because nothing happened" shape this file exists to avoid.
 const SERVER_TS = Symbol('serverTimestamp');
 const resolveTs = (v) => (v === SERVER_TS ? { toMillis: () => Date.now() } : v);
+// FieldValue.delete(): the field goes, as in Firestore — kept as a value it would read as "present".
+const FIELD_DELETE = Symbol('delete');
 
 /**
  * A Firestore fake with what these endpoints touch: per-collection docs, a transaction, and a
@@ -124,22 +126,31 @@ function makeDb(seed = {}) {
     for (const [c, docs] of Object.entries(seed)) {
         for (const [id, data] of Object.entries(docs)) col(c).set(id, { ...data });
     }
+    // A version per document and per collection, bumped on every write: what a transaction's commit
+    // checks its reads against.
+    const versions = new Map();
+    const version = (k) => versions.get(k) || 0;
+    const bump = (name, id) => { for (const k of [`${name}/${id}`, name]) versions.set(k, version(k) + 1); };
     const merge = (name, id, data) => {
         const store = col(name);
         const prev = store.get(id) || {};
         const next = { ...prev };
         for (const [k, v] of Object.entries(data)) {
+            if (v === FIELD_DELETE) { delete next[k]; continue; }
             next[k] = (v && typeof v === 'object' && v.inc)
                 ? (Number(prev[k]) || 0) + v.inc
                 : resolveTs(v);
         }
         store.set(id, next);
+        bump(name, id);
     };
-    const snapOf = (name, id) => ({
-        id,
-        exists: col(name).has(id),
-        data: () => col(name).get(id) || {},
-    });
+    // A snapshot holds what was there WHEN it was read; a write replaces the stored object, never edits it.
+    const snapOf = (name, id) => {
+        const d = col(name).get(id);
+        return { id, exists: d !== undefined, data: () => d || {} };
+    };
+    const querySnap = (name) => ({ size: col(name).size, docs: [...col(name).keys()].map((id) => snapOf(name, id)) });
+    const notFound = () => { const e = new Error('NOT_FOUND'); e.code = 5; return e; };
     const db = {
         collection(name) {
             return {
@@ -147,24 +158,41 @@ function makeDb(seed = {}) {
                     // Firestore's update() refuses a document that is not there (NOT_FOUND) — the
                     // property a late write relies on to not re-create a row somebody cleared.
                     update: async (data) => {
-                        if (!col(name).has(id)) { const e = new Error('NOT_FOUND'); e.code = 5; throw e; }
+                        if (!col(name).has(id)) throw notFound();
                         merge(name, id, data);
                     } }),
-                select: () => ({ get: async () => ({
-                    size: col(name).size,
-                    docs: [...col(name).keys()].map((id) => snapOf(name, id)),
-                }) }),
+                select: () => ({ _query: name, get: async () => querySnap(name) }),
             };
         },
+        // OPTIMISTIC, which is what a real transaction guarantees its callers: reads made THROUGH it are
+        // remembered with the version they saw, writes wait for the commit, and a commit whose reads
+        // have changed since runs the callback again (five attempts, then ABORTED). So two requests
+        // deciding from the same rows cannot both act on them — and a read that bypasses the
+        // transaction is not protected, exactly as in Firestore, which is what lets a test catch one.
         async runTransaction(fn) {
-            return fn({
-                get: async (ref) => snapOf(ref._col, ref.id),
-                set: (ref, data) => merge(ref._col, ref.id, data),
-            });
+            for (let attempt = 0; attempt < 5; attempt++) {
+                const reads = new Map();
+                /** @type {Array<{ ref: any, data: any, update: boolean }>} */
+                const writes = [];
+                const result = await fn({
+                    get: async (ref) => {
+                        const k = ref._query || `${ref._col}/${ref.id}`;
+                        reads.set(k, version(k));
+                        return ref._query ? querySnap(ref._query) : snapOf(ref._col, ref.id);
+                    },
+                    set: (ref, data) => { writes.push({ ref, data, update: false }); },
+                    update: (ref, data) => { writes.push({ ref, data, update: true }); },
+                });
+                if ([...reads].some(([k, v]) => version(k) !== v)) continue;
+                if (writes.some((w) => w.update && !col(w.ref._col).has(w.ref.id))) throw notFound();
+                for (const w of writes) merge(w.ref._col, w.ref.id, w.data);
+                return result;
+            }
+            throw Object.assign(new Error('ABORTED'), { code: 10 });
         },
         _dump: (name) => Object.fromEntries(col(name)),
         /** What the admin's Operations card does when a reset is done: the row goes. */
-        _delete: (name, id) => { col(name).delete(id); },
+        _delete: (name, id) => { col(name).delete(id); bump(name, id); },
     };
     return db;
 }
@@ -179,6 +207,8 @@ function makeDb(seed = {}) {
  * @param {object}  o
  * @param {boolean} o.adminResolves  can the admin NAME be resolved to a uid at all
  * @param {number}  o.pushAccepts    how many subscriptions accept each targeted push (0 = nobody)
+ * @param {number}  o.claimTxFail    the error code the reset request's CLAIM transaction (its second)
+ *                                  rejects with — ABORTED (10), NOT_FOUND (5), or anything else
  * @param {boolean} o.pushHangs      the push service never answers — the case the reset request's
  *                                  10-second limit exists for
  * @param {object}  o.seed           starting Firestore contents, by collection
@@ -205,6 +235,7 @@ function build({
     pushFail = null,
     pushHangs = false,
     pushDeferred = false,
+    claimTxFail = null,
     seed = {},
     authFail = {},
     token = { admin: true, name: ADMIN },
@@ -229,6 +260,13 @@ function build({
     const firePath  = require.resolve('firebase-admin/firestore', { paths: [fnDir] });
     const pushPath  = require.resolve('./functions/push.js');
     const db = makeDb(seed);
+    if (claimTxFail !== null) {
+        const plainTx = db.runTransaction.bind(db);
+        let n = 0;
+        db.runTransaction = (fn) => (++n === 2
+            ? Promise.reject(Object.assign(new Error('claim transaction failed'), { code: claimTxFail }))
+            : plainTx(fn));
+    }
     const users = new Map((existingUsers || []).map((u) => [u.email, u]));
     // Every passwordStatus write — the resetAt stamp — with `at`: how many Auth calls had been made
     // when it was attempted. That is what puts the stamp and the credential change on ONE timeline,
@@ -249,7 +287,7 @@ function build({
     };
 
     const firestore = () => db;
-    firestore.FieldValue = { serverTimestamp: () => SERVER_TS, increment: (n) => ({ inc: n }) };
+    firestore.FieldValue = { serverTimestamp: () => SERVER_TS, increment: (n) => ({ inc: n }), delete: () => FIELD_DELETE };
     const notFound = () => { const e = new Error('nope'); e.code = 'auth/user-not-found'; throw e; };
     const auth = {
         verifyIdToken: async (bearer, checkRevoked) => {
@@ -658,6 +696,123 @@ describe('coalescing counts notifications SENT, not requests arrived (v21.85)', 
         });
         await call(eps.requestPasswordReset, reqFor(MEMBER));
         assert.equal(sends.length, 1);
+    });
+});
+
+// ONE PUSH PER BURST, DECIDED BY A CLAIM (sign-in review, Nov 2026). Every coalescing test above is
+// SEQUENTIAL, so each request found the stamp the one before it left. A real burst is parallel, and
+// read → send → stamp let every request read the rows before any push had been stamped: a reviewer
+// drove this handler with fifty names at once and the admin's phone got fifty pushes.
+describe('a burst of reset requests rings the admin ONCE, however parallel', () => {
+    const { resolveRosterAuthConfig } = require('./functions/roster-parse-helpers.js');
+    const burst = resolveRosterAuthConfig(require('./functions/roster-members.json')).processMembers
+        .filter((n) => n !== ADMIN).slice(0, 20);
+    const seededClaim = (claimMs) => ({ seed: { resetRequests: {
+        [MEMBER2]: { requestedAt: { toMillis: () => NOW }, notifyClaimedAt: { toMillis: () => claimMs } } } } });
+
+    test('twenty names at once send one push, and no claim outlives it', async () => {
+        assert.equal(burst.length, 20, 'fixture check: the roster has twenty names to burst with');
+        const { eps, sends, db } = build();
+        const outs = await Promise.all(burst.map((n) => call(eps.requestPasswordReset, reqFor(n))));
+        assert.ok(outs.every((o) => o.code === 200), 'every request is recorded and answered alike');
+        const rows = Object.values(db._dump('resetRequests'));
+        assert.equal(rows.length, burst.length, 'every request has its row');
+        assert.equal(sends.length, 1, `one push for the burst, not ${sends.length}`);
+        assert.equal(rows.filter((r) => r.notifiedAt).length, 1, 'one row records the push that went');
+        assert.ok(rows.every((r) => !('notifyClaimedAt' in r)), 'and the claim went with the send');
+    });
+
+    test('a request that finds another row SENDING leaves the push to it', async () => {
+        const { eps, sends, db } = build(seededClaim(Date.now() - 2_000));
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(out.code, 200);
+        assert.ok(db._dump('resetRequests')[MEMBER], 'recorded all the same');
+        assert.equal(sends.length, 0, 'the push in flight covers it');
+    });
+
+    test('a claim stamped a moment AHEAD of this clock still holds; one far ahead does not', async () => {
+        // shouldNotifyAdmin ignores a future `notifiedAt` as clock skew; a claim must not be, or two
+        // instances a few ms apart would each read the other's fresh claim as "not yet". But a claim
+        // far in the future (a clock far out) would otherwise hold the queue until that time came.
+        for (const [aheadMs, expected] of [[500, 0], [10 * 60_000, 1]]) {
+            const { eps, sends } = build(seededClaim(Date.now() + aheadMs));
+            await call(eps.requestPasswordReset, reqFor(MEMBER));
+            assert.equal(sends.length, expected, `a claim ${aheadMs} ms ahead`);
+        }
+    });
+
+    test('a claim older than its life is ignored, so a sender that died cannot hold the queue', async () => {
+        const { eps, sends } = build(seededClaim(Date.now() - 60_000));
+        await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(sends.length, 1);
+    });
+
+    test('a send nobody accepted, or one that threw, releases its claim', async () => {
+        for (const opts of [{ pushAccepts: 0 }, { pushFail: 'push service down' }]) {
+            const { eps, db, sends } = build(opts);
+            await call(eps.requestPasswordReset, reqFor(MEMBER));
+            assert.equal(sends.length, 1, `fixture check: the push was attempted (${JSON.stringify(opts)})`);
+            const row = db._dump('resetRequests')[MEMBER];
+            assert.ok(!('notifyClaimedAt' in row), `the claim was released (${JSON.stringify(opts)})`);
+            assert.equal(row.notifiedAt, undefined, 'and nothing records the admin as reached');
+        }
+    });
+
+    test('a claim that lost the burst (ABORTED) or found its row cleared (NOT_FOUND) stands aside', async () => {
+        for (const code of [10, 5]) {
+            const { eps, sends } = build({ claimTxFail: code });
+            const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+            assert.equal(out.code, 200, 'the request is recorded whatever the claim does');
+            assert.equal(sends.length, 0, `code ${code}: another request is sending, or nothing is waiting`);
+        }
+    });
+
+    test('any other failure to read the queue still notifies, with a count of 1', async () => {
+        const { eps, sends } = build({ claimTxFail: 14 });   // UNAVAILABLE
+        await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(sends.length, 1, 'a possibly-low count still does its job, where no push does not');
+    });
+});
+
+// A DISABLED ACCOUNT (sign-in review, Nov 2026). The request recorded it as `provisioned`, so the card
+// said "Reset below", and a reset answered ok while the account stayed disabled: the admin then told
+// the member to sign in to an account that could not be used. Set up accounts is the remedy.
+describe('a disabled account is named as one, and a reset refuses it', () => {
+    const disabled = (name) => ({ uid: uidFor(name), email: emailFor(name), displayName: name, disabled: true,
+        customClaims: { name, member: name } });
+
+    test('the request records the account as disabled, beside provisioned', async () => {
+        const { eps, db } = build({ existingUsers: [disabled(MEMBER)] });
+        await call(eps.requestPasswordReset, reqFor(MEMBER));
+        const row = db._dump('resetRequests')[MEMBER];
+        assert.equal(row.provisioned, true);
+        assert.equal(row.disabled, true);
+    });
+
+    test('an enabled account records disabled: false, so a merge cannot keep an old true', async () => {
+        const { eps, db } = build({ seed: { resetRequests: { [MEMBER]: { disabled: true, requestedAt: { toMillis: () => NOW - 3_600_000 } } } } });
+        await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(db._dump('resetRequests')[MEMBER].disabled, false);
+    });
+
+    test('a reset of a disabled account is refused with the remedy, and nothing changes', async () => {
+        const { eps, authOps, stamps } = build({ existingUsers: [disabled(MEMBER)] });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 409);
+        assert.match(String(out.body && out.body.error), /disabled[\s\S]*Set up accounts/);
+        assert.deepEqual(authOps.filter((o) => AUTH_MUTATIONS.includes(o.op)), [], 'no Auth change at all');
+        assert.deepEqual(stamps, [], 'and no resetAt stamp');
+    });
+
+    test('an account registered from OUTSIDE is still taken back, disabled or not', async () => {
+        // takeBack re-enables on purpose (v24.56): the account is not the member's yet, so there is no
+        // leaver's decision to respect. The refusal must not swallow it.
+        const outsider = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: 'anything', disabled: true };
+        const { eps, authOps } = build({ existingUsers: [outsider] });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        const write = authOps.find((o) => o.op === 'updateUser' && o.patch && 'password' in o.patch);
+        assert.equal(write && write.patch.disabled, false, 'taken back AND enabled');
     });
 });
 
@@ -1303,6 +1458,29 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
 // 500 as well. The status code is identical either way and proves nothing by itself. What separates
 // a deliberate refusal from an unhandled crash is the NAMED message — which is the line the admin
 // reads and acts on — so that is the assertion that fails under mutation, and both were checked.
+// TWO NAMES, ONE LOGIN (sign-in check, 11 Nov 2026). setCustomUserClaims REPLACES every claim, so a
+// second roster entry deriving the same address as the first would re-stamp that account under the
+// second name — an admin could silently lose admin. The guard keeps the first and reports the second;
+// deleting it left this file green.
+describe('setupRosterAuth refuses a second roster entry that derives the same login', () => {
+    test('the first keeps its account and claims; the second is reported, and touches nothing', async () => {
+        const twin = 'L. SPRINGER';   // derives l.springer@…, the same address as MEMBER
+        assert.equal(emailFor(twin), emailFor(MEMBER), 'fixture check: the two names collide');
+        const { eps, authOps } = build({ rosterJson: {
+            activeMembers: [ADMIN, MEMBER, twin, MANAGER],
+            roles: { admin: [ADMIN], manager: [MANAGER], designer: [] },
+        } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${twin} (duplicate login ${emailFor(MEMBER)}`)),
+            `the duplicate is reported: ${JSON.stringify(out.body.failed)}`);
+        const stamps = authOps.filter((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER));
+        assert.equal(stamps.length, 1, 'the shared account is stamped once');
+        assert.equal(stamps[0].claims.name, MEMBER, 'and under the FIRST name');
+        assert.ok(!JSON.stringify(authOps).includes(twin), 'nothing was created, changed or stamped as the second name');
+    });
+});
+
 describe('setupRosterAuth refuses a server roster it cannot trust', () => {
     /** A healthy fixture, so each broken one below differs in exactly ONE field. */
     const HEALTHY = {

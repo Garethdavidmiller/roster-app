@@ -109,7 +109,9 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.' };
         const code = getAuthError();
         if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — please wait a few minutes and try again.' };
-        if (isTransient(code))                 return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };
+        // A browser that could not sign an account OUT is transient to the session (it keeps the 60-day
+        // session — session.js) but it is no network fault: the card says what the 'other' line says.
+        if (isTransient(code) && !/-shed-failed$/.test(String(code))) return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };
         // Definitive credential rejection — covers BOTH a wrong/forgotten password AND an account that
         // was never provisioned (auth/user-not-found). The remedy for the latter is set-up, not a
         // reset, so the wording names "the admin" generically (an account matter — house rule) and
@@ -568,8 +570,11 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     /** @param {string} msg */
     function showError(msg) {
-        errorEl.textContent = msg;
+        // VISIBLE FIRST, then the text (sign-in check, 11 Nov 2026) — the order calendar-lock-cards.js's
+        // `say` documents: a display:none region is outside the accessibility tree, so text written
+        // into it is not reliably announced.
         errorEl.classList.add('visible');
+        errorEl.textContent = msg;
     }
 
     /** Draw the eye to the reset route after repeated credential failures. The link is ALWAYS on
