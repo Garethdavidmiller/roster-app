@@ -9,8 +9,10 @@
       not think you have come across");
     · the grade, CEA;
     · the Pay Calculator section that says it works for them, as it does for a CEA.
-  For a new starter, a CES or a Dispatcher, use welcome-email.html and make its
-  choices there. A change to the wording belongs in BOTH files.
+  For a new starter, use welcome-email.html and make its choices there; for a
+  CES or a Dispatcher, welcome-email-ces.html or welcome-email-dispatcher.html.
+  A change to the wording belongs in ALL FOUR files: welcome-email-parity.test.mjs
+  builds this one from welcome-email.html and fails until they agree.
 
   Copy this whole file into the email body as HTML. Every comment block is an HTML
   comment, so anything left in is invisible to the reader — but the PLACEHOLDERS
@@ -25,8 +27,9 @@
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
     {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
-                     in the CALENDAR_VIEWER_PIN secret, and NOTHING automated would
-                     catch it in this file. Fill it in the mail client.
+                     in the CALENDAR_VIEWER_PIN secret. A test fails if the PIN box
+                     holds anything else, but the digits written anywhere else in
+                     this file would not be caught. Fill it in the mail client.
 
   ── BEFORE YOU SEND ──────────────────────────────────────────────────────────
     · The surname is only their FIRST password. Somebody who has already signed
@@ -40,7 +43,11 @@
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f2f4f7;margin:0;padding:24px 12px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <tr><td align="center">
 
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,30,60,0.12);">
+<!-- Outlook on Windows ignores max-width, so this wrapper, which only Outlook reads, holds the
+     card at 600px there. Every other mail app sizes the card itself: full width on a phone,
+     600px at most anywhere else. -->
+<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center"><tr><td><![endif]-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,30,60,0.12);">
 
   <!-- ── MASTHEAD ─────────────────────────────────────────────── -->
   <tr><td style="background:#001e3c;padding:26px 30px 22px 30px;border-bottom:4px solid #f5c800;">
@@ -158,7 +165,7 @@
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f9fb;border:1px solid #dfe6ee;border-left:4px solid #f5c800;border-radius:0 8px 8px 0;">
       <tr><td align="center" style="padding:18px 20px 20px 20px;">
         <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">Your first password</div>
-        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:28px;line-height:1.2;font-weight:700;color:#001e3c;letter-spacing:2px;">{{PASSWORD}}</div>
+        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:28px;line-height:1.2;font-weight:700;color:#001e3c;letter-spacing:2px;overflow-wrap:anywhere;word-break:break-word;">{{PASSWORD}}</div>
         <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Your surname, all lowercase, nothing else</div>
       </td></tr>
     </table>
@@ -223,7 +230,7 @@
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef1f5;border:1px solid #dfe6ee;border-radius:8px;">
       <tr><td align="center" style="padding:18px 20px 20px 20px;">
         <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">The staff PIN</div>
-        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#3d4b5a;letter-spacing:10px;text-indent:10px;">{{STAFF_PIN}}</div>
+        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#3d4b5a;letter-spacing:10px;text-indent:10px;overflow-wrap:anywhere;word-break:break-word;">{{STAFF_PIN}}</div>
         <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Keep it to Marylebone staff</div>
       </td></tr>
     </table>
@@ -260,5 +267,6 @@
   </td></tr>
 
 </table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td></tr>
 </table>

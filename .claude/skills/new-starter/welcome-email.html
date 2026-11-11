@@ -17,12 +17,16 @@
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
     {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
-                     in the CALENDAR_VIEWER_PIN secret, and NOTHING
-                     automated would catch it in this file — no test
-                     can look for the digits themselves.
+                     in the CALENDAR_VIEWER_PIN secret. welcome-email-parity.test.mjs
+                     fails if the PIN box holds anything but this placeholder, but
+                     no test can look for the digits themselves, so the PIN written
+                     anywhere else in this file would not be caught.
                      Fill it in the mail client, not in this file.
 
   ── CHOOSE ───────────────────────────────────────────────────────────────────
+    For somebody ALREADY working at Marylebone these choices are made for you:
+    send welcome-email-cea.html, welcome-email-ces.html or
+    welcome-email-dispatcher.html, by their grade. Choose here for a new starter.
     · Opening paragraph — NEW STARTER or EXISTING STAFF. Keep one.
     · Section 4, the Pay Calculator — CEA/CES or DISPATCHER. Keep one.
       This is the section that most often goes out wrong: the calculator is built
@@ -35,6 +39,9 @@
     · Search the body for "{{" — nothing should be left.
 
   ── DESIGN RULES, IF YOU EDIT THIS ───────────────────────────────────────────
+    · Change the wording in all four files. The three ready-made copies are this
+      file with its choices made, and welcome-email-parity.test.mjs fails until
+      they agree.
     · Brand navy #001e3c, gold #f5c800. From .claude/rules/css-tokens.md; do not
       invent shades.
     · Inter-first sans throughout, NEVER monospace. Inter is the app's only
@@ -45,13 +52,23 @@
       is that one is yours and one is shared, and drawing them identically argues
       against the sentence.
     · Tables and inline styles only — Outlook ignores <style> blocks.
+    · The card is FLUID: width:100% with max-width:600px, so it fills a phone and
+      stops at 600px anywhere else. Classic Outlook on Windows ignores max-width,
+      so the [if mso] wrapper around the card gives it 600px there. Never fix
+      anything wider than a phone: a fixed 600px card made phone mail apps shrink
+      the whole email, taking its text to about 10px (owner, 11 Nov 2026). The
+      password and PIN boxes may wrap, because a long surname is one word.
     · Calm and factual. No exclamation marks. "Absent", never "sick".
 ════════════════════════════════════════════════════════════════════════════════
 -->
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f2f4f7;margin:0;padding:24px 12px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <tr><td align="center">
 
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,30,60,0.12);">
+<!-- Outlook on Windows ignores max-width, so this wrapper, which only Outlook reads, holds the
+     card at 600px there. Every other mail app sizes the card itself: full width on a phone,
+     600px at most anywhere else. -->
+<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center"><tr><td><![endif]-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,30,60,0.12);">
 
   <!-- ── MASTHEAD ─────────────────────────────────────────────── -->
   <tr><td style="background:#001e3c;padding:26px 30px 22px 30px;border-bottom:4px solid #f5c800;">
@@ -180,7 +197,7 @@
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f9fb;border:1px solid #dfe6ee;border-left:4px solid #f5c800;border-radius:0 8px 8px 0;">
       <tr><td align="center" style="padding:18px 20px 20px 20px;">
         <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">Your first password</div>
-        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:28px;line-height:1.2;font-weight:700;color:#001e3c;letter-spacing:2px;">{{PASSWORD}}</div>
+        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:28px;line-height:1.2;font-weight:700;color:#001e3c;letter-spacing:2px;overflow-wrap:anywhere;word-break:break-word;">{{PASSWORD}}</div>
         <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Your surname, all lowercase, nothing else</div>
       </td></tr>
     </table>
@@ -263,7 +280,7 @@
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef1f5;border:1px solid #dfe6ee;border-radius:8px;">
       <tr><td align="center" style="padding:18px 20px 20px 20px;">
         <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">The staff PIN</div>
-        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#3d4b5a;letter-spacing:10px;text-indent:10px;">{{STAFF_PIN}}</div>
+        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#3d4b5a;letter-spacing:10px;text-indent:10px;overflow-wrap:anywhere;word-break:break-word;">{{STAFF_PIN}}</div>
         <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Keep it to Marylebone staff</div>
       </td></tr>
     </table>
@@ -300,5 +317,6 @@
   </td></tr>
 
 </table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td></tr>
 </table>
