@@ -644,6 +644,55 @@ it is not proposed again as unfinished business:
 **What would reopen any of these:** the Calendar's access or first-load code being changed for a
 reason of its own, when its tests are being rewritten anyway. Not tidiness.
 
+## The 11 November 2026 external review: what was taken up, and what was not (owner, 11 Nov 2026)
+
+An external review of v25.77 found no new confirmed bugs in the checks it ran, and put one thing
+ahead of any further restructuring: checking what a SIGNED-IN member does, on a phone — signed-in
+editing, mobile gestures, the installed app. Signed in, the app had been proven in halves: the pages
+ran against a hand-written Firebase stub, the security rules were tested on their own, and nothing
+but production ran the two together. The review also advised keeping changes to the Calendar's state
+small and testing sequences of events, shrinking the larger controllers gradually rather than
+rewriting them, and keeping the real-payslip check before any pay change. The owner took up three
+pieces of work, each landing on its own:
+
+| | What | Where it lives |
+|---|---|---|
+| 1 | Signed-in journeys through the REAL Firebase SDK, rules and Cloud Functions, on Chrome's and Safari's engines at phone size | `npm run test:signed-in` (#1749); README → The test lanes |
+| 2 | A permanent seeded test of event SEQUENCES for the Calendar's access, reads and redraws | to follow |
+| 3 | A real-Android release checklist beside the iPhone one, and a "sign out, then Back" check on both | `ANDROID_RELEASE_CHECKLIST.md` |
+
+**Weighed and NOT done**, recorded so they are not proposed again as unfinished business:
+
+- **The signed-in journeys do not run against production.** A check signed in to the live site needs
+  a real account with real claims on the live project: a standing credential held by CI, and test
+  records written into the roster everyone reads. The emulators run the same code path — the real
+  SDK, rules and functions — with nothing real at stake. The live site keeps its own signed-out
+  health check (`npm run test:live`).
+- **The signed-in lane is not in the deploy gate.** It is branch CI, like `webkit`: red on a branch,
+  unable to hold up a release. Whether it joins the gate is the owner's decision once it has run
+  steady.
+- **The lane does not force the back/forward cache.** Playwright launches Chrome with that cache
+  turned off. Turned back on, Chrome still declined to keep the page (its reason:
+  BrowsingInstanceNotSwapped), and WebKit reloaded too (measured 11 November 2026). Forcing a restore
+  would take browser launch flags whose other effects nobody has measured, for one guard that
+  `page-session.test.mjs` and `e2e/auth.spec.js` already test by sending the restore event
+  themselves. A real restore is checked by hand instead: "Sign out, then Back" on both phone
+  checklists.
+- **No broad rewrite of the larger controllers.** The review itself advised against one. The size
+  ratchet (`coordinator-ratchet.test.mjs`) already holds every large module to its measured size,
+  with any raise argued beside its cap, and the Calendar's four steps above are what gradual looks
+  like here.
+- **The three compromises stand as already recorded**: the surname default password and its forced
+  change (PASSWORD_DESIGN.md), the document files behind a bearer address with the stored one as the
+  fallback (KNOWN_LIMITATIONS.md → "The document FILES are protected by a bearer URL, not by auth"),
+  and the second of two editors on one day not being warned (KNOWN_LIMITATIONS.md → "Two editors on
+  one day"). The review listed them as still standing, not as new regressions.
+
+**What only the owner can do:** run the Android and iPhone checklists on real phones before a release
+that touches what they cover; run `npm run test:payslip-local` before any pay change; and confirm a
+document opens by its short-lived signed address, as the bearer-URL entry in KNOWN_LIMITATIONS.md
+describes.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither
