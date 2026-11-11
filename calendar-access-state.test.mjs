@@ -305,8 +305,10 @@ describe('the write has two homes, and neither the coordinator nor the document 
             assert.doesNotMatch(code(f), /export\s*\{[^}]*\bsetCalendarAccess\b/, `${f} re-exports the write`);
         }
         // The document gate cannot write at all: it imports the read and the listen, nothing more.
-        assert.match(code('calendar-doc-access.js'), /import \{ hasCalendarAccess, onCalendarAccess \} from '\.\/calendar-access-state\.js';/,
-            'the document gate imports more than the read and the listen');
+        const fromState = (code('calendar-doc-access.js').match(/import\s*\{([^}]*)\}\s*from\s*'\.\/calendar-access-state\.js'/) || ['', ''])[1]
+            .split(',').map(s => s.trim()).filter(Boolean).sort();
+        assert.deepEqual(fromState, ['hasCalendarAccess', 'onCalendarAccess'],
+            'the document gate imports something other than the read and the listen — it must not be able to write the state');
     });
 
     test('the coordinator ends BOTH ways of losing access in the one call, wired before access is decided', () => {
