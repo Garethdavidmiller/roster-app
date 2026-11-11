@@ -2478,6 +2478,7 @@ describe('every CI lane runs the command it is there for', () => {
         ['e2e.yml', 'rules', 'npm run test:rules'],
         ['e2e.yml', 'smoke', 'npm run test:e2e'],
         ['e2e.yml', 'csp', 'npm run test:csp'],
+        ['e2e.yml', 'signed-in', 'npm run test:signed-in'],
         ['deploy-hosting.yml', 'check', 'npm run check'],
         ['deploy-hosting.yml', 'smoke', 'npm run test:e2e'],
         ['deploy-hosting.yml', 'csp', 'npm run test:csp'],
@@ -2641,7 +2642,8 @@ describe('a lane uploads the folder its own Playwright config writes', () => {
         const starts = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)];
         starts.forEach((s, i) => {
             const job = body.slice(s.index, starts[i + 1]?.index ?? body.length);
-            const configs = [...new Set([...job.matchAll(/npm run (test:[\w:]+)/g)].map(m => configOf(m[1])).filter(c => c !== null))];
+            // `-` too: `test:signed-in` read as `test:signed`, a script that does not exist (11 Nov 2026).
+            const configs = [...new Set([...job.matchAll(/npm run (test:[\w:-]+)/g)].map(m => configOf(m[1])).filter(c => c !== null))];
             const steps = job.split(/\n(?= {6}- )/).filter(st => /uses: actions\/upload-artifact@/.test(st)
                 && /(playwright-report|test-results)\//.test(st));
             for (const step of steps) {

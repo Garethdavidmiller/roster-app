@@ -146,11 +146,14 @@ describe('the globalSetup, through the devServer() block every config uses', () 
         assert.equal(globalSetup, join(HERE, 'e2e', 'server-identity.mjs'));
     });
 
-    test('CHECKOUT is the folder the configs live in — the one their http-server serves', () => {
+    test('CHECKOUT is the folder every http-server serves, wherever its config lives', () => {
         assert.equal(realpathSync(CHECKOUT), realpathSync(HERE));
         assert.ok(existsSync(join(CHECKOUT, 'playwright.config.mjs')));
-        assert.match(devServer(4001).webServer.command, /^npx http-server \. /,
-            'the server serves `.`, the config\'s folder — the folder CHECKOUT names');
+        const { webServer } = devServer(4001);
+        assert.match(webServer.command, /^npx http-server \. /, 'the server serves `.`, the folder it is started in');
+        // ...and that folder is the checkout, NAMED. Playwright starts a webServer in its CONFIG's
+        // folder unless told otherwise, so without this e2e/playwright.signed-in.mjs would serve e2e/.
+        assert.equal(webServer.cwd, CHECKOUT, 'devServer() must start its server in the checkout, not in the config\'s folder');
     });
 
     test('locally, a reused server serving this checkout passes and one serving another folder stops the run', async (t) => {
@@ -218,14 +221,18 @@ describe('E2E_DEV_PORT — the way out the refusal names', () => {
 });
 
 describe('every config with a dev server runs the check', () => {
-    const configs = readdirSync(HERE).filter(f => /^playwright\..*\.mjs$/.test(f)).sort()
-        .map(f => ({ f, src: readFileSync(join(HERE, f), 'utf8') }));
+    // The root's configs and e2e/'s, where the signed-in lane's lives (its header says why).
+    const isConfig = (/** @type {string} */ f) => /^playwright\..*\.mjs$/.test(f);
+    const configs = [
+        ...readdirSync(HERE).filter(isConfig),
+        ...readdirSync(join(HERE, 'e2e')).filter(isConfig).map(f => `e2e/${f}`),
+    ].sort().map(f => ({ f, src: readFileSync(join(HERE, f), 'utf8') }));
     const users = configs.filter(c => /\bdevServer\(\d+\)/.test(c.src));
 
     test('the configs were read', () => {
         assert.deepEqual(users.map(c => c.f),
-            ['playwright.config.mjs', 'playwright.offline.mjs', 'playwright.visual-webkit.mjs', 'playwright.visual.mjs'],
-            'smoke, offline, visual and visual-webkit call devServer() — a new one belongs in this list');
+            ['e2e/playwright.signed-in.mjs', 'playwright.config.mjs', 'playwright.offline.mjs', 'playwright.visual-webkit.mjs', 'playwright.visual.mjs'],
+            'smoke, offline, visual, visual-webkit and signed-in call devServer() — a new one belongs in this list');
     });
 
     test('each passes on devServer()\'s globalSetup beside its webServer', () => {
