@@ -10,7 +10,7 @@
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom } from './roster-data.js';
 import { formatDayMonthYear } from './date-format.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword } from './firebase-client.js';
-import { isPasswordMigrated, isCredentialRejection, validateNewPassword } from './auth-identity.js';
+import { isPasswordMigrated, validateNewPassword, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { isIOS } from './notif.js';
@@ -237,7 +237,9 @@ export function init() {
     // initAuthorised() has no try/catch on the signed-in path, so a throw in any card's wiring used to
     // skip all four of these. Hold a release's reload while a save is on its way (v24.61): the contact
     // card's writes are counted by slow-save, the password card's two-step write by `_passwordSaving`.
-    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => writesInFlight() > 0 || _passwordSaving), isBusy: () => writesInFlight() > 0 || _passwordSaving });
+    // writesInFlight also counts the "own password" record (claim-retry.js → trackBackgroundWrite).
+    const _busy = () => writesInFlight() > 0 || _passwordSaving;
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
     // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
     // critical path. `currentUser` is read LATE, inside the callback: on the in-place sign-in path it is
@@ -617,19 +619,9 @@ export function init() {
             // rather than waiting for an answer that is never coming.
             if (!member) { reportSetting('password', 'error', 'Couldn’t check'); return; }
             const paint = (/** @type {boolean} */ migrated) => {
-                // RETIRE THE CALENDAR NOTICE ON WHATEVER DEVICE LEARNS THE ANSWER (v19.91, external
-                // review). The flag used to be set only by `onWriteConfirmed` — i.e. only on the
-                // device where the password was actually changed. But `passwordStatus` is per
-                // ACCOUNT and this device has just read it, so a member who set their password on
-                // phone A and then signs in to Settings on phone B is confirmed migrated here while
-                // phone B's flag stays unset, and the calendar notice returns after its snooze to
-                // someone who has already done what it asks — for the rest of the window.
-                //
-                // Every path into `paint(true)` is real evidence: either the server says migrated,
-                // or a password write on THIS device just succeeded (`optimisticMigrated`, from the
-                // card's own save and from the forced overlay's `myb:password-set`). No branch
-                // paints migrated on a guess, which is why this can live here rather than at each
-                // call site.
+                // Every path into `paint(true)` is real evidence: the server says migrated, or a password
+                // write on THIS device just succeeded (`optimisticMigrated` — the card's own save, and the
+                // forced overlay's `myb:password-set`). Nothing paints migrated on a guess.
                 // Through `setStatus`: this chip leads with a tick, and a live header a screen
                 // reader walks would otherwise announce it as a word (status-text.js).
                 if (chip) setStatus(chip, migrated ? '✓ Password set' : 'Using surname');
@@ -686,10 +678,6 @@ export function init() {
             setFeedback(done, 'ok');   // a stamp that then FAILS is a soft note, and amends only this line
             res?.stamp?.then((/** @type {boolean} */ ok) => { if (!ok && feedback?.textContent === done)
                 setFeedback('✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)', 'ok'); });
-            // NOTHING TO RETIRE ON THE CALENDAR ANY MORE (v21.84). This used to write the `pw-own-2026`
-            // done-flag; that notice's replacement is addressed to the SIGNED-OUT only, so it retires
-            // itself once this member has a session (the audience is re-checked on every load) — one
-            // page no longer reaches across to silence another page's notice.
             curEl.value = newEl.value = confEl.value = '';
             // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
             // reveal state the member chose, so the NEXT password typed into this card — possibly
@@ -738,15 +726,21 @@ export function init() {
             const invalid = validateNewPassword(member, next, confirm);
             if (invalid) {
                 setFeedback(invalid, 'err');
-                (next && next !== confirm ? confEl : newEl).focus();
+                (newPasswordProblemField(next, confirm) === 'confirm' ? confEl : newEl).focus();
                 return;
             }
+            // The last attempt's message goes as this one starts (sign-in check, 11 Nov 2026 — a
+            // "✓ Password updated" or an old refusal sat beside "Saving…").
+            setFeedback('');
+            const startFocus = document.activeElement;   // see the caret, in `finally`
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
             _passwordSaving = true;
             // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"
             // (the old catch mapped every non-rate-limit/weak error to that, so a network blip during the
             // update told the member their correct password was incorrect → needless retries + admin reset).
             let reauthed = false;
+            /** Where the caret goes after a refusal — never left on the page (sign-in check, 11 Nov 2026). */
+            let refocus = /** @type {HTMLElement|null} */ (null);
             try {
                 // Wait for the session like every OTHER write on this page does (the contact card's
                 // save/remove and refreshStatus all await it; this handler didn't — v18.84). initApp()
@@ -775,18 +769,23 @@ export function init() {
                 onWriteConfirmed(outcome.value);
             } catch (e) {
                 const code = /** @type {any} */ (e)?.code || '';
-                // Map by CAUSE and by STAGE. Order: the cause-specific codes first, then the stage split.
-                if (code === 'auth/too-many-requests') setFeedback('Too many attempts — wait a few minutes and try again.', 'err');
-                else if (code === 'auth/weak-password') setFeedback('That password is too weak — choose a longer one.', 'err');
-                else if (code === 'auth/network-request-failed' || code === 'myb/timeout') setFeedback('Couldn’t connect — check your connection and try again.', 'err');
-                else if (code === 'auth/requires-recent-login') setFeedback('For your security, sign out and back in, then change your password.', 'err');
-                else if (!reauthed && isCredentialRejection(code)) setFeedback('Current password incorrect — try again, or ask the admin to reset it.', 'err');
-                else if (!reauthed) setFeedback('Couldn’t verify your current password — try again shortly.', 'err');
-                else setFeedback('Your password wasn’t updated — try again shortly.', 'err');   // reauth OK, update stage failed
+                refocus = saveBtn;
+                // Map by CAUSE and by STAGE — the ladder the forced change reads too (auth-identity.js).
+                // A stale sign-in is this card's own: its remedy here is to sign out and back in.
+                if (code === 'auth/requires-recent-login') setFeedback('For your security, sign out and back in, then change your password.', 'err');
+                else {
+                    const f = passwordChangeFailure(code, reauthed);
+                    setFeedback(f.message, 'err');
+                    if (f.focus) refocus = f.focus === 'current' ? curEl : newEl;
+                }
             } finally {
                 // Not re-enabled while a write may still be in flight — onIndeterminate owns the
                 // button until the real outcome arrives, so a second save can't race the first.
                 if (!_pwIndeterminate) { _passwordSaving = false; saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
+                // Only where the member left it (review, 11 Nov 2026): a save can wait out the re-auth
+                // deadline, and one who moved on meanwhile — a field, the drawer — keeps their place.
+                const here = document.activeElement;
+                if (refocus && (here === startFocus || here === saveBtn || here === document.body || !here)) refocus.focus();
             }
         });
     }

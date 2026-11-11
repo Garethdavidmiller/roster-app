@@ -133,6 +133,29 @@ export function hasUnconfirmedWrite() { return _unconfirmedWrites > 0; }
 /** Test seam only — a page's state lasts until reload, so nothing in the app resets it. */
 export function _resetUnconfirmedWrites() { _unconfirmedWrites = 0; }
 
+// ── WRITES NO PAGE STARTED, COUNTED WHERE THEY START (review, 11 Nov 2026) ──────────────────────────
+// The "you have set your own password" record is written by `changeOwnPassword` in the background, after
+// the password itself has changed — from Settings' card or from the forced change, which can open on
+// any page. Only Settings held a release's reload for it, so a reload landing in the moment after the
+// forced change could lose it, and the member was made to choose a password again at the next sign-in.
+// Counted here, every page's busy check (`writesInFlight`, slow-save.js) waits for it, with no notice
+// on screen: the member did not ask for this write and has nothing to wait for.
+let _background = 0;
+
+/**
+ * Count a background write until it settles. Pass-through: the caller keeps the same promise.
+ * @template T @param {Promise<T>} p @returns {Promise<T>}
+ */
+export function trackBackgroundWrite(p) {
+    _background++;
+    const settle = () => { _background = Math.max(0, _background - 1); };
+    p.then(settle, settle);
+    return p;
+}
+
+/** @returns {number} background writes still on their way to the server */
+export function backgroundWritesInFlight() { return _background; }
+
 /**
  * Run a WRITE through the gate: refused while an earlier write is unconfirmed, and recorded as
  * unconfirmed itself if it ends with SIGNED_OUT_CODE. Pass-through otherwise.

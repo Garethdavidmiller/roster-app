@@ -618,7 +618,7 @@ All staff have Firebase Auth accounts. **Firestore writes need a claim, never a 
 `request.auth != null`** (AUTH_AND_SESSIONS 9). The contract is `docs/AUTH_AND_SESSIONS.md`; the
 working notes are `.claude/rules/sessions.md`, which loads with the session and auth modules.
 
-- **Every write page re-establishes the Firebase session on load**, through `ensureFirebaseSession(name)`
+- **Every write page re-establishes the Firebase session on load**, through `ensureNamedSession(name)`
   (`session.js`). A returning member with a valid 60-day local session skips the login screen, so
   without it `auth.currentUser` stays null and every Firestore write fails. Do not remove this call.
 - **Per-member write isolation is STRICT**: an `overrides` write needs the member's own bound name, or

@@ -58,6 +58,9 @@ import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH, PIN_FIRST_HASH } from './calendar-access-core.js';
 import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';
 import { lazyImport } from './sw-register.js';
+// The Back stack every overlay uses (overlay.js): the front door's PIN card takes one entry, so Back
+// returns to the sign-in card the way it closes a sheet (sign-in check, 11 Nov 2026).
+import { _pushOverlayState, _clearOverlayHistory } from './overlay.js';
 
 /** The hash that asks for the staff-PIN card FIRST. Declared in `calendar-access-core.js` since
  *  v24.84 (the Trains page's Lock lands on it too) and re-exported here, where `calendar-access.js`
@@ -71,7 +74,7 @@ export { PIN_FIRST_HASH };
  * refuses one.
  *
  * @param {object} deps
- * @param {(pin: string) => Promise<{ok: boolean, kind?: string, message?: string}>} deps.unlockWithPin
+ * @param {(pin: string, stillWanted?: () => boolean) => Promise<{ok: boolean, kind?: string, message?: string}>} deps.unlockWithPin
  *   The exchange. It owns the network call, the persistence switch and the claim check; this module
  *   only reads `ok` and `message`.
  * @param {() => string} deps.getAccessType  Asked LIVE, never captured — see rule 2 in the header.
@@ -110,6 +113,18 @@ let _signInForm = null;
 export function hideLockPanel() {
     unmountLockCard();
     if (_backoffTimer) { clearTimeout(_backoffTimer); _backoffTimer = null; }
+    dropPinBack();
+}
+
+/** The Back entry the front door's PIN card holds (`showSignInPanel`), or null when none is held.
+ *  Pressing Back runs it: the sign-in card returns. @type {null | (() => void)} */
+let _pinBack = null;
+/** Give the entry back — the card is leaving by its own route (a grant, "Sign in instead"), so Back
+ *  must not later find it. overlay.js absorbs the echo of its own `history.back()`. */
+function dropPinBack() {
+    if (!_pinBack) return;
+    const h = _pinBack; _pinBack = null;
+    _clearOverlayHistory(h);
 }
 
 /**
@@ -147,7 +162,8 @@ export function showLockPanel() {
     // COLD, and a cold start is the single largest number in the unlock chain — worth more than
     // every code path after it combined. The seconds a person spends reading this card and typing
     // four digits are exactly the seconds that start covers, so spend them: one fire-and-forget GET,
-    // which the handler answers with a bare 405 before touching the throttle store, the secret or
+    // which the handler answers with a bare 204 (a 405 until v25.77: a red console line on every
+    // PIN card) before touching the throttle store, the secret or
     // any Firebase surface. Nothing is sent (no PIN — there isn't one yet), nothing is read from
     // the response, and a failure changes nothing (`catch` and move on) — the submit path neither
     // knows nor cares whether the warm-up happened. It is also why the function needs no
@@ -175,7 +191,7 @@ export function showLockPanel() {
                            aria-describedby="calLockHint" autocapitalize="off">
                     <p class="login-hint" id="calLockHint">One code for everyone at Marylebone. It opens the live roster — including annual leave, absence and shift changes — for as long as this browser stays open.</p>
                 </div>
-                <div class="login-error" id="calLockMsg" role="status" aria-live="polite"></div>
+                <div role="status" aria-live="polite"><div class="login-error" id="calLockMsg"></div></div>
                 <button id="calLockSubmit" type="submit" disabled>${SUBMIT_LABEL}</button>
             </form>
             <button class="login-back" id="calLockSignIn" type="button">Sign in instead</button>
@@ -199,12 +215,13 @@ export function showLockPanel() {
      *  same box in a neutral tint, so there is one live region rather than two competing ones.
      *  @param {string} text @param {boolean} isError */
     function say(text, isError) {
-        // VISIBLE FIRST, then the text. The box is `display: none` when empty, and an element that
-        // is not displayed is not in the accessibility tree — so writing the text while it is still
-        // hidden means the live region never observes a change, and whether making it visible
-        // afterwards announces anything is left to the screen reader. Setting the text while the
-        // region IS in the tree is the only order that reliably announces. (axe cannot see this:
-        // it checks that a live region exists, not that it ever spoke.)
+        // THE LIVE REGION IS THE BOX'S PARENT, never the box (review, 11 Nov 2026). The box is
+        // `display: none` when empty, which takes it out of the accessibility tree, and a region only
+        // announces changes made while it is IN the tree. Showing it and writing its text used to be
+        // ordered "visible first" here, but both happen in one task, before the tree is next updated —
+        // so the order changed nothing, and the box arrived with its text already in it. The parent is
+        // always rendered (empty, it takes no space), so the box appearing inside it is a change the
+        // region sees. (axe cannot see any of this: it checks a live region exists, not that it spoke.)
         msg.classList.toggle('visible', !!text);
         msg.classList.toggle('cal-lock-msg--info', !!text && !isError);
         msg.textContent = text;
@@ -224,7 +241,9 @@ export function showLockPanel() {
         const cleaned = normalisePin(input.value);
         if (cleaned !== input.value) input.value = cleaned;
         submit.disabled = !isCompletePin(cleaned) || _busy || held();
-        if (msg.textContent) say('', false);
+        // Not while the delay runs (sign-in check, 11 Nov 2026): clearing it left a greyed-out button
+        // and no words for up to 20 seconds. The reason stays until the button is back.
+        if (msg.textContent && !held()) say('', false);
     });
 
     form.addEventListener('submit', async e => {
@@ -238,26 +257,40 @@ export function showLockPanel() {
         submit.textContent = 'Unlocking…';
         say('Checking the PIN…', false);
 
-        const result = await _deps.unlockWithPin(pin);
+        // Asked while it waits whether THIS card is still on screen (review, 11 Nov 2026): Back or "Sign in
+        // instead" mid-exchange left it granting under the card that replaced it.
+        const result = await _deps.unlockWithPin(pin, () => panel.isConnected);
         // Clear the field before anything else on every path, success included. A PIN left in a
         // form field on a shared PC is readable by the next person through devtools autofill, and
         // on failure a cleared field is also what the member wants — they are retyping it anyway.
         input.value = '';
-        if (result.ok) return;   // the panel is being removed by grant(); leave it alone
+        if (result.ok || !panel.isConnected) return;   // granted (grant() removes the panel), or gone
 
-        _consecutiveFailures++;
+        // Only a WRONG PIN counts towards the delay (sign-in check, 11 Nov 2026). A dropped connection,
+        // a busy server or the server's own limit is not the member mistyping, and slowing their retry
+        // after one only made a bad connection worse.
+        if (result.kind === 'rejected') _consecutiveFailures++;
         _busy = false;
         submit.textContent = SUBMIT_LABEL;
         say(result.message, true);
 
-        const wait = attemptBackoffMs(_consecutiveFailures);
+        const wait = result.kind === 'rejected' ? attemptBackoffMs(_consecutiveFailures) : 0;
         submit.disabled = true;   // the field is now empty, and a delay may follow
         if (wait > 0) {
             _heldUntil = Date.now() + wait;
-            _backoffTimer = setTimeout(() => {
+            // The button counts down rather than sitting greyed out, as the sign-in card's lockout does.
+            const tick = () => {
+                const left = _heldUntil - Date.now();
+                if (left > 0) {
+                    submit.textContent = `Try again in ${Math.ceil(left / 1000)}s`;
+                    _backoffTimer = setTimeout(tick, left % 1000 || 1000);
+                    return;
+                }
                 _backoffTimer = null;
+                submit.textContent = SUBMIT_LABEL;
                 submit.disabled = !isCompletePin(normalisePin(input.value));
-            }, wait);
+            };
+            tick();
         }
         // Focus goes back to the field on every failure — the member's next action is always to
         // retype, and leaving focus on a disabled button strands a keyboard user with nowhere to go.
@@ -266,7 +299,7 @@ export function showLockPanel() {
 
     // Back to the front door — the sign-in card, in place. Before v23.19 this opened the fixed
     // login overlay OVER the PIN card; now the two cards are alternatives for one slot.
-    signIn.addEventListener('click', () => { showSignInPanel().catch(() => {}); });
+    signIn.addEventListener('click', () => { dropPinBack(); showSignInPanel().catch(warnNoCard); });
 
     // Focus the field, but only on a device with a real keyboard. Autofocusing on a phone throws up
     // the on-screen keyboard over the explanation the member has not read yet.
@@ -274,6 +307,14 @@ export function showLockPanel() {
         try { input.focus(); } catch { /* noop */ }
     }
 }
+
+/**
+ * The one handler for a sign-in card that did not open from a tap. Fire-and-forget, so it is
+ * logged rather than swallowed (the PR checklist's rule); the card's own import failure is
+ * already handled inside `showSignInPanel`, so anything arriving here is unexpected.
+ * @param {unknown} e
+ */
+const warnNoCard = (e) => console.warn('[calendar-lock-cards] The sign-in card did not open:', e);
 
 /**
  * The FRONT DOOR (v23.19): the member sign-in card, for a browser that holds nothing.
@@ -321,7 +362,13 @@ export async function showSignInPanel(notice = '') {
             // a visiting colleague with no account reads a sign-in form and reasonably concludes the
             // app is not for them. "Visiting or agency staff": the audience the owner named.
             hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and the guides.',
-            onSelect: () => showLockPanel(),
+            // The PIN card is the door's second view, so it takes a Back entry (sign-in check, 11 Nov
+            // 2026): Back on a phone used to leave the app from here instead of returning.
+            onSelect: () => {
+                showLockPanel();
+                _pinBack = () => { _pinBack = null; if (_deps.getAccessType() === 'none') showSignInPanel().catch(warnNoCard); };
+                _pushOverlayState(_pinBack);
+            },
         },
     });
 }
@@ -448,10 +495,13 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     // delete is refused, and `releaseDevicePush` then drops the browser subscription instead (the
     // next send 410s and the server deletes the record). 48-hour review: before that, the departed
     // member's personal notices kept arriving on the shared PC.
+    //
+    // The address is REWRITTEN, not navigated (sign-in check, 11 Nov 2026), as `lockCalendar` does:
+    // setting `location.hash` pushed a history entry, so Back after the reload went nowhere.
     pinAlt.addEventListener('click', async () => {
         await releaseDevicePush();
         clearSession();
-        window.location.hash = PIN_FIRST_HASH;
+        history.replaceState(null, '', './' + PIN_FIRST_HASH);
         window.location.reload();
     });
 }

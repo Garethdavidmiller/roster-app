@@ -767,9 +767,10 @@ export function init() {
                 // saves the admin a wasted round trip.
                 // Three states, not two (v18.94): the endpoint now OMITS `provisioned` when its Auth
                 // lookup failed, rather than losing the whole request — so "absent" means unknown, and
-                // saying "Reset below" for it would be a guess presented as fact.
-                const remedy = r.provisioned === false
-                    ? '<span class="rr-remedy rr-remedy--setup">No account yet — run Set up accounts</span>'
+                // saying "Reset below" for it would be a guess presented as fact. A DISABLED account
+                // exists, and a reset is refused for it: Set up accounts re-enables it (Nov 2026).
+                const remedy = r.provisioned === false || r.disabled === true
+                    ? `<span class="rr-remedy rr-remedy--setup">${r.disabled === true ? 'Account disabled' : 'No account yet'} — run Set up accounts</span>`
                     : r.provisioned === true
                         ? '<span class="rr-remedy">Reset below in Account status</span>'
                         : '<span class="rr-remedy">Check the account below</span>';

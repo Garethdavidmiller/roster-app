@@ -409,6 +409,12 @@ const resetMemberPassword = onRequest(
             // review) — the same as setupRosterAuth does, for the same reason: it was registered from
             // outside, so its display name and any other sign-in method are the outsider's.
             const takeBack = mustReclaim(user);
+            // A DISABLED account is refused (sign-in review, Nov 2026): a reset answered ok and left it
+            // disabled, so the admin told the member to sign in to an account that could not be used.
+            // Set up accounts is the remedy — it re-enables a roster member's account on this default.
+            if (user.disabled && !takeBack) {
+                return res.status(409).json({ error: `${member}'s account is disabled, so a reset would not let them in. Run Set up accounts: it re-enables the account on their surname default.` });
+            }
             // THE STAMP FIRST, AND IT MUST LAND (functions-core-2). resetAt is what keeps the other
             // devices out once the password is the surname default (AUTH_AND_SESSIONS.md 23); stamped
             // after, a failed write let the lost phone straight back in. No stamp, nothing changes.
@@ -541,9 +547,11 @@ const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
 // No answer to a valid name before this long after the request began (functions-core-4). A throttled
 // repeat answered after two round trips and a recorded request after four to six plus a push, so the
 // TIMING named who was locked out right now — what the identical body exists to hide. Sized above the
-// recorded path's ordinary time; a push slow enough to pass it still shows, the price of not making a
-// locked-out member wait longer (their screen reads "Sending…").
-const RESET_REQUEST_ANSWER_FLOOR_MS = 2_000;
+// recorded path's ordinary time AND one backoff of its two-attempt claim (3 s, review 11 Nov 2026: at
+// 2 s a burst's retry showed). A push slow enough to pass it, or a large deliberate burst queued on
+// the rows' locks, still shows — the price of not making a locked-out member wait longer (their screen
+// reads "Sending…"), and every name such a burst probes is recorded where the admin sees it.
+const RESET_REQUEST_ANSWER_FLOOR_MS = 3_000;
 const answerFloorMs = Number.isFinite(resetRequestAnswerFloorMs) ? resetRequestAnswerFloorMs : RESET_REQUEST_ANSWER_FLOOR_MS;
 // How long the admin notification may take before the endpoint gives up on it and answers the member
 // anyway. Well inside the function's 30s timeout, leaving room for the record itself — the request is
@@ -557,6 +565,9 @@ const ADMIN_NOTIFY_SEND_TIMEOUT_MS = 5_000;
 // enough to absorb a scripted burst and short enough that a genuine second request later in a shift
 // still rings. See shouldNotifyAdmin.
 const ADMIN_NOTIFY_COALESCE_MS = 5 * 60 * 1000;   // 5 minutes
+// How long one request's claim to be the sender holds the others back: the whole notify budget and a
+// margin. A claim whose sender died is ignored after this, so a crash costs one window, not the queue.
+const ADMIN_NOTIFY_CLAIM_MS = ADMIN_NOTIFY_BUDGET_MS + 5_000;
 
 // SERVER-SIDE kill switch (v18.97, external review). CONFIG.PASSWORD_RESET_REQUESTS hides the client
 // LINK; it does nothing to the endpoint, which is public and callable directly — so during an
@@ -574,11 +585,9 @@ const RESET_REQUESTS_ENABLED = true;
  *    "send to everyone".
  *  · uid → their own push subscriptions (sendTargetedPush).
  *
- * The headline states the queue DEPTH, so read `resetRequests` AFTER the write. `.select('notifiedAt')`
- * fetches document ids plus that one field — the collection is bounded by the roster (doc id = member
- * name), so this is a ~50-doc metadata read, not a scan. If the count read fails, fall back to 1: a
- * notification naming the member with a possibly-low count still does its job, where no notification
- * does not.
+ * The headline states the queue DEPTH, so read `resetRequests` AFTER the write — inside the claim's
+ * transaction, which is also what makes one push per burst hold (see the comment there). The
+ * collection is bounded by the roster (doc id = member name), so this is a ~50-doc metadata read.
  *
  * @param {string} member                  who asked (from the server-owned roster)
  * @param {string[]} adminNames            roster-members.json roles.admin
@@ -597,67 +606,81 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     }
     if (uids.length === 0) return;   // sendTargetedPush would refuse anyway; skip the VAPID setup
 
-    // One read serves both the queue depth AND the coalescing decision. `notifiedAt` is the only
-    // field fetched — still a metadata-scale read over a collection bounded by the roster.
-    let pending = 1;
-    /** @type {Array<number|null>} notifiedAt of every row EXCEPT this member's */
-    let otherStamps = [];
-    try {
-        const snap = await getFirestore().collection('resetRequests').select('notifiedAt').get();
-        pending = snap.size || 1;
-        otherStamps = snap.docs
-            .filter(d => d.id !== member)
-            .map(d => {
-                const t = d.data().notifiedAt;
-                return t && typeof t.toMillis === 'function' ? t.toMillis() : null;
-            });
-    } catch (e) {
-        console.warn('[requestPasswordReset] pending count failed — notifying with 1', e && e.code);
-    }
-
-    // GLOBAL coalescing (v18.97, external review). The per-member throttle bounds one person; it does
-    // nothing about a caller walking the public roster and filing one request per name, which used to
-    // produce one push each. Fifty buzzes is both the nuisance and the reason a real request would
-    // then be ignored. One push per window, carrying the queue depth, says more with less.
-    //
-    // The window is measured from other rows' `notifiedAt` — pushes that were actually accepted —
-    // not their `requestedAt`. v21.85 (external review): the old criterion let a FAILED first push
-    // silence a second member's real request for the rest of the window. See shouldNotifyAdmin.
-    if (!shouldNotifyAdmin(otherStamps, Date.now(), ADMIN_NOTIFY_COALESCE_MS)) {
-        console.log('[requestPasswordReset] notification coalesced — a push was accepted inside the window; pending:', pending);
-        return;
-    }
-
-    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
-    const { headline, body } = buildResetRequestNotice(member, pending);
-    const accepted = await sendTargetedPush(
-        buildPushPayload({
-            feature: 'resetRequest',
-            headline,
-            body,
-            url: `${STAFF_SITE_URL}/operations.html#reset-requests`,
-        }),
-        uids,
-        '[reset-request]',
-        { timeoutMs: ADMIN_NOTIFY_SEND_TIMEOUT_MS },
-    );
-
-    // Record that the admin was REACHED, which is what the next request's coalescing decision needs
-    // to know. Nothing is stamped when no subscription accepted the message, so the next member in
-    // the window rings the phone instead of inheriting a silence. Wrapped: failing to write the
-    // stamp only costs a duplicate notification later, and the push has already gone.
-    //
-    // update(), never a merge-set (functions-core-6): this can run after the member was answered and
-    // the admin has cleared the row, and a merge brought it back holding only `notifiedAt` — a request
-    // nobody made. update() refuses a row that has gone, which is the right answer.
-    if (accepted > 0) {
+    // ONE PUSH PER BURST, DECIDED BY A CLAIM TAKEN IN A TRANSACTION (sign-in review, Nov 2026). The
+    // per-member throttle cannot bound a caller walking the public roster (v18.97), and read → send →
+    // stamp let every request in a parallel burst read the rows before any push was stamped: fifty
+    // names, fifty pushes. Now one transaction reads every row and marks THIS one as the sender unless
+    // a push was ACCEPTED inside the window (`notifiedAt` — v21.85: a failed push must not silence the
+    // next member) or another request is sending now (`notifyClaimedAt`). Transactions over the same
+    // rows commit one at a time, so one request in a burst wins and the rest find its claim.
+    //  · TWO attempts, not the SDK's five (review, 11 Nov 2026): each retry backs off 0.5–3.4 s, so a
+    //    burst held recorded requests past the answer floor throttled ones met (RESET_REQUEST_ANSWER_FLOOR_MS).
+    //  · A push that reached nobody is tried ONCE more, with the queue as it then stands: the requests
+    //    that found its claim stood aside for it, and would otherwise wait for the next request.
+    const rows = getFirestore().collection('resetRequests');
+    const ms = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : NaN);
+    for (let round = 0; round < 2; round++) {
+        let pending = 1;
         try {
-            await getFirestore().collection('resetRequests').doc(member).update(
-                { notifiedAt: FieldValue.serverTimestamp() });
+            const claimed = await getFirestore().runTransaction(async (tx) => {
+                const snap = await tx.get(rows.select('notifiedAt', 'notifyClaimedAt'));
+                pending = snap.size || 1;
+                const others = snap.docs.filter(d => d.id !== member).map(d => d.data());
+                const now = Date.now();
+                if (!shouldNotifyAdmin(others.map(o => ms(o.notifiedAt)), now, ADMIN_NOTIFY_COALESCE_MS)) return false;
+                // Held while |Δ| < life: a claim stamped a moment AHEAD of this clock still holds (unlike a
+                // future `notifiedAt`), and one far ahead — a clock far out — cannot hold the queue for ever.
+                if (others.some(o => Math.abs(now - ms(o.notifyClaimedAt)) < ADMIN_NOTIFY_CLAIM_MS)) return false;
+                tx.update(rows.doc(member), { notifyClaimedAt: FieldValue.serverTimestamp() });
+                return true;
+            }, { maxAttempts: 2 });
+            if (!claimed) {
+                console.log('[requestPasswordReset] notification coalesced — another push covers it; pending:', pending);
+                return;
+            }
         } catch (e) {
-            console.warn('[requestPasswordReset] could not stamp notifiedAt for', member, e && e.code);
+            // ABORTED (10): the burst held these rows past the last retry, and one of its requests claimed.
+            // NOT_FOUND (5): the admin cleared this row first. Stand aside for both. Anything else is a read
+            // that failed: notify with a count of 1, as before — a possibly-low count still does its job.
+            if (e && (e.code === 10 || e.code === 5)) {
+                console.log('[requestPasswordReset] notification left to the burst for', member, e.code);
+                return;
+            }
+            console.warn('[requestPasswordReset] coalescing read failed — notifying with 1', e && e.code);
+            pending = 1;
         }
-    } else {
+        let accepted = 0;
+        try {
+            // Inside (review, 11 Nov 2026): a VAPID key that will not load must still release the claim.
+            setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
+            const { headline, body } = buildResetRequestNotice(member, pending);
+            accepted = await sendTargetedPush(
+                buildPushPayload({
+                    feature: 'resetRequest',
+                    headline,
+                    body,
+                    url: `${STAFF_SITE_URL}/operations.html#reset-requests`,
+                }),
+                uids,
+                '[reset-request]',
+                { timeoutMs: ADMIN_NOTIFY_SEND_TIMEOUT_MS },
+            );
+        } catch (e) {
+            console.warn('[requestPasswordReset] the admin push failed for', member, e && e.message);
+        }
+        // Release the claim however the send ended, and record that the admin was REACHED only when a
+        // subscription accepted the push, so the next member in the window rings the phone instead of
+        // inheriting a silence. Wrapped: a lost write costs a duplicate notification at worst.
+        // update(), never a merge-set (functions-core-6): this can run after the member was answered
+        // and the admin has cleared the row, and a merge brought it back as a request nobody made.
+        try {
+            await rows.doc(member).update(accepted > 0
+                ? { notifiedAt: FieldValue.serverTimestamp(), notifyClaimedAt: FieldValue.delete() }
+                : { notifyClaimedAt: FieldValue.delete() });
+        } catch (e) {
+            console.warn('[requestPasswordReset] could not record the push for', member, e && e.code);
+        }
+        if (accepted > 0) return;
         console.warn('[requestPasswordReset] nothing accepted the push for', member, '— not stamping notifiedAt');
     }
 }
@@ -693,19 +716,21 @@ const requestPasswordReset = onRequest(
         try {
             const docRef = getFirestore().collection('resetRequests').doc(member);
 
-            // Whether a Firebase account exists at all decides which remedy the admin needs: Reset, or
-            // run Set up accounts first. The login overlay must not distinguish these (it would leak
-            // which names are provisioned); the admin's own card has no such constraint, and guessing
-            // wrong costs a round trip.
+            // Whether a Firebase account exists, and is enabled (sign-in review, Nov 2026), decides the
+            // remedy the admin needs: Reset, or Set up accounts. The login overlay must not distinguish
+            // these (it would leak which names are provisioned); the admin's own card has no such
+            // constraint, and guessing wrong costs a round trip.
             //
             // A FAILURE HERE MUST NOT LOSE THE REQUEST (fix, v18.94). This used to rethrow anything that
             // wasn't `user-not-found`, so a transient Auth blip returned 500 and wrote nothing — trading
             // the whole doorbell for a nicety, at the one moment recovery matters. `provisioned` is now
-            // left UNSET when it can't be determined, and the card treats unknown as "check yourself".
+            // CLEARED when it can't be determined (with `disabled`: an older row's answer must not stand in,
+            // review 11 Nov 2026), and the card treats unknown as "check yourself".
             /** @type {boolean|null} */
             let provisioned = true;
+            let disabled = false;
             try {
-                await getAuth().getUserByEmail(nameToEmail(member));
+                disabled = !!(await getAuth().getUserByEmail(nameToEmail(member)))?.disabled;
             } catch (e) {
                 if (e && e.code === 'auth/user-not-found') provisioned = false;
                 else {
@@ -730,7 +755,8 @@ const requestPasswordReset = onRequest(
                     requestedAt: FieldValue.serverTimestamp(),
                     count:       FieldValue.increment(1),
                 };
-                if (provisioned !== null) data.provisioned = provisioned;
+                Object.assign(data, provisioned === null
+                    ? { provisioned: FieldValue.delete(), disabled: FieldValue.delete() } : { provisioned, disabled });
                 tx.set(docRef, data, { merge: true });
                 return true;
             });
@@ -738,24 +764,16 @@ const requestPasswordReset = onRequest(
             console.log('[requestPasswordReset]', recorded ? 'recorded' : 'throttled', 'for', member,
                         'provisioned:', provisioned);
 
-            // Tell the admin (Phase 2). ONLY on a genuinely-recorded request: a throttled repeat tap is
-            // the same person asking twice, and re-notifying would let anyone with the URL ring the
-            // admin's phone at will — the throttle is the rate limit for the notification too.
-            //
-            // Wrapped so it can NEVER fail the request. The doorbell is the row in Firestore; the push
-            // is a courtesy on top. A push outage that turned into a 500 here would lose the request
-            // itself and send the member away thinking nobody heard them — the precise failure v18.94
-            // fixed one line above, and it must not reappear via a different route.
-            //
-            // TIME-BOXED, and that is the load-bearing part. The try/catch below only survives a
-            // REJECTION; the notify path makes up to four network calls (admin uid lookup, count
-            // read, then the pushes) and none of them is guaranteed to settle. Without a bound, a
-            // hung push service eats the function's 30s budget and Cloud Run kills the request —
-            // returning an error to a member whose request WAS successfully recorded, telling them
-            // nobody heard them when the doorbell had already rung. Exactly the never-settles-is-
-            // not-a-rejection class v18.94 fixed in the forced overlay; it must not come back here.
-            // The race stops the WAITING, not the work, so each send has its own bound and the stamp
-            // it ends with cannot re-create a cleared row (ADMIN_NOTIFY_SEND_TIMEOUT_MS, functions-core-6).
+            // Tell the admin (Phase 2) — ONLY on a genuinely-recorded request: a throttled repeat is the
+            // same person asking twice, and the throttle is the rate limit for the notification too.
+            // It can NEVER fail the request: the doorbell is the row; the push is a courtesy on top, and
+            // a push outage turned into a 500 would send the member away thinking nobody heard (v18.94).
+            // TIME-BOXED, and that is the load-bearing part: the try/catch survives only a REJECTION,
+            // and none of the notify path's network calls is guaranteed to settle. Unbounded, a hung push
+            // service ate the function's 30s and Cloud Run answered an error to a member whose request
+            // WAS recorded — the never-settles-is-not-a-rejection class v18.94 fixed in the forced
+            // overlay. The race stops the WAITING, not the work, so each send has its own bound and the
+            // stamp it ends with cannot re-create a cleared row (ADMIN_NOTIFY_SEND_TIMEOUT_MS, functions-core-6).
             if (recorded) {
                 /** @type {ReturnType<typeof setTimeout>|undefined} */ let notifyTimer;
                 try {
@@ -773,12 +791,11 @@ const requestPasswordReset = onRequest(
                     clearTimeout(notifyTimer);
                 }
             }
-            // IDENTICAL body either way (fix, v18.94). Returning `throttled: true` was the exact oracle
-            // the comment beside it warned against: anyone could poll the 50 public names and learn who
-            // is locked out RIGHT NOW — a ready-made pretext for a "hi, it's IT about your password
-            // reset" call, aimed at the people most likely to fall for it. The distinction stays in the
-            // log line, where only the admin can see it. AND NO SOONER than the floor, or the timing
-            // says it instead (RESET_REQUEST_ANSWER_FLOOR_MS, functions-core-4).
+            // IDENTICAL body either way (fix, v18.94). `throttled: true` was the exact oracle: anyone could
+            // poll the 50 public names and learn who is locked out RIGHT NOW — a ready-made pretext for a
+            // "hi, it's IT about your password reset" call. The distinction stays in the log line, where
+            // only the admin sees it. AND NO SOONER than the floor, or the timing says it instead
+            // (RESET_REQUEST_ANSWER_FLOOR_MS, functions-core-4).
             const holdMs = answerNotBefore - Date.now();
             if (holdMs > 0) await new Promise((resolve) => setTimeout(resolve, holdMs));
             return res.json({ ok: true });

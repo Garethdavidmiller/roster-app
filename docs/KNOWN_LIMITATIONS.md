@@ -570,6 +570,14 @@ never the PIN. A silent re-sign-in is tried first, and one tap on "Sign in" re-e
 identity, so it is recoverable rather than a lockout — but it will generate a support question, it
 will land on iPhone users specifically, and it is worth expecting rather than diagnosing.
 
+**…and one case it does not yet handle (review, 11 Nov 2026 — not fixed, low priority).** If the
+same tab ALSO holds a staff-PIN session when the member's identity fails to restore, the start-up
+decision grants the viewer: it ranks a PIN session above a member session with no identity behind it.
+That member then reads the station's Calendar rather than their own, and a later loss of access shows
+them the PIN card. The late-restore path already refuses exactly this (`grantLateViewer`); the start-up
+path does not. It needs an identity failure and a PIN session in one tab, so it waits for a release
+that touches `decideAccess` anyway.
+
 **The cause is NOT Safari's seven-day rule** (corrected 7 Nov 2026, iPhone audit — this paragraph and
 five module headers said it was). WebKit's tracking prevention deletes ALL of a site's script-writable
 storage together, in a Safari tab, after seven days of Safari use without a visit: IndexedDB,
@@ -714,6 +722,17 @@ something: making the others animate inherits the `max-height` reveal's weakness
 fixed ceiling, so short cards finish early and the easing reads wrong), while making paycalc instant
 removes a nicety staff already have on the page they use most. Worth an explicit decision rather than
 a silent sweep.
+
+### A deliberate burst of reset requests can still show who asked recently — bounded, still open
+
+`requestPasswordReset` answers a recorded request and a throttled repeat with the same body, and
+neither before `RESET_REQUEST_ANSWER_FLOOR_MS` (3 s), so timing cannot say who is locked out right now.
+One push per burst is decided in a transaction, and a large DELIBERATE burst can still hold a recorded
+request on Firestore's locks past the floor while a throttled one meets it (review, 11 Nov 2026: the
+claim's retries are capped at two, which is why the floor is 3 s and not 2 s). What bounds it: every
+name such a burst probes is recorded as a request the admin sees, and each name can be probed once in
+ten minutes. Closing it fully means sending the push from a Firestore trigger, so no answer waits on it
+— a new deployed function, left for a release that needs one. App Check (below) would also blunt it.
 
 ### Firebase App Check — declined as an immediate action, RETAINED as Track D
 

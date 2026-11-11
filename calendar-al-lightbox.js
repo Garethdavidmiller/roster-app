@@ -16,6 +16,7 @@
  */
 
 import { createLightbox } from './overlay.js';
+import { onCalendarAccess } from './calendar-access-state.js';
 import { getAccessType } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getSession } from './session.js';
@@ -537,6 +538,10 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     }
     detailLb.open();
   }
+
+  // ACCESS LOST WITH A PANEL OPEN (sign-in check, 11 Nov 2026). Both panels show what only access may
+  // show, and the lock card went up UNDERNEATH an open one. They close the moment the state is shut.
+  onCalendarAccess(({ open }) => { if (!open) { alLb.close(); detailLb?.close(); } });
 
   return { openDayDetail, closeALLightbox: alLb.close };
 }

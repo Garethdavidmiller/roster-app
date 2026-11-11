@@ -109,7 +109,9 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.' };
         const code = getAuthError();
         if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — please wait a few minutes and try again.' };
-        if (isTransient(code))                 return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };
+        // A browser that could not sign an account OUT is transient to the session (it keeps the 60-day
+        // session — session.js) but it is no network fault: the card says what the 'other' line says.
+        if (isTransient(code) && !/-shed-failed$/.test(String(code))) return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };
         // Definitive credential rejection — covers BOTH a wrong/forgotten password AND an account that
         // was never provisioned (auth/user-not-found). The remedy for the latter is set-up, not a
         // reset, so the wording names "the admin" generically (an account matter — house rule) and
@@ -217,10 +219,10 @@ function overlayHtml(pageLabel, alternative, notice, about) {
             </div>
             <div id="loginPwHint" class="login-hint">Your surname in lowercase — or the password you’ve set yourself.</div>
         </div>
-        <div id="loginError" class="login-error" aria-live="polite"></div>
+        <div aria-live="polite"><div id="loginError" class="login-error"></div></div>
         <button type="submit" id="loginSubmit">Sign in →</button>
         </form>
-        <div id="loginStatus" class="login-status" aria-live="polite"></div>
+        <div aria-live="polite"><div id="loginStatus" class="login-status"></div></div>
         <!-- Reset request (PASSWORD_DESIGN.md — the request queue). ALWAYS VISIBLE since v20.48, and
              BELOW the primary action where a "forgot password" is looked for. It was revealed only
              after two credential failures (v18.93–94), which had the shape of a good idea — don't
@@ -233,7 +235,7 @@ function overlayHtml(pageLabel, alternative, notice, about) {
              access. Those are not the same size of mistake. The repeat throttle and the member-name
              doc id (so the queue can never exceed the roster) are what make the open door safe. -->
         <button type="button" id="loginResetRequest" class="login-reset-request">${RESET_BTN_LABEL}</button>
-        <div id="loginResetStatus" class="login-receipt" aria-live="polite"></div>
+        <div aria-live="polite"><div id="loginResetStatus" class="login-receipt"></div></div>
         ${alternative
             ? `<button type="button" class="login-back" id="loginAlternative"></button>` +
               (alternative.hint ? `<p class="login-help" id="loginAlternativeHint"></p>` : '')
@@ -349,7 +351,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // The notice is written AFTER the card is in the document, not before: it is a `role="status"`
     // live region, and a live region only announces CHANGES made while it is in the accessibility
     // tree — text it was created with is read by nobody. The staff-PIN card's message channel
-    // follows the same rule (calendar-access.js → `say`).
+    // follows the same rule (calendar-lock-cards.js → `say`).
     if (notice) { const n = overlay.querySelector('#loginNotice'); if (n) n.textContent = notice; }
 
     const gradeSelect   = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginGrade'));
@@ -568,8 +570,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     /** @param {string} msg */
     function showError(msg) {
-        errorEl.textContent = msg;
+        // The box is display:none while empty, so it is NOT the live region: its always-rendered parent is
+        // (review, 11 Nov 2026 — calendar-lock-cards.js `say` has the reasoning).
         errorEl.classList.add('visible');
+        errorEl.textContent = msg;
     }
 
     /** Draw the eye to the reset route after repeated credential failures. The link is ALWAYS on

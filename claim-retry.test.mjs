@@ -4,7 +4,28 @@
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
-    runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, unconfirmedWriteLine } from './claim-retry.js';
+    runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, unconfirmedWriteLine,
+    trackBackgroundWrite, backgroundWritesInFlight } from './claim-retry.js';
+
+// ── trackBackgroundWrite (review, 11 Nov 2026) — a write no page started, counted until it settles ──
+describe('trackBackgroundWrite', () => {
+    it('counts a write until it lands or fails, and hands the caller the same promise', async () => {
+        const base = backgroundWritesInFlight();
+        /** @type {(v?: any) => void} */ let land = () => {};
+        /** @type {(e?: any) => void} */ let fail = () => {};
+        const a = new Promise((r) => { land = r; });
+        const b = new Promise((_r, j) => { fail = j; });
+        assert.equal(trackBackgroundWrite(a), a, 'not the same promise — the caller would lose its outcome');
+        trackBackgroundWrite(b).catch(() => {});
+        assert.equal(backgroundWritesInFlight(), base + 2);
+        land(true); await a;
+        await new Promise((r) => setImmediate(r));
+        assert.equal(backgroundWritesInFlight(), base + 1, 'one landed, one still on its way');
+        fail(new Error('refused')); await b.catch(() => {});
+        await new Promise((r) => setImmediate(r));
+        assert.equal(backgroundWritesInFlight(), base, 'a failed write was counted for ever');
+    });
+});
 
 // ── watchIdentityLoss (v24.37; narrowed v24.38) — sign-in offered only when the account is really gone ──
 describe('watchIdentityLoss', () => {

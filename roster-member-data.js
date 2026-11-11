@@ -194,7 +194,7 @@ export const teamMembers = [
     { name: 'B. Khalil',               currentWeek: 4,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; his line (currentWeek 4) is the CES vacancy. Row kept so his past shifts and overrides still resolve
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
-    { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },
+    { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES', hidden: true }, // left by 11 Nov 2026 (owner); the CES week-7 line is a vacancy. Row kept so their past shifts and overrides still resolve
     { name: 'M. Bowler',               currentWeek: 8,  rosterType: 'ces',        role: 'CES' },
     { name: 'W. Cummings',             currentWeek: 9,  rosterType: 'ces',        role: 'CES' },
     { name: 'S. Horsman',              currentWeek: 10, rosterType: 'ces',        role: 'CES' },

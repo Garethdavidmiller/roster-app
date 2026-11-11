@@ -42,6 +42,8 @@ let tokenUser = undefined;
  *  the unlock has checked the claim. Opt-in, so the tests written before cal-data-10 are unchanged. */
 let emitOnSignIn = false;
 let sessionValue = null;
+/** session.js's sign-in/sign-out generation: a test moves it to say "a sign-in has begun". */
+let authGenValue = 0;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
 let signOutBehavior = 'ok';
@@ -86,6 +88,9 @@ mock.module('./firebase-client.js', {
             return { user: currentUser };
         },
         setViewerPersistence: async () => { ops.push('persistence:session'); },
+        // The boot's own persistence choice (firebase-client.js). The unlock waits for it before its
+        // switch (sign-in check, 11 Nov 2026); a thenable so a test can hold it (`bootGate`).
+        authBootstrap: { then: (/** @type {any} */ res, /** @type {any} */ rej) => (bootGate || Promise.resolve({ user: null, persistence: 'none' })).then(res, rej) },
         restoreMemberPersistence: async () => { ops.push('persistence:member'); },
         // Subscribers are RETAINED, not just called once (v20.79). The late-restore watcher exists
         // precisely because a second emission can arrive after the boot decision, and a fake that
@@ -113,6 +118,8 @@ mock.module('./firebase-client.js', {
 
 /** When true the boot restore never answers — the degraded case both bounds existed for. */
 let bootRestoreHangs = false;
+/** A held boot persistence choice (`authBootstrap`), or null for one settled long ago. @type {Promise<any>|null} */
+let bootGate = null;
 /** Total time the fake boot restore was made to wait, so a STACKED bound is measurable. */
 let bootWaitedMs = 0;
 
@@ -151,6 +158,7 @@ mock.module('./session.js', {
     namedExports: {
         ACCESS_DECISION_BUDGET_MS: 6500,   // the real constant lives in session.js since v24.96
         getSession: () => sessionValue,
+        authGeneration: () => authGenValue,
         clearSession: () => { ops.push('clearSession'); sessionValue = null; },
         reconcileExpiredIdentity: async (opts) => {
             ops.push('reconcile:' + JSON.stringify(opts || {}));
@@ -194,6 +202,15 @@ let silentGate = null;
 // The hand-over releases this device's push record before it drops the session (Sep 2026
 // re-review) — recorded into `ops`, so the ORDER against `clearSession` is what is asserted.
 mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => { ops.push('releasePush'); } } });
+
+// The overlay Back stack (overlay.js), recorded: the front door's PIN card takes one entry, and Back
+// (`pressBack`) runs the newest handler as overlay.js's popstate listener does (sign-in check, 11 Nov 2026).
+/** @type {Function[]} */ let backStack = [];
+const pressBack = () => { const fn = backStack.pop(); fn?.(); };
+mock.module('./overlay.js', { namedExports: {
+    _pushOverlayState: (/** @type {Function} */ fn) => { if (!backStack.includes(fn)) { backStack.push(fn); ops.push('backEntry:push'); } },
+    _clearOverlayHistory: (/** @type {Function} */ fn) => { const i = backStack.lastIndexOf(fn); if (i >= 0) { backStack.splice(i, 1); ops.push('backEntry:clear'); } },
+} });
 
 // A storage the cards can read (real `ls.js`, real keys) — a mocked `lsGet` would let a module read
 // a key nobody writes and the test would still pass.
@@ -355,11 +372,14 @@ beforeEach(async () => {
     tokenUser = undefined;
     emitOnSignIn = false;
     sessionValue = null;
+    authGenValue = 0;
     signOutBehavior = 'ok';
     silentReauthSucceeds = false;
     silentReauthUser = undefined;
     reconcileGate = null;
     silentGate = null;
+    bootGate = null;
+    backStack = [];
     authSubs.clear();
     store.clear();
     fetchQueue = [];
@@ -430,6 +450,60 @@ describe('unlockWithPin — the happy path', () => {
         await unlockWithPin('1234');
         const relevant = ops.filter(o => o === 'signOut' || o === 'persistence:session' || o.startsWith('signIn:'));
         assert.deepEqual(relevant, ['signOut', 'persistence:session', 'signIn:GOOD_TOKEN']);
+    });
+
+    test('the switch waits for the BOOT\'s own persistence choice to land (sign-in check, 11 Nov 2026)', async () => {
+        // Reproduced with the real SDK in both engines: a start-up slow enough that the PIN was typed
+        // first ended with the boot's member chain landing AFTER the switch, migrating the viewer
+        // into IndexedDB — the PIN outlived the browser. Nothing may switch until the boot has.
+        /** @type {(v: any) => void} */ let settle = () => {};
+        bootGate = new Promise(r => { settle = r; });
+        const pending = unlockWithPin('1234');
+        await drainTurns();
+        assert.ok(!ops.includes('persistence:session'), 'persistence switched while the boot\'s own choice was still to land');
+        assert.ok(!ops.some(o => o.startsWith('signIn:')), 'a viewer was signed in before the boot settled');
+        settle({ user: null, persistence: 'indexeddb' });
+        assert.deepEqual(await pending, { ok: true });
+        assert.ok(ops.includes('persistence:session'));
+    });
+
+    // THE CARD THAT ASKED HAS GONE (review, 11 Nov 2026): Back or "Sign in instead" mid-exchange left it
+    // granting under the card that replaced it, or switching persistence under a member's sign-in.
+    test('an exchange whose card has gone changes nothing — no sign-out, no switch, no grant', async () => {
+        currentUser = { uid: 'someone-else', isAnonymous: false };
+        const r = await unlockWithPin('1234', () => false);
+        assert.equal(r.ok, false);
+        assert.equal(getAccessType(), 'none');
+        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
+            'the exchange acted for a card that was no longer on screen');
+    });
+
+    test('a member who signed in during the wait for start-up is reloaded into — never signed out for the PIN', async () => {
+        /** @type {(v: any) => void} */ let settle = () => {};
+        bootGate = new Promise(r => { settle = r; });
+        const pending = unlockWithPin('1234');
+        await drainTurns();
+        sessionValue = { name: 'G. Miller' };                 // "Sign in instead", or another tab
+        currentUser = { uid: 'uid-miller', isAnonymous: false };
+        settle({ user: null, persistence: 'indexeddb' });
+        assert.deepEqual(await pending, { ok: true });
+        assert.ok(ops.includes('reload'), 'the page did not reload into the member');
+        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
+            'the member was signed out for the shared PIN');
+    });
+
+    test('a boot that never settles fails CLOSED: still locked, nothing switched, honest about why', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        bootGate = new Promise(() => {});                 // the degraded case: start-up wedged
+        const pending = unlockWithPin('1234');
+        // setImmediate, not `drainTurns`: that waits on setTimeout, which this test has frozen.
+        for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r));
+        t.mock.timers.tick(20000);
+        const r = await pending;
+        assert.equal(r.ok, false);
+        assert.equal(getAccessType(), 'none');
+        assert.ok(!ops.includes('persistence:session'), 'persistence switched without the boot having settled');
+        assert.doesNotMatch(r.message, /not recognised/, 'the PIN was right — "not recognised" would be a lie');
     });
 
     // ── FAIL CLOSED AT THE PERSISTENCE SWITCH (v20.35) ──────────────────────────────────────────
@@ -698,6 +772,41 @@ describe('initCalendarAccess', () => {
         assert.ok(!lastPanelHtml().includes('calLockPin'));
     });
 
+    // Back on a phone LEFT THE APP from the PIN card the front door had just opened (sign-in check,
+    // 11 Nov 2026). It now takes one entry on the Back stack every overlay uses, and gives it back
+    // when it leaves by its own route, so Back never later lands on a card that has gone.
+    describe('Back from the front door\'s PIN card', () => {
+        test('returns to the sign-in card, in place', async () => {
+            await initCalendarAccess({ onGranted: () => {} });
+            loginMounts[0].alternative.onSelect();
+            assert.equal(backStack.length, 1, 'the PIN card took no Back entry — Back leaves the app');
+            pressBack();
+            await waitFor(() => loginMounts.length === 2, 'the sign-in card to re-mount');
+            assert.ok(lastPanelHtml().includes('SIGN-IN CARD'), 'Back did not return to the sign-in card');
+        });
+
+        test('"Sign in instead" gives the entry back', async () => {
+            await initCalendarAccess({ onGranted: () => {} });
+            loginMounts[0].alternative.onSelect();
+            document.getElementById('calLockSignIn')._listeners.get('click')();
+            assert.equal(backStack.length, 0, 'a Back entry was left for a card that has gone');
+        });
+
+        test('an unlock gives the entry back — Back then has nothing of the card left to find', async () => {
+            await initCalendarAccess({ onGranted: () => {} });
+            loginMounts[0].alternative.onSelect();
+            assert.deepEqual(await unlockWithPin('1234'), { ok: true });
+            assert.equal(backStack.length, 0, 'the unlocked Calendar kept a Back entry for the PIN card');
+        });
+
+        test('the PIN card a station PC opens with (`#staff-pin`) takes none — there is nowhere to go back to', async () => {
+            globalThis.window.location.hash = '#staff-pin';
+            await initCalendarAccess({ onGranted: () => {} });
+            assert.ok(lastPanelHtml().includes('id="calLockPin"'));
+            assert.equal(backStack.length, 0);
+        });
+    });
+
     test('`#staff-pin` is consumed even when a SESSION is held — a member never carries it', async () => {
         // v23.19 consumed the hash only on the locked path, so a member with a session who opened a
         // station PC's bookmark kept `#staff-pin` in the address bar of their own Calendar.
@@ -874,9 +983,13 @@ describe('initCalendarAccess', () => {
         assert.ok(ops.indexOf('clearSession') < ops.lastIndexOf('reload'),
             'reloaded before clearing — the reload would restore the session it was meant to drop');
         assert.equal(sessionValue, null, 'the local session was not actually dropped');
-        // v23.19: the reload lands on the sign-in card unless it says otherwise. The tap said PIN.
-        assert.equal(globalThis.window.location.hash, '#staff-pin',
-            'the reload will show the sign-in card — the tap asked for the PIN');
+        // v23.19: the reload lands on the sign-in card unless it says otherwise. The tap said PIN —
+        // REWRITTEN into the address, not navigated to (sign-in check, 11 Nov 2026): setting the hash
+        // pushed a history entry, and Back after the reload then went nowhere.
+        assert.ok(ops.includes('replaceState:./#staff-pin'),
+            `the reload will show the sign-in card — the tap asked for the PIN: ${JSON.stringify(ops)}`);
+        assert.ok(ops.indexOf('replaceState:./#staff-pin') < ops.lastIndexOf('reload'), 'the address was rewritten after the reload began');
+        assert.notEqual(globalThis.window.location.hash, '#staff-pin', 'the hash was NAVIGATED to — that pushes a Back entry');
     });
 
     test('the silent re-establishment GRANTS when it works — and NO sign-in surface is ever shown', async () => {
@@ -949,7 +1062,39 @@ describe('initCalendarAccess', () => {
         assert.equal(getAccessType(), 'none');
         emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
         await new Promise(r => setTimeout(r, 0));
-        assert.notEqual(getAccessType(), 'named', 'the viewer was granted a member\'s access');
+        // `none`, not merely "not named" (restored, sign-in check 11 Nov 2026 — v25.68 had loosened
+        // it): a member's session is held, so the shared code is not this browser's way back.
+        assert.equal(getAccessType(), 'none', 'a late PIN session was granted over a held member session');
+    });
+
+    test('a late PIN session does not overtake a member\'s silent sign-in (sign-in check, 11 Nov 2026)', async () => {
+        // The reproduced sequence: a member's session is held, their silent sign-in is still out, and
+        // the browser's old PIN session restores meanwhile. Granting it ended, when the sign-in failed,
+        // at the PIN card ("Calendar access has expired. Enter the staff PIN") in front of a member —
+        // and when it succeeded, with the member signed in to a VIEWER's Calendar until a reload.
+        const viewerUser = { uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
+        for (const succeeds of [false, true]) {
+            handleAccessLost(); await drainTurns();
+            ops = []; authSubs.clear(); currentUser = null; loginMounts = [];
+            sessionValue = { name: 'G. Miller' };
+            silentReauthSucceeds = succeeds;
+            /** @type {() => void} */ let release = () => {};
+            silentGate = new Promise(r => { release = r; });
+            const decided = initCalendarAccess({ onGranted: () => {} });
+            await drainTurns();
+            emitAuth(viewerUser);                          // the old PIN session restores, late
+            await drainTurns();
+            assert.equal(getAccessType(), 'none', `the PIN session was granted under the member (silent sign-in ${succeeds ? 'succeeding' : 'failing'})`);
+            release();
+            await decided; await drainTurns();
+            if (succeeds) assert.equal(getAccessType(), 'named', 'the member\'s own sign-in did not win');
+            else {
+                assert.equal(getAccessType(), 'none');
+                assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was put in front of the staff PIN');
+                assert.ok(lastPanelHtml().includes('calLockPinInstead'), 'the member\'s own card (with the PIN one tap behind it) did not follow');
+            }
+            silentGate = null;
+        }
     });
 
     // cal-data-10 (10 Nov 2026, the owner's question with a decided default): a staff-PIN session
@@ -965,6 +1110,14 @@ describe('initCalendarAccess', () => {
             await new Promise(r => setTimeout(r, 0));
             assert.equal(getAccessType(), 'viewer', 'a PIN session the browser holds was ignored');
             assert.equal(started, 1);
+        });
+
+        test('…but not once a sign-in has BEGUN since — a typed one saves its session only when it succeeds (review, 11 Nov 2026)', async () => {
+            assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
+            authGenValue++;                                       // a member submits the sign-in card
+            emitAuth(viewer({ calendarViewer: true }));           // …and the PIN session restores under it
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(getAccessType(), 'none', 'the PIN was granted underneath a member\'s sign-in');
         });
 
         test('…only once its token carries the claim — the check the unlock itself makes', async () => {
@@ -1446,6 +1599,28 @@ describe('the cards themselves', () => {
         assert.equal(getAccessType(), 'none');
     });
 
+    // THE CARD ASKS WHETHER IT IS STILL THERE (review, 11 Nov 2026), through the real form handler: Back or
+    // "Sign in instead" while an exchange was out left it granting under the sign-in card.
+    test('"Sign in instead" while the exchange is out: the exchange stands down — no grant, no switch', async () => {
+        globalThis.window.location.hash = '#staff-pin';
+        await initCalendarAccess({ onGranted: () => {} });
+        /** @type {(v: any) => void} */ let answer = () => {};
+        globalThis.fetch = (/** @type {any} */ _u, /** @type {any} */ opts) => (opts?.method === 'POST'
+            ? new Promise(r => { answer = r; })
+            : Promise.resolve({ ok: false, status: 405, json: async () => ({}) }));
+        document.getElementById('calLockPin').value = '1234';
+        const pressed = document.getElementById('calLockForm')._listeners.get('submit')({ preventDefault() {} });
+        await drainTurns();
+        document.getElementById('calLockSignIn')._listeners.get('click')();   // the card is replaced
+        await waitFor(() => loginMounts.length === 1, 'the sign-in card to mount');
+        ops = [];
+        answer({ ok: true, status: 200, json: async () => ({ token: 'GOOD_TOKEN' }) });
+        await pressed;
+        assert.equal(getAccessType(), 'none', 'the PIN was granted under the sign-in card');
+        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
+            'the exchange went on for a card that was no longer on screen');
+    });
+
     // cal-data-7 (10 Nov 2026). `attemptBackoffMs` is unit-tested, and nothing pressed the card after a
     // third failure: the field's input handler set the button from the digits alone, so retyping them
     // lifted the delay at once — the helper was tested, the wiring was not.
@@ -1484,6 +1659,46 @@ describe('the cards themselves', () => {
             assert.equal(card.submit.disabled, false, 'the button stayed off after the delay ended');
             await card.press();
             assert.equal(card.exchanges, 4);
+        });
+
+        test('the button counts down, and the reason stays on screen while it does (sign-in check, 11 Nov 2026)', async (t) => {
+            // Until v25.77 the first keystroke wiped the message and the button sat greyed out for up
+            // to 20 seconds with no words at all.
+            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+            const card = await pinCard();
+            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
+            assert.equal(card.submit.textContent, 'Try again in 2s', 'a held button with no words');
+            card.type('1');
+            assert.match(document.getElementById('calLockMsg').textContent, /not recognised/, 'typing during the delay wiped the reason');
+            t.mock.timers.tick(1000);
+            assert.equal(card.submit.textContent, 'Try again in 1s');
+            t.mock.timers.tick(1000);
+            assert.equal(card.submit.textContent, 'Unlock Calendar →', 'the button did not come back');
+        });
+
+        test('only a WRONG PIN counts: three dropped connections start no delay', async (t) => {
+            // A bad connection is not the member mistyping; slowing their retry only made it worse.
+            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+            const card = await pinCard();
+            globalThis.fetch = async (/** @type {any} */ _u, /** @type {any} */ opts) => {
+                if (opts?.method !== 'POST') return { ok: true, status: 204, json: async () => ({}) };
+                card.exchanges++;
+                throw new TypeError('Failed to fetch');
+            };
+            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
+            card.type('0000');
+            assert.equal(card.submit.disabled, false, 'a connection failure started the wrong-PIN delay');
+            await card.press();
+            assert.equal(card.exchanges, 4);
+            // …and they were not COUNTED either: the first wrong PIN after them is the first.
+            globalThis.fetch = async (/** @type {any} */ _u, /** @type {any} */ opts) => {
+                if (opts?.method !== 'POST') return { ok: true, status: 204, json: async () => ({}) };
+                card.exchanges++;
+                return { ok: false, status: 401, json: async () => ({}) };
+            };
+            card.type('0000'); await card.press();
+            card.type('0000');
+            assert.equal(card.submit.disabled, false, 'four dropped connections were counted as wrong PINs');
         });
 
         test('a delay\'s timer still pending does not re-enable the button during the next exchange', async (t) => {

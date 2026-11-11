@@ -437,6 +437,93 @@ test('settings: a password change the SERVER refuses is never submitted to the p
     expect(await submits(page), 'a refused password reached the password manager').toEqual([]);
 });
 
+test('settings: a refusal puts the caret where its message points, and the next save starts with a clean line (sign-in check, 11 Nov 2026)', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', reauthFailCode: 'auth/invalid-credential' }; });
+    await openSettings(page, { configured: false, noPush: true });
+    // A short new password with Confirm left empty: the message is about the NEW password, so the caret
+    // goes there — not to Confirm, as "the two boxes differ" sent it.
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwNew').fill('short');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwFeedback')).toContainText('at least 8');
+    await expect(page.locator('#pwNew')).toBeFocused();
+    // A wrong current password: said, and the caret goes back to that box rather than to the page.
+    await page.locator('#pwCurrent').fill('not-my-password');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwFeedback')).toContainText('Current password incorrect');
+    await expect(page.locator('#pwCurrent')).toBeFocused();
+    // The retry: the refusal goes the moment the next save starts — it is not left beside "Saving…".
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.reauthFailCode = ''; e.hangPasswordWrite = true; });
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwSaveBtn')).toHaveText('Saving…');
+    await expect(page.locator('#pwFeedback')).toHaveText('');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E_releasePasswordWrite(true));
+    await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+});
+
+// A REFUSAL DOES NOT PULL THE CARET BACK FROM WHERE THE MEMBER HAS GONE (review, 11 Nov 2026). A save can
+// wait out the re-authentication deadline; a member who moved on meanwhile — another card, the drawer —
+// had focus yanked back to the password card when the refusal landed.
+test('settings: a refusal that lands after the member has moved on leaves their caret where they put it', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', reauthFailCode: 'auth/invalid-credential', reauthDelayMs: 1500 }; });
+    await openSettings(page, { configured: false, noPush: true });
+    await page.locator('#pwCurrent').fill('not-my-password');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwSaveBtn')).toHaveText('Saving…');
+    await page.locator('#navMenuBtn').focus();                          // the member reaches for the menu while it is out
+    await expect(page.locator('#navMenuBtn')).toBeFocused();            // premise: the caret did move
+    await expect(page.locator('#pwFeedback')).toContainText('Current password incorrect');
+    await expect(page.locator('#navMenuBtn')).toBeFocused();
+});
+
+// THE STAGE A FAILURE CAME FROM (sign-in check, 11 Nov 2026). Both surfaces read one ladder, and it asks
+// whether the current password had already been accepted: a write refused after that is never "Current
+// password incorrect", which sent members to an admin reset over a server blip.
+test('settings: a change refused AFTER the current password was accepted is not blamed on it', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', updateFailCode: 'auth/internal-error' }; });
+    await openSettings(page, { configured: false, noPush: true });
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwFeedback')).toHaveText('Your password wasn’t updated — try again shortly.');
+});
+
+test('forced password overlay: a change refused after sign-in says it was not updated, not that a password was wrong', async ({ page }) => {
+    await forcePasswordSet(page);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, updateFailCode: 'auth/internal-error' }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+    await page.locator('#pwfNew').fill('a-real-password-9');
+    await page.locator('#pwfConfirm').fill('a-real-password-9');
+    await page.locator('#pwfSave').click();
+    await expect(page.locator('#pwfError')).toHaveText('Your password wasn’t updated — try again shortly.');
+});
+
+test('forced password overlay: the new password\'s Next key moves to Confirm — it does not save (sign-in check, 11 Nov 2026)', async ({ page }) => {
+    // The keyboard labels it "next", and it saved — then called two passwords that had not both been
+    // typed a mismatch. It now does what Settings' card does.
+    await forcePasswordSet(page);
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+    await page.locator('#pwfNew').fill('a-real-password-9');
+    await page.locator('#pwfNew').press('Enter');
+    await expect(page.locator('#pwfConfirm')).toBeFocused();
+    await expect(page.locator('#pwfError')).toBeHidden();
+});
+
 test('forced password overlay: a real form under the member\'s name — a submit never closes it, and Tab stays inside', async ({ page }) => {
     await forcePasswordSet(page);
     await page.goto('/settings.html');

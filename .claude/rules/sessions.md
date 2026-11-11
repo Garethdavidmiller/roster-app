@@ -40,7 +40,8 @@ on every other without seeing the login overlay. It lasts 60 days from sign-in (
 Every write page signs in to Firebase Auth both on fresh login AND on every page load when a
 localStorage session already exists. This is critical — a returning user with a valid 60-day
 localStorage session skips the login screen, so without the page-load sign-in, `auth.currentUser`
-stays null and all Firestore writes fail. `ensureFirebaseSession(name)` in `session.js` handles this:
+stays null and all Firestore writes fail. `ensureNamedSession(name)` in `session.js` handles this (every
+page calls it; the sign-in inside it is `ensureFirebaseSession`, which nothing calls directly): it
 waits for `onAuthStateChanged` (to detect any IndexedDB-persisted session; at most
 `AUTH_READY_TIMEOUT_MS`), then signs in if none exists. No account self-heal and no anonymous
 fallback: a refused sign-in leaves no named identity (`'none'`) and a sign-in prompt, while one that

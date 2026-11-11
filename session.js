@@ -13,11 +13,14 @@
  */
 
 import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, probeResetAtMs } from './firebase-client.js';
+// `onAuthStateChanged` is read from the namespace AT CALL TIME (`watchForLateViewer`): a page's test that
+// stands in for this module without it still loads, and the watcher then simply does not start.
+import * as firebaseClient from './firebase-client.js';
 // PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
 // PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
 // second place a bypass could be introduced. calendar-access-core.js imports only the pure
 // auth-identity.js, so this adds no cycle (asserted by import-graph.test.mjs).
-import { isViewerUser } from './calendar-access-core.js';
+import { isViewerUser, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
@@ -89,34 +92,15 @@ export const AUTH_KEY    = 'myb_admin_session';
 export const SESSION_MS  = 60 * 24 * 60 * 60 * 1000; // 60 days — the ONE session lifetime
 export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 
-// 30 → 60 DAYS at v20.47 (owner decision), and the reasoning is the same one that removed the idle
-// cutoff below: the absolute bound is not what protects an account. Everything that genuinely
-// REVOKES access is immediate and independent of this number — an explicit sign-out (`clearSession`,
-// which also signs Firebase out), a disabled or deleted account, revoked Firebase credentials, and
-// the claim/epoch sweeps — so doubling it costs a longer signed-in UI on a device somebody already
-// holds, and buys one fewer password prompt a year for the people who use the app least.
-//
-// Two things downstream READ this number rather than owning their own, and both get further away as
-// it grows. Neither is a blocker; both are wrong if left unstated:
-//   · The forced password migration (`CONFIG.FORCE_PASSWORD_SET`) is driven by sign-ins, so its
-//     coverage now completes in up to 60 days rather than 30.
-//   · Operations → Usage reads "signed in within 30 days" as a proxy for active people. That
-//     inference DEPENDED on the session being ≤30 days and no longer holds — see the note beside
-//     `_appendSignInSection` in operations-reports.js, which now states the direction correctly.
-//
-// The 7-day IDLE cutoff was REMOVED at v20.41 (owner decision). It is not a security control that
-// the absolute bound does not already provide: an attacker holding a device holds the session
-// either way, and every genuine revocation is immediate, as above. What the idle clock actually did
-// was sign out the members who use the app LEAST — someone who checks their roster once a
-// fortnight — and each expiry lands them on a password prompt.
-//
-// The Calendar VIEWER is untouched by this and must stay untouched: it is not a member session at
-// all, it holds no `name`, and its persistence is session-only, so it ends when the browser session
-// does. See calendar-access.js — that lifetime is the substance of the shared-PIN design, not a
-// tunable.
-//
-// Removed rather than left at a longer value: a dormant policy with no effect is the kind of thing
-// that gets "restored" later by someone who assumes it was load-bearing.
+// 60 DAYS (owner, v20.47), and NO idle cutoff (removed v20.41). The absolute bound is not what
+// protects an account: every genuine revocation is immediate and independent of it — `clearSession`
+// (which signs Firebase out too), a disabled or deleted account, revoked credentials, the claim
+// sweeps. Two things READ this number: the forced password migration completes within it, and
+// Operations → Usage's "signed in within 30 days" no longer means every active person (the note
+// beside `_appendSignInSection`, operations-reports.js). The idle clock only ever signed out the
+// members who use the app least. The Calendar VIEWER is untouched: it holds no `name` and its
+// persistence is session-only, which is the PIN's design, not a tunable (calendar-access.js). Removed
+// rather than lengthened: a dormant policy gets "restored" by someone who assumes it was load-bearing.
 
 /** @type {(value: any) => void} */
 let _sessionResolve;
@@ -172,6 +156,10 @@ export const AUTH_READY_TIMEOUT_MS = 20000;
 let _authGen = 0;
 /** The generation an explicit clearSession() took — see the late-landing check in ensureFirebaseSession. */
 let _clearedGen = -1;
+/** The attempt whose surname recheck got no answer — see the recheck in ensureFirebaseSession. */
+let _recheckUnansweredGen = -1;
+/** The current sign-in/sign-out generation: a watcher armed at one value stands down once it moves. */
+export const authGeneration = () => _authGen;
 /** The member the CURRENT generation is signing in — see the same check. @type {string|null} */
 let _genName = null;
 
@@ -302,6 +290,10 @@ export function primeAuth() {
 const _NO_DEFAULT_PREFIX = 'myb_auth_nodefault_';
 /** @param {string} name @returns {string} */
 const _noDefaultKey = (name) => _NO_DEFAULT_PREFIX + name;
+/** How often a FLAGGED device still asks whether an admin reset ended its session (invariant 23). The
+ *  flag holds when it last asked ('1' from before v25.77 reads as long ago). Sign-in check, 11 Nov
+ *  2026: with no surname to try, the reset check never ran, and a reset left this session standing. */
+const RESET_RECHECK_MS = 6 * 3_600_000;
 
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.
@@ -453,13 +445,18 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // (login overlay): raw typed → derived surname (gated on the typed value normalising to the
     // surname). WITHOUT one (page-load re-establishment): the derived surname only (auto-reauth of
     // an un-migrated member; a migrated member fails cleanly here → 'none' → overlay re-shown).
+    const flaggedAt = password == null ? Number(lsGet(_noDefaultKey(name))) || 0 : 0;
+    const recheck = flaggedAt > 0 && Date.now() - flaggedAt > RESET_RECHECK_MS;
+    // A recheck that got NO answer is asked once per sign-in attempt, not again on each of its retries
+    // (review, 11 Nov 2026): three requests a load to a server that had not answered one.
+    if (recheck && _recheckUnansweredGen === gen) { recordError('auth/reset-check-unavailable'); return commit('none', false); }
     const candidates = password != null
         ? credentialCandidatesFor(name, password)
         // Implicit path: skip the surname when this device has already seen it definitively
         // rejected for this name (see `_noDefaultKey`) — the attempt cannot succeed, and firing it
         // anyway is what compounds the station-NAT rate limit. Empty candidates fall through to
         // the definitive-rejection branch below, exactly as a no-surname name always has.
-        : (surnamePassword(name) && !lsGet(_noDefaultKey(name)) ? [surnamePassword(name)] : []);
+        : (surnamePassword(name) && (!lsGet(_noDefaultKey(name)) || recheck) ? [surnamePassword(name)] : []);
     let   lastError;
     let   nonCredentialStop = false;   // true → we stopped on a NON-credential error (network etc.)
 
@@ -479,6 +476,13 @@ export async function ensureFirebaseSession(name, _gen, password) {
         if (password == null) {
             const resetAt = await probeResetAtMs(email, candidate, name, 5000);
             if (!fresh()) return commit('none', false);
+            // A flagged device's recheck stops at a refused surname: the SDK sign-in below would only
+            // repeat the same doomed request. It notes when it asked, and the answer stands ('none') —
+            // after a THROTTLED answer too (review, 11 Nov 2026), or every load asked again and kept the
+            // station's lock-out going. Not after NO answer: the next load would read it as refused.
+            if (recheck && (resetAt === 'credential' || resetAt === 'throttled')) lsSet(_noDefaultKey(name), String(Date.now()));
+            if (recheck && resetAt === 'credential') break;
+            if (recheck && resetAt === null) _recheckUnansweredGen = gen;
             if (resetAt === null || resetAt === 'throttled') {
                 recordError(resetAt === 'throttled' ? 'auth/too-many-requests' : 'auth/reset-check-unavailable');
                 console.warn('[Auth] silent sign-in held — could not confirm the last password reset');
@@ -525,7 +529,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
             // `_noDefaultKey`). Never on user-not-found: provisioning would make the surname valid.
             if (candidate === surnamePassword(name)
                 && _isCredentialRejection(_e.code) && _e.code !== 'auth/user-not-found') {
-                lsSet(_noDefaultKey(name), '1');
+                lsSet(_noDefaultKey(name), String(Date.now()));
             }
             // A definitive credential rejection for THIS candidate → try the next one (if any). A
             // NON-credential error (network / provider-disabled) → stop; it isn't a password problem.
@@ -560,6 +564,9 @@ const _TRANSIENT_AUTH_CODES = new Set([
     // The account restored here could not be signed out before a member's sign-in (sessions-4) — the
     // same storage failure the SDK itself reports as auth/internal-error, above; named for what happened.
     'auth/previous-user-shed-failed',
+    // …and so is its twin for the shared PIN viewer (sign-in check, 11 Nov 2026): it was missing, so a
+    // failed viewer sign-out ended NONE and cleared the member's 60-day session over a storage fault.
+    'auth/viewer-shed-failed',
 ]);
 
 /** @param {string|undefined} code @returns {boolean} */
@@ -699,6 +706,9 @@ export function getSession() {
         // The Calendar's own-roster copy goes with the session it belongs to (v24.59).
         if (!Number.isFinite(s.expiry) || Date.now() > s.expiry) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
         if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
+        // …and so is one with no NAME (sign-in check, 11 Nov 2026): every caller derives the account
+        // from it, so `ensureNamedSession(undefined)` threw and the page offered no sign-in at all.
+        if (typeof s.name !== 'string' || !s.name.trim()) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
         // `expiry` is absolute and set once at sign-in, so nothing here extends it. A session that
         // has run its 60 days ends on the next read wherever the member is — no separate clock, and
         // no write. Sessions written before v20.41 still carry a `lastActivity` field; it is simply
@@ -881,7 +891,9 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
     // Release this device's push record FIRST, while the expired member is still the identity — the
     // delete is theirs to make, and after the sign-out nobody can (whole-app review, Oct 2026).
     await releasePushForEndingHold();
-    if (gen !== _authGen || getSession()) return;    // a login landed while the release ran
+    // …or anybody else did: a PIN unlock on the Calendar, which moves no generation (sign-in check,
+    // 11 Nov 2026 — the sign-out below signed out whoever was current, which could be the new viewer).
+    if (gen !== _authGen || getSession() || auth.currentUser !== u) return;
     try {
         await firebaseSignOut(auth);
         console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');
@@ -917,23 +929,24 @@ export const ACCESS_DECISION_BUDGET_MS = 6500;
  * Does this browser hold the shared staff PIN — and KEEP it? (v24.84)
  *
  * For a page other than the Calendar whose policy admits the PIN (`admitsStaffPin`, auth-policy.js —
- * Trains, owner 22 Oct 2026). Until then such a page ran the bare `reconcileExpiredIdentity()` every
- * protected page runs, which signs the viewer out by design: a station PC that opened Trains from
- * its unlocked Calendar met a member sign-in, and was asked for the PIN again on the way back.
+ * Trains, owner 22 Oct 2026). Until then such a page ran the bare `reconcileExpiredIdentity()`, which
+ * signs the viewer out by design: a station PC that opened Trains from its unlocked Calendar met a
+ * member sign-in, and was asked for the PIN again on the way back.
  *
  * It is the Calendar's own decision (`resolveAccess`, calendar-access.js) with the members taken out:
  * tear down any OTHER identity that outlived its session, keep the viewer, and read ground truth once
- * the boot restore has had its turn — all inside one budget, never one per step. A browser with a
- * local member session is answered `false`, because a member outranks the viewer exactly as
- * `decideAccess` ranks them; the caller asks only when it has no member.
+ * the boot restore has had its turn — all inside one budget. A browser with a local member session is
+ * answered `false` (a member outranks the viewer, as in `decideAccess`). A `true` grants the page with
+ * NO member on it: the viewer carries no identity claims (AUTH_AND_SESSIONS.md 7).
  *
- * What a `true` grants is the caller's page with NO member on it. The viewer carries no identity
- * claims (AUTH_AND_SESSIONS.md 7), so nothing keyed off `getSession()` comes within reach.
+ * A PIN session that restores AFTER a `false` is not lost (sign-in check, 11 Nov 2026): the caller's
+ * `onLateViewer` runs once when it does — see `watchForLateViewer` for when it does not.
  *
  * @param {number} [budgetMs]  the whole decision's deadline — the Calendar's, by default
+ * @param {() => void} [onLateViewer]
  * @returns {Promise<boolean>}
  */
-export async function holdsStaffPin(budgetMs = ACCESS_DECISION_BUDGET_MS) {
+export async function holdsStaffPin(budgetMs = ACCESS_DECISION_BUDGET_MS, onLateViewer) {
     const started = Date.now();
     const remaining = () => Math.max(0, budgetMs - (Date.now() - started));
     /** @type {any} */ let timer;
@@ -945,7 +958,31 @@ export async function holdsStaffPin(budgetMs = ACCESS_DECISION_BUDGET_MS) {
     } catch { /* best effort — the answer below reads ground truth either way */ }
     finally { clearTimeout(timer); }
     if (getSession()) return false;
-    return isViewerUser(await currentUserAfterBoot(remaining()));
+    const held = isViewerUser(await currentUserAfterBoot(remaining()));
+    if (!held && onLateViewer) watchForLateViewer(onLateViewer);
+    return held;
+}
+
+/** `holdsStaffPin`'s late answer: `fn` once, for a viewer that restores with its claim and no member.
+ *  Never once a sign-in or sign-out has BEGUN since it was armed (review, 11 Nov 2026): a typed sign-in
+ *  saves its session only when it succeeds, so `getSession()` alone let a restore landing under it
+ *  start Trains for the PIN — and then again for the member. */
+function watchForLateViewer(/** @type {() => void} */ fn) {
+    /** @type {null | (() => void)} */ let off = null;
+    let done = false;
+    const gen = _authGen, moved = () => gen !== _authGen;
+    try {
+        off = firebaseClient.onAuthStateChanged(auth, async (/** @type {any} */ u) => {
+            if (!done && moved()) { done = true; if (off) off(); return; }
+            if (done || !isViewerUser(u) || getSession()) return;
+            /** @type {any} */ let claims;
+            try { claims = (await u.getIdTokenResult())?.claims; } catch { return; }
+            if (done || moved() || claims?.[CALENDAR_VIEWER_CLAIM] !== true || !isViewerUser(auth.currentUser) || getSession()) return;
+            done = true;
+            if (off) off();
+            fn();
+        });
+    } catch { /* an auth layer that cannot be watched leaves the sign-in up, as before */ }
 }
 
 /**

@@ -583,25 +583,31 @@ for (const width of [375, 1280]) {
                 { id: 'A. Hared',       requestedAt: Date.now() - 4 * 60_000,    count: 1, provisioned: true },
                 { id: 'N. Bedingfield', requestedAt: Date.now() - 26 * 3600_000, count: 1, provisioned: false },
                 { id: 'K. Jedlinski',   requestedAt: Date.now() - 90 * 60_000,   count: 4, provisioned: true },
+                { id: 'O. Mylla',       requestedAt: Date.now() - 30 * 60_000,   count: 1, provisioned: true, disabled: true },
             ] };
         });
         await seedSession(page, 'G. Miller');
         await page.goto('/operations.html');
 
         const rows = page.locator('.rr-row');
-        await expect(rows).toHaveCount(3);
+        await expect(rows).toHaveCount(4);
         // The card auto-opens when there is anything to action, and the chip counts it.
-        await expect(page.locator('#resetRequestsCountChip')).toHaveText('3');
+        await expect(page.locator('#resetRequestsCountChip')).toHaveText('4');
         await expect(page.locator('.rr-row').first()).toBeVisible();
-        // An unprovisioned account needs Set up accounts, not Reset — different remedy, stated.
-        await expect(page.locator('.rr-remedy--setup')).toHaveText(/Set up accounts/);
+        // An unprovisioned account needs Set up accounts, not Reset — different remedy, stated. So does
+        // a DISABLED one (a reset is refused for it), and it is named as disabled, not as missing.
+        await expect(rows.filter({ hasText: 'N. Bedingfield' }).locator('.rr-remedy--setup'))
+            .toHaveText('No account yet — run Set up accounts');
+        await expect(rows.filter({ hasText: 'O. Mylla' }).locator('.rr-remedy--setup'))
+            .toHaveText('Account disabled — run Set up accounts');
+        await expect(rows.filter({ hasText: 'K. Jedlinski' }).locator('.rr-remedy')).toHaveText('Reset below in Account status');
         await expect(page.locator('.rr-row', { hasText: 'K. Jedlinski' })).toContainText('asked 4 times');
 
         // No row may overflow its own box — the failure mode that shipped. Checked per flex child,
         // because the PAGE reports no overflow when a flex item overflows internally.
         const overflow = await page.locator('.rr-main').evaluateAll(
             els => els.map(el => el.scrollWidth - el.clientWidth));
-        expect(overflow, `.rr-main overflow at ${width}px`).toEqual([0, 0, 0]);
+        expect(overflow, `.rr-main overflow at ${width}px`).toEqual([0, 0, 0, 0]);
         const pageOverflow = await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(pageOverflow).toBeLessThanOrEqual(1);

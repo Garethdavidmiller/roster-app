@@ -348,3 +348,26 @@ describe('Contract C — boot persistence is viewer-aware', () => {
             + 'guards — the shared viewer must not acquire a second, viewer-unaware boot path.');
     });
 });
+
+// ── THE PIN CARD WAITS LONGER THAN THE EXCHANGE MAY RUN (sign-in check, 11 Nov 2026) ────────────────
+// The card gave up at 15s while `unlockCalendarViewer` may run for 20s, so a cold start about to
+// answer was reported as "check the connection". The roster parse had the same fault and the same
+// guard (admin-roster-upload.test.mjs). Both figures are read from the code that uses them.
+describe('the PIN exchange is never abandoned before the server could finish', () => {
+    const fnSrc = read('./functions/index.js');
+    const block = fnSrc.slice(fnSrc.indexOf('exports.unlockCalendarViewer = onRequest('));
+    const serverSeconds = Number(/timeoutSeconds:\s*(\d+)/.exec(block.slice(0, 400))?.[1]);
+    const clientSrc = read('./calendar-access.js');
+    const clientMs = Number(/const UNLOCK_TIMEOUT_MS = (\d+);/.exec(clientSrc)?.[1]);
+
+    test('the card waits longer than the function may run, with headroom', () => {
+        assert.ok(serverSeconds > 0, 'unlockCalendarViewer\'s timeoutSeconds was not found where expected');
+        assert.ok(clientMs >= serverSeconds * 1000 + 5000,
+            `the card gives up at ${clientMs / 1000}s; the exchange may run for ${serverSeconds}s`);
+    });
+
+    test('and it is the window the exchange actually uses', () => {
+        assert.match(clientSrc, /fetchWithTimeout\(UNLOCK_URL, \{[\s\S]{0,200}\}, UNLOCK_TIMEOUT_MS\)/,
+            'the exchange no longer waits on UNLOCK_TIMEOUT_MS — the figure above is checking a constant nobody reads');
+    });
+});
