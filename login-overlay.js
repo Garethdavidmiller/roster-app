@@ -36,10 +36,11 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, onStaffPinEnded } from './session.js';
+import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { isCredentialRejection } from './auth-identity.js';
-// Already loaded wherever this card is: session.js imports the same pure module.
+// Already loaded wherever this card is: session.js imports both.
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
+import { onStaffPinEnded } from './staff-pin-ended.js';
 // The one deadline helper (sessions-6 — this card kept a copy that differed only in the error's code).
 // Every page that loads this module statically already loads password-force.js statically, and the
 // Calendar loads this one on demand, so the import adds nothing to any page's start-up.
@@ -179,9 +180,9 @@ export function dismissLoginOverlay() {
     if (lockedScroll) unlockBodyScroll();
 }
 
-// ── WHEN ARRIVING ENDED THE STAFF PIN (v25.77 — owner, 11 Nov 2026) ─────────────────────────────────
+// ── WHEN ARRIVING ENDED THE STAFF PIN (v25.78 — owner, 11 Nov 2026) ─────────────────────────────────
 //
-// A page that does not admit the PIN signs it out on arrival (session.js → `onStaffPinEnded`). The
+// A page that does not admit the PIN signs it out on arrival (session.js; staff-pin-ended.js tells us). The
 // rule stays; the silence went. Before, somebody who opened Admin or Pay from an unlocked Calendar met
 // this card with nothing to say why, and "← Back to roster" found the roster locked again.
 //

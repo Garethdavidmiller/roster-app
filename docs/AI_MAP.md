@@ -961,8 +961,8 @@ designer-only Links) stays with each coordinator, after sign-in.
   exported so the unit suite drives that exact wiring through the real `session.js`.
 - `dismissLoginOverlay()` — removes the card, and releases the scroll lock only if it was the modal one
   (an inline card never took it); safe to call unconditionally on a coordinator's authorised path.
-- **When arriving ended the staff PIN** (v25.77): the modal card carries an empty status line from the
-  start, so a notice written later is announced. `onStaffPinEnded` (session.js) has it say that the PIN
+- **When arriving ended the staff PIN** (v25.78): the modal card carries an empty status line from the
+  start, so a notice written later is announced. `onStaffPinEnded` (staff-pin-ended.js) has it say that the PIN
   only opens the Calendar and Trains, so the roster is locked again, and points the way back — the link
   and Escape alike — at the Calendar's PIN box (`./#staff-pin`, `PIN_FIRST_HASH`). The inline card never
   asks: the Calendar never ends the PIN. The words and the landing are checked in `e2e/calendar-pin.spec.js`.
@@ -1065,11 +1065,16 @@ The shared session and sign-in module: the local session, the Firebase Auth sign
 - `sessionReady` / `resolveSession(result)` — the page's one-shot "session settled" promise. The coordinator resolves it exactly once; feature modules await it.
 - `refreshClaimsIfStale(epoch)` — one forced ID-token refresh per device per claim-epoch bump.
 - `shedCalendarViewer()` — drops the shared PIN viewer before a member signs in. **Signing out BEFORE restoring member persistence is the security property** (`setPersistence` would move the viewer into IndexedDB; proven both ways in `experiments/viewer-persistence-proof/`); throws when it cannot confirm the viewer has gone (AUTH_AND_SESSIONS.md invariant 8).
-- `reconcileExpiredIdentity({ preserveCalendarViewer? })` → `'kept' | 'ended' | 'ended-staff-pin'` — signs out a named Firebase identity whose local session has gone. Every protected coordinator calls it at init and ignores the answer (the tests read it). Only the pages that admit the PIN keep the viewer (the Calendar's `resolveAccess`, and `holdsStaffPin` elsewhere) — never make preserving it the default.
-- `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once if arriving on THIS page ended the staff PIN: when the teardown lands, or on a microtask if it already has (sticky for the page's life). Only `reconcileExpiredIdentity` signing out the viewer counts — not a Lock, not a member's expired identity, not a sign-out that failed. Its one reader is the sign-in card (`login-overlay.js`).
+- `reconcileExpiredIdentity({ preserveCalendarViewer? })` — signs out a named Firebase identity whose local session has gone. Every protected coordinator calls it at init. Only the pages that admit the PIN keep the viewer (the Calendar's `resolveAccess`, and `holdsStaffPin` elsewhere) — never make preserving it the default.
 - `holdsStaffPin(budgetMs?)` — does this browser hold the station PIN, and keep it? For a page other than the Calendar whose policy admits the PIN (`admitsStaffPin`); a local member session answers `false`. Its budget, `ACCESS_DECISION_BUDGET_MS`, is shared with calendar-access.js's `resolveAccess`.
 - `signOutStaffPin()` — the drawer's Lock on such a page; throws if the viewer is still current, and never touches a member.
 - Imported by every protected coordinator and many feature modules; grep for the import rather than trusting a list. Tested by `session.test.mjs`.
+
+### `staff-pin-ended.js`
+Whether arriving on THIS page ended the shared staff PIN, and who is waiting to hear it — so the page's sign-in card can say why the roster is locked again (AUTH_AND_SESSIONS 24). A module of its own because session.js was at its size cap (coordinator-ratchet.test.mjs), and this is one subject a Node test can hold.
+- `noteStaffPinEnded()` — records it and tells each listener already waiting, once; one that throws does not stop the rest. ONE caller: `reconcileExpiredIdentity` (session.js), and only once its sign-out of the viewer has landed — never a Lock, a member's expired identity, or a sign-out that failed.
+- `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once: when the teardown lands, or on a microtask if it already has (sticky for the page's life). Unsubscribing cancels a call already queued. Its one reader is the sign-in card (`login-overlay.js`).
+- Imports nothing. Tested through the real teardown by `session.test.mjs`.
 
 ### `auth-state-core.js`
 The pure identity state machine (`AUTH_ARCHITECTURE.md` Track 1, Phase 1): no DOM, no Firebase, no storage. States are facts about who the user is; `login` and `forbidden` are decisions in `auth-policy.js`, never states.

@@ -828,7 +828,7 @@ for (const [label, url] of [['Admin', '/admin.html'], ['Settings', '/settings.ht
     });
 }
 
-// ── WHAT THE VIEWER IS TOLD THERE (v25.77 — owner, 11 Nov 2026) ─────────────────────────────────
+// ── WHAT THE VIEWER IS TOLD THERE (v25.78 — owner, 11 Nov 2026) ─────────────────────────────────
 //
 // Those pages still sign the PIN out (above) — the rule did not move. What changed is that it used to
 // happen in silence: the card said nothing, and "← Back to roster" found the roster locked again. Now

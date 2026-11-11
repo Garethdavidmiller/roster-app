@@ -148,9 +148,11 @@ const {
     getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
     ensureNamedSession, isTransientAuthError, refreshClaimsIfStale, primeAuth,
-    reconcileExpiredIdentity, shedCalendarViewer, onStaffPinEnded,
+    reconcileExpiredIdentity, shedCalendarViewer,
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
+// The SAME instance session.js imports: what reconcile tells it is what these tests hear.
+const { onStaffPinEnded } = await import('./staff-pin-ended.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
 const { getAuthSnapshot, _resetAuthStateForTest } = await import('./auth-state.js');
 const { CALENDAR_SNAPSHOT } = await import('./storage-keys.js');
@@ -556,32 +558,22 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(_signOutCalled, false);
     });
 
-    // ── WHAT IT REPORTS (v25.77) ──────────────────────────────────────────────────────────────
+    // ── WHAT THE SIGN-IN CARD IS TOLD (v25.78) ──────────────────────────────────────────────────
     //
     // The page's sign-in card says "the roster is locked again" when arriving ended the staff PIN
-    // (login-overlay.js → `sayStaffPinEnded`), and hears it through `onStaffPinEnded`. Saying it to
-    // somebody whose MEMBER identity was ended instead would be untrue: they never had the PIN.
-    // ORDER MATTERS in this file: the signal is sticky for the module's life (a page's life, in the
-    // browser), so this test must run before the first viewer teardown in the block below.
-    test('ending a MEMBER\'s lingering identity reports "ended" — and is not the staff PIN', async () => {
+    // (login-overlay.js → `sayStaffPinEnded`). It hears it through staff-pin-ended.js, and this
+    // function is the only thing that tells it. Saying it to somebody whose MEMBER identity was ended
+    // would be untrue: they never had the PIN. ORDER MATTERS in this file: the signal is sticky for
+    // the module's life (a page's life, in the browser), so this runs before any viewer teardown.
+    test('ending a MEMBER\'s lingering identity is not the staff PIN: the card is not told', async () => {
         let told = 0;
         const stop = onStaffPinEnded(() => { told += 1; });
         auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
-        assert.equal(await reconcileExpiredIdentity(), 'ended');
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true, 'the member identity WAS ended — the case this test is about');
         await Promise.resolve();
         assert.equal(told, 0, 'a member whose session expired never had the PIN; the card must not say it ended');
         stop();
-    });
-
-    test('nothing to end reports "kept": a valid session, an anonymous identity, no user', async () => {
-        auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: 'g.miller@myb.test' });
-        store.set(AUTH_KEY, validSession());
-        assert.equal(await reconcileExpiredIdentity(), 'kept');
-        store.clear();
-        auth.currentUser = /** @type {any} */ ({ isAnonymous: true });
-        assert.equal(await reconcileExpiredIdentity(), 'kept');
-        auth.currentUser = null;
-        assert.equal(await reconcileExpiredIdentity(), 'kept');
     });
 
     // ── preserveCalendarViewer: the DEFAULT is the security half (v20.12) ──────────────────────
@@ -605,26 +597,32 @@ describe('reconcileExpiredIdentity', () => {
     const viewerUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false, email: null };
 
     // These two run BEFORE any other viewer teardown here, because what they watch is sticky (see
-    // "WHAT IT REPORTS" above): the first is the only moment a card can be waiting rather than late.
-    test('a sign-out that FAILS ends nothing: "kept", and no card is told the roster is locked', async () => {
+    // "WHAT THE SIGN-IN CARD IS TOLD" above): the first is the only moment a card can be waiting.
+    test('a sign-out that FAILS ends nothing, and no card is told the roster is locked', async () => {
         let told = 0;
         const stop = onStaffPinEnded(() => { told += 1; });
         auth.currentUser = /** @type {any} */ (viewerUser);
         _signOutBehavior = 'auth/network-request-failed';
         try {
-            assert.equal(await reconcileExpiredIdentity(), 'kept', 'the PIN is still held, so nothing ended');
+            await reconcileExpiredIdentity();
         } finally { _signOutBehavior = 'ok'; }
+        assert.equal(_signOutCalled, true, 'the sign-out WAS attempted — the case this test is about');
         await Promise.resolve();
         assert.equal(told, 0, 'the roster is still open behind them; saying it is locked would be untrue');
         stop();
     });
 
-    test('ending the PIN reports "ended-staff-pin" and tells the card — waiting, or mounted after', async () => {
+    test('ending the PIN tells the card — waiting, or mounted after — and one broken card stops no other', async () => {
+        // A listener that throws is registered FIRST, so the one after it is told only if the throw
+        // is contained (staff-pin-ended.js → `noteStaffPinEnded`). It is also inside reconcile's own
+        // try, where an escaped throw would be logged as a failed sign-out.
+        onStaffPinEnded(() => { throw new Error('a broken card'); });
         let waiting = 0;
         const stopWaiting = onStaffPinEnded(() => { waiting += 1; });   // the card is up first: the usual order
         auth.currentUser = /** @type {any} */ (viewerUser);
-        assert.equal(await reconcileExpiredIdentity(), 'ended-staff-pin');
-        assert.equal(waiting, 1, 'a card already up hears it when the teardown lands, once');
+        await reconcileExpiredIdentity();
+        assert.equal(auth.currentUser, null, 'the teardown landed — the case this test is about');
+        assert.equal(waiting, 1, 'a card already up hears it when the teardown lands, once, despite the broken one');
 
         // A card mounted AFTER the teardown still hears it — on a microtask, never inside the subscribe.
         let late = 0;
@@ -667,7 +665,7 @@ describe('reconcileExpiredIdentity', () => {
     test('only the Calendar\'s opt-in keeps it — and only for the viewer itself', async () => {
         // The visible direction, pinned so a fix for the above cannot be "never preserve".
         auth.currentUser = /** @type {any} */ (viewerUser);
-        assert.equal(await reconcileExpiredIdentity({ preserveCalendarViewer: true }), 'kept');
+        await reconcileExpiredIdentity({ preserveCalendarViewer: true });
         assert.equal(_signOutCalled, false, 'the Calendar would otherwise re-demand the PIN on every open');
 
         // …and the opt-in is scoped to the viewer UID. A named identity whose session has expired is
