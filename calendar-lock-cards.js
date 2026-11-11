@@ -299,7 +299,7 @@ export function showLockPanel() {
 
     // Back to the front door — the sign-in card, in place. Before v23.19 this opened the fixed
     // login overlay OVER the PIN card; now the two cards are alternatives for one slot.
-    signIn.addEventListener('click', () => { dropPinBack(); showSignInPanel().catch(() => {}); });
+    signIn.addEventListener('click', () => { dropPinBack(); showSignInPanel().catch(warnNoCard); });
 
     // Focus the field, but only on a device with a real keyboard. Autofocusing on a phone throws up
     // the on-screen keyboard over the explanation the member has not read yet.
@@ -307,6 +307,14 @@ export function showLockPanel() {
         try { input.focus(); } catch { /* noop */ }
     }
 }
+
+/**
+ * The one handler for a sign-in card that did not open from a tap. Fire-and-forget, so it is
+ * logged rather than swallowed (the PR checklist's rule); the card's own import failure is
+ * already handled inside `showSignInPanel`, so anything arriving here is unexpected.
+ * @param {unknown} e
+ */
+const warnNoCard = (e) => console.warn('[calendar-lock-cards] The sign-in card did not open:', e);
 
 /**
  * The FRONT DOOR (v23.19): the member sign-in card, for a browser that holds nothing.
@@ -358,7 +366,7 @@ export async function showSignInPanel(notice = '') {
             // 2026): Back on a phone used to leave the app from here instead of returning.
             onSelect: () => {
                 showLockPanel();
-                _pinBack = () => { _pinBack = null; if (_deps.getAccessType() === 'none') showSignInPanel().catch(() => {}); };
+                _pinBack = () => { _pinBack = null; if (_deps.getAccessType() === 'none') showSignInPanel().catch(warnNoCard); };
                 _pushOverlayState(_pinBack);
             },
         },
