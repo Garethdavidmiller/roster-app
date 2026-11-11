@@ -22,13 +22,15 @@ export default defineConfig({
     //  • offline.spec.js — the offline SW integration test (playwright.offline.mjs + `npm run
     //    test:offline`): needs `serviceWorkers: 'allow'`, the opposite of this config's block.
     //  • live.spec.js — the deployment health check against the real site (playwright.live.mjs).
+    //  • signed-in.spec.js — the real Firebase SDK against the emulators (e2e/playwright.signed-in.mjs
+    //    + `npm run test:signed-in`): it needs the Auth, Firestore and Functions emulators running.
     // EVERY opt-in spec that has its own config must be here, or the behavioural lanes run it —
     // and `playwright.webkit.mjs` spreads this config, so one omission leaks into BOTH. That is not
     // hypothetical: `visual-webkit.spec.js` was added at v23.71 and not listed, so `smoke` and two
     // WebKit shards each tried to run six baselines against the wrong engine's PNGs and failed 12
     // tests apiece. `runner-parity.test.mjs` now DERIVES this requirement from the configs rather
     // than trusting the next person to remember the list.
-    testIgnore: ['csp.spec.js', 'visual.spec.js', 'print-visual.spec.js', 'visual-webkit.spec.js', 'offline.spec.js', 'live.spec.js'],
+    testIgnore: ['csp.spec.js', 'visual.spec.js', 'print-visual.spec.js', 'visual-webkit.spec.js', 'offline.spec.js', 'live.spec.js', 'signed-in.spec.js'],
 
     // The Firebase SDK is stubbed at the network layer (e2e/fixtures.js), so pages
     // load from the local http-server only — no CDN cold-start to wait on. These

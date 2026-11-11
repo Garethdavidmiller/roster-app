@@ -62,11 +62,13 @@
  * server on 4001 + 10 were the same port, and one config could adopt ANOTHER checkout's server — the
  * 11 Sep wrong-files failure again, by a different road. 120 of the 122 reachable ports could be
  * reached from more than one config. So each base now draws from a block of its own, in BASES order:
- * smoke and visual keep 4001–4120 exactly as before, offline takes 4122–4241 and visual-webkit
- * 4243–4362. A base not in BASES throws, so a new config cannot quietly overlap one that exists.
+ * smoke and visual keep 4001–4120 exactly as before (the signed-in lane shares it: same files, so
+ * reusing one another's server is correct), offline takes 4122–4241 and visual-webkit 4243–4362. A
+ * base not in BASES throws, so a new config cannot quietly overlap one that exists.
  */
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { CHECKOUT } from './server-identity.mjs';
 
 /** The identity check every config runs as its `globalSetup` — absolute, because a scratch config that
  *  imports and spreads one of ours would resolve a relative path against ITS own folder. */
@@ -122,9 +124,9 @@ export function devServerPort(base) {
         }
         return port;
     }
-    // The working directory, which is the checkout root because every config lives there and
-    // `npx playwright test` is run beside it. (A run started from elsewhere would hash elsewhere —
-    // and server-identity.mjs would refuse a server that does not serve this checkout.)
+    // The working directory, which is the checkout root because every lane is started there — by
+    // an npm script, or `npx playwright test` beside the configs. (A run started from elsewhere would
+    // hash elsewhere — and server-identity.mjs would refuse a server that does not serve this checkout.)
     const root = process.cwd();
     const digest = createHash('sha256').update(root).digest();
     return portFor(base, digest.readUInt16BE(0));
@@ -147,6 +149,11 @@ export function devServer(base) {
         baseURL: url,
         webServer: {
             command: `npx http-server . -p ${port} -a 127.0.0.1 -c-1 --silent`,
+            // Playwright starts a webServer in its CONFIG's folder unless told otherwise, and `.`
+            // above is that folder. Every config but one lives in the checkout root, where the two
+            // agree; e2e/playwright.signed-in.mjs lives in e2e/ (it says why), and without this it
+            // would serve the test folder and every page would 404.
+            cwd: CHECKOUT,
             url,
             // Safe only with the globalSetup below: an adopted server must PROVE it serves these files.
             reuseExistingServer: !process.env.CI,

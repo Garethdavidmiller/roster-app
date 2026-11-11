@@ -299,6 +299,7 @@ npm run test:visual:webkit  # a small Safari-engine visual set — report-only
 npm run test:webkit         # the smoke suite under WebKit — branch CI, not the deploy gate
 npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site, both origins; gates nothing
 npm run test:offline        # SW/offline paths with the network cut — weekly, non-blocking (offline.yml)
+npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; branch CI only
 ```
 - **Read the `visual baselines` check, not the `visual` job** — the job is `success` on a drifted lane
   and a clean one alike; the check run is `neutral` when baselines drifted, and the PR comment names

@@ -33,6 +33,7 @@ unverified after an install failed in their sandbox. Almost none of it depends o
 | Cloud Functions handlers | `npm run test:functions` | `cd functions && npm ci` — these `require()` the real Firebase Admin SDK, and the roster-geometry suite drives the real PDF parser |
 | Security rules | `npm run test:rules` | the Firebase emulator binary, plus a root `npm ci` |
 | Lint, typecheck, browser tests | `npm run lint` · `npm run typecheck` · `npm run test:e2e` | a root `npm ci` |
+| Signed-in browser journeys | `npm run test:signed-in` | Java 21 for the Firestore emulator, a root `npm ci`, `cd functions && npm ci`, and Playwright's Chromium and WebKit |
 
 With a root install, `npm run check` is the full pre-push gate: lint, typecheck, then `npm test`.
 
@@ -90,7 +91,7 @@ behind them.
 - **`npm run test:e2e`** — the smoke suite in real headless Chromium (the dev environment's own
   build only if it matches Playwright's). The axe-core accessibility gate (WCAG A/AA, several states
   per page) runs inside it and is BLOCKING: `playwright.config.mjs` leaves out the csp, visual,
-  offline and live specs, not axe. **`npm run test:a11y`** runs that gate on its own; the baseline and triage
+  offline, live and signed-in specs, not axe. **`npm run test:a11y`** runs that gate on its own; the baseline and triage
   are `docs/A11Y_BASELINE.md`.
 - **`npm run test:csp`** — the deployed-CSP proof. It serves the app through the Firebase Hosting
   emulator with the real `firebase.json` header applied and asserts that real Chromium refuses
@@ -131,6 +132,24 @@ behind them.
   like "unsupported". The standing "do not run playwright install" advice is about CHROMIUM, which IS
   pre-installed — reading it as a blanket ban once left a CSS-adjacent release to meet this engine
   for the first time on CI.
+- **`npm run test:signed-in`** — the app's REAL Firebase SDK, signed in, against the Auth, Firestore
+  and Functions emulators, under the real security rules and the real Cloud Functions, on both phone
+  engines. Every other browser lane stubs the SDK and the rules suite tests the rules on their own, so
+  this is the one place the app, the SDK, the rules and the server meet before production: a first
+  sign-in and the forced password change, a day of leave saved, reloaded and drawn on the Calendar, a
+  colleague's day refused, a manager recording on behalf, a save with no signal, the staff PIN's real
+  exchange, and Back after signing out (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
+  throwaway Firebase project folder in the temp directory — the emulator settings from `firebase.json`,
+  a random four-digit PIN, never the real one — and writes nothing into the checkout. Each page keeps
+  its own CSP, widened only by the emulators' addresses. **What it cannot see** is what only
+  production has: the API key's allowed sites, the rules as DEPLOYED rather than as committed, Web
+  Push, the service worker (blocked, so every request reaches the routes) and the Pages mirror. Nor
+  a page brought back from the back/forward cache: Playwright launches Chrome with that cache off,
+  so Back always loads afresh here. That guard is `page-session.test.mjs` and `e2e/auth.spec.js`,
+  which send the restore event themselves.
+  Branch CI as the `signed-in` job, NOT the deploy gate: whether it joins the gate is the owner's
+  decision once it has run steady. Behind a proxy, run `npx firebase setup:emulators:firestore` once
+  first (the script's header says why).
 - **`npm run test:live`** — the deployment health check in `CLAUDE.md`, run against the real site:
   both origins, the root and two sub-pages, asserting served, splash down, something usable and no
   console errors. Opt-in, and it gates nothing: the network and whatever is deployed right now are not
