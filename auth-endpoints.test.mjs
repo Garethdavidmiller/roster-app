@@ -108,7 +108,12 @@ const uidFor   = (n) => `uid_${n.replace(/\W/g, '')}`;
 // it unreadable, the coalescing check would fail OPEN, and the suppression tests below would pass
 // for the wrong reason — the exact "green because nothing happened" shape this file exists to avoid.
 const SERVER_TS = Symbol('serverTimestamp');
-const resolveTs = (v) => (v === SERVER_TS ? { toMillis: () => Date.now() } : v);
+// FROZEN at the write, as Firestore's commit time is. It was `{ toMillis: () => Date.now() }`, a LIVE
+// clock read again at every later read: the endpoint takes `now`, then reads the stamp, and whenever the
+// millisecond ticked over in between, the stamp read 1 ms in the FUTURE — which shouldNotifyAdmin
+// rightly ignores as clock skew — so "coalesces the next member" failed on a busy runner (PR #1747's
+// CI, 11 Nov 2026). Reproduced every time by a clock that never repeats a millisecond.
+const resolveTs = (v) => { if (v !== SERVER_TS) return v; const at = Date.now(); return { toMillis: () => at }; };
 // FieldValue.delete(): the field goes, as in Firestore — kept as a value it would read as "present".
 const FIELD_DELETE = Symbol('delete');
 
