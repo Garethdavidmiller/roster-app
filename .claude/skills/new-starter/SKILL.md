@@ -58,22 +58,34 @@ That file carries **two** unrelated things, which is why this step is unconditio
 
 ## Step 3b — tell them it exists (optional, but nothing else does)
 
-- [ ] Send the welcome email — **`welcome-email.html`**, in this folder.
+- [ ] Send the welcome email, from this folder. Which file depends on who they are:
 
-**For a CEA already working at Marylebone, send `welcome-email-cea.html` instead** (owner, 8 Nov 2026:
-"so a consistent version can be used for CEAs"). It is the email sent to a CEA on 7 Nov 2026, with
-the choices below already made: the existing-staff opening, grade CEA, and the Pay Calculator section
-that works for a CEA. Only the first name, roster name, surname password and PIN are left to fill.
-A change to the wording belongs in both files.
+| Who | Send | Its Pay Calculator section says |
+|---|---|---|
+| a CEA already working at Marylebone | `welcome-email-cea.html` | it works for them |
+| a CES (a supervisor) already working at Marylebone | `welcome-email-ces.html` | it works for them |
+| a Dispatcher already working at Marylebone | `welcome-email-dispatcher.html` | it does not work for them yet |
+| a new starter, any grade | `welcome-email.html`, making its two choices | the one for their grade |
+
+The three ready-made copies are `welcome-email.html` with its choices already made: the
+existing-staff opening, their grade, and the Pay Calculator section for that grade. Only the first
+name, roster name, surname password and PIN are left to fill. They exist so that everybody in a
+grade is sent the same email: the CEA's is the one sent to a CEA on 7 Nov 2026 (owner, 8 Nov 2026:
+"so a consistent version can be used for CEAs"), and the supervisor's and the Dispatcher's follow it
+(owner, 11 Nov 2026). **A change to the wording belongs in all four files**:
+`welcome-email-parity.test.mjs` builds each copy from `welcome-email.html` and fails until they
+agree. It also fails the Dispatcher's copy on the day the calculator gains Dispatcher rates, because
+that copy tells them to ignore it.
 
 Nothing in the app introduces itself. A new starter is provisioned, appears on every screen, and
 has no idea any of it is there; the only thing that closes that gap is somebody telling them.
 
 Copy the file into the email body as HTML and work through the checklist in its opening comment.
-It carries the placeholders (preferred name, roster name, grade, surname password, PIN) and two
-either/or blocks — a new-starter vs existing-staff opening, and a Pay Calculator section that
-differs by grade. **That second one is the one that goes out wrong**: the calculator is built on the
-CEA and CES hourly rates, so the positive version promises a Dispatcher something that cannot work.
+The general template carries the placeholders (preferred name, roster name, grade, surname password,
+PIN) and two either/or blocks — a new-starter vs existing-staff opening, and a Pay Calculator
+section that differs by grade. **That second one is the one that goes out wrong**: the calculator is
+built on the CEA and CES hourly rates, so the positive version promises a Dispatcher something that
+cannot work.
 
 Two things to get right before sending:
 
@@ -83,9 +95,10 @@ Two things to get right before sending:
   published-roster form (an initial and a surname), so somebody looking for their first name does not
   find themselves.
 
-⚠️ **The real PIN is never written into that file.** It lives only in the `CALENDAR_VIEWER_PIN`
-secret. **Nothing automated would catch it here**: `calendar-viewer-parity.test.mjs` cannot look for
-the digits (a test that knew them would be the leak) and does not read this folder. Fill
+⚠️ **The real PIN is never written into these files.** It lives only in the `CALENDAR_VIEWER_PIN`
+secret. **Only the PIN box is checked**: `welcome-email-parity.test.mjs` fails if, in any of the four
+files, it holds anything but `{{STAFF_PIN}}`. No test can look for the digits themselves (a test that
+knew them would be the leak), so the PIN typed anywhere else would not be caught. Fill
 `{{STAFF_PIN}}` in the mail client.
 
 ## Step 4 — verify it actually took

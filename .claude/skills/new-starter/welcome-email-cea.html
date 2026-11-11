@@ -9,8 +9,10 @@
       not think you have come across");
     · the grade, CEA;
     · the Pay Calculator section that says it works for them, as it does for a CEA.
-  For a new starter, a CES or a Dispatcher, use welcome-email.html and make its
-  choices there. A change to the wording belongs in BOTH files.
+  For a new starter, use welcome-email.html and make its choices there; for a
+  CES or a Dispatcher, welcome-email-ces.html or welcome-email-dispatcher.html.
+  A change to the wording belongs in ALL FOUR files: welcome-email-parity.test.mjs
+  builds this one from welcome-email.html and fails until they agree.
 
   Copy this whole file into the email body as HTML. Every comment block is an HTML
   comment, so anything left in is invisible to the reader — but the PLACEHOLDERS
@@ -25,8 +27,9 @@
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
     {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
-                     in the CALENDAR_VIEWER_PIN secret, and NOTHING automated would
-                     catch it in this file. Fill it in the mail client.
+                     in the CALENDAR_VIEWER_PIN secret. A test fails if the PIN box
+                     holds anything else, but the digits written anywhere else in
+                     this file would not be caught. Fill it in the mail client.
 
   ── BEFORE YOU SEND ──────────────────────────────────────────────────────────
     · The surname is only their FIRST password. Somebody who has already signed

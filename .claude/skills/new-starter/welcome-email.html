@@ -17,12 +17,16 @@
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
     {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
-                     in the CALENDAR_VIEWER_PIN secret, and NOTHING
-                     automated would catch it in this file — no test
-                     can look for the digits themselves.
+                     in the CALENDAR_VIEWER_PIN secret. welcome-email-parity.test.mjs
+                     fails if the PIN box holds anything but this placeholder, but
+                     no test can look for the digits themselves, so the PIN written
+                     anywhere else in this file would not be caught.
                      Fill it in the mail client, not in this file.
 
   ── CHOOSE ───────────────────────────────────────────────────────────────────
+    For somebody ALREADY working at Marylebone these choices are made for you:
+    send welcome-email-cea.html, welcome-email-ces.html or
+    welcome-email-dispatcher.html, by their grade. Choose here for a new starter.
     · Opening paragraph — NEW STARTER or EXISTING STAFF. Keep one.
     · Section 4, the Pay Calculator — CEA/CES or DISPATCHER. Keep one.
       This is the section that most often goes out wrong: the calculator is built
@@ -35,6 +39,9 @@
     · Search the body for "{{" — nothing should be left.
 
   ── DESIGN RULES, IF YOU EDIT THIS ───────────────────────────────────────────
+    · Change the wording in all four files. The three ready-made copies are this
+      file with its choices made, and welcome-email-parity.test.mjs fails until
+      they agree.
     · Brand navy #001e3c, gold #f5c800. From .claude/rules/css-tokens.md; do not
       invent shades.
     · Inter-first sans throughout, NEVER monospace. Inter is the app's only
