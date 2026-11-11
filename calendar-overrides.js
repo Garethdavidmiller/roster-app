@@ -590,6 +590,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // nothing to report: nothing is recorded against a Calendar locked since. The grant that holds
         // the Calendar now reads the month for itself.
         if (!answerStillWanted(ticket, err)) return;
+        const knownBefore = knowledgeOf(key);   // whether this failure changes it decides the repaint, below
         fetchedMonths.delete(key);  // Allow retry on next navigation
         if (_monthOwner.has(key)) {
             // THIS DEVICE HOLDS THE SERVER'S EARLIER ANSWER FOR THE MONTH, AND THE RE-CHECK FAILED
@@ -630,8 +631,15 @@ export async function ensureOverridesCached(year, month, renderFn) {
         console.error('[Firestore] Failed to fetch overrides for', key, err);
         // Tell the caller to repaint, so a withheld grid can show its failure panel instead of
         // waiting forever on a fetch that has already lost (v20.40). Once per claim — see
-        // `_failureRepainted` above for the loop this guards.
-        if (!_failureRepainted.has(key)) { _failureRepainted.add(key); _repaintWaiters(waiters); }
+        // `_failureRepainted` above for the loop this guards — AND WHENEVER THIS FAILURE CHANGED WHAT
+        // THE MONTH IS KNOWN TO BE (11 Nov 2026, found by calendar-sequences.test.mjs). A slow read
+        // overtaken by a newer answer fails as old news and changes nothing, yet it spent the one
+        // repaint; the re-read that repaint started then failed for real, took "current" away
+        // (`noteCheckFailed`), and could not say so, so the month stayed drawn as current — the F1
+        // symptom by another road. A change always repaints. That cannot become the loop: between two
+        // successes a month's knowledge can change only a few times (unknown → error → cached, or
+        // authoritative → cached), so a run of failures that change nothing is still told once.
+        if (knowledgeOf(key) !== knownBefore || !_failureRepainted.has(key)) { _failureRepainted.add(key); _repaintWaiters(waiters); }
         return;
     }
     settle();
