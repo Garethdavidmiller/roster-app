@@ -191,7 +191,8 @@ that must not wait at all — for the opposite reason (the data is already cache
 3. **`initInitialFetch` is two-phase:** fire the cache read immediately and paint; then await the
    access grant and run the authoritative server read.
 4. **Generation guard** — the `_fetchGen` supersession pattern, so a slow cache read can never clobber a
-   server read that already landed.
+   server read that already landed. (Since v25.72 it is the first load's attempt tickets: `standing` in
+   `calendar-initial-fetch.js`, over the read ticket in `calendar-overrides.js`.)
 5. **The sync chip tracks the server phase only.** "↻ Updating your shifts…" means "fetching fresh",
    which is still true.
 

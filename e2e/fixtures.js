@@ -239,8 +239,17 @@ export const getDocs = (/** @type {any} */ ref) => {
   // racing it: a 3-second delay that four taps on a loaded WebKit runner did not fit failed the Admin
   // leave-preview test twice in one job. A held read lands when the spec says so, however slow the
   // steps before it were. (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
-  const held = (v) => new Promise(r => {
-    const t = setInterval(() => { if (!(globalThis.__E2E || {}).docsHeld) { clearInterval(t); r(v); } }, 25);
+  // window.__E2E.heldFailWith (10 Nov 2026) makes a held read FAIL when it is released, with that
+  // string as the message — read at the moment of release, not when the read began. It is how a read
+  // that was already out fails AFTER something else has happened: failGetDocs is decided when a read
+  // starts, so it cannot express a read that started before a re-lock and failed after it.
+  const held = (v) => new Promise((r, j) => {
+    const t = setInterval(() => {
+      const now = globalThis.__E2E || {};
+      if (now.docsHeld) return;
+      clearInterval(t);
+      if (now.heldFailWith) j(new Error(String(now.heldFailWith))); else r(v);
+    }, 25);
   });
   const wrap = (v) => settle(e2e.docsHeld ? held(v)
     : e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));

@@ -362,6 +362,45 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
     await expect(page.locator('#calendarLock')).toHaveCount(0);
 });
 
+test('a month read that FAILS after the Calendar re-locked is not drawn as failed when the PIN is entered again', async ({ page }) => {
+    // The read ticket (Calendar step 1, v25.72), through the real modules. A read that failed after a
+    // re-lock, before anybody was back in, was checked against the grant number alone, and that does
+    // not move until somebody comes back in. So it recorded a failed month against the locked Calendar,
+    // and the next grant drew "Couldn't check this month" for a month it had not yet asked about.
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const settled = () => page.waitForFunction(() => {
+        const e = /** @type {any} */ (window).__E2E; return (e.docReadsSettled || 0) >= (e.docReads || 0);
+    });
+    await settled();
+
+    // Two months on (beyond the first load's three): that month's read is held, and fails when released.
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsHeld = true; e.heldFailWith = 'e2e: network'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('.calendar-pending')).toContainText('Checking this month');
+
+    // The month after is refused for access, and the Calendar re-locks.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#calendarLock')).toBeVisible();
+
+    // The held read fails now: after the lock, before anybody is back in.
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.failGetDocs = false; e.docsHeld = false; });
+    await settled();
+
+    // Back in, with reads held again, so the first thing that month shows is what was recorded for it.
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.heldFailWith = false; e.docsHeld = true; });
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.locator('#prevMonth').click();
+    await expect(page.locator('.calendar-pending')).toContainText('Checking this month');
+    await expect(page.locator('.calendar-pending--failed')).toHaveCount(0);
+});
+
 // Whole-app review, Oct 2026: after a re-lock the grid is behind the card, and the arrow keys still
 // moved — and persisted — the month there, so the next unlock opened on a different one.
 test('re-locked mid-session: the keyboard does not move the month behind the card', async ({ page }) => {
