@@ -153,6 +153,8 @@ const {
     reconcileExpiredIdentity, shedCalendarViewer,
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
+// The SAME instance session.js imports: what reconcile tells it is what these tests hear.
+const { onStaffPinEnded } = await import('./staff-pin-ended.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
 const { getAuthSnapshot, _resetAuthStateForTest } = await import('./auth-state.js');
 const { CALENDAR_SNAPSHOT } = await import('./storage-keys.js');
@@ -577,6 +579,24 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(_signOutCalled, false);
     });
 
+    // ── WHAT THE SIGN-IN CARD IS TOLD (v25.78) ──────────────────────────────────────────────────
+    //
+    // The page's sign-in card says "the roster is locked again" when arriving ended the staff PIN
+    // (login-overlay.js → `sayStaffPinEnded`). It hears it through staff-pin-ended.js, and this
+    // function is the only thing that tells it. Saying it to somebody whose MEMBER identity was ended
+    // would be untrue: they never had the PIN. ORDER MATTERS in this file: the signal is sticky for
+    // the module's life (a page's life, in the browser), so this runs before any viewer teardown.
+    test('ending a MEMBER\'s lingering identity is not the staff PIN: the card is not told', async () => {
+        let told = 0;
+        const stop = onStaffPinEnded(() => { told += 1; });
+        auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true, 'the member identity WAS ended — the case this test is about');
+        await Promise.resolve();
+        assert.equal(told, 0, 'a member whose session expired never had the PIN; the card must not say it ended');
+        stop();
+    });
+
     // ── preserveCalendarViewer: the DEFAULT is the security half (v20.12) ──────────────────────
     //
     // The shared Calendar viewer is a non-anonymous Firebase identity with NO local session by
@@ -596,6 +616,56 @@ describe('reconcileExpiredIdentity', () => {
     // The block the flag was missing until now was a VIEWER fixture, not a bare call — the cases
     // above call bare all the time, but always with a named identity, where the flag cannot bite.
     const viewerUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false, email: null };
+
+    // These two run BEFORE any other viewer teardown here, because what they watch is sticky (see
+    // "WHAT THE SIGN-IN CARD IS TOLD" above): the first is the only moment a card can be waiting.
+    test('a sign-out that FAILS ends nothing, and no card is told the roster is locked', async () => {
+        let told = 0;
+        const stop = onStaffPinEnded(() => { told += 1; });
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        _signOutBehavior = 'auth/network-request-failed';
+        try {
+            await reconcileExpiredIdentity();
+        } finally { _signOutBehavior = 'ok'; }
+        assert.equal(_signOutCalled, true, 'the sign-out WAS attempted — the case this test is about');
+        await Promise.resolve();
+        assert.equal(told, 0, 'the roster is still open behind them; saying it is locked would be untrue');
+        stop();
+    });
+
+    test('ending the PIN tells the card — waiting, or mounted after — and one broken card stops no other', async () => {
+        // A listener that throws is registered FIRST, so the one after it is told only if the throw
+        // is contained (staff-pin-ended.js → `noteStaffPinEnded`). It is also inside reconcile's own
+        // try, where an escaped throw would be logged as a failed sign-out.
+        onStaffPinEnded(() => { throw new Error('a broken card'); });
+        let waiting = 0;
+        const stopWaiting = onStaffPinEnded(() => { waiting += 1; });   // the card is up first: the usual order
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity();
+        assert.equal(auth.currentUser, null, 'the teardown landed — the case this test is about');
+        assert.equal(waiting, 1, 'a card already up hears it when the teardown lands, once, despite the broken one');
+
+        // A card mounted AFTER the teardown still hears it — on a microtask, never inside the subscribe.
+        let late = 0;
+        onStaffPinEnded(() => { late += 1; });
+        assert.equal(late, 0, 'never synchronously inside the call that subscribed');
+        await Promise.resolve();
+        assert.equal(late, 1);
+
+        // …and a card gone before that microtask (signed in, rebuilt) is not called at all.
+        let gone = 0;
+        const stopGone = onStaffPinEnded(() => { gone += 1; });
+        stopGone();
+        await Promise.resolve();
+        assert.equal(gone, 0, 'unsubscribing must cancel a call already queued');
+
+        // The waiting card was told once and is not told again by a later teardown.
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity();
+        await Promise.resolve();
+        assert.equal(waiting, 1, 'each card is told once');
+        stopWaiting();
+    });
 
     test('the DEFAULT sheds the shared viewer — a bare call is a protected page, not the Calendar', async () => {
         auth.currentUser = /** @type {any} */ (viewerUser);
