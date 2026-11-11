@@ -31,9 +31,10 @@ let _gestureActive = false;
 export function isSwipeCooldown() { return _swipeCooldown; }
 
 /** True while a pointer gesture is live on the calendar OR its commit animation is settling.
- *  Background re-renders (initial-fetch resolution, deferred member apply) must wait on THIS —
- *  renderCalendar wipes #calendarDisplay, detaching the carousel panels mid-gesture and leaving
- *  the grid frozen on the old month while title/state advance (v16.23). */
+ *  Background re-renders (a read landing, the date turning, a held change of name) must wait on
+ *  THIS — renderCalendar wipes #calendarDisplay, detaching the carousel panels mid-gesture and
+ *  leaving the grid frozen on the old month while title/state advance (v16.23). ONE place asks it:
+ *  calendar-redraw.js, which holds whatever has to wait behind a single poll (v25.75). */
 export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown; }
 
 /**

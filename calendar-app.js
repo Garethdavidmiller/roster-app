@@ -45,6 +45,7 @@ import { snapshotMonth, saveSnapshotMonths, clearSnapshot, MONTHS_BEFORE, MONTHS
 import { mountLockCard } from './calendar-lock-slot.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth, watchLocalDate, addMonths } from './calendar-state.js';
 import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
+import { createRedrawScheduler } from './calendar-redraw.js';
 import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initInstallPrompt } from './install-prompt.js';
@@ -101,15 +102,15 @@ function _markReadyIfGridShown() {
         // NOT BEFORE THE BOOT HAS CHOSEN ITS SURFACE. Phase 1 of the initial fetch paints from the
         // local cache and calls back, and on a cache hit that happens BEFORE `restoreTeamView()`
         // has run — so `isTeamViewMode()` is still false and a team-view member's readiness would
-        // be timed against a Calendar grid they are about to be taken off. The boot sets this the
-        // instant it has rendered, so the mark lands within the same tick either way.
-        if (!_bootSurfaceDecided) return;
+        // be timed against a Calendar grid they are about to be taken off. The boot reaches the
+        // `surface` stage the instant it has rendered, so the mark lands within the same tick either way.
+        if (!redraw.reached('surface')) return;
         // ASK THE SURFACE THAT IS ON SCREEN. Team View gates on the WORST knowledge across the
         // months its week spans, and a week routinely spans two — so reading the Calendar's display
         // month here would time the wrong thing in both directions. Each surface computes its own
         // answer; what COUNTS as a roster is `showsRoster`, beside the states it reads.
-        if (_teamView?.isTeamViewMode()) {
-            if (_teamView.isGridShown()) markPageReady();
+        if (teamView.isTeamViewMode()) {
+            if (teamView.isGridShown()) markPageReady();
             return;
         }
         // Which read served the grid, and when the server confirmed it, were their own milestones
@@ -119,15 +120,6 @@ function _markReadyIfGridShown() {
         if (showsRoster(display)) markPageReady();
     } catch { /* the metric must never be able to break the boot */ }
 }
-
-/** True once the boot has rendered EITHER the Calendar or Team View, so the ready metric knows
- *  which surface it is measuring. See `_markReadyIfGridShown`. */
-let _bootSurfaceDecided = false;
-
-/** Set once `initTeamView` has run. Module-scope because `_markReadyIfGridShown` is declared above
- *  the coordinator's init block and must not close over a `teamView` that does not exist yet.
- *  @type {any} */
-let _teamView = null;
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -180,7 +172,24 @@ const teamView = initTeamView({
     _pushOverlayState,
     _clearOverlayHistory,
 });
-_teamView = teamView;   // see `_markReadyIfGridShown` — the ready metric asks whichever surface is on screen
+
+// ============================================
+// WHEN THE PAGE MAY DRAW (calendar-redraw.js, v25.75)
+// ============================================
+// How far start-up has got, the ONE wait for a swipe to finish, and what the next draw owes. Until
+// v25.75 those were five variables in this file with two timers between them. Every BACKGROUND
+// repaint now goes through `redraw.repaint`, and the name picker through `redraw.nameChanged`. A
+// press the reader made (Prev, Next, Today, a key, the month picker, Try again) still calls
+// `renderCalendar` itself.
+const redraw = createRedrawScheduler({
+    gestureLive: isSwipeGestureActive,
+    teamViewOn: () => teamView.isTeamViewMode(),
+    drawCalendar: renderCalendar,
+    drawTeam: () => teamView.refreshFromCache(),
+    // Read live, so a second pick made during the wait is the one saved (v16.19).
+    saveName: () => saveSelectedMember(parseInt(_teamMemberSelect.value, 10)),
+    nameApplied: () => closeALLightbox?.(),   // its figures would be the previous name's
+});
 
 
 // ============================================
@@ -371,9 +380,6 @@ function retryMonth(year, month) {
     renderCalendar();
 }
 
-/** A day cell had keyboard focus when a render with none to give it back replaced the grid. */
-let _gridFocusOwed = false;
-
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
 // Sets data-member-name for print header then builds and inserts fresh container.
 function renderCalendar() {
@@ -423,14 +429,17 @@ function renderCalendar() {
         // missed. preventScroll so a background re-render can't yank the viewport. A render with no
         // day cells ("Checking this month", the failure panel) leaves the focus OWED (10 Nov 2026):
         // it fell to <body> there, so the grid that followed found no cell focused and restored none.
+        // The debt is kept by calendar-redraw.js (`focusWanted` / `focusSettled`).
         const _active = document.activeElement;
-        const _hadCellFocus = (_active instanceof HTMLElement && _active.classList.contains('calendar-day'))
-            || (_gridFocusOwed && (!_active || _active === document.body));
+        const _wantsFocus = redraw.focusWanted({
+            onCell: _active instanceof HTMLElement && _active.classList.contains('calendar-day'),
+            nowhere: !_active || _active === document.body,
+        });
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
-        const _anchor = _hadCellFocus ? /** @type {HTMLElement|null} */ (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]')) : null;
+        const _anchor = _wantsFocus ? /** @type {HTMLElement|null} */ (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]')) : null;
         _anchor?.focus({ preventScroll: true });
-        _gridFocusOwed = _hadCellFocus && !_anchor;
+        redraw.focusSettled(_wantsFocus, !!_anchor);
 
         updateNavButtonState();
         _saveOwnSnapshot();
@@ -461,77 +470,32 @@ function renderCalendar() {
 // EVENT LISTENERS
 // ============================================
 
-// The one callback for a month read that lands later — stable, so several waits on one month repaint
-// once. Deliberately unguarded by member: the read is everyone's, so a member switched mid-read is
+// The one callback for a month read that lands later — a function with ONE identity, because
+// `ensureOverridesCached` keeps its waiters by identity: several waits on one month repaint once.
+// Deliberately unguarded by member: the read is everyone's, so a member switched mid-read is
 // waiting on it too, and so is a Team View opened on that month. Team View waits with it as well, so
 // a read it started still repaints the Calendar if it lands after Team View is left (10 Nov 2026).
-function _repaintAfterMonthRead() {
-    if (teamView.isTeamViewMode()) teamView.refreshFromCache(); else renderCalendarWhenIdle();
-}
+// A BACKGROUND repaint, so it never lands under a swiping finger (v16.23) — calendar-redraw.js, rule 1.
+function _repaintAfterMonthRead() { redraw.repaint('month-read'); }
 
-// Deferred background render (v16.23). renderCalendar wipes #calendarDisplay — a BACKGROUND
-// caller (initial-fetch resolution, override-fetch callback) firing mid-gesture detached the
-// swipe carousel's panels: the commit then animated dead nodes and the screen stayed frozen on
-// the OLD month while title/legend/persisted state advanced to the new one. Defer until no
-// gesture is live (pointerdown → resolution, plus the commit cooldown). Single pending timer.
-/** @type {ReturnType<typeof setTimeout>|null} */
-let _pendingIdleRender = null;
-function renderCalendarWhenIdle() {
-    // Guard team-view mode on BOTH branches (was only on the deferred retry below) so the direct
-    // path can never paint the personal calendar into #calendarDisplay while team view is active —
-    // self-consistent regardless of whether a future caller pre-checks the mode.
-    if (!isSwipeGestureActive()) { if (!teamView.isTeamViewMode()) renderCalendar(); return; }
-    if (_pendingIdleRender) return;
-    _pendingIdleRender = setTimeout(function retry() {
-        if (isSwipeGestureActive()) { _pendingIdleRender = setTimeout(retry, 120); return; }
-        _pendingIdleRender = null;
-        if (!teamView.isTeamViewMode()) renderCalendar();
-    }, 120);
-}
+// The first load's callback, on whichever surface is on screen: the same kind of repaint, and then
+// the "usable" timing, which asks what is actually shown.
+function _repaintAfterFirstLoad() { redraw.repaint('first-load'); _markReadyIfGridShown(); }
 
 const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
 // The member picker opens the app's OWN sheet rather than the OS dropdown (v23.33). ~50 names in
 // a Material radio list was the worst instance of the fault select-sheet.js exists for; the select
 // itself is untouched as the value holder, so the change handler below is unchanged.
 enhanceSelect(_teamMemberSelect, { title: 'Whose roster are you reading?', placeholder: 'Choose your name', searchLabel: 'Search names', createLightbox });
-/** @type {ReturnType<typeof setTimeout>|null} */
-let _pendingMemberApply = null;
-/** Apply the dropdown's CURRENT selection (read live so a value change during the wait is honoured). */
-function _applyTeamMemberChange() {
-    saveSelectedMember(parseInt(_teamMemberSelect.value, 10));
-    // Only repaint the personal calendar when NOT in team view. A change deferred past the swipe
-    // cooldown can resolve AFTER the user entered Team View; renderCalendar would then paint the
-    // personal calendar into the shared display while the mode/button still read "team view" (v16.21).
-    if (!teamView.isTeamViewMode()) renderCalendar();
-    // Close AL lightbox if open — data would be stale for the new member
-    closeALLightbox?.();
-}
 // `?.` null-guard (matches the #prevMonth handler below): this is attached at MODULE SCOPE, before
 // the init try/catch, so an uncaught throw here (were #teamMemberSelect ever renamed/absent) would
-// blank-splash the whole app. `_applyTeamMemberChange` only runs from inside this listener, so a null
-// element simply attaches nothing.
-_teamMemberSelect?.addEventListener('change', () => {
-    // During the ~400ms swipe cooldown, don't apply immediately (it would fight the swipe
-    // animation) — but NEVER silently drop the change: the native <select> value has already
-    // moved, so bare-returning left the dropdown showing member B over member A's roster
-    // permanently (getCurrentMember keeps reading the saved OLD member) until a reselect/reload.
-    // Defer instead, re-reading the live value so a later pick during the wait still wins (v16.19).
-    // Gate on the FULL gesture window (v16.23), not just the post-intent cooldown — the poll
-    // could otherwise fire renderCalendar inside a NEW gesture's pre-intent dead zone (finger
-    // down, <5px moved), detaching the freshly-parked carousel panels (the D1 desync).
-    if (isSwipeGestureActive()) {
-        // Single pending timer: repeated changes during the cooldown must not stack N independent
-        // pollers (each would fire its own apply). The live re-read means the latest pick wins (v16.21).
-        if (_pendingMemberApply) return;
-        _pendingMemberApply = setTimeout(function retry() {
-            if (isSwipeGestureActive()) { _pendingMemberApply = setTimeout(retry, 60); return; }
-            _pendingMemberApply = null;
-            _applyTeamMemberChange();
-        }, 60);
-        return;
-    }
-    _applyTeamMemberChange();
-});
+// blank-splash the whole app. The scheduler's `saveName` reads the element only from inside this
+// listener's work, so a null element simply attaches nothing.
+// The change is applied now, or — during a swipe — as soon as the whole gesture has finished, and
+// never dropped: the picker has already moved, and a dropped change left it showing one name over
+// another's roster (v16.19). In Team View the name is saved and the Calendar is not drawn (v16.21).
+// Both rules, and the single wait, are calendar-redraw.js's (rules 1 to 3).
+_teamMemberSelect?.addEventListener('change', () => { redraw.nameChanged(); });
 
 
 document.getElementById('prevMonth')?.addEventListener('click', (e) => {
@@ -623,8 +587,9 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
 // Every "today" here is read at render time: re-render when the date turns (see `watchLocalDate`).
 // (The pay-period strip under the controls was removed at v24.31 — owner decision; payday stays on
 // the grid's 💷/✂️ markers and the day panel's Pay estimate.)
+// Before the first grant there is no workspace to repaint; the scheduler refuses that itself (rule 4).
 watchLocalDate(() => {
-    if (_workspaceStarted && hasOverrideAccess()) _repaintAfterMonthRead();
+    if (hasOverrideAccess()) redraw.repaint('date-turned');
 });
 
 document.getElementById('adminBtn')?.addEventListener('click', () => {
@@ -709,13 +674,14 @@ try {
         // every launch and doubled the month's reads. (Previously called at the module tail.)
         const _initialFetch = initInitialFetch({
             isTeamViewMode: () => teamView.isTeamViewMode(),
-            // Deferred: the 3-month fetch can resolve mid-swipe on a slow connection — an immediate
-            // render would wipe the carousel and freeze the grid on the old month (v16.23).
-            renderCalendar: () => { renderCalendarWhenIdle(); _markReadyIfGridShown(); },
-            // Team view active when the 3-month fetch lands → repaint its grid from the cache
-            // (v18.21 — without this an early/boot-time team view stayed base-roster-only: see
-            // initInitialFetch's JSDoc for the two-sided stand-down).
-            renderTeamView: () => { teamView.refreshFromCache(); _markReadyIfGridShown(); },
+            // ONE callback for both surfaces: the scheduler asks which is on screen. The 3-month
+            // fetch can resolve mid-swipe on a slow connection — an immediate Calendar render would
+            // wipe the carousel and freeze the grid on the old month (v16.23) — and with Team View
+            // active when it lands, its grid is repainted from the cache (v18.21 — without this an
+            // early/boot-time team view stayed base-roster-only: see initInitialFetch's JSDoc for
+            // the two-sided stand-down).
+            renderCalendar: _repaintAfterFirstLoad,
+            renderTeamView: _repaintAfterFirstLoad,
             refetchTeamView: () => teamView.refetchShownWeek(),   // stale months released: re-READ, not repaint
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
             // paint) deliberately does not — see AUTH_PLAN.md → E1. Since v20.12 the promise is
@@ -761,7 +727,7 @@ try {
             renderCalendar();
         }
 
-        _bootSurfaceDecided = true;
+        redraw.reach('surface');   // the ready metric may now time what is on screen
         _markReadyIfGridShown();
 
         // Swipe gesture handler — see calendar-swipe.js for full implementation.
@@ -1128,10 +1094,10 @@ initNavPanel({
 // The LAST thing the module does, deliberately: every shell subsystem above is wired first, so a
 // locked visitor still has the nav drawer, the guides, the documents and the About panel. Only then
 // is access decided, and only on `named`/`viewer` does the workspace exist at all.
-// Whether `onGranted` has run — i.e. whether a grant is the FIRST one. Read by `onEveryGrant` to
-// tell "boot" from "re-unlock": on boot the workspace does not exist yet and the repaint below
-// would run against unbuilt state, so it must be skipped there and only there.
-let _workspaceStarted = false;
+// Whether a grant is the FIRST one is the start-up stage (calendar-redraw.js): `onGranted` reaches
+// `workspace`, and `onEveryGrant` — which runs before it — reads that to tell "boot" from
+// "re-unlock". On boot the workspace does not exist yet and the repaint below would run against
+// unbuilt state, so it must be skipped there and only there.
 
 /** Settles when the forced set-password step has run, or was not due — the notices wait on it. */
 /** @type {(v: any) => void} */ let _resolvePasswordForce = () => {};
@@ -1257,14 +1223,13 @@ initCalendarAccess({
         // honestly ("Checking this month" → grid) rather than this code hand-managing freshness.
         // `restoreTeamView` is the team-side equivalent — render + week fetch — and is safe to
         // re-enter (`_pushOverlayState` dedupes its Back handler; the chrome calls are idempotent).
-        if (_workspaceStarted) {
-            if (teamView.isTeamViewMode()) teamView.restoreTeamView();
-            else renderCalendarWhenIdle();
-        }
+        if (!redraw.reached('workspace')) return;
+        if (teamView.isTeamViewMode()) teamView.restoreTeamView();
+        else redraw.repaint('access-returned');
     },
     // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
     onGranted: () => {
-        _workspaceStarted = true;
+        redraw.reach('workspace');
         _onFirstGrant();
         // CAUGHT, because the workspace start became async at v21.29 (it awaits a bounded chance
         // for the local cache to paint first). An un-awaited async call with no catch turns any
