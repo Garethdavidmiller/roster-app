@@ -544,9 +544,17 @@ async function runSequence(seed) {
 test('the Calendar keeps its eight rules through thousands of random orders of its events', async (t) => {
     // The modules log a failed read; a thousand sequences would print thousands of lines. Any OTHER
     // error they log — a listener that threw, a repaint that threw — is a fault, and fails the run.
+    // Node's own warnings are not the modules' errors. Node 24 — CI's runtime — writes them through
+    // console.error, so they land in this stub (Node 22 writes them past it), and the two this file
+    // earns reach it after it is in place: module mocking is experimental, and `namedExports` is
+    // deprecated. They failed CI's first run of this file (11 Nov 2026). Only those two KINDS pass
+    // through, to the real console; on Node 24 any other warning still fails the run, as an error
+    // would.
     const unexpected = [];
     const restore = [console.error, console.warn];
+    const nodeWarning = new RegExp(`^\\(node:${process.pid}\\) (?:Experimental|Deprecation)Warning: `);
     console.error = (/** @type {any[]} */ ...args) => {
+        if (nodeWarning.test(String(args[0]))) { restore[0](...args); return; }
         if (!String(args[0]).startsWith('[Firestore] Failed to fetch overrides for')) unexpected.push(args.map(String).join(' '));
     };
     console.warn = (/** @type {any[]} */ ...args) => { unexpected.push(args.map(String).join(' ')); };
