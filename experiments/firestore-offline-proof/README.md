@@ -17,8 +17,9 @@ without consulting them. Two consequences, opposite in sign, both following from
 - **Availability (E4).** An offline member whose access has lapsed still has the roster on the
   device. This is what makes E3 a design problem rather than a regression.
 - **Security.** Tightening the `overrides` read rule does **not** stop a browser that already
-  cached the data. This is why `calendar-overrides.js` carries its own gate (`setOverrideAccess`)
-  instead of relying on the rule, and why `firestore.rules` says so in a warning block.
+  cached the data. This is why `calendar-overrides.js` carries its own gate (`hasOverrideAccess`,
+  read from `calendar-access-state.js`) instead of relying on the rule, and why `firestore.rules`
+  says so in a warning block.
 
 ## Running it
 

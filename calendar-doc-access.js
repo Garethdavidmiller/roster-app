@@ -20,11 +20,12 @@
  *   · It closes when access is LOST mid-session (a permission-denied override read, an expired
  *     viewer session). A deliberate "Lock Calendar" reloads the page, so the default applies.
  *
- * Those are the moments the roster reads open and close too, and since v25.74 (Calendar step 2)
- * that is by construction: THIS MODULE KEEPS NO ANSWER OF ITS OWN. `hasDocumentAccess` asks
+ * Those are the moments the roster reads open and close too, and that is by construction: THIS
+ * MODULE KEEPS NO ANSWER OF ITS OWN, AND CANNOT CHANGE THE ONE THERE IS. `hasDocumentAccess` asks
  * calendar-access-state.js, the one copy, which the roster gate asks as well, so no route that
- * loses access can shut one and leave the other. Until then a flag lived here, and the coordinator
- * set it beside the roster's by hand.
+ * loses access can shut one and leave the other. Only the READ and the LISTEN are imported: there
+ * is no "shut the documents" here, because that would be locking the whole Calendar under a
+ * smaller name (calendar-access-state.js → `setCalendarAccess`, ONE NAME).
  *
  * ── WHY SUBSCRIBERS, NOT JUST A FLAG ────────────────────────────────────────────────────────────
  *
@@ -38,7 +39,7 @@
  * fake of the same shape.
  */
 
-import { hasCalendarAccess, setCalendarAccess, onCalendarAccess } from './calendar-access-state.js';
+import { hasCalendarAccess, onCalendarAccess } from './calendar-access-state.js';
 
 /** @type {Set<(open: boolean) => void>} */
 const _subs = new Set();
@@ -59,15 +60,6 @@ onCalendarAccess(({ open, changed }) => {
 });
 
 /**
- * Open or shut: this module's name for THE ONE WRITE (calendar-access-state.js →
- * `setCalendarAccess`), kept for its tests. The page no longer calls it (v25.74): the access layer
- * writes the state itself. Only a literal `true` opens — a truthy non-boolean (a name, a 1) must
- * never read as access — and that rule has one home, the state's own write.
- * @param {boolean} open
- */
-export function setDocumentAccess(open) { setCalendarAccess(open); }
-
-/**
  * Be told when the gate changes. Returns the unsubscribe.
  * @param {(open: boolean) => void} fn
  * @returns {() => void}
@@ -80,5 +72,6 @@ export function onDocumentAccess(fn) {
 /** The shape the viewers take, built once here so every consumer is handed the same thing. */
 export const documentAccess = Object.freeze({ has: hasDocumentAccess, onChange: onDocumentAccess });
 
-/** Test seam: back to a freshly-loaded module. The subscribers go FIRST, so none hears the reset. */
-export function _resetDocumentAccessForTests() { _subs.clear(); setCalendarAccess(false); }
+/** Test seam: drop every subscriber, so none hears the writes the next test makes. It shuts nothing,
+ *  because this module cannot: a test that wants the gate shut writes the state itself, AFTER this. */
+export function _clearDocumentSubscribersForTests() { _subs.clear(); }

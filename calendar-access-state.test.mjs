@@ -15,8 +15,14 @@
  *   · THE STATE ITSELF — shut as loaded, opened by a literal `true` only, written before anybody is
  *     told, and every `true` a grant.
  *   · THE TWO GATES BESIDE IT — `calendar-overrides.js` and `calendar-doc-access.js` are loaded for
- *     REAL and driven through every writer the app has. At no step may they disagree, and a refused
- *     read must shut the documents with nothing to copy the fact across.
+ *     REAL and driven through the one write. At no step may they disagree, and a refused read must
+ *     shut the documents with nothing to copy the fact across.
+ *
+ * ONE WRITE, ONE NAME (v25.76). Until then each gate also exported the write under a name of its
+ * own, `setOverrideAccess` and `setDocumentAccess`, kept so their older tests could stay untouched
+ * while the copies were removed. Both are gone, with the six tests here that proved the three names
+ * were one write; the scan at the foot now fails if either comes back, or if a gate is ever given a
+ * way to OPEN access.
  *
  * Firestore is mocked so the reads can be COUNTED: a gate that returned early but still issued the
  * query would be invisible to any assertion on a return value (calendar-access-gate.test.mjs says
@@ -49,10 +55,10 @@ function _snap() { return { size: 0, empty: true, forEach: () => {}, docs: [] };
 
 const { hasCalendarAccess, grantNumber, setCalendarAccess, onCalendarAccess } = await import('./calendar-access-state.js');
 const {
-    setOverrideAccess, hasOverrideAccess, setOverrideAccessLostHandler, ensureOverridesCached,
+    hasOverrideAccess, setOverrideAccessLostHandler, ensureOverridesCached,
     clearFetchedMonth, monthKey, issueReadTicket, answerStillWanted,
 } = await import('./calendar-overrides.js');
-const { hasDocumentAccess, setDocumentAccess, onDocumentAccess, documentAccess, _resetDocumentAccessForTests }
+const { hasDocumentAccess, onDocumentAccess, documentAccess, _clearDocumentSubscribersForTests }
     = await import('./calendar-doc-access.js');
 const { knowledgeOf, forget } = await import('./calendar-data-state.js');
 
@@ -63,13 +69,6 @@ const AT_LOAD = {
     state: hasCalendarAccess(), roster: hasOverrideAccess(), documents: hasDocumentAccess(),
     handle: documentAccess.has(), grant: grantNumber(),
 };
-
-/** Every writer the app has for the one fact. Two are the gates' own names for it. */
-const WRITERS = /** @type {[string, (v: any) => void][]} */ ([
-    ['setCalendarAccess', setCalendarAccess],
-    ['setOverrideAccess', setOverrideAccess],
-    ['setDocumentAccess', setDocumentAccess],
-]);
 
 /** What each reader says, as one comparable value. */
 const answers = () => ({ state: hasCalendarAccess(), roster: hasOverrideAccess(), documents: hasDocumentAccess(), handle: documentAccess.has() });
@@ -82,7 +81,8 @@ const listen = (/** @type {(w: { open: boolean, changed: boolean }) => void} */ 
 beforeEach(() => {
     for (const off of offs) off();
     offs = [];
-    _resetDocumentAccessForTests();   // drops the documents' subscribers, then shuts the state
+    _clearDocumentSubscribersForTests();   // the documents' subscribers go first, so none hears the shut
+    setCalendarAccess(false);
     setOverrideAccessLostHandler(null);
     calls.server = 0; calls.cache = 0; calls.serverError = null;
     for (let m = 0; m < 12; m++) clearFetchedMonth(monthKey(2031, m));
@@ -101,16 +101,14 @@ describe('the one copy: shut until a literal true', () => {
         assert.equal(AT_LOAD.grant, 0, 'a grant was counted before anything granted');
     });
 
-    for (const [name, write] of WRITERS) {
-        test(`only a literal true opens it — ${name}`, () => {
-            for (const v of ['yes', 1, {}, [], 'true', 'G. Miller']) {
-                write(v);
-                assert.deepEqual(answers(), ALL(false), `${JSON.stringify(v)} opened a gate through ${name}`);
-            }
-            write(true);
-            assert.deepEqual(answers(), ALL(true));
-        });
-    }
+    test('only a literal true opens it', () => {
+        for (const v of ['yes', 1, {}, [], 'true', 'G. Miller']) {
+            setCalendarAccess(/** @type {any} */ (v));
+            assert.deepEqual(answers(), ALL(false), `${JSON.stringify(v)} opened a gate`);
+        }
+        setCalendarAccess(true);
+        assert.deepEqual(answers(), ALL(true));
+    });
 
     test('every true is a GRANT, even over a Calendar already open; a shut is not one', () => {
         const g0 = grantNumber();
@@ -178,14 +176,12 @@ describe('the one copy: who is told, and when', () => {
 // ── THE TWO GATES BESIDE IT ─────────────────────────────────────────────────────────────────────
 
 describe('the roster gate and the document gate cannot disagree', () => {
-    test('one answer after every write, whichever writer made it', () => {
-        // The fault this step removes: two flags, each right, set by hand in two places. Every
-        // writer the app has is used in turn, opening and shutting, twice over.
+    test('one answer after every write', () => {
+        // The fault the one copy removes: two flags, each right, set by hand in two places. Opened
+        // and shut, each twice over, with a grant over an open Calendar and a shut over a shut one.
         for (const open of [true, true, false, false, true, false]) {
-            for (const [name, write] of WRITERS) {
-                write(open);
-                assert.deepEqual(answers(), ALL(open), `after ${name}(${open}) the gates gave different answers`);
-            }
+            setCalendarAccess(open);
+            assert.deepEqual(answers(), ALL(open), `after setCalendarAccess(${open}) the gates gave different answers`);
         }
     });
 
@@ -242,19 +238,17 @@ describe('the roster gate and the document gate cannot disagree', () => {
         const t = issueReadTicket();
         assert.equal(t.grant, grantNumber());
         assert.equal(answerStillWanted(t), true);
-        setDocumentAccess(false);   // shut through the other gate's writer
+        setCalendarAccess(false);
         assert.equal(answerStillWanted(t), false, 'an answer was still wanted after access was shut');
     });
 
-    for (const [name, write] of WRITERS) {
-        test(`a shut forgets what every month was known to be — through ${name}`, async () => {
-            setCalendarAccess(true);
-            await ensureOverridesCached(2031, 6, () => {});
-            assert.equal(knowledgeOf(monthKey(2031, 6)), 'authoritative', 'guard: the month must be known first');
-            write(false);
-            assert.equal(knowledgeOf(monthKey(2031, 6)), 'unknown', 'a month read under the lost access is still known — the next grant would draw it as current');
-        });
-    }
+    test('a shut forgets what every month was known to be', async () => {
+        setCalendarAccess(true);
+        await ensureOverridesCached(2031, 6, () => {});
+        assert.equal(knowledgeOf(monthKey(2031, 6)), 'authoritative', 'guard: the month must be known first');
+        setCalendarAccess(false);
+        assert.equal(knowledgeOf(monthKey(2031, 6)), 'unknown', 'a month read under the lost access is still known — the next grant would draw it as current');
+    });
 });
 
 // ── WHERE THE WRITE LIVES, AND WHAT THE COORDINATOR NO LONGER DOES (from the source) ─────────────
@@ -270,26 +264,51 @@ const code = (/** @type {string} */ f) => read(f).replace(/\/\*[\s\S]*?\*\//g, '
 const APP_MODULES = readdirSync(new URL('./', import.meta.url))
     .filter(f => f.endsWith('.js') && !f.endsWith('.config.js'));
 
-describe('the write has three homes, and the coordinator is not one of them', () => {
+describe('the write has two homes, and neither the coordinator nor the document gate is one', () => {
     test('guard: the scan reads real modules', () => {
         assert.ok(APP_MODULES.length > 100, `only ${APP_MODULES.length} modules found — the scan is wrong`);
         assert.ok(APP_MODULES.includes('calendar-app.js') && APP_MODULES.includes('calendar-access-state.js'));
         assert.match(code('calendar-access.js'), /setCalendarAccess\(true\)/, 'guard: the comment stripper must leave code alone');
     });
 
-    test('only the access layer and the two gates write the state', () => {
-        const writers = APP_MODULES.filter(f => f !== 'calendar-access-state.js' && /\bsetCalendarAccess\s*\(/.test(code(f))).sort();
-        assert.deepEqual(writers, ['calendar-access.js', 'calendar-doc-access.js', 'calendar-overrides.js'],
+    /** Every call of the one write in a module, as written: `setCalendarAccess(true)`, … */
+    const writes = (/** @type {string} */ f) => [...code(f).matchAll(/\bsetCalendarAccess\s*\(([^)]*)\)/g)].map(m => `setCalendarAccess(${m[1].trim()})`);
+
+    test('only the access layer and the roster gate write the state', () => {
+        const writers = APP_MODULES.filter(f => f !== 'calendar-access-state.js' && writes(f).length).sort();
+        assert.deepEqual(writers, ['calendar-access.js', 'calendar-overrides.js'],
             'a new module writes Calendar access — a grant or a loss has ONE call each (calendar-access.js), and anything else listens');
     });
 
-    test('nothing outside its own module calls a gate\'s own writer', () => {
-        // `setOverrideAccess` is how a refused read shuts, inside calendar-overrides.js; both names
-        // are otherwise for the gates' tests. A page calling either is the old hand-copying coming back.
-        for (const [name, home] of [['setOverrideAccess', 'calendar-overrides.js'], ['setDocumentAccess', 'calendar-doc-access.js']]) {
-            const users = APP_MODULES.filter(f => f !== home && new RegExp(`\\b${name}\\b`).test(code(f)));
-            assert.deepEqual(users, [], `${name} is used outside ${home} — access is written through the state, once`);
+    test('every write is a LITERAL: one grant and one shut in the access layer, one shut in the roster gate', () => {
+        // What the list above cannot say. A gate that could OPEN access is a way round the sign-in
+        // inside the module that backs the sign-in up; and a write handed a variable is the alias
+        // coming back — `function setSomething(v) { setCalendarAccess(v); }`. So the calls are
+        // counted as written. The roster gate has exactly one, and it shuts.
+        assert.deepEqual(writes('calendar-access.js').sort(), ['setCalendarAccess(false)', 'setCalendarAccess(true)'],
+            'the access layer no longer has exactly one grant (`grant`) and one shut (`handleAccessLost`)');
+        assert.deepEqual(writes('calendar-overrides.js'), ['setCalendarAccess(false)'],
+            'the roster gate may only SHUT, once, where a read is refused because access has gone');
+    });
+
+    test('ONE NAME: neither gate has a writer of its own', () => {
+        // Each had one until v25.76 — `setOverrideAccess`, `setDocumentAccess` — and a second name
+        // reads as a narrower act than it is: "shut the documents" locked the whole Calendar.
+        for (const name of ['setOverrideAccess', 'setDocumentAccess']) {
+            const users = APP_MODULES.filter(f => new RegExp(`\\b${name}\\b`).test(code(f)));
+            assert.deepEqual(users, [], `${name} is back — access is written through the state's own name, once`);
         }
+        // And nothing re-exports the write under its own name either. (An alias that WRAPS it — a
+        // function handing its argument on — is the previous test's to catch: that call is not a
+        // literal, and in any other module it is a new writer.)
+        for (const f of APP_MODULES.filter(m => m !== 'calendar-access-state.js')) {
+            assert.doesNotMatch(code(f), /export\s*\{[^}]*\bsetCalendarAccess\b/, `${f} re-exports the write`);
+        }
+        // The document gate cannot write at all: it imports the read and the listen, nothing more.
+        const fromState = (code('calendar-doc-access.js').match(/import\s*\{([^}]*)\}\s*from\s*'\.\/calendar-access-state\.js'/) || ['', ''])[1]
+            .split(',').map(s => s.trim()).filter(Boolean).sort();
+        assert.deepEqual(fromState, ['hasCalendarAccess', 'onCalendarAccess'],
+            'the document gate imports something other than the read and the listen — it must not be able to write the state');
     });
 
     test('the coordinator ends BOTH ways of losing access in the one call, wired before access is decided', () => {

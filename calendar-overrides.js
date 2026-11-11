@@ -50,13 +50,11 @@ export const rosterOverridesCache = new Map();
 // access module here would make the gate depend on the very promise a bypass would be trying to
 // avoid, and would add a Firebase-importing dependency to a module the tests load in Node.
 //
-// THE ANSWER IS NOT KEPT HERE (Calendar step 2, v25.74). It is read, each time, from
-// calendar-access-state.js: the ONE copy, which imports nothing and loads shut, so a page that never
-// grants reads nothing. Until then this module kept a flag of its own, the documents' gate kept
-// another, and the coordinator set the pair by hand on a grant and on each way of losing access;
-// that module's header says what the copying risked. The grant number a read's ticket carries
-// (v24.56 — a read refused under an EARLIER grant says nothing about the current one) lives there
-// too, beside the answer it qualifies.
+// THE ANSWER IS NOT KEPT HERE. It is read, each time, from calendar-access-state.js: the ONE copy,
+// which imports nothing and loads shut, so a page that never grants reads nothing. That module's
+// header says why there is one copy and not a flag for each gate. The grant number a read's ticket
+// carries (v24.56 — a read refused under an EARLIER grant says nothing about the current one) lives
+// there too, beside the answer it qualifies.
 
 // A GRANT IS A FRESH START, AND A SHUT FORGETS. Told by the state on every write, so both hold for
 // every route that grants or loses access, with nothing for a route to remember.
@@ -79,22 +77,9 @@ onCalendarAccess(({ open }) => {
     else forgetKnowledge();
 });
 
-/**
- * Open the override reads once access is confirmed, and shut them when it is lost: this module's
- * name for THE ONE WRITE (calendar-access-state.js → `setCalendarAccess`). Used below, where a
- * refused read shuts as it notices, and by this module's tests. The page no longer calls it (v25.74):
- * the access layer writes the state itself, and there is no second gate left to set beside this one.
- *
- * ONE argument, and it stays one. Named and viewer access read the same data, so a second parameter
- * would only be a second thing to get wrong. It had one from v22.97 until 26 Sep 2026 — a member
- * SCOPE for the retired provisional paint, which read one member's rows out of the cache — and both
- * bugs that paint produced lived in the difference between a scoped and an unscoped grant.
- *
- * @param {boolean} granted
- */
-export function setOverrideAccess(granted) { setCalendarAccess(granted); }
-
-/** @returns {boolean} whether override reads are currently permitted. */
+/** @returns {boolean} whether override reads are currently permitted: this gate's name for the one
+ *  answer. It has no write of its own to go with it — the access layer writes the state, and the one
+ *  write made in this module is a refused read shutting as it notices (`ensureOverridesCached`). */
 export function hasOverrideAccess() { return hasCalendarAccess(); }
 
 /** Called when a read is refused because ACCESS has gone, rather than because the network is poor.
@@ -247,10 +232,10 @@ export function monthKey(year, month) {
 //         retry B issued ─────────────► lands (current)   cache correct
 //                                                                          A evicts what B loaded
 //
-// The generation counter in calendar-initial-fetch.js already stops the LATE one repainting, and
-// that is where the protection stopped — the UI stayed correct at that instant while the cache
-// underneath it silently regressed, so the damage only surfaced on some later render. Ordering the
-// RENDER without ordering the WRITE is half a fix.
+// The first load's own ordering (calendar-initial-fetch.js → `standing`) already stops the LATE one
+// repainting, and that is where the protection stopped — the UI stayed correct at that instant while
+// the cache underneath it silently regressed, so the damage only surfaced on some later render.
+// Ordering the RENDER without ordering the WRITE is half a fix.
 //
 // So the ordering moves to the write. Every authoritative read takes a sequence number when it is
 // ISSUED and, when it lands, may only reconcile the months no NEWER read has already written.
@@ -637,7 +622,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // and Team View come through HERE instead, and they are the likelier path, because by the
         // time a session expires the initial fetch is long finished.
         if (_onAccessLost && _isAccessFailure(err)) {
-            setOverrideAccess(false);   // shut before anything can repaint from the cache: the ONE write, so the documents shut with it, and what we knew is forgotten
+            setCalendarAccess(false);   // shut before anything can repaint from the cache: the ONE write, so the documents shut with it, and what we knew is forgotten
             try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
             return;
         }

@@ -1026,7 +1026,7 @@ describe('retry', () => {
 describe('the read ticket: an outcome after access went stands down on every path', () => {
     const OFFLINE = () => Object.assign(new Error('offline'), { code: 'unavailable' });
     const monthNow = () => (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)(new Date());
-    // The lock as `setOverrideAccess(false)` performs it: the gate shuts and what each month was known
+    // The lock as `setCalendarAccess(false)` performs it: the gate shuts and what each month was known
     // to be is forgotten. This harness has no real gate, so both halves are done here.
     const lock = () => { _hasAccess = false; resetKnowledge(); };
     const visibleChips = () => _header._children.filter(c => c._classes.has('sync-chip') && !c._removed);

@@ -7,6 +7,9 @@
  * Does NOT own: the DECISION (calendar-access.js — sign-in, the staff PIN, re-locking), what a gate
  *   does with the answer (calendar-overrides.js for the roster reads, calendar-doc-access.js for the
  *   three documents), or anything on screen.
+ * Written by: calendar-access.js (`grant`, `handleAccessLost`), and calendar-overrides.js as it
+ *   notices a read refused because access has gone. Nothing else: the document gate only reads and
+ *   listens, and `calendar-access-state.test.mjs` scans the app for a third writer.
  * Edit here for: nothing, ordinarily. A new thing that must follow access READS (`hasCalendarAccess`)
  *   or LISTENS (`onCalendarAccess`). It does not get a copy of its own.
  *
@@ -70,6 +73,16 @@ export function grantNumber() { return _grant; }
  *
  * The answer is written FIRST and listeners told after (property 3). One that throws is logged and
  * the rest are still told: a broken listener must not leave another believing access is still held.
+ *
+ * ONE NAME. No gate re-exports this under a name of its own (v25.76). A second name reads as a
+ * narrower act than it is: "shut the documents" would lock the whole Calendar, and "open the roster
+ * reads" would open the documents with them.
+ *
+ * ONE ARGUMENT. Named and viewer access read the same data, so a second parameter would only be a
+ * second thing to get wrong. The roster gate's write, as it then was, took one from v22.97 until
+ * 26 Sep 2026 — a member SCOPE, for the retired provisional paint — and both bugs that paint
+ * produced lived in the difference between a scoped and an unscoped grant (DECISIONS.md → "The
+ * provisional paint").
  * @param {boolean} open
  */
 export function setCalendarAccess(open) {

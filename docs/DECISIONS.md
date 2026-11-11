@@ -598,6 +598,52 @@ printed from there; the canonical address, where the install notice already send
 phone's own viewer is available everywhere without a library; or PDF.js proving too heavy for the
 oldest phones staff carry.
 
+## The Calendar's state: one home per question, in four steps — and what was left on purpose (owner, 10–11 Nov 2026)
+
+The three Calendar bugs fixed in early November 2026 had one shape: the page's idea of the situation
+had fallen out of step with what had happened, in a place no rule covered. Asked whether that
+complexity could be fixed, the answer was "partly". An offline-first Calendar with two ways in, whose
+answers arrive in any order, has those states whatever the code looks like. What could go was each
+question being answered in several places, each in its own words. Four releases, each its own, gave
+each question one home:
+
+| Step | The question | Its one home |
+|---|---|---|
+| 1 (v25.72) | Is this read's answer still wanted? | the read ticket, `calendar-overrides.js` |
+| 2 (v25.74) | Is Calendar access held? | `calendar-access-state.js` |
+| 3 (v25.75) | May the page draw now, and what does that draw owe? | `calendar-redraw.js` |
+| 4 (v25.76) | (the leftovers) | each gate's own name for the access write, removed |
+
+The rules each step leaves are `.claude/rules/calendar.md`, the invariants `CALENDAR_DATA.md` 20–21,
+and the reasoning each module's header. **This entry records only what was weighed and NOT done**, so
+it is not proposed again as unfinished business:
+
+- **The lock card does not listen to the access state.** It could: `calendar-access.js` would hear a
+  shut and put the card up itself, and both lost-access hooks (`setOverrideAccessLostHandler`, the
+  first load's `onAccessLost`) would go. Today the card goes up AFTER everything that follows a loss
+  has been told. As a listener it would go up among them, in module-loading order — an order the
+  state promises nobody — on the one path where a mistake leaves a roster on screen.
+- **A grant keeps two hooks**, `onGranted` (once) and `onEveryGrant`. The page could tell a first
+  grant from a later one itself since step 3 (`redraw.reach('workspace')`). But "the workspace is
+  built once" would then rest on the page instead of on the access layer, and about half of
+  `calendar-access.test.mjs` is written against the two hooks: it would be rewritten to prove nothing
+  new.
+- **The first load still takes a repaint callback for each surface** and chooses between them,
+  although the page now hands it the same function twice and the scheduler chooses again. Both read
+  one fact, so the double choice cannot disagree; `calendar-initial-fetch.js` is the most delicate
+  module the Calendar has, and its tests drive exactly that interface, one callback at a time.
+- **Each gate keeps its READ name** (`hasOverrideAccess`, `hasDocumentAccess`). The app uses both,
+  and they are where a narrower rule for one gate would go. Only the WRITE names were removed: a
+  second name for a write misleads about its reach, and a second name for a read does not.
+- **`owed()` stays**, though only tests read it. It is the scheduler's read-only account of what it
+  is holding; without it the reason a repaint is held could be read by nobody.
+- **Three guards that no test fails without stay, recorded as insurance:** the month read's early
+  return while locked (it says so where it stands), and the every-grant hook's stage check and the
+  "usable" timing's surface check (`.claude/rules/calendar.md`, pinned from the source).
+
+**What would reopen any of these:** the Calendar's access or first-load code being changed for a
+reason of its own, when its tests are being rewritten anyway. Not tidiness.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither
