@@ -658,7 +658,7 @@ pieces of work, each landing on its own:
 | | What | Where it lives |
 |---|---|---|
 | 1 | Signed-in journeys through the REAL Firebase SDK, rules and Cloud Functions, on Chrome's and Safari's engines at phone size | `npm run test:signed-in` (#1749); README → The test lanes |
-| 2 | A permanent seeded test of event SEQUENCES for the Calendar's access, reads and redraws | to follow |
+| 2 | A permanent seeded test of event SEQUENCES for the Calendar's access, reads and redraws | `calendar-sequences.test.mjs` (v25.79): its first run found a fault, fixed in the same release |
 | 3 | A real-Android release checklist beside the iPhone one, and a "sign out, then Back" check on both | `ANDROID_RELEASE_CHECKLIST.md` |
 
 **Weighed and NOT done**, recorded so they are not proposed again as unfinished business:

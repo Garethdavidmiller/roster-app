@@ -738,6 +738,44 @@ describe('a re-check that fails keeps the grid as the saved copy, never as curre
         assert.equal(rosterOverridesCache.get('A. Smith|2054-03-12')?.value, 'AL');
     });
 
+    test('…and when it has spent the one repaint, the NEXT failure still takes "current" away on screen', async () => {
+        // Found by calendar-sequences.test.mjs (11 Nov 2026; seed 493 and three more of 2,000, 22 of 20,000).
+        // The superseded failure above is old news and records nothing — but it still released the
+        // month and spent its ONE failure repaint, and that repaint's render re-reads the month. When
+        // the re-read fails too it is the newest news, rightly takes "current" away (noteCheckFailed),
+        // and had no repaint left to say so: the month stayed drawn as current, the F1 symptom.
+        const key = await readThenExpire(2060, 2);
+        _deferGetDocs = true;
+        let paints = 0;
+        const slow = ensureOverridesCached(2060, 2, () => { paints++; });
+        await _tick();
+        assert.equal(_releases.length, 1, 'premise: the re-read is out');
+        _deferGetDocs = false;
+        _mockDocs = [AL('2060-03-12')];
+        await fetchOverridesForRange('2060-03-01', '2060-03-31');   // newer, and it lands
+        _getDocsThrows = true;                                       // the signal is still poor
+        _releases[0](new Error('simulated: the slow read fails'));
+        await slow;
+        assert.equal(knowledgeOf(key), 'authoritative', 'premise: the superseded failure was old news');
+        assert.equal(paints, 1, 'premise: it repainted, and released the month for a re-read');
+        await ensureOverridesCached(2060, 2, () => { paints++; });   // that repaint's render: the re-read, which fails
+        assert.equal(knowledgeOf(key), 'cached', 'premise: the newest check failed, so the month is not current');
+        assert.equal(paints, 2, 'the failure that took "current" away was never drawn — the month stayed on screen as current');
+    });
+
+    test('a failure that changes nothing is still told only once — the repaint cannot become a loop', async () => {
+        // The other side of the test above: the one-shot guard is still what stops fetch → fail →
+        // paint → fetch. A run of failures that leave the month exactly as known repaints once.
+        const key = await readThenExpire(2061, 2);
+        _getDocsThrows = true;
+        let paints = 0;
+        await ensureOverridesCached(2061, 2, () => { paints++; });   // authoritative → cached: told
+        await ensureOverridesCached(2061, 2, () => { paints++; });   // cached → cached: not told again
+        await ensureOverridesCached(2061, 2, () => { paints++; });
+        assert.equal(knowledgeOf(key), 'cached');
+        assert.equal(paints, 1, 'failures that change nothing repainted again — the fetch↔render loop');
+    });
+
     test('"Try again" while still offline gives the saved copy back, not the failure panel', async () => {
         // The page's retry forgets the month first, so the press visibly does something. A second
         // failure then recorded `error` — and the member lost the grid they had by pressing a button.

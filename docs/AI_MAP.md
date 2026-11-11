@@ -410,7 +410,9 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
   rule); never throws, and paints nothing if access went while it was out.
 - `ensureOverridesCached(year, month, renderFn)` — a no-op once the month is claimed; otherwise reads it,
   records what is now known, and calls back EVERY waiter when it settles (a caller arriving mid-read
-  joins). A failure repaints once per claim, or it would be a fetch↔render loop. A failed RE-check of a
+  joins). A failure repaints once per claim, or it would be a fetch↔render loop — and always when it
+  changes what the month is known to be, so a check that takes "current" away is drawn even after an
+  overtaken failure spent that one repaint (found by `calendar-sequences.test.mjs`). A failed RE-check of a
   month this device holds the server's answer for keeps the grid as the labelled saved copy
   (`noteCheckFailed`) — only where no other answer has landed since the read was issued. A failure the
   ticket no longer wants (access gone since) records, repaints and reports nothing.
