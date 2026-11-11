@@ -36,10 +36,21 @@
  * And a failure must not repeat what it found. These messages land in a public CI log, so the PIN
  * box's contents are never printed, and any four-digit run in a printed snippet is masked.
  *
+ * ── IT FITS A PHONE ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The card used to be a fixed 600px, so a phone's mail app shrank the whole email to fit and its
+ * 16px text came out at about 10px (owner, 11 Nov 2026). It is fluid now: 100% wide, capped at
+ * 600px. Classic Outlook on Windows ignores the cap, so a wrapper only Outlook reads holds it at
+ * 600px there. What is pinned here is what keeps it so: nothing fixed wider than the narrowest
+ * phone, the card's own width 100%, and Outlook's wrapper around it. The two big one-word boxes,
+ * the password and the PIN, may wrap, because a surname is one word and the longest on the roster
+ * do not fit a small phone in 28px type. This reads the source. The fit itself was measured in a
+ * browser, at 320 to 412px with the longest surname, when the card was made fluid; it is not re-run.
+ *
  * ── WHAT IT CANNOT SEE ──────────────────────────────────────────────────────────────────────────
  *
  * The PIN written anywhere other than its box. Whether the wording is RIGHT, only that the four
- * copies agree. The header comments, which differ by design.
+ * copies agree. The header comments, which differ by design. How a real mail app draws any of it.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -167,6 +178,43 @@ test('the PIN box holds the placeholder and nothing else, in all four files', ()
         assert.ok(boxes[0][1].trim() === '{{STAFF_PIN}}',
             `${file}: the PIN box holds something other than {{STAFF_PIN}}. The real PIN is never ` +
             'written into these files; it goes in the mail client.');
+    }
+});
+
+/** The narrowest phone still in use. Nothing in the email may be fixed wider than this. */
+const PHONE = 320;
+
+test('the card fits a phone, and classic Outlook still gets 600px, in all four files', () => {
+    for (const file of [GENERAL, ...Object.keys(COPIES)]) {
+        const raw = read(file);
+        const seen = visible(raw);   // what every mail app but classic Outlook reads
+        // The card: as wide as the screen, and never wider than 600px.
+        const cards = seen.match(/<table\b[^>]*max-width:600px[^>]*>/g) || [];
+        assert.equal(cards.length, 1, `${file} should have one card capped at max-width:600px`);
+        assert.match(cards[0], /[";]width:100%;/,
+            `${file}: the card's own width must be 100%, or a phone shrinks the whole email to fit it`);
+        // Nothing else fixed wider than a phone: a CSS width in px, or a width attribute that the
+        // element's own CSS does not replace with 100% (the card keeps width="600" for mail apps
+        // that ignore CSS, which then get the old fixed card rather than something worse).
+        const tooWide = [
+            ...[...seen.matchAll(/(?<![-\w])width:\s*(\d+)px/g)].filter(m => +m[1] > PHONE).map(m => m[0]),
+            ...[...seen.matchAll(/<\w+\b[^>]*\swidth="(\d+)"[^>]*>/g)]
+                .filter(m => +m[1] > PHONE && !/[";]width:100%;/.test(m[0])).map(m => `width="${m[1]}"`),
+        ];
+        assert.deepEqual(tooWide, [], `${file} has something fixed wider than a ${PHONE}px phone`);
+        // Classic Outlook ignores max-width, so the card sits inside a table only Outlook reads.
+        const mso = raw.match(/<!--\[if mso\]>[\s\S]*?<!\[endif\]-->/g) || [];
+        assert.equal(mso.length, 2, `${file} should open and close Outlook's 600px wrapper, once each`);
+        assert.match(mso[0], /<table\b[^>]*width="600"/, `${file}: Outlook's wrapper should hold the card at 600px`);
+        assert.match(mso[1], /<\/td><\/tr><\/table>/, `${file}: Outlook's wrapper should close after the card`);
+        const at = raw.search(/<table\b[^>]*max-width:600px/);   // the card's tag, not a header's mention
+        assert.ok(raw.indexOf(mso[0]) < at && at < raw.indexOf(mso[1]), `${file}: Outlook's wrapper should surround the card`);
+        // The two big one-word boxes may wrap when they must.
+        for (const [label, slot] of [['password', '{{PASSWORD}}'], ['PIN', '{{STAFF_PIN}}']]) {
+            const box = seen.match(new RegExp(`<div\\b[^>]*>${slot.replace(/[{}]/g, '\\$&')}</div>`));
+            assert.ok(box && box[0].includes('overflow-wrap:anywhere'),
+                `${file}: the ${label} box must be allowed to wrap, or a long surname pushes the email off a phone`);
+        }
     }
 });
 
