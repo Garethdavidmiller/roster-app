@@ -1,0 +1,270 @@
+<!--
+════════════════════════════════════════════════════════════════════════════════
+  MARYLEBONE ROSTER — WELCOME EMAIL FOR A DISPATCHER
+
+  The CEA email (welcome-email-cea.html) for a Dispatcher, kept so that every
+  Dispatcher is sent the same one (owner, 11 Nov 2026). It is welcome-email.html
+  with its choices already made, for a Dispatcher already working at Marylebone:
+    · the EXISTING STAFF opening ("There is a roster app for Marylebone that I do
+      not think you have come across");
+    · the grade, Dispatcher — the label the sign-in list shows (CONFIG.GRADE_ORDER);
+    · the Pay Calculator section that says it does NOT work for them yet. The
+      calculator has no Dispatcher rates (`gradeForRole`, roster-data.js, returns
+      null), and the page tells them so itself (paycalc-role-card.js). The CEA
+      section would promise them something that cannot work.
+  For a new starter, use welcome-email.html and make its choices there. A change
+  to the wording belongs in ALL FOUR files: welcome-email-parity.test.mjs builds
+  this one from welcome-email.html and fails until they agree. When Dispatcher
+  rates are added, that test fails here too: this section then has to change.
+
+  Copy this whole file into the email body as HTML. Every comment block is an HTML
+  comment, so anything left in is invisible to the reader — but the PLACEHOLDERS
+  are not. Work through this list before sending.
+
+  ── FILL IN ──────────────────────────────────────────────────────────────────
+    {{FIRST_NAME}}   what they are actually called. ASK — several people on the
+                     roster go by something other than their roster name.
+    {{ROSTER_NAME}}  how the app lists them: an initial and a surname, as on the
+                     published roster. This is what the sign-in list shows.
+    {{PASSWORD}}     their surname, all lowercase, letters only. It is derived by
+                     `normaliseSurname` in auth-identity.js — if you are unsure,
+                     run that rather than guessing (hyphens and apostrophes go).
+    {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
+                     in the CALENDAR_VIEWER_PIN secret. A test fails if the PIN box
+                     holds anything else, but the digits written anywhere else in
+                     this file would not be caught. Fill it in the mail client.
+
+  ── BEFORE YOU SEND ──────────────────────────────────────────────────────────
+    · The surname is only their FIRST password. Somebody who has already signed
+      in and changed it will not get in with it, so check with them first if
+      that may be so.
+    · Search the body for "{{" — nothing should be left.
+
+  The design rules for editing it are in welcome-email.html's header.
+════════════════════════════════════════════════════════════════════════════════
+-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f2f4f7;margin:0;padding:24px 12px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<tr><td align="center">
+
+<!-- Outlook on Windows ignores max-width, so this wrapper, which only Outlook reads, holds the
+     card at 600px there. Every other mail app sizes the card itself: full width on a phone,
+     600px at most anywhere else. -->
+<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center"><tr><td><![endif]-->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,30,60,0.12);">
+
+  <!-- ── MASTHEAD ─────────────────────────────────────────────── -->
+  <tr><td style="background:#001e3c;padding:26px 30px 22px 30px;border-bottom:4px solid #f5c800;">
+    <div style="font-size:23px;line-height:1.2;font-weight:700;color:#ffffff;letter-spacing:-0.2px;">Marylebone Roster</div>
+    <div style="font-size:13px;line-height:1.5;color:#9fb3c8;padding-top:6px;">Chiltern Railways &middot; MYB Station</div>
+  </td></tr>
+
+  <!-- ── INTRO ────────────────────────────────────────────────── -->
+  <tr><td style="padding:30px 30px 4px 30px;">
+    <p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#1c2b3a;">Hi {{FIRST_NAME}},</p>
+
+    <p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#1c2b3a;">
+      There is a roster app for Marylebone that I do not think you have come across. It shows your
+      shifts, your rest days and your annual leave, and it is where the Daily Huddle and the
+      circulars live.
+    </p>
+
+    <p style="margin:0 0 22px 0;font-size:16px;line-height:1.65;color:#1c2b3a;">
+      It is <strong style="color:#001e3c;">entirely optional</strong> &mdash; some people use it every day,
+      others never open it. I just wanted you to know it exists.
+    </p>
+  </td></tr>
+
+  <!-- ── OPEN IT HERE ─────────────────────────────────────────── -->
+  <tr><td style="padding:0 30px 28px 30px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f9fb;border:1px solid #dfe6ee;border-radius:8px;">
+      <tr><td align="center" style="padding:20px 20px 22px 20px;">
+        <div style="font-size:12px;line-height:1.4;letter-spacing:0.8px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">Open it here</div>
+        <div style="font-size:19px;line-height:1.3;font-weight:700;">
+          <a href="https://myb-roster.web.app" style="color:#001e3c;text-decoration:underline;">myb-roster.web.app</a>
+        </div>
+        <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:9px;">No app store, nothing to download.</div>
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <!-- ── 1. WHAT IT DOES ──────────────────────────────────────── -->
+  <tr><td style="padding:0 30px;">
+    <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">1. What it does</div>
+    <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
+  </td></tr>
+  <tr><td style="padding:16px 30px 26px 30px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+      <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:9px;">
+            <strong style="color:#001e3c;">Your roster</strong> &mdash; shifts, rest days and annual leave, month by month.
+            Swipe between months, tap a day for the detail.</td></tr>
+      <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:9px;">
+            <strong style="color:#001e3c;">Book annual leave</strong>, or record an absence.</td></tr>
+      <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:9px;">
+            <strong style="color:#001e3c;">Team Week View</strong> &mdash; who is on with you.</td></tr>
+      <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;">
+            The <strong style="color:#001e3c;">Daily Huddle</strong>, <strong style="color:#001e3c;">Weekly Retail Circular</strong>
+            and <strong style="color:#001e3c;">Marylebone Newsletter</strong>, plus guides for railcards,
+            ranger and rover tickets, and FIP travel. All under the &#9776; menu, top left.</td></tr>
+    </table>
+  </td></tr>
+
+  <!-- ── 2. PUT IT ON YOUR PHONE ──────────────────────────────── -->
+  <tr><td style="padding:0 30px;">
+    <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">2. Put it on your phone</div>
+    <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
+  </td></tr>
+  <tr><td style="padding:16px 30px 26px 30px;">
+    <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      You can just use the link in a browser. But adding it to your home screen gives you an app icon,
+      opens it full screen, and means your roster still shows when you have no signal.
+    </p>
+    <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      <strong style="color:#001e3c;">Android</strong> &mdash; open the link above in <strong>Chrome</strong>,
+      tap the <strong>&#8942;</strong> menu (top right), then <strong>Add to Home screen</strong>
+      (it may say <strong>Install app</strong>). Confirm, and it appears alongside your other apps.
+    </p>
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      <strong style="color:#001e3c;">iPhone</strong> &mdash; open the link in <strong>Safari</strong>
+      (it has to be Safari, not Chrome), tap the <strong>Share</strong> button at the bottom,
+      scroll down and tap <strong>Add to Home Screen</strong>.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fff9e6;border-left:4px solid #f5c800;border-radius:0 6px 6px 0;">
+      <tr><td style="padding:14px 16px;font-size:14px;line-height:1.6;color:#3d3520;">
+        <strong style="color:#001e3c;">It will not install on a work mobile at the moment.</strong>
+        You can still open the link in the browser on a work phone and use it normally &mdash; it just
+        will not add itself to the home screen. Use your own phone if you want the app icon.
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <!-- ── 3. SIGNING IN ────────────────────────────────────────── -->
+  <tr><td style="padding:0 30px;">
+    <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">3. Signing in &mdash; and your first password</div>
+    <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
+  </td></tr>
+  <tr><td style="padding:16px 30px 26px 30px;">
+    <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      When you open the app it asks you to sign in straight away &mdash; there is no separate login page.
+      You need to be signed in to see your roster, book annual leave or record an absence.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="padding-bottom:4px;">
+      <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">1.</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:8px;">
+            <strong style="color:#001e3c;">Grade</strong> &mdash; choose <strong>Dispatcher</strong>.</td></tr>
+      <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">2.</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:8px;">
+            <strong style="color:#001e3c;">Your name</strong> &mdash; the list only fills in once you have picked a grade.
+            You are on it as <strong>{{ROSTER_NAME}}</strong>, since it follows the published roster.</td></tr>
+      <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">3.</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:16px;">
+            <strong style="color:#001e3c;">Password</strong> &mdash; below. Then tap <strong>Sign in &rarr;</strong>.</td></tr>
+    </table>
+
+    <!-- password block — GOLD accent: this one is THEIRS. Do not restyle to match the PIN. -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f9fb;border:1px solid #dfe6ee;border-left:4px solid #f5c800;border-radius:0 8px 8px 0;">
+      <tr><td align="center" style="padding:18px 20px 20px 20px;">
+        <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">Your first password</div>
+        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:28px;line-height:1.2;font-weight:700;color:#001e3c;letter-spacing:2px;overflow-wrap:anywhere;word-break:break-word;">{{PASSWORD}}</div>
+        <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Your surname, all lowercase, nothing else</div>
+      </td></tr>
+    </table>
+
+    <p style="margin:16px 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      Everyone starts on their own surname &mdash; it just saves me setting a password for each person
+      and telling you what it is. It is <strong style="color:#001e3c;">not meant to be a secret</strong>,
+      which is why the next bit happens. There is a <strong>Show</strong> button by the box if you want
+      to check what you have typed.
+    </p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f0f4f8;border-left:4px solid #001e3c;border-radius:0 6px 6px 0;">
+      <tr><td style="padding:14px 16px;font-size:14px;line-height:1.6;color:#1c2b3a;">
+        <strong style="color:#001e3c;">It will then ask you to choose your own password. That is meant to happen.</strong>
+        Pick something only you know; you can change it later under &#9776; &rarr;
+        <strong>Settings</strong> &rarr; <strong>Password</strong>.
+      </td></tr>
+    </table>
+
+    <p style="margin:16px 0 0 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      You then stay signed in for <strong style="color:#001e3c;">60 days</strong>, so it is a one-off on each
+      device. If it will not let you in, a <strong>&ldquo;Can&rsquo;t get in?&rdquo;</strong> link sits under
+      the password box &mdash; tap that and it tells me to reset it for you.
+    </p>
+  </td></tr>
+
+  <!-- ── 4. PAY CALCULATOR ────────────────────────────────────── -->
+  <tr><td style="padding:0 30px;">
+    <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">4. The Pay Calculator</div>
+    <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
+  </td></tr>
+
+  <tr><td style="padding:16px 30px 26px 30px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fff9e6;border-left:4px solid #f5c800;border-radius:0 6px 6px 0;">
+      <tr><td style="padding:14px 16px;font-size:14px;line-height:1.6;color:#3d3520;">
+        <strong style="color:#001e3c;">The Pay Calculator will not work for you yet.</strong>
+        It is built around the CEA and CES hourly rates, so it cannot work out dispatcher pay at the
+        moment. You will still see it in the menu &mdash; ignore it for now. Everything else in the app
+        works the same for you as for anyone else.
+      </td></tr>
+    </table>
+  </td></tr>
+
+  <!-- ── 5. THE STAFF PIN ─────────────────────────────────────── -->
+  <tr><td style="padding:0 30px;">
+    <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">5. The staff PIN &mdash; different thing entirely</div>
+    <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
+  </td></tr>
+  <tr><td style="padding:16px 30px 26px 30px;">
+    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      The password above is <strong style="color:#001e3c;">yours</strong>. The PIN is
+      <strong style="color:#001e3c;">one code shared by everyone at Marylebone</strong> &mdash; it is not
+      personal to you and it does not sign you in as anybody.
+    </p>
+
+    <!-- PIN block — deliberately MUTED, never gold: this one is SHARED. -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef1f5;border:1px solid #dfe6ee;border-radius:8px;">
+      <tr><td align="center" style="padding:18px 20px 20px 20px;">
+        <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">The staff PIN</div>
+        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#3d4b5a;letter-spacing:10px;text-indent:10px;overflow-wrap:anywhere;word-break:break-word;">{{STAFF_PIN}}</div>
+        <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Keep it to Marylebone staff</div>
+      </td></tr>
+    </table>
+
+    <p style="margin:16px 0 12px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      <strong style="color:#001e3c;">When you will see it</strong> &mdash; under the sign-in box there is a
+      <strong>Use the staff PIN instead</strong> link. It is there for the shared office PC, and for anyone
+      who needs the Huddle and the guides without having a login of their own.
+    </p>
+    <p style="margin:0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      <strong style="color:#001e3c;">When you will not</strong> &mdash; once you have signed in on your own
+      phone you will not be asked for anything again for 60 days. The PIN will not show you your own roster,
+      so for you it is the slower way round.
+    </p>
+  </td></tr>
+
+  <!-- ── SIGN OFF ─────────────────────────────────────────────── -->
+  <tr><td style="padding:6px 30px 26px 30px;border-top:1px solid #e6ebf1;">
+    <p style="margin:20px 0 16px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      Anything that will not work, or a shift that looks wrong, just let me know. And if you would rather
+      not use it at all, that is completely fine &mdash; nothing depends on it.
+    </p>
+    <p style="margin:0;font-size:15px;line-height:1.65;color:#1c2b3a;">
+      Cheers,<br>Gareth
+    </p>
+  </td></tr>
+
+  <!-- ── FOOTER ───────────────────────────────────────────────── -->
+  <tr><td style="background:#001e3c;padding:16px 30px;">
+    <div style="font-size:12px;line-height:1.6;color:#9fb3c8;">
+      The roster in the app follows the published roster, but if a shift ever looks wrong the
+      <strong style="color:#ffffff;">official roster is always the authority</strong> &mdash; check with your manager.
+    </div>
+  </td></tr>
+
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr>
+</table>
