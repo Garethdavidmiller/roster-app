@@ -565,6 +565,9 @@ export async function ensureOverridesCached(year, month, renderFn) {
     // Month navigation and the Team Week View both arrive here, so the gate covers them too — and
     // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
     // fetched and the real read after unlocking would be skipped for the rest of the session.
+    // INSURANCE since v25.72, and said so because no test fails without it (measured, 11 Nov 2026):
+    // the read below is refused as it is issued, its failure stands down in silence (THE READ
+    // TICKET), and a grant clears every claim. Kept as the one layer that depends on neither.
     if (!hasCalendarAccess()) return;
     const key = monthKey(year, month);
     if (fetchedMonths.has(key)) {

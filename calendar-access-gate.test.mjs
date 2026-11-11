@@ -168,13 +168,14 @@ describe('the authoritative read', () => {
 
 describe('month navigation and Team View obey the same gate', () => {
     test('ensureOverridesCached does nothing while locked — and does so SILENTLY', async () => {
-        // The silence is what this asserts, and it is the only observable difference. The gate here
-        // is the third layer: without it, `fetchOverridesForRange` still throws and nothing leaks,
-        // but the throw lands in this function's catch — which logs `[Firestore] Failed to fetch
-        // overrides` on every month a locked visitor swipes past. That is a real cost (a console
-        // full of errors is how a genuine fetch failure gets overlooked) and it is the reason to
-        // return here rather than rely on the layer below. Verified by removing the gate: this test
-        // fails, the other two do not.
+        // The silence is what this asserts. The gate here is the third layer: without it,
+        // `fetchOverridesForRange` still throws and nothing leaks, and the throw lands in this
+        // function's catch. Until v25.72 that catch logged `[Firestore] Failed to fetch overrides`
+        // on every month a locked visitor swiped past — a real cost, because a console full of
+        // errors is how a genuine fetch failure gets overlooked — and this test failed with the gate
+        // removed. Since the read ticket (v25.72) a failure after a lock stands down without a word,
+        // so TWO layers keep this silence now, and removing the gate ALONE leaves this test green
+        // (measured, 11 Nov 2026). The gate stays, as the layer that does not depend on the other.
         const errs = [];
         const orig = console.error;
         console.error = (...a) => errs.push(a.join(' '));
