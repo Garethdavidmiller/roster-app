@@ -824,6 +824,9 @@ admin modules. `init()` is invoked by `admin-boot.js`.
   not move them into those init functions.
 - The `fieldMember` and `fieldDate` handlers keep the AL, Absence and Change a Shift cards on one member
   (`_followMember`); "Recording for <name>" (`_syncMemberFor`) shows to managers and the admin only.
+- Its sign-in card explains the page (`ADMIN_SIGN_IN_ABOUT`, the Pay Calculator's arrangement): what Admin
+  records, that it needs the reader's own sign-in because the staff PIN does not open it — Pay's clause
+  word for word — and, for a shared screen, to sign out from the menu afterwards.
 - The AL over-entitlement confirm bar calls `triggerConfirmedALSave()` (`admin-al.js`). The recorded-dates
   list is `admin-booked-periods.js`; this file wires it (`updateALBookedBox`, `updateSickBookedBox`,
   `deletePeriodOverrides`).
@@ -959,6 +962,11 @@ designer-only Links) stays with each coordinator, after sign-in.
   exported so the unit suite drives that exact wiring through the real `session.js`.
 - `dismissLoginOverlay()` — removes the card, and releases the scroll lock only if it was the modal one
   (an inline card never took it); safe to call unconditionally on a coordinator's authorised path.
+- **When arriving ended the staff PIN** (v25.78): the modal card carries an empty status line from the
+  start, so a notice written later is announced. `onStaffPinEnded` (staff-pin-ended.js) has it say that the PIN
+  only opens the Calendar and Trains, so the roster is locked again, and points the way back — the link
+  and Escape alike — at the Calendar's PIN box (`./#staff-pin`, `PIN_FIRST_HASH`). The inline card never
+  asks: the Calendar never ends the PIN. The words and the landing are checked in `e2e/calendar-pin.spec.js`.
 - `isAboutLinkAllowed(href)` — PURE: whether an `about` link may go on the card — a same-origin relative
   path (`./…`) only, never an absolute, protocol-relative or `javascript:` URL. `fillAbout` drops a refused
   link silently, so the rule is unit-tested rather than read (`login-overlay.test.mjs`).
@@ -1063,6 +1071,12 @@ The shared session and sign-in module: the local session, the Firebase Auth sign
 - `authGeneration()` — the sign-in/sign-out generation every attempt bumps: a watcher armed at one value stands down once it moves (the Calendar's late PIN grant, `holdsStaffPin`'s).
 - `signOutStaffPin()` — the drawer's Lock on such a page; throws if the viewer is still current, and never touches a member.
 - Imported by every protected coordinator and many feature modules; grep for the import rather than trusting a list. Tested by `session.test.mjs`.
+
+### `staff-pin-ended.js`
+Whether arriving on THIS page ended the shared staff PIN, and who is waiting to hear it — so the page's sign-in card can say why the roster is locked again (AUTH_AND_SESSIONS 24). A module of its own because session.js was at its size cap (coordinator-ratchet.test.mjs), and this is one subject a Node test can hold.
+- `noteStaffPinEnded()` — records it and tells each listener already waiting, once; one that throws does not stop the rest. ONE caller: `reconcileExpiredIdentity` (session.js), and only once its sign-out of the viewer has landed — never a Lock, a member's expired identity, or a sign-out that failed.
+- `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once: when the teardown lands, or on a microtask if it already has (sticky for the page's life). Unsubscribing cancels a call already queued. Its one reader is the sign-in card (`login-overlay.js`).
+- Imports nothing. Tested through the real teardown by `session.test.mjs`.
 
 ### `auth-state-core.js`
 The pure identity state machine (`AUTH_ARCHITECTURE.md` Track 1, Phase 1): no DOM, no Firebase, no storage. States are facts about who the user is; `login` and `forbidden` are decisions in `auth-policy.js`, never states.

@@ -57,6 +57,20 @@ import { resolveDeepLink, createDeepLinkLanding } from './admin-deep-link.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
 /**
+ * Admin's sign-in card (login-overlay.js → `about`; owner, 11 Nov 2026): Pay's arrangement, with Pay's
+ * PIN clause word for word — a station reaches both pages from one menu and the PIN opens neither
+ * (AUTH_AND_SESSIONS 18, 24). The footnote is that station's way out: a sign-in here stays until undone.
+ * @type {Readonly<{ lines: readonly string[], footnote: string }>}
+ */
+const ADMIN_SIGN_IN_ABOUT = Object.freeze({
+    lines: Object.freeze([
+        'Record your annual leave, absences and shift changes, so they show on the Calendar.',
+        "It keeps them under your own name, so you sign in as yourself — the staff PIN doesn't open it.",
+    ]),
+    footnote: 'On a shared screen, sign out from the menu when you finish.',
+});
+
+/**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
  * in step. `initCardCollapse` only syncs `aria-expanded` on user click, so a class-only
  * `.open` (the auto-open / deep-link paths) would leave a screen reader hearing "collapsed"
@@ -124,6 +138,7 @@ export function init() {
     function showAdminLogin({ reloadOnSuccess = false } = {}) {
         initLoginOverlay({
             pageLabel: 'Admin',
+            about: ADMIN_SIGN_IN_ABOUT,
             onSuccess: () => {
                 // reloadOnSuccess is set on the B1 stale-session path (see the _adminAuth.then block in
                 // initAuthorised): initAuthorised() ALREADY ran optimistically there and resolved the

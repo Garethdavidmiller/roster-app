@@ -21,6 +21,7 @@ import * as firebaseClient from './firebase-client.js';
 // second place a bypass could be introduced. calendar-access-core.js imports only the pure
 // auth-identity.js, so this adds no cycle (asserted by import-graph.test.mjs).
 import { isViewerUser, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
+import { noteStaffPinEnded } from './staff-pin-ended.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
@@ -897,6 +898,7 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
     try {
         await firebaseSignOut(auth);
         console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');
+        if (isViewerUser(u)) noteStaffPinEnded();   // so the sign-in card can say why — only once the sign-out has landed (staff-pin-ended.js)
     } catch (err) {
         console.warn('[Auth] expired-identity signOut failed:', /** @type {any} */ (err)?.message);
     }

@@ -452,7 +452,18 @@ const _e2eAuth = (code, establishes) => (_auth, email, password) => {
 // needs one, so without it a password change under the stub could never succeed; and session.js treats a
 // user whose email is the member's own as that member's account, which is why it is not on by default.
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
-const _viewerUser = () => ({
+// ONE object per signed-in viewer, as the real SDK keeps one User instance: auth.currentUser is a
+// stored field, and onAuthStateChanged hands out that same instance. A fresh object on every read made
+// every comparison by identity false, so two checks the sign-in fixes added (v25.77) never passed
+// under the stub: the expired-identity teardown stood down for EVERY viewer (session.js, the user
+// changed while the release ran) and a late-restored viewer was never granted (calendar-access.js).
+// Found 11 Nov 2026 by the first spec that watches a protected page shed the PIN. A new sign-in
+// makes a new instance, as the SDK does, and signOut drops it. The MEMBER object below is still
+// built fresh on every read: nothing compares a member by identity yet.
+// NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
+let _viewerInstance = null;
+const _viewerUser = () => _viewerInstance || (_viewerInstance = _newViewerUser());
+const _newViewerUser = () => ({
     uid: 'calendar-viewer',
     isAnonymous: false,
     getIdTokenResult: () => Promise.resolve({
@@ -544,6 +555,7 @@ export const signOut = () => {
     const e2e = globalThis.__E2E || (globalThis.__E2E = {});
     e2e.signOutCount = (e2e.signOutCount || 0) + 1;
     e2e.viewerUser = false;
+    _viewerInstance = null;
     try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* private mode */ }
     return Promise.resolve();
 };
@@ -559,8 +571,9 @@ export const signInWithCustomToken = (_auth, token) => {
     if (e2e.failCustomToken) return Promise.reject(Object.assign(new Error('e2e'), { code: 'auth/invalid-custom-token' }));
     e2e.viewerUser = true;
     e2e.lastCustomToken = token;
+    _viewerInstance = _newViewerUser();   // a new sign-in, a new User — and the one currentUser now reads
     try { sessionStorage.setItem('__e2e_viewer', '1'); } catch (_) { /* private mode */ }
-    return Promise.resolve({ user: _viewerUser() });
+    return Promise.resolve({ user: _viewerInstance });
 };
 export const indexedDBLocalPersistence = marker('idb');
 export const browserLocalPersistence = marker('local');
