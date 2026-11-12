@@ -612,6 +612,133 @@ test('guides: the Admin Guide banner lands whole below the chip bar', async ({ p
         .toBeGreaterThanOrEqual(viaLink.bar);
 });
 
+// …AND THE BAR NAMES THE SECTION THE BANNER STARTS. Landed with its banner clear, the heading inside sits a
+// little below the line the bar reads, so the bar went on naming "Your account" with the Admin Guide's banner
+// right under it — after any jump, link or scroll that put it there. A section starts where its banner does.
+test('guides: with the Admin Guide banner under the bar, the bar names the Admin Guide', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.goto('/staff-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    // Scrolled by the reader to where a jump or a link puts the banner: its top on the landing line.
+    await page.evaluate(() => {
+        const banner = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (
+            document.getElementById('sg-marylebone-roster-admin-guide')).closest('.guide-header'));
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+        window.scrollTo(0, banner.getBoundingClientRect().top + window.scrollY - (hdr.offsetHeight + bar.offsetHeight + 8));
+    });
+    await settleFrames(page);
+    const geo = await page.evaluate(() => {
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+        return { heading: /** @type {HTMLElement} */ (document.getElementById('sg-marylebone-roster-admin-guide')).getBoundingClientRect().top,
+            line: hdr.offsetHeight + bar.offsetHeight + 12 };
+    });
+    expect(geo.heading, 'premise: the heading itself has not reached the line the bar reads').toBeGreaterThan(geo.line);
+    await expect(page.locator('.chip-bar .chip[data-target="sg-marylebone-roster-admin-guide"]'), 'not the section before it')
+        .toHaveAttribute('aria-current', 'true');
+});
+
+// ── A LINK HOLDS ITS CHIP THE WAY A TAP DOES (v25.81) ──────────────────────────────────────────────────────
+// A search result or a shared link opened at a #fragment answers "where am I" like a tap on its chip, until what
+// it put in place moves. Measured on v25.80 by opening every linkable id fresh: on the two document guides'
+// columns a link lit no chip at all, and on the Railcard guide a link to "If it's wrong" lit "Digital", because at
+// the bottom of the page the last chip wins. Every link here is opened FRESH: a goto that changes only the
+// fragment is a jump within the page, a different path (a hash changed in place, the second test).
+test('guides: a link to a section near the end of a page lights its own chip until the reader moves', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.goto('/railcard-guide.html#rc-wrong');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const geo = await page.evaluate(() => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById('rc-wrong')).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }));
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section sits well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-wrong"]'), 'the section the link named, not the last one')
+        .toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again')
+        .toHaveAttribute('aria-current', 'true');
+});
+
+// The guides carry no in-page links, so a hash changes in place only by hand, or by Back across such a change —
+// where the position comes from history, not from a link. It ends the link's answer, and the bar follows the reader:
+// here, at the bottom of the page, the last chip.
+test('guides: a hash changed in place lets a link\'s chip go', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.goto('/railcard-guide.html#rc-wrong');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-wrong"]'), 'premise: the link holds its chip')
+        .toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => { location.hash = 'rc-digital'; });
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2),
+        'premise: still at the bottom, so nothing scrolled to let the hold go').toBe(true);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-digital"]')).toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+});
+
+// On the document guides' two columns a link lights the chip of the section it lands in — a sub-heading's
+// section, too — where before nothing was lit, and the chip holds through the landing. A scroll that ENDS while
+// the page is still landing (the browser's own landing is one) must not settle the hold: the measurement then
+// re-lands the heading, and a hold settled before that would let go of the chip the moment it moved.
+test('guides: on two columns a link lights its section\'s chip through the landing, until the reader moves', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'two desktop columns, scrolled with a wheel');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/paycalc-guide.html#pg-holiday-pay-premium-hpp');
+    const hpp = page.locator('.chip-bar .chip[data-target="pg-holiday-pay-premium-hpp"]');
+    const lit = page.locator('.chip-bar .chip[aria-current]');
+    await expect(hpp, 'lit while the page is still landing').toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => window.scrollBy(0, 1));
+    await settleFrames(page);
+    const before = await landing(page, 'pg-holiday-pay-premium-hpp');
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    const after = await landing(page, 'pg-holiday-pay-premium-hpp');
+    expect(after.top - before.top, 'premise: the measurement re-landed the heading').toBeGreaterThan(20);
+    expect(after.top, 'premise: below the bar').toBeGreaterThanOrEqual(after.barBottom);
+    await expect(hpp, 'once the page has landed, still the chip the link named').toHaveAttribute('aria-current', 'true');
+    await expect(lit).toHaveCount(1);
+
+    await page.mouse.move(640, 500);
+    await page.mouse.wheel(0, 300);
+    await expect(lit, 'the reader moved on, and on two columns the bar claims no section again').toHaveCount(0);
+
+    await page.goto('about:blank');
+    await page.goto('/staff-guide.html#sg-signing-in');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await expect(page.locator('.chip-bar .chip[data-target="sg-marylebone-roster-admin-guide"]'),
+        'a sub-heading lights the chip of the section it sits in').toHaveAttribute('aria-current', 'true');
+    await expect(lit).toHaveCount(1);
+});
+
+// The hold stands where the landing leaves the link's target — if the reader can still see it. A page moved away
+// with no touch, click, wheel or key (a screen reader, a drag on the scrollbar) does not end the landing, so when
+// the landing does end, the link's section may be off the screen; the bar then follows the reader.
+test('guides: a link\'s chip lets go if the page was moved away before it finished landing', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/rangers-guide.html#rr-thames');
+    await expect(page.locator('.chip-bar .chip[data-target="rr-elsewhere"]'), 'premise: the link holds its section\'s chip while landing')
+        .toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('rr-thames')).getBoundingClientRect().top),
+        'premise: the linked card is below the screen').toBeGreaterThan(740);
+    await expect(page.locator('.chip-bar .chip').first(), 'the bar follows the reader, at the top').toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+});
+
 // FROM 641px A BAR TOO LONG FOR ITS WINDOW WRAPS. On a desktop the bar hides its scrollbar, so a chip past the
 // edge was a section no mouse could learn existed. 641px, not the column's 800: a window snapped to half a
 // laptop screen is 683–768px wide, and there the Staff Guide hid three to five chips, the admin ones among them
