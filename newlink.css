@@ -146,6 +146,23 @@ body {
     .nl-common { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
+/* ── Where they differ: each one's edge and its cost, against the other two ───────────────────────────────────────
+   Built from the panels above (`.nl-side`), so a gain and a cost look the same in both cards; each proposal is named as the
+   pack card names it (`.nl-sub`). A phone reads the three one under another. A wide screen sets them side by side, and the
+   name, the better panel and the worse panel each take ONE row across the three (subgrid): the panels' lengths are the 5%
+   rule's, so without it each "worse" panel starts at its own height and the three read as three unrelated lists. */
+.nl-differ { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.nl-differ-one { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.nl-differ-one .nl-sub { margin: 0; }
+#nlDifferList > .nl-note { margin-top: 12px; }
+#nlDifferList > .nl-files { margin-top: 10px; }
+@media (min-width: 1024px) {
+    .nl-differ { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 14px; row-gap: 8px; }
+    @supports (grid-template-rows: subgrid) {
+        .nl-differ-one { grid-row: span 3; grid-template-rows: subgrid; }
+    }
+}
+
 /* ── The choices ──────────────────────────────────────────────────────────────────────────────── */
 /* WHITE, RAISED, NAVY TYPE — and the page's teal once chosen (see the header, and the chosen rule below). */
 .nl-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
@@ -615,6 +632,8 @@ body {
     .btn-burger, .nl-tiles, .nl-tabs, .nl-back-row { display: none !important; }
     /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
     .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
+    /* A proposal's two panels stay with its name: a page break between them would leave "Worse" under nobody's name. */
+    .nl-differ-one { break-inside: avoid; }
     /* Paper does not scroll: a grid wider than its frame (very large text) prints whole rather than clipped. */
     .nl-weeks-wrap { overflow: visible; }
     .nl-inline { color: inherit; text-decoration: none; }

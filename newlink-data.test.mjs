@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
+import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { PROPOSALS } from './links-proposals.js';
 
 // fileURLToPath, never `.pathname`: a checkout whose path holds a space reads as %20 and the generator is not found
@@ -95,10 +95,17 @@ test('a figure counted cover weeks aside says so wherever a sentence quotes it (
     // the cover weeks out, because where a cover week's shifts fall is the roster clerk's to decide. A sentence quoting one
     // bare reads as the whole year's: "At least 14h 20m between shifts" did, one line beneath "cover weeks aside". And a
     // bare figure is kindest to whichever design a badly placed cover week hurts most — Balanced V6's 5 days in a row can be
-    // 10, one more than today's worst, which the pack's sheet said and the page did not
-    const QUOTES = /days in a row|between shifts|fatigue warning|weeks of earlies|runs of earlies/;
-    const SAYS = /cover weeks? aside|set shifts|cover week falls badly/;
-    const lines = [...CHANGES, ...GAINS, ...COSTS].map(s => s.replace(/\u00a0/g, ' ')).filter(s => QUOTES.test(s));
+    // 10, one more than today's worst, which the pack's sheet said and the page did not.
+    // IN PLAIN WORDS SINCE 12 NOV 2026 ("for dummies"): "not counting cover weeks" where it said "cover weeks aside", and "days AT
+    // WORK in a row" — which the old pattern could not see, so a reworded line would have slipped past this check unread. And
+    // "Where they differ" is held to it too: "however a cover week falls" names the worst placing, which is its own basis
+    const QUOTES = /days (at work )?in a row|between shifts|fatigue warning|weeks of earlies|runs of earlies/;
+    const SAYS = /cover weeks? aside|not counting cover weeks|set shifts|cover week falls badly|however a cover week falls/i;
+    // SENTENCE BY SENTENCE, not line by line (12 Nov 2026): "At most 5 days at work in a row (today 7). If a cover week falls
+    // badly, …" passed whole, its second sentence's basis standing in for the first's — a mutation that dropped the first's
+    // "not counting cover weeks" stayed green
+    const lines = [...CHANGES, ...GAINS, ...COSTS, ...DIFFERS.flatMap(d => [...d.better, ...d.worse])]
+        .flatMap(s => s.replace(/\u00a0/g, ' ').split(/(?<=\.)\s+(?=[A-Z])/)).filter(s => QUOTES.test(s));
     assert.ok(lines.length >= 4, `premise: the page's sentences quote the set shifts' figures (found ${lines.length})`);
     for (const s of lines) assert.match(s, SAYS, `"${s}" quotes a figure counted cover weeks aside, and does not say so`);
 });
@@ -117,8 +124,22 @@ test('the key promises no margin the marks do not keep (the bug check, 9 Nov 202
 });
 
 test('nothing in it names a recommendation (owner, 2 Nov 2026: "No, three evenly")', () => {
-    const all = JSON.stringify({ COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK });
+    const all = JSON.stringify({ COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK });
     assert.doesNotMatch(all, /recommend/i);
+});
+
+test('where they differ: each of the three, with something better AND something worse, and a rule that is not a score (12 Nov 2026)', () => {
+    // The at-a-glance sheet's edges and costs (edge-cost.mjs), in the page's words; the generator asserts it words exactly the
+    // sheet's facts. What the page relies on: the shortlist, each once; never a design with only good news or only bad, which
+    // would read as a ranking; and a rule beneath them that says the margin and what a count of points does NOT mean
+    assert.deepEqual(DIFFERS.map(d => d.design), COLUMNS.slice(1), 'the shortlist, A to Z, each once');
+    for (const d of DIFFERS) {
+        assert.ok(d.better.length >= 1 && d.worse.length >= 1, `${d.design}: something better AND something worse`);
+        for (const s of [...d.better, ...d.worse]) assert.ok(s.trim().length > 20 && /[.]$/.test(s), `${d.design}: "${s}" is a sentence`);
+    }
+    const rule = DIFFER_RULE.replace(/\u00a0/g, ' ');
+    assert.match(rule, /more than \d+% better, or worse, than both of the others/, 'the rule names its margin');
+    assert.match(rule, /not a score/, 'and says the number of points is not a score');
 });
 
 test('every pack file is a PDF the repository holds, under docs/links-26', () => {

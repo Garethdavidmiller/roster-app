@@ -17,6 +17,7 @@
 /** @typedef {{ label: string, cells: Cell[] }} Row  cells in COLUMNS order */
 /** @typedef {{ id: string, icon: string, chip: string, who: string, gist: string, rows: Row[] }} Persona */
 /** @typedef {{ design: string|null, label: string, path: string, pages: number }} PackFile  path is under docs/links-26/ */
+/** @typedef {{ design: string, better: string[], worse: string[] }} Differ  what one proposal does better, and worse, than the other two */
 
 /** @template T @param {T} o @returns {T} */
 function deepFreeze(o) {
@@ -30,9 +31,9 @@ export const COLUMNS = deepFreeze(["Today", "Balanced V6", "Level Crossing", "Mi
 /** What has changed since colleagues were first shown Short Run — drafts, for the owner to correct. */
 export const CHANGES = deepFreeze([
     "The shortlist is new: Balanced\u00a0V6, Level\u00a0Crossing and Middle\u00a0Ground. Short\u00a0Run is no longer on it.",
-    "All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. On Short\u00a0Run three closing weeks fall together.",
-    "All three keep today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Short\u00a0Run four weeks off take 15, and 14 days buy 28 at best.",
-    "Level\u00a0Crossing and Middle\u00a0Ground keep 18\u00a0of\u00a021 weeks on one shift time, as Short\u00a0Run does. Balanced\u00a0V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most, or five if a cover week falls badly.",
+    "All three keep closing weeks apart: a week of closing shifts is never followed by another, not counting cover weeks. On Short\u00a0Run three closing weeks fall together.",
+    "All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. On Short\u00a0Run four weeks off take 15 days’ leave, and 14 days buy 28 at most.",
+    "Level\u00a0Crossing and Middle\u00a0Ground keep the same shift every weekday in 18 of their 21 weeks of set shifts, as Short\u00a0Run does. Balanced\u00a0V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.",
     "All three keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has none.",
     "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10."
 ]);
@@ -40,21 +41,68 @@ export const CHANGES = deepFreeze([
 /** What all three proposals give everyone, against today. */
 export const GAINS = deepFreeze([
     "The same 35-hour week, so the same basic pay.",
-    "12\u00a0to\u00a014 full weekends off a year (today\u00a010).",
-    "At most 5 days in a row, cover weeks aside (today\u00a07). If a cover week falls badly, Balanced\u00a0V6 can make 10 in a row, one more than today’s worst.",
+    "12\u00a0to\u00a014 full weekends off a year, Saturday and Sunday (today\u00a010).",
+    "At most 5 days at work in a row, not counting cover weeks (today\u00a07). If a cover week falls badly, Balanced\u00a0V6 can mean 10 days in a row, one more than today’s worst.",
     "Every closing shift 15 minutes to an hour shorter.",
-    "At least 14h\u00a020m between shifts, cover weeks aside (today\u00a012h\u00a030m).",
-    "No avoidable fatigue warnings on the set shifts (today\u00a04)."
+    "At least 14h\u00a020m off between shifts, not counting cover weeks (today\u00a012h\u00a030m).",
+    "No avoidable fatigue warnings, not counting cover weeks (today\u00a04)."
 ]);
 
 /** What all three proposals cost everyone, against today. */
 export const COSTS = deepFreeze([
     "42 finishes a year at 23:00 or later (today\u00a039).",
-    "At most 3\u00a0to\u00a05 weeks of earlies, or of lates, in a row, or 5\u00a0to\u00a07 if a cover week falls badly (today\u00a02, or 3).",
-    "Two more Saturdays a year (28, today\u00a026).",
+    "Longer runs of earlies, or of lates: 3\u00a0to\u00a05 weeks in a row at most, or 5\u00a0to\u00a07 if a cover week falls badly (today\u00a02, or 3).",
+    "Two more Saturdays at work a year (28, today\u00a026).",
     "Fewer earlies that finish before 14:00: 12\u00a0to\u00a020\u00a0a\u00a0year (today\u00a026).",
     "Six or eight new shift times to learn."
 ]);
+
+/**
+ * @type {ReadonlyArray<Differ>} Where the three differ: what each does better, and worse, than BOTH of the other two by more than
+ * 5% — the at-a-glance sheet's points, by its rule (edge-cost.mjs), in the page's words. A to Z.
+ */
+export const DIFFERS = deepFreeze([
+    {
+        "design": "Balanced V6",
+        "better": [
+            "The shortest runs of earlies, or of lates: 3 weeks in a row at most, or 5 if a cover week falls badly.",
+            "The most breaks of three or four rest days: about 6\u00a0a\u00a0year.",
+            "Five people on duty when the station opens on a Saturday, where the other two have four."
+        ],
+        "worse": [
+            "The fewest weeks with the same shift every weekday: 14\u00a0a\u00a0year. The only one with weeks that mix earlies and lates.",
+            "The biggest change of start time from one week to the next: 4h\u00a008m on average.",
+            "The most single rest days (a day off on its own): 22\u00a0a\u00a0year (today\u00a010).",
+            "The fewest full weekends off: 12\u00a0a\u00a0year.",
+            "If a cover week falls badly, the most fatigue warnings (4) and the most days at work in a row (10)."
+        ]
+    },
+    {
+        "design": "Level Crossing",
+        "better": [
+            "However a cover week falls: no fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (6 at most).",
+            "The smallest change of start time from one week to the next: 1h\u00a034m on average.",
+            "The fewest single rest days (a day off on its own): 10\u00a0a\u00a0year, as today.",
+            "The most 06:20 starts, when the station opens: 58\u00a0a\u00a0year, for those who like them."
+        ],
+        "worse": ["The fewest breaks of three or four rest days: about 2\u00a0a\u00a0year."]
+    },
+    {
+        "design": "Middle Ground",
+        "better": [
+            "The only one with no shift longer than 8h\u00a030m, on any day. Every closing shift is 8h\u00a010m.",
+            "On Saturdays, the number of staff on duty through the day best matches how busy the trains are."
+        ],
+        "worse": [
+            "The fewest earlies finishing before 14:00: 12\u00a0a\u00a0year.",
+            "Four people on duty when the station opens, every day, where the other two have more on some days.",
+            "The least pay for working your share of Sundays: about £350\u00a0a\u00a0year less than today, before tax."
+        ]
+    }
+]);
+
+/** The rule the points above follow, and what their number does not mean — said beneath them on the page. */
+export const DIFFER_RULE = "Only clear differences are listed: where one is more than 5% better, or worse, than both of the others. The number of points is not a score: one point may matter more to you than several.";
 
 /** @type {ReadonlyArray<Persona>} What each proposal means for six ways of working the roster — the sheet's bands. */
 export const PERSONAS = deepFreeze([
@@ -75,7 +123,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Starting at 06:20, the open, a year",
+                "label": "Starting at 06:20, when the station opens, a year",
                 "cells": [
                     { "text": "62", "best": false },
                     { "text": "50", "best": false },
@@ -126,7 +174,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🌙",
         "chip": "Prefer lates",
         "who": "…prefer lates",
-        "gist": "More lates on all three, in longer runs, and every closer shorter, the weekday’s by half an hour.",
+        "gist": "More lates on all three, in longer runs, and every closing shift shorter, the weekday one by half an hour.",
         "rows": [
             {
                 "label": "Lates a year",
@@ -138,7 +186,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Average late, closers included",
+                "label": "Average late, closing shifts included",
                 "cells": [
                     { "text": "8h\u00a029m", "best": false },
                     { "text": "8h\u00a024m", "best": false },
@@ -192,7 +240,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "That overtime a year, gross, at time and a quarter",
+                "label": "That overtime a year, before tax, at time and a quarter",
                 "cells": [
                     { "text": "about £930", "best": false },
                     { "text": "about £630", "best": false },
@@ -207,7 +255,7 @@ export const PERSONAS = deepFreeze([
         "icon": "📆",
         "chip": "Work Sundays",
         "who": "…work your share of Sundays and no other overtime",
-        "gist": "About £200 to £350\u00a0a\u00a0year less on all three, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
+        "gist": "About £200 to £350\u00a0a\u00a0year less on all three, before tax: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
         "rows": [
             {
                 "label": "Sundays a year, at time and a half",
@@ -228,7 +276,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Premium and overtime pay, against today",
+                "label": "Premium and overtime pay a year, against today",
                 "cells": [
                     { "text": "—", "best": false },
                     { "text": "about £200\u00a0less", "best": false },
@@ -243,7 +291,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🏠",
         "chip": "No overtime",
         "who": "…work no overtime at all",
-        "gist": "A little better off on all three — about £90 to £140\u00a0a\u00a0year, gross, from two more Saturdays at time and a quarter.",
+        "gist": "A little better off on all three — about £90 to £140\u00a0a\u00a0year, before tax, from two more Saturdays at time and a quarter.",
         "rows": [
             {
                 "label": "Saturday hours a year, at time and a quarter",
@@ -255,7 +303,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Premium pay, against today",
+                "label": "Premium pay a year, against today",
                 "cells": [
                     { "text": "—", "best": false },
                     { "text": "about £140\u00a0more", "best": false },
@@ -270,7 +318,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🏖️",
         "chip": "Save leave",
         "who": "…save your leave for long breaks",
-        "gist": "All three keep today’s leave: four full weeks off, Sunday to Saturday, take 14 days, and 14 days buy 30 days off at best. Each has fewer three- and four-day breaks than today; Balanced\u00a0V6 has the most of the three, for 22 single rest days a year where today has 10.",
+        "gist": "All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. Each has fewer three- and four-day breaks than today; Balanced\u00a0V6 has the most of the three, for 22 single rest days (a day off on its own) a year where today has 10.",
         "rows": [
             {
                 "label": "Leave for four full weeks off, Sunday to Saturday",
@@ -306,8 +354,8 @@ export const PERSONAS = deepFreeze([
 /** How the figures are worked out. */
 export const NOTES = deepFreeze([
     "Every figure is worked out from the rotas by the app’s own tooling. None is typed in.",
-    "One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
-    "Pounds are gross, before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
+    "One person, over a year, not counting cover weeks. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
+    "Pounds are before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
     "A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
     "Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.",
     "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail."

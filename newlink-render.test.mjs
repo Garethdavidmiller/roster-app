@@ -12,15 +12,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    closesWords, dutyKind, designName, ifYou, renderStatus, renderList, renderCommon, renderFigures,
-    renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, figuresKey,
+    closesWords, dutyKind, designName, ifYou, renderStatus, renderList, renderCommon, renderDiffers, renderFigures,
+    renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, fileRow, figuresKey,
     statusPhase, statusHint,
 } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
-import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
+import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { HAVE_YOUR_SAY, CONTACT } from './newlink-config.js';
 
 const count = (/** @type {string} */ s, /** @type {RegExp} */ re) => (s.match(re) || []).length;
+/** The one-page comparison, as newlink-app.js finds it for "Where they differ". */
+const GLANCE = PACK.find(f => f.path.endsWith('at-a-glance.pdf')) ?? null;
 
 test('the weeks card\'s title names the proposals\' own length — a typed number, so it is pinned to the rotas', () => {
     const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8');
@@ -74,6 +76,7 @@ const colleagueStates = () => {
         renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01', timetable: '2026-12-13', today: '2027-01-01', contact: CONTACT }),
         statusHint('open'), statusHint('decided'), statusHint('waiting'),
         renderList(CHANGES), renderCommon({ gains: GAINS, costs: COSTS }), renderList(NOTES), renderList(HAVE_YOUR_SAY),
+        renderDiffers({ differs: DIFFERS, rule: DIFFER_RULE, glance: GLANCE, base: 'https://x/' }),
         renderPersonas(PERSONAS, COLUMNS, null), renderPersonas(PERSONAS, COLUMNS, 'all'),
         ...PERSONAS.map(p => renderPersonas(PERSONAS, COLUMNS, p.id)),
         renderPersonaChips(PERSONAS, null), renderWeeksTabs(PROPOSALS, PROPOSALS[0].id), renderPack(PACK, 'https://x/'),
@@ -148,7 +151,7 @@ test('the improvements review stays applied (2 Nov 2026)', () => {
     // what a proposal IS, counted from the rotas, at the top — before any card says "cover week"
     const weeks = Object.keys(PROPOSALS[0].patterns).length;
     const cover = Object.values(PROPOSALS[0].patterns).filter(r => Object.values(r).every(v => v === 'SPARE')).length;
-    assert.match(status, new RegExp(`Each is ${weeks} weeks long: ${weeks - cover} set weeks, and ${cover} <strong>cover weeks</strong>`));
+    assert.match(status, new RegExp(`Each is ${weeks} weeks long: ${weeks - cover} weeks of set shifts, and ${cover} <strong>cover weeks</strong>`));
     // "Have your say" is a way to its card
     assert.match(status, /<button type="button" class="nl-inline" data-open-card="nlSay">Have your say<\/button>/);
     // the headings are nouns the lines complete; "gives up" turned the costs upside down
@@ -228,6 +231,46 @@ test('the pack: every file is a real link under the base that names its file, an
 
 test('everything it prints is escaped', () => {
     assert.equal(renderList(['<img onerror=x>']), '<ul class="nl-list"><li>&lt;img onerror=x&gt;</li></ul>');
+    const differ = renderDiffers({ differs: [{ design: '<b>X</b>', better: ['<i>a</i>'], worse: ['"b" & c'] }], rule: '<u>r</u>', glance: null, base: '' });
+    assert.ok(!/<b>X|<i>a|<u>r/.test(differ), 'a design, a point and the rule are all escaped');
+    assert.match(differ, /&lt;b&gt;X&lt;\/b&gt;/);
+    const row = fileRow({ design: '<s>', label: '<x>', path: 'a"b.pdf', pages: 1 }, 'https://x/');
+    assert.ok(!/<s>|<x>|a"b/.test(row), 'a file row escapes its design, label and path');
+});
+
+test('WHERE THEY DIFFER, EVENLY: each of the three A to Z, a "better" and a "worse" panel each, in that order (12 Nov 2026)', () => {
+    // backwards in, A to Z out: the order is the page's rule, never the data's
+    const html = renderDiffers({ differs: [...DIFFERS].reverse(), rule: DIFFER_RULE, glance: GLANCE, base: 'https://x/' });
+    const names = [...html.matchAll(/<h3 class="nl-sub" id="nlDiffer-[a-z0-9-]+">([^<]+)<\/h3>/g)].map(m => m[1]);
+    assert.deepEqual(names, COLUMNS.slice(1), 'the shortlist A to Z, each once');
+    // the same two panels for every one — the shape favours none — and drawn as "Whichever is chosen" draws a gain and a cost
+    const panels = [...html.matchAll(/<div class="nl-side nl-side--(gain|cost)">\s*<h4 class="nl-side-h"><span aria-hidden="true">(✅|➖)<\/span> (Better|Worse) than the other two<\/h4>/g)];
+    assert.deepEqual(panels.map(m => m[1]), names.flatMap(() => ['gain', 'cost']), 'better, then worse, for each');
+    assert.ok(panels.every(m => (m[1] === 'gain') === (m[2] === '✅' && m[3] === 'Better')), 'the tick and the word go with the colour');
+    // every point is printed, under its own design
+    for (const d of DIFFERS) {
+        const own = html.slice(html.indexOf(`>${d.design}</h3>`), html.indexOf('</section>', html.indexOf(`>${d.design}</h3>`)));
+        for (const s of [...d.better, ...d.worse]) assert.ok(own.includes(s.replace(/&/g, '&amp;')), `${d.design}: "${s}" is under its name`);
+    }
+    // each section is named by its heading, and the ids are unique
+    const ids = [...html.matchAll(/aria-labelledby="(nlDiffer-[a-z0-9-]+)"/g)].map(m => m[1]);
+    assert.equal(new Set(ids).size, DIFFERS.length);
+    for (const id of ids) assert.match(html, new RegExp(`<h3 class="nl-sub" id="${id}">`));
+});
+
+test('WHERE THEY DIFFER says its rule beneath the points, and offers the comparison as the pack offers a file', () => {
+    const html = renderDiffers({ differs: DIFFERS, rule: DIFFER_RULE, glance: GLANCE, base: 'https://example.test/docs/links-26/' });
+    assert.ok(html.indexOf('nl-differ-one') < html.indexOf('nl-note'), 'the rule comes after the points it explains');
+    assert.ok(html.includes(`<p class="nl-note">${DIFFER_RULE}</p>`));
+    assert.ok(GLANCE, 'premise: the pack holds the one-page comparison');
+    // THE SAME ROW AS THE PACK CARD'S, so it opens in the viewer by its data-file (newlink-app.js) and looks the same
+    assert.ok(html.includes(`<ul class="nl-files">${fileRow(GLANCE, 'https://example.test/docs/links-26/')}</ul>`));
+    assert.ok(renderPack(PACK, 'https://example.test/docs/links-26/').includes(fileRow(GLANCE, 'https://example.test/docs/links-26/')),
+        'the pack card draws the same file with the same row');
+    // no comparison in the pack: no row, rather than a link to nothing
+    const none = renderDiffers({ differs: DIFFERS, rule: DIFFER_RULE, glance: null, base: 'https://x/' });
+    assert.doesNotMatch(none, /nl-file/);
+    assert.match(none, /nl-note/);
 });
 
 test('the status says when the new link starts, apart from the timetable, and who carries on until then', async () => {

@@ -25,6 +25,9 @@ import { fileURLToPath } from 'node:url';
 import { GROUPS, TC, C, BV, LC, MG, FIG, RATE, claim, tidyText, isBest, hm, H, Hmax, first, timed, mins, MS, SHORTLIST, grid } from './what-it-means-data.mjs';
 import { PROPOSALS } from '../../../links-proposals.js';
 import { DAYS } from '../../../links-design.js';
+// EACH ONE'S EDGE AND ITS COST (12 Nov 2026): the facts the at-a-glance sheet's cards word, by the same rule — the page's
+// "Where they differ" card words exactly the same facts, so the two cannot list different points
+import { wordsExactly, worstOf, MARGIN } from './edge-cost.mjs';
 
 // fileURLToPath, never `.pathname`: a checkout whose path holds a space reads as %20 and every file goes missing
 const OUT = fileURLToPath(new URL('../../../newlink-data.js', import.meta.url));
@@ -74,11 +77,15 @@ claim('all three keep a 13:45 every weekday; Short Run has no 13:35 or 13:45', C
 // THE 22:30 OFFICE ON ALL THREE (6 Nov 2026): two Saturday ticket-office lates, 14:30–22:30, where today's finish at 22:00
 const satAt = (p, t) => Object.values(p).filter(r => r.sat === t).length;
 claim('on all three, two Saturday office lates to 22:30; today’s to 22:00', C.every(c => satAt(c.p, '14:30-22:30') === 2) && satAt(TC.p, '14:30-22:00') === 2 && satAt(TC.p, '14:30-22:30') === 0);
+// PLAIN WORDS (owner, 12 Nov 2026: "It should be for dummies"): "not counting cover weeks" where the page said "cover weeks
+// aside", and the leave line says what 14 days' leave buys rather than "30 days off for 14 at best"
 const CHANGES = [
   'The shortlist is new: Balanced V6, Level Crossing and Middle Ground. Short Run is no longer on it.',
-  'All three keep closing weeks apart: a week of closing shifts is never followed by another, cover weeks aside. On Short Run three closing weeks fall together.',
-  'All three keep today’s leave: four full weeks off, Sunday to Saturday, for 14 days, and 30 days off for 14 at best. On Short Run four weeks off take 15, and 14 days buy 28 at best.',
-  'Level Crossing and Middle Ground keep 18 of 21 weeks on one shift time, as Short Run does. Balanced V6 has 7, with more weeks mixing start times, and its runs of earlies or of lates are three weeks at most, or five if a cover week falls badly.',
+  'All three keep closing weeks apart: a week of closing shifts is never followed by another, not counting cover weeks. On Short Run three closing weeks fall together.',
+  'All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. On Short Run four weeks off take 15 days’ leave, and 14 days buy 28 at most.',
+  // "ON ONE SHIFT TIME" SAID AS WHAT IT COUNTS (owner, 12 Nov 2026: "for dummies"): report-data.mjs feel()'s oneTurn is a week
+  // whose Monday-to-Friday shifts are all the same one, so the line says that
+  'Level Crossing and Middle Ground keep the same shift every weekday in 18 of their 21 weeks of set shifts, as Short Run does. Balanced V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.',
   // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 12 or 20 a year
   'All three keep a shift finishing at 13:45 on every weekday of the rota. Short Run has none.',
   'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10.',
@@ -102,11 +109,11 @@ claim('if a cover week falls badly, Balanced V6 one day more in a row than today
   worstRun(BV) === worstRun(TC) + 1 && [LC, MG].every(c => worstRun(c) < worstRun(TC)));
 const GAINS = [
   `The same ${hours.replace('h', '-hour')} week, so the same basic pay.`,
-  `${span(weekends)} full weekends off a year (today ${TC.f.weekendsYear}).`,
-  `At most ${run} days in a row, cover weeks aside (today ${first(TC.f.run)}). If a cover week falls badly, Balanced V6 can make ${worstRun(BV)} in a row, one more than today’s worst.`,
+  `${span(weekends)} full weekends off a year, Saturday and Sunday (today ${TC.f.weekendsYear}).`,
+  `At most ${run} days at work in a row, not counting cover weeks (today ${first(TC.f.run)}). If a cover week falls badly, Balanced V6 can mean ${worstRun(BV)} days in a row, one more than today’s worst.`,
   `Every closing shift ${cutLo} minutes to an hour shorter.`,
-  `At least ${hm(restLo)} between shifts, cover weeks aside (today ${hm(H(TC.f.rest))}).`,
-  `No avoidable fatigue warnings on the set shifts (today ${first(TC.f.ff)}).`,
+  `At least ${hm(restLo)} off between shifts, not counting cover weeks (today ${hm(H(TC.f.rest))}).`,
+  `No avoidable fatigue warnings, not counting cover weeks (today ${first(TC.f.ff)}).`,
 ].map(t);
 const late23 = shared('finishes at 23:00 or later', c => +c.f.late23);   // the leave is not a cost on any of the three since 8 Nov 2026 (CHANGES says so)
 // NOT ONE FIGURE OF RUNS SINCE 8 NOV 2026: Balanced V6's are shorter (3, up to 5) than the other two's (5, up to 7), so ranges
@@ -117,8 +124,8 @@ claim('worse than today on all three', late23 > +TC.f.late23 && block.every(b =>
   && C.every(c => +c.f.shortYear < +TC.f.shortYear) && nt.every(n => n > 0));
 const COSTS = [
   `${late23} finishes a year at 23:00 or later (today ${TC.f.late23}).`,
-  `At most ${span(block)} weeks of earlies, or of lates, in a row, or ${span(blockUpTo)} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
-  `${WORDS[sat - +TC.f.sat]} more Saturdays a year (${sat}, today ${TC.f.sat}).`,
+  `Longer runs of earlies, or of lates: ${span(block)} weeks in a row at most, or ${span(blockUpTo)} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
+  `${WORDS[sat - +TC.f.sat]} more Saturdays at work a year (${sat}, today ${TC.f.sat}).`,
   // the three's own figures, not only today's (the review, 2 Nov 2026: a cost with no new figure says nothing)
   `Fewer earlies that finish before 14:00: ${span(C.map(c => +c.f.shortYear))} a year (today ${TC.f.shortYear}).`,
   `${(v => v.length === 1 ? WORDS[v[0]] : v.length === 2 ? `${WORDS[v[0]]} or ${WORDS[v[1]].toLowerCase()}` : `${WORDS[v[0]]} to ${WORDS[v[v.length - 1]].toLowerCase()}`)([...new Set(nt)].sort((a, b) => a - b))} new shift times to learn.`,
@@ -138,10 +145,22 @@ claim('the sheet has the six bands the page offers, then "Whoever you are"', GRO
 // does not show, so Long Break — never shortlisted — becomes "a design". And every swap figure is a year's, as the page's
 // other labels say. The sheet keeps its own words. Each rewording must FIND its words: a sheet sentence that changes under
 // one stops the generator, rather than reaching the page unadapted.
+// AND IN PLAIN WORDS (owner, 12 Nov 2026: "It should be for dummies"): the sheet's shorthand said in full — "the open" is when
+// the station opens, a "closer" is a closing shift, "gross" is before tax — the leave line says what 14 days' leave buys, and a
+// single rest day says what it is. The sheet keeps its own words; each rule must still FIND them, as above.
 const REWORD = [
   [/ on every link\b/g, ' on all three'],
   [/^Each 13:35 or 13:45 early swapped for the day’s longest late$/g, 'Each 13:35 or 13:45 early swapped for the day’s longest late, a year'],
   [/^That overtime, gross, at time and a quarter$/g, 'That overtime a year, gross, at time and a quarter'],
+  [/, gross\b/g, ', before tax'],
+  [/^Starting at 06:20, the open, a year$/g, 'Starting at 06:20, when the station opens, a year'],
+  [/^Average late, closers included$/g, 'Average late, closing shifts included'],
+  [/every closer shorter, the weekday’s by half an hour/g, 'every closing shift shorter, the weekday one by half an hour'],
+  [/four full weeks off, Sunday to Saturday, take (\d+) days, and \1 days buy (\d+) days off at best/g, '$1 days’ leave still buys four full weeks off, Sunday to Saturday, or up to $2 days off in a row'],
+  [/(\d+) single rest days a year/g, '$1 single rest days (a day off on its own) a year'],
+  // a pound figure says the period it covers, as every other row's label does: the sheet's "against today" alone left it open
+  [/^Premium and overtime pay, against today$/g, 'Premium and overtime pay a year, against today'],
+  [/^Premium pay, against today$/g, 'Premium pay a year, against today'],
 ];
 const reworded = REWORD.map(() => 0);
 const forPage = s => REWORD.reduce((txt, [re, to], k) => { reworded[k] += (txt.match(re) ?? []).length; return txt.replace(re, to); }, s);
@@ -152,11 +171,73 @@ claim('the page says "all three", never "every link", and names no design it doe
   !/every link|Long\s+Break/.test(JSON.stringify(PERSONAS)) && PERSONAS[2].rows.every(r => !/^(Each|That)\b/.test(r.label) || / a year\b/.test(r.label.replace(/ /g, ' '))));
 const COLUMNS = ['Today', ...NAMES];
 
+// ── WHERE THEY DIFFER — each one's edge and its cost, in the page's words ─────────────────────────────────────────────
+// THE AT-A-GLANCE SHEET'S POINTS, BY ITS RULE (owner, 12 Nov 2026: the page should show the main benefits and drawbacks of the
+// three against each other, which only the comparison PDF did). edge-cost.mjs holds the facts and asserts each one: a point is
+// listed only where a design is more than 5% ahead of, or behind, BOTH of the others, and the page must word exactly the facts
+// the sheet words — no more, no fewer — so the PDF and the page cannot disagree about what sets each apart.
+// THE WORDS ARE THE PAGE'S OWN ("It should be for dummies"): one point a line with its own figure, and the sheet's shorthand
+// said in full — "at the open" is when the station opens, "the closest Saturday fit" is staffing that follows Saturday's
+// trains. UNEVEN LENGTHS ARE THE RULE WORKING, NOT A SLANT: Balanced V6 differs from the other two the most, so it has the
+// most to say on both sides; trimming it to look even would hide true points. Each entry: [the facts it words, its sentence]
+const DIFFER_WORDS = {
+  'Balanced V6': {
+    better: [
+      [['shortestRuns'], c => `The shortest runs of earlies, or of lates: ${c.f.block} weeks in a row at most, or ${c.f.blockUpTo} if a cover week falls badly.`],
+      [['most34Breaks'], c => `The most breaks of three or four rest days: about ${c.long34} a year.`],
+      [['fiveAtSatOpen'], () => 'Five people on duty when the station opens on a Saturday, where the other two have four.'],
+    ],
+    worse: [
+      [['fewestOneTime'], c => `The fewest weeks with the same shift every weekday: ${c.oneYear} a year. The only one with weeks that mix earlies and lates.`],
+      [['biggestStep'], c => `The biggest change of start time from one week to the next: ${hm(H(c.f.step))} on average.`],
+      [['mostSingles'], c => `The most single rest days (a day off on its own): ${c.singles} a year (today ${TC.singles}).`],
+      [['fewestWeekends'], c => `The fewest full weekends off: ${c.f.weekendsYear} a year.`],
+      [['mostIfCoverBad'], c => `If a cover week falls badly, the most fatigue warnings (${worstOf(c.f.ff)}) and the most days at work in a row (${worstOf(c.f.run)}).`],
+    ] },
+  'Level Crossing': {
+    better: [
+      // "NO WEEK OVER 55 HOURS" WAS SHORTHAND: the figure is the worst SEVEN DAYS IN A ROW, whatever week they straddle (edge-cost.mjs)
+      [['noFatigueOr55', 'fewestDaysInRow'], c => `However a cover week falls: no fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (${worstOf(c.f.run)} at most).`],
+      [['gentlestStep'], c => `The smallest change of start time from one week to the next: ${hm(H(c.f.step))} on average.`],
+      [['fewestSingles'], c => `The fewest single rest days (a day off on its own): ${c.singles} a year, as today.`],
+      [['most0620'], c => `The most 06:20 starts, when the station opens: ${c.f.open0620} a year, for those who like them.`],
+    ],
+    worse: [
+      [['fewest34Breaks'], c => `The fewest breaks of three or four rest days: about ${c.long34} a year.`],
+    ] },
+  'Middle Ground': {
+    better: [
+      [['noShiftOver830'], c => `The only one with no shift longer than ${hm(510)}, on any day. Every closing shift is ${hm(H(c.f.closerWk))}.`],
+      // "FOLLOWS THE TRAINS" SAID AS WHAT IT MEASURES: report-data.mjs dayFit compares the share of the day's staff in each hour
+      // with the share of the day's trains, so "how busy the trains are" through the day is the plain reading
+      [['closestSatFit'], () => 'On Saturdays, the number of staff on duty through the day best matches how busy the trains are.'],
+    ],
+    worse: [
+      [['fewestShortEarlies'], c => `The fewest earlies finishing before 14:00: ${c.f.shortYear} a year.`],
+      [['fourAtOpenEveryDay'], () => 'Four people on duty when the station opens, every day, where the other two have more on some days.'],
+      [['leastSundayPay'], c => `The least pay for working your share of Sundays: about £${c.sundayLoss} a year less than today, before tax.`],
+    ] },
+};
+const DIFFERS = C.map(c => {
+  const w = DIFFER_WORDS[c.name];
+  claim(`the page words exactly ${c.name}'s edge and cost, as the at-a-glance sheet does`,
+    !!w && wordsExactly(c.name, 'edge', w.better.flatMap(([keys]) => keys)) && wordsExactly(c.name, 'cost', w.worse.flatMap(([keys]) => keys)));
+  return { design: c.name, better: w.better.map(([, say]) => t(say(c))), worse: w.worse.map(([, say]) => t(say(c))) };
+});
+claim('every design has something better and something worse than the other two, so none reads as the winner', DIFFERS.every(d => d.better.length && d.worse.length));
+claim('"Where they differ" names no design it does not show, and recommends none', !/Long\s+Break|recommend/i.test(JSON.stringify(DIFFERS)));
+// THE RULE, SAID ON THE CARD — and THE NUMBER OF POINTS IS NOT A SCORE. The margin is edge-cost.mjs's, so the sentence cannot
+// name another. Level Crossing has four points better and one worse, Balanced V6 three and five: a reader counting them would
+// rank the three, which the page never does, so the note under the points says what the count means — and what it does not
+const pct = Math.round(MARGIN * 100);
+claim('the margin is a whole percentage', pct === MARGIN * 100);
+const DIFFER_RULE = t(`Only clear differences are listed: where one is more than ${pct}% better, or worse, than both of the others. The number of points is not a score: one point may matter more to you than several.`);
+
 // ── HOW THE FIGURES ARE WORKED OUT ────────────────────────────────────────────────────────────────────────────────────
 const NOTES = [
   'Every figure is worked out from the rotas by the app’s own tooling. None is typed in.',
-  'One person, over a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.',
-  `Pounds are gross, before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.`,
+  'One person, over a year, not counting cover weeks. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.',
+  `Pounds are before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.`,
   'A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.',
   // "THE BEST", NOT "THE CLEAR BEST" (the bug check, 9 Nov 2026): isBest marks the best however small the lead — 8h 06m beside
   // 8h 07m is marked — so "clear" promised a margin the marks do not keep. The sheet's key says the same since v25.61. AND THE
@@ -220,6 +301,7 @@ const src = `// @ts-check
 /** @typedef {{ label: string, cells: Cell[] }} Row  cells in COLUMNS order */
 /** @typedef {{ id: string, icon: string, chip: string, who: string, gist: string, rows: Row[] }} Persona */
 /** @typedef {{ design: string|null, label: string, path: string, pages: number }} PackFile  path is under docs/links-26/ */
+/** @typedef {{ design: string, better: string[], worse: string[] }} Differ  what one proposal does better, and worse, than the other two */
 
 /** @template T @param {T} o @returns {T} */
 function deepFreeze(o) {
@@ -239,6 +321,15 @@ export const GAINS = deepFreeze(${lit(GAINS)});
 /** What all three proposals cost everyone, against today. */
 export const COSTS = deepFreeze(${lit(COSTS)});
 
+/**
+ * @type {ReadonlyArray<Differ>} Where the three differ: what each does better, and worse, than BOTH of the other two by more than
+ * 5% — the at-a-glance sheet's points, by its rule (edge-cost.mjs), in the page's words. A to Z.
+ */
+export const DIFFERS = deepFreeze(${lit(DIFFERS)});
+
+/** The rule the points above follow, and what their number does not mean — said beneath them on the page. */
+export const DIFFER_RULE = ${lit(DIFFER_RULE)};
+
 /** @type {ReadonlyArray<Persona>} What each proposal means for six ways of working the roster — the sheet's bands. */
 export const PERSONAS = deepFreeze(${lit(PERSONAS)});
 
@@ -255,5 +346,5 @@ if (process.argv.includes('--check')) {
   console.log('newlink-data.js is current');
 } else {
   writeFileSync(OUT, src);
-  console.log(`wrote newlink-data.js — ${CHANGES.length} changes, ${GAINS.length} gains, ${COSTS.length} costs, ${PERSONAS.length} ways of working (${PERSONAS.reduce((n, p) => n + p.rows.length, 0)} rows), ${PACK.length} pack files`);
+  console.log(`wrote newlink-data.js — ${CHANGES.length} changes, ${GAINS.length} gains, ${COSTS.length} costs, ${DIFFERS.reduce((n, d) => n + d.better.length + d.worse.length, 0)} points where they differ, ${PERSONAS.length} ways of working (${PERSONAS.reduce((n, p) => n + p.rows.length, 0)} rows), ${PACK.length} pack files`);
 }
