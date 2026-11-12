@@ -377,6 +377,71 @@ test.describe('new link', () => {
         await expect(page.locator('#nlPackList')).toContainText('The files open on this page, and need a connection.');
     });
 
+    // WHERE THEY DIFFER (owner, 12 Nov 2026: the page should show what sets the three apart, which only the comparison PDF did).
+    // The words are newlink-data.test.mjs's and newlink-render.test.mjs's; what only a browser shows is the card on the page,
+    // its comparison opening HERE like any pack file (newlink-app.js listens on this card's list too), and the layout
+    test('where they differ: the three A to Z, better and worse for each, and the comparison opens on the page', async ({ page, context }) => {
+        const errors = collectFatalErrors(page);
+        await servePack(page);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const card = page.locator('#nlDifferList');
+        await expect(card.locator('.nl-sub')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
+        for (const one of await card.locator('.nl-differ-one').all()) {
+            await expect(one.locator('.nl-side-h')).toHaveText([/Better than the other two/, /Worse than the other two/]);
+            await expect(one.locator('.nl-side--gain li').first()).toBeVisible();
+            await expect(one.locator('.nl-side--cost li').first()).toBeVisible();
+        }
+        await expect(card.locator('.nl-note')).toContainText('The number of points is not a score');
+        const glance = PACK.find(f => f.path.endsWith('at-a-glance.pdf'));
+        if (!glance) throw new Error('premise: the pack holds the one-page comparison');
+        await card.locator(`a.nl-file[data-file="${glance.path}"]`).click();
+        await expect(page.locator('#pdfViewer')).toHaveClass(/\bopen\b/);
+        expect(context.pages(), 'the comparison opened here, not in a tab of its own').toHaveLength(1);
+        await expect(page.locator('#pdfViewerTitle')).toHaveText(glance.label);
+        await expect(page.locator('#pdfViewerMeta')).toHaveText(`For all three · PDF · ${glance.pages} page${glance.pages === 1 ? '' : 's'}`);
+        await expect(page.locator('#pdfViewerSheet .pdf-viewer-page')).toHaveCount(glance.pages, { timeout: 20_000 });
+        await page.locator('#pdfViewerClose').click();
+        await expect(page.locator('#pdfViewer')).not.toHaveClass(/\bvisible\b/);
+        expect(errors).toEqual([]);
+    });
+
+    // THE THREE LINE UP ON A WIDE SCREEN (subgrid, newlink.css): the points' numbers are the 5% rule's, so without it each
+    // "Worse" panel starts at its own height and the three read as unrelated lists. On a phone they stack, whole.
+    for (const [label, size, wide] of /** @type {[string, {width: number, height: number}, boolean][]} */ ([
+        ['wide', { width: 1280, height: 900 }, true], ['phone', { width: 390, height: 844 }, false],
+    ])) {
+        test(`where they differ, ${label}: ${wide ? 'side by side, the worse panels level' : 'one under another'}`, async ({ page }) => {
+            await page.setViewportSize(size);
+            await seedSession(page, 'G. Miller');
+            await page.goto('/newlink.html');
+            const ones = page.locator('#nlDifferList .nl-differ-one');
+            await expect(ones).toHaveCount(3);
+            const boxes = await ones.evaluateAll(els => els.map(e => {
+                const r = e.getBoundingClientRect(), cost = /** @type {Element} */ (e.querySelector('.nl-side--cost')).getBoundingClientRect();
+                return { left: r.left, top: r.top, bottom: r.bottom, costTop: cost.top };
+            }));
+            if (wide) {
+                expect(boxes[0].left).toBeLessThan(boxes[1].left);
+                expect(boxes[1].left).toBeLessThan(boxes[2].left);
+                for (const b of boxes) expect(Math.abs(b.costTop - boxes[0].costTop), 'each "Worse" panel starts level').toBeLessThan(1);
+            } else {
+                for (let i = 1; i < boxes.length; i++) expect(boxes[i].top, 'each below the one before').toBeGreaterThanOrEqual(boxes[i - 1].bottom);
+            }
+        });
+    }
+
+    test('what has changed since Short Run starts folded, its header still saying Short Run has gone, and opens on a press', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        await expect(page.locator('#nlChangesBody')).not.toHaveClass(/\bopen\b/);
+        await expect(page.locator('#nlChangesList li').first()).toBeHidden();
+        await expect(page.locator('#nlChangesToggleHeader .hint')).toHaveText('Short Run is no longer on the shortlist');
+        await expect(page.locator('#nlDifferBody'), 'where they differ starts open: it is what the page was missing').toHaveClass(/\bopen\b/);
+        await page.locator('#nlChangesToggleHeader').click();
+        await expect(page.locator('#nlChangesList li').first()).toBeVisible();
+    });
+
     test('a pack file opens ON THE PAGE, drawn, with a ✕ that comes back — no tab, no leaving the app', async ({ page, context }) => {
         const errors = collectFatalErrors(page);
         const logged = consoleErrors(page);

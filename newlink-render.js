@@ -184,8 +184,11 @@ function weeksShape(proposals) {
     });
     const [{ weeks, cover }] = shapes;
     if (!cover || !shapes.every(s => s.weeks === weeks && s.cover === cover)) return '';
-    return `<p class="nl-lead">Each is ${weeks} weeks long: ${weeks - cover} set weeks, and ${cover} <strong>cover weeks</strong>
-        kept free to cover leave and absence. A cover week has four shifts between Monday and Saturday, set nearer the time.</p>`;
+    // "IF A COVER WEEK FALLS BADLY" IS SAID HERE, ONCE (owner, 12 Nov 2026: "It should be for dummies"): every card below uses
+    // the phrase, and a reader meeting it cold could not know it means the four shifts landing in the worst place
+    return `<p class="nl-lead">Each is ${weeks} weeks long: ${weeks - cover} weeks of set shifts, and ${cover} <strong>cover weeks</strong>
+        kept free to cover leave and absence. A cover week has four shifts between Monday and Saturday, set nearer the time;
+        “if a cover week falls badly” means those shifts land in the worst place.</p>`;
 }
 
 /** A plain bulleted list of sentences. @param {ReadonlyArray<string>} items @param {string} [cls] */
@@ -207,6 +210,32 @@ export function renderCommon({ gains, costs }) {
     </div>
     <p class="nl-note"><strong>Fatigue warnings</strong> come from the Office of Rail and Road’s good-practice list of tiring
         patterns — reported as found, never as a pass or a fail.</p>`;
+}
+
+/**
+ * Where the three differ: for each proposal, A to Z, what it does better than BOTH of the other two and what it does worse —
+ * the at-a-glance sheet's points, by its rule (newlink-data.js → DIFFERS, from edge-cost.mjs). The card the owner asked for
+ * (12 Nov 2026): the page showed what the three share, and how each suits one kind of colleague, but what sets each apart was
+ * only on the PDF.
+ *
+ * EVENLY (rule 1): every proposal gets the same two panels, in the same order, drawn exactly as "Whichever is chosen" draws a
+ * gain and a cost (`.nl-side`), so the shape favours none. The LENGTHS are the rule's — a point is listed only where a figure
+ * is clearly better, or worse, than both of the others — and the rule beneath says so, with what a count of points does NOT
+ * mean, because "which has the most ticks?" is the first thing a hurried reader does with three lists. Every figure side by
+ * side is the one-page comparison, offered as the pack card offers it (`fileRow`), so it opens in the PDF viewer the same way.
+ * @param {{ differs: ReadonlyArray<import('./newlink-data.js').Differ>, rule: string, glance: PackFile|null, base: string }} o
+ *   `glance` the one-page comparison from the pack — none, and the card offers no file
+ */
+export function renderDiffers({ differs, rule, glance, base }) {
+    const slug = (/** @type {string} */ s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const side = (/** @type {'gain'|'cost'} */ kind, /** @type {ReadonlyArray<string>} */ items) => `<div class="nl-side nl-side--${kind}">
+            <h4 class="nl-side-h"><span aria-hidden="true">${kind === 'gain' ? '✅' : '➖'}</span> ${kind === 'gain' ? 'Better' : 'Worse'} than the other two</h4>${renderList(items)}</div>`;
+    const one = (/** @type {import('./newlink-data.js').Differ} */ d) => `<section class="nl-differ-one" aria-labelledby="nlDiffer-${slug(d.design)}">
+        <h3 class="nl-sub" id="nlDiffer-${slug(d.design)}">${esc(d.design)}</h3>${side('gain', d.better)}${side('cost', d.worse)}
+    </section>`;
+    const ordered = aToZ(differs.map(d => ({ ...d, name: d.design })));
+    return `<div class="nl-differ">${ordered.map(one).join('')}</div>
+    <p class="nl-note">${esc(rule)}</p>${glance ? `<ul class="nl-files">${fileRow(glance, base)}</ul>` : ''}`;
 }
 
 /** "…prefer earlies" → "If you prefer earlies". @param {string} who */
@@ -381,6 +410,18 @@ export function renderWeeksTabs(proposals, chosen) {
 }
 
 /**
+ * One pack file as a row to press: what it is, and how long. The ONE builder, so a file offered anywhere on the page — the
+ * pack card's list, or the comparison under "Where they differ" — looks, reads and opens the same: in the PDF viewer, by its
+ * `data-file` (newlink-app.js), and as a real link to the file for a modified click. Its design is said to a screen reader
+ * first, because a row read on its own ("The proposal sheet") does not say whose.
+ * @param {PackFile} f @param {string} base
+ */
+export function fileRow(f, base) {
+    return `<li><a class="nl-file" href="${esc(base + f.path)}" data-file="${esc(f.path)}" aria-haspopup="dialog" target="_blank" rel="noopener noreferrer">
+        <span class="nl-file-icon" aria-hidden="true">📄</span><span class="nl-file-name"><span class="visually-hidden">${esc(f.design ?? 'For all three')}: </span>${esc(f.label)}</span><span class="nl-file-meta">PDF · ${f.pages} ${f.pages === 1 ? 'page' : 'pages'}</span></a></li>`;
+}
+
+/**
  * The pack's colleague files, a group per proposal A to Z, then what applies to all three. Each OPENS ON THIS PAGE, in the
  * app's PDF viewer with a ✕ (pdf-viewer.js, wired by newlink-app.js through `data-file`): opened as a link, an app
  * installed from the github.io address showed the PDF in its own window, where an iPhone has no way back (owner, 10 Nov
@@ -388,8 +429,7 @@ export function renderWeeksTabs(proposals, chosen) {
  * @param {ReadonlyArray<PackFile>} pack @param {string} base  where docs/links-26/ is served
  */
 export function renderPack(pack, base) {
-    const link = (/** @type {PackFile} */ f) => `<li><a class="nl-file" href="${esc(base + f.path)}" data-file="${esc(f.path)}" aria-haspopup="dialog" target="_blank" rel="noopener noreferrer">
-        <span class="nl-file-icon" aria-hidden="true">📄</span><span class="nl-file-name"><span class="visually-hidden">${esc(f.design ?? 'For all three')}: </span>${esc(f.label)}</span><span class="nl-file-meta">PDF · ${f.pages} ${f.pages === 1 ? 'page' : 'pages'}</span></a></li>`;
+    const link = (/** @type {PackFile} */ f) => fileRow(f, base);
     const designs = [...new Set(pack.filter(f => f.design).map(f => /** @type {string} */ (f.design)))];
     const groups = designs.map(d => `<h3 class="nl-sub">${esc(d)}</h3><ul class="nl-files">${pack.filter(f => f.design === d).map(link).join('')}</ul>`);
     const common = pack.filter(f => !f.design);
