@@ -559,7 +559,19 @@ jobs:
   # `shards` carried in each entry so the command can never disagree with the number of jobs.
   # workflow-hygiene.test.mjs holds the list to playwright.webkit.mjs: every project, every shard.
   #
-  # THE COST, STATED: six jobs pay the ~1m18s setup instead of two, so total runner minutes go up
+  # THEN THE LINKS SPECS GOT PROJECTS OF THEIR OWN (12 Nov 2026). The suite grew and the cut stayed
+  # a count. On 12 Nov desktop WebKit's second shard was stopped at the 25-minute budget twice, on
+  # one PR, with every test passing (25.1 minutes of tests, on runners ~1.5× slower than that
+  # evening's other branch, the Chromium jobs at their usual speed), and the iPhone's third shard ran
+  # 21.5 — the one holding all of links.spec.js, which is 11% of the iPhone tests and 28% of their
+  # time. A fifth iPhone shard would not have helped: the Links flows stay together in the count. So
+  # playwright.webkit.mjs runs each device as two projects, the Links specs and the rest, and each is
+  # cut on its own below. Simulated from that night's per-test times on the slow runner (the method
+  # came within 1.5 minutes of the real shards, under them): the rest in three, longest ~14.6
+  # minutes on the iPhone and ~14.0 on the desktop; the Links in two on the iPhone (~8.7) and in one
+  # on the desktop (~9.5). Longest ~15 instead of 25-plus, on the same slow runner.
+  #
+  # THE COST, STATED: nine jobs pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
   # is a person waiting on a merge, not runner minutes.
   webkit:
@@ -572,12 +584,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: webkit, shard: 1, shards: 2 }
-          - { project: webkit, shard: 2, shards: 2 }
-          - { project: mobile-safari, shard: 1, shards: 4 }
-          - { project: mobile-safari, shard: 2, shards: 4 }
-          - { project: mobile-safari, shard: 3, shards: 4 }
-          - { project: mobile-safari, shard: 4, shards: 4 }
+          - { project: webkit, shard: 1, shards: 3 }
+          - { project: webkit, shard: 2, shards: 3 }
+          - { project: webkit, shard: 3, shards: 3 }
+          - { project: webkit-links, shard: 1, shards: 1 }
+          - { project: mobile-safari, shard: 1, shards: 3 }
+          - { project: mobile-safari, shard: 2, shards: 3 }
+          - { project: mobile-safari, shard: 3, shards: 3 }
+          - { project: mobile-safari-links, shard: 1, shards: 2 }
+          - { project: mobile-safari-links, shard: 2, shards: 2 }
     # Each job carries ONE engine and a share of its tests. The TEST STEP carries the budget (25 minutes,
     # below); this job cap is only the backstop against a hung runner, and it is wider than the
     # step's on purpose. On 7 Oct 2026 the WebKit apt install took 9 minutes three times in one

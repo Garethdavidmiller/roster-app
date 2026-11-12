@@ -1624,6 +1624,17 @@ moved:
   Dependabot run was stopped at that budget with every test it had run passing. The iPhone project
   now runs in four shards and desktop WebKit stays at two. The measurement is beside the job in
   `e2e.yml`, and `workflow-hygiene.test.mjs` fails if a shard or a project is left out of the list.
+- **And the Links specs got projects of their own (12 Nov 2026).** Nine days later desktop
+  WebKit's second shard was stopped at the same 25-minute budget twice on one PR, every test
+  passing, on runners about 1.5× slower than that evening's other branch; the iPhone's third shard,
+  the one holding all of `links.spec.js`, ran 21.5 minutes. Playwright cuts by count in file order,
+  so a fifth iPhone shard would not have helped: the Links flows, 11% of the iPhone tests and 28%
+  of their time, stay together. Each device now runs as two projects, the Links specs and the rest,
+  each cut on its own: nine jobs, the longest about 15 minutes on that slow runner. The measurement
+  is beside the job in `e2e.yml`. Two traps came with it, and `playwright.webkit.mjs` explains
+  both: the rest is chosen by a pattern rather than by its own ignore list, because a project's
+  `testIgnore` would REPLACE the shared one; and the touch gates read the project's NAME, so the
+  iPhone twin is `mobile-…` and in the touch list.
 - **1.64.1 since 4 Nov 2026, ahead of the containers.** This upgrade stopped at 1.63.0 because that
   is what the dev container carries, so a local run there needs no browser workaround. The owner
   asked for the remaining upgrades the next morning, and the WebKit lane is the only place Safari
