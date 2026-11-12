@@ -612,9 +612,11 @@ test('guides: the Admin Guide banner lands whole below the chip bar', async ({ p
         .toBeGreaterThanOrEqual(viaLink.bar);
 });
 
-// FROM 800px A BAR TOO LONG FOR THE COLUMN WRAPS. On a desktop the bar hides its scrollbar, so a chip past the
-// edge was a section no mouse could learn existed. A bar that fits stays one row, and a phone held sideways —
-// wide, but about 390px tall — keeps its one scrolling row rather than give a third of its screen to chips.
+// FROM 641px A BAR TOO LONG FOR ITS WINDOW WRAPS. On a desktop the bar hides its scrollbar, so a chip past the
+// edge was a section no mouse could learn existed. 641px, not the column's 800: a window snapped to half a
+// laptop screen is 683–768px wide, and there the Staff Guide hid three to five chips, the admin ones among them
+// (bug and regression check, 12 Nov 2026). A bar that fits stays one row, and a phone held sideways — wide,
+// but about 390px tall — keeps its one scrolling row rather than give a third of its screen to chips.
 test('guides: a chip bar too long for the desktop column wraps; one that fits, or a phone on its side, keeps one row', async ({ page }) => {
     const layout = () => page.evaluate(() => {
         const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
@@ -622,17 +624,75 @@ test('guides: a chip bar too long for the desktop column wraps; one that fits, o
         return { rows: tops.size, hidden: bar.scrollWidth > bar.clientWidth + 1 };
     });
     for (const guide of ['staff-guide', 'paycalc-guide']) {
-        await page.setViewportSize({ width: 1280, height: 800 });
-        await page.goto(`/${guide}.html`);
-        const desk = await layout();
-        expect(desk.hidden, `${guide} at 1280×800: a chip is out of view`).toBe(false);
-        expect(desk.rows, `${guide} at 1280×800: the chips need more than one row`).toBeGreaterThan(1);
+        for (const [width, height] of [[1280, 800], [683, 768]]) {
+            await page.setViewportSize({ width, height });
+            await page.goto(`/${guide}.html`);
+            const desk = await layout();
+            expect(desk.hidden, `${guide} at ${width}×${height}: a chip is out of view`).toBe(false);
+            expect(desk.rows, `${guide} at ${width}×${height}: the chips need more than one row`).toBeGreaterThan(1);
+        }
         await page.setViewportSize({ width: 844, height: 390 });
         expect(await layout(), `${guide} on a phone held sideways: one row, scrolling`).toEqual({ rows: 1, hidden: true });
     }
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/fip-guide.html');
     expect(await layout(), 'the FIP guide\'s chips fit: one row, nothing out of view').toEqual({ rows: 1, hidden: false });
+});
+
+// A WRAPPING BAR CHANGES HEIGHT ON ITS OWN. A window made taller across 600px wraps the bar onto a second row
+// with no change to the header, and the scroll margins, measured for one row, landed a jump under the second
+// (bug and regression check, 12 Nov 2026). The page scripts watch the bar's size as well as the header's — FIP's
+// own script too, whose bar wraps between 641 and about 680px.
+test('guides: a window made taller, so the bar wraps, still lands a jump below the bar', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window resized');
+    const rows = () => page.evaluate(() => new Set([...document.querySelectorAll('.chip-bar .chip')]
+        .map(c => Math.round(c.getBoundingClientRect().top))).size);
+    for (const [guide, width] of /** @type {Array<[string, number]>} */ ([['staff-guide', 1024], ['paycalc-guide', 1024], ['fip-guide', 660]])) {
+        await page.setViewportSize({ width, height: 580 });
+        await page.goto(`/${guide}.html`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        await settleFrames(page);
+        expect(await rows(), `premise: ${guide} at ${width}×580 has one row`).toBe(1);
+        await page.setViewportSize({ width, height: 700 });
+        await settleFrames(page);
+        expect(await rows(), `premise: ${guide} at ${width}×700 has wrapped`).toBeGreaterThan(1);
+        const chip = page.locator('.chip-bar .chip').nth(2);
+        const id = /** @type {string} */ (await chip.getAttribute('data-target'));
+        await chip.click();
+        await page.waitForTimeout(1800);
+        const at = await page.evaluate((id) => ({
+            top: Math.round(/** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+        }), id);
+        expect(at.top, `${guide}: ${id} lands at ${at.top}px, under the bar that ends at ${at.bar}px`).toBeGreaterThanOrEqual(at.bar);
+    }
+});
+
+// A JUMP'S HOLD LETS GO WHEN ITS SECTION MOVES, not only when the page scrolls. A resize, or a phone turned on
+// its side, reflows the page without scrolling it, and a hold kept by the scroll position went on naming the
+// section jumped to — on the Rangers guide, one 3,000px below the screen (bug and regression check, 12 Nov 2026).
+test('guides: after a jump, a resize that moves the section hands the bar back to where the reader is', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window resized to a phone\'s width');
+    for (const [guide, id] of [['railcard-guide', 'rc-mornings'], ['rangers-guide', 'rr-checks']]) {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto(`/${guide}.html`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        const chip = page.locator(`.chip-bar .chip[data-target="${id}"]`);
+        await chip.click();
+        await page.waitForTimeout(1800);
+        await expect(chip, `premise: the jump to ${id} holds its chip`).toHaveAttribute('aria-current', 'true');
+        await page.setViewportSize({ width: 375, height: 740 });
+        await settleFrames(page);
+        const at = await page.evaluate((id) => {
+            const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+            const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+            return { top: /** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().top,
+                line: hdr.offsetHeight + bar.offsetHeight + 12 };
+        }, id);
+        expect(at.top, `premise: the resize moved ${id} below the line`).toBeGreaterThan(at.line);
+        await expect(chip, `${guide}: the bar no longer claims ${id}`).not.toHaveAttribute('aria-current', 'true');
+        await expect(page.locator('.chip-bar .chip[aria-current]'), 'a chip follows the reader again').toHaveCount(1);
+    }
 });
 
 // Whole-app review, Nov 2026: heading navigation on the Railcard guide stopped at the A–Z section —

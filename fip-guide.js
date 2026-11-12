@@ -318,16 +318,20 @@ Promise.all([
 // subtitle, a device font-scale change, rotation) — leaving the chip-bar's sticky `top` stale, so a
 // slit of page content scrolled through the gap between header and bar (staff screenshot, v18.82).
 // A ResizeObserver on the header re-syncs the whole sticky stack whenever its box actually changes
-// (RAF-throttled; observing the header itself, so page scrolling never triggers it).
+// (RAF-throttled; observing the header itself, so page scrolling never triggers it). The chip BAR is
+// watched too, as guide-chips.js watches it: a bar that wraps (guide-shell.css) gains or loses a row
+// without the header changing at all, and margins measured for one row land a jump under the second.
 if (typeof ResizeObserver === 'function') {
     var _hdrEl = document.querySelector('.page-header');
     if (_hdrEl) {
         var _roScheduled = false;
-        new ResizeObserver(function () {
+        var _stackObserver = new ResizeObserver(function () {
             if (_roScheduled) return;
             _roScheduled = true;
             requestAnimationFrame(function () { _roScheduled = false; adjustFipOffsets(); });
-        }).observe(_hdrEl);
+        });
+        _stackObserver.observe(_hdrEl);
+        if (chipBar) _stackObserver.observe(chipBar);
     }
 }
 

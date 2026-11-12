@@ -57,10 +57,12 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 // only after a jump to it.
 //
 // A JUMP'S CHIP HOLDS UNTIL THE READER MOVES ON. The chip just chosen answers "where am I" for as long
-// as the page stays where the jump left it — even where the rule above would answer differently: a
+// as its section stays where the jump put it — even where the rule above would answer differently: a
 // section near the end of the page cannot scroll up to the line, and at the bottom the last chip wins.
-// Scrolling away (more than 2px) hands the bar back to the rule, and so does a jump that never
-// arrived because the reader stopped it (jumpArrived).
+// The section moving more than 2px hands the bar back to the rule, and so does a jump that never
+// arrived because the reader stopped it (jumpArrived). It is the SECTION that is watched, not the
+// scroll position: a resize, or a phone turned on its side, reflows the page without scrolling it,
+// and a hold kept by the scroll position went on naming a section that was no longer at the top.
 var spyPaused = false;
 var spyTimer = 0;
 var spyTicking = false;
@@ -68,7 +70,13 @@ var spyThreshold = 106;   // header + chip-bar + margin; measured for real once 
 var oneColumn = true;
 /** @type {HTMLElement|null} */
 var jumpChip = null;
-var jumpY = -1;           // where the jump settled; -1 while it is still in flight
+var jumpTop = NaN;        // where the jump left its section's top; NaN while the jump is still in flight
+
+/** The top of a chip's section, in viewport pixels; NaN if the section has gone. @param {HTMLElement} chip */
+function sectionTop(chip) {
+    var target = document.getElementById(chip.dataset.target || '');
+    return target ? target.getBoundingClientRect().top : NaN;
+}
 
 /** Cache the sticky-stack height and the layout, so the scroll handler never forces a layout read per frame. */
 function measureSpy() {
@@ -88,7 +96,7 @@ function measureSpy() {
 function currentChip() {
     if (!chipTargets.length) return null;
     if (jumpChip) {
-        if (jumpY < 0 || Math.abs(window.scrollY - jumpY) <= 2) return jumpChip;
+        if (isNaN(jumpTop) || Math.abs(sectionTop(jumpChip) - jumpTop) <= 2) return jumpChip;
         jumpChip = null;   // the reader has moved on; the jump's answer does not come back
     }
     if (!oneColumn) return null;
@@ -125,8 +133,8 @@ function jumpArrived(chip) {
 function resumeSpy() {
     spyPaused = false;
     if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; }
-    if (jumpChip && jumpY < 0) {
-        if (jumpArrived(jumpChip)) jumpY = window.scrollY;
+    if (jumpChip && isNaN(jumpTop)) {
+        if (jumpArrived(jumpChip)) jumpTop = sectionTop(jumpChip);
         else jumpChip = null;
     }
     updateSpy();
@@ -157,14 +165,14 @@ if (chipBar) {
         if (!target) return;
         setActiveChip(chip);
         jumpChip = chip;
-        jumpY = -1;
+        jumpTop = NaN;
         if (!reduceMotion) {
             spyPaused = true;
             if (spyTimer) clearTimeout(spyTimer);
             spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
         }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-        if (reduceMotion) jumpY = window.scrollY;   // an instant jump has already settled
+        if (reduceMotion) jumpTop = target.getBoundingClientRect().top;   // an instant jump has already settled
         // Land focus on the section, so keyboard and screen-reader users arrive where the page did.
         target.setAttribute('tabindex', '-1');
         target.focus({ preventScroll: true });
@@ -250,15 +258,20 @@ Promise.all([
 });
 // Re-sync the sticky stack whenever the header's box changes after the one-shot measurement (late
 // font swap, font-scale change, rotation) — else the chip-bar's sticky `top` goes stale and page
-// content shows through the gap (v18.82; mirrors fip-guide.js).
+// content shows through the gap (v18.82; mirrors fip-guide.js). The BAR is watched as well: a bar
+// that wraps (guide-shell.css) gains or loses a row without the header changing at all — a window
+// made taller or shorter across 600px — and margins measured for one row landed a jump under the
+// second. Only the lit chip's colours change, never its size, so this cannot feed itself.
 if (typeof ResizeObserver === 'function') {
     var _hdrEl = document.querySelector('.page-header');
     if (_hdrEl) {
         var _roScheduled = false;
-        new ResizeObserver(function () {
+        var _stackObserver = new ResizeObserver(function () {
             if (_roScheduled) return;
             _roScheduled = true;
             requestAnimationFrame(function () { _roScheduled = false; adjustScrollOffsets(); });
-        }).observe(_hdrEl);
+        });
+        _stackObserver.observe(_hdrEl);
+        if (chipBar) _stackObserver.observe(chipBar);
     }
 }

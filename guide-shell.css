@@ -271,19 +271,23 @@ button, input, select, textarea { font-family: inherit; }
         padding-right: max(16px, env(safe-area-inset-right), calc((100% - 760px) / 2 + 16px));
     }
 }
-/* …and a bar too long for the column WRAPS there instead of scrolling (v25.80). The Staff Guide's 11
-   chips need about 1,100px and the Pay Calculator Guide's 9 about 910px; the column holds 728. On a
-   phone the row scrolls under a thumb, as every guide's does, but on a desktop the bar hides its
-   scrollbar, so a mouse would never learn a chip past the edge existed — and a section nobody can
-   discover is the failure the guides are for. A bar that fits stays one row: the three card guides
-   are unchanged. Only where there is HEIGHT to spare: two rows and the header take about 155px,
-   a quarter of a 600px window, and a phone held sideways (390px tall, but 800+ wide) would give
-   the stack 40% of its screen. Rows sit 8px apart; with a touch pointer, 15px, so the taller hit
-   areas below (7px up, 8px down) never overlap from one row to the next. */
-@media (min-width: 800px) and (min-height: 600px) {
+/* A bar too long for its window WRAPS instead of scrolling, from 641px (v25.80). The Staff Guide's 11
+   chips need about 1,100px and the Pay Calculator Guide's 9 about 910px. On a phone the row scrolls
+   under a thumb, as every guide's does, but on a desktop the bar hides its scrollbar, so a mouse would
+   never learn a chip past the edge existed — and a section nobody can discover is the failure the
+   guides are for. 641px, not the column's 800: a window snapped to half a laptop screen is 683–768px
+   wide, and there the Staff Guide hid three to five chips, the admin ones among them. 641 is where the
+   document guides go to two columns (guide-doc.css) — past a phone held upright. A bar that fits stays
+   one row: Railcard and Rangers never wrap, and the FIP guide only below about 680px. Only where there
+   is HEIGHT to spare: two rows and the header take about 155px, a quarter of a 600px window, and a
+   phone held sideways (390px tall, but 800+ wide) would give the stack 40% of its screen. Rows sit 8px
+   apart; with a touch pointer, 15px, so the taller hit areas below (7px up, 8px down) never overlap
+   from one row to the next. The page scripts watch the bar's own size, so a row gained or lost moves
+   the scroll margins with it. */
+@media (min-width: 641px) and (min-height: 600px) {
     .chip-bar { flex-wrap: wrap; row-gap: 8px; }
 }
-@media (min-width: 800px) and (min-height: 600px) and (pointer: coarse) {
+@media (min-width: 641px) and (min-height: 600px) and (pointer: coarse) {
     .chip-bar { row-gap: 15px; }
 }
 .chip {

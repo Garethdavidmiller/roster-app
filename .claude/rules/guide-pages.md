@@ -110,11 +110,15 @@ not redefine them.
   the shared `.chip`, so a mouse gets an affordance as well as `:active`.
 - **The two document guides' bar** (v25.80): their sections sit in two columns from 641px, where two
   share a line and no scroll position says which is being read, so there a chip is lit only by a jump
-  to it, until the reader moves on; on a phone's one column the bar follows the reader, as every
-  guide's does. From 800px, in a window at least 600px tall, a bar too long for the column WRAPS
-  (theirs take two rows; the card guides' fit one): a desktop bar hides its scrollbar, so a chip past
-  the edge would never be found. Chip labels are short forms of their headings, "Holiday Pay Premium"
-  spelt out. guide-doc.css draws the bar on `--page-bg`, the page's own ground.
+  to it, until the reader moves ON — the jumped-to SECTION moving, not the scroll position, so a
+  resize that reflows the page lets go too; on a phone's one column the bar follows the reader, as
+  every guide's does. From 641px, in a window at least 600px tall, a bar too long for its window WRAPS
+  (theirs take two rows; Railcard's and Rangers' fit one, FIP's below about 680px): a desktop bar hides
+  its scrollbar, so a chip past the edge would never be found, and a window snapped to half a laptop
+  screen is 683–768px wide. The page scripts watch the bar's own size as well as the header's, because
+  a wrapping bar gains or loses a row with no change to the header. Chip labels are short forms of
+  their headings, "Holiday Pay Premium" spelt out. guide-doc.css draws the bar on `--page-bg`, the
+  page's own ground.
 - **With no script the chip bar is not sticky** (`@media (scripting: none)`): its `top` is the page
   script's measurement, and no single fallback fits every header — the chips do nothing without script
   either.
