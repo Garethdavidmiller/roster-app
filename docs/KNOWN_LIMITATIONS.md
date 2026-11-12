@@ -35,10 +35,12 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
   module, for six lines. And `fip-guide.js` carries the chip-bar blocks of `guide-chips.js` — jump,
   scrollspy, sticky offsets (watching the bar's size as well as the header's) and deep-link landing —
   woven into its country finder, where a jump also opens the country's `<details>`; the other four
-  guides share the one file. Two v25.80 rules are in the shared file only: the two-column rule (the
-  FIP guide is one column) and the jump hold, which keeps a tapped chip lit when its section cannot
-  reach the top; the FIP guide's last sections are long enough that no jump bottoms it out (measured
-  at 375px and 1280px), so neither has anything to do there yet.
+  guides share the one file. Three rules are in the shared file only: the two-column rule (the FIP
+  guide is one column), the hold that keeps a tapped or linked chip lit when its section cannot reach
+  the top (taps v25.80, links v25.81), and a banner section starting at its banner (the FIP guide has
+  no banners). Its last sections are long enough that nothing bottoms it out: a tap, measured at 375px
+  and 1280px, and every visible id opened fresh as a link, at 320, 375, 768 and 1280px, lights its own
+  section's chip. So none of the three has anything to do there yet.
 - **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the app sheets — nearly all one
   navy shadow tint — are a ratchet that may only go down (`RGB_BASELINE` in
   `css-hex-parity.test.mjs`). The guide sheets keep their own palette guard.

@@ -306,8 +306,9 @@ button, input, select, textarea { font-family: inherit; }
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     /* `color` eases WITH the fill (css-tokens.md → "A colour may not transition independently of the ground
-       behind it"): a chosen chip turns navy with white words, and with only the fill eased the words were
-       white on a still-white chip for part of the 150ms, and navy on a still-navy one going back. */
+       behind it"): a chosen chip once turned navy with white words, and with only the fill eased the words
+       were white on a still-white chip for part of the 150ms. Gold keeps navy words (v25.83), so the words no
+       longer change — the rule stays for whichever colour comes next. */
     transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 /* Desktop affordance (v18.79) — the chips previously only reacted on :active, so a mouse gave
@@ -315,11 +316,16 @@ button, input, select, textarea { font-family: inherit; }
 @media (hover: hover) and (pointer: fine) {
     .chip:hover { border-color: var(--navy); box-shadow: 0 1px 4px rgba(0, 30, 60, 0.12); }
 }
-.chip:active { background: var(--navy); color: white; border-color: var(--navy); }
+/* The press is the colour the chip is about to become, so one tap shows one colour, not navy then gold. */
+.chip:active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
 .chip:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
-/* Active section (set by the page's JS on click) — highlighted so it's clear
-   which section you jumped to. */
-.chip[aria-current] { background: var(--navy); color: white; border-color: var(--navy); }
+/* THE CHOSEN SECTION IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy,
+   which in the app means a button that DOES something (css-tokens.md → "Whatever you have chosen wears the
+   page's colour"). The app colours a choice by its page, but three of the five guides belong to no page, so
+   the guides take their own accent instead: the gold of the rule under every header and the dash before
+   every section title. One colour for one family; navy on gold reads at about 11:1. Set by the page's script
+   (guide-chips.js, or fip-guide.js) on a tap, a link or the scroll; e2e/guides.spec.js reads it off all five. */
+.chip[aria-current] { background: var(--gold); color: var(--navy); border-color: var(--gold); }
 
 /* ── Touch targets without a taller chrome (v24.30 polish pass) ─────────────────────────────────
    Measured: the ⤓ PDF button is 54×29 and every section chip 27px tall — under the 44px touch

@@ -360,8 +360,10 @@ export async function showSignInPanel(notice = '') {
             label: 'Use the staff PIN instead',
             // Who the PIN is FOR, said on the card that leads with the alternative to it — otherwise
             // a visiting colleague with no account reads a sign-in form and reasonably concludes the
-            // app is not for them. "Visiting or agency staff": the audience the owner named.
-            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and the guides.',
+            // app is not for them. "Visiting or agency staff": the audience the owner named. The list
+            // is the pages the PIN opens (auth-policy.js → `staffPin`), so Trains is on it and the
+            // guides are not: the menu and every guide stay open without it (v25.82).
+            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and Trains.',
             // The PIN card is the door's second view, so it takes a Back entry (sign-in check, 11 Nov
             // 2026): Back on a phone used to leave the app from here instead of returning.
             onSelect: () => {

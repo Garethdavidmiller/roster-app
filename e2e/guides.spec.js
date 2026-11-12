@@ -561,11 +561,23 @@ test('guides: a jump the reader interrupts does not hold its chip where the read
 
 // A JUMP'S CHIP HOLDS where the page cannot scroll its section up to the line. At the bottom of a page the
 // one-column rule lights the LAST chip whatever was chosen, so a reader who tapped "Back pay" saw "Moving your
-// data" lit. A tall window makes the near-the-end case on any machine.
+// data" lit. A tall window makes the near-the-end case on any machine, and it is SIZED FROM THE PAGE: the page
+// below "Back pay", plus the header and bar above it, plus 200px, so the section comes to rest 200px under the
+// bar however the text wraps. A fixed 1800px stopped making the case when v25.82 added a note below "Back pay":
+// on CI's wrapping the section then rested 11px under the bar, inside the premise's 20, on every engine at once.
 test('guides: a chip near the end of a page stays lit after its jump, though its section never reaches the line', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.setViewportSize({ width: 375, height: 800 });
     await page.goto('/paycalc-guide.html');
     await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const room = await page.evaluate(() => {
+        const doc = document.documentElement.scrollHeight;
+        const top = /** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top + scrollY;
+        return { doc, below: Math.ceil(doc - top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+    });
+    const height = room.below + room.bar + 200;
+    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+    await page.setViewportSize({ width: 375, height });
     const backPay = page.locator('.chip-bar .chip[data-target="pg-pay-rise-back-pay"]');
     await backPay.click();
     await page.waitForTimeout(1800);
@@ -582,6 +594,34 @@ test('guides: a chip near the end of a page stays lit after its jump, though its
     await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again')
         .toHaveAttribute('aria-current', 'true');
 });
+
+// THE CHOSEN CHIP IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy, the app's
+// colour for a button that DOES something; the guides take their own gold accent instead (guide-shell.css). Read
+// off a chip each guide's own script has just lit, once its fade has finished, against the shell's tokens
+// resolved on the same page: a rule that LOSES — a guide's own `.chip`, the hover — shows here, and would not in
+// a read of the stylesheet. One test per guide in GUIDE_PAGES, so a sixth guide is held to it without an edit.
+for (const { file } of GUIDE_PAGES) {
+    test(`guides: the chosen section chip is gold with navy words (${file})`, async ({ page }) => {
+        await page.goto(`/${file}`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        const chip = page.locator('.chip-bar .chip').nth(1);
+        await chip.click();
+        await expect(chip, 'premise: the tapped chip is the chosen one').toHaveAttribute('aria-current', 'true');
+        const c = await chip.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {}))).then(() => {
+            const probe = document.createElement('span');
+            probe.style.cssText = 'background: var(--gold); color: var(--navy)';
+            document.body.append(probe);
+            const want = getComputedStyle(probe);
+            const got = getComputedStyle(el);
+            const seen = { fill: got.backgroundColor, ink: got.color, gold: want.backgroundColor, navy: want.color };
+            probe.remove();
+            return seen;
+        }));
+        expect(c.gold, 'premise: the shell\'s gold token resolved on this page').not.toBe('rgba(0, 0, 0, 0)');
+        expect(c.fill, 'the chosen chip is filled gold').toBe(c.gold);
+        expect(c.ink, 'with navy words').toBe(c.navy);
+    });
+}
 
 // A HEADING INSIDE A BANNER LANDS WITH ITS BANNER. The Staff Guide's "Admin Guide" divider is a navy banner with
 // its heading inside, and measured to the heading alone the banner's top edge and icon went under the chip bar.
@@ -610,6 +650,133 @@ test('guides: the Admin Guide banner lands whole below the chip bar', async ({ p
     const viaLink = await banner();
     expect(viaLink.top, `through a deep link: the banner starts at ${viaLink.top}px, the bar ends at ${viaLink.bar}px`)
         .toBeGreaterThanOrEqual(viaLink.bar);
+});
+
+// …AND THE BAR NAMES THE SECTION THE BANNER STARTS. Landed with its banner clear, the heading inside sits a
+// little below the line the bar reads, so the bar went on naming "Your account" with the Admin Guide's banner
+// right under it — after any jump, link or scroll that put it there. A section starts where its banner does.
+test('guides: with the Admin Guide banner under the bar, the bar names the Admin Guide', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.goto('/staff-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    // Scrolled by the reader to where a jump or a link puts the banner: its top on the landing line.
+    await page.evaluate(() => {
+        const banner = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (
+            document.getElementById('sg-marylebone-roster-admin-guide')).closest('.guide-header'));
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+        window.scrollTo(0, banner.getBoundingClientRect().top + window.scrollY - (hdr.offsetHeight + bar.offsetHeight + 8));
+    });
+    await settleFrames(page);
+    const geo = await page.evaluate(() => {
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+        return { heading: /** @type {HTMLElement} */ (document.getElementById('sg-marylebone-roster-admin-guide')).getBoundingClientRect().top,
+            line: hdr.offsetHeight + bar.offsetHeight + 12 };
+    });
+    expect(geo.heading, 'premise: the heading itself has not reached the line the bar reads').toBeGreaterThan(geo.line);
+    await expect(page.locator('.chip-bar .chip[data-target="sg-marylebone-roster-admin-guide"]'), 'not the section before it')
+        .toHaveAttribute('aria-current', 'true');
+});
+
+// ── A LINK HOLDS ITS CHIP THE WAY A TAP DOES (v25.81) ──────────────────────────────────────────────────────
+// A search result or a shared link opened at a #fragment answers "where am I" like a tap on its chip, until what
+// it put in place moves. Measured on v25.80 by opening every linkable id fresh: on the two document guides'
+// columns a link lit no chip at all, and on the Railcard guide a link to "If it's wrong" lit "Digital", because at
+// the bottom of the page the last chip wins. Every link here is opened FRESH: a goto that changes only the
+// fragment is a jump within the page, a different path (a hash changed in place, the second test).
+test('guides: a link to a section near the end of a page lights its own chip until the reader moves', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.goto('/railcard-guide.html#rc-wrong');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const geo = await page.evaluate(() => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById('rc-wrong')).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }));
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section sits well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-wrong"]'), 'the section the link named, not the last one')
+        .toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again')
+        .toHaveAttribute('aria-current', 'true');
+});
+
+// The guides carry no in-page links, so a hash changes in place only by hand, or by Back across such a change —
+// where the position comes from history, not from a link. It ends the link's answer, and the bar follows the reader:
+// here, at the bottom of the page, the last chip.
+test('guides: a hash changed in place lets a link\'s chip go', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.goto('/railcard-guide.html#rc-wrong');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-wrong"]'), 'premise: the link holds its chip')
+        .toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => { location.hash = 'rc-digital'; });
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2),
+        'premise: still at the bottom, so nothing scrolled to let the hold go').toBe(true);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-digital"]')).toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+});
+
+// On the document guides' two columns a link lights the chip of the section it lands in — a sub-heading's
+// section, too — where before nothing was lit, and the chip holds through the landing. A scroll that ENDS while
+// the page is still landing (the browser's own landing is one) must not settle the hold: the measurement then
+// re-lands the heading, and a hold settled before that would let go of the chip the moment it moved.
+test('guides: on two columns a link lights its section\'s chip through the landing, until the reader moves', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'two desktop columns, scrolled with a wheel');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/paycalc-guide.html#pg-holiday-pay-premium-hpp');
+    const hpp = page.locator('.chip-bar .chip[data-target="pg-holiday-pay-premium-hpp"]');
+    const lit = page.locator('.chip-bar .chip[aria-current]');
+    await expect(hpp, 'lit while the page is still landing').toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => window.scrollBy(0, 1));
+    await settleFrames(page);
+    const before = await landing(page, 'pg-holiday-pay-premium-hpp');
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    const after = await landing(page, 'pg-holiday-pay-premium-hpp');
+    expect(after.top - before.top, 'premise: the measurement re-landed the heading').toBeGreaterThan(20);
+    expect(after.top, 'premise: below the bar').toBeGreaterThanOrEqual(after.barBottom);
+    await expect(hpp, 'once the page has landed, still the chip the link named').toHaveAttribute('aria-current', 'true');
+    await expect(lit).toHaveCount(1);
+
+    await page.mouse.move(640, 500);
+    await page.mouse.wheel(0, 300);
+    await expect(lit, 'the reader moved on, and on two columns the bar claims no section again').toHaveCount(0);
+
+    await page.goto('about:blank');
+    await page.goto('/staff-guide.html#sg-signing-in');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await expect(page.locator('.chip-bar .chip[data-target="sg-marylebone-roster-admin-guide"]'),
+        'a sub-heading lights the chip of the section it sits in').toHaveAttribute('aria-current', 'true');
+    await expect(lit).toHaveCount(1);
+});
+
+// The hold stands where the landing leaves the link's target — if the reader can still see it. A page moved away
+// with no touch, click, wheel or key (a screen reader, a drag on the scrollbar) does not end the landing, so when
+// the landing does end, the link's section may be off the screen; the bar then follows the reader.
+test('guides: a link\'s chip lets go if the page was moved away before it finished landing', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/rangers-guide.html#rr-thames');
+    await expect(page.locator('.chip-bar .chip[data-target="rr-elsewhere"]'), 'premise: the link holds its section\'s chip while landing')
+        .toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('rr-thames')).getBoundingClientRect().top),
+        'premise: the linked card is below the screen').toBeGreaterThan(740);
+    await expect(page.locator('.chip-bar .chip').first(), 'the bar follows the reader, at the top').toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
 });
 
 // FROM 641px A BAR TOO LONG FOR ITS WINDOW WRAPS. On a desktop the bar hides its scrollbar, so a chip past the
@@ -1059,7 +1226,11 @@ test('railcard: on a desktop the quick-check type steps up to fill its cards, an
 // buttons a reader could not match to the screen by sight. Compared with the REAL buttons, read off
 // the Calendar, within a whisker: the guides keep their own print-friendly palette, which mirrors the
 // app's by eye (guide-colour-parity.test.mjs), so a near-match is the contract, not an exact one.
-test('staff guide: each button it describes wears the real button\'s colours', async ({ page }) => {
+// AND ITS SHAPE (v25.82): the labels were 10.5px pills — a shift badge's shape — beside bold rounded
+// rectangles, so the guide showed a reader a badge where the screen has a button. The corner is
+// compared as a share of the height (a radius over half the height draws a pill whatever it says),
+// because the drawn button is deliberately smaller than the real one.
+test('staff guide: each button it describes wears the real button\'s colours and corners', async ({ page }) => {
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1070,21 +1241,71 @@ test('staff guide: each button it describes wears the real button\'s colours', a
         ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1);
         return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
     }, css);
-    /** @type {Record<string, { fill: number[], ink: number[] }>} */
+    // The corner as a share of the height, capped where CSS caps it: past half the height it is a pill.
+    /** @type {Record<string, { fill: number[], ink: number[], corner: number }>} */
     const real = {};
     for (const [k, sel] of Object.entries(ids)) {
         // Once its transitions finish: iPhone WebKit read the Today button mid-fade (243,200,34).
         const cs = await page.locator(sel).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {})))
-            .then(() => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color })));
-        real[k] = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
+            .then(() => {
+                const h = el.getBoundingClientRect().height;
+                return { fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color,
+                    corner: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius), h / 2) / h };
+            }));
+        real[k] = { fill: await rgb(cs.fill), ink: await rgb(cs.ink), corner: cs.corner };
     }
     await page.goto('/staff-guide.html');
     for (const k of Object.keys(ids)) {
-        const cs = await page.locator(`.feature-label--${k}`).evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color }));
+        const cs = await page.locator(`.feature-label--${k}`).evaluate(el => {
+            const h = el.getBoundingClientRect().height;
+            return { fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color,
+                corner: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius), h / 2) / h };
+        });
         const label = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
         for (const part of /** @type {const} */ (['fill', 'ink'])) {
             const off = Math.max(...label[part].map((v, i) => Math.abs(v - real[k][part][i])));
             expect(off, `${k}: the guide's ${part} ${label[part]} — the real button's ${real[k][part]}`).toBeLessThanOrEqual(24);
+        }
+        expect(Math.abs(cs.corner - real[k].corner),
+            `${k}: the guide's corner is ${cs.corner.toFixed(2)} of its height, the real button's ${real[k].corner.toFixed(2)} — 0.50 is a pill`).toBeLessThanOrEqual(0.1);
+    }
+});
+
+// THE PAY GUIDE'S RATES WEAR THE PAY PAGE'S BADGES (v25.82). Every rate in the guide was the same red
+// word, while the Pay page draws each as a pill in its row's colours (paycalc.css `.rate-badge` and the
+// `.badge-*` beside it), so a reader could not match a row here to the row on the page by sight. Read
+// off the Pay page's own badges — built from its classes on the page itself, as the Night key test
+// below does — and compared within the same whisker as the buttons above: the guides restate the
+// colours, because they load none of the app's tokens.
+test('pay guide: each rate wears the colours of its row\'s badge on the Pay page', async ({ page }) => {
+    const KINDS = ['sat', 'sun', 'bh', 'ot', 'rdw', 'box', 'peer'];
+    /** @param {string} css */
+    const rgb = (css) => page.evaluate((c) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1);
+        return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    }, css);
+    await page.goto('/paycalc.html');
+    const app = await page.evaluate((kinds) => kinds.map(k => {
+        const el = document.createElement('span');
+        el.className = `rate-badge badge-${k}`;
+        el.textContent = '1.25×';
+        document.body.append(el);
+        const c = getComputedStyle(el);
+        return { fill: c.backgroundColor, ink: c.color, edge: c.borderTopColor };
+    }), KINDS);
+    await page.goto('/paycalc-guide.html');
+    // Every rate names its badge: one without a modifier would fall back to the plain pill unseen.
+    expect(await page.locator('.pay-rate:not([class*="pay-rate--"])').count(), 'a rate with no badge colour').toBe(0);
+    for (const [i, k] of KINDS.entries()) {
+        const guide = await page.locator(`.pay-rate--${k}`).first().evaluate(el => {
+            const c = getComputedStyle(el);
+            return { fill: c.backgroundColor, ink: c.color, edge: c.borderTopColor };
+        });
+        for (const part of /** @type {const} */ (['fill', 'ink', 'edge'])) {
+            const [g, a] = [await rgb(guide[part]), await rgb(app[i][part])];
+            const off = Math.max(...g.map((v, j) => Math.abs(v - a[j])));
+            expect(off, `${k}: the guide's ${part} ${g} — the Pay page's ${a}`).toBeLessThanOrEqual(24);
         }
     }
 });

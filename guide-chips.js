@@ -5,7 +5,7 @@
 //
 // It owns four things, and each has already produced a real bug on some guide:
 //   1. the JUMP — a chip scrolls to its section (instantly under Reduce Motion) and lands focus there;
-//   2. the SCROLLSPY — which chip is marked current while the reader scrolls;
+//   2. the SCROLLSPY — which chip is marked current while the reader scrolls, and after a jump or a link;
 //   3. the STICKY STACK — the bar's `top` and every id's scroll margin, from the MEASURED header: a
 //      stale `top` after a late font swap once let page content show through the gap (v18.82);
 //   4. the DEEP-LINK LANDING — a search result opened at a #fragment lands below that stack.
@@ -47,6 +47,9 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 // On a page read top to bottom, the current section is the LAST chipped section whose top has scrolled
 // up past the sticky header + chip bar. Above the first section the first chip wins (it covers the page
 // intro); at the bottom of the page the last chip wins (a short final section may never reach the line).
+// A section whose heading sits inside a navy banner (the Staff Guide's "Admin Guide") starts where its
+// BANNER starts, because that is where a jump or a link puts it (adjustScrollOffsets): measured to the
+// heading, the banner sat under the bar while the bar still named the section before it.
 //
 // TWO COLUMNS HAVE NO CURRENT SECTION. The two document guides set their sections side by side from
 // 641px (guide-doc.css), so on a desktop "What It Does" and "Pay Types" begin on the same line, and
@@ -54,7 +57,7 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 // would light a right-hand chip while the left column was being read. So it runs only while the
 // chipped sections still read top to bottom — measured from where they ARE (`oneColumn`), not from a
 // width, so a change to that breakpoint cannot leave this behind. On two columns a chip is current
-// only after a jump to it.
+// only after a jump or a link to it.
 //
 // A JUMP'S CHIP HOLDS UNTIL THE READER MOVES ON. The chip just chosen answers "where am I" for as long
 // as its section stays where the jump put it — even where the rule above would answer differently: a
@@ -63,19 +66,35 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 // arrived because the reader stopped it (jumpArrived). It is the SECTION that is watched, not the
 // scroll position: a resize, or a phone turned on its side, reflows the page without scrolling it,
 // and a hold kept by the scroll position went on naming a section that was no longer at the top.
+//
+// A LINK HOLDS THE SAME WAY. A search result or a shared link opened at a #fragment is a jump the
+// reader chose before the page existed. So the chip of the section it lands in (chipFor: a link can
+// name a card inside a section) is lit from the first paint and held through the landing below, and
+// then on a tap's terms. The tap's arrival rule does not judge it: the landing moves the target more
+// than once, and on the narrowest phones leaves it below the line on purpose. It holds if its target
+// is on screen when the landing ends. A reload or Back/Forward restores the reader's own position,
+// not the link, so it holds nothing; nor does a hash changed in place — the guides carry no in-page
+// links, so that is a fragment typed by hand, or Back across one — which ends the link's answer.
 var spyPaused = false;
 var spyTimer = 0;
 var spyTicking = false;
 var spyThreshold = 106;   // header + chip-bar + margin; measured for real once the header lays out
 var oneColumn = true;
 /** @type {HTMLElement|null} */
-var jumpChip = null;
-var jumpTop = NaN;        // where the jump left its section's top; NaN while the jump is still in flight
+var jumpChip = null;      // the chip a jump or a link holds lit
+/** @type {Element|null} */
+var jumpEl = null;        // what the jump or link put in place: the chip's heading, or the linked element
+var jumpTop = NaN;        // where that was left, in viewport pixels; NaN while still in flight
+var jumpByLink = false;   // the hold is a link's: the landing settles it, not the tap's arrival rule
 
-/** The top of a chip's section, in viewport pixels; NaN if the section has gone. @param {HTMLElement} chip */
-function sectionTop(chip) {
-    var target = document.getElementById(chip.dataset.target || '');
-    return target ? target.getBoundingClientRect().top : NaN;
+/** The top of what a jump or link put in place, in viewport pixels; NaN once it has gone or is hidden. */
+function heldTop() {
+    return jumpEl && jumpEl.isConnected && jumpEl.getClientRects().length ? jumpEl.getBoundingClientRect().top : NaN;
+}
+
+/** Where a chipped section starts on screen: its banner's top if its heading sits in one. @param {Element} heading */
+function sectionStart(heading) {
+    return (heading.closest('.guide-header') || heading).getBoundingClientRect().top;
 }
 
 /** Cache the sticky-stack height and the layout, so the scroll handler never forces a layout read per frame. */
@@ -96,7 +115,7 @@ function measureSpy() {
 function currentChip() {
     if (!chipTargets.length) return null;
     if (jumpChip) {
-        if (isNaN(jumpTop) || Math.abs(sectionTop(jumpChip) - jumpTop) <= 2) return jumpChip;
+        if (isNaN(jumpTop) || Math.abs(heldTop() - jumpTop) <= 2) return jumpChip;
         jumpChip = null;   // the reader has moved on; the jump's answer does not come back
     }
     if (!oneColumn) return null;
@@ -105,8 +124,7 @@ function currentChip() {
     }
     var chosen = chipTargets[0].chip;
     for (var i = 0; i < chipTargets.length; i++) {
-        var sec = /** @type {HTMLElement} */ (chipTargets[i].section);
-        if (sec.getBoundingClientRect().top <= spyThreshold) chosen = chipTargets[i].chip;
+        if (sectionStart(/** @type {HTMLElement} */ (chipTargets[i].section)) <= spyThreshold) chosen = chipTargets[i].chip;
         else break;
     }
     return chosen;
@@ -118,11 +136,9 @@ function updateSpy() { if (!spyPaused) setActiveChip(currentChip()); }
  * ran out below it. A scroll that settled anywhere else was the reader's, not the jump's — a finger that
  * stopped the smooth scroll halfway leaves the page where the reader wants it, and the chip must not
  * claim a section the reader is not at.
- * @param {HTMLElement} chip
+ * @param {Element} target
  */
-function jumpArrived(chip) {
-    var target = document.getElementById(chip.dataset.target || '');
-    if (!target) return false;
+function jumpArrived(target) {
     var top = target.getBoundingClientRect().top;
     var line = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
     var atBottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2;
@@ -133,24 +149,13 @@ function jumpArrived(chip) {
 function resumeSpy() {
     spyPaused = false;
     if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; }
-    if (jumpChip && isNaN(jumpTop)) {
-        if (jumpArrived(jumpChip)) jumpTop = sectionTop(jumpChip);
+    // A link's hold is the landing's to settle (endLanding): the landing's own scrolls end too, and
+    // judged here the first of them would fix the hold before the landing had finished moving it.
+    if (jumpChip && !jumpByLink && isNaN(jumpTop)) {
+        var top = heldTop();
+        if (!isNaN(top) && jumpArrived(/** @type {Element} */ (jumpEl))) jumpTop = top;
         else jumpChip = null;
     }
-    updateSpy();
-}
-
-if (chipTargets.length) {
-    measureSpy();
-    window.addEventListener('scroll', function () {
-        if (spyTicking) return;
-        spyTicking = true;
-        // finally: a throw in updateSpy must never latch spyTicking true (that would kill the spy).
-        requestAnimationFrame(function () { try { updateSpy(); } finally { spyTicking = false; } });
-    }, { passive: true });
-    window.addEventListener('resize', function () { measureSpy(); updateSpy(); }, { passive: true });
-    // scrollend lifts the click pause exactly when the smooth scroll settles.
-    window.addEventListener('scrollend', resumeSpy);
     updateSpy();
 }
 
@@ -165,14 +170,16 @@ if (chipBar) {
         if (!target) return;
         setActiveChip(chip);
         jumpChip = chip;
+        jumpEl = target;
         jumpTop = NaN;
+        jumpByLink = false;
         if (!reduceMotion) {
             spyPaused = true;
             if (spyTimer) clearTimeout(spyTimer);
             spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
         }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-        if (reduceMotion) jumpTop = target.getBoundingClientRect().top;   // an instant jump has already settled
+        if (reduceMotion) jumpTop = heldTop();   // an instant jump has already settled
         // Land focus on the section, so keyboard and screen-reader users arrive where the page did.
         target.setAttribute('tabindex', '-1');
         target.focus({ preventScroll: true });
@@ -196,11 +203,51 @@ var landingId = '';
     if (nav && nav.type !== 'navigate') return;
     try { landingId = decodeURIComponent(location.hash.slice(1)); } catch { landingId = ''; }
 })();
-function endLanding() { landingId = ''; }
+
+/**
+ * The chip of the section an element sits in: the last chipped heading at or before it in the page.
+ * A link can name a card or a sub-heading inside a section; one before the first section has none.
+ * @param {Element} el
+ */
+function chipFor(el) {
+    /** @type {HTMLElement|null} */
+    var found = null;
+    for (var i = 0; i < chipTargets.length; i++) {
+        var heading = /** @type {HTMLElement} */ (chipTargets[i].section);
+        if (heading !== el && !(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
+        found = chipTargets[i].chip;
+    }
+    return found;
+}
+// The link's chip holds from the first paint (the Scrollspy note): the spy starts below this block.
+(function () {
+    var target = landingId ? document.getElementById(landingId) : null;
+    var chip = target ? chipFor(target) : null;
+    if (!chip) return;
+    jumpChip = chip;
+    jumpEl = target;
+    jumpTop = NaN;
+    jumpByLink = true;
+})();
+
+/** The landing is over. A link's hold now stands where the landing left its target — if the reader can see it. */
+function endLanding() {
+    landingId = '';
+    if (jumpChip && jumpByLink && isNaN(jumpTop)) {
+        var top = heldTop();
+        if (top >= 0 && top < window.innerHeight) jumpTop = top;
+        else { jumpChip = null; updateSpy(); }
+    }
+}
 ['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (type) {
     window.addEventListener(type, endLanding, { capture: true, passive: true });
 });
-window.addEventListener('hashchange', endLanding);
+// A hash changed in place is not the link the page opened on, so that link's answer goes with it.
+window.addEventListener('hashchange', function () {
+    if (jumpByLink) jumpChip = null;
+    endLanding();
+    updateSpy();
+});
 
 /**
  * While the page is still landing on a deep link, move the target back out from under the sticky
@@ -214,6 +261,22 @@ function keepLandingClear(stickyH) {
     if (!target) { landingId = ''; return; }
     var top = target.getBoundingClientRect().top;
     if (top >= 0 && top < stickyH - 1) target.scrollIntoView({ block: 'start' });
+}
+
+// The spy starts here, after the landing block has set any link's hold, so its first paint already
+// lights the link's chip rather than whichever one the scroll position would.
+if (chipTargets.length) {
+    measureSpy();
+    window.addEventListener('scroll', function () {
+        if (spyTicking) return;
+        spyTicking = true;
+        // finally: a throw in updateSpy must never latch spyTicking true (that would kill the spy).
+        requestAnimationFrame(function () { try { updateSpy(); } finally { spyTicking = false; } });
+    }, { passive: true });
+    window.addEventListener('resize', function () { measureSpy(); updateSpy(); }, { passive: true });
+    // scrollend lifts the click pause exactly when the smooth scroll settles.
+    window.addEventListener('scrollend', resumeSpy);
+    updateSpy();
 }
 
 // Adjust sticky chip-bar top offset to sit directly below the sticky page header,

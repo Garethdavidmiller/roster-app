@@ -74,9 +74,9 @@
         <!-- ── LEFT COLUMN ── -->
         <div>
             <h2 id="sg-getting-started">Getting Started</h2>
-            <p class="lede">Open the app and the first thing you see is the <strong>sign-in card</strong>. Pick your <strong>grade</strong>, then <strong>your name</strong>, then type your <strong>password</strong> &mdash; your surname in lowercase, unless you have set your own. You stay signed in for <strong>60 days</strong>.</p>
-            <p>No password yet, or just borrowing a station PC? Tap <strong>&ldquo;Use the staff PIN instead&rdquo;</strong> under the card. The PIN opens the roster, all three documents &mdash; Daily Huddle, Weekly Retail Circular, Marylebone Newsletter &mdash; and the guides, and it lasts only until the browser is closed &mdash; so on your own phone it is worth signing in once and being done with it.</p>
-            <p>Can&rsquo;t get in? The card has a <strong>&ldquo;Ask the admin to reset your password&rdquo;</strong> link that sends the request for you.</p>
+            <p class="lede">Open the app and the first thing you see is the <strong>sign-in card</strong>. Pick your <strong>grade</strong>, then <strong>your name</strong>, then type your <strong>password</strong> &mdash; your surname in lowercase, until you choose your own (the app asks you to). You stay signed in for <strong>60 days</strong>.</p>
+            <p data-staff-pin>No password yet, or just borrowing a station PC? Tap <strong>&ldquo;Use the staff PIN instead&rdquo;</strong> under the card. The PIN opens the roster, the three documents and <strong>🚆 Trains</strong> until the browser is closed. It doesn&rsquo;t open Admin, Pay or Settings &mdash; they ask you to sign in as yourself, and opening one ends the PIN. On a shared PC, tap <strong>☰ &rarr; Lock Calendar</strong> when you finish.</p>
+            <p>Can&rsquo;t get in? The card&rsquo;s <strong>&ldquo;Ask the admin to reset your password&rdquo;</strong> link sends the request for you.</p>
             <p>Once you are in, your name is already selected at the top and your roster appears. It works straight away in a browser &mdash; there is no app store to go to.</p>
 
             <h2 id="sg-getting-around">Getting Around</h2>
@@ -84,7 +84,7 @@
                 <div class="nav-tip"><span class="nav-tip-icon">👆</span> Swipe left / right to change month</div>
                 <div class="nav-tip"><span class="nav-tip-icon">◀▶</span> <span><strong>← Prev</strong> / <strong>Next →</strong> buttons</span></div>
                 <div class="nav-tip"><span class="nav-tip-icon">📅</span> Use the month heading to jump to any month</div>
-                <div class="nav-tip"><span class="nav-tip-icon">📍</span> The pin button returns you to today</div>
+                <div class="nav-tip"><span class="nav-tip-icon">📍</span> The gold button takes you back to today</div>
                 <div class="nav-tip"><span class="nav-tip-icon">☰</span> Menu &mdash; pages, documents, guides, Settings</div>
             </div>
             <p>Beside the month heading you&rsquo;ll see which <strong>roster weeks</strong> it covers &mdash; for example &ldquo;CEA Weeks 12&ndash;16&rdquo;.</p>
@@ -139,7 +139,7 @@
             <div class="feature-row">
                 <div class="feature-card">
                     <span class="feature-label feature-label--today">📍 Today</span>
-                    <div class="feature-desc">Jumps the calendar back to the current month.</div>
+                    <div class="feature-desc">Jumps the calendar back to the current month. On a phone the button shows just the 📍.</div>
                 </div>
                 <div class="feature-card">
                     <span class="feature-label feature-label--team">👥 Team</span>
@@ -147,7 +147,7 @@
                 </div>
                 <div class="feature-card">
                     <span class="feature-label feature-label--al">🏖️ AL</span>
-                    <div class="feature-desc">Your annual leave for the year: <strong>Taken · Booked · Remaining · Entitlement</strong>, with <strong>Record leave</strong> and <strong>Leave dates</strong> underneath — both open Admin. Tap <strong>‹ ›</strong> beside the year to see another year — next year's, say, as the year ends. Agree the leave with your manager as usual — the app records it and shows the balance.</div>
+                    <div class="feature-desc">Your annual leave for the year: <strong>Taken · Booked · Remaining · Entitlement</strong>, with <strong>Record leave</strong> and <strong>Leave dates</strong> underneath — both open Admin. Tap <strong>‹ ›</strong> beside the year to see next year&rsquo;s, or last year&rsquo;s. Agree the leave with your manager as usual — the app records it and shows the balance.</div>
                 </div>
                 <div class="feature-card">
                     <span class="feature-label feature-label--admin">📝 Admin</span>
@@ -162,12 +162,12 @@
             <h2 id="sg-the-menu">The Menu</h2>
             <p>The <strong>☰</strong> button top-left opens the drawer, which has three parts:</p>
             <div class="nav-grid">
-                <div class="nav-tip"><span class="nav-tip-icon">📄</span> <span><strong>Pages</strong> — Calendar, Admin, Pay, Settings and any others you have access to</span></div>
+                <div class="nav-tip"><span class="nav-tip-icon">📄</span> <span data-menu-pages><strong>Pages</strong> — Calendar, Admin, Pay, Trains (the new timetable), Settings and any others you have access to</span></div>
                 <div class="nav-tip"><span class="nav-tip-icon">📋</span> <span><strong>Latest</strong> — Daily Huddle, Weekly Retail Circular, Marylebone Newsletter</span></div>
-                <div class="nav-tip"><span class="nav-tip-icon">🔎</span> <span><strong>Reference</strong> — every guide, plus a search box</span></div>
+                <div class="nav-tip"><span class="nav-tip-icon">🔎</span> <span><strong>Reference</strong> — every guide, a search box and <strong>📣 App Notices</strong></span></div>
             </div>
-            <div class="info tip" data-gs-example><strong>Search the guides.</strong> The box under <strong>Reference</strong> searches <em>all</em> the guides at once — railcards, FIP, rangers, pay, this one. Type &ldquo;boxing day&rdquo; or &ldquo;network railcard&rdquo; and it takes you straight to the paragraph.</div>
-            <p>At the bottom of the drawer are your name, a 🔔 bell for a quick notifications toggle, and <strong>Sign out</strong>.</p>
+            <div class="info tip" data-gs-example><strong>Search the guides.</strong> Type &ldquo;boxing day&rdquo; in the box under <strong>Reference</strong> and it finds the paragraph, in any guide.</div>
+            <p>At the bottom of the drawer are your name, a 🔔 bell for notifications, and <strong>Sign out</strong> (or <strong>Lock Calendar</strong>, with the PIN).</p>
 
             <h2 id="sg-install-as-an-app">Install as an App</h2>
             <p>The app offers this itself: a strip reading <strong>&ldquo;📲 Add the roster to your home screen&rdquo;</strong> appears once at the top of the calendar. On Android it has an <strong>Install</strong> button; on iPhone it shows you what to tap. Closed it, or never saw it? Do it from the browser, at <strong>myb-roster.web.app</strong>:</p>
@@ -237,13 +237,15 @@
         <!-- ── LEFT COLUMN ── -->
         <div>
             <h2 id="sg-signing-in">Signing In</h2>
+            <p>One sign-in covers every page. Signed in on the calendar? Tap <strong>📝 Admin</strong> and it opens straight away.</p>
+            <p>Admin asks you to sign in only if you haven&rsquo;t &mdash; for example, if you opened the roster with the staff PIN. The PIN doesn&rsquo;t open Admin. Admin keeps your leave and changes under your own name, so you sign in as yourself.</p>
             <ol class="steps">
-                <li>Tap <strong>📝 Admin</strong> on the main screen</li>
                 <li>Pick your <strong>grade</strong>, then <strong>your name</strong></li>
                 <li>Enter your <strong>password</strong> — your <strong>surname</strong> by default (lowercase, no spaces or punctuation), or a password you've set yourself</li>
                 <li>Tap <strong>Sign in</strong> — you stay signed in for <strong>60 days</strong>, whether you open the app every day or once a month</li>
             </ol>
             <div class="info"><strong>Example:</strong> "D. Smith" → the default password is <code>smith</code></div>
+            <div class="info"><strong>On a shared screen?</strong> Sign out from the menu (<strong>☰</strong>, at the bottom) when you finish.</div>
             <div class="info tip"><strong>Set your own password</strong> in <strong>☰ Settings → 🔑 Password</strong> — it replaces the surname default with one only you know. You'll be asked to choose one the next time you sign in, so the surname default is on its way out. Forgotten it? The admin can reset it — <strong>speak to the admin</strong>, or use the link on the sign-in card.</div>
             <p>You can record leave and absence for <strong>yourself</strong>. Managers and the admin can also record changes for other staff, and see whose name the card is pointed at written across the top of it.</p>
 
@@ -252,7 +254,7 @@
 
             <h2 id="sg-change-a-shift">Change a Shift</h2>
             <ol class="steps">
-                <li>Pick the <strong>staff member</strong> in the bar at the top</li>
+                <li>Check the <strong>name</strong> in the bar at the top &mdash; it is set to you. Managers and the admin can pick someone else there</li>
                 <li>Move to the <strong>week</strong> you need — swipe or use ‹ ›, or tap the <strong>date label</strong> to open a calendar and jump</li>
                 <li><strong>Tick the day</strong> you want to change — its type buttons and time boxes appear</li>
                 <li>Tap a <strong>type</strong>: AL · Shift · RDW · Absent · Rest Day · Other</li>
@@ -272,14 +274,14 @@
             </ol>
             <p>It still only stages the change — you review the summary and press <strong>Save changes</strong> as usual. For leave spanning several days, the <strong>Record Annual Leave</strong> card and its date range is the easier route.</p>
 
-            <h2 id="sg-leave-absence">Leave &amp; Absence</h2>
-            <p>The <strong>🏖️ Record Annual Leave</strong> and <strong>🪑 Record Absence</strong> cards each take a <strong>date range</strong>. Sundays are never used by either — they are not contracted for any grade. An <strong>absence</strong> skips rest days in the range automatically.</p>
-            <p><strong>Leave on a rest day is asked about, not assumed.</strong> A day the base roster calls rest normally costs no leave, and only the person booking knows whether the member had <strong>swapped</strong> a working day onto it — so the card asks, day by day, and will not save until every one is answered. Answer <strong>Rest day — free</strong> and nothing is recorded for that day; answer <strong>Swapped — counts</strong> and it is booked and uses a leave day. The leave card also carries an <strong>AL left</strong> figure in its header so you can see the balance without opening anything.</p>
-
         </div>
 
         <!-- ── RIGHT COLUMN ── -->
         <div>
+            <h2 id="sg-leave-absence">Leave &amp; Absence</h2>
+            <p>The <strong>🏖️ Record Annual Leave</strong> and <strong>🪑 Record Absence</strong> cards each take a <strong>date range</strong>. Sundays are never used by either — they are not contracted for any grade. An <strong>absence</strong> skips rest days in the range automatically.</p>
+            <p><strong>Leave on a rest day is asked about, not assumed.</strong> A day the base roster calls rest normally costs no leave, and only the person booking knows whether the member had <strong>swapped</strong> a working day onto it — so the card asks, day by day, and will not save until every one is answered. Answer <strong>Rest day — free</strong> and nothing is recorded for that day; answer <strong>Swapped — counts</strong> and it is booked and uses a leave day. The leave card also carries an <strong>AL left</strong> figure in its header so you can see the balance without opening anything.</p>
+
             <h2 id="sg-saved-changes">Saved Changes</h2>
             <p>The <strong>📋 Saved Changes</strong> card lists everything recorded — edit or remove any row. Filter by staff member and month. Rows tagged <strong>PDF upload</strong> came from the weekly roster PDF; you can still edit or remove them.</p>
             <h2 id="sg-shift-types">Shift Types</h2>
@@ -292,13 +294,13 @@
                     <tr><td><strong>☀️ Shift</strong></td><td>A confirmed working shift — changed times, a spare-week confirmation, or a swap</td><td>Yes</td></tr>
                     <tr><td><strong>💼 RDW</strong></td><td>Rest day worked — a full shift on a rest day</td><td>Yes</td></tr>
                     <tr><td><strong>🪑 Absent</strong></td><td>Away from work, any reason (not on Sundays)</td><td>No</td></tr>
-                    <tr><td><strong>🏠 Rest</strong></td><td>Correct a working day back to a rest day</td><td>No</td></tr>
+                    <tr><td><strong>🏠 Rest Day</strong></td><td>Correct a working day back to a rest day</td><td>No</td></tr>
                     <tr><td><strong>🏷️ Other</strong></td><td>Training / Induction / Assessment / Team Day / Union / Meeting — and 📋 Spare</td><td>Optional</td></tr>
                 </tbody>
             </table>
 
             <h2 id="sg-sundays">Sundays</h2>
-            <div class="info">Sundays are <strong>uncontracted</strong> for every grade, so <strong>AL</strong> and <strong>Absent</strong> can't be recorded on them. A worked Sunday is always <strong>RDW</strong> (1.5×), never annual leave or absence.</div>
+            <div class="info">Sundays are <strong>not contracted</strong> for any grade, so a Sunday offers only <strong>RDW</strong> and <strong>Rest Day</strong> &mdash; no leave, absence, Shift or Other. A worked Sunday is always <strong>RDW</strong> (1.5×).</div>
 
             <h2 id="sg-the-other-family">The "Other" Family</h2>
             <p>Tap <strong>Other</strong> and a small menu appears — pick <strong>Training, Induction, Assessment, Team Day, Union</strong> or <strong>Meeting</strong>. These <em>pay as the day underneath</em> (the shift they replace), so times are optional. On a rest day <strong>Rest day (RDW)</strong> is ticked and locked for you. On a working day, tick it only if the day was worked as a rest day — it then pays as RDW, not as the rostered shift.</p>
