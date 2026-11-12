@@ -1791,6 +1791,57 @@ test('J. Bangi: pre-start RD, Training with no times Mon–Fri 5 Oct–6 Nov, th
     }
 });
 
+// A. Guinea takes A. Atkins's Dispatcher line on Sun 15 Nov 2026, the day A. Atkins moves onto a Mon–Fri
+// row of his own (owner, 12 Nov 2026). Before that, the J. Bangi pattern: training with no times Monday
+// to Friday from his 5 Oct start. "Takes his slot" is asserted as the same TURNS, day by day across two
+// whole cycles — what A. Atkins's row would have drawn — and as the same neighbours, S. Clarke above and
+// K. Yeboah below; a reference-anchored value written as the line he is on that week would still look
+// plausible. The handover leaves the line neither doubled nor empty, which the test above checks daily.
+test('A. Guinea: pre-start RD, Training with no times Mon–Fri 5 Oct–14 Nov, then A. Atkins\'s Dispatcher line from 15 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'A. Guinea');
+    const atkins = teamMembers.find(x => x.name === 'A. Atkins');
+    assert.ok(m, 'A. Guinea not found');
+    assert.ok(atkins, 'A. Atkins not found');
+    assert.equal(m.role, 'Dispatcher');
+    assert.equal(m.startDate.getTime(), new Date(2026, 9, 5).getTime(), 'Mon 5 Oct');
+    assert.equal(getBaseShift(m, new Date(2026, 9, 4)), 'RD');             // Sun 4 Oct — before his start
+    for (const d = new Date(2026, 9, 5); d <= new Date(2026, 10, 14); d.setDate(d.getDate() + 1)) {
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : 'TRG', d.toDateString());
+    }
+    const after = resolveMemberRoster(m, new Date(2026, 10, 15));          // Sun 15 Nov — the link
+    assert.equal(after.rosterType, 'dispatcher');
+    // The row A. Atkins held, as it would have run on without the move.
+    const atkinsLine = { ...atkins, rosterChanges: undefined };
+    const len = CONFIG.DISPATCHER_ROSTER_WEEKS;
+    for (let i = 0; i < 7 * len * 2; i++) {
+        const d = new Date(2026, 10, 15 + i);
+        assert.equal(getBaseShift(m, d), getBaseShift(atkinsLine, d), `A. Atkins's turn, ${d.toDateString()}`);
+    }
+    const byName = (/** @type {string} */ n) => teamMembers.find(x => x.name === n);
+    for (const when of [new Date(2026, 10, 15), new Date(2026, 10, 15 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(m), wk(byName('S. Clarke')) % len + 1, `one row after S. Clarke, ${when.toDateString()}`);
+        assert.equal(wk(byName('K. Yeboah')), wk(m) % len + 1, `one row before K. Yeboah, ${when.toDateString()}`);
+    }
+});
+
+test('A. Atkins: his Dispatcher line until Sat 14 Nov 2026, then fixed pattern 2 (Mon–Fri, weekends RD) from 15 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'A. Atkins');
+    assert.ok(m, 'A. Atkins not found');
+    const before = resolveMemberRoster(m, new Date(2026, 10, 14));         // Sat 14 Nov
+    assert.equal(before.rosterType, 'dispatcher');
+    assert.equal(before.currentWeek, 9);
+    const after = resolveMemberRoster(m, new Date(2026, 10, 15));          // Sun 15 Nov
+    assert.equal(after.rosterType, 'fixed');
+    assert.equal(after.currentWeek, 2);
+    for (let day = 15; day <= 21; day++) {                                  // his first week on it
+        const d = new Date(2026, 10, day);
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : fixedRoster[2].mon, d.toDateString());
+    }
+});
+
 test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', () => {
     const m = teamMembers.find(x => x.name === 'B. Khalil');
     assert.ok(m, 'B. Khalil not found');
