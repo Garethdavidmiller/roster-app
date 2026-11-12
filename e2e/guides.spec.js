@@ -627,6 +627,12 @@ for (const { file } of GUIDE_PAGES) {
 // never showed — it was the page's own colour), the Railcard and FIP guides' rule with a gold bar under it, and the
 // Rangers guide's grey words with no gold at all. The look is now one rule in guide-shell.css; it is read off each
 // rendered page here, because a page rule that outranks the shell's would bring a fourth back without a word.
+// AND THE HAIRLINE HAS TO SHOW. The document guides' rule was declared, solid and 1px for months while drawn in the
+// colour of the ground under it, so every check of the rule passed and nobody saw one. Its contrast with that ground
+// is measured here — the ground being whatever the heading actually sits on, found by walking up to the first
+// ancestor with a fill. The floor is "visible at all", not an accessibility figure: the hairline is decoration (the
+// navy words carry the heading), so WCAG's 3:1 for graphics does not apply; the shell's --rule clears 1.2:1 on the
+// darker document-guide ground, and the invisible one measured 1.00.
 test('guides: every guide draws its section headings the same way', async ({ page }) => {
     /** @type {Record<string, unknown>[]} */
     const seen = [];
@@ -641,10 +647,23 @@ test('guides: every guide draws its section headings the same way', async ({ pag
             document.body.append(probe);
             const p = getComputedStyle(probe), navy = p.color, gold = p.borderTopColor;
             probe.remove();
+            /** @param {string} c */
+            const rgba = c => (c.match(/[\d.]+/g) ?? []).map(Number);
+            /** @param {string} c */
+            const luminance = c => {
+                const lin = rgba(c).slice(0, 3).map(v => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+                return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+            };
+            let groundEl = /** @type {HTMLElement | null} */ (h);
+            while (groundEl && (rgba(getComputedStyle(groundEl).backgroundColor)[3] ?? 1) === 0) groundEl = groundEl.parentElement;
+            const ground = groundEl ? getComputedStyle(groundEl).backgroundColor : 'rgb(255, 255, 255)';
+            const [hi, lo] = [luminance(after.borderTopColor), luminance(ground)].sort((a, b) => b - a);
             return {
                 file: f, size: s.fontSize, weight: s.fontWeight, tracking: s.letterSpacing, caps: s.textTransform, layout: s.display,
                 navyWords: s.color === navy, goldDash: before.borderTopColor === gold, dash: before.borderTopWidth,
                 rule: after.borderTopWidth, ruleStyle: after.borderTopStyle, ruleColour: after.borderTopColor,
+                // Not compared across guides: the travel guides' ground is a shade lighter than the document guides'.
+                ruleContrast: (hi + 0.05) / (lo + 0.05), ground,
             };
         }, file));
     }
@@ -652,8 +671,10 @@ test('guides: every guide draws its section headings the same way', async ({ pag
         expect(look.navyWords, `${look.file}: the heading's words are navy`).toBe(true);
         expect(look.goldDash, `${look.file}: the gold dash before the words`).toBe(true);
         expect(look.ruleStyle, `${look.file}: a hairline after them`).toBe('solid');
-        const { file, ...rest } = look;
-        const { file: first, ...want } = seen[0];
+        expect(look.ruleContrast, `${look.file}: the hairline ${look.ruleColour} shows on the ground it sits on (${look.ground})`)
+            .toBeGreaterThan(1.1);
+        const { file, ruleContrast: _c, ground: _g, ...rest } = look;
+        const { file: first, ruleContrast: _c0, ground: _g0, ...want } = seen[0];
         expect(rest, `${file} draws its headings as ${first} does`).toEqual(want);
     }
 });

@@ -140,7 +140,10 @@ not redefine them.
   its margins. Every `<h2>` in a guide is a section heading (`scripts/guide-index-lib.mjs` refuses one
   with no id), which is why the element is the selector; guide-doc.css takes it all back off the banner
   title. The dash and hairline are BORDERS, so paper keeps them without "Background graphics".
-  `e2e/guides.spec.js` → "every guide draws its section headings the same way" reads it off all five.
+  `e2e/guides.spec.js` → "every guide draws its section headings the same way" reads it off all five,
+  and measures the hairline against the ground it sits on: the old one passed every check of the rule
+  while invisible, and the visual baselines cannot see it either (the step is under their per-pixel
+  threshold). `--rule` is its own token for that reason — never point it at a page ground.
 - **One link on all five guides** (v25.84): navy at 600 with an underline tinted from the link's own
   colour, gold under a mouse — the app's prose link. guide-doc.css and FIP each kept a copy, the Railcard
   guide turned a link amber under a mouse (amber there means a morning rule), and Rangers had none.
