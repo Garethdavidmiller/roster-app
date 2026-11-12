@@ -12,10 +12,12 @@
  * ── WHY THE PAGE EXISTS ────────────────────────────────────────────────────────────────────────
  *
  * Short Run was shown to colleagues first; the designs beside it were drawn up afterwards, and since 8 Nov 2026 the shortlist
- * is Balanced V6, Level Crossing and Middle Ground, each keeping closing weeks apart (Short Run left it then). A slide deck shown once
- * cannot answer "what does it mean for ME?" a week later, and three decks side by side cannot be compared on a phone. So
- * the page leads with what has changed since Short Run was shown, then what all three share, then lets each colleague
- * pick the way they work and read the three against today for exactly that — the pack's one-page sheet, made into a choice.
+ * is Balanced V6, Level Crossing and Middle Ground, each keeping closing weeks apart (Short Run left it then). A slide deck
+ * shown once cannot answer "what does it mean for ME?" a week later, and three decks side by side cannot be compared on a
+ * phone. So the page leads with what has changed since Short Run was shown (folded since 12 Nov 2026, as the owner agreed:
+ * it is for those who saw Short Run, and a first look starts with the three), then what all three share, then what sets
+ * each apart from the other two, then lets each colleague pick the way they work and read the three against today for
+ * exactly that — the pack's one-page sheet, made into a choice.
  *
  * ── WHO IT IS FOR ──────────────────────────────────────────────────────────────────────────────
  *
@@ -42,13 +44,13 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initPdfViewer } from './pdf-viewer.js';
 import { isPlainClick } from './pdf-viewer-core.js';
 import { PROPOSALS } from './links-proposals.js';
-import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
+import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { CLOSES, STARTS, TIMETABLE_STARTS, PACK_BASE, HAVE_YOUR_SAY, CHOSEN, CONTACT } from './newlink-config.js';
-import { renderStatus, statusPhase, statusHint, renderList, renderCommon, renderPersonas, renderPersonaChips,
+import { renderStatus, statusPhase, statusHint, renderList, renderCommon, renderDiffers, renderPersonas, renderPersonaChips,
     renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou, aToZ } from './newlink-render.js';
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
-const CARDS = ['nlChanges', 'nlCommon', 'nlMeans', 'nlWeeks', 'nlSay', 'nlPack', 'nlHow'];
+const CARDS = ['nlChanges', 'nlCommon', 'nlDiffer', 'nlMeans', 'nlWeeks', 'nlSay', 'nlPack', 'nlHow'];
 
 /** Coordinator body, invoked by newlink-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -128,6 +130,9 @@ function renderStatic() {
     drawStatus();
     setHTML('nlChangesList', renderList(CHANGES));
     setHTML('nlCommonList', renderCommon({ gains: GAINS, costs: COSTS }));
+    // the one-page comparison, found by its file rather than its place in the list: the card offers it only while the pack has it
+    const glance = PACK.find(f => f.path.endsWith('at-a-glance.pdf')) ?? null;
+    setHTML('nlDifferList', renderDiffers({ differs: DIFFERS, rule: DIFFER_RULE, glance, base: PACK_BASE }));
     setHTML('nlWeeksKey', renderWeeksKey());
     setHTML('nlSayList', renderList(HAVE_YOUR_SAY));
     setHTML('nlPackList', renderPack(PACK, PACK_BASE));
@@ -135,22 +140,24 @@ function renderStatic() {
 }
 
 /**
- * The pack's files open in the app's PDF viewer, on this page (pdf-viewer.js — why: pdf-viewer-core.js's header). One
- * listener on the list, so a redraw of it keeps working. A click with a modifier is left alone: Ctrl, Cmd or the middle
- * button asks the browser for a tab, and the link is still a real link to the file.
+ * The pack's files open in the app's PDF viewer, on this page (pdf-viewer.js — why: pdf-viewer-core.js's header), wherever
+ * the page offers one: the full pack's list, and the one-page comparison under "Where they differ". One listener on each
+ * list, so a redraw of it keeps working. A click with a modifier is left alone: Ctrl, Cmd or the middle button asks the
+ * browser for a tab, and the link is still a real link to the file.
  */
 function wirePack() {
-    const list = document.getElementById('nlPackList');
     const viewer = initPdfViewer();
-    if (!list || !viewer) return;
-    list.addEventListener('click', (e) => {
-        if (!isPlainClick(e)) return;
-        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('a.nl-file'));
-        const file = link && PACK.find(f => f.path === link.dataset.file);
-        if (!link || !file) return;
-        e.preventDefault();
-        viewer.open({ url: link.href, title: file.label, kicker: file.design ?? 'For all three', pages: file.pages });
-    });
+    if (!viewer) return;
+    for (const list of ['nlDifferList', 'nlPackList'].map(id => document.getElementById(id))) {
+        list?.addEventListener('click', (e) => {
+            if (!isPlainClick(e)) return;
+            const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('a.nl-file'));
+            const file = link && PACK.find(f => f.path === link.dataset.file);
+            if (!link || !file) return;
+            e.preventDefault();
+            viewer.open({ url: link.href, title: file.label, kicker: file.design ?? 'For all three', pages: file.pages });
+        });
+    }
 }
 
 /** The day the status card was last drawn for. @type {string} */

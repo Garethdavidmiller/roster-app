@@ -24,8 +24,11 @@ import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { DAYS as GRID_DAYS } from '../../../links-design.js';
 import { TC, C, BV, LC, MG, RATE, H, Hmax, first, hm, perYear, mins, claim, tidyText } from './what-it-means-data.mjs';
 import { leaveRuns } from './leave.mjs';
-import { folderStats, h55Worst, assess } from './report-data.mjs';
+import { folderStats } from './report-data.mjs';
 import { longDates } from './link.mjs';
+// EACH ONE'S EDGE AND ITS COST, AND THE COUNTS THEY NEED (12 Nov 2026): shared with the New link page's "Where they differ"
+// card, so the sheet and the page list the same points by the same rule. The rule, the facts and their reasoning are there
+import { clear, others, worstOf, EDGE_COST, wordsExactly } from './edge-cost.mjs';
 // WHO TO ASK (owner, 9 Nov 2026: "Yes", to "Questions: Sara Silva" on this sheet): the page's and the decks' own setting, so
 // the three cannot name different people
 import { CONTACT, CONTACT_ROLE } from '../../../newlink-config.js';
@@ -35,13 +38,11 @@ const OUT = fileURLToPath(new URL('../links-26-shortlist-at-a-glance.pdf', impor
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const COLS = [TC, ...C];                       // today, then the three A to Z, as the data module orders them
-const upTo = v => { const u = /up to (\d+)/.exec(v); return u ? +u[1] : first(v); };   // "5 (up to 10)" → 10, "0" → 0
+const upTo = worstOf;                          // "5 (up to 10)" → 10, "0" → 0
 const lines = c => Object.keys(c.p).length;
-const others = c => C.filter(x => x !== c);
-// AN EDGE OR A COST BY THE SHORTLIST SHEET'S RULE (shortlist-sheet.mjs → clearBest; both deck audits, 8 Nov 2026): better or
-// worse than BOTH of the others by more than 5%, the band report-data.mjs's fitCmp calls "about the same". The first print
-// claimed Middle Ground's leave worst case (20 against 19, exactly 5%) and its shortest Sundays (2%) on a strict test
-const clear = (v, rest, high = false) => rest.every(o => high ? o < 0.95 * v : v < 0.95 * o);
+// AN EDGE OR A COST BY THE SHORTLIST SHEET'S RULE: `clear`, from edge-cost.mjs — better or worse than BOTH of the others by
+// more than 5%. The first print claimed Middle Ground's leave worst case (20 against 19, exactly 5%) and its shortest Sundays
+// (2%) on a strict test
 
 // ── WHAT IS COUNTED HERE ────────────────────────────────────────────────────────────────────────────────────────────
 const stats = folderStats();
@@ -50,7 +51,6 @@ for (const c of C) { const s = stats.find(x => x.name === c.name); claim(`${c.na
   c.code = s.code; c.fp = fingerprint(c.p);   // the fingerprint its proposal sheet is named by, so the two cannot disagree
   claim(`${c.name}'s fingerprint ${c.fp} names its proposal sheet`, existsSync(fileURLToPath(new URL(`../${s.dir}/${s.file.replace(/\.json$/, '')}-${c.fp}.pdf`, import.meta.url)))); }
 for (const c of COLS) {
-  const L = lines(c);
   // the rostered Sundays inside the best stretch: leave.mjs's runs, the fewest over the first days that reach the best
   const seq = Object.keys(c.p).sort((a, b) => a - b).flatMap(k => GRID_DAYS.map(d => ({ sun: d === 'sun', v: c.p[k][d] })));
   const runs = leaveRuns(c.p, 14), best = Math.max(...runs), n = seq.length;
@@ -59,15 +59,12 @@ for (const c of COLS) {
   // THE WORST SEVEN DAYS, WHATEVER MAKES THEM (the audit, 9 Nov 2026). The first print read the decks' h55, which is filled
   // only where a COVER WEEK adds a 55-hour week, and printed "never" where it was blank. Today's set duties already have one,
   // 60h 45m, so today read "never" and the two designs better than it read worse. hiMin is the worst seven days with the
-  // cover weeks placed worst, each duty 8 hours (the proposal sheets' reading); tableMin the set duties alone
-  const w = h55Worst(c.p, L); c.most7 = w.hiMin; c.most7Long = w.hi35Min; c.set7 = w.tableMin;
+  // cover weeks placed worst, each duty 8 hours (the proposal sheets' reading); tableMin the set duties alone. Counted in
+  // edge-cost.mjs since 12 Nov 2026 (c.most7, c.most7Long, c.set7), with the shifts over 8h 30m on any day (c.longAny), the
+  // weeks on one shift time a year (c.oneYear) and the rotation's own reading (c.assessed, c.mixed), which its facts need too
   c.newT = c === TC ? 0 : (t => +t[1] - +t[2])(/^(\d+) \((\d+) you know\)$/.exec(c.f.times));   // the decks' "17 (9 you know)"
   c.longMS = Math.round(perYear(c.p, (s, d) => d !== 'sun' && mins(s) > 510));   // shifts over 8h 30m, Mon–Sat, a year: the shortlist's count
-  c.longAny = Math.round(perYear(c.p, s => mins(s) > 510));                       // the same on any day, Sunday included
-  c.oneYear = Math.round(first(c.f.oneTurn) * 52 / L);                            // weeks on one shift time a year, as the shortlist's page 2
-  const A = assess(c.p, L);
-  c.mixed = A.feel.hybrid;                                                        // weeks mixing earlies and lates, in the rotation
-  c.standing = A.fatigue.results.filter(r => r.status === 'standing').map(r => r.code).sort().join();
+  c.standing = c.assessed.fatigue.results.filter(r => r.status === 'standing').map(r => r.code).sort().join();
 }
 claim('the best stretch is the leave figure the decks print, today and on all three', COLS.every(c => c.bestRun === +c.f.leaveBest));
 claim('the worst seven days are never fewer than the set duties’ own', COLS.every(c => c.most7 >= c.set7));
@@ -166,32 +163,22 @@ claim('the worst seven days: all three better than today, and Level Crossing the
 // THE SHORTLIST SHEET'S CARDS, NOT A NEW SELECTION (the audit): the first print chose its own, listing three of the seven
 // costs the shortlist gives Balanced V6, and keeping two of Middle Ground's edges the 5% rule does not support. Each claim is
 // that rule (clear), so a sentence that stops holding stops the sheet. "Of the three" wherever a design outside the shortlist
-// does better (Second Edition's start times are steadier than Level Crossing's)
-const one = c => c.oneYear, wkOff = c => +c.f.weekendsYear, step = c => H(c.f.step), ffW = c => upTo(c.f.ff), runW = c => upTo(c.f.run);
-const opens = c => c.f.open.split(' · ').map(Number);   // at the open: weekday · Saturday · Sunday, the decks' heads
+// does better (Second Edition's start times are steadier than Level Crossing's).
+// THE FACTS ARE edge-cost.mjs's (12 Nov 2026), which asserts each one; here each card names the facts its two sentences
+// word, and must name exactly that design's — the New link page words the same facts, so the two can never list different points
 const CARDS = [
   { c: BV, edge: 'Of the three, the shortest runs of earlies or of lates, and the most breaks of three or four rest days; five at the Saturday open.',
     cost: 'The fewest weeks on one shift time, and the only ones mixing earlies and lates; the biggest change of start; the most single rest days; the fewest weekends off; the most fatigue warnings and days in a row if a cover week falls badly.',
-    ok: clear(+BV.f.block, others(BV).map(c => +c.f.block)) && clear(+BV.f.blockUpTo, others(BV).map(c => +c.f.blockUpTo)) && clear(BV.long34, others(BV).map(c => c.long34), true)
-      && opens(BV)[1] === 5 && others(BV).every(c => opens(c)[1] === 4)
-      && clear(one(BV), others(BV).map(one)) && BV.mixed > 0 && others(BV).every(c => c.mixed === 0) && clear(step(BV), others(BV).map(step), true)
-      && clear(BV.singles, others(BV).map(c => c.singles), true) && clear(wkOff(BV), others(BV).map(wkOff)) && clear(ffW(BV), others(BV).map(ffW), true) && clear(runW(BV), others(BV).map(runW), true) },
-  // "however a cover week falls" is the claim: on the set duties all three work five days in a row at most
+    keys: { edge: ['shortestRuns', 'most34Breaks', 'fiveAtSatOpen'], cost: ['fewestOneTime', 'biggestStep', 'mostSingles', 'fewestWeekends', 'mostIfCoverBad'] } },
   { c: LC, edge: 'No avoidable fatigue warning or week over 55 hours in any cover-week placement tested. Of the three, the fewest days in a row however a cover week falls, the gentlest change of start, the fewest single rest days (as today) and the most 06:20 starts, for those who like them.',
     cost: `The fewest breaks of three or four rest days, ${LC.long34} a year.`,
-    ok: ffW(LC) === 0 && others(LC).every(c => ffW(c) > 0) && LC.most7 <= 55 * 60 && LC.most7Long <= 55 * 60
-      && clear(runW(LC), others(LC).map(runW)) && clear(step(LC), others(LC).map(step)) && clear(LC.singles, others(LC).map(c => c.singles)) && LC.singles === TC.singles
-      && clear(+LC.f.open0620, others(LC).map(c => +c.f.open0620), true) && clear(LC.long34, others(LC).map(c => c.long34)) },
+    keys: { edge: ['noFatigueOr55', 'fewestDaysInRow', 'gentlestStep', 'fewestSingles', 'most0620'], cost: ['fewest34Breaks'] } },
   { c: MG, edge: 'Alone of the three, no shift over 8h 30m on any day, and every closing shift 8h 10m. Of the three, the closest Saturday fit.',
     cost: `The fewest earlies finishing before 14:00, ${MG.f.shortYear} a year; four at the open every day; the least pay for those who work their Sundays.`,
-    ok: MG.longAny === 0 && others(MG).every(c => c.longAny > 0) && ['closerWk', 'closerSat', 'closerSun'].every(k => !MG.f[k].includes('–') && H(MG.f[k]) === 490)
-      && clear(+MG.f.fitSat, others(MG).map(c => +c.f.fitSat))
-      && clear(+MG.f.shortYear, others(MG).map(c => +c.f.shortYear)) && opens(MG).every(x => x === 4) && others(MG).every(c => opens(c).some(x => x > 4))
-      && clear(MG.sundayLoss, others(MG).map(c => c.sundayLoss), true) },
+    keys: { edge: ['noShiftOver830', 'closestSatFit'], cost: ['fewestShortEarlies', 'fourAtOpenEveryDay', 'leastSundayPay'] } },
 ];
-for (const k of CARDS) claim(`${k.c.name}'s edge and cost`, k.ok);
-claim('Middle Ground’s leave worst case and shortest Sundays are not edges or costs by the 5% rule, so neither card claims them',
-  !clear(+MG.f.leaveWorst, others(MG).map(c => +c.f.leaveWorst), true) && !clear(H(MG.f.sunHours), others(MG).map(c => H(c.f.sunHours))));
+claim('a card for each design the facts are written for, A to Z', CARDS.map(k => k.c.name).join() === EDGE_COST.map(e => e.c.name).join());
+for (const k of CARDS) claim(`${k.c.name}'s edge and cost word exactly its facts`, wordsExactly(k.c.name, 'edge', k.keys.edge) && wordsExactly(k.c.name, 'cost', k.keys.cost));
 
 // ── THE PAGE ────────────────────────────────────────────────────────────────────────────────────────────────────────
 const ICON = {   // 24-unit stroke icons, drawn here so nothing is fetched and a print in black still reads
