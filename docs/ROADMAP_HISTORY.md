@@ -1635,6 +1635,14 @@ moved:
   both: the rest is chosen by a pattern rather than by its own ignore list, because a project's
   `testIgnore` would REPLACE the shared one; and the touch gates read the project's NAME, so the
   iPhone twin is `mobile-…` and in the touch list.
+- **And the iPhone's Links project draws at 2x (12 Nov 2026, the same day).** A Links test took
+  10.6 s at the median on the iPhone against 1.3 on Chromium, and the cost was not the page: most
+  Links tests open a desktop-size window, which at the iPhone's 3x density WebKit drew at 6.5–11
+  frames a second, and every click waits on frames. At 2x it draws about 40. Nothing in the Links
+  code or specs reads the density, so the project now runs at 2x and everything else stays the
+  iPhone's: 4.4 minutes locally instead of 8.7, the same 165 passed and 8 skipped. The one
+  departure from "the density stays the descriptor's" is argued beside `LINKS_IPHONE_DPR` in
+  `playwright.webkit.mjs`.
 - **1.64.1 since 4 Nov 2026, ahead of the containers.** This upgrade stopped at 1.63.0 because that
   is what the dev container carries, so a local run there needs no browser workaround. The owner
   asked for the remaining upgrades the next morning, and the WebKit lane is the only place Safari

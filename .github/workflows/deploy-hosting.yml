@@ -108,18 +108,21 @@ jobs:
   # own, side by side, as e2e.yml's pull-request checks have since 3 Nov 2026, where the same two
   # halves took 16 to 18 minutes each on 10 Nov 2026:
   #
-  #     check ─────────────────┐
-  #     smoke (chromium) ──────┤
-  #     smoke (mobile-chrome) ─┼──► deploy ──► the Pages mirror (deploy-mirror.yml)
-  #     csp ───────────────────┤
-  #     signed-in ─────────────┘   (since 12 Nov 2026; its own comment says why, and why one engine)
+  #     check ──────────────────────────┐
+  #     smoke (chromium, 1/3 … 3/3) ────┤
+  #     smoke (mobile-chrome, 1/3 … 3/3) ┼──► deploy ──► the Pages mirror (deploy-mirror.yml)
+  #     csp ────────────────────────────┤
+  #     signed-in ──────────────────────┘   (since 12 Nov 2026; its own comment says why, and why one engine)
   #
   # A release now waits for the slowest job instead of the sum. Three things keep it the same gate,
   # and workflow-hygiene.test.mjs holds each one:
   #   1. `deploy` NEEDS EVERY GATE JOB, and its `if:` names no status function, so GitHub adds
-  #      `success()`: one gate job red, cancelled or skipped, and nothing is uploaded.
-  #   2. THE SMOKE MATRIX NAMES EXACTLY playwright.config.mjs's PROJECTS. `npm run test:e2e` read that
-  #      list for itself; a project now missing from the matrix would never gate a release.
+  #      `success()`: one gate job red, cancelled or skipped, and nothing is uploaded. Needing
+  #      `smoke` waits for every shard of it.
+  #   2. THE SMOKE LIST NAMES EXACTLY playwright.config.mjs's PROJECTS, AND EVERY SHARD OF EACH, and
+  #      it is e2e.yml's list. `npm run test:e2e` read the project list for itself; a project or a
+  #      shard now missing would never gate a release, and a list that differed from the PR lane's
+  #      would let a PR go green on a suite run differently from the one that gates the deploy.
   #   3. `report-failure` NEEDS EVERY JOB, not only `deploy`. A gate job that runs out of time ends
   #      CANCELLED and leaves `deploy` SKIPPED; `failure()` is false for both, and the cancelled check
   #      reads only the jobs it lists, so a reporter waiting on `deploy` alone would say nothing.
@@ -167,21 +170,33 @@ jobs:
     if: github.ref == 'refs/heads/main'
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
-    # One job per Playwright project, as in e2e.yml's smoke job, which has the account. Each job runs
-    # only its own project, so the matrix must name every one in playwright.config.mjs;
-    # workflow-hygiene.test.mjs holds the two lists equal. `fail-fast: false` so a red half never
-    # cancels the green one and loses its report.
+    # Each project in three shards, as in e2e.yml's smoke job, which has the account and the
+    # measurements: the longest shard is about 6 minutes of tests, against 15 to 17 for a whole
+    # project, which was the longest wait in every release. Each job runs only its own shard, so the
+    # list must name every project in playwright.config.mjs and every shard of each, and it must be
+    # e2e.yml's list exactly; workflow-hygiene.test.mjs holds all three. `fail-fast: false` so a red
+    # shard never cancels the others and loses its report.
+    name: smoke (${{ matrix.project }}, ${{ matrix.shard }}/${{ matrix.shards }})
     strategy:
       fail-fast: false
       matrix:
-        project: [chromium, mobile-chrome]
+        include:
+          - { project: chromium, shard: 1, shards: 3 }
+          - { project: chromium, shard: 2, shards: 3 }
+          - { project: chromium, shard: 3, shards: 3 }
+          - { project: mobile-chrome, shard: 1, shards: 3 }
+          - { project: mobile-chrome, shard: 2, shards: 3 }
+          - { project: mobile-chrome, shard: 3, shards: 3 }
     # THE LIMIT FOLLOWS THE RUN. While the tests shared one job with the upload, it went 20 → 40 on
     # 2 Oct 2026: v24.43 released at 20m11s, and v24.44 was CANCELLED at exactly 20m00s — smoke alone
     # took 17m14s, so the clock ran out inside the CSP proof, before the deploy step, and production
     # stayed on the previous version with every test green. Nothing failed; the hourly currency check
     # was the only thing that noticed. Then 40 → 80 on 10 Nov 2026 (#1737), after a 38m24s run. A
     # limit here is a stuck-job guard, not a performance budget, set at about twice a normal run: each
-    # half took 16 to 18 minutes in e2e.yml on 10 Nov 2026, so 40.
+    # half took 16 to 18 minutes in e2e.yml on 10 Nov 2026, so 40. Sharded on 12 Nov 2026, a job is
+    # about 8 minutes with its setup; 40 is left as it was, because a cancelled gate keeps production
+    # on the previous version, and a shard on a slow runner behind the libraries' own 8-minute
+    # ceiling still fits several times over.
     timeout-minutes: 40
     permissions:
       contents: read
@@ -226,7 +241,7 @@ jobs:
           browser: chromium
 
       - name: Run smoke tests
-        run: npm run test:e2e -- --project=${{ matrix.project }}
+        run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
         env:
           CI: true
 
@@ -234,9 +249,9 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          # The project in the name: two jobs upload here, and a colliding artifact name fails the
-          # upload of whichever lands second — losing the report for the half that broke.
-          name: playwright-report-${{ matrix.project }}
+          # The project AND the shard in the name: six jobs upload here, and a colliding artifact name
+          # fails the upload of whichever lands second — losing the report for the shard that broke.
+          name: playwright-report-${{ matrix.project }}-shard${{ matrix.shard }}
           path: playwright-report/
           retention-days: 7
 

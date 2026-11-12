@@ -129,9 +129,10 @@
  * `afterAll`, `describe.serial` or module-level mutable state, so nothing depends on the order
  * tests run within a file. That was checked before the flag was set, not after it passed.
  *
- * DELIBERATELY SCOPED TO THIS FILE. `playwright.config.mjs` is shared with the DEPLOY gate's
- * Chromium run and with the visual baselines; changing parallelism under either is a separate
- * decision with a separate risk, and this file already exists to hold what is true of WebKit only.
+ * FIRST SCOPED TO THIS FILE, NOW SHARED (12 Nov 2026). `playwright.config.mjs` carries the DEPLOY
+ * gate's Chromium run, so changing parallelism there was left as a separate decision — and it was
+ * taken: the gate is sharded now too, which needs the same flag, so the shared config sets it and
+ * this file inherits it. The line below stays, because the note above is about it.
  */
 import base from './playwright.config.mjs';
 import { devices } from '@playwright/test';
@@ -140,7 +141,7 @@ import { devices } from '@playwright/test';
 // is 390×844; every iPhone Pro since the 15 — the 16 Pro, the 17 Pro and the 18 Pro, which is to a
 // web page the same device as the 17 Pro — is 402×874 at the same density. The user agent and DPR
 // stay the descriptor's, because the ENGINE is what this lane tests and a UA string changes no
-// layout. Playwright 1.63 carries a 17 Pro descriptor (1.56 had none). Swapping to it would change only
+// layout (one exception, the Links project's density: LINKS_IPHONE_DPR, below). Playwright 1.63 carries a 17 Pro descriptor (1.56 had none). Swapping to it would change only
 // the iOS number in the user agent (15_0 to 18_7), which the app never reads — print-guard.js says why
 // it stopped — so the lane keeps the 13's descriptor under this override. KNOWN_LIMITATIONS.md, "The
 // test matrix and the phones staff carry".
@@ -166,6 +167,20 @@ export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
 // touch gates in links.spec.js would quietly take the desktop branch on an iPhone.
 const LINKS_SPECS = 'links*.spec.js';
 const NOT_LINKS_SPECS = '!(links*).spec.js';
+
+// THE IPHONE'S LINKS PROJECT DRAWS AT 2x, NOT THE DESCRIPTOR'S 3x (12 Nov 2026) — the one place this
+// lane departs from "the DPR stays the descriptor's" (the note above IPHONE_PRO_VIEWPORT), and why.
+// A Links test on the iPhone took 10.6 s at the median against 1.3 on Chromium, and the time was not
+// the page: opening it took the same 0.4 s everywhere and the generator's search 0.9 s. It was every
+// click and tick — about a second each — because Playwright waits for an element to hold still over
+// two frames, and about four Links tests in five open a DESKTOP window (1024–1440 wide), whatever
+// the project. At 3x a 1280 window is 16 million pixels a frame under software rendering; measured
+// on links.html, 6.5–11 frames a second at 1280×1400, against 40 at 2x and 48 at the device's own
+// size. Nothing in the Links specs or the Links code reads the density (no `devicePixelRatio`, no
+// resolution query), so 2x changes what is drawn, not what is tested: the viewport, user agent,
+// touch and `isMobile` stay the iPhone's. 2x, not 1x, because 2x is a density Apple ships — every
+// iPad, and the Macs desktop Safari runs on.
+const LINKS_IPHONE_DPR = 2;
 
 export default {
     ...base,
@@ -222,6 +237,6 @@ export default {
         { name: 'webkit-links', testMatch: LINKS_SPECS, use: { ...devices['Desktop Safari'] } },
         // Mobile Safari — the iPhone shape (viewport: the note above IPHONE_PRO_VIEWPORT).
         { name: 'mobile-safari', testMatch: NOT_LINKS_SPECS, use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT } },
-        { name: 'mobile-safari-links', testMatch: LINKS_SPECS, use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT } },
+        { name: 'mobile-safari-links', testMatch: LINKS_SPECS, use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT, deviceScaleFactor: LINKS_IPHONE_DPR } },
     ],
 };
