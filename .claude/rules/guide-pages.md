@@ -125,6 +125,13 @@ not redefine them.
   not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
 - **Chips:** desktop hover feedback (border-darken + soft shadow, colour-fade only — no transform) on
   the shared `.chip`, so a mouse gets an affordance as well as `:active`.
+- **The chosen chip is GOLD with navy words, on all five guides** (owner, 12 Nov 2026, v25.83 — picked
+  from three, with screenshots: navy as it was, each guide in its app page's colour, or gold on every
+  guide). Navy is the app's colour for a button that DOES something; the app colours a choice by its
+  page, but three of the five guides belong to no page, so the guides wear their own accent — the gold
+  of the header's rule and the section dashes — as one family. A press is gold too, so a tap shows one
+  colour. `e2e/guides.spec.js` → "the chosen section chip is gold with navy words" reads it off every
+  guide. Giving one guide its app page's colour is a fresh decision, not a tidy-up.
 - **The two document guides' bar** (v25.80): their sections sit in two columns from 641px, where two
   share a line and no scroll position says which is being read, so there a chip is lit only by a jump
   or a link to it, until the reader moves ON — what the jump or link put in place moving, not the

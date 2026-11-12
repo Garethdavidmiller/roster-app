@@ -595,6 +595,34 @@ test('guides: a chip near the end of a page stays lit after its jump, though its
         .toHaveAttribute('aria-current', 'true');
 });
 
+// THE CHOSEN CHIP IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy, the app's
+// colour for a button that DOES something; the guides take their own gold accent instead (guide-shell.css). Read
+// off a chip each guide's own script has just lit, once its fade has finished, against the shell's tokens
+// resolved on the same page: a rule that LOSES — a guide's own `.chip`, the hover — shows here, and would not in
+// a read of the stylesheet. One test per guide in GUIDE_PAGES, so a sixth guide is held to it without an edit.
+for (const { file } of GUIDE_PAGES) {
+    test(`guides: the chosen section chip is gold with navy words (${file})`, async ({ page }) => {
+        await page.goto(`/${file}`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        const chip = page.locator('.chip-bar .chip').nth(1);
+        await chip.click();
+        await expect(chip, 'premise: the tapped chip is the chosen one').toHaveAttribute('aria-current', 'true');
+        const c = await chip.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {}))).then(() => {
+            const probe = document.createElement('span');
+            probe.style.cssText = 'background: var(--gold); color: var(--navy)';
+            document.body.append(probe);
+            const want = getComputedStyle(probe);
+            const got = getComputedStyle(el);
+            const seen = { fill: got.backgroundColor, ink: got.color, gold: want.backgroundColor, navy: want.color };
+            probe.remove();
+            return seen;
+        }));
+        expect(c.gold, 'premise: the shell\'s gold token resolved on this page').not.toBe('rgba(0, 0, 0, 0)');
+        expect(c.fill, 'the chosen chip is filled gold').toBe(c.gold);
+        expect(c.ink, 'with navy words').toBe(c.navy);
+    });
+}
+
 // A HEADING INSIDE A BANNER LANDS WITH ITS BANNER. The Staff Guide's "Admin Guide" divider is a navy banner with
 // its heading inside, and measured to the heading alone the banner's top edge and icon went under the chip bar.
 // Through the chip, and through a search result's deep link.
