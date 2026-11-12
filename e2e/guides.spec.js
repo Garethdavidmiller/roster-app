@@ -642,15 +642,25 @@ test('guides: a chip bar too long for the desktop column wraps; one that fits, o
 // A WRAPPING BAR CHANGES HEIGHT ON ITS OWN. A window made taller across 600px wraps the bar onto a second row
 // with no change to the header, and the scroll margins, measured for one row, landed a jump under the second
 // (bug and regression check, 12 Nov 2026). The page scripts watch the bar's size as well as the header's — FIP's
-// own script too, whose bar wraps between 641 and about 680px.
+// own script too. FIP's eight chips are a few pixels either side of fitting at the narrow end of the wrap range,
+// depending on the engine's text widths (CI's Chromium fitted them at 660px where this author's did not), so the
+// test widens them, making that bar too long for the window wherever it runs: what is under test is the script's
+// answer to the bar changing height, not where FIP's own wrap begins. A style SET from script, because the
+// pages' CSP refuses an injected <style> element.
 test('guides: a window made taller, so the bar wraps, still lands a jump below the bar', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'a desktop window resized');
     const rows = () => page.evaluate(() => new Set([...document.querySelectorAll('.chip-bar .chip')]
         .map(c => Math.round(c.getBoundingClientRect().top))).size);
-    for (const [guide, width] of /** @type {Array<[string, number]>} */ ([['staff-guide', 1024], ['paycalc-guide', 1024], ['fip-guide', 660]])) {
+    for (const [guide, width, widen] of /** @type {Array<[string, number, boolean]>} */ ([
+        ['staff-guide', 1024, false], ['paycalc-guide', 1024, false], ['fip-guide', 700, true]])) {
         await page.setViewportSize({ width, height: 580 });
         await page.goto(`/${guide}.html`);
         await page.waitForFunction(() => document.fonts.status === 'loaded');
+        if (widen) {
+            await page.evaluate(() => document.querySelectorAll('.chip-bar .chip').forEach(c => {
+                /** @type {HTMLElement} */ (c).style.paddingInline = '40px';
+            }));
+        }
         await settleFrames(page);
         expect(await rows(), `premise: ${guide} at ${width}×580 has one row`).toBe(1);
         await page.setViewportSize({ width, height: 700 });

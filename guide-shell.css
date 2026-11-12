@@ -278,7 +278,8 @@ button, input, select, textarea { font-family: inherit; }
    guides are for. 641px, not the column's 800: a window snapped to half a laptop screen is 683–768px
    wide, and there the Staff Guide hid three to five chips, the admin ones among them. 641 is where the
    document guides go to two columns (guide-doc.css) — past a phone held upright. A bar that fits stays
-   one row: Railcard and Rangers never wrap, and the FIP guide only below about 680px. Only where there
+   one row: Railcard and Rangers never wrap, and FIP's eight chips fit everywhere but the narrow end, where
+   they sit a few pixels either side of fitting, depending on the engine's text widths. Only where there
    is HEIGHT to spare: two rows and the header take about 155px, a quarter of a 600px window, and a
    phone held sideways (390px tall, but 800+ wide) would give the stack 40% of its screen. Rows sit 8px
    apart; with a touch pointer, 15px, so the taller hit areas below (7px up, 8px down) never overlap
