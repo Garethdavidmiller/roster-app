@@ -644,7 +644,7 @@ both would need the governance gate answered before that changed.
 | Watch | Because | Where |
 |---|---|---|
 | Override document count | An archive strategy must land before ~5,000 docs | `MAINTENANCE_CALENDAR.md` |
-| `npm audit --omit=dev` in `functions/` | The weekly `functions-audit.yml` fails only on a high or critical finding (`scripts/audit-functions-deps.sh`), and its root-tree job is report-only, so moderate drift does **not** fail CI — it is caught only by looking | `KNOWN_LIMITATIONS.md` → Development-tool advisories · `SECURITY_RELEASE_PLAN.md` → A1 |
+| `npm audit --omit=dev` in `functions/` | The weekly `functions-audit.yml` fails only on a high or critical finding (`scripts/audit-functions-deps.sh`), and its root-tree job is report-only, so moderate drift does **not** fail CI — it is caught only by looking | `KNOWN_LIMITATIONS.md` → The Cloud Functions' production-dependency advisories · `SECURITY_RELEASE_PLAN.md` → A1 |
 | App Speed card — the **Usable** milestone | The first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
 | App Speed card, calendar tail | The measured half of ONE of the four Build-tooling triggers (load time on staff phones) | This file → Build tooling |
 | App Speed card — **Own roster** (`rosterSnapshot`) | Whether a returning member's open now SHOWS a roster well inside a second. The own-roster copy (`CALENDAR_DATA.md` 17) is the identity round trip's answer, and this milestone measures it directly; the decision record is `ROADMAP_HISTORY.md` and `DECISIONS.md` → "The own-roster copy" | Operations → App Speed |
