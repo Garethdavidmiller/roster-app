@@ -26,6 +26,7 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
+import { initDocLinksCard } from './operations-doc-links.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
@@ -169,6 +170,7 @@ export function init() {
     initHuddleUpload({ currentIsAdmin: true, currentUser });
     initCircularUpload();
     initNewsletterUpload();
+    initDocLinksCard({ auth, askToConfirm: confirmDialog });
 
     initRosterUpload({
         currentUser,
@@ -194,6 +196,7 @@ export function init() {
     initCardCollapse('huddleToggleHeader',         'huddleBody',         'huddleChevron');
     initCardCollapse('circularUploadToggleHeader',    'circularUploadBody',    'circularUploadChevron');
     initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
+    initCardCollapse('docLinksToggleHeader',       'docLinksBody',       'docLinksChevron');
     initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
     const authSetupCard = initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
     // Account status collapse wired ONCE here (not inside initAccountStatus) — its _cardLoadError

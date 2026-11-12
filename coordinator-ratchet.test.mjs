@@ -547,6 +547,15 @@ const CAPS = {
     // Functions, and a module that close to the line would otherwise cross it with nobody deciding
     // anything. Capped now so crossing is a decision. Measured + 50, rounded to the next 50.
     'functions/auth-endpoints.js':        950,
+    // NEW at v25.88, when the document-link rotation's door joined (885 → 937). Its RULES left for
+    // functions/doc-link-rotation.js before they arrived — pure, and tested in the no-install lane —
+    // so what crossed the line is an endpoint: method, admin check, body, the 503, one log line. The
+    // documents domain hosts its doors, as auth-endpoints.js hosts the account ones. Measured + 50,
+    // rounded to the next 50.
+    // 1000 → 950 at v25.89: the Huddle retention — the 3-month prune and what it may delete — left for
+    // functions/huddle-retention.js (861 measured, so back under LARGE_THRESHOLD). Brought down with the
+    // code, as the rule above asks; kept rather than dropped, so crossing 900 again is still a decision.
+    'functions/documents.js':             950,
 
 };
 

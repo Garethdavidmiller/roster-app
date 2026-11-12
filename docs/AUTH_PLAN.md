@@ -20,7 +20,7 @@ that reads uniformly confident invites someone to start at the wrong end:
 | E3, the decision gate, §6 measurement | **Sound, unverified.** Design is right; numbers are missing. |
 | §4 offline (E4) | Designed; its one load-bearing assumption is **demonstrated** — `experiments/firestore-offline-proof/`, see §4. |
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
-| §5 documents (E6) | **DECIDED 19 Sep 2026 and BUILT**: the Office viewer stays and is handed a 15-minute signed link. The tokens already in circulation are not rotated (ARCHITECTURE.md EXC-007). |
+| §5 documents (E6) | **DECIDED 19 Sep 2026 and BUILT**: the Office viewer stays and is handed a 15-minute signed link. The tokens already in circulation are not yet rotated: the tool is built (Operations → Document links, 12 Nov 2026) and its first run is the owner's (ARCHITECTURE.md EXC-007). |
 
 **Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is still
 undecided.** `overrides` reads require a verified member (`isMember()`: password sign-in, derived
@@ -463,7 +463,9 @@ grant degrades to the old behaviour rather than to a dead button. RECOVERY_RUNBO
 "whoever ever held a URL" into "whoever held one since the rotation", without choosing a delivery model.
 Doing it periodically would bound the exposure on purpose rather than relying on retention to do it as
 a side effect — and would also clear the orphaned-object case, which retention by construction cannot
-reach.
+reach. **Built 12 Nov 2026** as Operations → Document links (`rotateDocumentLinks`; the rules are
+`functions/doc-link-rotation.js`), when the owner asked for it to be run once now: a second run is one
+press.
 
 ### E6 vs the notifications — DECIDED 7 Sep 2026, and BUILT
 

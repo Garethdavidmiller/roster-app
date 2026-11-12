@@ -59,6 +59,15 @@ export const CARD_TIPS = {
             { icon: '🚪', html: 'Tick <strong>“Disable accounts for anyone no longer on the roster”</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
         ]}],
     },
+    'document-links': {
+        title: 'Document links',
+        sections: [{ items: [
+            { icon: '🔗', html: 'Each Huddle, Circular and Newsletter file has a <strong>permanent link</strong>. Whoever has a copy can open the file without signing in — from their browser history, a forwarded message, or Microsoft’s Word viewer.' },
+            { icon: '👀', html: '<strong>Check the links</strong> only counts. Nothing changes until you press <strong>Replace the links</strong> and confirm.' },
+            { icon: '🔄', html: '<strong>Replace the links</strong> gives every file a new link, and old copies stop working straight away. Staff notice nothing: the app opens documents with short-lived links of its own.' },
+            { icon: '🚨', html: 'Use it if a document link has been shared somewhere it shouldn’t be. Running it again is always safe.' },
+        ]}],
+    },
     'reset-requests': {
         title: '🙋 Password Reset Requests',
         sections: [{ items: [

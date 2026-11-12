@@ -205,7 +205,15 @@ body.auth-ready .container { display: grid; }
    the gold it was is ~1.5:1. */
 .huddle-upload-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+/* `display: block` above out-ranks the browser's own `[hidden]` rule, so a hidden button would still
+   show: Document links keeps its Replace button hidden until a check has found something to replace. */
+.huddle-upload-btn[hidden] { display: none; }
 .huddle-feedback { margin-top: 10px; font-size: var(--type-label); }
+/* A button under the answer it acts on (Document links: Check → what it found → Replace). */
+.huddle-feedback + .huddle-upload-btn { margin-top: 10px; }
+/* An answer in several sentences (Document links) reads as separate findings, not one block. */
+.huddle-feedback p { margin: 0; }
+.huddle-feedback p + p { margin-top: 6px; }
 .huddle-feedback--ok  { color: var(--success-green); }
 .huddle-feedback--err { color: var(--error-red); }
 /* Working spinner beside the roster-parse status text (B1) — a 15–90s parse with only static

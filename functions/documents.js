@@ -3,11 +3,12 @@
  * (second cut of the index.js domain split; the first was push.js at v20.52).
  *
  * Owns: ingestHuddle (the Power Automate upload), getDocumentUrl (the short-lived document url),
+ * rotateDocumentLinks (new keys for the permanent links — the work is ./doc-link-rotation.js),
  * the three onDocumentCreated notification triggers, the scheduled pay reminder (its audience and
  * send: ./pay-reminder.js), the one-off timetable reminder (sendTimetableReminder), and their
- * private helpers (the fan-out wrappers; the Huddle prune it calls is ./huddle-retention.js). Everything DOCUMENT-shaped: a file
- * arrives or a doc is created, staff are told, old copies are reclaimed, and a member is handed a
- * link to open one.
+ * private helpers (the fan-out wrappers; the Huddle prune it calls is ./huddle-retention.js).
+ * Everything DOCUMENT-shaped: a file arrives or a doc is created, staff are told, old copies are
+ * reclaimed, and a member is handed a link to open one.
  *
  * ── WHY A FACTORY, NOT A PLAIN MODULE ──────────────────────────────────────────────────────────
  * `buildDocumentEndpoints(deps)` takes its shared infrastructure as ARGUMENTS — the secret
@@ -39,9 +40,10 @@ const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNE
     isSignablePathForKind } = require('./doc-url-core');
 const { setupWebPush, fanOutPush } = require('./push');
 const { memberNameFromClaims } = require('./member-identity');
-const { bearerToken } = require('./request-helpers');
+const { bearerToken, requireAdmin, readJsonBody } = require('./request-helpers');
 const { sendPayReminder } = require('./pay-reminder');
 const { pruneOldHuddles } = require('./huddle-retention');
+const { rotateDocumentLinks: rotateLinks } = require('./doc-link-rotation');
 
 /**
  * Build the document-domain endpoints. Called once from index.js with the shared infra.
@@ -803,7 +805,57 @@ const sendTimetableReminder = onSchedule(
         },
     );
 
-    return { ingestHuddle, getDocumentUrl, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification, sendTimetableReminder };
+    /**
+     * POST /rotateDocumentLinks — a NEW key for the permanent link of every stored Huddle, Circular
+     * and Newsletter file, so every copy of an old link stops opening it (owner, 12 Nov 2026 —
+     * ARCHITECTURE.md EXC-007). Admin only. The work, its three steps and what it leaves alone are
+     * ./doc-link-rotation.js; this handler is the door and the log line.
+     *
+     * A PREVIEW unless the body says `rotate: true`, exactly: a missing, malformed or unparsed body
+     * only counts. The card asks for the preview first and shows it before offering the real run.
+     *
+     * Request:  POST { "rotate": true } to change anything, Authorization: Bearer <ID token>
+     * Success:  200 RotationReport (doc-link-rotation.js)
+     * Refusals: 405 method · 401 no/invalid/revoked token · 403 not admin
+     *           503 { changed: false } the records or files could not be read — and then NOTHING
+     *           changed, because the read is finished before the first write and every write is
+     *           caught per file. A 503 WITHOUT `changed: false` is the platform's, and proves nothing
+     */
+    const rotateDocumentLinks = onRequest(
+        {
+            region:         'europe-west2',
+            // A few hundred files at four at a time is well under a minute; the margin is for a slow
+            // Storage day, so a run is never cut off by the platform halfway through a file.
+            timeoutSeconds: 300,
+            cors:           ADMIN_FUNCTION_ORIGINS,
+        },
+        async (req, res) => {
+            if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+            if (!(await requireAdmin(req, res, 'rotateDocumentLinks'))) return;
+            const rotate = readJsonBody(req).rotate === true;
+            let report;
+            try {
+                report = await rotateLinks({
+                    bucket: getStorage().bucket(), db: getFirestore(), rotate,
+                    newKey: () => crypto.randomUUID(),
+                });
+            } catch (err) {
+                console.error('[rotateDocumentLinks] could not read the documents — nothing was changed:', err);
+                // `changed: false` is the card's to read. The platform answers a 503 of its own when an
+                // instance dies, which may be halfway through the writes, so only this body may say so.
+                return res.status(503).json({ error: 'Couldn’t read the documents, so nothing was changed', changed: false });
+            }
+            // Counts only: the admin who pressed it is the only possible caller, and the paths of any
+            // failures travel back in the answer, where the admin can act on them.
+            console.log(`[rotateDocumentLinks] ${rotate ? 'rotated' : 'previewed'}: ${report.files} files, `
+                + `${report.linked} linked, ${report.unlinkedWithKey} unlinked with a key, ${report.held} held; `
+                + `rotated ${report.rotated}, cleared ${report.cleared}, changed ${report.changedDuringRun}, `
+                + `failed ${report.failed.length}`);
+            return res.status(200).json(report);
+        },
+    );
+
+    return { ingestHuddle, getDocumentUrl, rotateDocumentLinks, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification, sendTimetableReminder };
 }
 
 module.exports = { buildDocumentEndpoints };

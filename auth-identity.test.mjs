@@ -11,6 +11,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { teamMembers } from './roster-data.js';
 import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection, sessionPredatesReset, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled,
          validateNewPassword, MIN_PASSWORD_LENGTH, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 
@@ -46,6 +47,27 @@ describe('nameToEmail', () => {
     test('two DIFFERENT members must not collapse to the same email (identity collision guard)', () => {
         assert.notEqual(nameToEmail('G. Miller'), nameToEmail('S. Miller'));
         assert.equal(nameToEmail('S. Miller'), 's.miller@myb-roster.local');
+    });
+    test('no two roster names share a login, leavers included', () => {
+        // The ROSTER half of the guard above (12 Nov 2026). nameToEmail keeps only the letters a–z,
+        // so "A. Mc Donald" and "A. McDonald" are ONE account. Set up accounts refuses to hand one
+        // member's account to another, so a clash leaves the new starter with no login at all —
+        // listed as failed, with nothing on the roster saying why. Hidden members count: a leaver's
+        // account is disabled, not deleted, and still holds its email. The pay calculator's slug test
+        // (paycalc-migrations.test.mjs) catches most clashes as a side effect, but its slug KEEPS the
+        // digits a login drops, so 'Q. Example' and 'Q. Example2' pass it and fail this. The fix is
+        // the NEW starter's name, never the existing one (/new-starter, step 1). Server parity of the
+        // derivation itself: surname-parity.test.mjs.
+        /** @type {Map<string, string>} */
+        const seen = new Map();
+        for (const { name } of teamMembers) {
+            const email = nameToEmail(name);
+            assert.ok(!seen.has(email),
+                `${name} and ${seen.get(email)} would share the login ${email}. Rename the NEW ` +
+                'starter (more of the first name), never the existing member: /new-starter, step 1.');
+            seen.set(email, name);
+        }
+        assert.ok(seen.size > 0, 'read no roster names — the import is wrong, not the roster clean');
     });
 });
 
