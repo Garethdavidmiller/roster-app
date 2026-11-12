@@ -12,12 +12,21 @@
     --green-text: #2e7d32;
     --red-bg:     #ffebee;
     --red-text:   #c62828;
-    --yellow-bg:  #fff9e6;
-    --yellow-bdr: #d4a800;
-    --blue-bg:    #e3f2fd;
+    /* THE NOTES TAKE THE GUIDE FAMILY'S TINTS (v25.84): the amber of the Railcard and Rangers guides' notes
+       and banner, the blue of the document guides' info boxes. The yellow box was ringed in a dark gold,
+       the heaviest edge on any guide, and the blue was a second, brighter blue. */
+    --amber:      #b45000;   /* = railcard/rangers --amber */
+    --amber-bg:   #fff8e1;   /* = railcard/rangers --amber-bg */
+    --yellow-bg:  var(--amber-bg);
+    --yellow-bdr: color-mix(in srgb, var(--amber) 30%, transparent);   /* the Rangers note's edge, before v25.84 */
+    --blue-bg:    var(--info-bg);   /* guide-shell.css: the document guides' info blue */
     --blue-text:  #1565c0;
     --red-bdr:    #f5c0c0;
-    --blue-bdr:   #90caf9;
+    --blue-bdr:   #d6e2f7;   /* = guide-doc.css --info-border */
+    /* The finder is the app's field (css-tokens.md → "Corners — a field and the button under it share one"). */
+    --field-bg:     #f0f3f7;   /* = the app's --surface-sunken */
+    --field-border: #cccccc;   /* = the app's --border-mid */
+    --focus-ring:   0 0 0 4px rgba(0, 30, 60, 0.18);   /* = the app's --focus-ring */
     --warn-text:  #7a5500;
     --hover-tint: #f7f9fc;   /* summary/desktop hover fill (v18.79) — a breath above --bg */
 }
@@ -39,40 +48,16 @@ body {
     padding: 20px max(16px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 
-/* ── Links (v18.79) ──────────────────────── */
-/* Bare prose links were UA default blue/purple — the one unbranded element on the page.
-   Element-level selector so every classed control (.btn-*, .cf-popular a, .country-jump a)
-   still wins with its own colour/decoration rules. */
-a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: rgba(0, 30, 60, 0.35); }
+/* ── Links ───────────────────────────────── */
+/* The link itself is guide-shell.css's, one recipe for all five guides (v25.84); every classed control
+   (.btn-*, .cf-popular a, .country-jump a) still wins with its own colour and decoration. */
 /* A number in the text that you can tap to call stays on one line: split at a space, it reads as two
    numbers (10 Nov 2026). Inline links only — the classed call button wraps its words as a button must. */
 a[href^="tel:"]:not([class]) { white-space: nowrap; }
-@media (hover: hover) and (pointer: fine) {
-    a:hover { text-decoration-color: var(--gold); }
-}
 
 /* ── Section label ───────────────────────── */
-.section-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--navy);
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 6px;
-    margin: 24px 0 12px;
-    position: relative;
-}
-/* Two-tone rule (v18.79): hairline + short gold bar, matching railcard-guide's refined treatment */
-.section-label::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    bottom: -1px;
-    width: 38px;
-    height: 2px;
-    background: var(--gold);
-}
+/* Its look is guide-shell.css's — one heading on all five guides (v25.84). Only the spacing is this page's. */
+.section-label { margin: 24px 0 12px; }
 /* Jump/finder links scroll to section + #country-* anchors — clearance for the sticky header +
    chip-bar. fip-guide.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
 .section-label[id], details[id], div[id] { scroll-margin-top: 100px; }
@@ -98,19 +83,10 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
     margin-bottom: 8px;
 }
 .two-up .card { margin-bottom: 0; }
-/* Icon in a sunken rounded tile (v18.79) — anchors the emoji the way the app tiles its badges */
-.two-up .card .icon {
-    font-size: 22px;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg);
-    border-radius: 12px;
-    margin-bottom: 8px;
-}
-.two-up .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+/* NO TILE BEHIND THE EMOJI (v25.84). It sat in a sunken tile "the way the app tiles its badges" — and the
+   app took its tiles away (owner, v25.16: css-tokens.md → "No tile behind the emoji"). The emoji now leads
+   its title as it does on every app card, and a title that wraps hangs from it. */
+.two-up .card h3 { display: flex; align-items: baseline; gap: 0.25em; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
 .two-up .card p { font-size: 12px; color: var(--mid); line-height: 1.45; }
 /* One column on a phone (polish round 2). Side by side at 390 each card was 174px wide — about 22
    characters of 12px text a line, and 506px tall — so "What you get", the page's teaching opener,
@@ -141,7 +117,7 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
     align-items: center;
     justify-content: center;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 800;
 }
 /* Only the step's own TITLE is a block. This selector was `.steps li strong` until v20.32, which
    also caught every <strong> inside the step body and broke sentences across three lines — "For
@@ -183,11 +159,11 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
    less its 16px sides, so its words start where the header's ← and the chips do. */
 .source-banner {
     background: var(--yellow-bg);
-    border-bottom: 2px solid var(--yellow-bdr);
+    border-bottom: 2px solid var(--amber);
     padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
 }
 .source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
-.source-banner .draft-title { font-weight: 800; color: var(--warn-text); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
+.source-banner .draft-title { font-weight: 800; color: var(--amber); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
 .source-banner p { font-size: 13px; color: var(--text); margin-top: 0; margin-bottom: 0; }   /* never `margin: 0` — it undoes the centring above */
 
 /* ── Eurostar pricing (v18.83) ───────────────
@@ -403,7 +379,7 @@ details[open] > summary:focus-visible { border-radius: 12px 12px 0 0; }
     width: 100%;
     text-align: center;
     text-decoration: none;
-    border-radius: 10px;
+    border-radius: 12px;   /* the app's --radius-button (v25.84) */
     cursor: pointer;
     font-family: inherit;
     transition: background 0.15s, border-color 0.15s;
@@ -435,7 +411,7 @@ details[open] > summary:focus-visible { border-radius: 12px 12px 0 0; }
     width: 100%;
     text-align: center;
     text-decoration: underline;
-    border-radius: 10px;
+    border-radius: 12px;
     cursor: pointer;
     font-family: inherit;
     margin-bottom: 10px;
@@ -497,12 +473,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     font-family: inherit;
     font-size: 16px;   /* >=16px keeps iOS from focus-zooming the field */
     padding: 11px 40px 11px 34px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--white);
+    border: 2px solid var(--field-border);
+    border-radius: 12px;
+    background: var(--field-bg);
     color: var(--text);
+    transition: background-color 0.12s, border-color 0.12s;
 }
-.cf-input:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; border-color: var(--navy); }
+/* The app's field, focused: it fills in white, its edge turns navy and a soft ring goes round it (v25.84). */
+.cf-input:focus-visible { outline: none; background-color: var(--white); border-color: var(--navy); box-shadow: var(--focus-ring); }
+/* A forced-colours theme drops the ring and repaints the edge, so there the outline comes back. */
+@media (forced-colors: active) { .cf-input:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; } }
 /* The placeholder was cut mid-glyph at phone width ("— e.g. S" at 390px, measured: 418px of text
    in a 282px field). It is now short enough to fit at 390 whole (polish round 2), and the ellipsis
    stays as the safety net for a narrower phone or a larger text setting (v24.30 polish). */
@@ -538,13 +518,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     font-size: 11px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.05em; color: var(--light); margin-right: 3px;
 }
-.cf-popular a {
-    font-size: 12px; padding: 6px 10px;
-    background: var(--blue-bg); border: 1px solid var(--blue-bdr); border-radius: 20px;
+/* THE GUIDE CHIP (v25.84), as in the bar above the page: white, a hairline edge, navy words, and under a mouse
+   a navy edge and a soft shadow. These were tinted blue, and the country list's filled navy under a mouse —
+   navy is the colour of a button that does something, and a chip only takes you somewhere. */
+.cf-popular a, .country-jump a {
+    font-size: 12px; font-weight: 600;
+    background: var(--white); border: 1px solid var(--border); border-radius: 99px;   /* the shell's .chip literal */
     text-decoration: none; color: var(--navy); white-space: nowrap; touch-action: manipulation;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
+.cf-popular a { padding: 6px 10px; }
 @media (hover: hover) and (pointer: fine) {
-    .cf-popular a:hover { background: var(--navy); color: white; border-color: var(--navy); }
+    .cf-popular a:hover, .country-jump a:hover { border-color: var(--navy); box-shadow: 0 1px 4px rgba(0, 30, 60, 0.12); }
 }
 .cf-popular a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 .cf-nomatch {
@@ -560,22 +545,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     gap: 5px;
     margin-bottom: 14px;
 }
-.country-jump a {
-    font-size: 12px;
-    padding: 8px 12px;
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    text-decoration: none;
-    color: var(--text);
-    white-space: nowrap;
-    touch-action: manipulation;
-}
-@media (hover: hover) and (pointer: fine) {
-    .country-jump a:hover { background: var(--navy); color: white; border-color: var(--navy); }
-}
+.country-jump a { padding: 8px 12px; }   /* the chip above; a little larger, as a list of ~35 is tapped often */
 .country-jump a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
-.country-jump a.not-fip { color: var(--mid); }
+.country-jump a.not-fip { color: var(--mid); font-weight: 400; }
 
 /* ── A reading measure from 1024px (desktop audit, Nov 2026) ─────────────────────────────────────
    The 760px column held this page's 12–14px prose — the introductions, every country's paragraphs,
@@ -716,7 +688,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     color: var(--navy);
     background: white;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 12px;
     cursor: pointer;
 }
 .btn-print-country:hover { border-color: var(--navy); }

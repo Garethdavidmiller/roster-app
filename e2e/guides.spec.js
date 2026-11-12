@@ -623,6 +623,127 @@ for (const { file } of GUIDE_PAGES) {
     });
 }
 
+// ONE SECTION HEADING ON ALL FIVE GUIDES (v25.84). There were three: the document guides' gold dash (with a rule that
+// never showed — it was the page's own colour), the Railcard and FIP guides' rule with a gold bar under it, and the
+// Rangers guide's grey words with no gold at all. The look is now one rule in guide-shell.css; it is read off each
+// rendered page here, because a page rule that outranks the shell's would bring a fourth back without a word.
+// AND THE HAIRLINE HAS TO SHOW. The document guides' rule was declared, solid and 1px for months while drawn in the
+// colour of the ground under it, so every check of the rule passed and nobody saw one. Its contrast with that ground
+// is measured here — the ground being whatever the heading actually sits on, found by walking up to the first
+// ancestor with a fill. The floor is "visible at all", not an accessibility figure: the hairline is decoration (the
+// navy words carry the heading), so WCAG's 3:1 for graphics does not apply; the shell's --rule clears 1.2:1 on the
+// darker document-guide ground, and the invisible one measured 1.00.
+test('guides: every guide draws its section headings the same way', async ({ page }) => {
+    /** @type {Record<string, unknown>[]} */
+    const seen = [];
+    for (const { file } of GUIDE_PAGES) {
+        await page.goto(`/${file}`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        seen.push(await page.evaluate(f => {
+            const h = /** @type {HTMLElement} */ ([...document.querySelectorAll('h2')].find(el => !el.closest('.guide-header')));
+            const s = getComputedStyle(h), before = getComputedStyle(h, '::before'), after = getComputedStyle(h, '::after');
+            const probe = document.createElement('span');
+            probe.style.cssText = 'color: var(--navy); border-top: 1px solid var(--gold)';
+            document.body.append(probe);
+            const p = getComputedStyle(probe), navy = p.color, gold = p.borderTopColor;
+            probe.remove();
+            /** @param {string} c */
+            const rgba = c => (c.match(/[\d.]+/g) ?? []).map(Number);
+            /** @param {string} c */
+            const luminance = c => {
+                const lin = rgba(c).slice(0, 3).map(v => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+                return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+            };
+            let groundEl = /** @type {HTMLElement | null} */ (h);
+            while (groundEl && (rgba(getComputedStyle(groundEl).backgroundColor)[3] ?? 1) === 0) groundEl = groundEl.parentElement;
+            const ground = groundEl ? getComputedStyle(groundEl).backgroundColor : 'rgb(255, 255, 255)';
+            const [hi, lo] = [luminance(after.borderTopColor), luminance(ground)].sort((a, b) => b - a);
+            return {
+                file: f, size: s.fontSize, weight: s.fontWeight, tracking: s.letterSpacing, caps: s.textTransform, layout: s.display,
+                navyWords: s.color === navy, goldDash: before.borderTopColor === gold, dash: before.borderTopWidth,
+                rule: after.borderTopWidth, ruleStyle: after.borderTopStyle, ruleColour: after.borderTopColor,
+                // Not compared across guides: the travel guides' ground is a shade lighter than the document guides'.
+                ruleContrast: (hi + 0.05) / (lo + 0.05), ground,
+            };
+        }, file));
+    }
+    for (const look of seen) {
+        expect(look.navyWords, `${look.file}: the heading's words are navy`).toBe(true);
+        expect(look.goldDash, `${look.file}: the gold dash before the words`).toBe(true);
+        expect(look.ruleStyle, `${look.file}: a hairline after them`).toBe('solid');
+        expect(look.ruleContrast, `${look.file}: the hairline ${look.ruleColour} shows on the ground it sits on (${look.ground})`)
+            .toBeGreaterThan(1.1);
+        const { file, ruleContrast: _c, ground: _g, ...rest } = look;
+        const { file: first, ruleContrast: _c0, ground: _g0, ...want } = seen[0];
+        expect(rest, `${file} draws its headings as ${first} does`).toEqual(want);
+    }
+});
+
+// THE RANGERS GUIDE IS A DIALECT OF THE RAILCARD ONE (.claude/rules/guide-pages.md): the same stripe, the same tokens,
+// the same amber Chiltern note — and since v25.84 the same card and the same note to look at. It drew outlined cards
+// with a 5px stripe and 8px corners, and an amber note with no edge, beside the Railcard's shadowed cards and edged notes.
+test('guides: the Rangers guide draws its cards and its Chiltern note as the Railcard guide does', async ({ page }) => {
+    /** @param {string} file @param {string} card @param {string} note */
+    const look = async (file, card, note) => {
+        await page.goto(`/${file}`);
+        return page.evaluate(([c, n]) => {
+            const s = getComputedStyle(/** @type {HTMLElement} */ (document.querySelector(c)));
+            const t = getComputedStyle(/** @type {HTMLElement} */ (document.querySelector(n)));
+            return {
+                card: { corner: s.borderTopLeftRadius, shadow: s.boxShadow, outline: s.borderTopWidth, stripe: s.borderLeftWidth },
+                note: { corner: t.borderTopLeftRadius, edge: t.borderLeftWidth, edgeColour: t.borderLeftColor, outline: t.borderTopWidth, fill: t.backgroundColor },
+            };
+        }, [card, note]);
+    };
+    // The Railcard's red correction, amber transition and grey unsourced notes are variants of its Chiltern note.
+    const railcard = await look('railcard-guide.html', '.rc', '.rc-chiltern:not(.rc-correction):not(.rc-transition):not(.rc-unsourced)');
+    const rangers = await look('rangers-guide.html', '.rr-card', '.rr-chiltern:not(.rr-unresolved)');
+    expect(railcard.card.shadow, 'premise: the Railcard card is lifted by a shadow').not.toBe('none');
+    expect(rangers.card, 'a Rangers card is a Railcard card').toEqual(railcard.card);
+    expect(rangers.note, 'a Rangers Chiltern note is a Railcard Chiltern note').toEqual(railcard.note);
+});
+
+// THE FIP GUIDE'S CONTROLS ARE THE APP'S (v25.84). Its country finder was a white box on a 1px hairline; the app's
+// field is sunken on a 2px edge with a 12px corner, and fills in white with a soft ring when you are in it
+// (css-tokens.md). The chips under it were tinted blue, beside the guide chip in the bar above. And its two "What you
+// get" cards sat their emoji in a tinted tile, the app's look before the owner took the tiles away (v25.16).
+test('fip: the finder is the app\'s field, the chips under it are the bar\'s, and no tile sits behind an emoji', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const input = page.locator('.cf-input');
+    /** @param {import('@playwright/test').Locator} l */
+    const field = l => l.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {}))).then(() => {
+        const s = getComputedStyle(el);
+        return { edge: s.borderTopWidth, corner: s.borderTopLeftRadius, fill: s.backgroundColor, ring: s.boxShadow };
+    }));
+    const rest = await field(input);
+    expect(rest.edge, 'the app field\'s 2px edge').toBe('2px');
+    expect(rest.corner, 'the app field\'s 12px corner').toBe('12px');
+    expect(rest.fill, 'sunken while you are not in it').not.toBe('rgb(255, 255, 255)');
+    await input.focus();
+    const inside = await field(input);
+    expect(inside.fill, 'white while you are in it').toBe('rgb(255, 255, 255)');
+    expect(inside.ring, 'with the soft ring round it').not.toBe('none');
+
+    const chips = await page.evaluate(async () => {
+        // The bar's last chip, which nothing has chosen on the way in — and read once any fade has settled.
+        const els = ['.chip-bar .chip:last-child', '.cf-popular a', '.country-jump a:not(.not-fip)']
+            .map(sel => /** @type {HTMLElement} */ (document.querySelector(sel)));
+        await Promise.all(els.flatMap(el => el.getAnimations().map(a => a.finished.catch(() => {}))));
+        const [bar, popular, jump] = els.map(el => {
+            const s = getComputedStyle(el);
+            return { fill: s.backgroundColor, edge: s.borderTopColor, corner: s.borderTopLeftRadius, ink: s.color, weight: s.fontWeight, size: s.fontSize };
+        });
+        return { bar, popular, jump };
+    });
+    expect(chips.bar.fill, 'premise: the bar chip read is not the chosen one').toBe('rgb(255, 255, 255)');
+    expect(chips.popular, 'a "Popular from Marylebone" chip is the bar\'s chip').toEqual(chips.bar);
+    expect(chips.jump, 'a country chip is the bar\'s chip').toEqual(chips.bar);
+
+    await expect(page.locator('.two-up .card .icon'), 'no tile behind the emoji').toHaveCount(0);
+    await expect(page.locator('.two-up .card h3 > span[aria-hidden="true"]:first-child'), 'the emoji leads its title').toHaveCount(2);
+});
+
 // A HEADING INSIDE A BANNER LANDS WITH ITS BANNER. The Staff Guide's "Admin Guide" divider is a navy banner with
 // its heading inside, and measured to the heading alone the banner's top edge and icon went under the chip bar.
 // Through the chip, and through a search result's deep link.
