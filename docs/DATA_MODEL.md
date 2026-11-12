@@ -97,7 +97,8 @@ storageUrl   Permanent tokenised download URL (both manual upload and Cloud Func
 storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf" — versioned suffix
              prevents overwriting the old file before Firestore commits; absent on the oldest docs —
              uploadHuddle's cleanup falls back to "huddles/{date}.{fileType}";
-             pruneOldHuddles sweeps by the "huddles/<date>" prefix (covers legacy paths too).
+             pruneOldHuddles deletes this exact path, and reclaims other "huddles/<date>" objects
+             (legacy paths, orphans) only when a day old and named by no live document (v25.89).
              The rules bind it to its own collection (`huddles/<name>.pdf|docx`), because
              `getDocumentUrl` hands this path to the Admin Storage API, which would sign any object
 fileType     "pdf" | "docx" — the short form on both paths: browser writes are rule-constrained to
@@ -108,7 +109,7 @@ htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested
 ```
 Reads: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` capability. The client also refuses the read at source while the Calendar is locked (CALENDAR_DATA.md 15; Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).
 Writes: require auth + admin claim. Cloud Function writes via Admin SDK (bypasses rules).
-Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/documents.js`, awaited at the end of every `ingestHuddle` run (the daily path). Huddles are higher-volume than circulars/newsletters (which keep 6 months) and rarely referenced after the day, so retention is shorter. Storage delete on `/huddles` requires the admin-delete rule.
+Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/huddle-retention.js`, awaited at the end of every `ingestHuddle` run (the daily path). Huddles are higher-volume than circulars/newsletters (which keep 6 months) and rarely referenced after the day, so retention is shorter. Storage delete on `/huddles` requires the admin-delete rule.
 
 **staffContact**
 ```

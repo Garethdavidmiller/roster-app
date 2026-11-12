@@ -15,24 +15,29 @@
  *
  * Delete-then-set onto the fixed id (override-id.js), `source: 'manual'` — the only source a member
  * or manager may write, so an imported leave day becomes the member's own record — and carrying what
- * the record already said: `replacedType`, so a swapped-in day still costs a day after it moves.
+ * the record already said: `replacedType`, so a swapped-in day still costs a day after it moves, and
+ * its `note` (v25.89: it was written as '', which dropped a note while promising nothing changed).
  *
  * ── A STALE PAGE MAY NOT WRITE A DAY OFF BACK INTO EXISTENCE ────────────────────────────────────
  *
  * The save is a fresh annual-leave record, so on a page loaded this morning it would resurrect leave
  * cancelled on another device since, or write leave over a shift a manager has just given. So the
- * day is re-read from the server first (`assertStillLeave`, admin-override-store.js) and the save is
- * refused unless it is still the leave on screen. What it cannot see — a re-import on another device
- * that leaves the shown record in place beside a newer one — is the saves' accepted last-writer-wins.
+ * check and the write are ONE transaction (`commitIfUnchanged`, admin-override-store.js, v25.89): the
+ * record shown must still be there and unchanged, every record the save deletes must be the one this
+ * page loaded, and the fixed id must hold nothing it has not. Until v25.89 they were a re-read and a
+ * separate batch, and a shift a manager saved between the two was turned back into leave (external
+ * review, Nov 2026). The fields carried over are read from the server's copy inside the transaction,
+ * never the page's. What it cannot see — a re-import on another device that adds a record beside the
+ * one shown — is the saves' accepted last-writer-wins.
  */
 
-import { db, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { db, doc, serverTimestamp, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 import { buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { isValidLeaveYear, canChooseLeaveYear } from './leave-year.js';
 import { whenOverridesReady, whenLoadSettled, hasOverrideAuthorityFor, idsReplacedBy, mutateCache,
-         assertStillLeave, LEAVE_YEAR_CHANGED_LINE } from './admin-override-store.js';
+         commitIfUnchanged, LEAVE_YEAR_CHANGED_LINE } from './admin-override-store.js';
 import { buildMemberDateMap } from './admin-overrides.js';
 import { renderTable } from './admin-saved-changes.js';
 import { renderWeekGrid, _hasStagedEdits } from './admin-week-editor.js';
@@ -70,22 +75,23 @@ export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
         throw Object.assign(new Error(LEAVE_YEAR_CHANGED_LINE), { line: LEAVE_YEAR_CHANGED_LINE });
     }
 
-    const { docs, dropped } = await withSlowSaveNotice(writeWithClaimRetry(async () => {
-        await assertStillLeave(memberName, date, shown);
-        const batch = writeBatch(db);
-        /** @type {Set<string>} */
-        const dropped = new Set();
-        for (const id of idsReplacedBy(memberName, date, shown.id)) {
-            batch.delete(doc(db, COLLECTIONS.overrides, id));
-            dropped.add(id);
-        }
-        const newRef = doc(db, COLLECTIONS.overrides, manualOverrideId(memberName, date));
-        const fields = { memberName, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy,
-                         replacedType: nextReplacedType(shown, 'annual_leave'), leaveYear };
-        batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
-        await batch.commit();
-        return { docs: [buildOverrideCacheRecord(newRef.id, fields, new Date())], dropped };
-    }));
+    const fixedId = manualOverrideId(memberName, date);
+    const dropped = new Set(idsReplacedBy(memberName, date, shown.id));
+    /** @type {any} */
+    let fields = null;
+    await withSlowSaveNotice(writeWithClaimRetry(() => commitIfUnchanged(
+        // The record shown — which must still be there — every record the save deletes, and the fixed id
+        // it lands on: each still what this page loaded for it, or, where it loaded nothing, nothing.
+        [shown, ...dropped, fixedId],
+        (/** @type {any} */ tx, /** @type {Map<string, any>} */ latest) => {
+            const now = latest.get(shown.id);   // the server's copy, equal to `shown` by the check
+            for (const id of dropped) tx.delete(doc(db, COLLECTIONS.overrides, id));
+            fields = { memberName, date, type: 'annual_leave', value: 'AL', note: now.note ?? '', source: 'manual', changedBy,
+                       replacedType: nextReplacedType(now, 'annual_leave'), leaveYear };
+            tx.set(doc(db, COLLECTIONS.overrides, fixedId), buildOverrideWrite(fields, serverTimestamp()));
+        },
+        { mustExist: [shown.id], line: LEAVE_YEAR_CHANGED_LINE })), { held: false });
+    const docs = [buildOverrideCacheRecord(fixedId, fields, new Date())];
 
     // The same landing as the other two writes (admin-overrides.js): any load in flight first, then
     // a merge by id, so a snapshot newer than the commit cannot leave the day in the cache twice.

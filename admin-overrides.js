@@ -26,7 +26,7 @@ export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
-         loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates, assertDeletable } from './admin-override-store.js';
+         loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates, commitIfUnchanged } from './admin-override-store.js';
 export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded };
@@ -212,17 +212,15 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         // withSlowSaveNotice: on a weak signal the commit waits for the server with no limit, and
         // the button alone reads as a freeze. It explains the wait and changes nothing else (slow-save.js).
         const { docs: newDocs, dropped } = await withSlowSaveNotice(writeWithClaimRetry(async () => {
-            const batch = writeBatch(db);
             /** @type {any[]} */
-            const docs = [];
+            let docs = [];
             /** @type {Set<string>} */
             const dropped = new Set(deleteIds);
-            if (deleteIds.size) await assertDeletable(removedRows.filter(Boolean));   // never over a newer edit (Oct 2026)
-            deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
-
             // By ID, because that is all a staged row carries. Built once rather than per entry —
             // a full-week save is seven lookups over the whole cache otherwise.
             const byId = new Map(getAllOverrides().map(o => [o.id, o]));
+            /** The writes, onto a batch or a transaction — which may run this again, so nothing carries over. @param {any} w */
+            const fill = (w) => { docs = []; const gone = new Set(deleteIds); gone.forEach(id => w.delete(doc(db, COLLECTIONS.overrides, id)));
             toSave.forEach(entry => {
                 // Read BEFORE the delete on the next line, which is what destroys it: on a swapped-in
                 // day it is the only record of contracted work, on a moved January day of its year.
@@ -237,7 +235,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
                 // same moment lands on the SAME document, not beside it.
                 const fixedId = manualOverrideId(entry.memberName, entry.date);
                 for (const id of idsReplacedBy(entry.memberName, entry.date, entry.existingId)) {
-                    if (!dropped.has(id)) { batch.delete(doc(db, COLLECTIONS.overrides, id)); dropped.add(id); }
+                    if (!gone.has(id)) { w.delete(doc(db, COLLECTIONS.overrides, id)); gone.add(id); dropped.add(id); }
                 }
                 // `swapped` is stripped HERE, with `existingId`: both are instructions to this
                 // function, and the rest of `entry` is spread straight into the document. A stray
@@ -245,12 +243,16 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
                 const { existingId: _, swapped: _swapped, ...data } = entry;
                 const newRef = doc(db, COLLECTIONS.overrides, fixedId);
                 const fields = { ...data, source: 'manual', changedBy: _currentUser, replacedType, leaveYear: nextLeaveYear(_under, entry.type, entry.date) };
-                batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
+                w.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                 docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
-            });
-            await batch.commit();
+            }); };
+            // A save that DELETES compares what it deletes with what this page showed and commits in ONE
+            // transaction (v25.89; a re-read then a separate batch let a colleague's edit land between).
+            // One that only writes stays a batch, held on the device offline; a transaction needs the server.
+            if (deleteIds.size) await commitIfUnchanged([...removedRows.map((r, i) => r ?? toDelete[i]), ...deleteIds], fill);
+            else { const batch = writeBatch(db); fill(batch); await batch.commit(); }
             return { docs, dropped };
-        }));
+        }), { held: !deleteIds.size });
 
         // A RECEIPT, NOT A COUNT (v21.38). "2 added, 1 removed" cannot answer the question a manager
         // actually has — did I change the days I meant to? — and the commonest real mistake here

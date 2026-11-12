@@ -148,10 +148,16 @@ global.document = /** @type {any} */ (fakeDocument);
 
 /** @type {() => Promise<void>} */
 let _commit = async () => {};
-/** Document ids every committed batch deleted, in order. @type {string[]} */
+/** Document ids every committed delete removed, in order. @type {string[]} */
 let _deleted = [];
-/** The size of every batch that reached commit, in order. @type {number[]} */
+/** The size of every delete — one transaction each, v25.89 — that reached its commit, in order. @type {number[]} */
 let _batchSizes = [];
+/** What each delete was handed: the rows AS SHOWN, which the store compares with the server. @type {any[][]} */
+let _handed = [];
+/** The verdict of a long bulk delete's whole-list pre-check (`staleDeleteVerdict`). @type {string|null} */
+let _staleVerdict = null;
+/** Refuse only the Nth delete call (a colleague racing a later chunk), or every one when 0. */
+let _refuseOnCall = 0;
 /** Every removeFromCache call's ids. @type {string[][]} */
 let _removed = [];
 
@@ -162,13 +168,6 @@ mock.module('./firebase-client.js', {
     namedExports: {
         db: {},
         auth: _mockAuth,
-        // The id is RECORDED (v24.48): which documents a delete removed is the subject of block 6.
-        doc: (/** @type {any} */ _db, /** @type {any} */ _col, /** @type {string} */ id) => ({ id }),
-        writeBatch: () => {
-            /** @type {string[]} */ const pending = [];
-            return { delete(/** @type {any} */ ref) { pending.push(ref.id); },
-                commit: async () => { _batchSizes.push(pending.length); await _commit(); _deleted.push(...pending); } };
-        },
         writeWithClaimRetry: (/** @type {Function} */ fn) => fn(),
         COLLECTIONS: { overrides: 'overrides' },
     },
@@ -192,9 +191,20 @@ mock.module('./admin-override-store.js', {
         // `renderTable` returns from its `!rows.length` branch before the line that would have
         // hidden the button.
         getAllOverrides: () => _rows,
-        // Oct 2026: every delete re-reads what it removes. `_refuseDelete`, when set, is the line the
-        // store refuses with — a colleague's newer edit, or a check that could not be made.
-        assertDeletable: async () => { if (_refuseDelete) throw Object.assign(new Error(_refuseDelete), { code: 'overrides/delete-refused', line: _refuseDelete }); },
+        // v25.89: a delete is ONE transaction in the store — compared with what the page showed and
+        // deleted together (admin-override-store.test.mjs, block 6, drives the real one). Here it stands
+        // for that: `_refuseDelete`, when set, is the line it refuses with before deleting anything, on
+        // every call or only the `_refuseOnCall`-th; `_commit` stands for its commit.
+        deleteIfUnchanged: async (/** @type {any[]} */ items) => {
+            _handed.push(items);
+            if (_refuseDelete && (!_refuseOnCall || _handed.length === _refuseOnCall)) {
+                throw Object.assign(new Error(_refuseDelete), { code: 'overrides/delete-refused', line: _refuseDelete });
+            }
+            const ids = items.map(x => (typeof x === 'string' ? x : x.id));
+            _batchSizes.push(ids.length); await _commit(); _deleted.push(...ids);
+        },
+        asShown: (/** @type {string[]} */ ids) => ids.map(id => _rows.find(o => o.id === id) ?? id),
+        staleDeleteVerdict: async () => _staleVerdict,
         DELETE_REFUSED: 'overrides/delete-refused',
         removeFromCache: (/** @type {string[]} */ ids) => { _removed.push([...ids]); },
         isTruncated: () => false,
@@ -281,7 +291,7 @@ async function bulkDelete(/** @type {string[]} */ ids) {
     await fire('bulkDeleteBtn', 'click');   // deletes
 }
 
-beforeEach(() => { _commit = async () => {}; _deleted = []; _batchSizes = []; _removed = []; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
+beforeEach(() => { _commit = async () => {}; _deleted = []; _batchSizes = []; _handed = []; _staleVerdict = null; _refuseOnCall = 0; _removed = []; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
 
 // The two-tap confirm disarms after 5 s and the list feedback fades after 6 s, both on REAL timers
 // nothing here waits for — so they held the process open after the last test, 6.3 s of wall for
@@ -683,6 +693,45 @@ describe('8. a bulk delete larger than one batch', () => {
         await bulkDelete(many(450));
         assert.deepEqual(_removed, [many(200)], 'the first batch is gone from the server, so from the list too');
         assert.match(el('listFeedback').textContent, /Deleted 200 of 450/, 'a part-way stop says how far it got');
+    });
+
+    // v25.89: each chunk is its own transaction, so a colleague's edit racing a LATER chunk refuses it
+    // after an earlier one has landed. The refusal's own line says "nothing was deleted" — untrue here.
+    test('a colleague\'s edit refusing a LATER chunk is reported as part done, never as "nothing was deleted"', async () => {
+        _refuseDelete = 'Someone else has changed this since your list loaded, so nothing was deleted.'; _refuseOnCall = 2;
+        try { await bulkDelete(many(450)); } finally { _refuseDelete = null; }
+        const said = el('listFeedback').textContent;
+        assert.deepEqual(_removed, [many(200)]);
+        assert.match(said, /Deleted 200 of 450 before it stopped — the rest are still listed\. Someone else has changed one of them since your list loaded\./);
+        assert.doesNotMatch(said, /nothing was deleted/, 'it claimed nothing was deleted after 200 were');
+    });
+
+    test('a list of several chunks is checked WHOLE first: something already changed refuses it before any chunk', async () => {
+        _staleVerdict = 'Someone else has changed this since your list loaded, so nothing was deleted.';
+        await bulkDelete(many(450));
+        assert.deepEqual(_deleted, [], 'a chunk was deleted although the list was already known to be stale');
+        assert.deepEqual(_handed, []);
+        assert.match(el('listFeedback').textContent, /nothing was deleted/);
+    });
+});
+
+// ── WHAT A DELETE COMPARES IS WHAT THE PERSON SAW (v25.89) ─────────────────────────────────────────
+describe('8b. both controls hand the store the rows as they were SHOWN', () => {
+    test('the row ✕ — the record, not just its id, captured at the press', async () => {
+        const row = { id: 'm_2026-06-16_G.%20Miller', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', source: 'manual' };
+        _rows = [row];
+        const btn = makeEl('row-delete'); btn.dataset.id = row.id;
+        const target = { closest: (/** @type {string} */ sel) => sel === '.btn-delete' ? btn : null };
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // deletes
+        assert.deepEqual(_handed, [[row]]);
+    });
+
+    test('Delete selected', async () => {
+        const row = { id: 'a', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', source: 'manual' };
+        _rows = [row];
+        await bulkDelete(['a']);
+        assert.deepEqual(_handed, [[row]]);
     });
 });
 

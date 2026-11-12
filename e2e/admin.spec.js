@@ -194,20 +194,20 @@ test('admin: a January leave day can be moved to last year\'s allowance, and bac
     const y2027 = panel.locator(`.leaveyear-opt[data-date="${DAY}"][data-year="2027"]`);
     await expect(y2027).toHaveAttribute('aria-pressed', 'true');
 
-    // The save re-reads the day from the server first; seeded only now, so nothing else reads it.
-    await page.evaluate((rec) => { /** @type {any} */ (window).__E2E.getDocData = rec; }, REC);
+    // The save checks the day and writes it in ONE transaction (v25.89), which reads the seeded rows.
     await y2026.click();
     await expect(y2026).toHaveAttribute('aria-pressed', 'true');
     await expect(figures).toHaveText('2026: 31 days left · 2027: 32 days left');
     await expect(page.locator('#alLeaveYearFeedback')).toContainText('now comes out of 2026’s allowance');
-    const moved = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.at(-1));
+    const moved = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data);
     expect(moved).toMatchObject({ date: DAY, type: 'annual_leave', value: 'AL', leaveYear: 2026, source: 'manual', changedBy: 'G. Miller' });
 
 });
 
-// The way back, from a fresh load of a day already moved — the stub's `doc()` mints no id, so a
-// second save on the same page would see its own first write as a record it never loaded and be
-// (rightly) refused. Real Firestore refs carry their id; the stale-page refusal is unit-tested.
+// The way back, from a fresh load of a day already moved — the stub's transaction does not write its
+// sets back into the seeded rows, so a second save on the same page would find the server still
+// holding the first state and (rightly, as far as it can tell) refuse. The stale-page refusal,
+// including the colleague who saves in the middle of the move, is unit-tested.
 test('admin: a moved January day moves forward again, recorded as nothing', async ({ page }) => {
     const MOVED = { memberName: 'G. Miller', date: '2027-01-05', type: 'annual_leave', value: 'AL', note: '',
         source: 'manual', leaveYear: 2026 };
@@ -226,11 +226,10 @@ test('admin: a moved January day moves forward again, recorded as nothing', asyn
     const panel = page.locator('#alLeaveYear');
     await expect(panel.locator('.ly-figures')).toHaveText('2026: 31 days left · 2027: 32 days left');
     const y2027 = panel.locator('.leaveyear-opt[data-date="2027-01-05"][data-year="2027"]');
-    await page.evaluate((rec) => { /** @type {any} */ (window).__E2E.getDocData = rec; }, MOVED);
     await y2027.click();
     await expect(y2027).toHaveAttribute('aria-pressed', 'true');
     await expect(panel.locator('.ly-figures')).toHaveText('2026: 32 days left · 2027: 31 days left');
-    const back = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.at(-1));
+    const back = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data);
     expect(back).toMatchObject({ date: '2027-01-05', type: 'annual_leave' });
     expect('leaveYear' in back, 'its own year is the default, and the default is no record').toBe(false);
 });
@@ -2759,16 +2758,18 @@ test('admin: deleting a recorded booking confirms in the toast, not only at the 
 
 // A STALE DELETE IS REFUSED (Oct 2026 production review). Admin's cache never refreshes on its own,
 // and a manual record has one id per member and day, so deleting what this page showed hours ago
-// removed what a colleague had written since. Before deleting, the page re-reads the documents; here
-// the server answers that the day now holds a different record.
+// removed what a colleague had written since. The page compares what it deletes with what the server
+// holds, in the same transaction as the delete (v25.89); here the server answers that the day now
+// holds a different record.
 test('admin: a booked period a colleague has since changed is not deleted, and the admin is told', async ({ page }) => {
     await page.clock.setFixedTime(LEAVE_LIST_DAY);   // the list must open on 2026, where the booking is
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
             docs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
-            // What the server holds NOW: another manager has made the day a worked rest day.
-            getDocData: { memberName: 'G. Miller', date: '2026-03-02', type: 'rdw', value: '09:00-17:00' },
+            // What the server holds NOW, which is what a transaction reads: another manager has made the
+            // day a worked rest day.
+            txDocs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'rdw', value: '09:00-17:00' }],
         });
     });
     await page.goto('/admin.html');
@@ -2780,7 +2781,7 @@ test('admin: a booked period a colleague has since changed is not deleted, and t
     await btn.click();
     await btn.click();
     await expect(page.locator('#alFeedback')).toContainText(/Someone else has changed this/);
-    expect(await page.evaluate(() => (window.__E2E?.batchDeletes || []).length), 'something was deleted').toBe(0);
+    expect(await page.evaluate(() => (window.__E2E?.deletedPaths || []).length), 'something was deleted').toBe(0);
     await expect(page.locator('#alBookedBody .btn-period-delete')).toHaveCount(1);
 });
 
@@ -2812,7 +2813,7 @@ test('admin: a refused delete straight after a delete stays on screen past the f
     const line = page.locator('#alFeedback');
     await expect(line).toContainText('Deleted 1 AL day');
     // A colleague changes the other day; deleting it now is refused, on the same line.
-    await page.evaluate((d) => { /** @type {any} */ (window).__E2E.getDocData = { memberName: 'G. Miller', date: d, type: 'rdw', value: '09:00-17:00' }; }, days[1]);
+    await page.evaluate((d) => { /** @type {any} */ (window).__E2E.txDocs = [{ id: 'k1', memberName: 'G. Miller', date: d, type: 'rdw', value: '09:00-17:00' }]; }, days[1]);
     await page.clock.fastForward(3_000);
     await dels.first().click();
     await dels.first().click();
@@ -2838,7 +2839,7 @@ test('admin: a period delete the rules refuse says so, not "check your connectio
     await page.locator('#alToggleHeader').click();
     await page.locator('#alBookedToggle').click();
     // The stub records each delete it is handed; recording this one throws the rules' refusal instead.
-    await page.evaluate(() => { /** @type {any} */ (window).__E2E.batchDeletes = { push() {
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.deletedPaths = { push() {
         throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' }); } }; });
     const btn = page.locator('#alBookedBody .btn-period-delete').first();
     await btn.click();

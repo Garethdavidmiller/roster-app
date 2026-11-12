@@ -115,12 +115,18 @@ incomplete (`admin-override-store.js`) rather than shown as "no saved changes".
 
 **What remains, deliberately:** the second editor is not told the day changed underneath them —
 **last SAVE wins**, exactly as when two people save one after the other. A DELETE does not: it
-re-reads what it is about to remove and refuses, saying so, when it has changed (`assertDeletable` in
-`admin-override-store.js`), and an unconfirmable check refuses too, so deletes need the network.
-Warning the second editor would need every Admin save to run as a TRANSACTION that re-reads each day
-first; that would also make an offline save FAIL rather than queue, and it rewrites the write path
-most of the e2e suite observes. A decision, not an oversight — revisit if a lost edit is ever
-reported.
+compares what it is about to remove with what the page showed — every field and the record's
+revision — and deletes in the SAME transaction, refusing, saying so, when anything has changed
+(`commitIfUnchanged` in `admin-override-store.js`, v25.89). Until v25.89 the check was a separate
+re-read before a separate batch, so an edit landing between the two was deleted anyway, and it
+compared three fields, so a January day moved to the other allowance passed (external review,
+Nov 2026). A transaction needs the server, so deletes need the network. The week-grid save that
+includes a delete, and the leave-year move, run the same way. A bulk delete longer than one chunk
+(200) is checked whole first and then chunk by chunk, so only an edit racing the chunks themselves
+can stop it part done, and it then says how far it got. Warning the second editor of a plain SAVE
+would need every Admin save to run as a transaction, which would make an offline save FAIL rather
+than queue — the week grid's plain saves stay batches for exactly that reason. A decision, not an
+oversight — revisit if a lost edit is ever reported.
 
 **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
 saved or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete.
@@ -381,7 +387,7 @@ circulation is the open step (ARCHITECTURE.md → EXC-007).
 
 **Document retention bounds it, but is not a guarantee.** Both retention sweeps DELETE the Storage
 object, which is what kills a bearer URL: **Huddles at 3 months** (`pruneOldHuddles`, server-side,
-`functions/documents.js`), **Circulars and Newsletters at 6 months** (`pruneOldDocs` in
+`functions/huddle-retention.js`), **Circulars and Newsletters at 6 months** (`pruneOldDocs` in
 `doc-retention.js`, browser-side). Three things stop that being a guarantee, and they are the
 residual risk:
 

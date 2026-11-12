@@ -16,7 +16,7 @@ write the new object before the old one is deleted, so a re-upload (incl. a PDF�
 orphans the previous file or races the Firestore commit. The exact path is recorded in the
 `storagePath` field. (Docs written before versioned paths have no `storagePath`; the browser
 `uploadHuddle` cleanup falls back to the legacy fixed `huddles/{date}.{fileType}`, and the prune
-sweeps by prefix — see Auto-prune below.)
+reclaims those as orphans — see Auto-prune below.)
 
 **Storage URL strategy:** `ingestHuddle` writes a permanent `firebaseStorageDownloadTokens`
 download URL to `storageUrl`. It does NOT use a signed URL for the stored link — GCS caps v4
@@ -29,12 +29,18 @@ Download-token URL format (`ingestHuddle` always writes this — it never stores
 https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{uploadId}.pdf?alt=media&token={uuid}
 ```
 
-**Auto-prune (3 months):** at the end of every `ingestHuddle` run, `pruneOldHuddles()` deletes
-huddle Firestore docs *and* their Storage objects older than 3 months (`HUDDLE_RETENTION_MONTHS`).
-Storage deletion sweeps by the `huddles/<date>` **prefix** — covering versioned paths, legacy fixed
-paths, and orphaned objects alike. It is awaited (so it runs before Cloud Run reclaims the container)
-but best-effort — failures are swallowed and never block the upload response. Circulars/newsletters
-keep 6 months; huddles are higher-volume and rarely referenced after the day, so retention is shorter.
+**Auto-prune (3 months):** at the end of every `ingestHuddle` run, `pruneOldHuddles()`
+(`functions/huddle-retention.js`) deletes huddle Firestore docs *and* their Storage objects older
+than 3 months (`HUDDLE_RETENTION_MONTHS`).
+**It deletes only what it selected (v25.89):** each document is re-read in a transaction and left
+alone if a replacement has moved its `storagePath`, then only that version's object is deleted, by
+name. Other objects under `huddles/<date>` — legacy fixed paths, and versions a failed read left
+behind — are reclaimed by `sweepHuddleOrphans` only when they are over a day old and no live document
+names them. Until v25.89 it swept the whole prefix after the delete, and a back-dated replacement
+landing between the two kept its new document and lost its file (external review, Nov 2026). It is
+awaited (so it runs before Cloud Run reclaims the container) but best-effort — failures are swallowed
+and never block the upload response. Circulars/newsletters keep 6 months; huddles are higher-volume
+and rarely referenced after the day, so retention is shorter.
 
 ### Firestore — `huddles` collection
 

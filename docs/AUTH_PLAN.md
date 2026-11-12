@@ -388,7 +388,7 @@ bookmark — keeps access until the object is deleted, and revocation means rewr
 editing a rule.
 
 **But not forever.** Both retention sweeps DELETE the Storage object, which is what actually kills a
-bearer URL: **Huddles at 3 months** (`pruneOldHuddles`, server-side in `functions/documents.js`),
+bearer URL: **Huddles at 3 months** (`pruneOldHuddles`, server-side in `functions/huddle-retention.js`),
 **Circulars and Newsletters at 6 months** (`pruneOldDocs`, browser-side in `doc-retention.js`). So a
 leaked URL is bounded by the retention window, not unbounded — which materially lowers this finding's
 priority.

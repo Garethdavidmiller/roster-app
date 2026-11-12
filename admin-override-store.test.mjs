@@ -95,11 +95,51 @@ mock.module('./firebase-client.js', {
             if (_serverFails) throw Object.assign(new Error('unavailable'), { code: 'unavailable' });
             return { exists: () => _server.has(ref.id), data: () => _server.get(ref.id), metadata: { fromCache: _serverCached } };
         },
+        // THE SERVER'S TRANSACTIONS (v25.89), modelled on Firestore's own rule — because the whole fix is
+        // about what happens when a document read inside one CHANGES before it commits: the SDK runs the
+        // function again, and the re-run meets the change. A fake that ran it once could only test the
+        // comparison, never the race the comparison used to lose.
+        runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => _runTx(fn),
     },
 });
 /** @type {Map<string, any>} */ const _server = new Map();
 let _serverCached = false;
 let _serverFails = false;
+/** Every server document's version, bumped by every write — what a transaction's reads are held to. @type {Map<string, number>} */
+const _versions = new Map();
+/** A write that lands on the server — a colleague's, or a committed transaction's. Null deletes. */
+function serverWrite(/** @type {string} */ id, /** @type {any} */ data) {
+    if (data === null) _server.delete(id); else _server.set(id, data);
+    _versions.set(id, (_versions.get(id) ?? 0) + 1);
+}
+/** Runs ONCE, after a transaction has read and before it commits: the gap the review reproduced. @type {(() => void)|null} */
+let _betweenReadAndCommit = null;
+/** How many times a transaction's function ran, and what the committed ones deleted. */
+let _txRuns = 0;
+/** @type {string[]} */ const _txDeleted = [];
+/** @type {Error|null} */ let _txFails = null;
+async function _runTx(/** @type {Function} */ fn) {
+    if (_txFails) throw _txFails;
+    for (let attempt = 0; attempt < 5; attempt++) {
+        _txRuns++;
+        /** @type {Map<string, number>} */ const readAt = new Map();
+        /** @type {Array<[string, string, any]>} */ const ops = [];
+        await fn({
+            get: async (/** @type {any} */ ref) => {
+                readAt.set(ref.id, _versions.get(ref.id) ?? 0);
+                const data = _server.get(ref.id);
+                return { exists: () => _server.has(ref.id), data: () => (data ? { ...data } : undefined) };
+            },
+            set: (/** @type {any} */ ref, /** @type {any} */ data) => { ops.push(['set', ref.id, data]); },
+            delete: (/** @type {any} */ ref) => { ops.push(['delete', ref.id, null]); },
+        });   // a refusal thrown inside rejects the whole transaction, as the real one does
+        const between = _betweenReadAndCommit; _betweenReadAndCommit = null; between?.();
+        if ([...readAt].some(([id, v]) => (_versions.get(id) ?? 0) !== v)) continue;   // read is stale: run it again
+        for (const [kind, id, data] of ops) { serverWrite(id, kind === 'set' ? data : null); if (kind === 'delete') _txDeleted.push(id); }
+        return;
+    }
+    throw Object.assign(new Error('transaction contention'), { code: 'aborted' });
+}
 
 // THE SESSION (Nov 2026). Every read waits for `sessionReady`. It is a one-shot promise in the app, so the
 // mock hands out a THENABLE that defers to whichever promise a test set: settled for everybody, held for
@@ -525,37 +565,127 @@ describe('5 · withManualDuplicates widens a delete only to what it outranks', (
     });
 });
 
-// ── 6 · a stale delete may not destroy a colleague's newer edit (Oct 2026 production review) ────────
+// ── 6 · a delete may not destroy a colleague's newer edit (Oct 2026; ONE transaction, v25.89) ──────
 // Admin's cache never refreshes on its own, and a manual record has one id per member and day, so a
-// delete aimed at what a manager saw this morning removed what a colleague had written since.
-describe('6 · a delete re-reads what it is about to remove', () => {
-    const seed = async (/** @type {any[]} */ rows) => { const { store } = await freshStore(); store.setAllOverrides(rows); return store; };
-    const al = { id: 'm_2026-06-16_G.%20Miller', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL' };
-    beforeEach(() => { _server.clear(); _serverCached = false; _serverFails = false; });
-
-    test('unchanged on the server → deletable', async () => {
-        const store = await seed([al]);
-        _server.set(al.id, { ...al });
-        assert.equal(await store.staleDeleteVerdict([al.id]), null);
-        await store.assertDeletable([al.id]);
+// delete aimed at what a manager saw this morning removed what a colleague had written since. The
+// external review (Nov 2026) found the two gaps left after the first fix, and both are pinned here:
+// the comparison was a separate read before a separate batch (a colleague's edit could land between),
+// and it compared three fields (a January day moved to the other allowance compared equal).
+describe('6 · a delete compares what it removes with what the page showed, in ONE transaction', () => {
+    const seed = async (/** @type {any[]} */ rows) => { const { store } = await freshStore(); store.setAllOverrides(rows.map(r => ({ ...r }))); return store; };
+    const al = { id: 'm_2026-06-16_G.%20Miller', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave',
+        value: 'AL', note: '', source: 'manual', changedBy: 'G. Miller', createdAt: { toMillis: () => 1_000 } };
+    const refused = (/** @type {any} */ store) => (/** @type {any} */ e) => e.code === store.DELETE_REFUSED && e.line === store.CHANGED_ELSEWHERE_LINE;
+    beforeEach(() => {
+        _server.clear(); _versions.clear(); _serverCached = false; _serverFails = false;
+        _betweenReadAndCommit = null; _txRuns = 0; _txDeleted.length = 0; _txFails = null;
     });
 
-    test('a colleague changed the day since → REFUSED, with a line that says so', async () => {
+    test('unchanged on the server → deleted, in one transaction', async () => {
         const store = await seed([al]);
-        _server.set(al.id, { ...al, type: 'rdw', value: '09:00-17:00' });
+        serverWrite(al.id, { ...al });
+        await store.deleteIfUnchanged(store.asShown([al.id]));
+        assert.deepEqual(_txDeleted, [al.id]);
+        assert.equal(_server.has(al.id), false);
+    });
+
+    test('a colleague changed the day BEFORE the delete read it → refused, nothing deleted', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al, type: 'rdw', value: '09:00-17:00', createdAt: { toMillis: () => 2_000 } });
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([al.id])), refused(store));
+        assert.deepEqual(_txDeleted, []);
+    });
+
+    test('a colleague changed it AFTER the read and before the commit → run again, refused, and the colleague\'s edit survives', async () => {
+        // The review's reproduction: Editor A checks the leave, Editor B replaces it with a worked shift,
+        // A's delete commits and removes B's shift. Inside a transaction the stale read makes Firestore
+        // run the function again, and the second run meets the shift.
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al });
+        _betweenReadAndCommit = () => serverWrite(al.id, { ...al, type: 'rdw', value: '09:00-17:00', changedBy: 'S. Manager', createdAt: { toMillis: () => 2_000 } });
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([al.id])), refused(store));
+        assert.equal(_server.get(al.id)?.type, 'rdw', 'the shift a colleague saved is still there');
+        assert.equal(_txRuns, 2, 'the transaction ran again because what it had read had changed');
+        assert.deepEqual(_txDeleted, []);
+    });
+
+    test('only the ALLOWANCE changed — the same AL, the same value — is still a change (the review\'s second finding)', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al, leaveYear: 2026, createdAt: { toMillis: () => 2_000 } });
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([al.id])), refused(store));
+        // …and not only through the revision: the same stamp with the allowance moved is refused too.
+        serverWrite(al.id, { ...al, leaveYear: 2026 });
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([al.id])), refused(store));
+    });
+
+    test('re-saved with the very same values is still a change: its revision moved', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al, createdAt: { toMillis: () => 5_000 } });
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([al.id])), refused(store));
+    });
+
+    test('already gone on the server → no difference; nothing is refused', async () => {
+        const store = await seed([al]);
+        await store.deleteIfUnchanged(store.asShown([al.id]));
+        assert.equal(_server.has(al.id), false);
+    });
+
+    test('an id the page does not hold, with a record under it on the server → refused: nobody was shown it', async () => {
+        const store = await seed([]);
+        serverWrite(al.id, { ...al });
+        await assert.rejects(store.deleteIfUnchanged([al.id]), refused(store));
+        assert.ok(_server.has(al.id));
+    });
+
+    test('what the person SAW is compared — not what a later load put in the cache', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al });
+        const shown = store.asShown([al.id]);                                  // at the press
+        const newer = { ...al, leaveYear: 2026, createdAt: { toMillis: () => 3_000 } };
+        serverWrite(al.id, newer);
+        store.setAllOverrides([{ ...newer }]);                                  // a load lands before the delete runs
+        await assert.rejects(store.deleteIfUnchanged(shown), refused(store));
+        assert.ok(_server.has(al.id), 'the newer record a load brought in was not deleted on the strength of the old one');
+    });
+
+    test('a row as shown WINS over the same id given bare — the week save hands both', async () => {
+        // executeSave passes the rows it captured at the press and then every id it deletes; were the bare
+        // id to win, the comparison would be with whatever a later load put in the cache.
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al });
+        const shown = store.asShown([al.id])[0];
+        const newer = { ...al, leaveYear: 2026, createdAt: { toMillis: () => 3_000 } };
+        serverWrite(al.id, newer);
+        store.setAllOverrides([{ ...newer }]);
+        await assert.rejects(store.commitIfUnchanged([shown, al.id], () => {}), refused(store));
+        await assert.rejects(store.commitIfUnchanged([al.id, shown], () => {}), refused(store), 'in either order');
+    });
+
+    test('a rewrite that DEPENDS on a record refuses when it has gone, in its own words', async () => {
+        const store = await seed([al]);
+        await assert.rejects(store.commitIfUnchanged([al], () => { throw new Error('the write must not run'); },
+            { mustExist: [al.id], line: 'gone since' }), (/** @type {any} */ e) => e.code === store.DELETE_REFUSED && e.line === 'gone since');
+    });
+
+    test('a transaction that cannot reach the server says so — not turned into a refusal — and deletes nothing', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al });
+        _txFails = Object.assign(new Error('offline'), { code: 'unavailable' });
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([al.id])), (/** @type {any} */ e) => e.code === 'unavailable');
+        assert.ok(_server.has(al.id));
+    });
+
+    test('the PRE-CHECK a long bulk delete runs first sees the allowance change too', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al });
+        assert.equal(await store.staleDeleteVerdict([al.id]), null);
+        serverWrite(al.id, { ...al, leaveYear: 2026 });
         assert.equal(await store.staleDeleteVerdict([al.id]), store.CHANGED_ELSEWHERE_LINE);
-        await assert.rejects(() => store.assertDeletable([al.id]),
-            (/** @type {any} */ e) => e.code === store.DELETE_REFUSED && e.line === store.CHANGED_ELSEWHERE_LINE);
     });
 
-    test('already gone on the server → not a difference, the delete may proceed', async () => {
+    test('an offline-cache answer, or no answer, refuses the pre-check — it could not be made', async () => {
         const store = await seed([al]);
-        assert.equal(await store.staleDeleteVerdict([al.id]), null);
-    });
-
-    test('an offline-cache answer, or no answer, refuses — the check could not be made', async () => {
-        const store = await seed([al]);
-        _server.set(al.id, { ...al });
+        serverWrite(al.id, { ...al });
         _serverCached = true;
         assert.equal(await store.staleDeleteVerdict([al.id]), store.UNCHECKED_DELETE_LINE);
         _serverCached = false; _serverFails = true;

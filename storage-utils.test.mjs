@@ -129,8 +129,8 @@ describe('versionedDocPath — the v13.99 upload path', () => {
             'huddles/2026-06-25-lv9kab12.pdf');
     });
     test('starts with the {collection}/{date} prefix the server-side huddle prune sweeps by', () => {
-        // pruneOldHuddles (functions/documents.js) reclaims a date's objects with a
-        // `huddles/<date>` prefix listing — versioned AND legacy paths must both sit under it,
+        // pruneOldHuddles (functions/huddle-retention.js) reclaims a date's objects only under the
+        // `huddles/<date>` prefix — versioned AND legacy paths must both sit under it,
         // or a pruned date leaves its file behind forever.
         const date = '2026-06-25';
         for (const p of [versionedDocPath('huddles', date, 'abc123', 'docx'),

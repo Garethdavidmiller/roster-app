@@ -33,10 +33,11 @@
  * `e2e/admin.spec.js` (which query actually runs).
  */
 
-import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, COLLECTIONS } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { shouldReplaceOverride } from './override-utils.js';
+import { sameOverrideRecord } from './override-compare.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
 
 /** @type {any[]} The cache itself. */
@@ -315,27 +316,35 @@ function refuseCachedRead(snap) {
     if (snap?.metadata?.fromCache) throw Object.assign(new Error('Overrides read was served from the offline cache'), { code: CACHED_READ });
 }
 
-// ── A STALE DELETE MAY NOT DESTROY A NEWER EDIT (Oct 2026 production review) ───────────────────
+// ── A DELETE MAY NOT DESTROY A NEWER EDIT (Oct 2026 production review; ONE transaction, v25.89) ───
 // Admin's cache is read once and never refreshes on its own, and since v24.48 a manual record has
 // ONE id per member and day. So a manager deleting a row they saw this morning deleted the document
 // a colleague had since rewritten under that same id — silently, with a receipt saying "Deleted AL
-// day". Before every delete the rows are re-read FROM THE SERVER and compared with what this page
-// showed; a difference refuses the whole delete. Saves stay last-writer-wins (an accepted decision);
-// a delete is the one write that cannot see what it removes.
+// day". So every delete compares what it removes with what this page showed, and refuses on any
+// difference. Saves stay last-writer-wins (an accepted decision); a delete is the one write that
+// cannot see what it removes.
 //
-// A read-then-delete, not a transaction: the window between the two is milliseconds, against the
-// hours of staleness this closes, and it keeps every delete in the batch shape its callers already
-// retry and gate. It does need the network — an unconfirmable check refuses the delete.
+// THE COMPARISON AND THE DELETE ARE ONE TRANSACTION (v25.89, external review, Nov 2026). They were a
+// re-read and then a separate batch, and a colleague's edit landing in the milliseconds between the
+// two was deleted anyway — reproduced. Inside a transaction Firestore re-runs the comparison whenever
+// a document it read changes before the commit, so the two can no longer be separated. And the
+// comparison is now the whole record (`sameOverrideRecord`), not three fields of it. The price is the
+// network: a transaction is never held on the device, so a delete needs a connection — as the
+// separate re-read already did.
 
-/** What a delete refused because the day changed underneath it says. */
+/** What a delete refused because the day changed underneath it says. TRUE only of one transaction:
+ *  a bulk delete that refuses after some of its chunks has its own words (admin-saved-changes.js). */
 export const CHANGED_ELSEWHERE_LINE = 'Someone else has changed this since your list loaded, so nothing was deleted. Reload the page to see the latest, then try again.';
 /** What a delete refused because the check could not reach the server says. */
 export const UNCHECKED_DELETE_LINE = "Couldn't check for newer changes, so nothing was deleted. Reconnect and try again.";
 
 /**
- * The cached rows whose STORED value, type or member differs now — or that the server cannot vouch
- * for. A row the server no longer holds is not a difference: it is already gone.
- * @param {Array<{id: string, value?: any, type?: any, memberName?: any}>} rows
+ * The cached rows whose server copy is no longer the record this page showed — or that the server
+ * cannot vouch for. A row the server no longer holds is not a difference: it is already gone.
+ * A PRE-CHECK, outside any transaction, so what it approves can still change before a delete lands:
+ * the bulk delete runs it first so that a list several chunks long is refused whole rather than part
+ * deleted, and each chunk is then checked again inside its own transaction (`deleteIfUnchanged`).
+ * @param {Array<{id: string}>} rows
  * @returns {Promise<Array<any>>}
  */
 export async function findChangedSince(rows) {
@@ -348,7 +357,7 @@ export async function findChangedSince(rows) {
             refuseCachedRead(snap);
             if (!snap.exists()) return;
             const now = /** @type {any} */ (snap.data()), was = part[j];
-            if (now.value !== was.value || now.type !== was.type || now.memberName !== was.memberName) changed.push({ ...was, now });
+            if (!sameOverrideRecord(was, now)) changed.push({ ...was, now });
         });
     }
     return changed;
@@ -371,58 +380,91 @@ export async function staleDeleteVerdict(items) {
     }
 }
 
-/** The code a refused delete throws with; its `line` is what to show. */
+/** The code a refused delete or rewrite throws with; its `line` is what to show. */
 export const DELETE_REFUSED = 'overrides/delete-refused';
 
 /**
- * Throw `DELETE_REFUSED` unless every row may be deleted — called inside each delete's write, so every
- * caller's existing error branch reports it.
- * @param {Iterable<string|{id: string}>} items rows as shown, or ids
+ * The rows as this page shows them NOW, for `ids` — called at the moment the person acts, before any
+ * await a load could land in, so the comparison is with what they SAW rather than with whatever a
+ * later read put in the cache. An id the cache does not hold stays an id.
+ * @param {Iterable<string>} ids @returns {Array<string|any>}
+ */
+export function asShown(ids) {
+    const byId = new Map(_allOverrides.map(o => [o.id, o]));
+    return [...ids].map(id => byId.get(id) ?? id);
+}
+
+/**
+ * Commit `write`'s writes in ONE transaction that first re-reads every document they delete or
+ * overwrite, and REFUSES — writing nothing, `DELETE_REFUSED` with `line` — unless each is still what
+ * this page holds for it (v25.89). `items` are those documents: a ROW as the page showed it (best —
+ * `asShown`), or an id, looked up in the cache now. On the server each must be:
+ *  - for a row: the same record (`sameOverrideRecord`), or gone — a document already deleted is no
+ *    difference — unless its id is in `mustExist`, for a rewrite that depends on it being there;
+ *  - for an id the cache does not hold: nothing at all, because a record there is one this page
+ *    never showed anybody.
+ * Every read comes before any write, as Firestore requires; and when a document read here changes
+ * before the commit, Firestore runs the whole function again, so a colleague's edit landing after the
+ * read meets the comparison on the re-run instead of slipping under it.
+ * @param {Iterable<string|{id: string}>} items
+ * @param {(tx: any, latest: Map<string, any>) => void} write  adds the writes to `tx`; `latest` is each
+ *        id's server data (or null) as this attempt read it — called again on every re-run
+ * @param {{ mustExist?: Iterable<string>, line?: string }} [opts]
  * @returns {Promise<void>}
  */
-export async function assertDeletable(items) {
-    const line = await staleDeleteVerdict(items);
-    if (line) throw Object.assign(new Error(line), { code: DELETE_REFUSED, line });
+export async function commitIfUnchanged(items, write, { mustExist = [], line = CHANGED_ELSEWHERE_LINE } = {}) {
+    const byId = new Map(_allOverrides.map(o => [o.id, o]));
+    /** @type {Map<string, any>} the record shown for each id, or null for "nothing shown here" */
+    const expected = new Map();
+    for (const x of items) {
+        const id = typeof x === 'string' ? x : x.id;
+        if (typeof x !== 'string') expected.set(id, x);                      // a row as shown always wins
+        else if (!expected.has(id)) expected.set(id, byId.get(id) ?? null);
+    }
+    const required = new Set(mustExist);
+    await runTransaction(db, async (/** @type {any} */ tx) => {
+        const ids = [...expected.keys()];
+        const snaps = await Promise.all(ids.map(id => tx.get(doc(db, COLLECTIONS.overrides, id))));
+        /** @type {Map<string, any>} */
+        const latest = new Map();
+        ids.forEach((id, i) => {
+            const now = snaps[i].exists() ? snaps[i].data() : null, was = expected.get(id);
+            latest.set(id, now);
+            const changed = was === null ? now !== null
+                : now === null ? required.has(id)
+                : !sameOverrideRecord(was, now);
+            if (changed) throw Object.assign(new Error(line), { code: DELETE_REFUSED, line });
+        });
+        write(tx, latest);
+    });
+}
+
+/**
+ * Delete `items` only if each is still what this page showed — ONE transaction, so all of them or
+ * none. The one delete every Admin surface makes (Saved Changes, a booked period, the bulk delete's
+ * chunks); the week-grid save, which deletes and writes in one commit, calls `commitIfUnchanged`.
+ * @param {Iterable<string|{id: string}>} items rows as shown (`asShown`), or ids
+ * @returns {Promise<void>}
+ */
+export function deleteIfUnchanged(items) {
+    const list = [...items];
+    return commitIfUnchanged(list, (tx) => {
+        for (const x of list) tx.delete(doc(db, COLLECTIONS.overrides, typeof x === 'string' ? x : x.id));
+    });
 }
 
 // ── MOVING A DAY BETWEEN ALLOWANCES REWRITES IT AS LEAVE, SO IT CHECKS FIRST (v25.18) ────────────
 // The choice of which year's allowance a January leave day comes out of (leave-year.js) is saved as
 // a fresh annual-leave record for the day. On a page loaded this morning that would RESURRECT leave
-// cancelled on another device since, or write leave over a shift a manager has just given — a
-// stale page creating a day off nobody booked. So the day is re-read from the server first, and the
-// save refused unless it is still the leave on screen. Two ids are read: the record shown, and the
-// fixed manual id the save lands on, because a record there that this page never loaded is itself a
-// newer edit. Same read-then-write footing as `assertDeletable`, for the same reasons.
+// cancelled on another device since, or write leave over a shift a manager has just given — a stale
+// page creating a day off nobody booked. So the save goes through `commitIfUnchanged`
+// (admin-leave-year-save.js): the record shown must still be there and unchanged, and the fixed
+// manual id it lands on must hold nothing this page has not loaded. One transaction since v25.89: it
+// was a re-read and then a separate batch, and a shift saved between the two was turned back into
+// leave (external review, Nov 2026).
 
 /** What a refused choice says when the day has changed since the page loaded. */
 export const LEAVE_YEAR_CHANGED_LINE = 'This day has changed since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.';
-/** What a refused choice says when the check could not reach the server. */
-export const LEAVE_YEAR_UNCHECKED_LINE = "Couldn't check this day is still annual leave, so nothing was saved. Reconnect and try again.";
-
-/**
- * Throw (with a `line` to show) unless the day is still, on the server, the annual leave this page
- * shows.
- * @param {string} memberName @param {string} date `YYYY-MM-DD`
- * @param {{id: string}} shown the winning record on screen
- * @returns {Promise<void>}
- */
-export async function assertStillLeave(memberName, date, shown) {
-    const refuse = (/** @type {string} */ line) => Object.assign(new Error(line), { code: DELETE_REFUSED, line });
-    const fixedId = manualOverrideId(memberName, date);
-    const ids = [...new Set([shown.id, fixedId])];
-    /** @type {any[]} */
-    let snaps;
-    try {
-        snaps = await Promise.all(ids.map(id => getDoc(doc(db, COLLECTIONS.overrides, id))));
-        snaps.forEach(refuseCachedRead);
-    } catch {
-        throw refuse(LEAVE_YEAR_UNCHECKED_LINE);
-    }
-    const now = snaps[0].exists() ? snaps[0].data() : null;
-    const stillLeave = !!now && now.type === 'annual_leave' && now.memberName === memberName && now.date === date;
-    const unseen = ids.length > 1 && snaps[1].exists();
-    if (!stillLeave || unseen) throw refuse(LEAVE_YEAR_CHANGED_LINE);
-}
 
 /** @param {{ everyone: boolean, member: string }} opts @returns {Promise<void>} */
 async function _loadOverridesInner(opts) {

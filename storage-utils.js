@@ -192,8 +192,8 @@ export function legacyDocPath(collectionName, dateId, fileType) {
  *
  * Two properties callers rely on, both pinned by tests:
  *  · it starts with `{collection}/{date}-` — the server-side huddle prune (pruneOldHuddles in
- *    functions/documents.js) reclaims a date's objects by exactly that prefix, so a versioned
- *    path that drifted out from under the prefix would never be swept;
+ *    functions/huddle-retention.js) deletes a date's objects only under exactly that prefix, so a
+ *    versioned path that drifted out from under the prefix would never be reclaimed;
  *  · the uploadId is generated at the CALL site (`Date.now`+`Math.random` — impure), never here,
  *    so this stays a pure function of its inputs.
  * @param {string} collectionName
