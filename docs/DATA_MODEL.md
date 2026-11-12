@@ -93,7 +93,7 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 **huddles**
 ```
 date         "YYYY-MM-DD" — also the document ID
-storageUrl   Permanent tokenised download URL (both manual upload and Cloud Function ingest — the ingest path uses a download token, NOT a signed URL: GCS caps v4 signed-URL expiry at 7 days, too short for the 3-month retention window). The app opens a short-lived URL from `getDocumentUrl` first and falls back to this one (ARCHITECTURE.md EXC-007)
+storageUrl   Permanent tokenised download URL (both manual upload and Cloud Function ingest — the ingest path uses a download token, NOT a signed URL: GCS caps v4 signed-URL expiry at 7 days, too short for the 3-month retention window). The app opens a short-lived URL from `getDocumentUrl` first and falls back to this one (ARCHITECTURE.md EXC-007). `rotateDocumentLinks` (Operations → Document links) replaces its key, never its path
 storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf" — versioned suffix
              prevents overwriting the old file before Firestore commits; absent on the oldest docs —
              uploadHuddle's cleanup falls back to "huddles/{date}.{fileType}";

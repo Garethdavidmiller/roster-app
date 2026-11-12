@@ -21,13 +21,16 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// The twenty-one deployed functions. Order-insensitive; names are what `firebase deploy` sees.
+// The twenty-two deployed functions. Order-insensitive; names are what `firebase deploy` sees.
 const DEPLOY_SURFACE = [
     'ingestHuddle',
     // v24.16 — the short-lived document URL (owner decision, AUTH_PLAN.md E6). A DEPLOYED function,
     // so it belongs in this list deliberately rather than by accident, which is what this guard is
     // for. It needs an IAM grant to work: see functions/documents.js's header.
     'getDocumentUrl',
+    // v25.88 — new keys for the documents' permanent links, from Operations → Document links (owner,
+    // 12 Nov 2026: ARCHITECTURE.md EXC-007). Admin only, and a preview unless asked.
+    'rotateDocumentLinks',
     'onHuddleCreated',
     'onCircularCreated',
     'onNewsletterCreated',

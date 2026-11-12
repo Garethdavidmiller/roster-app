@@ -59,7 +59,7 @@ this gate before it was coded, which is stronger than adding another test after 
 
 ## ⚖️ THE GOVERNANCE GATE — is this app officially sanctioned by Chiltern?
 
-**Status:** Open · **Owner:** Gareth + Chiltern management · **Review:** no date set — and it should have one
+**Status:** Blocked on a Chiltern decision · **Owner:** Gareth + Chiltern management · **Review:** no date set — and it should have one
 
 This was one line under "Open decisions". It is in fact the largest single question in the roadmap,
 because it decides whether several features below should exist **at all** — not how they should be
@@ -109,7 +109,7 @@ What remains is a decision, not code — S. Silva's, as the one leading the chan
 limits. The readiness dashboard at the top of the plan is authoritative.
 
 ### Roster import — let the PDF's own grid decide the day
-**Status:** Phases 1 and 2 shipped · phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js` · **Contract:** `.claude/rules/roster-import.md`
+**Status:** Committed — phases 1 and 2 shipped, phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js` · **Contract:** `.claude/rules/roster-import.md`
 
 The import's model-side day-drift defences share one weakness: the row read, `sundayScan` and
 `columnScan` all come from ONE model call looking at ONE PDF, so when the model collapses a blank
@@ -161,7 +161,7 @@ This gates more than itself: **C5 cannot complete without it**, because a member
 the roster never signs in and is therefore never compelled to set a password.
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
-**Status:** Recommended by external review, not adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
+**Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
 
 **The review's top-ranked item, and the only one that costs nothing.** It observed that this app
 shipped many small releases in a short period and that each one puts installed devices through an
@@ -200,7 +200,7 @@ A hard external deadline, not a feature. It is in the maintenance calendar with 
 two-month warning, because "must be done by April" reliably becomes "started in April".
 
 ### `ytd_2627` lapses about 26 Nov 2026 — decide rather than re-date
-**Status:** Owner decision, due when the notice lapses · **Where:** the notice table in `CLAUDE.md`,
+**Status:** Blocked on an owner decision, due when the notice lapses · **Where:** the notice table in `CLAUDE.md`,
 and the `new-notice` skill → Lessons
 
 The Pay Calculator's Year to Date notice is on its second run, on a new key. When it lapses, decide
@@ -282,7 +282,7 @@ chooses (the trigger, the page opening to staff, was met on 20 Oct 2026).
 ## NEXT — likely, but a trigger is required
 
 ### Overtime full launch — the three things the beta must answer first
-**Status:** PAUSED — closed to everyone, the admin included (`OVERTIME_AVAILABILITY.md` → Paused) · **Owner:** Gareth (the launch decision) · **Trigger:** each item names its own, below
+**Status:** Blocked on the launch decision — Overtime is PAUSED, closed to everyone, the admin included (`OVERTIME_AVAILABILITY.md` → Paused) · **Owner:** Gareth (the launch decision) · **Trigger:** each item names its own, below
 
 The feature ran as a restricted beta (`CONFIG.OVERTIME_BETA` + the reviewers; the beta list has been
 empty since 7 Oct 2026) until it was paused, and the design record is `OVERTIME_AVAILABILITY.md`. Three items were flagged in the Aug 2026 external review of
@@ -397,7 +397,7 @@ the review said it would rather avoid. So the two candidate remedies are a neste
 per-cell labels, and the owner is choosing between them, not approving the cheaper-sounding one.
 
 ### Track D — App Check, monitor mode
-**Status:** Deferred · **Owner:** Gareth · **Trigger:** owner decision · **Status of record:** `SECURITY_RELEASE_PLAN.md`
+**Status:** Blocked on an owner decision — deferred, not closed · **Owner:** Gareth · **Status of record:** `SECURITY_RELEASE_PLAN.md`
 
 D1 is monitor-only and therefore low-risk: it characterises legitimate traffic before anything is
 enforced. D2 (enforce) must not start until D1 has run long enough to know what normal looks like.

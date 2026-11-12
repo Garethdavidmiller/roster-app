@@ -3767,3 +3767,112 @@ test('operations: the small things on a desk — the file button matches its fie
     }
     await expect(page.locator('#errorLogCard .hint'), 'and names no touch verb on a desk').not.toContainText(/\btap\b/i);
 });
+
+// ── DOCUMENT LINKS (rotateDocumentLinks, 12 Nov 2026 — ARCHITECTURE.md EXC-007) ─────────────────
+// The card's whole safety is its ORDER: a check that changes nothing, then a confirm, then the run.
+// These drive the real page: the request bodies are recorded as they leave, so a card that sent
+// `rotate: true` on the check, or ran without the confirm, fails here rather than on the live files.
+
+/** A server report; `over` replaces fields. @param {Record<string, any>} [over] */
+const linksReport = (over = {}) => ({
+    rotate: false, files: 4, linked: 3, unlinkedWithKey: 1, unlinkedWithoutKey: 0, held: 0,
+    recordsMissingFile: 0, recordsUnreadable: 0, recordsWithoutLink: 0,
+    rotated: 0, cleared: 0, changedDuringRun: 0, failed: [], ...over,
+});
+
+/**
+ * Stub rotateDocumentLinks: a preview always answers `preview`; each run takes the next of `runs`
+ * ({ status, body } — a string body is sent as it is). Returns the bodies the page sent, in order.
+ * @param {import('@playwright/test').Page} page
+ * @param {{ status: number, body: any }[]} runs
+ */
+async function stubLinkRotation(page, runs) {
+    /** @type {any[]} */
+    const sent = [];
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' };
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/rotateDocumentLinks', route => {
+        if (route.request().method() !== 'POST') return route.fulfill({ status: 204, headers: cors });
+        const body = route.request().postDataJSON();
+        sent.push(body);
+        const answer = body.rotate === true ? runs.shift() ?? { status: 500, body: 'no run planned' } : { status: 200, body: linksReport() };
+        return route.fulfill({ status: answer.status, headers: cors,
+            contentType: typeof answer.body === 'string' ? 'text/html' : 'application/json',
+            body: typeof answer.body === 'string' ? answer.body : JSON.stringify(answer.body) });
+    });
+    return sent;
+}
+
+test('operations document links: Check changes nothing, Replace asks first, and a run says what it did', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    const sent = await stubLinkRotation(page, [{ status: 200, body: linksReport({ rotate: true, rotated: 3, cleared: 1 }) }]);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const body = page.locator('#docLinksBody');
+    const check = page.locator('#docLinksCheckBtn');
+    const replace = page.locator('#docLinksReplaceBtn');
+    const result = page.locator('#docLinksResult');
+    await page.locator('#docLinksChevron').click();
+    await expect(body).toHaveClass(/\bopen\b/);
+    await expect(check).toBeVisible();
+    await expect(replace, 'nothing to replace until a check has said what there is').toBeHidden();
+
+    await check.click();
+    await expect(result).toContainText('3 files are in use. Each gets a new link');
+    await expect(result).toContainText('1 older file is no longer used by the app.');
+    await expect(result).toContainText('Nothing has changed yet.');
+    expect(sent, 'the check asked for a preview').toEqual([{ rotate: false }]);
+    await expect(replace).toBeVisible();
+
+    // Cancelling the question sends nothing.
+    await replace.click();
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog.locator('.dialog-message')).toHaveText('Old copies of the links to 4 files stop working straight away. Staff won’t notice anything in the app.');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.lb-overlay.open')).toHaveCount(0);
+    expect(sent, 'a cancelled confirm ran nothing').toEqual([{ rotate: false }]);
+    await expect(result).toContainText('Nothing has changed yet.');
+
+    await replace.click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(result).toContainText('Done. 3 files have new links, so old copies of their links no longer work.');
+    await expect(result).toContainText('1 unused file had its link switched off.');
+    await expect(result).toHaveClass(/huddle-feedback--ok/);
+    expect(sent, 'only the confirmed press asked for a run').toEqual([{ rotate: false }, { rotate: true }]);
+    await expect(replace, 'a clean run puts the button away').toBeHidden();
+});
+
+test('operations document links: a run that left a file, or whose answer is lost, keeps Replace and says so', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    const sent = await stubLinkRotation(page, [
+        { status: 200, body: linksReport({ rotate: true, rotated: 3, failed: [{ path: 'huddles/2026-11-12.pdf', step: 'contract' }] }) },
+        { status: 503, body: '<html><body>Service Unavailable</body></html>' },          // the platform's
+        { status: 503, body: { error: 'Couldn’t read the documents, so nothing was changed', changed: false } },   // the endpoint's
+    ]);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.locator('#docLinksChevron').click();
+    await page.locator('#docLinksCheckBtn').click();
+    const replace = page.locator('#docLinksReplaceBtn');
+    const result = page.locator('#docLinksResult');
+    await expect(replace).toBeVisible();
+
+    await replace.click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(result).toContainText('Done. 3 files have new links');
+    await expect(result).toContainText('1 file couldn’t be changed, and its old link still works.');
+    await expect(result).toHaveClass(/huddle-feedback--err/);
+    await expect(replace, 'a file left unchanged keeps the retry one press away').toBeVisible();
+
+    await replace.click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(result).toHaveText('It isn’t known whether it finished. Press Replace the links again to make sure — running it twice is safe.');
+    await expect(result).toHaveClass(/huddle-feedback--err/);
+    await expect(replace, 'one press away from making sure').toBeVisible();
+    await expect(replace).toBeEnabled();
+
+    await replace.click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(result).toHaveText('Couldn’t read the documents, so nothing was changed. Try again in a minute.');
+    expect(sent).toEqual([{ rotate: false }, { rotate: true }, { rotate: true }, { rotate: true }]);
+});

@@ -1682,7 +1682,7 @@ describe('parseRosterPDF: a left-shifted row is repaired or sent to review, neve
 // product code, so a preflight shows exactly what the deployed endpoint would grant.
 describe('CORS: only the app\'s own origins are granted', () => {
     const BROWSER_CALLED = ['parseRosterPDF', 'unlockCalendarViewer', 'getDocumentUrl', 'setupRosterAuth',
-        'resetMemberPassword', 'requestPasswordReset', 'getSignInStats', 'getAccountSetupGaps'];
+        'resetMemberPassword', 'requestPasswordReset', 'getSignInStats', 'getAccountSetupGaps', 'rotateDocumentLinks'];
     const APP_ORIGINS = ['https://garethdavidmiller.github.io', 'https://myb-roster.web.app', 'https://myb-roster.firebaseapp.com'];
     const preflight = (origin) => withHelpers({
         method: 'OPTIONS',
