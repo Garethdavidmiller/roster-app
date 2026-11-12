@@ -1,7 +1,7 @@
 # The real-iPhone release checklist
 
 *Not version-stamped; not a runtime asset. The decision behind it: ROADMAP_HISTORY → "The v23.01 external review", its row "A real-iPhone release
-checklist".*
+checklist". Its twin for the other platform is ANDROID_RELEASE_CHECKLIST.md.*
 
 **Every line here is something no test in this repo can run.** That is the entry condition: if
 Playwright, axe or a baseline could answer it, it belongs in CI and not on this page. `npm run
@@ -80,6 +80,10 @@ keeping if an unrun check looks different from a passed one.
       status says so; cancelling says nothing was saved.
 - [ ] **Unsaved Admin edits:** stage a change, then About → *View staff roster* — it asks first. Stage
       one again, swipe back from the left edge and return — the page offers to restore it.
+- [ ] **Sign out, then swipe back.** Signed in, open Admin, go to the Calendar from the drawer and
+      sign out there. Swipe back from the left edge: Admin asks who you are, with nobody's week
+      behind the card. Safari may bring a page back exactly as it was left, and no browser the tests
+      drive will (README → `npm run test:signed-in`), so this is the only place that restore is seen.
 - [ ] **Press and hold the header logo:** no image menu appears.
 
 ## C · Installed to the Home Screen — the things a tab cannot have
@@ -89,14 +93,15 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
 
 - [ ] **Not an iPhone check: the launch splash that draws `name` in the device's own font.** That is
       Chrome's splash on Android before 12 (`.claude/rules/pwa.md` → `manifest.json` `name` — keep it short and
-      ASCII) — check it on an Android phone.
+      ASCII) — ANDROID_RELEASE_CHECKLIST.md → B checks it.
 - [ ] **There is no system Back.** So every overlay must close on its own ✕ or backdrop: the day
       panel, the About panel, the nav drawer, a one-time notice, the Huddle viewer. Open two at
       once and confirm closing the top one leaves the one beneath.
 - [ ] **Notifications.** Enable from Settings → Notifications (Web Push exists **only** in an
       installed PWA on iOS). Then send one — the Huddle is the easiest — and check on the LOCK
       SCREEN: the emoji leads the title, and the tap lands on the right surface rather than the app
-      root. (The monochrome badge is drawn by Android's status bar, not iOS — check it there.)
+      root. (The monochrome badge is drawn by Android's status bar, not iOS — ANDROID_RELEASE_CHECKLIST.md
+      → A checks it.)
 - [ ] **Tap a notification while the app is already open**, and while it is backgrounded. Both
       should reach the same place.
 - [ ] **A guide's ⤓ PDF button explains, and offers "Open in Safari"** — an installed iOS app cannot

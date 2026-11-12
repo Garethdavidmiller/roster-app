@@ -103,6 +103,8 @@ for (const [guide, id] of /** @type {Array<[string, string]>} */ ([
     ['railcard-guide', 'rc-senior'],
     ['fip-guide', 'booking-table'],           // not a section label or a country card
     ['fip-guide', 'ferry-stena-irish-sea'],   // nor this
+    ['staff-guide', 'sg-change-a-shift'],     // the document guides, since their chip bars (v25.80)
+    ['paycalc-guide', 'pg-holiday-pay-premium-hpp'],
 ])) {
     test(`guides: a deep link to ${guide}#${id} lands below the header and chip bar`, async ({ page }) => {
         await page.setViewportSize({ width: 375, height: 740 });
@@ -158,12 +160,13 @@ test('guides: a deep link leaves alone a page scrolled away without a touch or a
     expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement pulled the page back to the fragment').toBe(moved);
 });
 
-// ── …AND ON THE TWO DOCUMENT GUIDES, WHICH HAVE NO CHIP BAR (whole-app fix, 10 Nov 2026) ─────────────────
-// Their one sticky element is the header, and no stylesheet knows its height: with the phone's text one
-// step up the title wraps, and a search result opened its heading under the header — 25px at 375px,
-// 60px at 1.3×. The text is scaled as Android scales it (every used size multiplied, each read before
-// any is written) at DOMContentLoaded, so it is in place before the browser lands, and the measurement
-// is held until after `load`, the phone's order, as above. guide-back.js does the measuring.
+// ── …AND WITH THE TEXT LARGER, ON THE TWO DOCUMENT GUIDES (whole-app fix, 10 Nov 2026) ────────────────────
+// No stylesheet knows the sticky stack's height: with the phone's text one step up the title wraps, and a
+// search result opened its heading under the header — 25px at 375px, 60px at 1.3×. The text is scaled as
+// Android scales it (every used size multiplied, each read before any is written) at DOMContentLoaded, so
+// it is in place before the browser lands, and the measurement is held until after `load`, the phone's
+// order, as above. These guides had only the header then, measured by guide-back.js; since v25.80 they
+// carry a chip bar under it, measured with it by guide-chips.js, so a landing must clear the whole stack.
 /** @param {import('@playwright/test').Page} page @param {number} k */
 async function scaleTextBeforeLanding(page, k) {
     await page.addInitScript((mult) => document.addEventListener('DOMContentLoaded', () => {
@@ -172,20 +175,26 @@ async function scaleTextBeforeLanding(page, k) {
         els.forEach((el, i) => { if (px[i]) el.style.fontSize = `${px[i] * mult}px`; });
     }), k);
 }
-/** @param {import('@playwright/test').Page} page @param {string} id */
-function underHeader(page, id) {
+/**
+ * Where a target sits against the bottom of the sticky stack — the header or the chip bar, whichever ends
+ * lower: until the measurement arrives the bar sits at the stylesheet's guess, partly under the header.
+ * @param {import('@playwright/test').Page} page @param {string} id
+ */
+function underStack(page, id) {
     return page.evaluate((target) => {
         const top = /** @type {HTMLElement} */ (document.getElementById(target)).getBoundingClientRect().top;
         const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect().bottom;
-        return { top: Math.round(top), hdr: Math.round(hdr) };
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom;
+        return { top: Math.round(top), stack: Math.round(Math.max(hdr, bar)), hdr: Math.round(hdr) };
     }, id);
 }
 
-// THE WIDTH IS PART OF THE PREMISE. A deep link that lands under the header needs a header taller than the
-// stylesheet's 90px, and at one text step up that is the title wrapping — which "📘 Staff & Admin Guide" does at
-// 375px by 5px, a margin the machine's own emoji font decides: on CI's runner it stayed on one line, the header
-// was 85px, and the test had nothing to test (10 Nov 2026). At 360px, a real Android width still on the 90px
-// fallback, it wraps by 20px here; the Pay Calculator Guide's title wraps at 375px by 13px, and did on CI.
+// THE WIDTHS ARE WHERE THE TITLE WRAPS. Before the chip bar, a deep link landed under the header only when the
+// header outgrew the stylesheet's 90px, which at one text step up is the title wrapping — "📘 Staff & Admin
+// Guide" does at 375px by 5px, a margin the machine's own emoji font decides (on CI's runner it stayed on one
+// line, 10 Nov 2026), so 360px, where it wraps by 20px; the Pay Calculator Guide's title wraps at 375px. The
+// bar under the header now puts the browser's own landing under the stack at any width, but these keep the
+// wrapped title: a header that grows is exactly what the measurement has to follow.
 const STAFF_GUIDE_ONE_STEP_UP = 360;
 for (const [guide, id, k, width] of /** @type {Array<[string, string, number, number]>} */ ([
     ['staff-guide', 'sg-change-a-shift', 1.15, STAFF_GUIDE_ONE_STEP_UP],
@@ -197,18 +206,18 @@ for (const [guide, id, k, width] of /** @type {Array<[string, string, number, nu
         await holdGuideMeasurement(page);
         await scaleTextBeforeLanding(page, k);
         await landHeld(page, `/${guide}.html#${id}`);
-        const landed = await underHeader(page, id);
-        expect(landed.top, 'premise: the browser\'s own landing, on the stylesheet\'s fallback, is under the header').toBeLessThan(landed.hdr);
+        const landed = await underStack(page, id);
+        expect(landed.top, 'premise: the browser\'s own landing, on the stylesheet\'s fallback, is under the sticky stack').toBeLessThan(landed.stack);
         await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
         await settleFrames(page);
-        const geo = await underHeader(page, id);
-        expect(geo.top, `#${id} starts under the header (top ${geo.top}px, header ends ${geo.hdr}px)`).toBeGreaterThanOrEqual(geo.hdr);
+        const geo = await underStack(page, id);
+        expect(geo.top, `#${id} starts under the header and chip bar (top ${geo.top}px, the stack ends ${geo.stack}px)`).toBeGreaterThanOrEqual(geo.stack);
         // …and an in-page jump made later keeps the same clearance: it is the measured margin that holds it.
         await page.evaluate(() => { location.hash = ''; window.scrollTo(0, 0); });
         await page.evaluate((t) => { location.hash = t; }, id);
         await settleFrames(page);
-        const jumped = await underHeader(page, id);
-        expect(jumped.top, 'an in-page jump lands under the header').toBeGreaterThanOrEqual(jumped.hdr);
+        const jumped = await underStack(page, id);
+        expect(jumped.top, 'an in-page jump lands under the header and chip bar').toBeGreaterThanOrEqual(jumped.stack);
     });
 }
 
@@ -223,8 +232,8 @@ test('guides: on a document guide a deep link does not pull back a reader who ha
     await nudgeAsReader(page, info);
     await settleFrames(page);
     const moved = await page.evaluate(() => Math.round(window.scrollY));
-    const { top, hdr } = await underHeader(page, 'sg-change-a-shift');
-    expect(top, 'the nudge leaves the heading inside the band a re-land would act on').toBeLessThan(hdr);
+    const { top, stack } = await underStack(page, 'sg-change-a-shift');
+    expect(top, 'the nudge leaves the heading inside the band a re-land would act on').toBeLessThan(stack);
     expect(top, 'and still on the screen').toBeGreaterThanOrEqual(0);
     await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
     await settleFrames(page);
@@ -234,8 +243,8 @@ test('guides: on a document guide a deep link does not pull back a reader who ha
     await page.waitForFunction(() => document.fonts.status === 'loaded');
     await settleFrames(page);
     const restored = await page.evaluate(() => Math.round(window.scrollY));
-    const back = await underHeader(page, 'sg-change-a-shift');
-    expect(back.top, 'premise: the reload restored a position inside the band').toBeLessThan(back.hdr);
+    const back = await underStack(page, 'sg-change-a-shift');
+    expect(back.top, 'premise: the reload restored a position inside the band').toBeLessThan(back.stack);
     await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
     await settleFrames(page);
     expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reloaded page off its restored position').toBe(restored);
@@ -263,24 +272,25 @@ test('guides: on a document guide, once the page has landed, a later change to t
     await landHeld(page, '/staff-guide.html#sg-change-a-shift');
     await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
     await settleFrames(page);
-    await page.evaluate(() => window.scrollBy(0, 40));   // no touch and no key: the heading goes back under the header
+    await page.evaluate(() => window.scrollBy(0, 40));   // no touch and no key: the heading goes back under the stack
     await settleFrames(page);
-    const { top, hdr } = await underHeader(page, 'sg-change-a-shift');
-    expect(top, 'premise: the heading is inside the band a re-land would act on').toBeLessThan(hdr);
+    const { top, stack, hdr } = await underStack(page, 'sg-change-a-shift');
+    expect(top, 'premise: the heading is inside the band a re-land would act on').toBeLessThan(stack);
     expect(top, 'and still on the screen').toBeGreaterThanOrEqual(0);
     // The header is in the flow, so growing it moves the page under it, and the browser's scroll anchoring then
     // keeps what is on screen where it was: the reader's view is the heading's place on the screen, not scrollY.
     await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector('.page-header h1')).style.fontSize = '24px'; });
     await settleFrames(page);
-    const after = await underHeader(page, 'sg-change-a-shift');
+    const after = await underStack(page, 'sg-change-a-shift');
     expect(after.hdr, 'premise: the header grew').toBeGreaterThan(hdr);
     expect(Math.abs(after.top - top), `a header change after the landing moved the reader (the heading went from ${top}px to ${after.top}px)`).toBeLessThanOrEqual(2);
 });
 
-// guide-back.js measures the HEADER alone, which on a chip-bar guide is short of the sticky stack by the whole bar —
-// so it must leave those three to their own scripts. Today's script order would hide a lapse (the page's script
-// writes last), so every margin WRITTEN is recorded, not just the one that ends up on the card.
-test('guides: on a chip-bar guide, every scroll margin written clears the header and the chip bar', async ({ page }) => {
+// A margin measured from the HEADER alone is short of the sticky stack by the whole bar. guide-back.js wrote one on
+// the two document guides until they gained their bars (v25.80), and a second script measuring the header would be
+// hidden by script order (the chip-bar script writes last) — so every margin WRITTEN is recorded, not just the one
+// that ends up on the card.
+test('guides: on every guide, every scroll margin written clears the header and the chip bar', async ({ page }) => {
     await page.addInitScript(() => {
         /** @type {number[]} */
         const seen = [];
@@ -296,8 +306,8 @@ test('guides: on a chip-bar guide, every scroll margin written clears the header
             read(el.getAttribute('style'));
         })).observe(document, { subtree: true, attributes: true, attributeFilter: ['style'], attributeOldValue: true });
     });
-    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
-        await page.goto(`/${guide}.html`);
+    for (const { file: guide } of GUIDE_PAGES) {
+        await page.goto(`/${guide}`);
         await page.waitForFunction(() => document.fonts.status === 'loaded');
         await settleFrames(page);
         const m = await page.evaluate(() => ({
@@ -461,11 +471,15 @@ test('fip: scrollspy marks the chip for the section scrolled into view', async (
 // they marked current stayed current wherever the reader went — "Digital" lit over the quick check.
 // The scroll's behaviour is read off the call itself, because an instant and a smooth jump end in the
 // same place and a test that only looked at the landing could not tell them apart.
-for (const [guide, first, last] of /** @type {Array<[string, string, string]>} */ ([
+for (const [guide, first, last, phone] of /** @type {Array<[string, string, string, boolean?]>} */ ([
     ['railcard-guide', 'rc-quick', 'rc-digital'],
     ['rangers-guide', 'rr-quick', 'rr-checks'],
+    // The document guides at a phone's width: on their two desktop columns no chip follows the reader (below).
+    ['staff-guide', 'sg-getting-started', 'sg-weekly-roster-upload-admins-only', true],
+    ['paycalc-guide', 'pg-what-it-does', 'pg-data-privacy', true],
 ])) {
     test(`${guide}: a chip jump honours Reduce Motion, and the current chip follows the reader`, async ({ page }) => {
+        if (phone) await page.setViewportSize({ width: 375, height: 740 });
         await page.addInitScript(() => {
             /** @type {string[]} */
             const calls = [];
@@ -495,6 +509,368 @@ for (const [guide, first, last] of /** @type {Array<[string, string, string]>} *
         expect(await lastCall(), 'the jump with motion allowed').toBe('smooth');
     });
 }
+
+// ── THE DOCUMENT GUIDES' BAR (v25.80) ───────────────────────────────────────────────────────────────
+// The Staff and Pay Calculator guides set their sections in two columns from 641px, so on a desktop two sections
+// begin on the same line and the scroll position cannot say which one is being read: the one-column rule would
+// name a right-hand section while the left was being read. There a chip is current only after a jump to it, and
+// only until the reader moves on; at a phone's width the bar follows the reader, as every guide's does.
+test('guides: on two columns no chip claims the section, and a chip jumped with holds until the reader moves', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'two desktop columns, scrolled with a wheel');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/paycalc-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const current = page.locator('.chip-bar .chip[aria-current]');
+    await expect(current, 'two columns: nothing is current before a jump').toHaveCount(0);
+
+    const hpp = page.locator('.chip-bar .chip[data-target="pg-holiday-pay-premium-hpp"]');
+    await hpp.click();
+    await expect(hpp).toHaveAttribute('aria-current', 'true');
+    // Past the smooth scroll and the spy's resumption (scrollend, or its 1.5s ceiling where there is none).
+    await page.waitForTimeout(1800);
+    await expect(hpp, 'once the jump has settled, the chip chosen is still the one lit').toHaveAttribute('aria-current', 'true');
+    await expect(current).toHaveCount(1);
+
+    await page.mouse.move(640, 500);
+    await page.mouse.wheel(0, 300);
+    await expect(current, 'the reader moved on, and the bar claims no section again').toHaveCount(0);
+
+    await page.setViewportSize({ width: 375, height: 740 });
+    await expect(current, 'one column: a chip follows the reader').toHaveCount(1);
+});
+
+// …but not a jump the reader took back. A finger that stops the smooth scroll halfway leaves the page where the
+// reader wants it, and the scroll settling there must not read as the jump arriving: the chip would claim a
+// section the reader is not at. A wheel does not stop Chromium's smooth scroll, and a headless finger cannot, so
+// the interruption here is the one a test can make every time: an instant scroll while the jump is in flight,
+// which cancels it as a finger does.
+test('guides: a jump the reader interrupts does not hold its chip where the reader stopped', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/paycalc-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await page.locator('.chip-bar .chip[data-target="pg-year-to-date-figures"]').click();
+    await page.evaluate(() => new Promise(done => requestAnimationFrame(() => {
+        window.scrollTo({ top: 200, behavior: 'instant' });
+        done(undefined);
+    })));
+    await page.waitForTimeout(1800);
+    const at = await page.evaluate(() => Math.round(/** @type {HTMLElement} */ (document.getElementById('pg-year-to-date-figures')).getBoundingClientRect().top));
+    expect(at, 'premise: the jump was stopped well short of its section').toBeGreaterThan(400);
+    await expect(page.locator('.chip-bar .chip[aria-current]'), 'nothing is claimed where the reader stopped').toHaveCount(0);
+});
+
+// A JUMP'S CHIP HOLDS where the page cannot scroll its section up to the line. At the bottom of a page the
+// one-column rule lights the LAST chip whatever was chosen, so a reader who tapped "Back pay" saw "Moving your
+// data" lit. A tall window makes the near-the-end case on any machine, and it is SIZED FROM THE PAGE: the page
+// below "Back pay", plus the header and bar above it, plus 200px, so the section comes to rest 200px under the
+// bar however the text wraps. A fixed 1800px stopped making the case when v25.82 added a note below "Back pay":
+// on CI's wrapping the section then rested 11px under the bar, inside the premise's 20, on every engine at once.
+test('guides: a chip near the end of a page stays lit after its jump, though its section never reaches the line', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/paycalc-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const room = await page.evaluate(() => {
+        const doc = document.documentElement.scrollHeight;
+        const top = /** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top + scrollY;
+        return { doc, below: Math.ceil(doc - top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+    });
+    const height = room.below + room.bar + 200;
+    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+    await page.setViewportSize({ width: 375, height });
+    const backPay = page.locator('.chip-bar .chip[data-target="pg-pay-rise-back-pay"]');
+    await backPay.click();
+    await page.waitForTimeout(1800);
+    const geo = await page.evaluate(() => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }));
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(backPay, 'the chip chosen, not the last one').toHaveAttribute('aria-current', 'true');
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again')
+        .toHaveAttribute('aria-current', 'true');
+});
+
+// THE CHOSEN CHIP IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy, the app's
+// colour for a button that DOES something; the guides take their own gold accent instead (guide-shell.css). Read
+// off a chip each guide's own script has just lit, once its fade has finished, against the shell's tokens
+// resolved on the same page: a rule that LOSES — a guide's own `.chip`, the hover — shows here, and would not in
+// a read of the stylesheet. One test per guide in GUIDE_PAGES, so a sixth guide is held to it without an edit.
+for (const { file } of GUIDE_PAGES) {
+    test(`guides: the chosen section chip is gold with navy words (${file})`, async ({ page }) => {
+        await page.goto(`/${file}`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        const chip = page.locator('.chip-bar .chip').nth(1);
+        await chip.click();
+        await expect(chip, 'premise: the tapped chip is the chosen one').toHaveAttribute('aria-current', 'true');
+        const c = await chip.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {}))).then(() => {
+            const probe = document.createElement('span');
+            probe.style.cssText = 'background: var(--gold); color: var(--navy)';
+            document.body.append(probe);
+            const want = getComputedStyle(probe);
+            const got = getComputedStyle(el);
+            const seen = { fill: got.backgroundColor, ink: got.color, gold: want.backgroundColor, navy: want.color };
+            probe.remove();
+            return seen;
+        }));
+        expect(c.gold, 'premise: the shell\'s gold token resolved on this page').not.toBe('rgba(0, 0, 0, 0)');
+        expect(c.fill, 'the chosen chip is filled gold').toBe(c.gold);
+        expect(c.ink, 'with navy words').toBe(c.navy);
+    });
+}
+
+// A HEADING INSIDE A BANNER LANDS WITH ITS BANNER. The Staff Guide's "Admin Guide" divider is a navy banner with
+// its heading inside, and measured to the heading alone the banner's top edge and icon went under the chip bar.
+// Through the chip, and through a search result's deep link.
+test('guides: the Admin Guide banner lands whole below the chip bar', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const banner = () => page.evaluate(() => ({
+        top: Math.round(/** @type {HTMLElement} */ (/** @type {HTMLElement} */ (document.getElementById('sg-marylebone-roster-admin-guide'))
+            .closest('.guide-header')).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }));
+    await page.goto('/staff-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await page.locator('.chip-bar .chip[data-target="sg-marylebone-roster-admin-guide"]').click();
+    await settleFrames(page);
+    const viaChip = await banner();
+    expect(viaChip.top, `through the chip: the banner starts at ${viaChip.top}px, the bar ends at ${viaChip.bar}px`)
+        .toBeGreaterThanOrEqual(viaChip.bar);
+
+    await page.goto('about:blank');
+    await page.goto('/staff-guide.html#sg-marylebone-roster-admin-guide');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const viaLink = await banner();
+    expect(viaLink.top, `through a deep link: the banner starts at ${viaLink.top}px, the bar ends at ${viaLink.bar}px`)
+        .toBeGreaterThanOrEqual(viaLink.bar);
+});
+
+// …AND THE BAR NAMES THE SECTION THE BANNER STARTS. Landed with its banner clear, the heading inside sits a
+// little below the line the bar reads, so the bar went on naming "Your account" with the Admin Guide's banner
+// right under it — after any jump, link or scroll that put it there. A section starts where its banner does.
+test('guides: with the Admin Guide banner under the bar, the bar names the Admin Guide', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.goto('/staff-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    // Scrolled by the reader to where a jump or a link puts the banner: its top on the landing line.
+    await page.evaluate(() => {
+        const banner = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (
+            document.getElementById('sg-marylebone-roster-admin-guide')).closest('.guide-header'));
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+        window.scrollTo(0, banner.getBoundingClientRect().top + window.scrollY - (hdr.offsetHeight + bar.offsetHeight + 8));
+    });
+    await settleFrames(page);
+    const geo = await page.evaluate(() => {
+        const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+        return { heading: /** @type {HTMLElement} */ (document.getElementById('sg-marylebone-roster-admin-guide')).getBoundingClientRect().top,
+            line: hdr.offsetHeight + bar.offsetHeight + 12 };
+    });
+    expect(geo.heading, 'premise: the heading itself has not reached the line the bar reads').toBeGreaterThan(geo.line);
+    await expect(page.locator('.chip-bar .chip[data-target="sg-marylebone-roster-admin-guide"]'), 'not the section before it')
+        .toHaveAttribute('aria-current', 'true');
+});
+
+// ── A LINK HOLDS ITS CHIP THE WAY A TAP DOES (v25.81) ──────────────────────────────────────────────────────
+// A search result or a shared link opened at a #fragment answers "where am I" like a tap on its chip, until what
+// it put in place moves. Measured on v25.80 by opening every linkable id fresh: on the two document guides'
+// columns a link lit no chip at all, and on the Railcard guide a link to "If it's wrong" lit "Digital", because at
+// the bottom of the page the last chip wins. Every link here is opened FRESH: a goto that changes only the
+// fragment is a jump within the page, a different path (a hash changed in place, the second test).
+test('guides: a link to a section near the end of a page lights its own chip until the reader moves', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.goto('/railcard-guide.html#rc-wrong');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    const geo = await page.evaluate(() => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById('rc-wrong')).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }));
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section sits well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-wrong"]'), 'the section the link named, not the last one')
+        .toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again')
+        .toHaveAttribute('aria-current', 'true');
+});
+
+// The guides carry no in-page links, so a hash changes in place only by hand, or by Back across such a change —
+// where the position comes from history, not from a link. It ends the link's answer, and the bar follows the reader:
+// here, at the bottom of the page, the last chip.
+test('guides: a hash changed in place lets a link\'s chip go', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.goto('/railcard-guide.html#rc-wrong');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-wrong"]'), 'premise: the link holds its chip')
+        .toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => { location.hash = 'rc-digital'; });
+    await settleFrames(page);
+    expect(await page.evaluate(() => Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2),
+        'premise: still at the bottom, so nothing scrolled to let the hold go').toBe(true);
+    await expect(page.locator('.chip-bar .chip[data-target="rc-digital"]')).toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+});
+
+// On the document guides' two columns a link lights the chip of the section it lands in — a sub-heading's
+// section, too — where before nothing was lit, and the chip holds through the landing. A scroll that ENDS while
+// the page is still landing (the browser's own landing is one) must not settle the hold: the measurement then
+// re-lands the heading, and a hold settled before that would let go of the chip the moment it moved.
+test('guides: on two columns a link lights its section\'s chip through the landing, until the reader moves', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'two desktop columns, scrolled with a wheel');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/paycalc-guide.html#pg-holiday-pay-premium-hpp');
+    const hpp = page.locator('.chip-bar .chip[data-target="pg-holiday-pay-premium-hpp"]');
+    const lit = page.locator('.chip-bar .chip[aria-current]');
+    await expect(hpp, 'lit while the page is still landing').toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => window.scrollBy(0, 1));
+    await settleFrames(page);
+    const before = await landing(page, 'pg-holiday-pay-premium-hpp');
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    const after = await landing(page, 'pg-holiday-pay-premium-hpp');
+    expect(after.top - before.top, 'premise: the measurement re-landed the heading').toBeGreaterThan(20);
+    expect(after.top, 'premise: below the bar').toBeGreaterThanOrEqual(after.barBottom);
+    await expect(hpp, 'once the page has landed, still the chip the link named').toHaveAttribute('aria-current', 'true');
+    await expect(lit).toHaveCount(1);
+
+    await page.mouse.move(640, 500);
+    await page.mouse.wheel(0, 300);
+    await expect(lit, 'the reader moved on, and on two columns the bar claims no section again').toHaveCount(0);
+
+    await page.goto('about:blank');
+    await page.goto('/staff-guide.html#sg-signing-in');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await expect(page.locator('.chip-bar .chip[data-target="sg-marylebone-roster-admin-guide"]'),
+        'a sub-heading lights the chip of the section it sits in').toHaveAttribute('aria-current', 'true');
+    await expect(lit).toHaveCount(1);
+});
+
+// The hold stands where the landing leaves the link's target — if the reader can still see it. A page moved away
+// with no touch, click, wheel or key (a screen reader, a drag on the scrollbar) does not end the landing, so when
+// the landing does end, the link's section may be off the screen; the bar then follows the reader.
+test('guides: a link\'s chip lets go if the page was moved away before it finished landing', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await holdGuideMeasurement(page);
+    await landHeld(page, '/rangers-guide.html#rr-thames');
+    await expect(page.locator('.chip-bar .chip[data-target="rr-elsewhere"]'), 'premise: the link holds its section\'s chip while landing')
+        .toHaveAttribute('aria-current', 'true');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
+    await settleFrames(page);
+    expect(await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('rr-thames')).getBoundingClientRect().top),
+        'premise: the linked card is below the screen').toBeGreaterThan(740);
+    await expect(page.locator('.chip-bar .chip').first(), 'the bar follows the reader, at the top').toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+});
+
+// FROM 641px A BAR TOO LONG FOR ITS WINDOW WRAPS. On a desktop the bar hides its scrollbar, so a chip past the
+// edge was a section no mouse could learn existed. 641px, not the column's 800: a window snapped to half a
+// laptop screen is 683–768px wide, and there the Staff Guide hid three to five chips, the admin ones among them
+// (bug and regression check, 12 Nov 2026). A bar that fits stays one row, and a phone held sideways — wide,
+// but about 390px tall — keeps its one scrolling row rather than give a third of its screen to chips.
+test('guides: a chip bar too long for the desktop column wraps; one that fits, or a phone on its side, keeps one row', async ({ page }) => {
+    const layout = () => page.evaluate(() => {
+        const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+        const tops = new Set([...bar.querySelectorAll('.chip')].map(c => Math.round(c.getBoundingClientRect().top)));
+        return { rows: tops.size, hidden: bar.scrollWidth > bar.clientWidth + 1 };
+    });
+    for (const guide of ['staff-guide', 'paycalc-guide']) {
+        for (const [width, height] of [[1280, 800], [683, 768]]) {
+            await page.setViewportSize({ width, height });
+            await page.goto(`/${guide}.html`);
+            const desk = await layout();
+            expect(desk.hidden, `${guide} at ${width}×${height}: a chip is out of view`).toBe(false);
+            expect(desk.rows, `${guide} at ${width}×${height}: the chips need more than one row`).toBeGreaterThan(1);
+        }
+        await page.setViewportSize({ width: 844, height: 390 });
+        expect(await layout(), `${guide} on a phone held sideways: one row, scrolling`).toEqual({ rows: 1, hidden: true });
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/fip-guide.html');
+    expect(await layout(), 'the FIP guide\'s chips fit: one row, nothing out of view').toEqual({ rows: 1, hidden: false });
+});
+
+// A WRAPPING BAR CHANGES HEIGHT ON ITS OWN. A window made taller across 600px wraps the bar onto a second row
+// with no change to the header, and the scroll margins, measured for one row, landed a jump under the second
+// (bug and regression check, 12 Nov 2026). The page scripts watch the bar's size as well as the header's — FIP's
+// own script too. FIP's eight chips are a few pixels either side of fitting at the narrow end of the wrap range,
+// depending on the engine's text widths (CI's Chromium fitted them at 660px where this author's did not), so the
+// test widens them, making that bar too long for the window wherever it runs: what is under test is the script's
+// answer to the bar changing height, not where FIP's own wrap begins. A style SET from script, because the
+// pages' CSP refuses an injected <style> element.
+test('guides: a window made taller, so the bar wraps, still lands a jump below the bar', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window resized');
+    const rows = () => page.evaluate(() => new Set([...document.querySelectorAll('.chip-bar .chip')]
+        .map(c => Math.round(c.getBoundingClientRect().top))).size);
+    for (const [guide, width, widen] of /** @type {Array<[string, number, boolean]>} */ ([
+        ['staff-guide', 1024, false], ['paycalc-guide', 1024, false], ['fip-guide', 700, true]])) {
+        await page.setViewportSize({ width, height: 580 });
+        await page.goto(`/${guide}.html`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        if (widen) {
+            await page.evaluate(() => document.querySelectorAll('.chip-bar .chip').forEach(c => {
+                /** @type {HTMLElement} */ (c).style.paddingInline = '40px';
+            }));
+        }
+        await settleFrames(page);
+        expect(await rows(), `premise: ${guide} at ${width}×580 has one row`).toBe(1);
+        await page.setViewportSize({ width, height: 700 });
+        await settleFrames(page);
+        expect(await rows(), `premise: ${guide} at ${width}×700 has wrapped`).toBeGreaterThan(1);
+        const chip = page.locator('.chip-bar .chip').nth(2);
+        const id = /** @type {string} */ (await chip.getAttribute('data-target'));
+        await chip.click();
+        await page.waitForTimeout(1800);
+        const at = await page.evaluate((id) => ({
+            top: Math.round(/** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+        }), id);
+        expect(at.top, `${guide}: ${id} lands at ${at.top}px, under the bar that ends at ${at.bar}px`).toBeGreaterThanOrEqual(at.bar);
+    }
+});
+
+// A JUMP'S HOLD LETS GO WHEN ITS SECTION MOVES, not only when the page scrolls. A resize, or a phone turned on
+// its side, reflows the page without scrolling it, and a hold kept by the scroll position went on naming the
+// section jumped to — on the Rangers guide, one 3,000px below the screen (bug and regression check, 12 Nov 2026).
+test('guides: after a jump, a resize that moves the section hands the bar back to where the reader is', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window resized to a phone\'s width');
+    for (const [guide, id] of [['railcard-guide', 'rc-mornings'], ['rangers-guide', 'rr-checks']]) {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto(`/${guide}.html`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        const chip = page.locator(`.chip-bar .chip[data-target="${id}"]`);
+        await chip.click();
+        await page.waitForTimeout(1800);
+        await expect(chip, `premise: the jump to ${id} holds its chip`).toHaveAttribute('aria-current', 'true');
+        await page.setViewportSize({ width: 375, height: 740 });
+        await settleFrames(page);
+        const at = await page.evaluate((id) => {
+            const hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+            const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
+            return { top: /** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().top,
+                line: hdr.offsetHeight + bar.offsetHeight + 12 };
+        }, id);
+        expect(at.top, `premise: the resize moved ${id} below the line`).toBeGreaterThan(at.line);
+        await expect(chip, `${guide}: the bar no longer claims ${id}`).not.toHaveAttribute('aria-current', 'true');
+        await expect(page.locator('.chip-bar .chip[aria-current]'), 'a chip follows the reader again').toHaveCount(1);
+    }
+});
 
 // Whole-app review, Nov 2026: heading navigation on the Railcard guide stopped at the A–Z section —
 // reaching "Network" meant reading through eight cards — because a card's name was a plain span; two
@@ -694,7 +1070,8 @@ test('fip: the booking table stacks with labelled cells on a phone', async ({ pa
 // The three chip-bar guides centre a 760px column but the chip bar is full-bleed, so the chips used
 // to start at the window edge (x=12 at 1280) while the text started at x=276.
 test('guides: from 800px the section chips start where the content column\'s text does', async ({ page }) => {
-    const pages = { 'fip-guide': '.content', 'railcard-guide': '.content', 'rangers-guide': 'main' };
+    const pages = { 'fip-guide': '.content', 'railcard-guide': '.content', 'rangers-guide': 'main',
+                    'staff-guide': '.page', 'paycalc-guide': '.page' };
     for (const [guide, column] of Object.entries(pages)) {
         for (const width of [1280, 800]) {
             await page.setViewportSize({ width, height: 900 });
@@ -849,7 +1226,11 @@ test('railcard: on a desktop the quick-check type steps up to fill its cards, an
 // buttons a reader could not match to the screen by sight. Compared with the REAL buttons, read off
 // the Calendar, within a whisker: the guides keep their own print-friendly palette, which mirrors the
 // app's by eye (guide-colour-parity.test.mjs), so a near-match is the contract, not an exact one.
-test('staff guide: each button it describes wears the real button\'s colours', async ({ page }) => {
+// AND ITS SHAPE (v25.82): the labels were 10.5px pills — a shift badge's shape — beside bold rounded
+// rectangles, so the guide showed a reader a badge where the screen has a button. The corner is
+// compared as a share of the height (a radius over half the height draws a pill whatever it says),
+// because the drawn button is deliberately smaller than the real one.
+test('staff guide: each button it describes wears the real button\'s colours and corners', async ({ page }) => {
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -860,21 +1241,71 @@ test('staff guide: each button it describes wears the real button\'s colours', a
         ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1);
         return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
     }, css);
-    /** @type {Record<string, { fill: number[], ink: number[] }>} */
+    // The corner as a share of the height, capped where CSS caps it: past half the height it is a pill.
+    /** @type {Record<string, { fill: number[], ink: number[], corner: number }>} */
     const real = {};
     for (const [k, sel] of Object.entries(ids)) {
         // Once its transitions finish: iPhone WebKit read the Today button mid-fade (243,200,34).
         const cs = await page.locator(sel).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {})))
-            .then(() => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color })));
-        real[k] = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
+            .then(() => {
+                const h = el.getBoundingClientRect().height;
+                return { fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color,
+                    corner: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius), h / 2) / h };
+            }));
+        real[k] = { fill: await rgb(cs.fill), ink: await rgb(cs.ink), corner: cs.corner };
     }
     await page.goto('/staff-guide.html');
     for (const k of Object.keys(ids)) {
-        const cs = await page.locator(`.feature-label--${k}`).evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color }));
+        const cs = await page.locator(`.feature-label--${k}`).evaluate(el => {
+            const h = el.getBoundingClientRect().height;
+            return { fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color,
+                corner: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius), h / 2) / h };
+        });
         const label = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
         for (const part of /** @type {const} */ (['fill', 'ink'])) {
             const off = Math.max(...label[part].map((v, i) => Math.abs(v - real[k][part][i])));
             expect(off, `${k}: the guide's ${part} ${label[part]} — the real button's ${real[k][part]}`).toBeLessThanOrEqual(24);
+        }
+        expect(Math.abs(cs.corner - real[k].corner),
+            `${k}: the guide's corner is ${cs.corner.toFixed(2)} of its height, the real button's ${real[k].corner.toFixed(2)} — 0.50 is a pill`).toBeLessThanOrEqual(0.1);
+    }
+});
+
+// THE PAY GUIDE'S RATES WEAR THE PAY PAGE'S BADGES (v25.82). Every rate in the guide was the same red
+// word, while the Pay page draws each as a pill in its row's colours (paycalc.css `.rate-badge` and the
+// `.badge-*` beside it), so a reader could not match a row here to the row on the page by sight. Read
+// off the Pay page's own badges — built from its classes on the page itself, as the Night key test
+// below does — and compared within the same whisker as the buttons above: the guides restate the
+// colours, because they load none of the app's tokens.
+test('pay guide: each rate wears the colours of its row\'s badge on the Pay page', async ({ page }) => {
+    const KINDS = ['sat', 'sun', 'bh', 'ot', 'rdw', 'box', 'peer'];
+    /** @param {string} css */
+    const rgb = (css) => page.evaluate((c) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1);
+        return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    }, css);
+    await page.goto('/paycalc.html');
+    const app = await page.evaluate((kinds) => kinds.map(k => {
+        const el = document.createElement('span');
+        el.className = `rate-badge badge-${k}`;
+        el.textContent = '1.25×';
+        document.body.append(el);
+        const c = getComputedStyle(el);
+        return { fill: c.backgroundColor, ink: c.color, edge: c.borderTopColor };
+    }), KINDS);
+    await page.goto('/paycalc-guide.html');
+    // Every rate names its badge: one without a modifier would fall back to the plain pill unseen.
+    expect(await page.locator('.pay-rate:not([class*="pay-rate--"])').count(), 'a rate with no badge colour').toBe(0);
+    for (const [i, k] of KINDS.entries()) {
+        const guide = await page.locator(`.pay-rate--${k}`).first().evaluate(el => {
+            const c = getComputedStyle(el);
+            return { fill: c.backgroundColor, ink: c.color, edge: c.borderTopColor };
+        });
+        for (const part of /** @type {const} */ (['fill', 'ink', 'edge'])) {
+            const [g, a] = [await rgb(guide[part]), await rgb(app[i][part])];
+            const off = Math.max(...g.map((v, j) => Math.abs(v - a[j])));
+            expect(off, `${k}: the guide's ${part} ${g} — the Pay page's ${a}`).toBeLessThanOrEqual(24);
         }
     }
 });
@@ -1180,8 +1611,8 @@ test('guides: on a phone the chip bar takes each side\'s own safe-area inset', a
     const cdp = await page.context().newCDPSession(page);
     for (const [left, right] of [[0, 44], [44, 0]]) {
         await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left, bottom: 0, right } });
-        for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
-            await page.goto(`/${guide}.html`);
+        for (const { file: guide } of GUIDE_PAGES) {
+            await page.goto(`/${guide}`);
             const pad = await page.locator('.chip-bar').evaluate(el => [getComputedStyle(el).paddingLeft, getComputedStyle(el).paddingRight]);
             expect(pad, `${guide}, a ${left || right}px inset on the ${left ? 'left' : 'right'}`)
                 .toEqual([`${Math.max(12, left)}px`, `${Math.max(12, right)}px`]);
@@ -1208,10 +1639,10 @@ test.describe('guides with JavaScript off', () => {
             bar.style.position = '';
             return { hdrBottom: hdr.bottom, top: at.top, bottom: at.bottom, flow };
         });
-        for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        for (const { file: guide } of GUIDE_PAGES) {
             for (const width of [320, 390, 1280]) {
                 await page.setViewportSize({ width, height: 800 });
-                await page.goto(`/${guide}.html`);
+                await page.goto(`/${guide}`);
                 await page.evaluate(() => document.fonts.ready);
                 const rest = await geo();
                 expect(Math.abs(rest.top - rest.flow), `${guide} at ${width}px: at the top of the page the bar is moved from its place (${rest.top} against ${rest.flow})`)

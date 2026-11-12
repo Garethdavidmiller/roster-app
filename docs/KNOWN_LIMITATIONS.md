@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.70 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.80 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -32,9 +32,15 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
 - **Two twins kept apart on purpose.** `withTimeout` (`login-overlay.js`, `password-force.js`):
   login's copy ignores the error and the other's callers read its `myb/timeout` code, and sharing
   one would pull the Firebase module graph into the sign-in overlay's unit tests or need a new
-  module, for six lines. `railcard-guide.js` and `rangers-guide.js` are one script twice — chip bar,
-  scrollspy, sticky offsets and deep-link landing, identical but for comments — in classic scripts with
-  no shared module; `fip-guide.js` carries the same blocks beside its finder.
+  module, for six lines. And `fip-guide.js` carries the chip-bar blocks of `guide-chips.js` — jump,
+  scrollspy, sticky offsets (watching the bar's size as well as the header's) and deep-link landing —
+  woven into its country finder, where a jump also opens the country's `<details>`; the other four
+  guides share the one file. Three rules are in the shared file only: the two-column rule (the FIP
+  guide is one column), the hold that keeps a tapped or linked chip lit when its section cannot reach
+  the top (taps v25.80, links v25.81), and a banner section starting at its banner (the FIP guide has
+  no banners). Its last sections are long enough that nothing bottoms it out: a tap, measured at 375px
+  and 1280px, and every visible id opened fresh as a link, at 320, 375, 768 and 1280px, lights its own
+  section's chip. So none of the three has anything to do there yet.
 - **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the app sheets — nearly all one
   navy shadow tint — are a ratchet that may only go down (`RGB_BASELINE` in
   `css-hex-parity.test.mjs`). The guide sheets keep their own palette guard.
@@ -229,18 +235,43 @@ the only code that uses it is the rules-emulator suite, which passes on it. **If
 ever fails to CONNECT after a dependency change, remove that override first.** Drop it once
 Firestore's own range moves past 1.9.
 
-**The Cloud Functions' PRODUCTION tree** (`npm audit --omit=dev --prefix functions`) carries a few
-moderate findings, all in one chain inside Google's Firestore client (`@google-cloud/firestore-api` →
-`google-gax` → `gaxios` → `rimraf` → `glob`/`minimatch`). Its own version ranges do not admit the
-fixed releases, so `npm audit fix` changes nothing (dry run, 7 Nov 2026). They are file-matching
-helpers that nothing staff send ever reaches. Not forced with `overrides`: that would run Google's
-client on versions it does not declare, for findings it cannot reach. They clear when
-`firebase-admin` takes a newer client; re-run the audit after each bump of it. The weekly
-`functions-audit.yml` fails only on a high or critical finding, so moderate drift there is caught
-only by looking (`SECURITY_RELEASE_PLAN.md` → A1).
-
 Each of the update bot's major versions is a decision of its own; `.github/dependabot.yml` says which
 dependencies it leaves alone, and why.
+
+## The Cloud Functions' production-dependency advisories
+
+**This tree is served, unlike the one above, so it is tracked on its own** (external review,
+12 Nov 2026). `npm audit --omit=dev --prefix functions` reported six moderate findings that day,
+none high or critical, from TWO advisories: `glob` (GHSA-3g3m-2fjr-6pw4 — a search told to stop can
+go on reading the disk) and `minimatch` (GHSA-g3hv-75wg-m249 — some patterns cost so much to match
+that they can tie up the process). The six are one chain counted package by package:
+`firebase-admin` → `@google-cloud/firestore` 9.4.0 → `@google-cloud/firestore-api` 0.2.0 →
+`google-gax` 5 and `gaxios` 7.1, both of which list `rimraf` 5 as a RUNTIME dependency → `glob` 10 →
+`minimatch` 9.
+
+**Not reachable — checked 12 Nov 2026, not assumed.** No file that `google-gax` or `gaxios` ships
+loads `rimraf`: it is a build tool both list by mistake. Nothing else in the production tree loads
+`glob`, `minimatch` or `rimraf`; the one other match is a tool NAMED "glob" in the Anthropic SDK's
+agent toolset, and `functions/index.js` loads only the SDK's main entry. The vulnerable code is
+installed and never called, and no request any endpoint accepts is a file pattern. Re-check that if
+a new Functions dependency arrives before the fix below.
+
+**The fix exists, and waits until 24 Nov 2026 on purpose.** `@google-cloud/firestore` 9.4.1
+(released 10 Nov 2026) moves to `firestore-api` 0.7, on `google-gax` 6, and the whole chain drops
+out. It is inside `firebase-admin`'s own range, so `functions/package.json` does not change:
+`npm update @google-cloud/firestore --prefix functions` rewrites the lockfile only — two packages move,
+39 leave, none arrive — and the audit then reports nothing. Tried on 12 Nov 2026 in a scratch copy:
+the Functions tests, the rules tests and the signed-in journeys all passed on it, the last being the
+lane that runs the REAL Functions and so the new client itself. It is held because this repo adopts
+no release in its first two weeks (the update bot's cooldown in `.github/dependabot.yml` — a release
+that is withdrawn usually goes within days), and unreachable moderate findings do not justify the
+exception. `npm audit fix` still changes nothing: it does not take a parent's update, which is the
+only route. **To do it:** `MAINTENANCE_CALENDAR.md` → 24 Nov 2026. Then delete this section.
+
+**Not forced with `overrides`.** `glob` 10 and `minimatch` 9 have no fixed release at all, so an
+override would mean new MAJOR versions under Google's client, which it does not declare, for findings
+it cannot reach. The weekly `functions-audit.yml` fails only on a high or critical finding, so
+moderate drift here is caught only by looking (`SECURITY_RELEASE_PLAN.md` → A1).
 
 ## The test matrix and the phones staff carry
 
@@ -1053,6 +1084,13 @@ live in **CLAUDE.md → "Deployment health check"** (both origins past the splas
 deep-link, no red console errors). Re-run it after any change to `firebase.json` (CSP/headers), the
 Firebase SDK version in `firebase-client.js`, the GCP API-key referrer allowlist, or the hosting
 setup.
+
+**One red line is the policy working, not a fault** (measured 12 Nov 2026). LEAVING a page that holds
+an open Firestore connection — the Calendar, opening a guide from the drawer — can log a refused
+`www.google.com/images/cleardot.gif`. That is Firestore's own transport testing the network after the
+connection closes. The policy is right to refuse it and nothing on screen changes; `e2e/csp.spec.js`
+names it as that pixel's second source. It shows on a fresh load only if *Preserve log* is on, since
+Chrome clears the console when the page changes.
 
 **It is also checked by a machine, on a four-hourly schedule** — which GitHub, running schedules as
 capacity allows, keeps about three times a day. `live-health.yml` runs `npm run test:live` on a

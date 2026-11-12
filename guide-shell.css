@@ -205,26 +205,26 @@ button, input, select, textarea { font-family: inherit; }
 
 /* ── Anchor landing under the sticky header ─────────────────────────────────
    A search hit or an in-page link lands on an id; without a scroll margin the heading sits UNDER
-   the sticky header. Every guide measures its sticky stack in JS once the fonts are in, and re-lands
-   a deep link that is still landing: railcard/fip/rangers their header + chip bar (121–138px at
-   375px), the two document guides their header + 12px (guide-back.js). This is only the value a
-   deep link lands with before that measurement arrives, or with no script: the document guides'
-   header at the DEFAULT TEXT SIZE — 78px from 360px, 123px at 320px where the subtitle wraps — plus
-   the 12px gap. Larger text wraps the title too (115–136px at 360–375px, 150px at 1.3×), which no
-   width query can see, so only the measurement follows it (whole-app review, Nov 2026). :where()
-   keeps this at zero specificity, so any page rule or the JS inline value wins. */
+   the sticky header. Every guide measures its sticky stack in JS once the fonts are in — the header
+   plus the chip bar (121–138px at 375px; guide-chips.js, or fip-guide.js) — and re-lands a deep link
+   that is still landing. This is only the value a deep link lands with before that measurement
+   arrives, or with no script, when the chip bar is not sticky (below) and the stack is the header
+   alone: the document guides' header at the DEFAULT TEXT SIZE — 78px from 360px, 123px at 320px
+   where the subtitle wraps — plus a 12px gap. Larger text wraps the title too (115–136px at
+   360–375px, 150px at 1.3×), which no width query can see, so only the measurement follows it
+   (whole-app review, Nov 2026). :where() keeps this at zero specificity, so any page rule or the JS
+   inline value wins. */
 :where([id]) { scroll-margin-top: 90px; }
 @media (max-width: 359px) { :where([id]) { scroll-margin-top: 136px; } }
 
 /* ── Section chip-bar (shared v17.72) ────────────────────────────────────────
-   Sticky quick-nav used by the railcard, rangers and FIP guides (the two document guides
-   have no chip-bar — these rules are simply unused there). Unified here from the two
-   byte-identical per-page copies; the fip variant is the canonical one, so
-   railcard now also gets the `.chip[aria-current]` active-chip highlight it
-   previously lacked. --bg/--border/--navy resolve from each guide page's own :root at
-   the use-site; --white is the shell's own (v23.13 — the two document guides define no
-   --white, and css-var-parity.test.mjs reads a token this file names as this file's to
-   supply). Border-radius stays a 99px literal — guides don't import the app token system. */
+   Sticky quick-nav on all five guides (the two document guides since v25.80; guide-doc.css
+   repaints its ground). Unified here from the two byte-identical per-page copies; the fip
+   variant is the canonical one, so railcard now also gets the `.chip[aria-current]`
+   active-chip highlight it previously lacked. --bg/--border/--navy resolve from each guide
+   page's own :root at the use-site; --white is the shell's own (v23.13 — the two document
+   guides define no --white, and css-var-parity.test.mjs reads a token this file names as this
+   file's to supply). Border-radius stays a 99px literal — guides don't import the app token system. */
 .chip-bar {
     position: sticky;
     top: 54px;   /* refined by the page's JS to the measured header height */
@@ -254,8 +254,8 @@ button, input, select, textarea { font-family: inherit; }
    to the window edge rather than to the page it navigates. From 800px the bar's inline padding is
    the column's own left edge, `(bar width − 760) / 2 + 16`, which is where `.content`/`main` put
    their text. `max()` keeps the 12px floor, so nothing moves at phone width. The 760/16 pair is
-   restated from the three page CSS files (`railcard-guide.css`, `fip-guide.css`,
-   `rangers-guide.css`) — change it there and it changes here. */
+   restated from the four column rules (`railcard-guide.css`, `fip-guide.css`, `rangers-guide.css`,
+   and guide-doc.css's `.page`) — change it there and it changes here. */
 @media (min-width: 800px) {
     .chip-bar {
         padding-left:  max(12px, env(safe-area-inset-left),  calc((100% - 760px) / 2 + 16px));
@@ -270,6 +270,26 @@ button, input, select, textarea { font-family: inherit; }
         padding-left:  max(16px, env(safe-area-inset-left),  calc((100% - 760px) / 2 + 16px));
         padding-right: max(16px, env(safe-area-inset-right), calc((100% - 760px) / 2 + 16px));
     }
+}
+/* A bar too long for its window WRAPS instead of scrolling, from 641px (v25.80). The Staff Guide's 11
+   chips need about 1,100px and the Pay Calculator Guide's 9 about 910px. On a phone the row scrolls
+   under a thumb, as every guide's does, but on a desktop the bar hides its scrollbar, so a mouse would
+   never learn a chip past the edge existed — and a section nobody can discover is the failure the
+   guides are for. 641px, not the column's 800: a window snapped to half a laptop screen is 683–768px
+   wide, and there the Staff Guide hid three to five chips, the admin ones among them. 641 is where the
+   document guides go to two columns (guide-doc.css) — past a phone held upright. A bar that fits stays
+   one row: Railcard and Rangers never wrap, and FIP's eight chips fit everywhere but the narrow end, where
+   they sit a few pixels either side of fitting, depending on the engine's text widths. Only where there
+   is HEIGHT to spare: two rows and the header take about 155px, a quarter of a 600px window, and a
+   phone held sideways (390px tall, but 800+ wide) would give the stack 40% of its screen. Rows sit 8px
+   apart; with a touch pointer, 15px, so the taller hit areas below (7px up, 8px down) never overlap
+   from one row to the next. The page scripts watch the bar's own size, so a row gained or lost moves
+   the scroll margins with it. */
+@media (min-width: 641px) and (min-height: 600px) {
+    .chip-bar { flex-wrap: wrap; row-gap: 8px; }
+}
+@media (min-width: 641px) and (min-height: 600px) and (pointer: coarse) {
+    .chip-bar { row-gap: 15px; }
 }
 .chip {
     flex-shrink: 0;
@@ -286,8 +306,9 @@ button, input, select, textarea { font-family: inherit; }
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     /* `color` eases WITH the fill (css-tokens.md → "A colour may not transition independently of the ground
-       behind it"): a chosen chip turns navy with white words, and with only the fill eased the words were
-       white on a still-white chip for part of the 150ms, and navy on a still-navy one going back. */
+       behind it"): a chosen chip once turned navy with white words, and with only the fill eased the words
+       were white on a still-white chip for part of the 150ms. Gold keeps navy words (v25.83), so the words no
+       longer change — the rule stays for whichever colour comes next. */
     transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 /* Desktop affordance (v18.79) — the chips previously only reacted on :active, so a mouse gave
@@ -295,11 +316,16 @@ button, input, select, textarea { font-family: inherit; }
 @media (hover: hover) and (pointer: fine) {
     .chip:hover { border-color: var(--navy); box-shadow: 0 1px 4px rgba(0, 30, 60, 0.12); }
 }
-.chip:active { background: var(--navy); color: white; border-color: var(--navy); }
+/* The press is the colour the chip is about to become, so one tap shows one colour, not navy then gold. */
+.chip:active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
 .chip:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
-/* Active section (set by the page's JS on click) — highlighted so it's clear
-   which section you jumped to. */
-.chip[aria-current] { background: var(--navy); color: white; border-color: var(--navy); }
+/* THE CHOSEN SECTION IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy,
+   which in the app means a button that DOES something (css-tokens.md → "Whatever you have chosen wears the
+   page's colour"). The app colours a choice by its page, but three of the five guides belong to no page, so
+   the guides take their own accent instead: the gold of the rule under every header and the dash before
+   every section title. One colour for one family; navy on gold reads at about 11:1. Set by the page's script
+   (guide-chips.js, or fip-guide.js) on a tap, a link or the scroll; e2e/guides.spec.js reads it off all five. */
+.chip[aria-current] { background: var(--gold); color: var(--navy); border-color: var(--gold); }
 
 /* ── Touch targets without a taller chrome (v24.30 polish pass) ─────────────────────────────────
    Measured: the ⤓ PDF button is 54×29 and every section chip 27px tall — under the 44px touch

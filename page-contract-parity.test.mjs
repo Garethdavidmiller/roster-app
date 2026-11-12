@@ -784,6 +784,40 @@ test('every app page can be returned to from a guide', () => {
         + 'will notice is wrong.');
 });
 
+test('every guide has a chip bar, driven by exactly one script, whose chips all lead somewhere (v25.80)', () => {
+    /**
+     * Since v25.80 all five guides carry the "Jump to section" bar, and nothing else measures a guide's
+     * sticky stack: guide-back.js's header-only measurement went with the last guide that had no bar.
+     * So a guide without a bar, or with a bar and no script, lands every search result under its
+     * header. One script per bar, too: the FIP guide's own script carries the same blocks woven into
+     * its finder, and a page loading it AND the shared one would bind every chip twice — two scrolls,
+     * two focus moves, two observers writing the margins.
+     *
+     * And a chip whose target id is missing is not an error anywhere: the script quietly leaves it out
+     * of the scrollspy and its click does nothing, so a mistyped id ships as a dead button.
+     */
+    const OWN_SCRIPT = { 'fip-guide.html': './fip-guide.js' };
+    for (const { file } of GUIDE_PAGES) {
+        const html = read(`./${file}`);
+        const bar = html.match(/<nav class="chip-bar" aria-label="Jump to section">([\s\S]*?)<\/nav>/);
+        assert.ok(bar, `${file} has no "Jump to section" chip bar`);
+
+        const scripts = ['./guide-chips.js', ...Object.values(OWN_SCRIPT)]
+            .filter(src => html.includes(`<script src="${src}" defer></script>`));
+        const expected = OWN_SCRIPT[/** @type {keyof typeof OWN_SCRIPT} */ (file)] ?? './guide-chips.js';
+        assert.deepEqual(scripts, [expected],
+            `${file} must load exactly one chip-bar script, ${expected}; it loads ${JSON.stringify(scripts)}`);
+
+        const targets = [...bar[1].matchAll(/<button class="chip" type="button" data-target="([^"]+)">/g)].map(m => m[1]);
+        const chips = (bar[1].match(/<button\b/g) || []).length;
+        assert.ok(targets.length >= 3, `${file}: the chip bar parsed as ${targets.length} chips — read the markup again`);
+        assert.equal(targets.length, chips, `${file}: a chip is not a <button class="chip" type="button" data-target>`);
+        const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+        const dead = targets.filter(id => !main.includes(`id="${id}"`));
+        assert.deepEqual(dead, [], `${file}: these chips lead to no id inside <main>, so tapping them does nothing`);
+    }
+});
+
 test('a legacy redirect page is a redirect, and points somewhere real', () => {
     /**
      * The category above is an EXEMPTION from the app contract, and an exemption nobody checks

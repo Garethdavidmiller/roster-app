@@ -66,6 +66,11 @@ body {
     padding: 18px max(16px, env(safe-area-inset-right)) 20px max(16px, env(safe-area-inset-left));
 }
 
+/* The section chip bar (guide-shell.css) on the page's own ground (v25.80). The shell paints it `--bg`,
+   which on the card guides IS the page colour; here `--bg` is the card fill, and the bar read as a
+   pale band laid across the page rather than part of it. */
+.chip-bar { background: var(--page-bg); }
+
 /* ── In-document banner (titles the printed page; also an on-screen divider) ── */
 .guide-header {
     background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%);

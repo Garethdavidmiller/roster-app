@@ -161,7 +161,8 @@ describe('a row or a card says what it is for, and only that', () => {
         assert.ok(row, 'the peer-training stepper row is missing from paycalc.html');
         const title = text(row.slice(0, row.indexOf('</div>')));
         assert.match(title, /peer|colleague/i, `the stepper row is titled "${title}"`);
-        const card = /<span class="pay-name">([^<]*)<span class="pay-rate">\+2 hrs<\/span>/.exec(guide);
+        // The rate carries its Pay-page badge colour as a modifier since v25.82 (`pay-rate--peer`).
+        const card = /<span class="pay-name">([^<]*)<span class="pay-rate(?: pay-rate--[a-z]+)?">\+2 hrs<\/span>/.exec(guide);
         assert.ok(card, 'the guide\'s "+2 hrs" pay type is missing');
         assert.match(card[1], /peer|colleague/i, `the guide calls it "${card[1].trim()}"`);
     });

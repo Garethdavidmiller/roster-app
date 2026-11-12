@@ -45,6 +45,23 @@ paths:
   `data-gs-example`, and `scripts/guide-index-lib.mjs` drops it before extracting; pinned by contract 6
   in `guide-index-parity.test.mjs`. The staleness contract cannot see this, because the index is
   perfectly TRUE of the page.
+- **Keep it plain English, for the reader who knows nothing yet — and short** (owner, 12 Nov 2026,
+  on the v25.82 update: "Keep the clarity and for dummies nature of the guides. Plain English"). One
+  idea per sentence; a new fact goes in by tightening the words around it, not by adding a paragraph.
+  On the Staff & Admin Guide that is also a print rule: it prints one sheet per guide with a few
+  pixels to spare (`staff-guide.css`, the print block).
+- **A guide that lists something the app keeps in one place is held to it** (v25.82). The Staff &
+  Admin Guide fell behind three times unnoticed — the staff PIN began opening Trains, Trains joined
+  every member's menu, the "Rest Day" button kept the guide label "Rest" — so
+  `guide-app-parity.test.mjs` now reads the app's own lists (the PIN's pages in `auth-policy.js`, the
+  menu in `nav-panel.js`, the Admin type buttons in `admin-shift-types.js`) and fails on the guide
+  line that disagrees, in both directions. The Calendar sign-in card's PIN hint is held to the same
+  list. A new list a guide restates gets a check there, not a reminder.
+- **Draw an app control as the app draws it.** A reader matches the page to the screen by sight, so
+  a depicted control wears the real one's colours AND shape: the Staff Guide's five Calendar buttons
+  are rounded rectangles at the real corner's proportion (v25.82 — they were pills, a shift badge's
+  shape), and the Pay Calculator Guide's rates are the Pay page's own rate badges, each in its row's
+  colours. `e2e/guides.spec.js` reads both off the real pages and compares them.
 - Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't
   use). All five share `guide-shell.css`; the two **document-style** guides (`staff-guide.html`,
   `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px
@@ -63,11 +80,11 @@ paths:
   redirect and the stub — or it breaks old links for the larger half of the staff.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP
   (`script-src 'self'`) blocks them. All guide JS is in external files: `guide-back.js` and
-  `guide-print.js` (loaded by every guide), plus `railcard-guide.js`, `rangers-guide.js` and
-  `fip-guide.js` (opens the target country `<details>` on jump/deep-link). `guide-back.js` also
-  measures the sticky header on a guide with no chip bar (the Staff and Pay Calculator guides), so
-  every id in `<main>` lands below it, and re-lands a deep link still landing — `railcard-guide.js`'s
-  rules. **Only `guide-print.js` prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
+  `guide-print.js` (loaded by every guide), and the chip bar's script — the shared `guide-chips.js` on
+  the Railcard, Rangers, Staff and Pay Calculator guides, and `fip-guide.js`, which also opens the
+  target country `<details>` on jump/deep-link. **Every guide has a chip bar and exactly one of those
+  two drives it**: nothing else measures a guide's sticky stack, and two would bind every chip twice
+  (`page-contract-parity.test.mjs`). **Only `guide-print.js` prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
 - Back buttons link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
   when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and the guide
@@ -108,6 +125,32 @@ not redefine them.
   not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
 - **Chips:** desktop hover feedback (border-darken + soft shadow, colour-fade only — no transform) on
   the shared `.chip`, so a mouse gets an affordance as well as `:active`.
+- **The chosen chip is GOLD with navy words, on all five guides** (owner, 12 Nov 2026, v25.83 — picked
+  from three, with screenshots: navy as it was, each guide in its app page's colour, or gold on every
+  guide). Navy is the app's colour for a button that DOES something; the app colours a choice by its
+  page, but three of the five guides belong to no page, so the guides wear their own accent — the gold
+  of the header's rule and the section dashes — as one family. A press is gold too, so a tap shows one
+  colour. `e2e/guides.spec.js` → "the chosen section chip is gold with navy words" reads it off every
+  guide. Giving one guide its app page's colour is a fresh decision, not a tidy-up.
+- **The two document guides' bar** (v25.80): their sections sit in two columns from 641px, where two
+  share a line and no scroll position says which is being read, so there a chip is lit only by a jump
+  or a link to it, until the reader moves ON — what the jump or link put in place moving, not the
+  scroll position, so a resize that reflows the page lets go too; on a phone's one column the bar
+  follows the reader, as every guide's does. From 641px, in a window at least 600px tall, a bar too long for its window WRAPS
+  (theirs take two rows; Railcard's and Rangers' fit one, and FIP's fits everywhere but the narrow end,
+  where the engine's text widths decide): a desktop bar hides its scrollbar, so a chip past the edge
+  would never be found, and a window snapped to half a laptop screen is 683–768px wide. The page scripts watch the bar's own size as well as the header's, because
+  a wrapping bar gains or loses a row with no change to the header. Chip labels are short forms of
+  their headings, "Holiday Pay Premium" spelt out. guide-doc.css draws the bar on `--page-bg`, the
+  page's own ground.
+- **A link holds its chip the way a tap does** (v25.81, the four guides on `guide-chips.js`): a search
+  result or shared link opened at a `#fragment` lights the chip of the section it lands in — a card's
+  or a sub-heading's section too — from the first paint, through the landing, until the reader moves
+  on. So a link near the end of a page no longer lights the last chip ("If it's wrong" lit "Digital"),
+  and on the document guides' two columns a link lights its chip as a tap does. A reload, Back/Forward
+  or a hash changed in place holds nothing: the position then comes from history, not from the link.
+  A section headed inside a navy banner (the Staff Guide's Admin Guide) starts at its banner, for the
+  bar as for the landing.
 - **With no script the chip bar is not sticky** (`@media (scripting: none)`): its `top` is the page
   script's measurement, and no single fallback fits every header — the chips do nothing without script
   either.
@@ -215,8 +258,8 @@ this mid-transaction and get the right answer fast?"
 - Two Together photocard — **confirmed** against the official Two Together T&Cs: a physically printed Two Together Railcard bought at a station is issued with a **separate Two Together Photocard** (carrying both holders' photos) that must be carried and presented alongside the card, and both named holders must travel together. Digital cards have no separate photocard.
 
 **What not to flag as defects:**
-- No Firebase and no app state — intentional. The page loads `railcard-guide.js` (chip bar, scrollspy,
-  deep-link landing) and the shared `guide-back.js` and `guide-print.js`. `guide-print.js` is a module,
+- No Firebase and no app state — intentional. The page loads the shared `guide-chips.js` (chip bar,
+  scrollspy, deep-link landing), `guide-back.js` and `guide-print.js`. `guide-print.js` is a module,
   and its one import is the self-contained print guard (`print-guard.js`).
 - Sticky header + sticky chip bar eating vertical space on small phones — an accepted trade-off.
 - A–Z order with numeric cards first — intentional.

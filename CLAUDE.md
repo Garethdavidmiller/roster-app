@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: November 2026 — v25.70 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.80 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `25.70` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states (a current-version row rots on every release, because bumping it is not part of shipping). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Documentation milestone | `25.80` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states (a current-version row rots on every release, because bumping it is not part of shipping). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; the **primary install + notification target**). A GitHub Pages mirror is served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path** (the bare origin is a separate empty repo that 404s). **Most staff still open the app there** (owner, Sep 2026 — the changeover to the canonical URL is deliberate and gradual, not a rump to be discounted). The mirror serves **no redirects and no HTTP headers**, so a change relying on something only Firebase Hosting can do — a rename protected by a `redirects` entry, a policy carried by a header — reaches the smaller half of the staff: weigh it against the mirror, not the canonical URL. That is why every page carries a `<meta>` CSP. `STAFF_SITE_URL` in `functions/index.js` is the bare canonical origin; it only sets the notification payload's path/hash, and each device's service worker re-bases that onto its own scope, so github.io installs keep working. See the API key note below. |
 | Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name: |
@@ -299,6 +299,7 @@ npm run test:visual:webkit  # a small Safari-engine visual set — report-only
 npm run test:webkit         # the smoke suite under WebKit — branch CI, not the deploy gate
 npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site, both origins; gates nothing
 npm run test:offline        # SW/offline paths with the network cut — weekly, non-blocking (offline.yml)
+npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; branch CI only
 ```
 - **Read the `visual baselines` check, not the `visual` job** — the job is `success` on a drifted lane
   and a clean one alike; the check run is `neutral` when baselines drifted, and the PR comment names

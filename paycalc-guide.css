@@ -25,7 +25,33 @@
 }
 .pay-emoji { font-size: 17px; flex-shrink: 0; margin-top: 1px; line-height: 1; }
 .pay-name  { font-size: 11.5px; font-weight: 800; color: var(--navy); display: block; }
-.pay-rate  { font-size: 10px; font-weight: 800; color: var(--sb-rdw); }
+/* EACH RATE WEARS ITS ROW'S BADGE FROM THE PAY PAGE (v25.82): paycalc.css `.rate-badge` and its
+   `.badge-*` colours — a pale fill, the colour as an edge, and darker words. It was one red word for
+   every rate, so a reader could not match a row here to the row on the page by sight. The guides
+   load none of the app's tokens, so each badge's three colours are restated as the values the Pay
+   page resolves to, and e2e/guides.spec.js compares them with the real badges. Fill and edge print
+   (print-color-adjust); with no modifier the pill falls back to the page's own card colours. */
+.pay-rate {
+    display: inline-block;
+    margin-left: 3px;
+    padding: 0 6px;
+    border: 1.5px solid var(--rate-edge, var(--border));
+    border-radius: 99px;
+    background: var(--rate-fill, var(--card));
+    color: var(--rate-ink, var(--navy));
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.pay-rate--sat  { --rate-fill: #ffedda; --rate-ink: #8f3000; --rate-edge: #ff9800; }   /* .badge-sat  */
+.pay-rate--sun  { --rate-fill: #dfeaf8; --rate-ink: #1565c0; --rate-edge: #1565c0; }   /* .badge-sun  */
+.pay-rate--bh   { --rate-fill: #dbe9e6; --rate-ink: #006154; --rate-edge: #007b6e; }   /* .badge-bh   */
+.pay-rate--ot   { --rate-fill: #ede7f6; --rate-ink: #505eb4; --rate-edge: #505eb4; }   /* .badge-ot   */
+.pay-rate--rdw  { --rate-fill: #fadadf; --rate-ink: #880e4f; --rate-edge: #c2185b; }   /* .badge-rdw  */
+.pay-rate--box  { --rate-fill: #fef6e2; --rate-ink: #bd4700; --rate-edge: #f5c800; }   /* .badge-box  */
+.pay-rate--peer { --rate-fill: #e6efe6; --rate-ink: #15731f; --rate-edge: #15731f; }   /* .badge-peer */
 .pay-desc  { font-size: 10.5px; color: var(--mid); display: block; line-height: 1.4; margin-top: 1px; }
 .pay-slip  { font-size: 10px; color: var(--light); display: block; margin-top: 2px; }
 .pay-slip code { font-size: 10px; }

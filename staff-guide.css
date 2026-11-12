@@ -101,15 +101,21 @@
     background: var(--card);
     box-shadow: 0 1px 3px rgba(0, 30, 60, 0.05);
 }
+/* EACH LABEL IS DRAWN AS THE BUTTON IT NAMES (v25.82). It was a 10.5px pill — the shape of a shift
+   badge — while the Calendar's buttons are bold rounded RECTANGLES (12px corners since v25.12), so a
+   reader looking for "the button" was shown a badge. Drawn a little smaller than the real thing, at
+   the real corner's proportion: 12px on a ~44px button is about a quarter of its height, 8px here.
+   The shadow is the real button's too. e2e/guides.spec.js compares the shape with the Calendar's. */
 .feature-label {
     display: inline-block;
     background: var(--navy);
     color: white;
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 700;
-    padding: 3px 9px;
-    border-radius: 20px;
-    margin-bottom: 7px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
+    margin-bottom: 8px;
     white-space: nowrap;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
@@ -161,8 +167,10 @@
        was tried and also fits, but it re-orders where sections start for no gain once this does).
        Headings stay with their content; callouts, steps, tiles and paragraphs stay whole (the break
        rules in guide-doc.css, plus `p` here, so growth moves a paragraph rather than splitting it).
-       Measured slack: ~7px on the Staff Guide, ~22px on the Admin Guide — so a paragraph added to
-       either will print a third sheet, and `e2e/print.spec.js` fails to say so. */
+       Measured slack (v25.82): ~4px on the Staff Guide, ~80px on the Admin Guide — whose Leave &
+       Absence section moved to the top of its right column then, which keeps a phone's reading order
+       — so a line added to the Staff Guide will print a third sheet, and `e2e/print.spec.js` fails to
+       say so. Find the room in its own wording first: the v25.82 update did, and lost no fact. */
     .cols { gap: 16px; }
     p { break-inside: avoid; }
 
@@ -183,8 +191,10 @@
     /* The 18px step number is taller than one 1.35 line, so two one-line steps would overlap their
        circles; 17px plus the 2px gap keeps a seam between them. */
     .steps li { margin-bottom: 2px; min-height: 17px; }
-    /* A button card's label pill runs into its sentence instead of standing on a line of its own. */
-    .feature-label { margin: 0 5px 0 0; padding: 2px 8px; }
+    /* A button card's label runs into its sentence instead of standing on a line of its own, at the
+       size it printed before v25.82 drew it as a bigger button on screen: on paper it is a tag in a
+       line of text, and the screen size made every card's first line taller. */
+    .feature-label { margin: 0 5px 0 0; padding: 2px 8px; font-size: 10.5px; border-radius: 6px; box-shadow: none; }
     .feature-desc { display: inline; }
     .badge-grid, .nav-grid, .feature-row, .install-grid { gap: 3px; }
     .badge-item, .nav-tip, .feature-card, .install-card { padding: 2px 7px; border-radius: 6px; box-shadow: none; }

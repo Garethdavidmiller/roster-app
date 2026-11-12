@@ -24,8 +24,10 @@
  *
  * ── WHAT IT ASSERTS, AND WHY IT IS DERIVED ──────────────────────────────────────────────────────
  *
- * Every `playwright.*.mjs` other than the base config names the spec(s) it owns in `testMatch`.
- * This reads those names out of the configs and requires each to appear in the base `testIgnore`.
+ * Every `playwright.*.mjs` other than the base config names the spec(s) it owns in `testMatch` —
+ * at the root, or in `e2e/` (where e2e/playwright.signed-in.mjs lives, because a new ROOT file would
+ * be served from the staff app's own domain; its header has the argument). This reads those names
+ * out of the configs and requires each to appear in the base `testIgnore`.
  * Nothing here is a hardcoded list of specs — add a seventh opt-in config tomorrow and the
  * requirement extends itself, which is the whole point. A guard that had to be updated alongside
  * the list it guards would fail in exactly the situation it exists for.
@@ -53,9 +55,11 @@ function specList(src, key) {
     return [...m[1].matchAll(/'([^']+\.spec\.js)'/g)].map(x => x[1]);
 }
 
-const configs = readdirSync(ROOT)
-    .filter(f => /^playwright\..*\.mjs$/.test(f) && f !== BASE)
-    .map(f => ({ file: f, src: readFileSync(join(ROOT, f), 'utf8') }));
+const isConfig = (/** @type {string} */ f) => /^playwright\..*\.mjs$/.test(f);
+const configs = [
+    ...readdirSync(ROOT).filter(f => isConfig(f) && f !== BASE),
+    ...readdirSync(join(ROOT, 'e2e')).filter(isConfig).map(f => `e2e/${f}`),
+].map(f => ({ file: f, src: readFileSync(join(ROOT, f), 'utf8') }));
 
 const baseSrc = readFileSync(join(ROOT, BASE), 'utf8');
 const ignored = specList(baseSrc, 'testIgnore') ?? [];
@@ -63,6 +67,8 @@ const ignored = specList(baseSrc, 'testIgnore') ?? [];
 describe('the opt-in lanes and the default lane agree', () => {
     test('guard the guard — the configs and the ignore list were actually read', () => {
         assert.ok(configs.length >= 4, `only ${configs.length} opt-in configs found — this test is checking nothing`);
+        assert.ok(configs.some(c => c.file.startsWith('e2e/')),
+            'no config found in e2e/ — the signed-in lane\'s lives there, so the folder has stopped being read');
         assert.ok(ignored.length >= 4, `testIgnore parsed as ${ignored.length} entries — the regex has stopped matching`);
     });
 

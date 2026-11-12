@@ -71,8 +71,6 @@ const UNNAMED_BY_DESIGN = {
     'operations-errors.js': 'driven through its card by e2e/operations.spec.js (Error Log)',
     'operations-usage.js':  'driven through its card by e2e/operations.spec.js (Usage)',
     'operations-speed.js':  'driven through its card by e2e/operations.spec.js (App Speed)',
-    'railcard-guide.js':    'guide-page chrome (print, chip-bar); content is pinned by guide-sources + guide-index-parity',
-    'rangers-guide.js':     'guide-page chrome; evidence states pinned by guide-sources.test.mjs',
 
     // ── Added at the v24.28 review, when the corpus stopped counting COMMENTS as coverage ──────
     // Each was "named" only by a comment somewhere. Every reason below was checked against the spec

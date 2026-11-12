@@ -72,7 +72,7 @@ test.describe('every printable document states A4', () => {
 // It is two pages by design and printed as FOUR, each guide overrunning its sheet into a mostly
 // empty second one. The print rules in staff-guide.css take back the air — one sheet margin instead
 // of two stacked, tighter leading and gaps — without changing a type size or removing a word. The
-// margin is small: measured, the Staff Guide has about 7px to spare, so adding a paragraph to it
+// margin is small: measured (v25.82), the Staff Guide has about 4px to spare, so adding a line to it
 // will print a third sheet and fail HERE. That is intended — accepting a third sheet, or finding
 // the space, should be a decision rather than something a content edit does quietly.
 test('the Staff & Admin Guide prints on two A4 sheets @print', async ({ page, browserName }) => {
