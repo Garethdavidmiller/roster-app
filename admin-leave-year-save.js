@@ -79,7 +79,15 @@ export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
     const dropped = new Set(idsReplacedBy(memberName, date, shown.id));
     /** @type {any} */
     let fields = null;
-    await withSlowSaveNotice(writeWithClaimRetry(() => commitIfUnchanged(
+    /** The day as THIS move leaves it: this editor's annual leave in the chosen year, whatever it replaced gone.
+     *  @param {Map<string, any>} latest */
+    const movedHere = (latest) => {
+        const at = latest.get(fixedId);
+        return !!at && at.memberName === memberName && at.date === date && at.type === 'annual_leave' && at.value === 'AL'
+            && at.source === 'manual' && at.changedBy === changedBy && (at.leaveYear ?? null) === (leaveYear ?? null)
+            && [...dropped].every(id => latest.get(id) === null);
+    };
+    const { done, latest } = await withSlowSaveNotice(writeWithClaimRetry(() => commitIfUnchanged(
         // The record shown — which must still be there — every record the save deletes, and the fixed id
         // it lands on: each still what this page loaded for it, or, where it loaded nothing, nothing.
         [shown, ...dropped, fixedId],
@@ -90,8 +98,11 @@ export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
                        replacedType: nextReplacedType(now, 'annual_leave'), leaveYear };
             tx.set(doc(db, COLLECTIONS.overrides, fixedId), buildOverrideWrite(fields, serverTimestamp()));
         },
-        { mustExist: [shown.id], line: LEAVE_YEAR_CHANGED_LINE })), { held: false });
-    const docs = [buildOverrideCacheRecord(fixedId, fields, new Date())];
+        // A re-run after a commit whose answer was lost reads THIS move — another year, another stamp — and
+        // must not call it a colleague's change and say nothing was saved (v25.89, review; commitIfUnchanged).
+        { mustExist: [shown.id], line: LEAVE_YEAR_CHANGED_LINE, alreadyDone: movedHere })), { held: false });
+    const saved = done ? latest.get(fixedId) : null;   // already there: the server's own copy, its stamp included
+    const docs = [saved ? buildOverrideCacheRecord(fixedId, saved, saved.createdAt) : buildOverrideCacheRecord(fixedId, fields, new Date())];
 
     // The same landing as the other two writes (admin-overrides.js): any load in flight first, then
     // a merge by id, so a snapshot newer than the commit cannot leave the day in the cache twice.

@@ -2761,6 +2761,37 @@ test('admin: deleting a recorded booking confirms in the toast, not only at the 
 // removed what a colleague had written since. The page compares what it deletes with what the server
 // holds, in the same transaction as the delete (v25.89); here the server answers that the day now
 // holds a different record.
+// THE ROW AS IT WAS DRAWN (v25.89, independent review). A removal staged in the week grid is compared with
+// the record its row SHOWED. A read landing meanwhile — "All staff" here — refreshes the cache under staged
+// edits and deliberately leaves the grid alone; compared with the cache, a colleague's newer record matched
+// the server and was deleted under a row that still showed the old one.
+test('admin: clearing a day a colleague has since changed is refused, even after a read brought the change into the page', async ({ page }) => {
+    const id = 'm_2026-12-09_G.%20Miller';
+    await page.addInitScript((docId) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: docId, memberName: 'G. Miller', date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }] };
+    }, id);
+    await openAdminOnDecember(page);
+    const row = page.locator('.week-panel .day-row[data-date="2026-12-09"]');
+    await expect(row.locator('.overwrite-badge')).toContainText('Saved');
+    await row.locator('.type-pill-btn[data-type="annual_leave"]').click();   // stage its removal
+    await expect(row.locator('.overwrite-badge')).toContainText('Removing');
+    // A colleague makes the day a worked rest day: the server holds it, and the next read brings it into the page.
+    await page.evaluate((docId) => {
+        const theirs = { id: docId, memberName: 'G. Miller', date: '2026-12-09', type: 'rdw', value: '14:00-22:00', note: '', source: 'manual', changedBy: 'S. Manager' };
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = [theirs];
+        w.__E2E.txDocs = [theirs];
+    }, id);
+    await page.locator('#overridesToggleHeader').click();
+    await page.locator('#showAllOverridesBtn').click();
+    await waitForReadsToLand(page, 'the All staff read never landed');
+    await expect(row.locator('.overwrite-badge'), 'premise: the staged removal of the AL is still on screen').toContainText('Removing');
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('so nothing was saved', { timeout: 10000 });
+    expect(await page.evaluate(() => (window.__E2E?.deletedPaths || []).length), "the colleague's RDW was deleted").toBe(0);
+});
+
 test('admin: a booked period a colleague has since changed is not deleted, and the admin is told', async ({ page }) => {
     await page.clock.setFixedTime(LEAVE_LIST_DAY);   // the list must open on 2026, where the booking is
     await seedMemberSession(page, 'G. Miller');

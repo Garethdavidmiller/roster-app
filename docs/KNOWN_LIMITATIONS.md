@@ -121,9 +121,12 @@ revision — and deletes in the SAME transaction, refusing, saying so, when anyt
 re-read before a separate batch, so an edit landing between the two was deleted anyway, and it
 compared three fields, so a January day moved to the other allowance passed (external review,
 Nov 2026). A transaction needs the server, so deletes need the network. The week-grid save that
-includes a delete, and the leave-year move, run the same way. A bulk delete longer than one chunk
-(200) is checked whole first and then chunk by chunk, so only an edit racing the chunks themselves
-can stop it part done, and it then says how far it got. Warning the second editor of a plain SAVE
+includes a delete, and the leave-year move, run the same way; "what the page showed" is the record a
+row DREW, not whatever a later read put in the cache under staged edits (v25.89, a second review). A
+bulk delete longer than one chunk (200) is checked whole first and then chunk by chunk, never parting
+a day from the older copies it hides, so only an edit racing the chunks themselves can stop it part
+done, and it then says how far it got. A commit whose answer is lost is re-run by Firestore; the
+leave-year move recognises its own write then, rather than calling it a colleague's. Warning the second editor of a plain SAVE
 would need every Admin save to run as a transaction, which would make an offline save FAIL rather
 than queue — the week grid's plain saves stay batches for exactly that reason. A decision, not an
 oversight — revisit if a lost edit is ever reported.

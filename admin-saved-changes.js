@@ -30,7 +30,7 @@ import { auth, writeWithClaimRetry } from './firebase-client.js';
 const BULK_DELETE_CHUNK = 200;   // per transaction — under Firestore's 500, as the range booking
 import { TYPES, rowValueText } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates,
-         asShown, deleteIfUnchanged, staleDeleteVerdict, DELETE_REFUSED, hasOverrideAuthorityFor, loadFailedFor } from './admin-override-store.js';
+         asShown, deleteIfUnchanged, deleteChunks, staleDeleteVerdict, DELETE_REFUSED, hasOverrideAuthorityFor, loadFailedFor } from './admin-override-store.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, isAccessFailure } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
@@ -369,8 +369,8 @@ function _initOverridesTable() {
             const checkedRows = /** @type {HTMLElement[]} */ ([...(document.getElementById('overrideTableBody')?.querySelectorAll('.row-select:checked') ?? [])]);
             if (!checkedRows.length) return;
             const picked = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id ?? '');
-            const ids = [...withManualDuplicates(picked)];   // and their older copies — see the single delete
-            const shown = asShown(ids);
+            const chunks = deleteChunks(picked, BULK_DELETE_CHUNK), ids = chunks.flat();   // with their older copies, a day never split
+            const shown = new Map(asShown(ids).map((r, i) => [ids[i], r]));
 
             // Two-tap confirm, ARMED FOR THIS SELECTION (v25.06): "⚠ Delete 1?" once deleted all three ticked by the 2nd tap.
             if (!bulkDeleteBtn.classList.contains('confirming') || bulkDeleteBtn.dataset.armedFor !== picked.join('|')) {
@@ -390,7 +390,7 @@ function _initOverridesTable() {
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${picked.length}…`;
             /** @type {string[]} */
-            const committed = [];
+            const committed = []; let landed = 0;   // ids, and whole chunks, already deleted
             try {
                 // Re-runnable thunk so a stale-claim manager's bulk delete self-heals once via
                 // writeWithClaimRetry; a re-run resumes after the chunks already committed.
@@ -398,13 +398,13 @@ function _initOverridesTable() {
                 // a list of several is first checked WHOLE, so what changed hours ago refuses it before any
                 // chunk lands; only an edit racing the chunks themselves can leave it part done, said below.
                 await withSlowSaveNotice(writeWithClaimRetry(async () => {
-                    const stale = ids.length > BULK_DELETE_CHUNK && !committed.length ? await staleDeleteVerdict(shown) : null;
+                    const stale = chunks.length > 1 && !landed ? await staleDeleteVerdict([...shown.values()]) : null;
                     if (stale) throw Object.assign(new Error(stale), { code: DELETE_REFUSED, line: stale });
-                    for (let i = committed.length; i < ids.length; i += BULK_DELETE_CHUNK) {
-                        await deleteIfUnchanged(shown.slice(i, i + BULK_DELETE_CHUNK));
-                        committed.push(...ids.slice(i, i + BULK_DELETE_CHUNK));
+                    for (const chunk of chunks.slice(landed)) {
+                        await deleteIfUnchanged(chunk.map(id => shown.get(id)));
+                        committed.push(...chunk); landed++;
                     }
-                }), { batched: ids.length > BULK_DELETE_CHUNK, held: false });
+                }), { batched: chunks.length > 1, held: false });
                 removeFromCache(ids);
                 renderTable();
                 _onAfterSave();
@@ -416,11 +416,13 @@ function _initOverridesTable() {
                 console.error('[Admin] Bulk delete failed:', err);
                 if (committed.length) { removeFromCache(committed); renderTable(); }
                 const refused = /** @type {any} */ (err)?.code === DELETE_REFUSED, cause = refused ? PART_REFUSED : _cause(err);
-                // PART DONE IS SAID FIRST (v25.89): a refusal's own line says "nothing was deleted", untrue here.
-                _sayList(committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
+                const unsure = unconfirmedWriteLine(err, 'this delete', 'Saved Changes');
+                // AN UNKNOWN OUTCOME FIRST — the chunk in flight may still land, so nothing can be called "still
+                // listed" — then PART DONE (v25.89, review): a refusal's own line says "nothing was deleted".
+                _sayList(unsure ? '⚠ ' + unsure
+                    : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
                     : refused ? '⚠ ' + /** @type {any} */ (err).line
                     : (/** @type {any} */ (err))?.code === 'unavailable' ? '⚠ You appear to be offline — reconnect and try again.'
-                    : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                     : '⚠ Bulk delete failed — ' + cause, 'error');
                 refocus = committed.length ? document.getElementById('listFeedback') : bulkDeleteBtn;
             } finally {

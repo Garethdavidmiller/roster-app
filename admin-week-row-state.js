@@ -2,7 +2,8 @@
 /**
  * admin-week-row-state.js — WHAT A WEEK-GRID ROW LOOKS LIKE IN EACH OF ITS STATES.
  *
- * Owns: turning one `.day-row` on and off, drawing it from its saved record (`prefillRow`), and
+ * Owns: turning one `.day-row` on and off, drawing it from its saved record (`prefillRow`) and
+ *   remembering which record that was (`drawnRecords` — what a staged removal is compared with), and
  *   keeping the four things that depend on a row's current type in step with it — the RDW warning,
  *   the Spare submenu mode, the swapped-day question, and the overwrite badge. And, since the iPhone
  *   audit (Nov 2026), a row's staged state
@@ -39,6 +40,28 @@
 import { TYPES } from './admin-shift-types.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { setStatus } from './status-text.js';
+
+/** The saved record each row was DRAWN from, by row (v25.89, external review). A load that lands while
+ *  edits are staged updates the cache and deliberately leaves the grid alone, so the cache can hold a
+ *  colleague's newer record for a day whose row still shows the old one — and a removal compared with
+ *  the cache deleted it. It is compared with what its row SHOWED instead. @type {WeakMap<Element, any>} */
+const _drawnFrom = new WeakMap();
+
+/**
+ * id → the saved record each row of `grid` was drawn from: what a staged removal is compared with
+ * before it deletes anything (executeSave, admin-overrides.js). A row drawn from nothing is absent.
+ * @param {HTMLElement|null} grid
+ * @returns {Map<string, any>}
+ */
+export function drawnRecords(grid) {
+    /** @type {Map<string, any>} */
+    const out = new Map();
+    grid?.querySelectorAll('.day-row').forEach(r => {
+        const rec = _drawnFrom.get(r);
+        if (rec?.id) out.set(rec.id, rec);
+    });
+    return out;
+}
 
 /**
  * A base shift as a manager reads it in the week grid's warning: an Other-family day by its full word
@@ -188,9 +211,10 @@ export function _syncOverwriteBadge(row) {
  * this visit, and a saved change is not that. A saved day opened ticked, so Apply re-typed it unasked,
  * and the only way to leave it out — unticking — also staged its deletion.
  * @param {HTMLElement} row
- * @param {{ type: string, value?: string }} existing  the record that wins the day
+ * @param {{ id?: string, type: string, value?: string }} existing  the record that wins the day
  */
 export function prefillRow(row, existing) {
+    _drawnFrom.set(row, existing);
     const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
     const pills    = row.querySelectorAll('.type-pill-btn');
     const startEl  = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));

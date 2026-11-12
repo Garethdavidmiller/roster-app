@@ -185,6 +185,19 @@ let _coversAll = true;
 let _authority = true;
 let _loadFailed = false;
 
+/** The store's rule, over the mocked rows: the MANUAL records of the day that the deleted one OUTRANKS
+ *  (v24.53). The real function is tested against a seeded cache in admin-override-store.test.mjs,
+ *  block 5; this copy only lets the receipt be checked here. @param {string[]} ids */
+const _withManualDuplicates = (ids) => {
+    const ms = (/** @type {any} */ o) => o.createdAt ?? 0;
+    const out = new Set(ids);
+    for (const id of ids) {
+        const r = _rows.find(o => o.id === id);
+        if (r && (r.source || '') !== 'roster_import') _rows.filter(o => o.id !== r.id && o.memberName === r.memberName && o.date === r.date && (o.source || '') !== 'roster_import' && ms(r) >= ms(o)).forEach(o => out.add(o.id));
+    }
+    return out;
+};
+
 mock.module('./admin-override-store.js', {
     namedExports: {
         // Default: empty AFTER the delete is the worst presentation and the simplest to set up —
@@ -213,17 +226,19 @@ mock.module('./admin-override-store.js', {
         loadFailedFor: () => _loadFailed,
         OVERRIDES_QUERY_CAP: 400,
         loadOverrides: async (/** @type {any} */ opts) => { _loads.push(opts); },
-        // The store's own rule, over the mocked rows: the MANUAL records of the day that the deleted one
-        // OUTRANKS (v24.53). The real function is tested against a seeded cache in
-        // admin-override-store.test.mjs, block 5; this copy only lets the receipt be checked here.
-        withManualDuplicates: (/** @type {string[]} */ ids) => {
-            const ms = (/** @type {any} */ o) => o.createdAt ?? 0;
-            const out = new Set(ids);
-            for (const id of ids) {
-                const r = _rows.find(o => o.id === id);
-                if (r && (r.source || '') !== 'roster_import') _rows.filter(o => o.id !== r.id && o.memberName === r.memberName && o.date === r.date && (o.source || '') !== 'roster_import' && ms(r) >= ms(o)).forEach(o => out.add(o.id));
+        withManualDuplicates: _withManualDuplicates,
+        // The store's chunking over that copy — each picked row with the copies it outranks, never split
+        // across two chunks (v25.89). The real one is driven against a seeded cache in admin-override-store.test.mjs.
+        deleteChunks: (/** @type {string[]} */ picked, /** @type {number} */ size) => {
+            const seen = new Set(), chunks = /** @type {string[][]} */ ([]);
+            for (const id of picked) {
+                const day = [..._withManualDuplicates([id])].filter(x => !seen.has(x));
+                day.forEach(x => seen.add(x));
+                const last = chunks.at(-1);
+                if (!day.length) continue;
+                if (last && last.length + day.length <= size) last.push(...day); else chunks.push(day);
             }
-            return out;
+            return chunks;
         },
     },
 });
@@ -704,6 +719,33 @@ describe('8. a bulk delete larger than one batch', () => {
         assert.deepEqual(_removed, [many(200)]);
         assert.match(said, /Deleted 200 of 450 before it stopped — the rest are still listed\. Someone else has changed one of them since your list loaded\./);
         assert.doesNotMatch(said, /nothing was deleted/, 'it claimed nothing was deleted after 200 were');
+    });
+
+    test('signed out while a LATER chunk was sending: the outcome is unknown, and it says so — never "the rest are still listed" (v25.89, review)', async () => {
+        // A sign-out ends the WAIT, not the write (claim-retry.js): the chunk in flight can still land, so
+        // the part-done count — and "the rest are still listed" — could be untrue the moment it was shown.
+        let n = 0;
+        _commit = async () => { if (++n === 2) throw Object.assign(new Error('signed out'), { code: 'auth/signed-out-during-request' }); };
+        await bulkDelete(many(450));
+        const said = el('listFeedback').textContent;
+        assert.match(said, /You were signed out before this delete was confirmed\. Sign in again, then check Saved Changes\./);
+        assert.doesNotMatch(said, /still listed/, 'it promised rows were still there while a chunk was still sending');
+        assert.deepEqual(_removed, [many(200)], 'what did land still leaves the list');
+    });
+
+    test('a ticked day and the older copy it hides go in ONE chunk — a stop between chunks cannot split them (v25.89, review)', async () => {
+        // The 200th ticked row has an older manual copy. The copies used to follow every ticked row, so the
+        // row filled the first chunk and its copy fell into the second: refused there, the copy resurfaced as
+        // the day's value under "Deleted 200 of 200".
+        const ticked = many(200);
+        _rows = [...ticked.map(id => ({ id, memberName: `M${id}`, date: '2026-06-16', type: 'shift', value: '07:00-15:00', source: 'manual', createdAt: 2 })),
+            { id: 'r199-old', memberName: 'Mr199', date: '2026-06-16', type: 'shift', value: '06:00-14:00', source: 'manual', createdAt: 1 }];
+        _refuseDelete = 'Someone else has changed this since your list loaded, so nothing was deleted.'; _refuseOnCall = 2;
+        try { await bulkDelete(ticked); } finally { _refuseDelete = null; }
+        const chunkOf = (/** @type {string} */ id) => _handed.findIndex(c => c.some((/** @type {any} */ x) => (typeof x === 'string' ? x : x.id) === id));
+        assert.equal(chunkOf('r199'), chunkOf('r199-old'), 'a ticked row and the copy it hides were sent in different chunks');
+        assert.ok(!_deleted.includes('r199'), 'the row was deleted while the copy it hides stayed behind');
+        assert.match(el('listFeedback').textContent, /Deleted 199 of 200 before it stopped/);
     });
 
     test('a list of several chunks is checked WHOLE first: something already changed refuses it before any chunk', async () => {

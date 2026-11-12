@@ -219,6 +219,27 @@ export function withManualDuplicates(ids) {
 }
 
 /**
+ * What a delete of `picked` removes, as chunks of at most `size` ids that NEVER SPLIT A DAY (v25.89,
+ * review): each picked row travels with the older copies it outranks (`withManualDuplicates`). A
+ * delete that stops part way — a colleague's edit refusing a later chunk — must not take a row and
+ * leave its older copy behind to resurface as the day's value, under a count that called it deleted.
+ * @param {string[]} picked @param {number} size @returns {string[][]}
+ */
+export function deleteChunks(picked, size) {
+    const seen = new Set();
+    /** @type {string[][]} */
+    const chunks = [];
+    for (const id of picked) {
+        const day = [...withManualDuplicates([id])].filter(x => !seen.has(x));
+        day.forEach(x => seen.add(x));
+        const last = chunks.at(-1);
+        if (!day.length) continue;
+        if (last && last.length + day.length <= size) last.push(...day); else chunks.push(day);
+    }
+    return chunks;
+}
+
+/**
  * Drop deleted rows from the cache WITHOUT widening what the cache claims to know.
  *
  * The distinction `setAllOverrides` cannot make (v21.38). That one is an assertion of completeness —
@@ -406,13 +427,21 @@ export function asShown(ids) {
  * Every read comes before any write, as Firestore requires; and when a document read here changes
  * before the commit, Firestore runs the whole function again, so a colleague's edit landing after the
  * read meets the comparison on the re-run instead of slipping under it.
+ *
+ * ITS OWN WRITE IS NOT A COLLEAGUE'S (v25.89, review). Firestore also re-runs the function after a
+ * commit whose ANSWER was lost (`unavailable`, `deadline-exceeded`), and the commit may have landed:
+ * the re-run then reads this call's own write. A delete meets nothing there, which is no difference;
+ * a REWRITE meets a record that is no longer the one the page showed, and would say "nothing was
+ * saved" about a save that was made. `alreadyDone(latest)` answers that: when it holds, the server
+ * already says what this commit would, so nothing is written and nothing refused — `done` says so.
  * @param {Iterable<string|{id: string}>} items
  * @param {(tx: any, latest: Map<string, any>) => void} write  adds the writes to `tx`; `latest` is each
  *        id's server data (or null) as this attempt read it — called again on every re-run
- * @param {{ mustExist?: Iterable<string>, line?: string }} [opts]
- * @returns {Promise<void>}
+ * @param {{ mustExist?: Iterable<string>, line?: string, alreadyDone?: ((latest: Map<string, any>) => boolean)|null }} [opts]
+ * @returns {Promise<{ done: boolean, latest: Map<string, any> }>} `done`: nothing written, as nothing
+ *          needed to be; `latest`: the server's copies as the attempt that finished read them
  */
-export async function commitIfUnchanged(items, write, { mustExist = [], line = CHANGED_ELSEWHERE_LINE } = {}) {
+export async function commitIfUnchanged(items, write, { mustExist = [], line = CHANGED_ELSEWHERE_LINE, alreadyDone = null } = {}) {
     const byId = new Map(_allOverrides.map(o => [o.id, o]));
     /** @type {Map<string, any>} the record shown for each id, or null for "nothing shown here" */
     const expected = new Map();
@@ -422,21 +451,25 @@ export async function commitIfUnchanged(items, write, { mustExist = [], line = C
         else if (!expected.has(id)) expected.set(id, byId.get(id) ?? null);
     }
     const required = new Set(mustExist);
+    let done = false;
+    /** @type {Map<string, any>} */
+    let latest = new Map();
     await runTransaction(db, async (/** @type {any} */ tx) => {
         const ids = [...expected.keys()];
         const snaps = await Promise.all(ids.map(id => tx.get(doc(db, COLLECTIONS.overrides, id))));
-        /** @type {Map<string, any>} */
-        const latest = new Map();
-        ids.forEach((id, i) => {
-            const now = snaps[i].exists() ? snaps[i].data() : null, was = expected.get(id);
-            latest.set(id, now);
-            const changed = was === null ? now !== null
-                : now === null ? required.has(id)
-                : !sameOverrideRecord(was, now);
-            if (changed) throw Object.assign(new Error(line), { code: DELETE_REFUSED, line });
+        latest = new Map(ids.map((id, i) => [id, snaps[i].exists() ? snaps[i].data() : null]));
+        done = false;
+        const changed = ids.some(id => {
+            const now = latest.get(id), was = expected.get(id);
+            return was === null ? now !== null : now === null ? required.has(id) : !sameOverrideRecord(was, now);
         });
+        if (changed) {
+            if (alreadyDone?.(latest)) { done = true; return; }
+            throw Object.assign(new Error(line), { code: DELETE_REFUSED, line });
+        }
         write(tx, latest);
     });
+    return { done, latest };
 }
 
 /**
@@ -446,9 +479,9 @@ export async function commitIfUnchanged(items, write, { mustExist = [], line = C
  * @param {Iterable<string|{id: string}>} items rows as shown (`asShown`), or ids
  * @returns {Promise<void>}
  */
-export function deleteIfUnchanged(items) {
+export async function deleteIfUnchanged(items) {
     const list = [...items];
-    return commitIfUnchanged(list, (tx) => {
+    await commitIfUnchanged(list, (tx) => {
         for (const x of list) tx.delete(doc(db, COLLECTIONS.overrides, typeof x === 'string' ? x : x.id));
     });
 }

@@ -76,6 +76,9 @@ function _apply(kind, id, data) {
 let _betweenReadAndCommit = null;
 /** How many times a transaction's function has run — a re-run is the proof it saw a change. */
 let _txRuns = 0;
+/** Commits that LAND but whose answer is lost (`unavailable`): Firestore runs the function again
+ *  (transaction_runner.ts), and the re-run reads the commit's own writes (v25.89, review). */
+let _landsUnanswered = 0;
 
 // Every id the mock `doc()` has handed out, newest last. A save's batch takes the most recent, so a
 // test can resolve a late read with the SAME document the write created — which is the whole point:
@@ -187,6 +190,7 @@ mock.module('./firebase-client.js', {
                 const between = _betweenReadAndCommit; _betweenReadAndCommit = null; between?.();
                 if ([...readAt].some(([id, v]) => (_versions.get(id) ?? 0) !== v)) continue;
                 for (const [kind, id, data] of ops) { if (kind === 'set') _batchWrites.push(data); _apply(kind, id, data); }
+                if (_landsUnanswered > 0) { _landsUnanswered--; continue; }   // landed, answer lost: run it again
                 return;
             }
             throw Object.assign(new Error('transaction contention'), { code: 'aborted' });
@@ -226,6 +230,9 @@ const {
 const { teamMembers } = await import('./roster-data.js');
 // The leave-year save left admin-overrides.js for its own module (v25.18, the ratchet) — same mocks.
 const { setLeaveYear } = await import('./admin-leave-year-save.js');
+// What a week row was DRAWN from is remembered by the row-state module (v25.89) — the real one, so a test
+// can draw a row exactly as the grid does and then let a load change the cache under it.
+const { prefillRow } = await import('./admin-week-row-state.js');
 
 // Grab the mocked auth object so we can set currentUser for recordRangeOverrides tests.
 const { auth } = await import('./firebase-client.js');
@@ -479,6 +486,7 @@ describe('the leave-year choice — what is written', () => {
         _batchWrites.length = 0;
         _failNextCommits = 0;
         _betweenReadAndCommit = null;
+        _landsUnanswered = 0;
         mockAuth.currentUser = { uid: 'gm', getIdToken: async () => {} };
     });
 
@@ -581,6 +589,28 @@ describe('the leave-year choice — what is written', () => {
         await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
             (/** @type {any} */ e) => /changed since the page loaded/.test(e.line));
         assert.equal(_batchWrites.length, 0);
+    });
+
+    test('a commit whose ANSWER was lost is run again, and the move it made counts as made — never "nothing was saved" (v25.89, review)', async () => {
+        // Firestore re-runs a transaction after `unavailable` on the commit, and the commit may have landed:
+        // the re-run then reads this move's own write — another year, another stamp — which no longer
+        // matches the record the page showed. The independent review drove this through the real save.
+        seed([leave()]);
+        _landsUnanswered = 1;
+        const runs = _txRuns;
+        await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER });
+        assert.equal(_txRuns - runs, 2, 'premise: the function ran again after its commit landed');
+        assert.equal(_server.get(FIXED)?.leaveYear, 2026);
+        const cached = getAllOverrides().filter(o => o.memberName === MEMBER && o.date === DAY);
+        assert.equal(cached.length, 1, 'one record for the day');
+        assert.equal(cached[0].leaveYear, 2026, 'the page went on counting the day in its old year');
+    });
+
+    test('…but the same year chosen by SOMEBODY ELSE is still a change the page did not see', async () => {
+        seed([leave()]);
+        _server.set(FIXED, { ...leave(), leaveYear: 2026, changedBy: 'S. Manager' });
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
+            (/** @type {any} */ e) => /changed since the page loaded/.test(e.line));
     });
 
     test('the rest of the day is carried from the SERVER copy: a note survives the move (v25.89)', async () => {
@@ -1260,9 +1290,38 @@ describe('two editors saving the same day', () => {
         const mine = { id: fixed, memberName: MEMBER, date: DAY, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(1) };
         _server.set(fixed, { ...mine, type: 'rdw', value: '14:00-22:00' });   // a colleague changed the day being cleared
         setAllOverrides([mine]);
-        await executeSave([{ memberName: MEMBER, date: '2026-06-17', type: 'shift', value: '07:00-15:00', note: '' }], [fixed]);
+        const errs = /** @type {any[]} */ ([]); const realError = console.error;
+        console.error = (/** @type {any[]} */ ...a) => { errs.push(a[1]); };
+        try {
+            await executeSave([{ memberName: MEMBER, date: '2026-06-17', type: 'shift', value: '07:00-15:00', note: '' }], [fixed]);
+        } finally { console.error = realError; }
         assert.equal(_server.has(next), false, 'half of a refused save was written');
         assert.equal(_server.get(fixed)?.value, '14:00-22:00');
+        // What it SAYS is what `saveFailureMessage` shows — the refusal's own line. "Nothing was deleted"
+        // was true and incomplete: the day it was adding was refused with it (review, v25.89).
+        assert.match(errs.find(e => e?.line)?.line ?? '', /so nothing was saved/);
+    });
+
+    test('CLEARING a day is compared with the row AS IT WAS DRAWN — not with a newer record a load put in the cache (v25.89, review)', async () => {
+        // The independent review's scenario. The manager stages the AL's removal; a colleague saves an RDW
+        // on that day; an "All staff" read brings the RDW into the cache, and the grid — holding staged
+        // edits — is deliberately not redrawn. Compared with the cache, the RDW matched the server and was
+        // deleted under a row that still showed AL.
+        const fixed = 'm_2026-06-16_G.%20Miller';
+        _server.clear();
+        const mine = { id: fixed, memberName: MEMBER, date: DAY, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(1) };
+        _apply('set', fixed, { ...mine });
+        setAllOverrides([mine]);
+        const row = /** @type {any} */ ({ dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+            querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, removeAttribute() {} });
+        prefillRow(row, mine);                                                    // the grid draws the AL
+        const theirs = { ...mine, type: 'rdw', value: '14:00-22:00', changedBy: 'S. Manager', createdAt: { toMillis: () => 2_000 } };
+        _apply('set', fixed, { ...theirs });                                      // a colleague saves an RDW…
+        setAllOverrides([{ ...theirs }]);                                         // …and a load brings it into the cache
+        const { getElementById } = global.document;
+        global.document.getElementById = (/** @type {string} */ id) => (id === 'weekGrid' ? { querySelectorAll: () => [row] } : null);
+        try { await executeSave([], [fixed]); } finally { global.document.getElementById = getElementById; }
+        assert.equal(_server.get(fixed)?.value, '14:00-22:00', "a colleague's RDW was deleted under a row that showed AL");
     });
 
     test('a transaction that RE-RUNS writes the whole save again — nothing from the first run counts as done', async () => {
@@ -1281,6 +1340,10 @@ describe('two editors saving the same day', () => {
         assert.equal(_txRuns - runs, 2, 'the stale read made it run again');
         assert.equal(_server.has('import-17'), false, 'the re-run left the replaced import beside the new record');
         assert.equal(_server.get('m_2026-06-17_G.%20Miller')?.value, '14:00-22:00');
+        // …and NOTHING FROM THE FIRST RUN COUNTS in the page either (review): a re-run that kept the first
+        // run's records cached the saved day twice, which Saved Changes and the leave totals then count.
+        assert.deepEqual(getAllOverrides().filter(o => o.date === '2026-06-17').map(o => o.id), ['m_2026-06-17_G.%20Miller'],
+            'the saved day is in the page twice');
     });
 
     test('a save with nothing to clear stays a BATCH — the one shape a phone can hold while offline', async () => {

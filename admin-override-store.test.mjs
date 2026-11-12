@@ -118,6 +118,9 @@ let _betweenReadAndCommit = null;
 let _txRuns = 0;
 /** @type {string[]} */ const _txDeleted = [];
 /** @type {Error|null} */ let _txFails = null;
+/** Commits that LAND but whose answer is lost (`unavailable`): Firestore then runs the function again
+ *  (transaction_runner.ts → isRetryableTransactionError), and the re-run reads the commit's own writes. */
+let _landsUnanswered = 0;
 async function _runTx(/** @type {Function} */ fn) {
     if (_txFails) throw _txFails;
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -136,6 +139,7 @@ async function _runTx(/** @type {Function} */ fn) {
         const between = _betweenReadAndCommit; _betweenReadAndCommit = null; between?.();
         if ([...readAt].some(([id, v]) => (_versions.get(id) ?? 0) !== v)) continue;   // read is stale: run it again
         for (const [kind, id, data] of ops) { serverWrite(id, kind === 'set' ? data : null); if (kind === 'delete') _txDeleted.push(id); }
+        if (_landsUnanswered > 0) { _landsUnanswered--; continue; }   // landed, answer lost: run it again
         return;
     }
     throw Object.assign(new Error('transaction contention'), { code: 'aborted' });
@@ -565,6 +569,34 @@ describe('5 · withManualDuplicates widens a delete only to what it outranks', (
     });
 });
 
+// ── 5b · a bulk delete's chunks never split a day (v25.89, review) ─────────────────────────────────
+// Each chunk is its own transaction, so a colleague's edit can stop a bulk delete between two of them.
+// The older copies used to follow every ticked row, so a ticked row could land in one chunk and the copy
+// it hides in the next: stopped there, the copy resurfaced as the day's value under "Deleted N".
+describe('5b · deleteChunks keeps each ticked row with the copies it hides', () => {
+    const at = (/** @type {number} */ ms) => ({ toMillis: () => ms });
+    const manual = (/** @type {string} */ id, /** @type {string} */ date, /** @type {number} */ ms) => ({ ...row(id, 'G. Miller', date), createdAt: at(ms) });
+    const seed = async (/** @type {any[]} */ rows) => { const { store } = await freshStore(); store.setAllOverrides(rows); return store; };
+
+    test('a ticked row and its older copy share a chunk, even where the copy would have spilled into the next', async () => {
+        const store = await seed([manual('a', '2026-06-15', 2000), manual('b', '2026-06-16', 2000), manual('b-old', '2026-06-16', 1000)]);
+        assert.deepEqual(store.deleteChunks(['a', 'b'], 2), [['a'], ['b', 'b-old']], 'b was split from the copy it hides');
+    });
+
+    test('every id once, chunks no larger than the limit, nothing lost', async () => {
+        const rows = Array.from({ length: 7 }, (_, i) => manual(`r${i}`, `2026-06-${10 + i}`, 2000));
+        const store = await seed(rows);
+        const chunks = store.deleteChunks(rows.map(r => r.id), 3);
+        assert.deepEqual(chunks.map((/** @type {string[]} */ c) => c.length), [3, 3, 1]);
+        assert.deepEqual(chunks.flat().sort(), rows.map(r => r.id).sort());
+    });
+
+    test('a copy that was itself ticked is deleted once, with the row that hides it', async () => {
+        const store = await seed([manual('new', '2026-06-16', 2000), manual('old', '2026-06-16', 1000)]);
+        assert.deepEqual(store.deleteChunks(['new', 'old'], 200), [['new', 'old']]);
+    });
+});
+
 // ── 6 · a delete may not destroy a colleague's newer edit (Oct 2026; ONE transaction, v25.89) ──────
 // Admin's cache never refreshes on its own, and a manual record has one id per member and day, so a
 // delete aimed at what a manager saw this morning removed what a colleague had written since. The
@@ -578,7 +610,7 @@ describe('6 · a delete compares what it removes with what the page showed, in O
     const refused = (/** @type {any} */ store) => (/** @type {any} */ e) => e.code === store.DELETE_REFUSED && e.line === store.CHANGED_ELSEWHERE_LINE;
     beforeEach(() => {
         _server.clear(); _versions.clear(); _serverCached = false; _serverFails = false;
-        _betweenReadAndCommit = null; _txRuns = 0; _txDeleted.length = 0; _txFails = null;
+        _betweenReadAndCommit = null; _txRuns = 0; _txDeleted.length = 0; _txFails = null; _landsUnanswered = 0;
     });
 
     test('unchanged on the server → deleted, in one transaction', async () => {
@@ -690,6 +722,49 @@ describe('6 · a delete compares what it removes with what the page showed, in O
         assert.equal(await store.staleDeleteVerdict([al.id]), store.UNCHECKED_DELETE_LINE);
         _serverCached = false; _serverFails = true;
         assert.equal(await store.staleDeleteVerdict([al.id]), store.UNCHECKED_DELETE_LINE);
+    });
+    // ── A COMMIT WHOSE ANSWER WAS LOST (v25.89, review) ───────────────────────────────────────────────
+    // Firestore re-runs the function after `unavailable` on the commit, and the commit may have landed.
+    test('a delete re-run after its own commit landed finds its rows gone — no difference, no refusal', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al });
+        _landsUnanswered = 1;
+        await store.deleteIfUnchanged(store.asShown([al.id]));
+        assert.equal(_server.has(al.id), false);
+        assert.equal(_txRuns, 2, 'premise: the function ran again after the commit landed');
+    });
+
+    test('a REWRITE re-run after its own commit landed is refused — unless `alreadyDone` recognises it, and then nothing more is written', async () => {
+        const moved = { ...al, leaveYear: 2026, createdAt: { toMillis: () => 9_000 } };
+        /** @param {any} store @param {any} [opts] */
+        const run = (store, opts = {}) => {
+            let writes = 0;
+            const p = store.commitIfUnchanged([al], (/** @type {any} */ tx) => { writes++; tx.set({ id: al.id }, moved); }, { mustExist: [al.id], ...opts });
+            return { p, writes: () => writes };
+        };
+        let store = await seed([al]);
+        serverWrite(al.id, { ...al }); _landsUnanswered = 1;
+        const bare = run(store);
+        await assert.rejects(bare.p, refused(store), 'premise: without the predicate the re-run calls its own write a colleague\'s');
+        assert.equal(_server.get(al.id)?.leaveYear, 2026, 'premise: and yet it had saved');
+
+        store = await seed([al]);
+        serverWrite(al.id, { ...al }); _landsUnanswered = 1;
+        const known = run(store, { alreadyDone: (/** @type {Map<string, any>} */ latest) => latest.get(al.id)?.leaveYear === 2026 });
+        const res = await known.p;
+        assert.equal(res.done, true, 'a save that landed reported as refused');
+        assert.equal(known.writes(), 1, 'the re-run wrote again');
+        assert.equal(res.latest.get(al.id)?.leaveYear, 2026, 'and the caller is handed the server\'s copy');
+    });
+
+    test('`alreadyDone` is asked only when something differs — an unchanged day is simply written', async () => {
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al });
+        let asked = 0;
+        const res = await store.commitIfUnchanged([al], (/** @type {any} */ tx) => tx.delete({ id: al.id }), { alreadyDone: () => { asked++; return true; } });
+        assert.equal(res.done, false);
+        assert.equal(asked, 0);
+        assert.equal(_server.has(al.id), false);
     });
 });
 

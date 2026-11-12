@@ -37,6 +37,7 @@ import { rangeSundayCorrections } from './admin-al-projection.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
+import { drawnRecords } from './admin-week-row-state.js';
 import { formatDisplay } from './admin-period-dates.js';
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
@@ -123,6 +124,8 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
 }
 
 // ── SAVE ──────────────────────────────────────────────────────────────────────
+/** A week save refused because a day it removes has changed: ONE commit, so nothing in it was saved. */
+const WEEK_REFUSED_LINE = 'Someone else has changed a day you are removing since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.';
 /**
  * Writes a batch of override changes to Firestore and updates the in-memory cache.
  * Disables the Save button while running; re-enables in the finally block.
@@ -145,7 +148,10 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // it removed is missing the half a manager is least able to reconstruct from the grid.
     // NOT `.filter(Boolean)` (review): an id the cache cannot resolve is still a document being
     // deleted, and dropping it would take the day out of the receipt AND out of its count.
-    const removedRows = toDelete.map(id => getAllOverrides().find(o => o.id === id) ?? null);
+    // AS ITS ROW SHOWED IT (v25.89, review): a load landing under staged edits refreshes the cache but not
+    // the grid, so the cache's copy can be a colleague's newer record — and comparing with that deleted it.
+    const drawn = drawnRecords(document.getElementById('weekGrid'));
+    const removedRows = toDelete.map(id => drawn.get(id) ?? getAllOverrides().find(o => o.id === id) ?? null);
     // The per-kind counters went with the summary line they fed — the receipt names the DAYS, so
     // "2 added, 1 updated" had nobody left to tell (v21.38).
     const total       = toSave.length + toDelete.length;
@@ -249,7 +255,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
             // A save that DELETES compares what it deletes with what this page showed and commits in ONE
             // transaction (v25.89; a re-read then a separate batch let a colleague's edit land between).
             // One that only writes stays a batch, held on the device offline; a transaction needs the server.
-            if (deleteIds.size) await commitIfUnchanged([...removedRows.map((r, i) => r ?? toDelete[i]), ...deleteIds], fill);
+            if (deleteIds.size) await commitIfUnchanged([...removedRows.map((r, i) => r ?? toDelete[i]), ...deleteIds], fill, { line: WEEK_REFUSED_LINE });
             else { const batch = writeBatch(db); fill(batch); await batch.commit(); }
             return { docs, dropped };
         }), { held: !deleteIds.size });
