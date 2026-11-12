@@ -147,9 +147,11 @@ behind them.
   a page brought back from the back/forward cache: Playwright launches Chrome with that cache off,
   so Back always loads afresh here. That guard is `page-session.test.mjs` and `e2e/auth.spec.js`,
   which send the restore event themselves.
-  Branch CI as the `signed-in` job, NOT the deploy gate: whether it joins the gate is the owner's
-  decision once it has run steady. Behind a proxy, run `npx firebase setup:emulators:firestore` once
-  first (the script's header says why).
+  Branch CI runs both engines as the `signed-in` job. Since 12 Nov 2026 its Android Chrome half also
+  gates the Hosting deploy, on the tree being released (`deploy-hosting.yml`); the iPhone half stays
+  out of that gate, as all of WebKit does (`docs/DECISIONS.md` → WebKit stays OUT of the deploy
+  gate). Behind a proxy, run `npx firebase setup:emulators:firestore` once first (the script's header
+  says why).
 - **`npm run test:live`** — the deployment health check in `CLAUDE.md`, run against the real site:
   both origins, the root and two sub-pages, asserting served, splash down, something usable and no
   console errors. Opt-in, and it gates nothing: the network and whatever is deployed right now are not
