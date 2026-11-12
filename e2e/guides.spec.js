@@ -561,11 +561,23 @@ test('guides: a jump the reader interrupts does not hold its chip where the read
 
 // A JUMP'S CHIP HOLDS where the page cannot scroll its section up to the line. At the bottom of a page the
 // one-column rule lights the LAST chip whatever was chosen, so a reader who tapped "Back pay" saw "Moving your
-// data" lit. A tall window makes the near-the-end case on any machine.
+// data" lit. A tall window makes the near-the-end case on any machine, and it is SIZED FROM THE PAGE: the page
+// below "Back pay", plus the header and bar above it, plus 200px, so the section comes to rest 200px under the
+// bar however the text wraps. A fixed 1800px stopped making the case when v25.82 added a note below "Back pay":
+// on CI's wrapping the section then rested 11px under the bar, inside the premise's 20, on every engine at once.
 test('guides: a chip near the end of a page stays lit after its jump, though its section never reaches the line', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 1800 });
+    await page.setViewportSize({ width: 375, height: 800 });
     await page.goto('/paycalc-guide.html');
     await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const room = await page.evaluate(() => {
+        const doc = document.documentElement.scrollHeight;
+        const top = /** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top + scrollY;
+        return { doc, below: Math.ceil(doc - top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+    });
+    const height = room.below + room.bar + 200;
+    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+    await page.setViewportSize({ width: 375, height });
     const backPay = page.locator('.chip-bar .chip[data-target="pg-pay-rise-back-pay"]');
     await backPay.click();
     await page.waitForTimeout(1800);
