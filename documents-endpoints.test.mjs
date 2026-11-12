@@ -97,6 +97,11 @@ function makeDb(seed = {}) {
     const db = {
         collection: (/** @type {string} */ name) => ({
             doc: (/** @type {string} */ id) => refFor(`${name}/${id}`),
+            // The whole collection — what the link rotation reads every record of a kind with.
+            get: async () => {
+                const docs = [...store.keys()].filter(p => p.startsWith(`${name}/`)).map(snapFor);
+                return { empty: docs.length === 0, docs };
+            },
             // `orderBy(field, 'desc').limit(n).get()` — what getDocumentUrl uses to find the LATEST
             // of a kind. Sorts on the real field rather than on insertion order, so a seed written
             // out of date order still answers correctly; that is the whole point of the query.
@@ -129,6 +134,10 @@ function makeDb(seed = {}) {
             return fn({
                 get: async (/** @type {any} */ ref) => snapFor(ref.path),
                 set: (/** @type {any} */ ref, /** @type {any} */ data) => { store.set(ref.path, data); },
+                // A partial write, merged — the link rotation changes `storageUrl` and nothing else.
+                update: (/** @type {any} */ ref, /** @type {any} */ data) => {
+                    store.set(ref.path, { ...(store.get(ref.path) || {}), ...data });
+                },
             });
         },
     };
@@ -136,13 +145,31 @@ function makeDb(seed = {}) {
         failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; } };
 }
 
-/** @param {string[]} existingObjects  Storage paths that already exist */
-function makeStorage(existingObjects = []) {
+/**
+ * @param {string[]} existingObjects  Storage paths that already exist
+ * @param {Record<string, string>} [keys]  path → its download key(s), comma-separated as Firebase keeps them
+ */
+function makeStorage(existingObjects = [], keys = {}) {
     const objects = new Set(existingObjects);
     const signed = /** @type {{path: string, action: string, expires: number}[]} */ ([]);
     let signFails = false;
+    let listFails = false;
     const saved = /** @type {{path: string, bytes: number, contentType: string}[]} */ ([]);
     const deleted = /** @type {string[]} */ ([]);
+    /** Custom metadata per object, KEPT (the link rotation reads and writes the download key here).
+     *  @type {Map<string, Record<string, string>>} */
+    const meta = new Map(Object.entries(keys).map(([p, k]) => [p, { firebaseStorageDownloadTokens: k }]));
+    /** Every metadata write, in order — recorded rather than discarded, with whether it was a
+     *  compare-and-set. @type {{path: string, metadata: any, guarded: boolean}[]} */
+    const metaWrites = [];
+    /** GCS's two counters: a new upload is a new generation, a metadata write a new metageneration.
+     *  @type {Map<string, {generation: number, metageneration: number}>} */
+    let nextGen = 100;
+    const gens = new Map();
+    const genOf = (/** @type {string} */ p) => {
+        if (!gens.has(p)) gens.set(p, { generation: nextGen++, metageneration: 1 });
+        return /** @type {{generation: number, metageneration: number}} */ (gens.get(p));
+    };
     const bucket = {
         name: 'myb-roster.appspot.com',
         file: (/** @type {string} */ path) => ({
@@ -150,8 +177,27 @@ function makeStorage(existingObjects = []) {
             save: async (/** @type {Buffer} */ buf, /** @type {any} */ opts) => {
                 saved.push({ path, bytes: buf.length, contentType: opts?.contentType });
                 objects.add(path);
+                gens.set(path, { generation: nextGen++, metageneration: 1 });
             },
-            setMetadata: async () => {},
+            // GCS semantics: custom keys MERGE into what is there, and a null value removes one; a
+            // write that names a generation or metageneration is refused (412) when it is not current.
+            setMetadata: async (/** @type {any} */ opts, /** @type {any} */ pre) => {
+                const g = genOf(path);
+                const guarded = !!pre && pre.ifGenerationMatch !== undefined && pre.ifMetagenerationMatch !== undefined;
+                if (pre && ((pre.ifGenerationMatch !== undefined && pre.ifGenerationMatch !== g.generation)
+                    || (pre.ifMetagenerationMatch !== undefined && pre.ifMetagenerationMatch !== g.metageneration))) {
+                    throw Object.assign(new Error('Precondition Failed'), { code: 412 });
+                }
+                const cur = { ...(meta.get(path) || {}) };
+                for (const [k, v] of Object.entries((opts && opts.metadata) || {})) {
+                    if (v === null) delete cur[k]; else cur[k] = /** @type {string} */ (v);
+                }
+                meta.set(path, cur);
+                g.metageneration++;
+                metaWrites.push({ path, metadata: opts && opts.metadata, guarded });
+                return [{ name: path, ...g, metadata: { ...cur } }];
+            },
+            getMetadata: async () => [{ name: path, ...genOf(path), metadata: { ...(meta.get(path) || {}) } }],
             delete: async () => { deleted.push(path); objects.delete(path); },
             // RECORDS rather than discards: "refused" and "signed and then refused" are the same
             // status line, and only the recording tells them apart (this file's own lesson).
@@ -161,19 +207,22 @@ function makeStorage(existingObjects = []) {
                 return [`https://signed.example/${encodeURIComponent(path)}?exp=${opts && opts.expires}`];
             },
         }),
-        getFiles: async (/** @type {{prefix: string}} */ { prefix }) =>
-            [[...objects].filter(p => p.startsWith(prefix)).map(p => bucket.file(p))],
+        getFiles: async (/** @type {{prefix: string}} */ { prefix }) => {
+            if (listFails) throw new Error('listing failed');
+            return [[...objects].filter(p => p.startsWith(prefix)).map(p => bucket.file(p))];
+        },
     };
-    return { bucket, objects, saved, deleted, signed, failSigning: () => { signFails = true; } };
+    return { bucket, objects, saved, deleted, signed, meta, metaWrites,
+        failSigning: () => { signFails = true; }, failListing: () => { listFails = true; } };
 }
 
 /**
  * Build the domain against fresh fakes.
- * @param {{seed?: Record<string, any>, objects?: string[], maxFileBytes?: number}} [opts]
+ * @param {{seed?: Record<string, any>, objects?: string[], keys?: Record<string, string>, maxFileBytes?: number}} [opts]
  */
-function build({ seed = {}, objects = [], maxFileBytes = 20 * 1024 * 1024 } = {}) {
+function build({ seed = {}, objects = [], keys = {}, maxFileBytes = 20 * 1024 * 1024 } = {}) {
     const fsFake = makeDb(seed);
-    const stFake = makeStorage(objects);
+    const stFake = makeStorage(objects, keys);
     const sends = /** @type {{payload: any, tag: string}[]} */ ([]);
     /** Every TARGETED send, with the uids it was addressed to. */
     const targeted = /** @type {{payload: any, uids: string[], tag: string}[]} */ ([]);
@@ -1166,5 +1215,137 @@ describe('getDocumentUrl — it signs the kind it was asked for, and says nothin
                 `the signing log names the member: "${line}". Log the DOOR (member / admin / pin), `
                 + 'never the person — see the comment beside that line in functions/documents.js.');
         }
+    });
+});
+
+// ── rotateDocumentLinks ─────────────────────────────────────────────────────────────────────────
+//
+// The rotation's own rules are doc-link-rotation.test.mjs, against plain fakes. These run the REAL
+// handler — the admin door, the body that turns a preview into a run, the 503 that promises nothing
+// changed — through to the resulting records and keys, because a perfect helper behind the wrong
+// door, or behind a body reader that took "true" for true, is the failure those tests cannot see.
+
+/** Drive rotateDocumentLinks and wait for its answer. */
+async function askToRotate(/** @type {any} */ eps, /** @type {any} */ body,
+    { auth = /** @type {string|null} */ ('Bearer tok'), method = 'POST', rawBody = /** @type {any} */ (undefined) } = {}) {
+    const { res, out, done } = makeRes();
+    const headers = /** @type {Record<string, string|undefined>} */ ({
+        authorization: auth ?? undefined, origin: 'https://myb-roster.web.app',
+    });
+    const req = {
+        method, headers, url: '/', path: '/', query: {}, body, rawBody,
+        get(/** @type {string} */ h) { return headers[String(h).toLowerCase()]; },
+        header(/** @type {string} */ h) { return this.get(h); },
+    };
+    const p = eps.rotateDocumentLinks(req, res);
+    await Promise.race([done, p]);
+    await p?.catch?.(() => {});
+    return out;
+}
+
+const ROT_BUCKET = 'myb-roster.appspot.com';
+const dlink = (/** @type {string} */ path, /** @type {string} */ key) =>
+    `https://firebasestorage.googleapis.com/v0/b/${ROT_BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${key}`;
+/** A Huddle and a Circular whose stored links open their files with an OLD key, and one file nothing points at. */
+const ROTATABLE = () => ({
+    seed: {
+        'huddles/2026-11-12':   { date: '2026-11-12', storagePath: 'huddles/2026-11-12-a1.pdf', fileType: 'pdf',
+            storageUrl: dlink('huddles/2026-11-12-a1.pdf', 'old-h') },
+        'circulars/2026-11-06': { date: '2026-11-06', storagePath: 'circulars/2026-11-06-b2.docx', fileType: 'docx',
+            storageUrl: dlink('circulars/2026-11-06-b2.docx', 'old-c') },
+    },
+    objects: ['huddles/2026-11-12-a1.pdf', 'circulars/2026-11-06-b2.docx', 'huddles/2026-08-01-left.pdf'],
+    keys: { 'huddles/2026-11-12-a1.pdf': 'old-h', 'circulars/2026-11-06-b2.docx': 'old-c', 'huddles/2026-08-01-left.pdf': 'old-l' },
+});
+const keyIn = (/** @type {string} */ url) => new URL(url).searchParams.get('token');
+
+describe('rotateDocumentLinks — the admin door, and a preview unless asked', () => {
+    test('no token, a revoked admin, a member, a manager and a PIN viewer are refused — and nothing is written', async () => {
+        const doors = [
+            [null, false, 401], [{ admin: true }, true, 401],
+            [MEMBER_GM, false, 403], [{ ...MEMBER_GM, manager: true }, false, 403],
+            [{ calendarViewer: true, firebase: { sign_in_provider: 'custom' } }, false, 403],
+        ];
+        for (const [claims, revoked, code] of /** @type {[any, boolean, number][]} */ (doors)) {
+            const w = build(ROTATABLE());
+            w.setClaims(claims);
+            w.setRevoked(revoked);
+            const out = await askToRotate(w.eps, { rotate: true });
+            assert.equal(out.code, code, `${JSON.stringify(claims)} (revoked: ${revoked}) got ${out.code}`);
+            assert.deepEqual(w.metaWrites, [], `${JSON.stringify(claims)} reached a file`);
+            assert.equal(keyIn(w.store.get('huddles/2026-11-12').storageUrl), 'old-h', `${JSON.stringify(claims)} reached a record`);
+        }
+    });
+
+    test('GET is refused before anything else happens', async () => {
+        const w = build(ROTATABLE());
+        w.setClaims({ admin: true });
+        assert.equal((await askToRotate(w.eps, undefined, { method: 'GET' })).code, 405);
+        assert.deepEqual(w.metaWrites, []);
+    });
+
+    test('an admin whose body does not say rotate: true exactly gets a PREVIEW, and nothing changes', async () => {
+        for (const body of [undefined, {}, { rotate: 'true' }, { rotate: 1 }, { preview: true }]) {
+            const w = build(ROTATABLE());
+            w.setClaims({ admin: true });
+            const out = await askToRotate(w.eps, body);
+            assert.equal(out.code, 200, JSON.stringify(out.body));
+            assert.equal(out.body.rotate, false, `${JSON.stringify(body)} ran the rotation`);
+            assert.equal(out.body.files, 3);
+            assert.equal(out.body.linked, 2);
+            assert.equal(out.body.unlinkedWithKey, 1);
+            assert.deepEqual(w.metaWrites, [], `${JSON.stringify(body)} changed a file`);
+            assert.equal(keyIn(w.store.get('huddles/2026-11-12').storageUrl), 'old-h');
+        }
+    });
+});
+
+describe('rotateDocumentLinks — asked to rotate, every old link stops and the stored links follow', () => {
+    test('each record\'s stored link now opens its file with a NEW key, the only key that file accepts', async () => {
+        const w = build(ROTATABLE());
+        w.setClaims({ admin: true });
+        const out = await askToRotate(w.eps, { rotate: true });
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.equal(out.body.rotate, true);
+        assert.equal(out.body.rotated, 2);
+        assert.equal(out.body.cleared, 1);
+        assert.deepEqual(out.body.failed, []);
+        for (const [rec, fp, old] of [['huddles/2026-11-12', 'huddles/2026-11-12-a1.pdf', 'old-h'],
+            ['circulars/2026-11-06', 'circulars/2026-11-06-b2.docx', 'old-c']]) {
+            const data = w.store.get(rec);
+            const fresh = keyIn(data.storageUrl);
+            assert.notEqual(fresh, old, `${rec} kept its old link`);
+            assert.match(String(fresh), /^[0-9a-f-]{36}$/, `${rec}'s new key is not a random UUID: ${fresh}`);
+            assert.equal(w.meta.get(fp)?.firebaseStorageDownloadTokens, fresh, `${fp} still answers another key`);
+            assert.equal(data.storagePath, fp, 'the rotation touched more of the record than its link');
+        }
+        assert.equal(w.meta.get('huddles/2026-08-01-left.pdf')?.firebaseStorageDownloadTokens, undefined,
+            'a file nothing points at kept a key');
+        assert.ok(w.objects.has('huddles/2026-08-01-left.pdf'), 'a file was deleted');
+        assert.deepEqual(w.deleted, []);
+        // Through the real handler too: every key write named the object it read, so an upload landing
+        // mid-run is refused (412) rather than overwritten.
+        assert.ok(w.metaWrites.length > 0 && w.metaWrites.every(m => m.guarded), JSON.stringify(w.metaWrites));
+    });
+
+    test('the body may arrive unparsed — rotate: true in raw bytes is still a run', async () => {
+        const w = build(ROTATABLE());
+        w.setClaims({ admin: true });
+        const raw = Buffer.from(JSON.stringify({ rotate: true }));
+        const out = await askToRotate(w.eps, raw, { rawBody: raw });
+        assert.equal(out.body.rotate, true);
+        assert.equal(out.body.rotated, 2);
+    });
+
+    test('a read failure is a 503 that says nothing changed — and nothing did', async () => {
+        const w = build(ROTATABLE());
+        w.setClaims({ admin: true });
+        w.failListing();
+        const out = await askToRotate(w.eps, { rotate: true });
+        assert.equal(out.code, 503);
+        assert.match(out.body.error, /nothing was changed/);
+        assert.equal(out.body.changed, false, 'the card reads this field, not the words');
+        assert.deepEqual(w.metaWrites, []);
+        assert.equal(keyIn(w.store.get('huddles/2026-11-12').storageUrl), 'old-h');
     });
 });

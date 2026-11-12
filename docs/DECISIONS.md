@@ -223,6 +223,10 @@ shown that yet.
   stored one is used only when that cannot be fetched — offline, a timeout, a 503 — and removing it
   would make a document simply not open at those moments, while minting at click time spends the tap
   and gets the tab pop-up-blocked. EXC-007 in ARCHITECTURE.md stays open on that basis.
+  **Rotate the links once now** (owner, 12 Nov 2026). Built as a button — Operations → Document links —
+  rather than a one-off script, because nothing in a session can reach production and the owner can
+  press a button; it stays, so a leaked link is one press from dead. It keeps the fallback: a rotation
+  gives each record a NEW permanent link, it does not take the stored link away.
 
 - **The staff PIN session keeps NO server-side time limit** (owner, 7 Oct 2026) · **Trigger: a PIN
   tab found open on a device that should not have it, or a PIN rotation that has to chase sessions.**

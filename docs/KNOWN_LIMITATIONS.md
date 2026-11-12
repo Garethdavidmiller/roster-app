@@ -377,7 +377,8 @@ looking for `storage.googleapis.com` rather than `firebasestorage` in the opened
 changes who can *discover* a URL; anyone who has ever held a permanent one — a forwarded link,
 browser history, a synced bookmark — keeps access until the object is deleted or rotated, and
 revocation means rewriting the object, not editing a rule. Rotating the objects already in
-circulation is the open step (ARCHITECTURE.md → EXC-007).
+circulation is the open step — built as Operations → Document links, not yet run (ARCHITECTURE.md →
+EXC-007).
 
 **Document retention bounds it, but is not a guarantee.** Both retention sweeps DELETE the Storage
 object, which is what kills a bearer URL: **Huddles at 3 months** (`pruneOldHuddles`, server-side,

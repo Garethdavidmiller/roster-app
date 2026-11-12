@@ -547,6 +547,12 @@ const CAPS = {
     // Functions, and a module that close to the line would otherwise cross it with nobody deciding
     // anything. Capped now so crossing is a decision. Measured + 50, rounded to the next 50.
     'functions/auth-endpoints.js':        950,
+    // NEW at v25.88, when the document-link rotation's door joined (885 → 937). Its RULES left for
+    // functions/doc-link-rotation.js before they arrived — pure, and tested in the no-install lane —
+    // so what crossed the line is an endpoint: method, admin check, body, the 503, one log line. The
+    // documents domain hosts its doors, as auth-endpoints.js hosts the account ones. Measured + 50,
+    // rounded to the next 50.
+    'functions/documents.js':            1000,
 
 };
 

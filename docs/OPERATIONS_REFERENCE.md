@@ -441,6 +441,42 @@ before relying on this summary:
 | Newsletter Firestore doc | `newsletters/{YYYY-MM-DD}` |
 | Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix) |
 
+## Document links — replacing every old copy
+
+Every Huddle, Circular and Newsletter file has a permanent download link — the record's `storageUrl`.
+It carries a key, and whoever holds a copy opens the file with no sign-in: from a browser's history, a
+forwarded message, or Microsoft's Word viewer (ARCHITECTURE.md EXC-007). **Operations → Document
+links** gives every file a new key, and every old copy stops working at once. Staff notice nothing:
+the app opens documents with a 15-minute link signed from the file's PATH, never its key, and each
+record's stored link is moved onto the new key before the old one is taken away. First run: the
+owner, 12 Nov 2026 (DECISIONS.md).
+
+**When:** a document link has been shared somewhere it should not be — or on a schedule, if one is
+ever wanted (AUTH_PLAN.md §5).
+
+**How:**
+1. Wait until BOTH deploys of the release that carries it have finished — Functions and Hosting run in
+   parallel. Before the function exists the card says "the server answered 404".
+2. Operations → **Document links** → **Check the links**. This only counts, and says what a run would
+   touch: files in use; older files no record uses (their link is switched off, the file is never
+   deleted); documents whose file is gone; and stored links this cannot read.
+3. **Replace the links**, then confirm.
+
+| The card says | It means | Do |
+|---|---|---|
+| Done. N files have new links | every old copy of those links is dead | nothing |
+| N files couldn't be changed, and their old links still work | a write failed; each such file stopped at the step it reached, its stored link still working | press Replace again — safe |
+| N files changed while this ran | an upload, or a run in another tab, landed mid-run; those files were left alone | Check again, and Replace if it is offered |
+| N files are left as they are, old links and all | a stored link this cannot read may open them, and touching them could break it | the unreadable links need looking at in a session; the card cannot fix them |
+| It isn't known whether it finished | the answer was lost — a timeout, or the platform's own error | press Replace again — safe |
+| Couldn't read the documents, so nothing was changed | the records or the file listing could not be read | try again in a minute |
+
+**Why pressing it twice is safe:** a run only ever issues fresh keys and moves each record onto its
+file's newest one. Every key write is a compare-and-set against the file as it was read, and a record
+moves only while its link is exactly the one read, so a run cannot overwrite an upload or another run.
+The rules: `functions/doc-link-rotation.js`. **Logs:** one line per run in the `rotateDocumentLinks`
+function log — counts only.
+
 ---
 
 ## Firebase Auth — full detail

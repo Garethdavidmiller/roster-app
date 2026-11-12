@@ -1,0 +1,506 @@
+// @ts-check
+/**
+ * doc-link-rotation.test.mjs — the rotation of the documents' permanent links
+ * (functions/doc-link-rotation.js; ARCHITECTURE.md EXC-007), against a fake bucket that keeps each
+ * file's keys and a fake Firestore that keeps each record's stored link.
+ * Run (no mocks): node scripts/run-tests.mjs doc-link-rotation.test.mjs
+ *
+ * Organised by what a wrong answer COSTS, and the costs point opposite ways:
+ *  - A STORED LINK THAT STOPS WORKING is the member-facing one: the stored link is the fallback a
+ *    member is handed when a 15-minute link cannot be fetched, so a dead one is a document that will
+ *    not open. The three-step order exists to prevent it, and the test that guards it checks the
+ *    invariant after EVERY write rather than at the end, because the end state looks the same
+ *    whichever order the steps ran in.
+ *  - AN OLD LINK THAT STILL WORKS is the whole point failing quietly: the run reports success and
+ *    the forwarded link still opens the file.
+ *  - A WRITE NOBODY ASKED FOR: a preview that changes something, a record rewritten under an upload
+ *    that moved it, a link this code cannot read being "fixed", a file deleted.
+ * The fakes RECORD every write in one ordered log; a fake that discarded them could assert nothing
+ * about order, which is the property that matters most here. And the fake bucket behaves as Cloud
+ * Storage does where it matters: every file has a generation (a new upload) and a metageneration (a
+ * metadata write), a write that names the wrong one is refused with 412, and a write that names
+ * NEITHER is refused too — so a run that forgot its compare-and-set fails here, not on the live files.
+ */
+import { describe, test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { rotateDocumentLinks, downloadUrl, pathOfDownloadUrl, keysOf, TOKEN_KEY } =
+    require('./functions/doc-link-rotation.js');
+
+const BUCKET = 'myb-roster.appspot.com';
+/** @param {string} path @param {string} key */
+const link = (path, key) => downloadUrl(BUCKET, path, key);
+/** The key a stored link carries. @param {string} url */
+const keyOfLink = (url) => new URL(url).searchParams.get('token');
+
+/**
+ * A world: files with their keys, records with their stored links, and one ordered log of writes.
+ * After EVERY write it checks the invariant the three steps exist for — every record whose file
+ * exists can still open it — and keeps any breach, so a test can assert there was none at any moment.
+ * @param {{ files: Record<string, string[]|null>, records: Record<string, any>,
+ *           failSet?: (path: string, value: any) => boolean, failGet?: (path: string) => boolean,
+ *           failTx?: (path: string) => boolean, onTxGet?: (path: string, store: Map<string, any>) => void,
+ *           beforeSet?: (path: string, value: any) => void, failList?: boolean }} opts
+ */
+function world({ files, records, failSet, failGet, failTx, onTxGet, beforeSet, failList }) {
+    /** @type {Map<string, Record<string, string>>} path → custom metadata */
+    const meta = new Map(Object.entries(files).map(([p, keys]) =>
+        [p, keys ? { [TOKEN_KEY]: keys.join(','), other: 'kept' } : { other: 'kept' }]));
+    /** @type {Map<string, { generation: number, metageneration: number }>} */
+    const gen = new Map([...meta.keys()].map((p, i) => [p, { generation: 1000 + i, metageneration: 1 }]));
+    const store = new Map(Object.entries(records));
+    /** @type {{ kind: 'set'|'update', path: string, value: any }[]} */
+    const log = [];
+    /** @type {string[]} */
+    const breaches = [];
+
+    const keysNow = (/** @type {string} */ p) => keysOf({ metadata: meta.get(p) });
+    const checkInvariant = (/** @type {string} */ after) => {
+        for (const [rp, data] of store) {
+            const fp = pathOfDownloadUrl(data && data.storageUrl, BUCKET);
+            if (!fp || !meta.has(fp)) continue;
+            const was = (records[rp] || {}).storageUrl;
+            // Only a link that opened its file at the start owes it to the end of the run.
+            if (pathOfDownloadUrl(was, BUCKET) !== fp || !keysOf({ metadata: Object.fromEntries(
+                [[TOKEN_KEY, (files[fp] || []).join(',')]]) }).includes(keyOfLink(was) || '')) continue;
+            if (!keysNow(fp).includes(keyOfLink(data.storageUrl) || '')) breaches.push(`${rp} dead after ${after}`);
+        }
+    };
+
+    const resource = (/** @type {string} */ path) => ({ name: path, ...gen.get(path), metadata: { ...(meta.get(path) || {}) } });
+    /**
+     * A new upload at `path`, object and record together, as the uploaders do: a new generation, its
+     * own key, and the record moved onto it.
+     * @param {string} path @param {string} key @param {string} [recordPath]
+     */
+    const reupload = (path, key, recordPath) => {
+        meta.set(path, { [TOKEN_KEY]: key, other: 'kept' });
+        gen.set(path, { generation: (gen.get(path)?.generation ?? 0) + 7, metageneration: 1 });
+        if (recordPath) store.set(recordPath, { ...store.get(recordPath), storageUrl: link(path, key) });
+    };
+    const file = (/** @type {string} */ path) => ({
+        name: path,
+        getMetadata: async () => {
+            if (failGet?.(path)) throw new Error('read failed');
+            return [resource(path)];
+        },
+        setMetadata: async (/** @type {{ metadata: Record<string, any> }} */ { metadata }, /** @type {any} */ opts) => {
+            beforeSet?.(path, metadata[TOKEN_KEY]);
+            if (failSet?.(path, metadata[TOKEN_KEY])) throw new Error('write failed');
+            const g = gen.get(path);
+            if (!opts || opts.ifGenerationMatch === undefined || opts.ifMetagenerationMatch === undefined) {
+                throw new Error('a key written with no compare-and-set');
+            }
+            if (!g || opts.ifGenerationMatch !== g.generation || opts.ifMetagenerationMatch !== g.metageneration) {
+                throw Object.assign(new Error('Precondition Failed'), { code: 412 });
+            }
+            const cur = { ...(meta.get(path) || {}) };
+            for (const [k, v] of Object.entries(metadata)) { if (v === null) delete cur[k]; else cur[k] = v; }
+            meta.set(path, cur);
+            gen.set(path, { ...g, metageneration: g.metageneration + 1 });
+            log.push({ kind: 'set', path, value: metadata[TOKEN_KEY] });
+            checkInvariant(`set ${path}`);
+            return [resource(path)];
+        },
+    });
+    const bucket = {
+        name: BUCKET,
+        getFiles: async (/** @type {{ prefix: string }} */ { prefix }) => {
+            if (failList) throw new Error('list failed');
+            return [[...meta.keys()].filter(p => p.startsWith(prefix)).map(file)];
+        },
+    };
+    const snapOf = (/** @type {string} */ p) => ({
+        exists: store.has(p), id: p.split('/')[1], ref: { path: p },
+        data: () => (store.has(p) ? { ...store.get(p) } : undefined),
+    });
+    const db = {
+        collection: (/** @type {string} */ name) => ({
+            get: async () => ({ docs: [...store.keys()].filter(p => p.startsWith(`${name}/`)).map(snapOf) }),
+        }),
+        runTransaction: async (/** @type {(tx: any) => Promise<any>} */ fn) => {
+            /** @type {[string, any][]} */
+            const staged = [];
+            const result = await fn({
+                get: async (/** @type {{ path: string }} */ ref) => {
+                    if (failTx?.(ref.path)) throw new Error('transaction failed');
+                    onTxGet?.(ref.path, store);
+                    return snapOf(ref.path);
+                },
+                update: (/** @type {{ path: string }} */ ref, /** @type {any} */ data) => { staged.push([ref.path, data]); },
+            });
+            for (const [p, d] of staged) {
+                store.set(p, { ...store.get(p), ...d });
+                log.push({ kind: 'update', path: p, value: d.storageUrl });
+                checkInvariant(`update ${p}`);
+            }
+            return result;
+        },
+    };
+    let n = 0;
+    const newKey = () => `key-${++n}`;
+    return { bucket, db, newKey, meta, store, log, breaches, keysNow, reupload };
+}
+
+/** The ordinary world: one of each kind, each record opening its own file with its own old key. */
+const ORDINARY = () => ({
+    files: {
+        'huddles/2026-11-12-a1.pdf': ['old-h'],
+        'circulars/2026-11-06-b2.docx': ['old-c'],
+        'newsletters/2026-11-01-c3.pdf': ['old-n'],
+    },
+    records: {
+        'huddles/2026-11-12': { date: '2026-11-12', storagePath: 'huddles/2026-11-12-a1.pdf', storageUrl: link('huddles/2026-11-12-a1.pdf', 'old-h') },
+        'circulars/2026-11-06': { date: '2026-11-06', storagePath: 'circulars/2026-11-06-b2.docx', storageUrl: link('circulars/2026-11-06-b2.docx', 'old-c') },
+        'newsletters/2026-11-01': { date: '2026-11-01', storagePath: 'newsletters/2026-11-01-c3.pdf', storageUrl: link('newsletters/2026-11-01-c3.pdf', 'old-n') },
+    },
+});
+
+describe('the link the app stores is the link this code reads', () => {
+    test('downloadUrl and pathOfDownloadUrl round-trip, slashes and spaces included', () => {
+        for (const p of ['huddles/2026-11-12-a1.pdf', 'circulars/2026 11 06 copy.docx', 'newsletters/x/y.pdf']) {
+            assert.equal(pathOfDownloadUrl(link(p, 'k'), BUCKET), p);
+        }
+    });
+
+    test('anything that is not a download link into THIS bucket reads as null', () => {
+        const p = encodeURIComponent('huddles/a.pdf');
+        for (const url of [
+            `https://firebasestorage.googleapis.com/v0/b/another-bucket/o/${p}?alt=media&token=k`,
+            `http://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${p}?alt=media&token=k`,
+            `https://evil.example/v0/b/${BUCKET}/o/${p}?alt=media&token=k`,
+            `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/huddles/a.pdf?alt=media&token=k`,
+            `https://storage.googleapis.com/${BUCKET}/huddles/a.pdf`,
+            'not a url', '', null, undefined, 42,
+        ]) assert.equal(pathOfDownloadUrl(url, BUCKET), null, String(url));
+    });
+
+    test('keysOf reads the comma-separated list Firebase keeps, and nothing else', () => {
+        assert.deepEqual(keysOf({ metadata: { [TOKEN_KEY]: 'a, b,,c' } }), ['a', 'b', 'c']);
+        assert.deepEqual(keysOf({ metadata: {} }), []);
+        assert.deepEqual(keysOf({}), []);
+        assert.deepEqual(keysOf(undefined), []);
+    });
+});
+
+describe('a preview changes nothing — and counts what a run would touch', () => {
+    test('without rotate: true there is not one write, whatever the world holds', async () => {
+        for (const rotate of [false, undefined, 'true', 1, {}]) {
+            const w = world(ORDINARY());
+            const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: /** @type {any} */ (rotate) });
+            assert.equal(r.rotate, false, `${JSON.stringify(rotate)} was taken as a real run`);
+            assert.deepEqual(w.log, [], `${JSON.stringify(rotate)} wrote something`);
+            assert.equal(r.files, 3);
+            assert.equal(r.linked, 3);
+            assert.equal(r.rotated, 0);
+        }
+    });
+
+    test('every kind of file and record is counted in its own box', async () => {
+        const w = world({
+            files: {
+                'huddles/2026-11-12-a1.pdf': ['old-h'],
+                'huddles/2026-08-01-old.pdf': ['old-x'],          // no record points at it, still has a key
+                'circulars/2026-05-01-gone.pdf': null,            // no record, already without a key
+                'newsletters/2026-09-01-odd.pdf': ['odd-k'],      // only a link this cannot read opens it
+            },
+            records: {
+                'huddles/2026-11-12': { storageUrl: link('huddles/2026-11-12-a1.pdf', 'old-h') },
+                'huddles/2026-11-11': { storageUrl: link('huddles/2026-11-11-zz.pdf', 'k') },   // its file is not there
+                'circulars/2026-11-06': { storageUrl: link('huddles/2026-11-12-a1.pdf', 'dead') },  // another kind's folder
+                'newsletters/2026-11-01': { storageUrl: 'https://example.com/n.pdf' },          // not a download link
+                'newsletters/2026-09-01': { storageUrl: 'https://cdn.example.com/n.pdf?alt=media&token=odd-k' },
+                'newsletters/2026-10-01': { storagePath: 'newsletters/2026-10-01.pdf' },       // no stored link at all
+            },
+        });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        assert.deepEqual(
+            { files: r.files, linked: r.linked, unlinkedWithKey: r.unlinkedWithKey, unlinkedWithoutKey: r.unlinkedWithoutKey, held: r.held,
+              recordsMissingFile: r.recordsMissingFile, recordsUnreadable: r.recordsUnreadable, recordsWithoutLink: r.recordsWithoutLink },
+            { files: 4, linked: 1, unlinkedWithKey: 1, unlinkedWithoutKey: 1, held: 1,
+              recordsMissingFile: 1, recordsUnreadable: 3, recordsWithoutLink: 1 });
+        assert.deepEqual(w.log, []);
+    });
+});
+
+describe('a run: every old link stops working, and the stored link never does', () => {
+    test('each linked file ends with ONLY its new key, and its record opens it with that key', async () => {
+        const w = world(ORDINARY());
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.rotate, true);
+        assert.equal(r.rotated, 3);
+        assert.deepEqual(r.failed, []);
+        for (const [rp, data] of w.store) {
+            const fp = /** @type {string} */ (pathOfDownloadUrl(data.storageUrl, BUCKET));
+            const keys = w.keysNow(fp);
+            assert.equal(keys.length, 1, `${fp} kept ${keys.join(',')}`);
+            assert.equal(keyOfLink(data.storageUrl), keys[0], `${rp}'s stored link does not open its file`);
+            assert.ok(!keys[0].startsWith('old-'), `${fp} still answers its old link`);
+            assert.equal(w.meta.get(fp)?.other, 'kept', 'a run touched metadata that is not the key');
+        }
+    });
+
+    test('guard the guard — the moment check sees a stored link go dead', async () => {
+        // The obvious two-step version's first move: swap the key before the record. If the world's
+        // check could not see THIS, the test below would pass over the very fault it exists for.
+        const w = world(ORDINARY());
+        const [[file]] = await w.bucket.getFiles({ prefix: 'huddles/' });
+        const [m] = await file.getMetadata();
+        await file.setMetadata({ metadata: { [TOKEN_KEY]: 'only-new' } },
+            { ifGenerationMatch: m.generation, ifMetagenerationMatch: m.metageneration });
+        assert.deepEqual(w.breaches, ['huddles/2026-11-12 dead after set huddles/2026-11-12-a1.pdf']);
+    });
+
+    test('at NO moment does a stored link point at a key its file no longer has (expand, migrate, contract)', async () => {
+        const w = world(ORDINARY());
+        await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual(w.breaches, [], 'a stored link was dead between two steps');
+        // And the order itself, file by file: old+new, then the record, then new only.
+        for (const fp of Object.keys(ORDINARY().files)) {
+            const mine = w.log.filter(e => e.path === fp || (e.kind === 'update' && pathOfDownloadUrl(e.value, BUCKET) === fp));
+            assert.deepEqual(mine.map(e => e.kind), ['set', 'update', 'set'], fp);
+            const [expand, migrate, contract] = mine;
+            const fresh = keyOfLink(migrate.value);
+            assert.equal(expand.value, `${ORDINARY().files[fp]?.[0]},${fresh}`, `${fp}: the first step dropped the old key`);
+            assert.equal(contract.value, fresh, `${fp}: the last step kept an old key`);
+        }
+    });
+
+    test('every file gets a key of its OWN — one link never opens another file', async () => {
+        const w = world(ORDINARY());
+        await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        const keys = [...w.store.values()].map(d => keyOfLink(d.storageUrl));
+        assert.equal(new Set(keys).size, keys.length, `a key was reused: ${keys.join(', ')}`);
+    });
+
+    test('a file no record points at LOSES its key, gets none, and is not deleted', async () => {
+        const w = world({ files: { 'huddles/2026-08-01-old.pdf': ['old-x', 'old-y'] }, records: {} });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.cleared, 1);
+        assert.deepEqual(w.keysNow('huddles/2026-08-01-old.pdf'), []);
+        assert.ok(w.meta.has('huddles/2026-08-01-old.pdf'), 'the file went');
+        assert.equal(w.meta.get('huddles/2026-08-01-old.pdf')?.other, 'kept');
+    });
+
+    test('running it again is safe: another key, the record follows, nothing is lost', async () => {
+        const w = world(ORDINARY());
+        await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        const first = [...w.store.values()].map(d => keyOfLink(d.storageUrl));
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.rotated, 3);
+        for (const [rp, d] of w.store) {
+            const fp = /** @type {string} */ (pathOfDownloadUrl(d.storageUrl, BUCKET));
+            assert.deepEqual(w.keysNow(fp), [keyOfLink(d.storageUrl)], rp);
+            assert.ok(!first.includes(keyOfLink(d.storageUrl)), `${rp} kept the first run's key`);
+        }
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('two records on one file both move to its new key', async () => {
+        const shared = 'circulars/2026-11-06-b2.docx';
+        const w = world({ files: { [shared]: ['old'] }, records: {
+            'circulars/2026-11-06': { storageUrl: link(shared, 'old') },
+            'circulars/2026-11-07': { storageUrl: link(shared, 'old') },
+        } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.rotated, 1);
+        const [only] = w.keysNow(shared);
+        for (const d of w.store.values()) assert.equal(keyOfLink(d.storageUrl), only);
+    });
+});
+
+describe('a write nobody asked for', () => {
+    test('a record an upload moved mid-run is not rewritten, and its old file keeps its keys', async () => {
+        const fp = 'huddles/2026-11-12-a1.pdf';
+        const moved = link('huddles/2026-11-12-NEW.pdf', 'upload-key');
+        const w = world({ files: { [fp]: ['old-h'] }, records: { 'huddles/2026-11-12': { storageUrl: link(fp, 'old-h') } },
+            // The re-upload lands between the listing and the record's transaction.
+            onTxGet: (p, store) => { if (p === 'huddles/2026-11-12') store.set(p, { storageUrl: moved }); } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.changedDuringRun, 1);
+        assert.equal(r.rotated, 0);
+        assert.equal(w.store.get('huddles/2026-11-12').storageUrl, moved, 'the upload\'s fresh link was overwritten');
+        assert.ok(w.keysNow(fp).includes('old-h'), 'the file was contracted under a record that had left it');
+    });
+
+    test('a link this code cannot read, a link into another kind\'s folder and a missing link are never written', async () => {
+        const odd = {
+            'circulars/2026-11-06': { storageUrl: link('huddles/2026-11-12-a1.pdf', 'old-h') },
+            'newsletters/2026-11-01': { storageUrl: 'https://example.com/n.pdf' },
+            'newsletters/2026-10-01': { storagePath: 'newsletters/2026-10-01.pdf' },
+        };
+        const w = world({ files: { 'huddles/2026-11-12-a1.pdf': ['old-h'] }, records: { ...odd } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        for (const [p, data] of Object.entries(odd)) assert.deepEqual(w.store.get(p), data, p);
+        // No huddles record opens that file, so it looks unused — but the circulars record's link does
+        // open it, and switching its key off would break the very link this promised to leave alone.
+        assert.equal(r.held, 1);
+        assert.deepEqual(w.keysNow('huddles/2026-11-12-a1.pdf'), ['old-h']);
+        assert.deepEqual(w.log, []);
+    });
+
+    test('a link this cannot read HOLDS the file it may open — another bucket name, another host', async () => {
+        const FP = 'huddles/2026-11-12-a1.pdf';
+        const otherBucket = `https://firebasestorage.googleapis.com/v0/b/myb-roster.firebasestorage.app/o/${encodeURIComponent(FP)}?alt=media&token=old-h`;
+        // One record reads cleanly and one does not, both on the same file: rotating it would move the
+        // first and strand the second, so the file is not touched at all.
+        const w = world({
+            files: { [FP]: ['old-h'], 'circulars/2026-11-06-b2.docx': ['old-c'] },
+            records: {
+                'huddles/2026-11-12': { storageUrl: link(FP, 'old-h') },
+                'huddles/2026-11-13': { storageUrl: otherBucket },
+                'circulars/2026-11-06': { storageUrl: link('circulars/2026-11-06-b2.docx', 'old-c') },
+            },
+        });
+        const preview = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        assert.deepEqual({ held: preview.held, linked: preview.linked, recordsUnreadable: preview.recordsUnreadable },
+            { held: 1, linked: 1, recordsUnreadable: 1 });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.rotated, 1, 'the file nothing holds still rotates');
+        assert.deepEqual(w.keysNow(FP), ['old-h']);
+        assert.equal(w.store.get('huddles/2026-11-12').storageUrl, link(FP, 'old-h'));
+        assert.equal(w.store.get('huddles/2026-11-13').storageUrl, otherBucket);
+        assert.ok(w.log.every(e => e.path.startsWith('circulars/')), JSON.stringify(w.log));
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('a record whose file is missing is counted and left alone', async () => {
+        const rec = { storageUrl: link('huddles/2026-11-11-zz.pdf', 'k') };
+        const w = world({ files: {}, records: { 'huddles/2026-11-11': { ...rec } } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.recordsMissingFile, 1);
+        assert.deepEqual(w.store.get('huddles/2026-11-11'), rec);
+        assert.deepEqual(w.log, []);
+    });
+});
+
+describe('every write is a compare-and-set: an upload landing mid-run is never overwritten', () => {
+    const FP = 'huddles/2026-11-12-a1.pdf';
+    const REC = 'huddles/2026-11-12';
+
+    /** @param {(path: string, value: any, w: ReturnType<typeof world>) => void} when */
+    const raced = async (when) => {
+        /** @type {ReturnType<typeof world>} */
+        let w;
+        w = world({ ...ORDINARY(), beforeSet: (p, v) => when(p, v, w) });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        return { w, r };
+    };
+    /** Fires once. @param {(p: string, v: any) => boolean} test @param {(w: any) => void} act */
+    const once = (test, act) => { let done = false; return (/** @type {string} */ p, /** @type {any} */ v, /** @type {any} */ w) => {
+        if (!done && test(p, v)) { done = true; act(w); }
+    }; };
+
+    test('a new upload between the read and the first write: that file is left to the upload', async () => {
+        const { w, r } = await raced(once((p, v) => p === FP && String(v).includes(','), (w) => w.reupload(FP, 'upload-key', REC)));
+        assert.equal(r.changedDuringRun, 1);
+        assert.deepEqual(r.failed, []);
+        assert.deepEqual(w.keysNow(FP), ['upload-key']);
+        assert.equal(w.store.get(REC).storageUrl, link(FP, 'upload-key'));
+        assert.equal(r.rotated, 2);
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('a new upload between the record and the last write: the upload\'s key survives', async () => {
+        const { w, r } = await raced(once((p, v) => p === FP && v && !String(v).includes(','), (w) => w.reupload(FP, 'upload-key', REC)));
+        assert.equal(r.changedDuringRun, 1);
+        assert.deepEqual(w.keysNow(FP), ['upload-key'], 'the contract wrote over the upload');
+        assert.equal(w.store.get(REC).storageUrl, link(FP, 'upload-key'));
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('a record given a new link at the SAME path mid-run is not rewritten', async () => {
+        // The object and the record both changed, path unchanged: only the exact link, token and all,
+        // tells this record apart from the one that was read.
+        const w = world({ ...ORDINARY(), onTxGet: (p) => { if (p === REC) w.reupload(FP, 'upload-key', REC); } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.changedDuringRun, 1);
+        assert.equal(w.store.get(REC).storageUrl, link(FP, 'upload-key'));
+        assert.deepEqual(w.keysNow(FP), ['upload-key']);
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('a file deleted mid-run (a re-upload replaced it) is a change, not a failure', async () => {
+        const w = world({ ...ORDINARY(), failSet: (p) => {
+            if (p !== FP) return false;
+            throw Object.assign(new Error('No such object'), { code: 404 });
+        } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.changedDuringRun, 1);
+        assert.deepEqual(r.failed, []);
+        assert.equal(r.rotated, 2);
+    });
+
+    test('an unused file given a new upload before it is cleared keeps the upload\'s key', async () => {
+        const ORPHAN = 'huddles/2026-08-01-old.pdf';
+        /** @type {ReturnType<typeof world>} */
+        let w;
+        const fire = once((p, v) => p === ORPHAN && v === null, (x) => x.reupload(ORPHAN, 'fresh', 'huddles/2026-08-01'));
+        w = world({ files: { [ORPHAN]: ['old-x'] }, records: {}, beforeSet: (p, v) => fire(p, v, w) });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(r.cleared, 0);
+        assert.equal(r.changedDuringRun, 1);
+        assert.deepEqual(w.keysNow(ORPHAN), ['fresh']);
+    });
+});
+
+describe('a failure stops ONE file at the step it reached, with its old link still working', () => {
+    const FP = 'huddles/2026-11-12-a1.pdf';
+    /** @param {Partial<Parameters<typeof world>[0]>} hooks */
+    const run = async (hooks) => {
+        const w = world({ ...ORDINARY(), ...hooks });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        return { w, r };
+    };
+
+    test('the first step fails: nothing changed for that file, and the others still rotate', async () => {
+        const { w, r } = await run({ failSet: (p, v) => p === FP && String(v).includes(',') });
+        assert.deepEqual(r.failed, [{ path: FP, step: 'expand' }]);
+        assert.deepEqual(w.keysNow(FP), ['old-h']);
+        assert.equal(keyOfLink(w.store.get('huddles/2026-11-12').storageUrl), 'old-h');
+        assert.equal(r.rotated, 2);
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('the record write fails: the file answers both keys, so the stored (old) link still opens it', async () => {
+        const { w, r } = await run({ failTx: (p) => p === 'huddles/2026-11-12' });
+        assert.deepEqual(r.failed, [{ path: FP, step: 'migrate' }]);
+        assert.ok(w.keysNow(FP).includes('old-h'));
+        assert.equal(keyOfLink(w.store.get('huddles/2026-11-12').storageUrl), 'old-h');
+        assert.equal(r.rotated, 2);
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('the last step fails: the record already has the new link, and the file still answers it', async () => {
+        const { w, r } = await run({ failSet: (p, v) => p === FP && !String(v).includes(',') });
+        assert.deepEqual(r.failed, [{ path: FP, step: 'contract' }]);
+        const stored = keyOfLink(w.store.get('huddles/2026-11-12').storageUrl);
+        assert.ok(w.keysNow(FP).includes(/** @type {string} */ (stored)));
+        assert.equal(r.rotated, 2);
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('no key could be made: the first step refuses rather than writing an empty one', async () => {
+        const w = world(ORDINARY());
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: () => '', rotate: true });
+        assert.equal(r.failed.length, 3);
+        assert.ok(r.failed.every(f => f.step === 'expand'));
+        assert.deepEqual(w.log, []);
+    });
+
+    test('an unlinked file whose keys cannot be read is reported, and the run goes on', async () => {
+        const w = world({ files: { 'huddles/x.pdf': ['k'], ...ORDINARY().files }, records: ORDINARY().records,
+            failGet: (p) => p === 'huddles/x.pdf' });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual(r.failed, [{ path: 'huddles/x.pdf', step: 'read' }]);
+        assert.equal(r.rotated, 3);
+    });
+
+    test('the READ failing throws before any write, so "could not read" always means "nothing changed"', async () => {
+        const w = world({ ...ORDINARY(), failList: true });
+        await assert.rejects(rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true }));
+        assert.deepEqual(w.log, []);
+    });
+});
