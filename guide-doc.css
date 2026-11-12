@@ -92,25 +92,14 @@ body {
 .guide-header .sub { font-size: 11px; color: rgba(255,255,255,0.66); margin-top: 3px; }
 
 /* ── Section headings ────────────────────────────────── */
-h2 {
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--navy);
-    text-transform: uppercase;
-    letter-spacing: 0.7px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 22px 0 10px;
-}
-/* gold tick before each heading, plus a hairline rule that fills the row */
-h2::before { content: ""; width: 14px; height: 3px; border-radius: 2px; background: var(--gold); flex-shrink: 0; }
-h2::after  { content: ""; flex: 1; height: 1px; background: var(--hair); }
+/* What a heading LOOKS like is guide-shell.css's, the one recipe all five guides share (v25.84): the gold
+   dash, navy words and a hairline. Its hairline was --hair here, the page's own colour, so it never showed. */
+h2 { margin: 22px 0 10px; }
 h2:first-of-type { margin-top: 4px; }
 
 /* ── The banner's title ──────────────────────────────── */
-/* The banner title is an h2, so every section-heading rule above matches it too: `display: flex` plus
-   the gold tick BEFORE it and a hairline flex-rule AFTER it. Inside the banner the tick duplicated
+/* The banner title is an h2, so every section-heading rule matches it too (guide-shell.css's and the
+   margins above): `display: flex` plus the gold tick BEFORE it and a hairline flex-rule AFTER it. Inside the banner the tick duplicated
    the banner's own gold rule and the hairline had no room to fill, so it rendered as a stray "-"
    after "Admin Guide" on screen and on every printed banner (v24.30 polish pass, measured on the
    390px and A4 renders). The banner is a masthead, not a section: neither decoration belongs.
@@ -122,11 +111,7 @@ h2:first-of-type { margin-top: 4px; }
 .guide-header h2::before,
 .guide-header h2::after { content: none; }
 
-/* ── Links (v18.80 — mirrors fip/railcard) ───────────── */
-a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: rgba(0, 30, 60, 0.35); }
-@media (hover: hover) and (pointer: fine) {
-    a:hover { text-decoration-color: var(--gold); }
-}
+/* ── Links: guide-shell.css (v25.84), one recipe for all five guides ── */
 
 /* ── Lede / intro paragraph ──────────────────────────── */
 .lede { font-size: 14px; color: var(--text); margin-bottom: 10px; }

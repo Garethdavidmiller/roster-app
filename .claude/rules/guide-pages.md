@@ -132,6 +132,18 @@ not redefine them.
   of the header's rule and the section dashes — as one family. A press is gold too, so a tap shows one
   colour. `e2e/guides.spec.js` → "the chosen section chip is gold with navy words" reads it off every
   guide. Giving one guide its app page's colour is a fresh decision, not a tidy-up.
+- **One section heading on all five guides** (v25.84, the owner's "must be consistent with the rest of
+  the app"). There were three: the document guides' gold dash (with a hairline that was the page's own
+  colour, so it never showed), the Railcard and FIP guides' hairline with a gold bar under it, and the
+  Rangers guide's grey words with no gold. Now ONE rule on `h2` in guide-shell.css — navy words, the gold
+  dash before them, a hairline after them that keeps 24px when a heading wraps — and a page sets only
+  its margins. Every `<h2>` in a guide is a section heading (`scripts/guide-index-lib.mjs` refuses one
+  with no id), which is why the element is the selector; guide-doc.css takes it all back off the banner
+  title. The dash and hairline are BORDERS, so paper keeps them without "Background graphics".
+  `e2e/guides.spec.js` → "every guide draws its section headings the same way" reads it off all five.
+- **One link on all five guides** (v25.84): navy at 600 with an underline tinted from the link's own
+  colour, gold under a mouse — the app's prose link. guide-doc.css and FIP each kept a copy, the Railcard
+  guide turned a link amber under a mouse (amber there means a morning rule), and Rangers had none.
 - **The two document guides' bar** (v25.80): their sections sit in two columns from 641px, where two
   share a line and no scroll position says which is being read, so there a chip is lit only by a jump
   or a link to it, until the reader moves ON — what the jump or link put in place moving, not the
@@ -162,7 +174,12 @@ not redefine them.
 
 **Still per-page in each page's own CSS file (keep aligned by eye):**
 - **Background:** flat, edge-to-edge — `#f4f5f8` on the FIP, Railcard and Rangers guides, `#eef1f6`
-  (`--page-bg`, `guide-doc.css`) on the Staff and Pay Calculator guides. No white "page" card.
+  (`--page-bg`, `guide-doc.css`) on the Staff and Pay Calculator guides. No white "page" card. Left
+  apart on purpose in v25.84: the Railcard's Marylebone panel and the Rangers guide's quick answer are
+  tinted exactly `#eef1f6`, so one ground for all five would erase them, and the two shades are a
+  hair apart.
+- **Card corner:** 12px on every guide's cards (v25.84 — the Railcard's were 10px, the Rangers' 8px); a
+  box nested in a card keeps a smaller one.
 - **Content width:** `max-width: 760px`, centred. For `staff-guide.html`/`paycalc-guide.html` the
   760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not
   the page's own file); `railcard-guide.html`/`fip-guide.html`/`rangers-guide.html` set their own 760px
@@ -406,6 +423,16 @@ country page):
   with its own register row, so a member planning a trip learns which trains in that country their
   coupon will not cover. A list the page calls not exhaustive is said to be not exhaustive.
 
+**Its controls are the app's** (v25.84). The country finder is the app's field — sunken, a 2px edge, the
+12px corner, white with a soft ring while you are in it; the chips under it are the guide bar's chip; and
+the "What you get" emoji lead their titles with no tile, as on every app card since the owner took the
+tiles away (v25.16). Its notes keep their FULL OUTLINE, deliberately, where every other guide's note has a
+coloured left edge: on this page an edge is the mark of an unresolved source (`.fip-unresolved`), so an
+edged box would read as one. They take the guide family's amber and info blue instead of a dark gold ring
+and a second blue, and the source banner takes the Railcard and Rangers banner's amber.
+`e2e/guides.spec.js` → "the finder is the app's field, the chips under it are the bar's, and no tile sits
+behind an emoji".
+
 **The booking-reach table** (`#booking-table`) is the page's only table. It stacks below 560px via
 `data-label` generated content, and carries explicit `role="table"/"row"/"cell"` because
 `display: block` strips a table's semantics from the accessibility tree. It must stay invisible to
@@ -418,7 +445,11 @@ hide the table that answers the question about that country.
 sibling of the railcard guide and deliberately a **dialect of it**, not a new language: the colour
 stripe (green = any time, amber = a morning bar), the `⊘` token, the card/row rhythm and the amber
 Chiltern callout mean here exactly what they mean there. The two pages are read by the same people
-minutes apart; a second vocabulary would slow both down.
+minutes apart; a second vocabulary would slow both down. **Since v25.84 it also LOOKS like it**: the
+Railcard's card (white, shadowed, a 4px stripe, the 12px corner) where it drew outlined cards with a 5px
+stripe and 8px corners, and the Railcard's amber Chiltern note with its amber edge. `e2e/guides.spec.js`
+→ "the Rangers guide draws its cards and its Chiltern note as the Railcard guide does" compares the two
+pages' computed card and note.
 
 ### It answers the MARYLEBONE question first
 
