@@ -2627,6 +2627,14 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   gap — a failed retry's message left above a month a later read had confirmed. The rule now lives
   in that module's header and `.claude/rules/calendar.md` → Sync chip state machine. Moved out of
   `KNOWN_LIMITATIONS.md` on 12 Nov 2026, two days late.
+- **~~`nameToEmail` collision surface (LOW, theoretical)~~ — CLOSED on 12 Nov 2026, by a test.**
+  Spellings that differ only in separators or case collapse to one account email (`"A. Mc Donald"`
+  = `"A. McDonald"`), so a starter typed two ways would share a login with somebody already on the
+  roster; Set up accounts refuses to hand one member's account to another, so the newcomer would
+  have been left with none. `auth-identity.test.mjs` → "no two roster names share a login, leavers
+  included" now fails `npm test` on any clash. The pay calculator's slug test had been catching most
+  of them by accident, but its slug keeps the digits a login drops, so `'Q. Example'` and
+  `'Q. Example2'` passed it — mutation showed both halves. The check is step 1 of `/new-starter`.
 - **~~"Active accounts (30 days)" boundary undercount~~ — SUPERSEDED at v25.00.** The suppression
   rule it described (`shouldCountRolling`) was replaced by `rollingMove` (`usage-stats.js`), which
   keeps each member-device's one count on its latest active day; the card now reads "last 30 days".

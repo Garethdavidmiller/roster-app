@@ -1447,6 +1447,26 @@ test('every doc is routed from ARCHITECTURE.md — the index cannot fall behind'
         'them:\n  ' + missing.join('\n  '));
 });
 
+test('every roadmap Status leads with a word from the roadmap\'s own key', () => {
+    // ARCHITECTURE.md §4: a ROADMAP.md entry's Status says where a PLAN stands, from that file's own
+    // key, not the four words that say how the app stands. Six entries had drifted off it — Open,
+    // Deferred, PAUSED, "Owner decision", "Recommended by external review", "Phases 1 and 2 shipped"
+    // (12 Nov 2026) — each of which made the reader work out what it meant. The key is READ from its
+    // table row rather than restated here, so the key and the entries cannot drift apart. Detail
+    // after the word is fine ("Blocked on an owner decision", "Committed — phases 1 and 2 shipped").
+    const roadmap = read('./docs/ROADMAP.md');
+    const keyRow = roadmap.match(/^\| \*\*Status\*\* \| (.+?) \|[ \t]*$/m);
+    assert.ok(keyRow, 'the roadmap has lost its Status key (How to read an entry)');
+    const KEY = keyRow[1].split('·').map(w => w.trim()).filter(Boolean);
+    assert.ok(KEY.length >= 4, `read only ${KEY.length} words from the key — the parse is wrong`);
+    const statuses = [...roadmap.matchAll(/^\*\*Status:\*\*[ \t]*(.+)$/gm)].map(m => m[1]);
+    assert.ok(statuses.length > 10, `found only ${statuses.length} Status lines — the scan is wrong`);
+    const off = statuses.filter(s => !KEY.some(w => s.startsWith(w) && !/\w/.test(s.charAt(w.length))));
+    assert.deepEqual(off, [],
+        `these roadmap Status lines lead with a word outside the key (${KEY.join(' · ')}) — lead ` +
+        'with one of those and put the detail after it:\n  ' + off.join('\n  '));
+});
+
 test('the index still carries its exceptions table and its vocabulary — guard the guard', () => {
     // Both are the point of the file. An index that lost either would still pass every test above,
     // because those only check that it NAMES things.

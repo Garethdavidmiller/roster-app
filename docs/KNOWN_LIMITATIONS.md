@@ -1607,15 +1607,6 @@ documented tolerance. Each is real; none is urgent.
   zero misses 2026–2030) — first bites ~2034. **Fix when extending `MAX_YEAR`** (`MAINTENANCE_CALENDAR.md`
   carries the date): key each entry under `formatISO(date).slice(0,4)`, or have `_get*Set(year)` also
   pull `year+1`'s first entry when its cutoff lands in `year`.
-- **`nameToEmail` collision surface (LOW, theoretical).** Distinct display-name spellings that differ
-  only in separators/case collapse to one account email (`"A. Mc Donald"` = `"A. McDonald"`). Not
-  exploitable on the current roster (checked 12 Nov 2026); a hygiene hazard for a future
-  compound-surname starter typed two ways. Set up accounts refuses to hand one member's account to
-  another, so a clash leaves the newcomer with no login rather than inside somebody else's. Two
-  things now stand in front of that: the new-starter checklist (`/new-starter`, step 1), and — as a
-  side effect — `paycalc-migrations.test.mjs`'s "no two roster names share a slug", whose slug drops
-  the same characters, so a clash fails `npm test` (proved by mutation, 12 Nov 2026). The one it
-  misses is two names that differ only by a digit: the slug keeps digits, the login drops them.
 
 ---
 

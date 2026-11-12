@@ -152,6 +152,11 @@ Four words, used consistently across every document. Anything else — *held*, *
 *later*, *future* — should be read as an invitation to work out which of these four it is, and to
 correct it.
 
+**One field keeps a key of its own: a `ROADMAP.md` entry's Status.** These four say how the *app*
+stands; that field says where a *plan* stands, in the roadmap's own key (`ROADMAP.md` → How to read
+an entry), and `doc-parity.test.mjs` holds every entry to it. A word outside that key is the same
+invitation, answered from the key.
+
 | Label | Means | Where it lives |
 |---|---|---|
 | **CURRENT** | How the app works today. The default: an unlabelled statement in a contract is CURRENT. | Contracts |
