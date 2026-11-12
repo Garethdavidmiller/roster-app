@@ -144,7 +144,13 @@ export const teamMembers = [
     { name: 'K. Porter',               currentWeek: 6,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Murray',               currentWeek: 7,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Clarke',               currentWeek: 8,  rosterType: 'dispatcher', role: 'Dispatcher' },
-    { name: 'A. Atkins',               currentWeek: 9,  rosterType: 'dispatcher', role: 'Dispatcher' },
+    // A. Atkins — moves off the rotating Dispatcher link on Sun 15 Nov 2026, through rosterChanges, onto
+    // a Mon–Fri row of his own: `fixedRoster[2]`, weekends RD (owner, 12 Nov 2026). A. Guinea takes his
+    // line, 9, the same day. The base fields describe his line BEFORE 15 Nov, so the weeks before then
+    // still display as rostered. To end the move, ADD a `rosterChanges` entry dated from the change;
+    // deleting this one would redraw every date since 15 Nov 2026.
+    { name: 'A. Atkins',               currentWeek: 9,  rosterType: 'dispatcher', role: 'Dispatcher',
+      rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'K. Yeboah',               currentWeek: 10, rosterType: 'dispatcher', role: 'Dispatcher' },
 
     // B. Toth — started Mon 29 Jun 2026 on S. Faure's line (4), after THREE weeks of initial
@@ -181,6 +187,20 @@ export const teamMembers = [
     { name: 'J. Bangi',                currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
       rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'dispatcher', currentWeek: 3 }] },
+
+    // A. Guinea — started Mon 5 Oct 2026, the J. Bangi pattern. Phase 1 (to Sat 14 Nov): initial
+    // training Monday to Friday, which is `fixedRoster[3]` as the BASE roster — TRAINING WITH NO TIMES
+    // (owner, 12 Nov 2026: "other training flavour Monday to Friday with no set times until Saturday
+    // 14th November"). Phase 2 (from Sun 15 Nov): the DISPATCHER link on A. Atkins's line, which he
+    // leaves that day. `currentWeek: 9` there is REFERENCE-ANCHORED — A. Atkins's own base value, the
+    // line at the 1 Feb 2026 reference Sunday — not the line he is on that week.
+    // ⚠️ `proRatedAL: 5` is PROVISIONAL — J. Bangi's figure, who started the same day in the same grade
+    // (a day-count: 88 of 365 days × 22 = 5.3). REPLACE it with the workbook's `AL allowance` before the
+    // year ends, reading docs/AL_WORKBOOK.md §5 first; booked in docs/MAINTENANCE_CALENDAR.md. It
+    // replaces only the 22-day BASE: lieu days for bank holidays worked are still added on top.
+    { name: 'A. Guinea',               currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
+      startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
+      rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'dispatcher', currentWeek: 9 }] },
 
     // CES — Customer Experience Supervisors (reference: w/c 15 Feb 2026)
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
