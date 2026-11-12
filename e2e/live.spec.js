@@ -77,9 +77,11 @@ const TARGETS = [
 ];
 
 /**
- * Console noise that is the app working, not failing. Kept to the SAME two telemetry beacons
- * `csp.spec.js` waives, for the same reason: they are fired by Firebase Auth's own
- * `apis.google.com` iframe and refusing them is the CSP doing its job. Anything else is a finding.
+ * Console noise that is the app working, not failing: the CSP refusing a request the app does not
+ * need. `gen_204` came from Firebase Auth's old `apis.google.com` iframe, which the app no longer
+ * loads (csp.spec.js says why). `cleardot.gif` has a live source as well (measured 12 Nov 2026):
+ * Firestore's transport loads it to test the network when a stream fails, as the Calendar's does when
+ * it is left mid-stream. Refusing either is the CSP doing its job. Anything else is a finding.
  */
 const IGNORED_CONSOLE = [
     'cleardot.gif',

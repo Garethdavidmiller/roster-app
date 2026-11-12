@@ -41,8 +41,13 @@ import { APP_PAGES, GUIDE_PAGES } from '../scripts/app-pages.mjs';
  * one that fits a pixel-style beacon — an inference from the policy, not from a recorded violation.
  */
 // EMPTY SINCE OCT 2026. Both beacons came from the auth-helper iframe, and `initializeAuth` without a
-// popup resolver (firebase-client.js) never loads it — so the policy dropped apis.google.com, and any
-// refusal of either URL now means something started loading that iframe again. That must fail.
+// popup resolver (firebase-client.js) never loads it — so the policy dropped apis.google.com, and a
+// refusal of `gen_204` still means something started loading that iframe again. That must fail.
+// `cleardot.gif` HAS A SECOND SOURCE (measured 12 Nov 2026): Firestore's own transport loads it to
+// test the network after a stream fails (the URL is in gstatic's firebase-firestore.js), and the live
+// Calendar does exactly that when it is left mid-stream. These pages fail no stream, so it stays
+// unwaived and still fails the run — but read a `cleardot.gif` refusal as a failed Firestore stream
+// first, and the iframe second.
 /** @type {string[]} */
 const IGNORED_BLOCKS = [];
 
