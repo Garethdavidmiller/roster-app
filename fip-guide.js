@@ -2,7 +2,7 @@
 // FIP Travel Guide — country finder + open-on-jump behaviour.
 //
 // Two jobs, both progressive enhancement (CSP blocks inline scripts, so this is a `defer`-loaded
-// external file like railcard-guide.js; with JS off the page still works — every country visible):
+// external file like guide-chips.js; with JS off the page still works — every country visible):
 //   1. Country finder (v17.64): a search box live-filters the country cards AND the A–Z jump
 //      list by country name or operator/train text, so a long country reference is navigable at work.
 //   2. Open-on-jump: the jump/popular links (#country-fr, …) point at native <details>. A bare
@@ -250,7 +250,7 @@ if (chipBar) {
     });
 }
 
-// ── Deep-link landing (mirrors railcard-guide.js, which has the reasoning) ────────────────────
+// ── Deep-link landing (mirrors guide-chips.js, which has the reasoning) ───────────────────────
 // The browser lands a #fragment with the stylesheet's FALLBACK scroll-margin and stops re-applying
 // it once the page has loaded, which on a cached phone is usually before adjustFipOffsets has
 // measured the real stack: a heading arrived 21px under the chip bar (40px at 320px). Each
@@ -286,7 +286,7 @@ function keepLandingClear(stickyH) {
 
 // Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every id
 // in the page body so a jump isn't hidden under header + chip-bar. Runs after fonts load so the
-// header height is measured accurately (mirrors railcard-guide.js).
+// header height is measured accurately (mirrors guide-chips.js).
 function adjustFipOffsets() {
     if (!chipBar) return;
     var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
