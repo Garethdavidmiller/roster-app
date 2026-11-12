@@ -24,7 +24,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '25.79';
+const APP_VERSION = '25.80';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -136,7 +136,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-result-headline.js', 'paycalc-money-banner.js', 'paycalc-guide.html',
     'fip-guide.html', 'staff-guide.html',
     'railcard-guide.html', 'rangers-guide.html',
-    'railcard-guide.js', 'rangers-guide.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'legacy-redirect.js', 'guide-shell.css',
+    'guide-chips.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'legacy-redirect.js', 'guide-shell.css',
     'staff-guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'rangers-guide.css', 'fip-guide.css', 'guide-doc.css',
     'purify.es.mjs',
 ];
@@ -369,8 +369,7 @@ const SUPPLEMENTARY_ASSETS = [
     "./guide.html",
     "./fip.html",
     "./legacy-redirect.js",
-    "./railcard-guide.js",
-    "./rangers-guide.js",
+    "./guide-chips.js",
     "./guide-print.js",
     "./guide-back.js",
     "./fip-guide.js",
