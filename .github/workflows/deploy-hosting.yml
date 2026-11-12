@@ -111,7 +111,8 @@ jobs:
   #     check ─────────────────┐
   #     smoke (chromium) ──────┤
   #     smoke (mobile-chrome) ─┼──► deploy ──► the Pages mirror (deploy-mirror.yml)
-  #     csp ───────────────────┘
+  #     csp ───────────────────┤
+  #     signed-in ─────────────┘   (since 12 Nov 2026; its own comment says why, and why one engine)
   #
   # A release now waits for the slowest job instead of the sum. Three things keep it the same gate,
   # and workflow-hygiene.test.mjs holds each one:
@@ -296,10 +297,91 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # ── THE SIGNED-IN JOURNEYS, ON THE TREE BEING RELEASED (12 Nov 2026) ───────────────────────────
+  #
+  # Every other job here swaps the Firebase SDK for a stub. This one runs the app's REAL SDK against
+  # the Auth, Firestore and Functions emulators, under the real rules and the real functions — the
+  # journeys are listed on e2e.yml's `signed-in` job — so it is the one gate job that would stop a
+  # release whose sign-in, save or data load works only against the stub. That job ran in branch CI
+  # alone from 11 Nov 2026; this one joined the gate the next day, asked for by the external review of
+  # v25.87, on a record of 28 completed runs, every one green and none re-run.
+  #
+  # ANDROID CHROME ONLY (`--project=mobile-chrome`). The lane's iPhone half stays in branch CI, because
+  # WebKit stays out of this gate (owner, 8 Sep 2026; DECISIONS.md says what would reopen it), and
+  # workflow-hygiene.test.mjs fails if a WebKit run is added here. The SDK, the rules and the functions
+  # are the same on both engines, which is most of what this lane is for.
+  #
+  # What it costs is not time — about three minutes, beside the smoke jobs' sixteen or more — but one
+  # more way for a release to be held: red here, and nothing is uploaded, as for any gate job. The Rules
+  # and Functions deploys keep their own suites (test:rules, test:functions) and do not run it.
+  signed-in:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    # The test step carries the budget; this is the backstop: two installs, Java, the browser's system
+    # libraries on a slow mirror (8 minutes at worst, the smoke job in e2e.yml says why) and the tests.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # The Firestore emulator is a Java program.
+      - name: Install Java 21 (Firebase emulators)
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      # The Functions emulator loads the real functions, so their packages must be installed.
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: functions
+
+      # One engine, so the cache entry the smoke job uses.
+      - name: Restore Playwright Chromium from the cache
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
+      - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+      - name: Install Chromium's system libraries
+        timeout-minutes: 8
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: chromium
+
+      - name: Run the signed-in journeys on Android Chrome
+        timeout-minutes: 15
+        run: npm run test:signed-in -- --project=mobile-chrome
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-signed-in
+          path: playwright-report/
+          retention-days: 7
+
   deploy:
     # The whole gate above. The `if:` below names no status function, so GitHub adds `success()`:
     # one gate job red, cancelled or skipped, and this job does not run.
-    needs: [check, smoke, csp]
+    needs: [check, smoke, csp, signed-in]
     # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
     #
     # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
@@ -482,7 +564,7 @@ jobs:
   # that, so this lists them all. The notice says "cut off part-way" only when `deploy` itself was
   # cancelled: a gate job cut off means nothing was uploaded, which is the plain "did not deploy".
   report-failure:
-    needs: [check, smoke, csp, deploy]
+    needs: [check, smoke, csp, signed-in, deploy]
     if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5

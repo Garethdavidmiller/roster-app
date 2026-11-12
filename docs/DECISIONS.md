@@ -657,9 +657,20 @@ pieces of work, each landing on its own:
 
 | | What | Where it lives |
 |---|---|---|
-| 1 | Signed-in journeys through the REAL Firebase SDK, rules and Cloud Functions, on Chrome's and Safari's engines at phone size | `npm run test:signed-in` (#1749); README → The test lanes |
+| 1 | Signed-in journeys through the REAL Firebase SDK, rules and Cloud Functions, on Chrome's and Safari's engines at phone size | `npm run test:signed-in` (#1749); README → The test lanes. Its Android Chrome half gates the Hosting deploy (below) |
 | 2 | A permanent seeded test of event SEQUENCES for the Calendar's access, reads and redraws | `calendar-sequences.test.mjs` (v25.79): its first run found a fault, fixed in the same release |
 | 3 | A real-Android release checklist beside the iPhone one, and a "sign out, then Back" check on both | `ANDROID_RELEASE_CHECKLIST.md` |
+
+**The next day, the lane's Android Chrome half joined the Hosting deploy gate** (owner, 12 Nov 2026),
+asked for by the external review of v25.87 ("make the signed-in browser journeys a release
+requirement"). The test the maintenance calendar had set for 25 November, every run green and none
+re-run, was already met: 36 `signed-in` jobs, 28 completed and every one green, the other 8 cancelled
+by the Tests workflow's own concurrency, none failed and none re-run. **Its iPhone half stays out**:
+WebKit stays out of the deploy gate (owner, 8 Sep 2026, above), and neither trigger that decision
+names has fired. It still runs on every branch. In the gate it runs beside the smoke jobs, so a
+release waits no longer; the cost is one more way for a release to be held. The Rules and Functions
+deploys keep their own suites (`test:rules`, `test:functions`) and do not run it.
+`workflow-hygiene.test.mjs` holds both halves: the job is in the gate, and it runs one engine.
 
 **Weighed and NOT done**, recorded so they are not proposed again as unfinished business:
 
@@ -668,9 +679,6 @@ pieces of work, each landing on its own:
   records written into the roster everyone reads. The emulators run the same code path — the real
   SDK, rules and functions — with nothing real at stake. The live site keeps its own signed-out
   health check (`npm run test:live`).
-- **The signed-in lane is not in the deploy gate.** It is branch CI, like `webkit`: red on a branch,
-  unable to hold up a release. Whether it joins the gate is the owner's decision once it has run
-  steady.
 - **The lane does not force the back/forward cache.** Playwright launches Chrome with that cache
   turned off. Turned back on, Chrome still declined to keep the page (its reason:
   BrowsingInstanceNotSwapped), and WebKit reloaded too (measured 11 November 2026). Forcing a restore

@@ -192,8 +192,9 @@ describe('a failed deploy is announced, whenever it fails', () => {
             const block = next === -1 ? rest : rest.slice(0, next);
 
             // `needs` is what makes it run after the deploy; the job-level `if` is what makes it run
-            // when the deploy died before its first step. A step-level guard is the defect.
-            assert.match(block, /^ {4}needs: (deploy|\[(\w+, )*deploy(, \w+)*\])[ \t]*$/m,
+            // when the deploy died before its first step. A step-level guard is the defect. A job name
+            // may hold a hyphen (`signed-in`, 12 Nov 2026), so the names around `deploy` are [\w-]+.
+            assert.match(block, /^ {4}needs: (deploy|\[([\w-]+, )*deploy(, [\w-]+)*\])[ \t]*$/m,
                 `${file}: report-failure must declare 'needs: deploy'`);
             // …and when it was CANCELLED, which is how a job that runs out of time ends (10 Nov 2026
             // review). `failure()` alone is false for a cancelled job: the v24.44 deploy cut off at
@@ -609,6 +610,28 @@ describe('the Hosting deploy waits for its whole gate', () => {
         // Every contract below passes on an empty list, so pin it to what is there.
         assert.ok(gate.length >= 3 && ['check', 'smoke', 'csp'].every(n => gate.includes(n)),
             `found the gate jobs ${gate.join(', ') || 'none'}; expected at least check, smoke and csp`);
+    });
+
+    // THE SIGNED-IN JOURNEYS ARE A GATE JOB, ON ANDROID CHROME ONLY (12 Nov 2026). The external review
+    // of v25.87 asked for them to be a release requirement, and the job is the whole of that: delete it
+    // and every contract here still passes, because `gate` is read from the file. Only the Chrome half,
+    // because WebKit stays out of this gate (owner, 8 Sep 2026; DECISIONS.md names what would reopen
+    // it), so a WebKit run appearing here would reverse that decision without anybody taking it.
+    test('the signed-in journeys gate the release', () => {
+        assert.ok(gate.includes('signed-in'),
+            'deploy-hosting.yml has no signed-in job, so a release no longer waits for the real-SDK journeys. '
+            + 'Taking them out of the gate is the owner\'s decision (DECISIONS.md → the 11 November 2026 external review).');
+    });
+
+    test('and only their Android Chrome half: WebKit stays out of the deploy gate', () => {
+        assert.match(jobs.get('signed-in') ?? '', /^\s*run: npm run test:signed-in -- --project=mobile-chrome[ \t]*$/m,
+            'the gate\'s signed-in job must name the Android Chrome project: without --project=mobile-chrome it runs the iPhone (WebKit) half too');
+        assert.match(readFileSync('e2e/playwright.signed-in.mjs', 'utf8'), /^\s*name: 'mobile-chrome',/m,
+            'the signed-in config no longer has a mobile-chrome project, so the gate\'s --project=mobile-chrome selects nothing');
+        const webkit = [...jobs].filter(([, block]) => /webkit|mobile-safari/i.test(block)).map(([n]) => n);
+        assert.deepEqual(webkit, [],
+            `${webkit.join(', ')} would run WebKit in the Hosting deploy's gate. WebKit stays OUT of it (owner, 8 Sep 2026): `
+            + 'DECISIONS.md says what would reopen that, and reopening it is the owner\'s call.');
     });
 
     test('the deploy needs every gate job', () => {
@@ -2482,6 +2505,7 @@ describe('every CI lane runs the command it is there for', () => {
         ['deploy-hosting.yml', 'check', 'npm run check'],
         ['deploy-hosting.yml', 'smoke', 'npm run test:e2e'],
         ['deploy-hosting.yml', 'csp', 'npm run test:csp'],
+        ['deploy-hosting.yml', 'signed-in', 'npm run test:signed-in'],
     ]);
     for (const [file, job, cmd] of LANES) {
         test(`${file} → ${job} runs ${cmd}`, () => {
