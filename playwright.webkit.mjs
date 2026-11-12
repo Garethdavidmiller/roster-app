@@ -103,9 +103,10 @@
  *
  * The runner has 4 vCPU and Playwright defaults `workers` to half the CPUs, so TWO. Total serial
  * work for one project is ~11.6 WebKit-minutes, which puts the 2-worker floor at ~5.8 against the
- * 6.9 observed. `e2e.yml` therefore shards each project (two ways each at first; since 4 Nov 2026
- * the iPhone project four ways and desktop two, six jobs, and e2e.yml says why), and the wall clock
- * falls with the runner count rather than fighting for cores on one machine.
+ * 6.9 observed. `e2e.yml` therefore shards each project (two ways each at first; then the iPhone
+ * four ways and desktop two; since 12 Nov 2026 each device as two projects, the Links specs apart,
+ * nine jobs — the note above LINKS_SPECS, and e2e.yml says why), and the wall clock falls with the
+ * runner count rather than fighting for cores on one machine.
  *
  * MORE WORKERS WOULD HAVE BEEN THE WRONG FIX. 4 workers on 4 vCPU nominally gives ~2.9 min, but
  * this is the job with the documented flake history that the `retries: 1` above exists for, and
@@ -144,6 +145,27 @@ import { devices } from '@playwright/test';
 // it stopped — so the lane keeps the 13's descriptor under this override. KNOWN_LIMITATIONS.md, "The
 // test matrix and the phones staff carry".
 export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
+
+// THE LINKS SPECS RUN AS PROJECTS OF THEIR OWN (12 Nov 2026). Playwright cuts a project into shards
+// by test COUNT, in file order, and cannot weigh a shard by time. The Links flows are long: on the
+// iPhone they are 11% of the tests and 28% of the test time (11.9 s each on average, against 3–4 s
+// elsewhere), and because they sit together in that order they all fell into one shard — 21.5
+// minutes of tests against the step's 25, beside siblings of 12 to 16. On the desktop, the shard
+// they shared went past the 25 on a slow runner with every test passing, twice in one night. So each
+// device runs as two projects, the Links specs and everything else, and e2e.yml cuts each on its own
+// (the numbers are beside the job there). `npm run test:webkit -- --project=webkit
+// --project=webkit-links` is the whole desktop set.
+//
+// Two traps, one avoided by construction and one guarded. "Everything else" is chosen by a PATTERN
+// — `!(links*)` is glob for a name that does not start with "links" — and not by an ignore list of
+// its own, because a project's `testIgnore` REPLACES the shared config's list instead of adding to
+// it, and the CSP, visual, offline, live and signed-in specs would start running here. Chosen this
+// way, the shared list is inherited and cannot be lost. And the touch helpers decide "is this a
+// phone?" from the project's NAME, so the iPhone twin is `mobile-…` and listed in
+// e2e/touch-projects.js, which touch-gate-parity.test.mjs requires; under any other name the 14
+// touch gates in links.spec.js would quietly take the desktop branch on an iPhone.
+const LINKS_SPECS = 'links*.spec.js';
+const NOT_LINKS_SPECS = '!(links*).spec.js';
 
 export default {
     ...base,
@@ -192,9 +214,14 @@ export default {
     expect: { timeout: 15_000 },
     // See the sharding note above: this is what stops one 143-test file owning a whole shard.
     fullyParallel: true,
+    // Each device twice: everything but the Links specs, then the Links specs alone (the note above
+    // LINKS_SPECS). A project's testMatch only narrows this lane — runner-parity.test.mjs reads a
+    // lane's own specs from the TOP level, so these are not mistaken for an opt-in lane's.
     projects: [
-        { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+        { name: 'webkit', testMatch: NOT_LINKS_SPECS, use: { ...devices['Desktop Safari'] } },
+        { name: 'webkit-links', testMatch: LINKS_SPECS, use: { ...devices['Desktop Safari'] } },
         // Mobile Safari — the iPhone shape (viewport: the note above IPHONE_PRO_VIEWPORT).
-        { name: 'mobile-safari', use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT } },
+        { name: 'mobile-safari', testMatch: NOT_LINKS_SPECS, use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT } },
+        { name: 'mobile-safari-links', testMatch: LINKS_SPECS, use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT } },
     ],
 };

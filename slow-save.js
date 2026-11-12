@@ -16,8 +16,9 @@
  * ── WHAT IT DOES, AND THE TWO THINGS IT DELIBERATELY DOES NOT ─────────────────────────────────────
  *
  * After SLOW_SAVE_MS without an answer it shows one line: the change is held on this phone and will
- * send by itself. When the write settles the line goes, and the caller's own receipt or error takes
- * over exactly as it always did — this module never touches the result.
+ * send by itself — or, for a transaction, which no device holds, that it needs the server and the page
+ * should stay open (v25.89). When the write settles the line goes, and the caller's own receipt or
+ * error takes over exactly as it always did — this module never touches the result.
  *
  *   1. It does not say "Saved". A held write can still be REFUSED by the server when it arrives (a
  *      signed-out session, a rule change), and Firestore then quietly undoes the local copy. Saying
@@ -73,13 +74,32 @@ export const SLOW_SAVE_TEXT_ONLINE =
 export const SLOW_SAVE_TEXT_BATCHED_ONLINE =
     'Still sending — this save is going in parts. Keep this page open until it finishes.';
 
+/**
+ * The lines for a write that is NOT held on the device (v25.89): one made in a TRANSACTION — a delete
+ * that compares what it removes with what the server holds, the week save that includes one, the
+ * leave-year move. A transaction is never queued on the device: it reaches the server or nothing
+ * happens. So "held on this device and will send automatically" would be false of it, and leaving the
+ * page would abandon it — this asks the reader to stay, like the batched lines.
+ */
+export const SLOW_SAVE_TEXT_UNHELD =
+    'Waiting for signal — this change needs the server to confirm it. Keep this page open until it finishes.';
+/** The online twin of SLOW_SAVE_TEXT_UNHELD. */
+export const SLOW_SAVE_TEXT_UNHELD_ONLINE =
+    'Still sending — the server has not confirmed this change yet. Keep this page open until it finishes.';
+
 /** Is the browser reporting itself offline? Only `false` counts; an unknown is not a known outage. */
 const _offline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
 
-/** The line for the notice right now. @param {boolean} batched */
-export function slowSaveText(batched) {
-    if (_offline()) return batched ? SLOW_SAVE_TEXT_BATCHED : SLOW_SAVE_TEXT;
-    return batched ? SLOW_SAVE_TEXT_BATCHED_ONLINE : SLOW_SAVE_TEXT_ONLINE;
+/**
+ * The line for the notice right now. A batched write wins, then one not held on the device: both ask
+ * the reader to keep the page open, and either would be stranded by leaving it.
+ * @param {boolean} batched @param {boolean} [held] false for a transaction (SLOW_SAVE_TEXT_UNHELD)
+ */
+export function slowSaveText(batched, held = true) {
+    const off = _offline();
+    if (batched) return off ? SLOW_SAVE_TEXT_BATCHED : SLOW_SAVE_TEXT_BATCHED_ONLINE;
+    if (!held) return off ? SLOW_SAVE_TEXT_UNHELD : SLOW_SAVE_TEXT_UNHELD_ONLINE;
+    return off ? SLOW_SAVE_TEXT : SLOW_SAVE_TEXT_ONLINE;
 }
 
 /**
@@ -224,7 +244,7 @@ function _render() {
     try {
         const el = _noticeEl();
         if (!el) return;
-        const text = _waiting > 0 ? slowSaveText(_batchedWaiting > 0) : '';
+        const text = _waiting > 0 ? slowSaveText(_batchedWaiting > 0, _unheldWaiting === 0) : '';
         if (el.textContent !== text) el.textContent = text;   // an unchanged line is not re-announced
         el.style.cssText = _waiting > 0 || _inFlight === 0 ? '' : _UNSEEN;
         el.hidden = _waiting === 0 && _inFlight === 0;
@@ -251,27 +271,32 @@ export function writesInFlight() { return _inFlight + backgroundWritesInFlight()
 
 /** Waiting writes that are part of a batched save — while any is up, the stay-here line wins. */
 let _batchedWaiting = 0;
+/** Waiting writes not held on the device (transactions) — a stay-here line of their own. */
+let _unheldWaiting = 0;
 
 /**
  * Raise the notice for one more waiting write. Reference-counted: two writes can wait at once, and
  * the line must stay up until the LAST of them settles. A batched write anywhere in the set shows
- * the stay-here wording, because leaving would strand its later batches.
- * @param {boolean} batched
+ * the stay-here wording, because leaving would strand its later batches; so does one not held on the
+ * device, which leaving would abandon.
+ * @param {boolean} batched @param {boolean} held
  */
-function _show(batched) {
+function _show(batched, held) {
     _waiting++;
     if (batched) _batchedWaiting++;
+    if (!held) _unheldWaiting++;
     _render();
 }
 
 /**
  * Lower the notice for one settled write; it disappears only when none is left waiting, and falls
- * back to the ordinary wording once no batched write remains.
- * @param {boolean} batched
+ * back to the ordinary wording once no batched or unheld write remains.
+ * @param {boolean} batched @param {boolean} held
  */
-function _hide(batched) {
+function _hide(batched, held) {
     _waiting = Math.max(0, _waiting - 1);
     if (batched) _batchedWaiting = Math.max(0, _batchedWaiting - 1);
+    if (!held) _unheldWaiting = Math.max(0, _unheldWaiting - 1);
     _render();
 }
 
@@ -280,11 +305,12 @@ function _hide(batched) {
  * caller awaits the result and handles success and failure exactly as before.
  * @template T
  * @param {Promise<T>} promise
- * @param {{ batched?: boolean }} [opts]  `batched: true` when this write is one of several batches
- *   committed in sequence — the notice then asks the reader to stay (see SLOW_SAVE_TEXT_BATCHED).
+ * @param {{ batched?: boolean, held?: boolean }} [opts]  `batched: true` when this write is one of several
+ *   batches committed in sequence — the notice then asks the reader to stay (see SLOW_SAVE_TEXT_BATCHED);
+ *   `held: false` when it is a TRANSACTION, never held on the device (see SLOW_SAVE_TEXT_UNHELD).
  * @returns {Promise<T>}
  */
-export function withSlowSaveNotice(promise, { batched = false } = {}) {
+export function withSlowSaveNotice(promise, { batched = false, held = true } = {}) {
     _inFlight++;
     _render();   // the live region goes into the page now, empty, so its words can be announced later
     // From the START, the span `ms` below covers: a phone usually freezes the app before the slow
@@ -306,13 +332,13 @@ export function withSlowSaveNotice(promise, { batched = false } = {}) {
         ms,
         onSlow: () => {
             onlineWhenSlow = !_offline();
-            _show(batched);
+            _show(batched, held);
             // The moment it BECOMES slow (v24.55), so a listener can measure what is slow while it
             // still is — error-reporter.js times a sign-in token here, to tell auth from transport.
             try { globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, { detail: { phase: 'slow', id, batched } })); } catch { /* diagnostic only */ }
         },
         onDone: () => {
-            _hide(batched);
+            _hide(batched, held);
             try {
                 globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, {
                     detail: { phase: 'done', id, ms: Date.now() - started, hiddenMs: hidden.stop(), onlineWhenSlow, batched, ok },

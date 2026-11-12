@@ -55,6 +55,15 @@ function specList(src, key) {
     return [...m[1].matchAll(/'([^']+\.spec\.js)'/g)].map(x => x[1]);
 }
 
+/** A LANE's own specs are the `testMatch` at its config's TOP level. One inside `projects:` only
+ *  narrows which of the lane's specs a project runs — playwright.webkit.mjs gives the Links specs
+ *  projects of their own that way (12 Nov 2026) — and read as a lane's, it would demand those specs
+ *  leave the default run, which is the DEPLOY gate's. So the read stops where the projects begin. */
+function laneHead(/** @type {string} */ src) {
+    const at = src.search(/^\s*projects:\s*\[/m);
+    return at === -1 ? src : src.slice(0, at);
+}
+
 const isConfig = (/** @type {string} */ f) => /^playwright\..*\.mjs$/.test(f);
 const configs = [
     ...readdirSync(ROOT).filter(f => isConfig(f) && f !== BASE),
@@ -75,7 +84,7 @@ describe('the opt-in lanes and the default lane agree', () => {
     test('every spec owned by its own config is ignored by the default run', () => {
         const leaked = [];
         for (const { file, src } of configs) {
-            for (const spec of specList(src, 'testMatch') ?? []) {
+            for (const spec of specList(laneHead(src), 'testMatch') ?? []) {
                 if (!ignored.includes(spec)) leaked.push(`${spec} (owned by ${file})`);
             }
         }
@@ -88,13 +97,25 @@ describe('the opt-in lanes and the default lane agree', () => {
     });
 
     test('and nothing is ignored that no config claims — a spec that runs NOWHERE', () => {
-        const owned = new Set(configs.flatMap(({ src }) => specList(src, 'testMatch') ?? []));
+        const owned = new Set(configs.flatMap(({ src }) => specList(laneHead(src), 'testMatch') ?? []));
         const orphans = ignored.filter(s => !owned.has(s));
         assert.deepEqual(orphans, [],
             'these are excluded from the default run but no other config runs them, so they execute\n'
             + 'nowhere at all:\n  ' + orphans.join('\n  ') + '\n\n'
             + 'Either give the spec a config, or take it out of testIgnore. Nothing goes red when a\n'
             + 'suite silently stops running, which is why this is asserted rather than noticed.');
+    });
+
+    test('a testMatch inside projects narrows a lane — it is not a lane of its own', () => {
+        // The shape playwright.webkit.mjs would have with its constant written out: no testMatch at
+        // the top, one per project. Read as a lane's, the first test above would ask for the Links
+        // specs to leave the default run, and with them the deploy gate's Chromium smoke.
+        const narrowed = "export default {\n    ...base,\n    projects: [\n"
+            + "        { name: 'one-links', testMatch: 'links*.spec.js' },\n    ],\n};";
+        assert.equal(specList(laneHead(narrowed), 'testMatch'), null,
+            'a project\'s testMatch was read as the lane\'s own specs');
+        const lane = "export default {\n    testMatch: ['own.spec.js'],\n    projects: [{ name: 'one' }],\n};";
+        assert.deepEqual(specList(laneHead(lane), 'testMatch'), ['own.spec.js'], 'a lane\'s own testMatch is still read');
     });
 });
 

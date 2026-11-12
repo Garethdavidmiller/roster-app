@@ -552,7 +552,10 @@ const CAPS = {
     // so what crossed the line is an endpoint: method, admin check, body, the 503, one log line. The
     // documents domain hosts its doors, as auth-endpoints.js hosts the account ones. Measured + 50,
     // rounded to the next 50.
-    'functions/documents.js':            1000,
+    // 1000 → 950 at v25.89: the Huddle retention — the 3-month prune and what it may delete — left for
+    // functions/huddle-retention.js (861 measured, so back under LARGE_THRESHOLD). Brought down with the
+    // code, as the rule above asks; kept rather than dropped, so crossing 900 again is still a decision.
+    'functions/documents.js':             950,
 
 };
 

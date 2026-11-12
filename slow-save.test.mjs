@@ -2,7 +2,7 @@
 // Pure: timers are injected, so nothing here waits eight real seconds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { watchSlowCommit, trackHiddenTime, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_ONLINE, SLOW_SAVE_TEXT_BATCHED_ONLINE, slowSaveText, SLOW_SAVE_EVENT } from './slow-save.js';
+import { watchSlowCommit, trackHiddenTime, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_ONLINE, SLOW_SAVE_TEXT_BATCHED_ONLINE, SLOW_SAVE_TEXT_UNHELD, SLOW_SAVE_TEXT_UNHELD_ONLINE, slowSaveText, SLOW_SAVE_EVENT } from './slow-save.js';
 
 /** A controllable clock: fire() runs every pending timer, as if its time had come. */
 function fakeTimers() {
@@ -74,6 +74,52 @@ test('a BATCHED save never tells the reader they can leave (v24.23)', () => {
         assert.doesNotMatch(line, /can leave/i);
         assert.match(line, /Keep this page open/);
         assert.doesNotMatch(line, /\bsaved\b/i);
+    }
+});
+
+test('a TRANSACTION is never said to be held on the device, and asks the reader to stay (v25.89)', () => {
+    // A delete that compares what it removes with the server, and the leave-year move, run as
+    // transactions: they reach the server or nothing happens. "Held on this device and will send
+    // automatically" would be false of them, and leaving the page would abandon them.
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    const setOnline = (/** @type {boolean} */ v) => Object.defineProperty(globalThis, 'navigator', { value: { onLine: v }, configurable: true });
+    try {
+        setOnline(true);
+        assert.equal(slowSaveText(false, false), SLOW_SAVE_TEXT_UNHELD_ONLINE);
+        assert.equal(slowSaveText(true, false), SLOW_SAVE_TEXT_BATCHED_ONLINE, 'a batched write still wins — it stays too');
+        assert.equal(slowSaveText(false), SLOW_SAVE_TEXT_ONLINE, 'held is the default');
+        setOnline(false);
+        assert.equal(slowSaveText(false, false), SLOW_SAVE_TEXT_UNHELD);
+        for (const line of [SLOW_SAVE_TEXT_UNHELD, SLOW_SAVE_TEXT_UNHELD_ONLINE]) {
+            assert.doesNotMatch(line, /held on this device|automatically|\bsaved\b|can leave|!/i);
+            assert.match(line, /Keep this page open until it finishes/);
+        }
+    } finally {
+        if (had) Object.defineProperty(globalThis, 'navigator', had); else delete /** @type {any} */ (globalThis).navigator;
+    }
+});
+
+test('the notice: the wording for an unheld write holds while it waits, and gives way when it settles', async () => {
+    const el = { id: 'slowSaveNotice', hidden: true, textContent: '', style: { cssText: '' }, setAttribute() {} };
+    const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
+    globalThis.document = /** @type {any} */ ({
+        getElementById: (/** @type {string} */ id) => (id === 'slowSaveNotice' && /** @type {any} */ (el).appended ? el : null),
+        createElement: () => el,
+        body: { appendChild: (/** @type {any} */ n) => { n.appended = true; } },
+    });
+    globalThis.__E2E = { slowSaveMs: 5 };
+    try {
+        const tx = deferred(), plain = deferred();
+        const ptx = withSlowSaveNotice(tx.p, { held: false });
+        const pplain = withSlowSaveNotice(plain.p);
+        await new Promise(r => setTimeout(r, 30));
+        assert.equal(el.textContent, slowSaveText(false, false), 'a transaction is waiting: the stay-here wording');
+        tx.resolve(); await ptx; await tick();
+        assert.equal(el.textContent, slowSaveText(false), 'only a held write left: the ordinary wording returns');
+        plain.resolve(); await pplain; await tick();
+        assert.equal(el.hidden, true);
+    } finally {
+        globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
     }
 });
 

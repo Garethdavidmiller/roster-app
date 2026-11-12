@@ -348,26 +348,38 @@ describe('rule 2 — one wait, and what is owed is settled together', () => {
         assert.equal(p.draws(), 1);
     });
 
-    test('with the real clock: held, then drawn once the gesture has gone — and it polls, it does not spin', async () => {
-        let live = true, draws = 0, asked = 0;
-        const redraw = createRedrawScheduler({
-            gestureLive: () => { asked++; return live; }, teamViewOn: () => false,
-            drawCalendar: () => { assert.equal(live, false, 'the Calendar was drawn while a gesture was live'); draws++; },
-            drawTeam: () => {}, saveName: () => {}, nameApplied: () => {},
-        });
-        redraw.reach('workspace');
-        assert.equal(redraw.repaint('month-read'), 'held');
-        await new Promise(r => setTimeout(r, GESTURE_POLL_MS * 3 + 30));
-        const askedWhileLive = asked, drawsWhileLive = draws;
-        // The gesture ends BEFORE anything is asserted: a failed assertion that left it live would
-        // leave the poll re-arming for ever, and the run would hang instead of failing.
-        live = false;
-        await new Promise(r => setTimeout(r, GESTURE_POLL_MS * 2 + 40));
-        assert.equal(drawsWhileLive, 0, 'drawn while the gesture was live');
-        // Once for the request, then once per poll: three or four in 210ms. A wait armed with no
-        // delay would have asked thousands of times, on the phone's main thread, mid-swipe.
-        assert.ok(askedWhileLive >= 3 && askedWhileLive <= 6, `asked ${askedWhileLive} times in ${GESTURE_POLL_MS * 3 + 30}ms`);
-        assert.equal(draws, 1);
+    test('the DEFAULT clock: held, then drawn once the gesture has gone — and it polls, it does not spin', () => {
+        // This ran on the real clock and counted 3–6 polls in ~210ms, which failed once on a loaded machine
+        // (external review, Nov 2026). What it guards is the WIRING of the default timer, so the global
+        // setTimeout the default calls is recorded instead, and the timers are fired by hand: every wait is
+        // armed with the poll interval — never 0, which would spin on the phone's main thread mid-swipe —
+        // one at a time, and the draw comes on the first poll after the gesture ends. Synchronous, so
+        // nothing else can run while the global is replaced.
+        /** @type {{ fn: () => void, ms: number }[]} */ const armed = [];
+        const realSetTimeout = globalThis.setTimeout;
+        let live = true, draws = 0;
+        globalThis.setTimeout = /** @type {any} */ ((/** @type {() => void} */ fn, /** @type {number} */ ms) => { armed.push({ fn, ms }); return armed.length; });
+        try {
+            const redraw = createRedrawScheduler({
+                gestureLive: () => live, teamViewOn: () => false,
+                drawCalendar: () => { assert.equal(live, false, 'the Calendar was drawn while a gesture was live'); draws++; },
+                drawTeam: () => {}, saveName: () => {}, nameApplied: () => {},
+            });
+            redraw.reach('workspace');
+            assert.equal(redraw.repaint('month-read'), 'held');
+            for (let i = 0; i < 3; i++) {
+                assert.equal(armed.length, i + 1, 'exactly one wait is armed at a time');
+                assert.equal(armed[i].ms, GESTURE_POLL_MS, 'a wait armed without the poll delay is a spin');
+                armed[i].fn();                                   // a poll while the gesture is still live re-arms
+            }
+            assert.equal(draws, 0, 'drawn while the gesture was live');
+            live = false;
+            armed[3].fn();
+            assert.equal(draws, 1, 'drawn on the first poll after the gesture ended');
+            assert.equal(armed.length, 4, 'and nothing is armed once it has drawn');
+        } finally {
+            globalThis.setTimeout = realSetTimeout;
+        }
     });
 });
 

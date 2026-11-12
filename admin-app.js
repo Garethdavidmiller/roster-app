@@ -14,14 +14,14 @@
 
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
-import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage } from './page-session.js';
 import { createDraftSlot, savedSignature, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
-import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
+import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft } from './admin-week-row-state.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
@@ -1304,14 +1304,9 @@ export function init() {
         btn.disabled    = true;
         btn.textContent = '…';
         try {
-            // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's period delete
-            // self-heals via writeWithClaimRetry — parity with the other override write paths.
-            await withSlowSaveNotice(writeWithClaimRetry(async () => {
-                await assertDeletable(deleteIds);   // never over a colleague's newer edit (Oct 2026 review)
-                const batch = writeBatch(db);
-                deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
-                await batch.commit();
-            }));
+            // Re-runnable thunk so a stale-claim manager's period delete self-heals via writeWithClaimRetry. The
+            // rows this card LISTED are compared with the server and deleted in ONE transaction (v25.89).
+            await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(allForDelete.filter(o => idSet.has(o.id)))), { held: false });
             removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage (v21.38)
             renderTable();
             updateALBanner();

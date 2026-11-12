@@ -82,6 +82,9 @@ function makeDb(seed = {}) {
     const deletes = /** @type {string[]} */ ([]);
     /** @type {Error|null} */ let txError = null;
     /** @type {Error|null} */ let latestReadError = null;
+    /** Runs ONCE, right after the stale-date query has answered — a write landing between the query
+     *  and the delete it decided on (v25.89). @type {(() => void)|null} */
+    let afterStaleQuery = null;
     // A snapshot holds the data AS READ, like Firestore's: a lazy `() => store.get(path)` would show a
     // transaction the write it made after reading, which the real SDK never does.
     const snapFor = (/** @type {string} */ path) => {
@@ -125,6 +128,7 @@ function makeDb(seed = {}) {
                     const docs = [...store.keys()]
                         .filter(p => p.startsWith(`${name}/`) && (store.get(p) || {})[field] < value)
                         .map(snapFor);
+                    const hook = afterStaleQuery; afterStaleQuery = null; hook?.();
                     return { empty: docs.length === 0, docs };
                 },
             }),
@@ -134,6 +138,7 @@ function makeDb(seed = {}) {
             return fn({
                 get: async (/** @type {any} */ ref) => snapFor(ref.path),
                 set: (/** @type {any} */ ref, /** @type {any} */ data) => { store.set(ref.path, data); },
+                delete: (/** @type {any} */ ref) => { store.delete(ref.path); deletes.push(ref.path); },
                 // A partial write, merged — the link rotation changes `storageUrl` and nothing else.
                 update: (/** @type {any} */ ref, /** @type {any} */ data) => {
                     store.set(ref.path, { ...(store.get(ref.path) || {}), ...data });
@@ -142,7 +147,8 @@ function makeDb(seed = {}) {
         },
     };
     return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; },
-        failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; } };
+        failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; },
+        afterStaleQuery: (/** @type {() => void} */ fn) => { afterStaleQuery = fn; } };
 }
 
 /**
@@ -151,6 +157,11 @@ function makeDb(seed = {}) {
  */
 function makeStorage(existingObjects = [], keys = {}) {
     const objects = new Set(existingObjects);
+    /** When each object was created, as GCS lists it (`metadata.timeCreated`): a seeded object is a year
+     *  old, one saved during the test is new — the age the orphan sweep reads (v25.89). @type {Map<string, string|undefined>} */
+    const created = new Map(existingObjects.map(p => [p, '2025-08-30T12:00:00.000Z']));
+    /** Runs ONCE, just before the next listing — an upload landing mid-sweep. @type {(() => void)|null} */
+    let beforeList = null;
     const signed = /** @type {{path: string, action: string, expires: number}[]} */ ([]);
     let signFails = false;
     let listFails = false;
@@ -174,9 +185,11 @@ function makeStorage(existingObjects = [], keys = {}) {
         name: 'myb-roster.appspot.com',
         file: (/** @type {string} */ path) => ({
             name: path,
+            metadata: { timeCreated: created.get(path) },
             save: async (/** @type {Buffer} */ buf, /** @type {any} */ opts) => {
                 saved.push({ path, bytes: buf.length, contentType: opts?.contentType });
                 objects.add(path);
+                created.set(path, new Date().toISOString());
                 gens.set(path, { generation: nextGen++, metageneration: 1 });
             },
             // GCS semantics: custom keys MERGE into what is there, and a null value removes one; a
@@ -209,11 +222,13 @@ function makeStorage(existingObjects = [], keys = {}) {
         }),
         getFiles: async (/** @type {{prefix: string}} */ { prefix }) => {
             if (listFails) throw new Error('listing failed');
+            const hook = beforeList; beforeList = null; hook?.();
             return [[...objects].filter(p => p.startsWith(prefix)).map(p => bucket.file(p))];
         },
     };
-    return { bucket, objects, saved, deleted, signed, meta, metaWrites,
-        failSigning: () => { signFails = true; }, failListing: () => { listFails = true; } };
+    return { bucket, objects, saved, deleted, signed, created, meta, metaWrites,
+        failSigning: () => { signFails = true; }, failListing: () => { listFails = true; },
+        beforeList: (/** @type {() => void} */ fn) => { beforeList = fn; } };
 }
 
 /**
@@ -564,6 +579,78 @@ describe('the retention sweep — the upload it was called about is never its ow
         assert.ok(b.store.has('huddles/2026-04-01'), 'the excluded date survives');
         assert.ok(!b.store.has('huddles/2026-03-02'), 'the other stale date does not');
         assert.ok(b.deleted.includes('huddles/2026-03-02-aa.pdf'));
+    });
+});
+
+// ── THE SWEEP DELETES ONLY WHAT IT SELECTED (v25.89, external review) ──────────────────────────
+//
+// It deleted an expired date's document and then every object under `huddles/<date>`. A replacement
+// upload completing between the two kept its new document and lost its file: a Huddle pointing at
+// nothing. Now the document is deleted only if it is still the version the query found, only that
+// version's object is deleted by name, and an orphan goes only when no upload can still own it.
+describe('the retention sweep deletes only what it selected — never a replacement landing mid-sweep', () => {
+    const OLD = 'huddles/2026-04-01-old.pdf', NEW = 'huddles/2026-04-01-new.pdf';
+    const staleSeed = () => build({
+        seed: { 'huddles/2026-04-01': { date: '2026-04-01', storagePath: OLD } },
+        objects: [OLD],
+    });
+    /** A back-dated upload for the same date: its file is saved first, its document after. */
+    const upload = (/** @type {any} */ b, { withDoc = true, createdAt = new Date().toISOString() } = {}) => {
+        b.objects.add(NEW); b.created.set(NEW, createdAt);
+        if (withDoc) b.store.set('huddles/2026-04-01', { date: '2026-04-01', storagePath: NEW });
+    };
+
+    test('a replacement completing after the stale document went keeps its file (the review\'s reproduction)', async () => {
+        const b = staleSeed();
+        b.beforeList(() => upload(b));
+        assert.equal((await ingest(b.eps, {})).code, 200);
+        assert.ok(b.deleted.includes(OLD), 'the version the sweep selected still goes');
+        assert.ok(!b.deleted.includes(NEW), "the replacement's file was swept");
+        assert.equal(b.store.get('huddles/2026-04-01')?.storagePath, NEW);
+        assert.ok(b.objects.has(NEW), 'and the document points at a file that exists');
+    });
+
+    test('a file saved before its document is written is protected by its AGE alone', async () => {
+        // Between `file.save` and the metadata transaction, nothing names the new file.
+        const b = staleSeed();
+        b.beforeList(() => upload(b, { withDoc: false }));
+        await ingest(b.eps, {});
+        assert.ok(!b.deleted.includes(NEW), 'a file whose upload had not yet written its document was swept');
+    });
+
+    test('a file the live document names is never swept, even when its age reads old (a clock out of step)', async () => {
+        const b = staleSeed();
+        b.beforeList(() => upload(b, { createdAt: '2025-01-01T00:00:00.000Z' }));
+        await ingest(b.eps, {});
+        assert.ok(!b.deleted.includes(NEW), 'the file a live Huddle names was swept');
+    });
+
+    test('a replacement landing between the query and the delete is left whole — document and file', async () => {
+        const b = staleSeed();
+        b.afterStaleQuery(() => upload(b));
+        await ingest(b.eps, {});
+        assert.equal(b.store.get('huddles/2026-04-01')?.storagePath, NEW, 'the fresh document was deleted');
+        assert.ok(!b.deleted.includes(NEW));
+        assert.ok(!b.deletes.includes('huddles/2026-04-01'));
+    });
+
+    test("a corrupted storagePath can never reach another date's file", async () => {
+        const b = build({
+            seed: { 'huddles/2026-04-01': { date: '2026-04-01', storagePath: 'huddles/2026-08-01-bb.pdf' },
+                    'huddles/2026-08-01': { date: '2026-08-01', storagePath: 'huddles/2026-08-01-bb.pdf' } },
+            objects: ['huddles/2026-08-01-bb.pdf'],
+        });
+        await ingest(b.eps, {});
+        assert.ok(!b.store.has('huddles/2026-04-01'), 'the stale document still goes');
+        assert.ok(!b.deleted.includes('huddles/2026-08-01-bb.pdf'), 'an in-window Huddle lost its file');
+    });
+
+    test('an orphan whose age cannot be read is kept — a stray file costs storage, a lost one is a broken link', async () => {
+        const b = staleSeed();
+        b.objects.add('huddles/2026-04-01-unknown.pdf'); b.created.set('huddles/2026-04-01-unknown.pdf', undefined);
+        await ingest(b.eps, {});
+        assert.ok(b.deleted.includes(OLD));
+        assert.ok(!b.deleted.includes('huddles/2026-04-01-unknown.pdf'));
     });
 });
 

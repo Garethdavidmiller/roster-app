@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PILL_TYPES, TYPES } from './admin-shift-types.js';
 import { manualOverrideId } from './override-id.js';
+import { sameOverrideRecord } from './override-compare.js';
 import { isClockTime } from './clock-input.js';
 import { isSunday, TIME_RE, teamMembers } from './roster-data.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
@@ -1620,5 +1621,59 @@ describe('chunkByWrites', () => {
 
     it('nothing in, nothing out', () => {
         assert.deepEqual(chunkByWrites([], () => 1), []);
+    });
+});
+
+
+// ── sameOverrideRecord — what "unchanged since the page showed it" means (v25.89) ────────────────────
+// Every guarded Admin delete and the leave-year move ask this inside their transaction. It compared
+// value, type and member until an external review (Nov 2026) moved a January day to the other year's
+// allowance — the same AL, the same value — and watched the delete approve it.
+describe('sameOverrideRecord', () => {
+    const shown = { id: 'm_2027-01-05_G.%20Miller', memberName: 'G. Miller', date: '2027-01-05', type: 'annual_leave',
+        value: 'AL', note: '', source: 'manual', changedBy: 'G. Miller', createdAt: { toMillis: () => 1_000 } };
+    const server = (/** @type {any} */ over = {}) => { const { id: _id, ...data } = { ...shown, ...over }; return data; };
+
+    it('the same record is the same', () => {
+        assert.equal(sameOverrideRecord(shown, server()), true);
+    });
+
+    it('every field that says what the day is, what it cost or whose it is counts', () => {
+        for (const [k, v] of Object.entries({ memberName: 'S. Silva', date: '2027-01-06', type: 'shift', value: 'X',
+            note: 'a note', source: 'roster_import', replacedType: 'shift', leaveYear: 2026, changedBy: 'S. Manager' })) {
+            assert.equal(sameOverrideRecord(shown, server({ [k]: v })), false, `a change of ${k} went unseen`);
+        }
+    });
+
+    it('the allowance alone moving — the same AL, the same value — is a change (the review\'s case)', () => {
+        assert.equal(sameOverrideRecord(shown, server({ leaveYear: 2026 })), false);
+        assert.equal(sameOverrideRecord({ ...shown, leaveYear: 2026 }, server()), false, 'and moving it back');
+    });
+
+    it('a re-save with the very same values is a change: the revision moved', () => {
+        assert.equal(sameOverrideRecord(shown, server({ createdAt: { toMillis: () => 2_000 } })), false);
+    });
+
+    it('an absent field equals an empty one — the writes leave them out rather than null', () => {
+        const { note: _n, ...noNote } = server();
+        assert.equal(sameOverrideRecord(shown, noNote), true, "note absent ≡ ''");
+        assert.equal(sameOverrideRecord({ ...shown, replacedType: null, leaveYear: null }, server()), true);
+    });
+
+    it("this page's OWN optimistic copy is matched on its fields: its stamp is the device's clock, never the server's", () => {
+        // buildOverrideCacheRecord stamps `new Date()` and drops changedBy; the server's copy has its own.
+        const { changedBy: _c, ...ownCopy } = { ...shown, createdAt: new Date(999) };
+        assert.equal(sameOverrideRecord(ownCopy, server({ createdAt: { toMillis: () => 123_456 } })), true);
+        assert.equal(sameOverrideRecord(ownCopy, server({ createdAt: { toMillis: () => 123_456 }, leaveYear: 2026 })), false);
+    });
+
+    it('a stamp the browser-test stub hands back as a number reads like a Timestamp', () => {
+        assert.equal(sameOverrideRecord({ ...shown, createdAt: 1_700_000_000_000 },
+            server({ createdAt: { toMillis: () => 1_700_000_000_000 } })), true);
+    });
+
+    it('nothing to compare is never "the same"', () => {
+        assert.equal(sameOverrideRecord(null, server()), false);
+        assert.equal(sameOverrideRecord(shown, null), false);
     });
 });

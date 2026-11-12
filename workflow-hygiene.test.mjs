@@ -689,11 +689,12 @@ describe('the Hosting deploy waits for its whole gate', () => {
 
 // ── THE WEBKIT LANE RUNS EVERY PROJECT, AND EVERY SHARD OF EACH (3 Nov 2026) ─────────────────────
 //
-// The webkit job lists its jobs one by one: the iPhone project four ways, the desktop one two
-// (e2e.yml says why). So the hazard the Chromium guard above names has a second form here, a shard
-// left out of the list. List shards 1, 2 and 4 of 4 and a quarter of the iPhone tests never run,
-// while all three jobs go green. The list is held to playwright.webkit.mjs's projects, and each
-// project's shards to 1 to N of N.
+// The webkit job lists its jobs one by one, each project cut its own number of ways — since 12 Nov
+// 2026 each device is two projects, the Links specs apart (e2e.yml says why). So the hazard the
+// Chromium guard above names has a second form here, a shard left out of the list. List shards 1
+// and 3 of 3 and a third of the iPhone tests never run, while both jobs go green; leave a project
+// out and none of its tests run at all. The list is held to playwright.webkit.mjs's projects, and
+// each project's shards to 1 to N of N.
 describe('the WebKit lane runs every project, and every shard of each', () => {
     const e2e = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
     const body = e2e.slice(e2e.search(/^jobs:/m));

@@ -33,5 +33,9 @@
  * IS never once ran on the engine every iPhone uses, while `mobile-safari` sat in CI as a full job.
  * The same gap was found and closed for the 16px-field rule at v22.12; this is the list that stops
  * it being rediscovered a third time.
+ *
+ * `mobile-safari-links` is the same iPhone running only the Links specs, which have a project of
+ * their own so they shard apart (playwright.webkit.mjs, 12 Nov 2026). Left off this list, every
+ * touch gate in links.spec.js would take the desktop branch on it.
  */
-export const TOUCH_PROJECTS = ['mobile-chrome', 'mobile-safari'];
+export const TOUCH_PROJECTS = ['mobile-chrome', 'mobile-safari', 'mobile-safari-links'];

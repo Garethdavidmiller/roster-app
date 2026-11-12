@@ -662,7 +662,8 @@ test('the symbol guard would catch the two defects that motivated it — guard t
 //                              pushes, so being wrong costs most at exactly the moment it is read.
 //   `RESET_REQUESTS_ENABLED` — PASSWORD_DESIGN, same split, now `functions/auth-endpoints.js`.
 //                              Also an incident switch.
-//   `pruneOldHuddles`        — DATA_MODEL, same split, now `functions/documents.js`.
+//   `pruneOldHuddles`        — DATA_MODEL, same split, then `functions/documents.js` (and since
+//                              v25.89 `functions/huddle-retention.js`).
 //   the Welcome lightbox     — three docs describing a paycalc lightbox retired at v19.36.
 //
 // ONE refactor produced the first three, and nothing failed. That is the argument for this being a
