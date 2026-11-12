@@ -146,12 +146,23 @@ load. A transport change made for every iPhone, on a hypothesis the data argued 
 withdrawn.
 
 **What will settle it:** every "Slow save (diagnostic)" entry in the Error Log carries the save's
-time and a **sign-in token** time measured while the save was slow:
+time, how much of that time the app spent **in the background**, and a **sign-in token** time
+measured while the save was slow. Read them in that order:
+- **the background time first** (v25.87). iOS freezes an installed app it has put in the background,
+  and the clock runs on through the freeze, so a save made just before the phone was locked or the
+  app was left reads as slow when nothing was wrong. Take the background time away from the total:
+  what is left is how long the save waited with the app on screen. If little is left, the wait was
+  the phone's, and no transport change would shorten it. "On screen throughout" means all of it is
+  left;
 - if the token took seconds, auth is the bottleneck;
-- if the token arrived in milliseconds and the save still waited, it is the connection to Firestore —
-  with one caveat: timing starts at the 8-second mark, so a token refresh that held the save and then
-  finished before it reads as milliseconds too. Milliseconds rules out auth as what is STILL holding
-  the save, not as what held it earlier.
+- if the token arrived in milliseconds and the on-screen wait was still long, it is the connection to
+  Firestore — with one caveat: timing starts at the 8-second mark, so a token refresh that held the
+  save and then finished before it reads as milliseconds too. Milliseconds rules out auth as what is
+  STILL holding the save, not as what held it earlier.
+
+Entries from before v25.87 carry no background figure, so they cannot tell a frozen app from a slow
+connection. One from an installed iPhone app on 11 Nov 2026 (81.8s, token 0.0s) could not, and is
+why the figure was added.
 
 These entries are listed in the Error Log but not counted as unresolved errors (`DIAGNOSTIC_PREFIX`
 in `client-errors.js`). Read the entries from iPhones before choosing a fix.

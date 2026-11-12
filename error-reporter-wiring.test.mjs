@@ -126,3 +126,23 @@ describe('the reporter stays quiet exactly where the filter says, and nowhere el
         assert.equal(writes[0].page.length, 100, 'page.size() <= 100');
     });
 });
+
+describe('a slow save while online is written as a DIAGNOSTIC that says how much of the wait was in the background (v25.87)', () => {
+    test('in the background, on screen throughout, and not measured — each worded, end to end', () => {
+        // An installed iPhone app reported 81.8s to confirm, online, its token in 0.0s, and could not
+        // say whether the connection was slow or the phone had frozen the app in the background.
+        // THREE saves, because three is the reporter's ceiling per page: a fourth would be dropped.
+        const slow = listeners['myb-slow-save'];
+        assert.equal(typeof slow, 'function', 'no slow-save listener — a slow save leaves nothing in the Error Log');
+        const done = (/** @type {object} */ d) => slow({ detail: { phase: 'done', onlineWhenSlow: true, batched: false, ok: true, ...d } });
+        done({ id: 901, ms: 81_800, hiddenMs: 74_000 });
+        done({ id: 902, ms: 9_400, hiddenMs: 0 });
+        done({ id: 903, ms: 12_000, hiddenMs: null });
+        const tail = ' · sign-in token not measured · installed app: no';
+        assert.deepEqual(writes.map(w => w.message), [
+            `Slow save (diagnostic): the save took 81.8s to be confirmed — a save while the phone said it was online · in the background for 74.0s${tail}`,
+            `Slow save (diagnostic): the save took 9.4s to be confirmed — a save while the phone said it was online · on screen throughout${tail}`,
+            `Slow save (diagnostic): the save took 12.0s to be confirmed — a save while the phone said it was online · background time not measured${tail}`,
+        ]);
+    });
+});

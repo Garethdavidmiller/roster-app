@@ -1342,11 +1342,13 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     await expect(page.locator('#formFeedback')).toContainText('changes saved for', { timeout: 10000 });
     await expect(page.locator('#stagedDiscardBtn'), 'the sticky bar must come back once the save lands').toBeEnabled();
     // …and it LEFT A RECORD (v24.54): a save slower than the threshold while the browser said it was
-    // online is written to the admin's Error Log, so a phone whose every save is slow says so.
+    // online is written to the admin's Error Log, so a phone whose every save is slow says so — and it
+    // says how much of the wait the page spent in the background (v25.87): this one never left the
+    // screen, so the wait was the server's, the reading an iPhone report could not give.
     await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => /^Slow save \(diagnostic\)/.test(w.data?.message ?? ''))
         .map((/** @type {any} */ w) => w.data.message)), { timeout: 5000 })
-        .toEqual([expect.stringMatching(/took \d+\.\ds to be confirmed — a save while the phone said it was online · sign-in token \d+\.\ds · /)]);
+        .toEqual([expect.stringMatching(/took \d+\.\ds to be confirmed — a save while the phone said it was online · on screen throughout · sign-in token \d+\.\ds · /)]);
 });
 
 test('admin: a slow save says "Waiting for signal" only when the browser reports being offline (v24.54)', async ({ page, context }) => {
