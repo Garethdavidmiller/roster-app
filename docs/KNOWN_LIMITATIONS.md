@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.70 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.80 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -32,9 +32,9 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
 - **Two twins kept apart on purpose.** `withTimeout` (`login-overlay.js`, `password-force.js`):
   login's copy ignores the error and the other's callers read its `myb/timeout` code, and sharing
   one would pull the Firebase module graph into the sign-in overlay's unit tests or need a new
-  module, for six lines. `railcard-guide.js` and `rangers-guide.js` are one script twice — chip bar,
-  scrollspy, sticky offsets and deep-link landing, identical but for comments — in classic scripts with
-  no shared module; `fip-guide.js` carries the same blocks beside its finder.
+  module, for six lines. And `fip-guide.js` carries the chip-bar blocks of `guide-chips.js` — jump,
+  scrollspy, sticky offsets and deep-link landing — woven into its country finder, where a jump also
+  opens the country's `<details>`; the other four guides share the one file.
 - **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the app sheets — nearly all one
   navy shadow tint — are a ratchet that may only go down (`RGB_BASELINE` in
   `css-hex-parity.test.mjs`). The guide sheets keep their own palette guard.

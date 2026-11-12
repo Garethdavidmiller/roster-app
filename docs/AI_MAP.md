@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: November 2026 — v25.70 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.80 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -100,10 +100,10 @@ backticked name the source no longer holds must be marked as gone where it is na
 | localStorage wrappers (lsGet, lsSet, lsDel, lsKeys) | `ls.js` |
 | Cross-file localStorage key constants (SELECTED_MEMBER, VIEWED_MONTH/YEAR and the rest) | `storage-keys.js` |
 | Cloud Functions — the composition root (`functions/index.js`); documents and the Huddle ingest (`functions/documents.js`); accounts and the PIN (`functions/auth-endpoints.js`, `functions/calendar-viewer-auth.js`); push (`functions/push.js`) | `functions/index.js` |
-| Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
+| Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
-| A deep link or in-page jump on the Staff and Pay Calculator guides landing below the sticky header | `guide-back.js` |
+| The "Jump to section" chip bar — jump, scrollspy, sticky offsets, a deep link landing below them (Railcard, Rangers, Staff and Pay Calculator guides) | `guide-chips.js` |
 | An old guide address (`guide.html`, `fip.html`) keeping its `#fragment` and `?query` on the Pages mirror | `legacy-redirect.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (every guide) | `guide-shell.css` |
 | Page-specific styles for staff-guide.html | `staff-guide.css` |
@@ -1255,8 +1255,8 @@ What a design or a staffing setup may be CALLED: one rule for new, import, dupli
 - `MAX_DESIGN_NAME` — the bound `firestore.rules` enforces.
 - It refuses a duplicate rather than renaming one silently, case- and space-insensitively. What it guarantees is narrower than "no duplicates exist" — the header says why. Tested by `links-design-naming.test.mjs`.
 
-### `rangers-guide.js` / `rangers-guide.css`
-The Rangers & Rovers guide's script and stylesheet: the ranger and rover area passes staff accept or refuse at the gateline. A static page with no app modules and no Firebase. `rangers-guide.js` is deliberately a near-copy of `railcard-guide.js` — the chip bar and scrollspy, the sticky-header offsets measured after the font loads, and the deep-link landing — because that stack has already produced a real bug; the two files differ only in comments. Print is `guide-print.js`, shared by every guide.
+### `rangers-guide.css`
+The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff accept or refuse at the gateline. A static page with no app modules and no Firebase; its chip bar is `guide-chips.js` and its ⤓ PDF button `guide-print.js`, both shared with other guides.
 - The page's rules live in `.claude/rules/guide-pages.md` → "Rangers & Rovers guide": the Marylebone question first, evidence per product and per claim (a Conflict is not a stronger Draft), "usually no" with the near-misses as the point of the page, and no prices. Each product's evidence is a `GUIDE_SOURCES.md` row, held to the page by `guide-sources.test.mjs`.
 
 ### `links-seed.js`
@@ -2041,17 +2041,19 @@ The pure override rules shared by the Calendar, Team Week View, Admin and the pa
 - **The review's entry control:** `manualCellValue(type, from, to)` — a type and two real clock times → the parsed-roster value; `other` returns null, because the review composes it through `composeOtherValue`.
 - **Batching:** `chunkByWrites(items, writesFor, { max, keepWithPrevious })` — splits override writes into batches under Firestore's 500-write cap, counting writes rather than items; the range booking keeps a Sunday correction in the batch of the day before it.
 
-### `railcard-guide.js`
-The Railcard guide's page behaviour — a classic `defer` script, because CSP forbids inline script. The ⤓ PDF button is `guide-print.js`'s, not this file's.
-- Chip bar: jumps to a section (instantly under Reduce Motion), focuses it, and a scrollspy marks the chip for the section on screen — the FIP bar's code.
-- The sticky offsets: after `document.fonts.ready` (so the header is measured in Inter), the chip bar's `top` matches the header and every id in `<main>` gets a `scrollMarginTop`; a `ResizeObserver` re-syncs when the header's height changes later.
-- Deep-link landing: until the page has loaded and measured with its fonts, or the reader touches, clicks, wheels or types, each measurement re-scrolls a `#fragment` target left under the sticky stack (`keepLandingClear`); a reload or Back/Forward keeps its restored position.
+### `guide-chips.js`
+The "Jump to section" chip bar on four guides — Railcard, Rangers & Rovers, the Staff & Admin Guide and the Pay Calculator Guide. A classic `defer` script, no exports, because CSP forbids inline script and the guides load no modules of their own; one file for all four (it was `railcard-guide.js` and `rangers-guide.js`, identical but for comments). The ⤓ PDF button is `guide-print.js`'s and the ← arrow `guide-back.js`'s. `page-contract-parity.test.mjs` requires every guide to carry a bar and exactly one script driving it, and every chip to lead to an id in `<main>`.
+- **The jump:** a chip scrolls to its section (instantly under Reduce Motion), lands focus on it and marks itself current.
+- **The scrollspy** (`measureSpy`, `currentChip`): on a page read top to bottom, the last chipped section whose top has passed the sticky stack. It runs only while the chipped sections read top to bottom (`oneColumn`, measured from where they are): the two document guides set two columns from 641px, where two sections share a line and no position can say which is being read, so there a chip is current only after a jump to it.
+- **A jump's chip holds** while the page stays where the jump left it — even at the bottom of a page, where the one-column rule would light the last chip — but only if the jump ARRIVED (`jumpArrived`): a reader who stopped it halfway is not at that section.
+- **The sticky offsets** (`adjustScrollOffsets`): after `document.fonts.ready`, the bar's `top` matches the measured header and every id in `<main>` gets a `scrollMarginTop` clearing header and bar; a heading inside a `.guide-header` banner clears with its banner. A `ResizeObserver` on the header re-syncs.
+- **Deep-link landing:** until the page has loaded and measured with its fonts, or the reader touches, clicks, wheels or types, each measurement re-scrolls a `#fragment` target left under the sticky stack (`keepLandingClear`); a reload or Back/Forward keeps its restored position.
 
 ### `fip-guide.js`
 The FIP guide's behaviour — a classic `defer` script, all progressive enhancement: with JS off, every country is visible.
 - **Country finder** (`#countrySearch`): `applyCountryFilter(raw)` filters the country cards and the A–Z jump chips against each card's whole text (a country, an operator or a train). The card set is `[id^="country-"]` and **its size is never written down**; `#booking-table` deliberately does not start `country-`, so a search cannot hide it.
 - **Open on jump:** `openHashTarget()` opens the target `<details>` on load and on every `hashchange`, clearing the search first if it had hidden the target; a `.country-jump` click covers re-tapping the current country.
-- **Sticky chip bar and scrollspy**, measured after `document.fonts.ready`, and the same deep-link landing as the Railcard guide.
+- **Sticky chip bar and scrollspy**, measured after `document.fonts.ready`, and the same deep-link landing as `guide-chips.js`.
 - **Print:** `expandAllForPrint` / `restoreAfterPrint` open every `<details>` for the print run and put them back (Chromium does not print a closed `<details>`'s body). Both are idempotent, and neither trusts its own event: the prepare also runs in the ⤓ button's capture-phase click and the restore on `visibilitychange`, because iOS sends no `beforeprint` or `afterprint` for AirPrint. It prints what is on screen — a filtered-out card stays hidden — and `describePrintScope(shown)` sets the button's `aria-label` to say which, starting with "PDF", the visible word (WCAG 2.5.3).
 - **Print one country:** each card gets a `⤓ Print <country>` button. Printing one card is a CSS state (`body[data-print-country]` and a marker class), never a DOM edit, so an interrupted print cannot lose a country. A refusal from `guide-print.js` (`guide:print-refused`) puts the page back.
 
@@ -2059,7 +2061,7 @@ The FIP guide's behaviour — a classic `defer` script, all progressive enhancem
 The ⤓ PDF button on every guide, and the FIP guide's per-country buttons — an ES module all five guides load. One delegated bubble-phase `click` listener for `.btn-print` and `.btn-print-country`, routed through `printOrExplain` (`print-guard.js`): it prints, or inserts the `#printUnavailable` notice under the header with an "Open in Safari" button and dispatches `guide:print-refused` so a page that prepared can undo it. It prepares nothing itself; the FIP guide's own handlers run first. No guide may keep a private print handler.
 
 ### `guide-back.js`
-Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>` when it opens a guide, and this rewrites the arrow's `href` and `aria-label` to match. `from` is resolved through the `DESTINATIONS` allowlist of the app's own pages and never used as a url, so a crafted value cannot make an off-site link; an unknown or absent `from` leaves the authored href alone. The allowlist is hand-kept, and `page-contract-parity.test.mjs` fails when a page is missing from it. The header says why the arrow needs retargeting at all. A second block, on a guide with no chip bar (the Staff and Pay Calculator guides), measures the sticky header after `document.fonts.ready` and on a `ResizeObserver`, gives every id in `<main>` a `scrollMarginTop` of its height + 12px, and re-lands a deep link the header covers while the page is still landing — railcard-guide.js's rules: until it has loaded with its fonts or the reader touches, clicks, wheels or types, and never on a reload or Back/Forward. A chip-bar guide measures its whole stack in its own script, so the block leaves it alone.
+Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>` when it opens a guide, and this rewrites the arrow's `href` and `aria-label` to match. `from` is resolved through the `DESTINATIONS` allowlist of the app's own pages and never used as a url, so a crafted value cannot make an off-site link; an unknown or absent `from` leaves the authored href alone. The allowlist is hand-kept, and `page-contract-parity.test.mjs` fails when a page is missing from it. The header says why the arrow needs retargeting at all. It measures nothing: every guide has a chip bar, and its sticky stack is measured by `guide-chips.js` or `fip-guide.js`.
 
 ### `legacy-redirect.js`
 The one script the two legacy guide addresses (`guide.html`, `fip.html` — `REDIRECT_PAGES`) carry: a classic script, no exports, owner decision of 10 Nov 2026. Firebase's 301 keeps a bookmark's `#fragment` and `?query`; the Pages mirror serves no redirects, so there the stub's meta refresh was the redirect and dropped both. This goes to the stub's own `<link rel="canonical">` with both kept, by `location.replace`, so Back does not return to the stub. The meta refresh stays as the no-script fallback; it cannot overtake this (measured on Chromium and WebKit — the header says how). `page-contract-parity.test.mjs` allows a stub this one script, as a classic script after its canonical link, and nothing else; `e2e/guides.spec.js` follows an old address to its country and its back arrow.

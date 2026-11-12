@@ -1,23 +1,25 @@
 // @ts-check
-// Rangers & Rovers Guide — interactive behaviours.
+// guide-chips.js — the "Jump to section" chip bar, shared by four guides: Railcard, Rangers & Rovers,
+// the Staff & Admin Guide and the Pay Calculator Guide. A classic `defer` script with no exports, run
+// once against the page's `<nav class="chip-bar">` of `<button class="chip" data-target="ID">`.
 //
-// A near-copy of railcard-guide.js, deliberately: the two pages share the sticky header + chip-bar
-// stack, and that stack has already produced one real bug (v18.82 — a stale sticky `top` after a
-// late font swap let page content show through the gap). Re-deriving it here would re-open that.
-// The ONLY differences are the example ids in the comments: both pages give every id in <main> the
-// measured margin, so neither keeps a list of its card classes to fall behind.
-// The Print / Save as PDF button is wired by the shared guide-print.js (a module since v24.61 — it
-// is where the iOS home-screen print guard lives, so no guide may keep a private copy).
+// It owns four things, and each has already produced a real bug on some guide:
+//   1. the JUMP — a chip scrolls to its section (instantly under Reduce Motion) and lands focus there;
+//   2. the SCROLLSPY — which chip is marked current while the reader scrolls;
+//   3. the STICKY STACK — the bar's `top` and every id's scroll margin, from the MEASURED header: a
+//      stale `top` after a late font swap once let page content show through the gap (v18.82);
+//   4. the DEEP-LINK LANDING — a search result opened at a #fragment lands below that stack.
+//
+// ONE COPY (Nov 2026). This was railcard-guide.js and rangers-guide.js, identical but for their
+// comments, and the chip bar arriving on the two document guides would have made it four. A classic
+// script needs no module to be shared: each page loads this file. fip-guide.js still carries the same
+// blocks, woven into its country finder — a jump there also opens the country's <details>.
+// The ⤓ PDF button is guide-print.js's, and the ← arrow is guide-back.js's.
 
-// ── Section chip-bar: quick-nav + scrollspy, ported from fip-guide.js ──────────────────────────
-// This bar had drifted from the FIP one (whole-app review, Nov 2026): it smooth-scrolled even with
-// Reduce Motion on — a scroll of several thousand pixels — and the chip it marked current stayed
-// current after the reader had scrolled elsewhere, naming one section over another. The FIP bar's
-// scrollspy answered both, so this is that code; railcard-guide.js carries the same block.
 var chipBar = /** @type {HTMLElement|null} */ (document.querySelector('.chip-bar'));
 var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-// [{ chip, section }] for the chipped sections, in document (== chip-bar) order.
+// [{ chip, section }] for the chipped sections, in chip-bar order — which is document order.
 var chipTargets = chipBar
     ? Array.prototype.slice.call(chipBar.querySelectorAll('.chip')).map(function (c) {
         var chip = /** @type {HTMLElement} */ (c);
@@ -28,7 +30,7 @@ var chipTargets = chipBar
 /** @type {HTMLElement|null} */
 var activeChip = null;
 
-/** Mark exactly one chip current (idempotent) and reveal it within the horizontally-scrollable bar. */
+/** Mark at most one chip current (idempotent) and reveal it within the horizontally-scrollable bar. */
 function setActiveChip(/** @type {HTMLElement|null} */ chip) {
     if (chip === activeChip) return;
     if (activeChip) activeChip.removeAttribute('aria-current');
@@ -41,23 +43,55 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
     chipBar.scrollTo({ left: Math.max(0, Math.min(left, max)), behavior: reduceMotion ? 'auto' : 'smooth' });
 }
 
-// Scrollspy: the current section is the LAST chipped section whose top has scrolled below the sticky
-// header + chip-bar. Above the first section the first chip wins (covers the page intro); at the page
-// bottom the last chip wins (a short final section may never reach the line).
+// ── Scrollspy ─────────────────────────────────────────────────────────────────────────────────────
+// On a page read top to bottom, the current section is the LAST chipped section whose top has scrolled
+// up past the sticky header + chip bar. Above the first section the first chip wins (it covers the page
+// intro); at the bottom of the page the last chip wins (a short final section may never reach the line).
+//
+// TWO COLUMNS HAVE NO CURRENT SECTION. The two document guides set their sections side by side from
+// 641px (guide-doc.css), so on a desktop "What It Does" and "Pay Types" begin on the same line, and
+// which of them is being read is up to the reader's eye, not the scroll position. The rule above
+// would light a right-hand chip while the left column was being read. So it runs only while the
+// chipped sections still read top to bottom — measured from where they ARE (`oneColumn`), not from a
+// width, so a change to that breakpoint cannot leave this behind. On two columns a chip is current
+// only after a jump to it.
+//
+// A JUMP'S CHIP HOLDS UNTIL THE READER MOVES ON. The chip just chosen answers "where am I" for as long
+// as the page stays where the jump left it — even where the rule above would answer differently: a
+// section near the end of the page cannot scroll up to the line, and at the bottom the last chip wins.
+// Scrolling away (more than 2px) hands the bar back to the rule, and so does a jump that never
+// arrived because the reader stopped it (jumpArrived).
 var spyPaused = false;
 var spyTimer = 0;
 var spyTicking = false;
 var spyThreshold = 106;   // header + chip-bar + margin; measured for real once the header lays out
+var oneColumn = true;
+/** @type {HTMLElement|null} */
+var jumpChip = null;
+var jumpY = -1;           // where the jump settled; -1 while it is still in flight
 
-/** Cache the sticky-stack height so the scroll handler never forces a layout read per frame. */
-function measureThreshold() {
+/** Cache the sticky-stack height and the layout, so the scroll handler never forces a layout read per frame. */
+function measureSpy() {
     var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
     spyThreshold = (hdr ? hdr.offsetHeight : 54) + (chipBar ? chipBar.offsetHeight : 40) + 12;
+    oneColumn = true;
+    var prev = -Infinity;
+    for (var i = 0; i < chipTargets.length; i++) {
+        var r = /** @type {HTMLElement} */ (chipTargets[i].section).getBoundingClientRect();
+        if (!r.width && !r.height) continue;   // not laid out (display:none) — says nothing about columns
+        if (r.top < prev - 1) { oneColumn = false; break; }
+        prev = r.top;
+    }
 }
 
 /** @returns {HTMLElement|null} */
 function currentChip() {
     if (!chipTargets.length) return null;
+    if (jumpChip) {
+        if (jumpY < 0 || Math.abs(window.scrollY - jumpY) <= 2) return jumpChip;
+        jumpChip = null;   // the reader has moved on; the jump's answer does not come back
+    }
+    if (!oneColumn) return null;
     if (Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2) {
         return chipTargets[chipTargets.length - 1].chip;
     }
@@ -71,18 +105,42 @@ function currentChip() {
 }
 function updateSpy() { if (!spyPaused) setActiveChip(currentChip()); }
 
-/** Lift the post-click pause and reconcile the active chip to the settled scroll position. */
-function resumeSpy() { spyPaused = false; if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; } updateSpy(); }
+/**
+ * Did the jump ARRIVE? Its section sits at the line it was sent to (its own scroll margin), or the page
+ * ran out below it. A scroll that settled anywhere else was the reader's, not the jump's — a finger that
+ * stopped the smooth scroll halfway leaves the page where the reader wants it, and the chip must not
+ * claim a section the reader is not at.
+ * @param {HTMLElement} chip
+ */
+function jumpArrived(chip) {
+    var target = document.getElementById(chip.dataset.target || '');
+    if (!target) return false;
+    var top = target.getBoundingClientRect().top;
+    var line = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+    var atBottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2;
+    return Math.abs(top - line) <= 2 || (atBottom && top > line);
+}
+
+/** Lift the post-click pause, note where an arrived jump settled, and reconcile the active chip there. */
+function resumeSpy() {
+    spyPaused = false;
+    if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; }
+    if (jumpChip && jumpY < 0) {
+        if (jumpArrived(jumpChip)) jumpY = window.scrollY;
+        else jumpChip = null;
+    }
+    updateSpy();
+}
 
 if (chipTargets.length) {
-    measureThreshold();
+    measureSpy();
     window.addEventListener('scroll', function () {
         if (spyTicking) return;
         spyTicking = true;
         // finally: a throw in updateSpy must never latch spyTicking true (that would kill the spy).
         requestAnimationFrame(function () { try { updateSpy(); } finally { spyTicking = false; } });
     }, { passive: true });
-    window.addEventListener('resize', function () { measureThreshold(); updateSpy(); }, { passive: true });
+    window.addEventListener('resize', function () { measureSpy(); updateSpy(); }, { passive: true });
     // scrollend lifts the click pause exactly when the smooth scroll settles.
     window.addEventListener('scrollend', resumeSpy);
     updateSpy();
@@ -98,12 +156,15 @@ if (chipBar) {
         var target = document.getElementById(chip.dataset.target || '');
         if (!target) return;
         setActiveChip(chip);
+        jumpChip = chip;
+        jumpY = -1;
         if (!reduceMotion) {
             spyPaused = true;
             if (spyTimer) clearTimeout(spyTimer);
             spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
         }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        if (reduceMotion) jumpY = window.scrollY;   // an instant jump has already settled
         // Land focus on the section, so keyboard and screen-reader users arrive where the page did.
         target.setAttribute('tabindex', '-1');
         target.focus({ preventScroll: true });
@@ -161,11 +222,16 @@ function adjustScrollOffsets() {
     var stickyH = hdrH + bar.offsetHeight + 8;
     // EVERY id, not a list of card classes: anything with an id can be linked to, and one a list
     // missed kept the stylesheet's fallback margin (the FIP guide's ferry cards did, Nov 2026).
+    // A heading inside a navy banner (the Staff Guide's "Admin Guide" divider, guide-doc.css's
+    // `.guide-header`) lands with its BANNER clear of the stack, not just its words: measured to the
+    // words alone, the banner's top edge and icon went under the chip bar.
     document.querySelectorAll('main [id]').forEach(function (el) {
-        /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
+        var banner = el.closest('.guide-header');
+        var inset = banner ? el.getBoundingClientRect().top - banner.getBoundingClientRect().top : 0;
+        /** @type {HTMLElement} */ (el).style.scrollMarginTop = (stickyH + Math.max(0, inset)) + 'px';
     });
     keepLandingClear(stickyH);
-    measureThreshold();   // keep the cached scrollspy threshold in step with the real header height
+    measureSpy();   // keep the cached threshold and layout in step with the real header height
     updateSpy();
 }
 if (document.fonts && document.fonts.ready) {

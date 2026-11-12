@@ -63,11 +63,11 @@ paths:
   redirect and the stub — or it breaks old links for the larger half of the staff.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP
   (`script-src 'self'`) blocks them. All guide JS is in external files: `guide-back.js` and
-  `guide-print.js` (loaded by every guide), plus `railcard-guide.js`, `rangers-guide.js` and
-  `fip-guide.js` (opens the target country `<details>` on jump/deep-link). `guide-back.js` also
-  measures the sticky header on a guide with no chip bar (the Staff and Pay Calculator guides), so
-  every id in `<main>` lands below it, and re-lands a deep link still landing — `railcard-guide.js`'s
-  rules. **Only `guide-print.js` prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
+  `guide-print.js` (loaded by every guide), and the chip bar's script — the shared `guide-chips.js` on
+  the Railcard, Rangers, Staff and Pay Calculator guides, and `fip-guide.js`, which also opens the
+  target country `<details>` on jump/deep-link. **Every guide has a chip bar and exactly one of those
+  two drives it**: nothing else measures a guide's sticky stack, and two would bind every chip twice
+  (`page-contract-parity.test.mjs`). **Only `guide-print.js` prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
 - Back buttons link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
   when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and the guide
@@ -108,6 +108,13 @@ not redefine them.
   not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
 - **Chips:** desktop hover feedback (border-darken + soft shadow, colour-fade only — no transform) on
   the shared `.chip`, so a mouse gets an affordance as well as `:active`.
+- **The two document guides' bar** (v25.80): their sections sit in two columns from 641px, where two
+  share a line and no scroll position says which is being read, so there a chip is lit only by a jump
+  to it, until the reader moves on; on a phone's one column the bar follows the reader, as every
+  guide's does. From 800px, in a window at least 600px tall, a bar too long for the column WRAPS
+  (theirs take two rows; the card guides' fit one): a desktop bar hides its scrollbar, so a chip past
+  the edge would never be found. Chip labels are short forms of their headings, "Holiday Pay Premium"
+  spelt out. guide-doc.css draws the bar on `--page-bg`, the page's own ground.
 - **With no script the chip bar is not sticky** (`@media (scripting: none)`): its `top` is the page
   script's measurement, and no single fallback fits every header — the chips do nothing without script
   either.
@@ -215,8 +222,8 @@ this mid-transaction and get the right answer fast?"
 - Two Together photocard — **confirmed** against the official Two Together T&Cs: a physically printed Two Together Railcard bought at a station is issued with a **separate Two Together Photocard** (carrying both holders' photos) that must be carried and presented alongside the card, and both named holders must travel together. Digital cards have no separate photocard.
 
 **What not to flag as defects:**
-- No Firebase and no app state — intentional. The page loads `railcard-guide.js` (chip bar, scrollspy,
-  deep-link landing) and the shared `guide-back.js` and `guide-print.js`. `guide-print.js` is a module,
+- No Firebase and no app state — intentional. The page loads the shared `guide-chips.js` (chip bar,
+  scrollspy, deep-link landing), `guide-back.js` and `guide-print.js`. `guide-print.js` is a module,
   and its one import is the self-contained print guard (`print-guard.js`).
 - Sticky header + sticky chip bar eating vertical space on small phones — an accepted trade-off.
 - A–Z order with numeric cards first — intentional.
