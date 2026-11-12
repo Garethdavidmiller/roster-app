@@ -2,7 +2,7 @@
 // Pure: timers are injected, so nothing here waits eight real seconds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { watchSlowCommit, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_ONLINE, SLOW_SAVE_TEXT_BATCHED_ONLINE, slowSaveText, SLOW_SAVE_EVENT } from './slow-save.js';
+import { watchSlowCommit, trackHiddenTime, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_ONLINE, SLOW_SAVE_TEXT_BATCHED_ONLINE, slowSaveText, SLOW_SAVE_EVENT } from './slow-save.js';
 
 /** A controllable clock: fire() runs every pending timer, as if its time had come. */
 function fakeTimers() {
@@ -128,7 +128,150 @@ test('a finished SLOW save announces how long it took; a quick one announces not
         assert.equal(typeof done.onlineWhenSlow, 'boolean');
         assert.equal(seen[0].id, done.id, 'both announcements carry the SAME save id, so overlapping saves pair up');
         assert.equal(typeof done.id, 'number');
+        assert.equal(done.hiddenMs, null, 'this page cannot say whether it was hidden — not measured, never a 0 that reads as "on screen"');
     } finally {
+        globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
+        delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;
+        globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
+    }
+});
+
+// ── The background stopwatch (v25.87) ─────────────────────────────────────────────────────────────
+// An installed iPhone app reported a save confirmed after 81.8s while online, its sign-in token back in
+// 0.0s, and could not say whether the connection was slow or the phone had frozen the app in the
+// background. The stopwatch is what says which.
+
+/** A page whose visibility the test turns, on a clock the test moves. */
+function fakePage({ hidden = false } = {}) {
+    let state = hidden ? 'hidden' : 'visible';
+    let clock = 0;
+    /** @type {Set<() => void>} */ const listeners = new Set();
+    return {
+        deps: {
+            isHidden: () => state === 'hidden',
+            subscribe: (/** @type {() => void} */ fn) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
+            now: () => clock,
+        },
+        /** @param {number} ms */
+        wait: (ms) => { clock += ms; },
+        /** Turn the page and fire the event as a browser does — or, `quietly`, change only the state:
+         *  a resumed page whose event is still queued. @param {'hidden'|'visible'} to */
+        turn: (to, { quietly = false } = {}) => { state = to; if (!quietly) for (const fn of [...listeners]) fn(); },
+        listeners,
+    };
+}
+
+test('the stopwatch: on screen throughout reads 0, and a stretch in the background reads its length', () => {
+    const still = fakePage();
+    const onScreen = trackHiddenTime(still.deps);
+    still.wait(81_800);
+    assert.equal(onScreen.stop(), 0, 'never hidden — the 0 the report words as "on screen throughout"');
+
+    const page = fakePage();
+    const w = trackHiddenTime(page.deps);
+    page.wait(2_000); page.turn('hidden');
+    page.wait(74_000); page.turn('visible');
+    page.wait(5_800);
+    assert.equal(w.stop(), 74_000, 'the frozen stretch counts by the clock, although no code ran in it');
+});
+
+test('the stopwatch adds up every stretch, including one that began before the save did', () => {
+    const page = fakePage({ hidden: true });
+    const w = trackHiddenTime(page.deps);
+    page.wait(3_000); page.turn('visible');
+    page.wait(1_000); page.turn('hidden');
+    page.wait(4_000); page.turn('visible');
+    page.wait(500);
+    assert.equal(w.stop(), 7_000);
+});
+
+test('the stopwatch closes a stretch still open when it stops — a resumed page can settle before its event arrives', () => {
+    // A frozen page can run its overdue work, and settle the save, before the queued
+    // visibilitychange back to visible is delivered — with the state already reading visible.
+    const page = fakePage();
+    const w = trackHiddenTime(page.deps);
+    page.wait(1_000); page.turn('hidden');
+    page.wait(60_000); page.turn('visible', { quietly: true });
+    assert.equal(w.stop(), 60_000, 'counted to the moment it stopped, not lost for want of the event');
+    page.turn('visible');
+    page.wait(10_000); page.turn('hidden'); page.wait(10_000);
+    assert.equal(w.stop(), 60_000, 'a later read returns the same figure — nothing after the stop counts');
+});
+
+test('a wall clock set BACK mid-save subtracts nothing — a stretch is never negative', () => {
+    const page = fakePage();
+    const w = trackHiddenTime(page.deps);
+    page.wait(1_000); page.turn('hidden');
+    page.wait(-5_000); page.turn('visible');   // the phone's clock corrected itself while away
+    page.turn('hidden'); page.wait(2_000); page.turn('visible');
+    assert.equal(w.stop(), 2_000);
+});
+
+test('the stopwatch stops listening when it stops, so a settled save leaves no listener behind', () => {
+    const page = fakePage();
+    const w = trackHiddenTime(page.deps);
+    assert.equal(page.listeners.size, 1);
+    w.stop();
+    assert.equal(page.listeners.size, 0);
+});
+
+test('a page that cannot say whether it is hidden is NOT MEASURED — never a 0 that claims "on screen"', () => {
+    const page = fakePage();
+    assert.equal(trackHiddenTime({ ...page.deps, isHidden: () => null }).stop(), null, 'no Page Visibility API');
+    assert.equal(trackHiddenTime({ ...page.deps, subscribe: () => null }).stop(), null, 'nothing to listen on');
+    assert.equal(trackHiddenTime({ ...page.deps, subscribe: () => { throw new Error('boom'); } }).stop(), null,
+        'and a failure to listen is not a figure');
+});
+
+test('a slow save reports the part of its wait spent in the background — through the real wrapper (v25.87)', async () => {
+    /** @type {any[]} */ const done = [];
+    const g = /** @type {any} */ (globalThis);
+    const et = new EventTarget();
+    g.addEventListener = et.addEventListener.bind(et);
+    g.removeEventListener = et.removeEventListener.bind(et);
+    g.dispatchEvent = et.dispatchEvent.bind(et);
+    const listener = (/** @type {any} */ e) => { if (e.detail.phase === 'done') done.push(e.detail); };
+    globalThis.addEventListener(SLOW_SAVE_EVENT, listener);
+    // A page with a visibility the test turns, firing visibilitychange as a browser does.
+    /** @type {Set<() => void>} */ const onVisibility = new Set();
+    const doc = {
+        visibilityState: 'visible',
+        getElementById: () => null, createElement: () => ({ setAttribute() {} }), body: { appendChild() {} },
+        addEventListener: (/** @type {string} */ type, /** @type {() => void} */ fn) => { if (type === 'visibilitychange') onVisibility.add(fn); },
+        removeEventListener: (/** @type {string} */ type, /** @type {() => void} */ fn) => { if (type === 'visibilitychange') onVisibility.delete(fn); },
+    };
+    const turn = (/** @type {'hidden'|'visible'} */ to) => { doc.visibilityState = to; for (const fn of [...onVisibility]) fn(); };
+    const realNow = Date.now;
+    let clock = 1_000_000;
+    const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
+    globalThis.document = /** @type {any} */ (doc);
+    globalThis.__E2E = { slowSaveMs: 5 };
+    Date.now = () => clock;   // the save's own clock; the slow moment still comes from a real (seamed) timer
+    const frozen = deferred(), onScreen = deferred();
+    try {
+        const p = withSlowSaveNotice(frozen.p);
+        clock += 2_000; turn('hidden');        // the phone put the app away mid-save…
+        clock += 74_000; turn('visible');      // …and brought it back
+        await new Promise(r => setTimeout(r, 30));
+        clock += 5_800;
+        frozen.resolve(); await p; await tick();
+        assert.equal(done.length, 1);
+        assert.equal(done[0].ms, 81_800);
+        assert.equal(done[0].hiddenMs, 74_000, 'most of the wait was the phone\'s, not the connection\'s');
+        assert.equal(onVisibility.size, 0, 'the settled save stopped listening');
+
+        const p2 = withSlowSaveNotice(onScreen.p);
+        await new Promise(r => setTimeout(r, 30));
+        clock += 9_400;
+        onScreen.resolve(); await p2; await tick();
+        assert.equal(done.length, 2);
+        assert.equal(done[1].hiddenMs, 0, 'on screen throughout: the wait was the connection\'s');
+
+        await withSlowSaveNotice(Promise.resolve('quick')); await tick();
+        assert.equal(onVisibility.size, 0, 'a QUICK save stops listening too — the stopwatch is not left running');
+    } finally {
+        frozen.resolve(); onScreen.resolve(); await tick();   // a failed assertion must not leave a write in flight
+        Date.now = realNow;
         globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
         delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;
         globalThis.document = prevDoc; globalThis.__E2E = prevE2E;

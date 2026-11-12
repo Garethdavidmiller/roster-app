@@ -84,7 +84,8 @@ export function slowSaveText(batched) {
 
 /**
  * The event a SLOW save announces twice, both carrying the save's `id`: `{ phase: 'slow' }` the moment it passes SLOW_SAVE_MS
- * (v24.55), and `{ phase: 'done', ms, onlineWhenSlow, batched, ok }` when it settles (v24.54). A
+ * (v24.55), and `{ phase: 'done', ms, hiddenMs, onlineWhenSlow, batched, ok }` when it settles (v24.54;
+ * `hiddenMs`, the part of `ms` the page spent in the background, v25.87 — see trackHiddenTime). A
  * diagnostic, not a feature — error-reporter.js listens and records the case that cannot be explained
  * by signal (the browser said online), because an iPhone whose every save took longer than
  * SLOW_SAVE_MS left nothing behind to say WHICH part was slow. An event rather than an import, because
@@ -116,6 +117,75 @@ export function watchSlowCommit(promise, opts = {}) {
     // Observe without consuming: the rejection still reaches the caller through `promise` itself.
     promise.then(finish, finish);
     return promise;
+}
+
+/**
+ * Is the page hidden right now — in the background, or behind a locked screen? `null` when the
+ * browser cannot say, so an unknown is never read as "on screen".
+ * @returns {boolean|null}
+ */
+const _pageHidden = () => {
+    const state = /** @type {any} */ (globalThis).document?.visibilityState;
+    return typeof state === 'string' ? state === 'hidden' : null;
+};
+
+/**
+ * Listen for the page going into or out of the background. Returns the way to stop listening, or
+ * `null` when there is nothing to listen on.
+ * @param {() => void} onChange
+ * @returns {(() => void)|null}
+ */
+const _onVisibilityChange = onChange => {
+    const doc = /** @type {any} */ (globalThis).document;
+    if (typeof doc?.addEventListener !== 'function') return null;
+    doc.addEventListener('visibilitychange', onChange);
+    return () => doc.removeEventListener('visibilitychange', onChange);
+};
+
+/**
+ * A stopwatch for the time the page spends HIDDEN — in the background, or behind a locked screen —
+ * from now until `stop()` (v25.87).
+ *
+ * WHY: an installed iPhone app reported a save that took 81.8s to be confirmed while online, with its
+ * sign-in token back in 0.0s. Two different causes fit that, and the report could not tell them
+ * apart: a slow connection to the server, or a phone that put the app in the background mid-save.
+ * iOS FREEZES an installed app it has backgrounded and the wall clock runs on through the freeze, so
+ * a save the server would have confirmed in a second reads as a minute and more. The hidden time
+ * beside the total says which: most of the wait hidden is the phone's, none of it the connection's.
+ *
+ * It counts by the clock from the hidden moment to the visible one, so the frozen stretch counts
+ * although no code ran during it. A frozen page can resume, run its overdue timers and even settle
+ * the save BEFORE the queued `visibilitychange` back to visible arrives, with the state already
+ * reading visible (splash-watchdog.test.mjs pins the same order) — so `stop()` closes a stretch that
+ * is still open at its own moment rather than waiting for that event.
+ *
+ * `stop()` returns the hidden milliseconds, or `null` when they cannot be measured (no Page
+ * Visibility API, or nothing to listen on) — never a 0, which would claim "on screen throughout".
+ * Pure: the three dependencies are injected for the tests.
+ * @param {{ isHidden?: () => boolean|null, subscribe?: (onChange: () => void) => ((() => void)|null),
+ *           now?: () => number }} [deps]
+ * @returns {{ stop: () => number|null }}
+ */
+export function trackHiddenTime({ isHidden = _pageHidden, subscribe = _onVisibilityChange, now = Date.now } = {}) {
+    const unmeasured = { stop: () => null };
+    try {
+        const hiddenAtStart = isHidden();
+        if (hiddenAtStart === null) return unmeasured;
+        let total = 0;
+        /** @type {number|null} */ let since = hiddenAtStart ? now() : null;
+        // Math.max: a wall clock set backwards mid-save must not subtract time that was hidden.
+        const close = () => { if (since !== null) { total += Math.max(0, now() - since); since = null; } };
+        const unsubscribe = subscribe(() => {
+            if (isHidden()) { if (since === null) since = now(); }
+            else close();
+        });
+        if (typeof unsubscribe !== 'function') return unmeasured;
+        // Once it has stopped listening nothing can open a stretch again, so a later call returns the
+        // same figure.
+        return { stop() { try { unsubscribe(); } catch { /* the figure stands without it */ } close(); return total; } };
+    } catch {
+        return unmeasured;   // a diagnostic must never disturb the save it describes
+    }
 }
 
 let _waiting = 0;
@@ -217,7 +287,10 @@ function _hide(batched) {
 export function withSlowSaveNotice(promise, { batched = false } = {}) {
     _inFlight++;
     _render();   // the live region goes into the page now, empty, so its words can be announced later
-    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); _render(); };
+    // From the START, the span `ms` below covers: a phone usually freezes the app before the slow
+    // moment, and it is the overdue timer, on the way back, that raises the notice (v25.87).
+    const hidden = trackHiddenTime();
+    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); _render(); hidden.stop(); };
     promise.then(settle, settle);   // observe only — the caller still sees the result or error
     // `window.__E2E?.slowSaveMs` is a TEST SEAM, the same shape as text-scale.js's: the e2e holds a
     // commit open and would otherwise sit through eight real seconds to see the notice. Nothing in
@@ -242,7 +315,7 @@ export function withSlowSaveNotice(promise, { batched = false } = {}) {
             _hide(batched);
             try {
                 globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, {
-                    detail: { phase: 'done', id, ms: Date.now() - started, onlineWhenSlow, batched, ok },
+                    detail: { phase: 'done', id, ms: Date.now() - started, hiddenMs: hidden.stop(), onlineWhenSlow, batched, ok },
                 }));
             } catch { /* a diagnostic must never disturb the save it describes */ }
         },

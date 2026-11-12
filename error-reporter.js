@@ -153,12 +153,25 @@ function _tokenText(id) {
 }
 
 /**
+ * The background half of the diagnostic line, for one save (v25.87): how much of the wait the page
+ * spent hidden, which for an installed iPhone app means FROZEN (`trackHiddenTime`, slow-save.js).
+ * Most of the wait in the background is the phone's doing, not the connection's; none of it means
+ * the time was spent waiting on the connection. A figure that could not be measured says so rather
+ * than reading as "on screen".
+ * @param {unknown} ms
+ */
+function _hiddenText(ms) {
+    if (typeof ms !== 'number' || !Number.isFinite(ms)) return 'background time not measured';
+    return ms === 0 ? 'on screen throughout' : `in the background for ${(ms / 1000).toFixed(1)}s`;
+}
+
+/**
  * Record a save the SERVER took longer than SLOW_SAVE_MS to confirm while the browser said it was
  * ONLINE (v24.54). Not an error: a DIAGNOSTIC, written to the one log the admin can already read.
  * It exists because an installed iPhone app took longer than that on every week-grid save with full
  * signal, and nothing recorded which part was slow or on what. An offline-when-slow save is the
  * expected case and is not recorded. Same fields as any error, so the rules need nothing new.
- * @param {{ id?: number, ms?: number, onlineWhenSlow?: boolean, batched?: boolean, ok?: boolean }} d
+ * @param {{ id?: number, ms?: number, hiddenMs?: number|null, onlineWhenSlow?: boolean, batched?: boolean, ok?: boolean }} d
  */
 function _reportSlowSave(d) {
     try {
@@ -168,6 +181,6 @@ function _reportSlowSave(d) {
         _slowSavesLogged++;
         const installed = !!(window.matchMedia?.('(display-mode: standalone)')?.matches || /** @type {any} */ (navigator).standalone);
         // "fail", not "refuse" (v24.57): a save can also end on the device — abandoned by a sign-out.
-        _report(`${DIAGNOSTIC_PREFIX}: the save took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'fail' : 'be confirmed'} — a ${d.batched ? 'batched ' : ''}save while the phone said it was online · ${token} · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
+        _report(`${DIAGNOSTIC_PREFIX}: the save took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'fail' : 'be confirmed'} — a ${d.batched ? 'batched ' : ''}save while the phone said it was online · ${_hiddenText(d.hiddenMs)} · ${token} · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
     } catch { /* never surface a secondary error from the reporter */ }
 }
