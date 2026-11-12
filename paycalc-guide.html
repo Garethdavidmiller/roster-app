@@ -74,12 +74,14 @@
             <h2 id="pg-what-it-does">What It Does</h2>
             <p class="lede">Estimates your <strong>net take-home pay</strong> for any 4-week period. You enter the hours that earn extra; it takes off your pension, tax and National Insurance and shows the full breakdown.</p>
             <p>It's an <em>estimate</em> — your payslip is the official figure that's actually paid.</p>
+            <p>It is for <strong>CEAs and CESs</strong> &mdash; Customer Experience Ambassadors and Supervisors. It doesn't cover <strong>Dispatcher</strong> pay yet: that will be added once Dispatcher rates are confirmed. Dispatchers and managers see a short note instead of a figure.</p>
             <div class="info"><strong>Private:</strong> everything is saved in the browser on your phone or computer, and nowhere else. Nothing is sent to any server or seen by anyone else.</div>
 
             <h2 id="pg-first-time-setup">First-Time Setup</h2>
-            <p>Open it from the <strong>💷 Pay</strong> button on the roster. The <strong>⚙️ Your Settings</strong> card opens first — it is a <em>check once per tax year</em> job, not a form you fill in from scratch.</p>
+            <p>Open it from the <strong>💷 Pay</strong> button on the roster. If it asks, <strong>sign in as yourself</strong> &mdash; it keeps your figures under your own name, so the staff PIN doesn't open it. On a shared screen, use your own phone instead.</p>
+            <p>The <strong>⚙️ Your Settings</strong> card opens first — it is a <em>check once per tax year</em> job, not a form you fill in from scratch.</p>
             <ol class="steps">
-                <li>Pick your <strong>grade</strong> — CEA (Customer Experience Ambassador) or CES (Customer Experience Supervisor)</li>
+                <li>Pick your <strong>grade</strong> — CEA (Customer Experience Ambassador) or CES (Customer Experience Supervisor). If the roster lists you as a different grade, a line at the top of the page asks which rates to use</li>
                 <li><strong>Your hourly rate</strong> fills in from the grade and is <strong>locked</strong> — there is nothing to type, and it moves itself with each pay award</li>
                 <li>Check your <strong>tax code</strong> — most people are <code>1257L</code>; it's on your payslip or P60</li>
                 <li>Check the <strong>pension contribution</strong> — already filled with the current figure. Your payslip calls it <strong>&ldquo;Smart RPS CR Scheme&rdquo;</strong></li>
@@ -141,35 +143,35 @@
             <p>The <strong>bold</strong> name is the row in the calculator; the code is exactly how it appears on your payslip, so you can match it up and check it's paid.</p>
             <div class="pay-grid">
                 <div class="pay-item"><span class="pay-emoji">🗓️</span><div>
-                    <span class="pay-name">Rostered Saturday <span class="pay-rate">1.25×</span></span>
+                    <span class="pay-name">Rostered Saturday <span class="pay-rate pay-rate--sat">1.25×</span></span>
                     <span class="pay-desc">A Saturday that was in your regular roster. Weren't scheduled that Saturday? Use Rest Day Working.</span>
                     <span class="pay-slip"><code>Ord Basic Pay @1.25</code></span></div></div>
                 <div class="pay-item"><span class="pay-emoji">☀️</span><div>
-                    <span class="pay-name">Sunday Working <span class="pay-rate">1.5×</span></span>
+                    <span class="pay-name">Sunday Working <span class="pay-rate pay-rate--sun">1.5×</span></span>
                     <span class="pay-desc">Any hours worked on a Sunday, rostered or not — Sunday always pays 1.5×.</span>
                     <span class="pay-slip"><code>RDW Sun 1.5</code></span></div></div>
                 <div class="pay-item"><span class="pay-emoji">🏛️</span><div>
-                    <span class="pay-name">Bank Holiday Rostered <span class="pay-rate">1.25×</span></span>
+                    <span class="pay-name">Bank Holiday Rostered <span class="pay-rate pay-rate--bh">1.25×</span></span>
                     <span class="pay-desc">You were rostered to work and it fell on a bank holiday.</span>
                     <span class="pay-slip"><code>Bank Holiday Rostered 1.25</code></span></div></div>
                 <div class="pay-item"><span class="pay-emoji">🏛️</span><div>
-                    <span class="pay-name">Bank Holiday Overtime <span class="pay-rate">1.25×</span></span>
+                    <span class="pay-name">Bank Holiday Overtime <span class="pay-rate pay-rate--bh">1.25×</span></span>
                     <span class="pay-desc">Hours beyond your rostered shift on a bank holiday, or your rest day fell on one and you worked it.</span>
                     <span class="pay-slip"><code>Bank Holiday Overtime 1.25</code></span></div></div>
                 <div class="pay-item"><span class="pay-emoji">⏰</span><div>
-                    <span class="pay-name">Overtime <span class="pay-rate">1.25×</span></span>
+                    <span class="pay-name">Overtime <span class="pay-rate pay-rate--ot">1.25×</span></span>
                     <span class="pay-desc">Extra hours on top of a rostered shift.</span>
                     <span class="pay-slip"><code>Overtime 1.25</code></span></div></div>
                 <div class="pay-item"><span class="pay-emoji">💼</span><div>
-                    <span class="pay-name">Rest Day Working <span class="pay-rate">1.25×</span></span>
+                    <span class="pay-name">Rest Day Working <span class="pay-rate pay-rate--rdw">1.25×</span></span>
                     <span class="pay-desc">Came in on a rest day, or worked a Saturday that wasn't in your roster.</span>
                     <span class="pay-slip"><code>RDW 1.25</code></span></div></div>
                 <div class="pay-item"><span class="pay-emoji">🎁</span><div>
-                    <span class="pay-name">Boxing Day Working <span class="pay-rate">3×</span></span>
+                    <span class="pay-name">Boxing Day Working <span class="pay-rate pay-rate--box">3×</span></span>
                     <span class="pay-desc">26 Dec worked — always 3×, even on a weekend. The row appears only in the period that contains it.</span>
                     <span class="pay-slip"><code>Bank Holiday Overtime 3.0</code></span></div></div>
                 <div class="pay-item"><span class="pay-emoji">🎓</span><div>
-                    <span class="pay-name">Peer Training <span class="pay-rate">+2 hrs</span></span>
+                    <span class="pay-name">Peer Training <span class="pay-rate pay-rate--peer">+2 hrs</span></span>
                     <span class="pay-desc">Each day you trained a colleague adds 2 hours at your <em>basic</em> rate — count days, not hours. A day you attended training yourself pays as the day it replaces, so it needs nothing here.</span>
                     <span class="pay-slip">extra basic pay — no separate line</span></div></div>
             </div>
@@ -195,7 +197,8 @@
             <p>Chiltern payslips print hours as decimals. The <strong>🔢 Decimal Hours Converter</strong> card turns one into hours and minutes — type it as the payslip prints it, for example <strong>7.5</strong> — for when you're checking a payslip line against what you actually worked. It changes nothing in the calculator — it's just there so you don't need a second app.</p>
 
             <h2 id="pg-data-privacy">Data &amp; Privacy</h2>
-            <p>Everything you enter here — settings, payslip hours, Year to Date figures, Holiday Pay Premium and back pay — lives on your phone only and is <strong>never uploaded</strong>. That is deliberate: your pay is nobody else's business. The trade-off is that it doesn't follow your account, so it won't appear by itself on a new phone or at a different web address.</p>
+            <p>Everything you enter here — settings, payslip hours, Year to Date figures, Holiday Pay Premium and back pay — stays in the browser you type it into and is <strong>never uploaded</strong>. That is deliberate: your pay is nobody else's business. The trade-off is that it doesn't follow your account, so it won't appear by itself on a new phone or at a different web address.</p>
+            <div class="info tip"><strong>On an iPhone?</strong> Safari and the app on your Home Screen keep <strong>separate copies</strong>, and Safari deletes its copy after about a week without a visit. Use the Pay Calculator from the Home Screen app, and keep a backup (below).</div>
             <p><strong>💾 Move Your Pay Data</strong>, the last card on the calculator, is how you carry it across: save a copy — <strong>Download backup</strong> or <strong>Copy as text</strong> — then restore it on the other device. Do it <em>before</em> you change phone or clear your browser data. Settings has a link to the same card.</p>
             <div class="info"><strong>The backup is readable text.</strong> It holds your hours, tax code, pension and Year to Date figures — and, for any payslip you've checked against the real one, your actual gross pay, tax, National Insurance and take-home. Keep it somewhere private and delete old copies.</div>
             <div class="info"><strong>Restoring replaces, it doesn't merge.</strong> Whatever is on the device you restore onto is replaced by the copy — so restore onto the new device, not back over figures you've since entered. The app asks you to confirm first, and a backup that belongs to someone else is refused.</div>

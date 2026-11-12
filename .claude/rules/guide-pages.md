@@ -45,6 +45,23 @@ paths:
   `data-gs-example`, and `scripts/guide-index-lib.mjs` drops it before extracting; pinned by contract 6
   in `guide-index-parity.test.mjs`. The staleness contract cannot see this, because the index is
   perfectly TRUE of the page.
+- **Keep it plain English, for the reader who knows nothing yet — and short** (owner, 12 Nov 2026,
+  on the v25.82 update: "Keep the clarity and for dummies nature of the guides. Plain English"). One
+  idea per sentence; a new fact goes in by tightening the words around it, not by adding a paragraph.
+  On the Staff & Admin Guide that is also a print rule: it prints one sheet per guide with a few
+  pixels to spare (`staff-guide.css`, the print block).
+- **A guide that lists something the app keeps in one place is held to it** (v25.82). The Staff &
+  Admin Guide fell behind three times unnoticed — the staff PIN began opening Trains, Trains joined
+  every member's menu, the "Rest Day" button kept the guide label "Rest" — so
+  `guide-app-parity.test.mjs` now reads the app's own lists (the PIN's pages in `auth-policy.js`, the
+  menu in `nav-panel.js`, the Admin type buttons in `admin-shift-types.js`) and fails on the guide
+  line that disagrees, in both directions. The Calendar sign-in card's PIN hint is held to the same
+  list. A new list a guide restates gets a check there, not a reminder.
+- **Draw an app control as the app draws it.** A reader matches the page to the screen by sight, so
+  a depicted control wears the real one's colours AND shape: the Staff Guide's five Calendar buttons
+  are rounded rectangles at the real corner's proportion (v25.82 — they were pills, a shift badge's
+  shape), and the Pay Calculator Guide's rates are the Pay page's own rate badges, each in its row's
+  colours. `e2e/guides.spec.js` reads both off the real pages and compares them.
 - Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't
   use). All five share `guide-shell.css`; the two **document-style** guides (`staff-guide.html`,
   `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px

@@ -1186,7 +1186,11 @@ test('railcard: on a desktop the quick-check type steps up to fill its cards, an
 // buttons a reader could not match to the screen by sight. Compared with the REAL buttons, read off
 // the Calendar, within a whisker: the guides keep their own print-friendly palette, which mirrors the
 // app's by eye (guide-colour-parity.test.mjs), so a near-match is the contract, not an exact one.
-test('staff guide: each button it describes wears the real button\'s colours', async ({ page }) => {
+// AND ITS SHAPE (v25.82): the labels were 10.5px pills — a shift badge's shape — beside bold rounded
+// rectangles, so the guide showed a reader a badge where the screen has a button. The corner is
+// compared as a share of the height (a radius over half the height draws a pill whatever it says),
+// because the drawn button is deliberately smaller than the real one.
+test('staff guide: each button it describes wears the real button\'s colours and corners', async ({ page }) => {
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -1197,21 +1201,71 @@ test('staff guide: each button it describes wears the real button\'s colours', a
         ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1);
         return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
     }, css);
-    /** @type {Record<string, { fill: number[], ink: number[] }>} */
+    // The corner as a share of the height, capped where CSS caps it: past half the height it is a pill.
+    /** @type {Record<string, { fill: number[], ink: number[], corner: number }>} */
     const real = {};
     for (const [k, sel] of Object.entries(ids)) {
         // Once its transitions finish: iPhone WebKit read the Today button mid-fade (243,200,34).
         const cs = await page.locator(sel).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {})))
-            .then(() => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color })));
-        real[k] = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
+            .then(() => {
+                const h = el.getBoundingClientRect().height;
+                return { fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color,
+                    corner: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius), h / 2) / h };
+            }));
+        real[k] = { fill: await rgb(cs.fill), ink: await rgb(cs.ink), corner: cs.corner };
     }
     await page.goto('/staff-guide.html');
     for (const k of Object.keys(ids)) {
-        const cs = await page.locator(`.feature-label--${k}`).evaluate(el => ({ fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color }));
+        const cs = await page.locator(`.feature-label--${k}`).evaluate(el => {
+            const h = el.getBoundingClientRect().height;
+            return { fill: getComputedStyle(el).backgroundColor, ink: getComputedStyle(el).color,
+                corner: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius), h / 2) / h };
+        });
         const label = { fill: await rgb(cs.fill), ink: await rgb(cs.ink) };
         for (const part of /** @type {const} */ (['fill', 'ink'])) {
             const off = Math.max(...label[part].map((v, i) => Math.abs(v - real[k][part][i])));
             expect(off, `${k}: the guide's ${part} ${label[part]} — the real button's ${real[k][part]}`).toBeLessThanOrEqual(24);
+        }
+        expect(Math.abs(cs.corner - real[k].corner),
+            `${k}: the guide's corner is ${cs.corner.toFixed(2)} of its height, the real button's ${real[k].corner.toFixed(2)} — 0.50 is a pill`).toBeLessThanOrEqual(0.1);
+    }
+});
+
+// THE PAY GUIDE'S RATES WEAR THE PAY PAGE'S BADGES (v25.82). Every rate in the guide was the same red
+// word, while the Pay page draws each as a pill in its row's colours (paycalc.css `.rate-badge` and the
+// `.badge-*` beside it), so a reader could not match a row here to the row on the page by sight. Read
+// off the Pay page's own badges — built from its classes on the page itself, as the Night key test
+// below does — and compared within the same whisker as the buttons above: the guides restate the
+// colours, because they load none of the app's tokens.
+test('pay guide: each rate wears the colours of its row\'s badge on the Pay page', async ({ page }) => {
+    const KINDS = ['sat', 'sun', 'bh', 'ot', 'rdw', 'box', 'peer'];
+    /** @param {string} css */
+    const rgb = (css) => page.evaluate((c) => {
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1);
+        return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    }, css);
+    await page.goto('/paycalc.html');
+    const app = await page.evaluate((kinds) => kinds.map(k => {
+        const el = document.createElement('span');
+        el.className = `rate-badge badge-${k}`;
+        el.textContent = '1.25×';
+        document.body.append(el);
+        const c = getComputedStyle(el);
+        return { fill: c.backgroundColor, ink: c.color, edge: c.borderTopColor };
+    }), KINDS);
+    await page.goto('/paycalc-guide.html');
+    // Every rate names its badge: one without a modifier would fall back to the plain pill unseen.
+    expect(await page.locator('.pay-rate:not([class*="pay-rate--"])').count(), 'a rate with no badge colour').toBe(0);
+    for (const [i, k] of KINDS.entries()) {
+        const guide = await page.locator(`.pay-rate--${k}`).first().evaluate(el => {
+            const c = getComputedStyle(el);
+            return { fill: c.backgroundColor, ink: c.color, edge: c.borderTopColor };
+        });
+        for (const part of /** @type {const} */ (['fill', 'ink', 'edge'])) {
+            const [g, a] = [await rgb(guide[part]), await rgb(app[i][part])];
+            const off = Math.max(...g.map((v, j) => Math.abs(v - a[j])));
+            expect(off, `${k}: the guide's ${part} ${g} — the Pay page's ${a}`).toBeLessThanOrEqual(24);
         }
     }
 });
