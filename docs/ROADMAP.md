@@ -59,7 +59,7 @@ this gate before it was coded, which is stronger than adding another test after 
 
 ## ⚖️ THE GOVERNANCE GATE — is this app officially sanctioned by Chiltern?
 
-**Status:** Open · **Owner:** Gareth + Chiltern management · **Review:** no date set — and it should have one
+**Status:** Blocked on a Chiltern decision · **Owner:** Gareth + Chiltern management · **Review:** no date set — and it should have one
 
 This was one line under "Open decisions". It is in fact the largest single question in the roadmap,
 because it decides whether several features below should exist **at all** — not how they should be

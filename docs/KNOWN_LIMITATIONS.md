@@ -1607,20 +1607,15 @@ documented tolerance. Each is real; none is urgent.
   zero misses 2026–2030) — first bites ~2034. **Fix when extending `MAX_YEAR`** (`MAINTENANCE_CALENDAR.md`
   carries the date): key each entry under `formatISO(date).slice(0,4)`, or have `_get*Set(year)` also
   pull `year+1`'s first entry when its cutoff lands in `year`.
-- **The sync-chip retry has no timeout on its read (LOW UX).** `doRetry` (`calendar-initial-fetch.js`)
-  bounds its wait for auth, but not the override read that follows, so on a connection that neither
-  resolves from cache nor rejects promptly the chip can strand on "↻ Retrying…" with no re-tap
-  affordance (the initial path always surfaces a tappable error after 10 s). No data impact; the
-  sync-chip state machine is a documented do-not-break invariant, so left as-is. (Raised again by the
-  10 Nov 2026 external review, which fixed the two calendar-state defects beside it —
-  `CALENDAR_DATA.md` 18 and 20 — and left this for the owner's word.) The same chip has a second,
-  smaller gap from that review's subject: a chip retry that FAILS does not relabel a month a later
-  per-month read had confirmed in between. The chip is itself the failure message on screen, and the
-  month's next read (any render) applies the saved-copy rule, so it too is left.
 - **`nameToEmail` collision surface (LOW, theoretical).** Distinct display-name spellings that differ
   only in separators/case collapse to one account email (`"A. Mc Donald"` = `"A. McDonald"`). Not
-  exploitable on the current roster; a hygiene hazard for a future compound-surname starter typed two
-  ways. Worth a note in the new-starter flow.
+  exploitable on the current roster (checked 12 Nov 2026); a hygiene hazard for a future
+  compound-surname starter typed two ways. Set up accounts refuses to hand one member's account to
+  another, so a clash leaves the newcomer with no login rather than inside somebody else's. Two
+  things now stand in front of that: the new-starter checklist (`/new-starter`, step 1), and — as a
+  side effect — `paycalc-migrations.test.mjs`'s "no two roster names share a slug", whose slug drops
+  the same characters, so a clash fails `npm test` (proved by mutation, 12 Nov 2026). The one it
+  misses is two names that differ only by a digit: the slug keeps digits, the login drops them.
 
 ---
 

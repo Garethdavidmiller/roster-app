@@ -2617,11 +2617,16 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   zero misses 2026–2030) — first bites ~2034. **Fix when extending `MAX_YEAR`** (see Time-boxed
   maintenance above): key each entry under `formatISO(date).slice(0,4)`, or have `_get*Set(year)` also
   pull `year+1`'s first entry when its cutoff lands in `year`.
-- **Sync-chip retry has no timeout (LOW UX).** `calendar-initial-fetch.js doRetry()` awaits the fetch
-  with no `loadingTimer`/`timeoutTimer`, so on a connection that neither resolves-from-cache nor rejects
-  promptly the chip can strand on "↻ Retrying…" with no re-tap affordance (the initial path always
-  surfaces a tappable error after 10 s). No data impact; the sync-chip state machine is a documented
-  do-not-break invariant, so left as-is.
+- **~~Sync-chip retry has no timeout (LOW UX)~~ — FIXED on 10 Nov 2026, in two parts.**
+  `calendar-initial-fetch.js doRetry()` awaited the fetch with no time limit, so on a connection that
+  neither resolved from cache nor rejected promptly the chip could strand on "↻ Retrying…" with no
+  way to tap again. Left as-is here, raised again by the 10 Nov 2026 external review, and closed the
+  same day: v25.69 gives "Retrying…" the first load's 10 s (`RETRY_TIMEOUT_MS`, the owner's decision)
+  and then hands the control back as a failed read does; and cal-data-5 (v25.68) withdraws "Couldn't
+  update" once the month on screen has been confirmed, which closed that review's second, smaller
+  gap — a failed retry's message left above a month a later read had confirmed. The rule now lives
+  in that module's header and `.claude/rules/calendar.md` → Sync chip state machine. Moved out of
+  `KNOWN_LIMITATIONS.md` on 12 Nov 2026, two days late.
 - **~~"Active accounts (30 days)" boundary undercount~~ — SUPERSEDED at v25.00.** The suppression
   rule it described (`shouldCountRolling`) was replaced by `rollingMove` (`usage-stats.js`), which
   keeps each member-device's one count on its latest active day; the card now reads "last 30 days".
