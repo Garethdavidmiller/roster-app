@@ -45,6 +45,7 @@
     --scroll-thumb: #cfd4dc; /* the thin scrollbar thumb (v23.50) — the guides load no app tokens */
     --placeholder:  #6b7280; /* placeholder text (v23.51) — 4.83:1 on white (measured, above the 4.5:1 floor); the job --text-light does in the app */
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
+    --rule:      #d6dce5;   /* the section headings' hairline (v25.84) — it shows on both guide grounds */
 }
 
 /* Force-dark opt-out — the guides don't import shared.css, so this is their belt-and-braces
@@ -69,6 +70,40 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
 /* A form control takes the browser's own font, not the page's: the FIP country finder's clear ✕ was Arial.
    The same rule as shared.css's, restated for the reason `--scroll-thumb` is (whole-app review, Nov 2026). */
 button, input, select, textarea { font-family: inherit; }
+
+/* ── ONE section heading, on all five guides (v25.84) ────────────────────────────────────────────
+   Three had grown up: the document guides' gold dash with a hairline after it (the hairline was the
+   page's own colour, so it never showed); the Railcard and FIP guides' hairline with a short gold bar
+   under it; and the Rangers guide's grey words with no gold at all, on the page meant to be a dialect
+   of the Railcard one. Every <h2> in a guide is a section heading — scripts/guide-index-lib.mjs refuses
+   one without an id, because the chips and the search land on them — so the element is the selector,
+   and a page sets only its margins (guide-doc.css takes the lot back off its banner title).
+   Navy words; before them the gold dash, the guides' accent, like the chosen chip and the rule under the
+   header; after them a hairline to the edge, kept to at least 24px so a heading long enough to wrap
+   still has one. The dash and the hairline are BORDERS, not fills, so paper keeps them without
+   "Background graphics", which the browser leaves off. */
+h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+}
+h2::before { content: ""; flex: 0 0 14px; border-top: 3px solid var(--gold); border-radius: 2px; }
+h2::after  { content: ""; flex: 1 0 24px; border-top: 1px solid var(--rule); }
+
+/* ── ONE link, on all five guides (v25.84) ───────────────────────────────────────────────────────
+   A link in the text reads as the app's do (css-tokens.md → "A link in prose"): navy at 600, its
+   underline a soft tint of the link's own colour, gold under a mouse. The document guides and FIP each
+   kept a copy of this; the Railcard guide turned its links amber under a mouse; the Rangers guide had
+   none. A link with a colour of its own (the Railcard's amber callouts) keeps a tint of THAT colour. */
+a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+    a:hover { text-decoration-color: var(--gold); }
+}
 
 /* ── Full-bleed sticky page header ──────────────────────────────────────────
    Back arrow (left) · title + subtitle · ⤓ PDF button (right). */

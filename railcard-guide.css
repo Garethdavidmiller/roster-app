@@ -61,34 +61,14 @@ body {
 .weekend-note strong { color: var(--green); }
 
 /* ── Section heading ─────────────────────── */
-/* Two-tone rule (v18.79): full-width hairline + a short gold bar over its left end — the same
-   eyebrow treatment refined, replacing the heavier full-width gold underline. */
-.section {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--navy);
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 5px;
-    margin: 22px 0 10px;
-    position: relative;
-}
-.section::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    bottom: -1px;
-    width: 38px;
-    height: 2px;
-    background: var(--gold);
-}
+/* Its look is guide-shell.css's — one heading on all five guides (v25.84). Only the spacing is this page's. */
+.section { margin: 22px 0 10px; }
 .section:first-child { margin-top: 0; }
 
 /* ── Railcard card ───────────────────────── */
 .rc {
     background: var(--white);
-    border-radius: 10px;
+    border-radius: 12px;
     /* Layered shadow (v18.79) — a tight contact line + soft ambient, matching the app's card depth */
     box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     border-left: 4px solid var(--green);
@@ -225,7 +205,7 @@ body {
 /* ── Gotchas list ────────────────────────── */
 .gotchas {
     background: var(--white);
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     overflow: hidden;
 }
@@ -257,7 +237,7 @@ body {
 /* ── Checklist ───────────────────────────── */
 .check {
     background: var(--white);
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     overflow: hidden;
 }
@@ -278,7 +258,7 @@ body {
     border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 800;
     margin-top: 1px;
 }
 .check-item strong { font-weight: 700; }
@@ -316,7 +296,7 @@ body {
 /* ── Digital railcards info ──────────────── */
 .digital {
     background: var(--white);
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     padding: 12px 14px;
 }
@@ -336,10 +316,7 @@ body {
 }
 .foot strong { color: var(--mid); }
 
-a { color: var(--navy); text-underline-offset: 2px; }
-@media (hover: hover) and (pointer: fine) {
-    a:hover { color: var(--amber); }
-}
+/* Links: guide-shell.css (v25.84). This page's turned amber under a mouse; amber here means a morning rule. */
 
 /* The footer's `.guide-back-link` is the shared recipe in guide-shell.css (polish round 2). */
 
@@ -438,7 +415,7 @@ a { color: var(--navy); text-underline-offset: 2px; }
     background: var(--white);
     border: 1px solid var(--border);
     border-left: 4px solid var(--light);
-    border-radius: 10px;
+    border-radius: 12px;
     padding: calc(10px * var(--qc-scale, 1)) calc(12px * var(--qc-scale, 1));
     margin-bottom: calc(8px * var(--qc-scale, 1));
 }
@@ -532,7 +509,7 @@ a { color: var(--navy); text-underline-offset: 2px; }
 .photo-note {
     background: var(--white);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 11px 12px;
     margin: 12px 0;
     font-size: 13px;
@@ -547,7 +524,7 @@ a { color: var(--navy); text-underline-offset: 2px; }
 .split-half {
     background: var(--white);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 10px 12px;
 }
 .split-head { font-weight: 800; font-size: 13px; color: var(--navy); margin-bottom: 4px; }
