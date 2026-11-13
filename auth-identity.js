@@ -11,14 +11,27 @@
  * from either.
  *
  * A DELIBERATE duplicate of `normaliseSurname`'s core derivation lives in
- * `functions/roster-parse-helpers.js` (`nameToPassword`) — Cloud Functions are CommonJS and cannot
- * import a browser ES module, so unification would need a build step. `surname-parity.test.mjs`
- * asserts the two stay in sync (its source-equivalence check reads THIS file).
+ * `functions/roster-parse-helpers.js` (`surnameCore`, behind `nameToEmail` and `nameToPassword`) —
+ * Cloud Functions are CommonJS and cannot import a browser ES module, so unification would need a
+ * build step. ONE copy per side: here every surname comparison goes through `lettersOnly`.
+ * `surname-parity.test.mjs` asserts the two stay in sync (its source checks read THIS file).
  *
  * ⚠️ WARNING: changing this derivation locks out every staff member — it moves the email every
  *   account is looked up by, and the surname default. Never change it without the other two copies
  *   (AUTH_AND_SESSIONS.md 12) and a reset of every affected account.
  */
+
+/**
+ * Lower-case, then keep the letters a–z and nothing else: the ONE normaliser behind every surname
+ * comparison on this side — the surname itself (`normaliseSurname`), the gate on the typed-surname
+ * fallback (`credentialCandidatesFor`) and the refusal to choose it back (`validateNewPassword`).
+ * Three copies of one expression is how a gate and the thing it gates come to disagree.
+ * @param {string} s
+ * @returns {string}
+ */
+function lettersOnly(s) {
+    return s.toLowerCase().replace(/[^a-z]/g, '');
+}
 
 /**
  * Normalise a display name's surname for Firebase Auth: everything after the first space,
@@ -30,7 +43,7 @@
  * @returns {string}
  */
 export function normaliseSurname(fullName) {
-    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    return lettersOnly(fullName.split(' ').slice(1).join(''));
 }
 
 /**
@@ -93,7 +106,7 @@ export function credentialCandidatesFor(fullName, typed) {
     /** @type {string[]} */
     const candidates = [];
     if (raw) candidates.push(raw);
-    const normTyped = raw.toLowerCase().replace(/[^a-z]/g, '');
+    const normTyped = lettersOnly(raw);
     if (normTyped && normTyped === normaliseSurname(fullName)) {
         const sp = surnamePassword(fullName);
         if (sp !== raw) candidates.push(sp);
@@ -152,7 +165,7 @@ export function validateNewPassword(fullName, next, confirm) {
     // without it ANY all-digits/symbols password (whose alpha part is also '') would be rejected as
     // "your surname".
     const surname = normaliseSurname(fullName || '');
-    if (surname && n.toLowerCase().replace(/[^a-z]/g, '') === surname) return 'Choose something other than your surname.';
+    if (surname && lettersOnly(n) === surname) return 'Choose something other than your surname.';
     return null;
 }
 

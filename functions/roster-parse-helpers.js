@@ -814,6 +814,11 @@ function isPayCutoffDay(date) {
 
 // ── Firebase Auth name helpers ───────────────────────────────────────────────
 
+/** The SURNAME half of an account identity — every word after the first, lower-cased, letters a–z only. The ONE copy on
+ *  this side, behind nameToEmail and nameToPassword; `normaliseSurname` (auth-identity.js) is the browser's, held equal
+ *  by surname-parity.test.mjs. @param {string} fullName @returns {string} */
+function surnameCore(fullName) { return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''); }
+
 /**
  * Derive the Firebase Auth email from a teamMembers display name.
  * Must stay in sync with nameToEmail() in auth-identity.js AND `memberEmailFor` in
@@ -822,10 +827,8 @@ function isPayCutoffDay(date) {
  * @param {string} fullName - e.g. "G. Miller" → "g.miller@myb-roster.local"
  */
 function nameToEmail(fullName) {
-    const parts   = fullName.split(' ');
-    const initial = parts[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
-    const surname = parts.slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-    return `${initial}.${surname}@myb-roster.local`;
+    const initial = fullName.split(' ')[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
+    return `${initial}.${surnameCore(fullName)}@myb-roster.local`;
 }
 
 /**
@@ -836,7 +839,7 @@ function nameToEmail(fullName) {
  * @param {string} fullName - e.g. "G. Miller" → "miller", "N. Tuck" → "tucktu"
  */
 function nameToPassword(fullName) {
-    const surname = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    const surname = surnameCore(fullName);
     // padEnd with an empty fill string cannot extend — guard so the caller gets a
     // clear error rather than '' being sent to Firebase as an invalid password.
     if (!surname) throw new Error(`no usable surname in "${fullName}"`);
@@ -1381,6 +1384,7 @@ module.exports = {
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
+    surnameCore,
     NOTIFICATION_FEATURES,
     buildPushPayload,
     parseSetupActionFlags,
