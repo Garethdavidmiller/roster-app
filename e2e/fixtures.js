@@ -331,6 +331,10 @@ export const getDoc = () => {
     ? { exists: () => true, data: () => seeded, metadata }
     : { exists: () => false, data: () => ({}), metadata });
 };
+// The SERVER-only single read (13 Nov 2026), which documents-client.js asks after an upload write is
+// refused. Answered as getDoc is, so every seeded state reaches it, and declared after getDoc, which it
+// calls. (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+export const getDocFromServer = (ref) => getDoc(ref);
 // addDoc RECORDS its payload too (v20.97), and for the same reason setDoc does — but it had been
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
 // the blind spot: addDoc is how EVERY design is created (new, duplicate, generated, imported), so

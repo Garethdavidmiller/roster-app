@@ -47,6 +47,9 @@ rules_version = '2';
 // rule copied from the old wording would reopen that hole. And a static gate now reads this file and
 // storage.rules: every rule, and every function, that tests for a session must also ask a claim on
 // every path (rules-claim-gate.test.mjs, AUTH_AND_SESSIONS 9) — a bare `request.auth != null` fails it.
+// Changed after v25.98 with no re-sweep (13 Nov 2026): a browser may not change a document record's
+// `storageUrl` while keeping its `storagePath` (`linkChangesOnlyWithFile` — huddles, circulars,
+// newsletters).
 // Prior sweep 13 Nov 2026 (v25.90, the checked save): no rule changed. The `overrides` read must
 // never consult `resource` — every online save now reads each day it writes inside one
 // transaction, and a day's first save reads a document that is not there (pinned by a rules test).
@@ -231,6 +234,27 @@ service cloud.firestore {
     // a member, the admin, or (where the Calendar writes) the PIN viewer costs no real client a write.
     function isKnownIdentity() {
       return isMember() || request.auth.token.get('admin', false) == true || isCalendarViewer();
+    }
+
+    // ── A DOCUMENT'S STORED LINK MOVES ONLY WITH ITS FILE (13 Nov 2026) ─────────────────────────
+    // Huddles, circulars and newsletters. The admin's upload writes its record with `setDoc`, and when
+    // the acknowledgement of a write that HAD committed is lost, the SDK sends the same write again on
+    // reconnecting, which may be hours later. If Operations → Document links moved the record onto a
+    // new key in between (`rotateDocumentLinks`, through the Admin SDK, which these rules do not see),
+    // that re-send put the upload's first link back, and once the run had taken the old key away the
+    // stored link opened nothing. So a browser may not change a record's `storageUrl` while keeping its
+    // `storagePath`: only the server moves a link onto another key for the same file. A real upload
+    // names a NEW versioned path, and an identical re-send with no run between changes no link, so
+    // neither is refused; a create has no record to compare. `.get(…, null)` on the record, because a
+    // record from before v13.99 has no `storagePath` (a missing field read bare is an error, and an
+    // error denies the whole rule): a write that names a path differs from one that names none, so
+    // such a record can still be uploaded over. The refused re-send reaches the page that sent it as
+    // `permission-denied`, and documents-client.js reads the record back from the server before it
+    // believes that — a refusal of its own committed write is no reason to delete the file.
+    function linkChangesOnlyWithFile() {
+      return resource == null
+        || request.resource.data.get('storagePath', null) != resource.data.get('storagePath', null)
+        || request.resource.data.storageUrl == resource.data.get('storageUrl', null);
     }
 
 
@@ -530,7 +554,10 @@ service cloud.firestore {
         // htmlContent is optional; when present it must be a string AND within the 250 KB cap.
         // Checking `is string` first guards .size() from being called on a non-string value.
         (!('htmlContent' in request.resource.data) ||
-         (request.resource.data.htmlContent is string && request.resource.data.htmlContent.size() <= 250000));
+         (request.resource.data.htmlContent is string && request.resource.data.htmlContent.size() <= 250000)) &&
+        // The stored link moves only with its file: a re-sent upload write cannot put back a link
+        // Operations → Document links has replaced (`linkChangesOnlyWithFile`, above).
+        linkChangesOnlyWithFile();
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
@@ -836,7 +863,9 @@ service cloud.firestore {
         request.resource.data.fileType in ['pdf', 'docx'] &&
         // The server's clock — the trusted time `pruneOldDocs` sweeps by (see huddles above).
         request.resource.data.uploadedAt == request.time &&
-        request.resource.data.uploadedBy is string;
+        request.resource.data.uploadedBy is string &&
+        // The stored link moves only with its file (`linkChangesOnlyWithFile`, as for huddles).
+        linkChangesOnlyWithFile();
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
@@ -881,7 +910,9 @@ service cloud.firestore {
         request.resource.data.fileType in ['pdf', 'docx'] &&
         // The server's clock — the trusted time `pruneOldDocs` sweeps by (see huddles above).
         request.resource.data.uploadedAt == request.time &&
-        request.resource.data.uploadedBy is string;
+        request.resource.data.uploadedBy is string &&
+        // The stored link moves only with its file (`linkChangesOnlyWithFile`, as for huddles).
+        linkChangesOnlyWithFile();
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 

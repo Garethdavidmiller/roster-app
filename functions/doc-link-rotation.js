@@ -57,11 +57,12 @@
  * (below).
  *
  * ── A STORED LINK THAT NO LONGER OPENS ITS FILE (13 Nov 2026) ────────────────
- * A record can hold a link whose key its file no longer carries. Three ways: the late record above;
- * a browser's record write re-sent after its acknowledgement was lost, which puts the upload's first
- * link back over the one a run had given it (documents-client.js says why that write is not guarded);
- * and, until it was guarded, ingestHuddle's record transaction run again after a lost commit answer
- * (./documents.js). Members still open the document, because the 15-minute link is signed from the
+ * A record can hold a link whose key its file no longer carries, and the late record above is the one
+ * way left. Two others are guarded: a browser's record write re-sent after its acknowledgement was
+ * lost, which put the upload's first link back over the one a run had given it (refused by the rules
+ * since 13 Nov 2026, and the upload reads that refusal as its own commit — documents-client.js), and
+ * ingestHuddle's record transaction run again after a lost commit answer (./documents.js). Members
+ * still open the document, because the 15-minute link is signed from the
  * PATH — only the fallback is broken, the link a member is handed when that cannot be had. Such a
  * record is counted in `recordsDeadLink`, and only on a file a run will rotate, because a run is what
  * mends it: MIGRATE moves a dead link onto the new key exactly as it moves a working one, so the record

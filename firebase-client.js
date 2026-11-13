@@ -15,7 +15,7 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath, waitForPendingWrites } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, getDocFromServer, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath, waitForPendingWrites } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (handed to the shared
 // upload engine in documents-client.js, which is where the huddle/circular/newsletter sequence
 // lives since v21.90) — only
@@ -425,7 +425,7 @@ function _getStorageSdk() {
 const _docs = buildDocumentClient({
     db, collections: COLLECTIONS,
     fs: {
-        doc, getDoc, setDoc, collection, query, where, orderBy, limit,
+        doc, getDoc, getDocFromServer, setDoc, collection, query, where, orderBy, limit,
         getDocs, onSnapshot, runTransaction, serverTimestamp,
     },
     getStorageSdk: _getStorageSdk,

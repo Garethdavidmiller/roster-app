@@ -30,7 +30,7 @@ import { buildDocumentClient } from './documents-client.js';
 import { resolveUploadCommit } from './upload-commit.js';
 import { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath } from './storage-utils.js';
 import {
-    setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
+    setDoc, getDoc, getDocFromServer, addDoc, deleteDoc, updateDoc, getDocs,
     collection, doc, serverTimestamp, increment, Timestamp,
     query, where, limit, deleteField, FieldPath, orderBy, onSnapshot, runTransaction,
 } from 'firebase/firestore';
@@ -165,21 +165,23 @@ function realAnalyticsClient(/** @type {any} */ db, /** @type {Record<string, Fu
 
 /** The real documents-client.js upload engine on a test identity's Firestore, with the real SDK.
  *  Storage is not what these rules judge, so it is a stand-in that keeps nothing and hands back a
- *  URL; the Firestore write the engine builds is the real one. */
-function realDocumentClient(/** @type {any} */ db) {
+ *  URL; the Firestore write the engine builds is the real one. `swap` replaces Storage calls or path
+ *  helpers, so a test can fix the upload's path and play an interleaving between the file and the record. */
+function realDocumentClient(/** @type {any} */ db, /** @type {{ storage?: Record<string, any>, utils?: Record<string, any> }} */ swap = {}) {
     return buildDocumentClient({
         db,
         collections: { huddles: 'huddles', circulars: 'circulars', newsletters: 'newsletters' },
-        fs: { doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, runTransaction, serverTimestamp },
+        fs: { doc, getDoc, getDocFromServer, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, runTransaction, serverTimestamp },
         getStorageSdk: async () => ({
             storage: {},
             ref: (/** @type {any} */ _s, /** @type {string} */ fullPath) => ({ fullPath }),
             uploadBytes: async () => {},
             getDownloadURL: async (/** @type {any} */ r) => `https://storage.example.com/${r.fullPath}`,
             deleteObject: async () => {},
+            ...swap.storage,
         }),
         uploadBytesWithClaimRetry: (/** @type {any} */ upload, /** @type {any} */ ref, /** @type {any} */ body, /** @type {any} */ meta) => upload(ref, body, meta),
-        utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath },
+        utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath, ...swap.utils },
         resolveUploadCommit,
         pruneOldDocs: async () => {},
     });
@@ -1712,6 +1714,59 @@ describe('newsletters', () => {
     });
 });
 
+// ── A DOCUMENT'S STORED LINK MOVES ONLY WITH ITS FILE (13 Nov 2026) ──────────────────────────
+// The SDK sends an upload's record write again when its acknowledgement was lost, possibly hours
+// later. If Operations → Document links had moved the record onto a new key in between (the Admin
+// SDK, which these rules do not see), the re-send put the first link back, and once the run had taken
+// the old key away the stored link opened nothing. So a browser write that keeps the path may not
+// change the link. Every collection is checked, because the rule is CALLED once per block, and a call
+// left out of one block fails nothing in the other two. The record is seeded with the rules off, as
+// the server writes it.
+describe('huddles / circulars / newsletters — the stored link moves only with its file', () => {
+    const FIRST = 'https://storage.example.com/x?alt=media&token=first';
+    const REPLACED = 'https://storage.example.com/x?alt=media&token=after-replace';
+    const record = (/** @type {string} */ coll, /** @type {string|null} */ path, /** @type {string} */ url) => {
+        const { storagePath: _p, ...base } = coll === 'huddles' ? VALID_HUDDLE() : VALID_CIRCULAR();
+        return { ...base, ...(path === null ? {} : { storagePath: path }), storageUrl: url };
+    };
+    const seed = (/** @type {string} */ coll, /** @type {string} */ id, /** @type {any} */ data) =>
+        testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), coll, id), data));
+
+    for (const coll of ['huddles', 'circulars', 'newsletters']) {
+        const OURS = `${coll}/2026-06-25-ours.pdf`;
+        const NEXT = `${coll}/2026-06-25-next.pdf`;
+
+        test(`${coll}: the SAME path with a different link is refused — the re-send after Replace`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, REPLACED));
+            await assertFails(setDoc(doc(adminDb(), coll, id), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: the same path with the SAME link is allowed — a re-send with no run between`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, FIRST));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: a NEW path is allowed, with its own link — every real upload`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, REPLACED));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, NEXT, FIRST)));
+        });
+        test(`${coll}: a record from before v13.99, with no storagePath, can still be uploaded over`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, null, REPLACED));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, NEXT, FIRST)));
+        });
+        test(`${coll}: a create is unaffected — there is no record to compare`, async () => {
+            await assertSucceeds(setDoc(doc(adminDb(), coll, uid()), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: a non-admin is still refused, even writing exactly what is there`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, FIRST));
+            await assertFails(setDoc(doc(namedDb('S. Boyle'), coll, id), record(coll, OURS, FIRST)));
+        });
+    }
+});
+
 // ── THE ADMIN'S REAL UPLOAD WRITER (whole-app fix, 10 Nov 2026) ──────────────────────────────
 // `uploadedAt` is pinned to the server's clock on all three document rules. The cases above write a
 // literal; this drives the real engine (documents-client.js) the Operations page uploads through, so
@@ -1741,7 +1796,41 @@ describe('huddles / circulars / newsletters — the real upload writer', () => {
     });
 
     test('a non-admin\'s upload is still refused', async () => {
-        await assert.rejects(realDocumentClient(namedDb('S. Boyle')).uploadCircular('2025-03-07', pdf(), 'S. Boyle'));
+        // …and reported as the refusal it is (13 Nov 2026): the engine reads a refused write back from
+        // the server before believing it, finds no record of its own, and lets the refusal stand.
+        await assert.rejects(realDocumentClient(namedDb('S. Boyle')).uploadCircular('2025-03-07', pdf(), 'S. Boyle'),
+            (/** @type {any} */ e) => e.code === 'permission-denied');
+    });
+
+    // THE SDK'S RE-SEND, END TO END (13 Nov 2026): the real engine, the real SDK and the real rules.
+    // Our first write committed and its answer was lost, Operations → Document links then moved the
+    // record onto a new key, and the SDK sent our write again. The rules must refuse it, and the engine
+    // must read that refusal as its own commit: Replace's link stays, and our file is not rolled back.
+    // A lost answer cannot be forced through the real SDK, so the commit and the run are played between
+    // the file and the record (`uploadBytes`), on a path fixed so the record can name it in advance.
+    test('a re-send refused because Replace moved its link is this upload\'s own commit — nothing is undone', async () => {
+        const date = '2025-03-08';
+        const OLD = `circulars/${date}-old.pdf`;
+        const OURS = `circulars/${date}-ours.pdf`;
+        const replaced = `https://storage.example.com/${OURS}?alt=media&token=after-replace`;
+        await testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'circulars', date),
+            { ...VALID_CIRCULAR(date), storagePath: OLD, storageUrl: `https://storage.example.com/${OLD}` }));
+        /** @type {string[]} */ const deleted = [];
+        const client = realDocumentClient(adminDb(), {
+            utils: { versionedDocPath: () => OURS },
+            storage: {
+                uploadBytes: () => testEnv.withSecurityRulesDisabled(ctx =>
+                    updateDoc(doc(ctx.firestore(), 'circulars', date), { storagePath: OURS, storageUrl: replaced })),
+                deleteObject: async (/** @type {any} */ r) => { deleted.push(r.fullPath); },
+            },
+        });
+        await client.uploadCircular(date, pdf(), 'G. Miller');
+        assert.deepEqual(deleted, [OLD], 'the file it superseded is swept, and ours is NOT rolled back');
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            const rec = (await getDoc(doc(ctx.firestore(), 'circulars', date))).data();
+            assert.equal(rec?.storagePath, OURS);
+            assert.equal(rec?.storageUrl, replaced, 'the re-send put the first link back');
+        });
     });
 });
 

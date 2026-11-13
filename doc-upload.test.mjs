@@ -137,6 +137,7 @@ function engine(opts = {}) {
         fs: {
             doc: (/** @type {any} */ _db, /** @type {string} */ c, /** @type {string} */ d) => ({ _key: `${c}/${d}` }),
             getDoc: async (/** @type {any} */ r) => read(r),
+            getDocFromServer: async (/** @type {any} */ r) => read(r),   // a refused write is read back from it
             setDoc: async (/** @type {any} */ r, /** @type {any} */ data) => { write(); store.set(r._key, data); },
             runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
                 /** @type {any[]} */ const staged = [];

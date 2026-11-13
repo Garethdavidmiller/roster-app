@@ -679,8 +679,9 @@ describe('a refusal that was this run’s own write, retried after its answer wa
 
 describe('a stored link that no longer opens its file is counted, and a run mends it', () => {
     // A record can arrive holding a key its file no longer carries: one that came after a run had
-    // switched its file's key off, or a browser's write re-sent after its answer was lost, which puts
-    // the upload's first link back over the one a run gave it. Members still open the document through
+    // switched its file's key off. (A browser's write re-sent after its answer was lost did the same,
+    // putting the upload's first link back over the one a run gave it, until the rules refused it on
+    // 13 Nov 2026 — documents-client.js.) Members still open the document through
     // the 15-minute link signed from its path; only the fallback is broken — and a check that called
     // such a record "in use" gave the admin no reason to press the one button that mends it.
     const LATE = 'huddles/2026-11-10-late.pdf';
