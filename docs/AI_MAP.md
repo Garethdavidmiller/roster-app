@@ -918,6 +918,11 @@ runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them.
   `prompt()`. Async, so never inside a capture-phase navigation guard or a `beforeunload`; `onConfirm`
   runs inside the tap, for work that needs the gesture. A dismissal (backdrop, Escape, Back) resolves
   `dismissResult`, false unless given; the first answer stands through the close fade.
+- `confirmWithOption({ message, title?, confirmLabel?, cancelLabel?, danger?, option: { label, hint? } })` →
+  `Promise<{ confirmed, option }>` — the same dialog with ONE unticked box (shared.css's drawn one, in a
+  `<label>` row: `.dialog-option`), named by its label and described by its hint; focus opens on it.
+  `option` is the box as it stood when the confirm button was pressed, and false on Cancel or any dismissal.
+  A separate function, so `confirmDialog` still resolves a boolean. First caller: Operations → Reset's lost phone.
 - `lockBodyScroll()` / `unlockBodyScroll()` — depth-counted and iOS-safe.
 - `watchScrollFade(panel)` → stop function — toggles `.has-more` (the "more below" fade in shared.css)
   while a scrolling panel has content past its fold. Every lightbox gets it through `createLightbox`; the
