@@ -2750,6 +2750,27 @@ the run takes it back.
 
 ## Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)
 
+### An update could still land mid-way through the forced change — CLOSED 13 Nov 2026
+
+Recorded by the sign-in audit and closed the same day, once, in `sw-register.js` rather than page by
+page, so no page's service-worker start-up changed. Every reload an update causes now waits while a
+write no page started is on its way (`backgroundWritesInFlight`, `claim-retry.js`): the default path
+(the Pay Calculator, Trains, New link), `reloadWhenNotBusy` whatever the page's own check says
+(Overtime's knows only its form), `reloadWhileHidden` (the Calendar) and `reloadForUpdate` (Links,
+once its question is answered) all wait for the next time the page is hidden with nothing on its
+way, as `reloadWhenNotBusy` always had. `lazyImport` does not reload then either, leaving the tap to
+its caller's fallback, and a notification tap finds such a page busy. Proven by the last block of
+`sw-register.test.mjs`, which drives each path with a real write counted by `trackBackgroundWrite`;
+each path's check was deleted in turn and its test failed. The entry as it stood:
+
+> The forced change's password write, and the record that follows it, are counted as writes in flight
+> (`trackBackgroundWrite`, claim-retry.js), so a release's reload waits for them on the pages whose busy
+> check reads `writesInFlight` — Admin, Settings and Operations. The Calendar holds an update's reload
+> while it is on screen anyway. The Pay Calculator, Trains, New link, Links and Overtime do not ask, so
+> an update arriving in the second the write takes reloads them under it. The cost is small and
+> self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
+> every page means changing the service worker's start-up on all of them, which was not worth the risk.
+
 ### A PIN session in the same tab outranked a member's at start-up — CLOSED v25.98
 
 Recorded at v25.77 under "A signed-in session lasts 60 days regardless of use"; closed by the

@@ -1017,8 +1017,13 @@ each branch.
   `deferWhileVisible` (the Calendar only) holds the reload until the page is hidden. `isBusy` answers a
   notification tap's `myb-busy?`, so a busy page is asked rather than navigated.
 - `reloadForUpdate(reload?)` · `reloadWhileHidden(reload?)` · `reloadWhenNotBusy(isBusy, reload?)` — the
-  three ways a release reloads; each stamps the release marker `perf-reporter.js` reads, at the moment
-  the reload actually happens.
+  three ways a release reloads (`reloadForUpdate` goes through `reloadWhenNotBusy`); each stamps the
+  release marker `perf-reporter.js` reads, at the moment the reload actually happens.
+- **A write no page started holds every update reload** — the forced password change's, or the record
+  after a password change (`backgroundWritesInFlight`, `claim-retry.js`). The default path and the three
+  above (whatever the page's own `isBusy` says) wait for the next time the page is hidden with nothing
+  on its way; `lazyImport` leaves a failed tap to its caller's fallback rather than reloading; and a
+  notification tap finds the page busy. Asked here once, so no page's registration changed.
 - `hasPendingUpdate()` — a newer release has claimed the page and its reload is being held (the About
   panel's "Update ready").
 - `lazyImport(load)` — a lazy `import()` that reloads onto a newer release if it fails after one has
@@ -1071,8 +1076,8 @@ blocking is safe.
   it reports a timeout as a rejection. `settleOrTimeout(promise, ms)` → `ok`, `failed` or `pending` — for
   STATE-CHANGING calls, because a race stops waiting but does not cancel; Save stays disabled while
   `pending`. Both are shared with the Settings Password card. The password write is counted
-  (`trackBackgroundWrite`) until it SETTLES, past that wait, so a busy check reading `writesInFlight` holds
-  a release's reload for it (audit E5).
+  (`trackBackgroundWrite`) until it SETTLES, past that wait, so a release's reload holds for it on every
+  page (`sw-register.js`; audit E5).
 - **Fails open twice:** before showing (a failed status read, a non-named identity, no marker), and after
   — a rate limit, a network failure or a timeout at once, or `ESCAPE_AFTER_FAILURES` failures of any kind,
   reveal "Continue for now", which stamps nothing.
@@ -2019,7 +2024,7 @@ The pure write-safety rules — no DOM, no Firebase; the caller injects every de
 - `runWithClaimRetry(fn, { retryCode, hasUser, refresh })` — on a stale-claim rejection with a user present, refresh once and retry once; a failed refresh re-throws the ORIGINAL error. `isClaimRetryable(err, retryCode, hasUser)` is its predicate. `fn` must build a fresh batch each call.
 - `isAccessFailure(err)` — "not allowed to read that" (`permission-denied`, or the Calendar's `calendar-access-required`) rather than a poor connection. The two need different words: a retry prompt against a session that has gone is a loop the member cannot win.
 - `abandonOnSignOut(request, { uid, watch })` / `SIGNED_OUT_CODE` — stop waiting once the account the request was made as has gone, because Firestore never settles that account's pending commit. **It ends the wait, not the write**, so every surface calls the outcome unconfirmed (`signedOutLine(what, whereToCheck)`), never "failed".
-- `runGatedWrite(run)` / `hasUnconfirmedWrite()` / `UNCONFIRMED_CODE` / `UNCONFIRMED_LINE` / `unconfirmedWriteLine(err, what, whereToCheck)` / `_resetUnconfirmedWrites()` (test seam) — once a write on the page ends `SIGNED_OUT_CODE`, every later write is refused until reload, so a retry cannot write a second copy beside the one Firestore still holds. Reads are not gated. `writesInFlight()` (`slow-save.js`) counts it, and Operations and Links ask `hasUnconfirmedWrite()` so no automatic reload strands the held write. `trackBackgroundWrite(p)` / `backgroundWritesInFlight()` — a write no page started (the "own password" record `changeOwnPassword` makes, and the forced change's password write), counted until it settles so a busy check reading `writesInFlight` (Admin, Settings, Operations) holds an update's reload for it, with no notice on screen.
+- `runGatedWrite(run)` / `hasUnconfirmedWrite()` / `UNCONFIRMED_CODE` / `UNCONFIRMED_LINE` / `unconfirmedWriteLine(err, what, whereToCheck)` / `_resetUnconfirmedWrites()` (test seam) — once a write on the page ends `SIGNED_OUT_CODE`, every later write is refused until reload, so a retry cannot write a second copy beside the one Firestore still holds. Reads are not gated. `writesInFlight()` (`slow-save.js`) counts it, and Operations and Links ask `hasUnconfirmedWrite()` so no automatic reload strands the held write. `trackBackgroundWrite(p)` / `backgroundWritesInFlight()` — a write no page started (the "own password" record `changeOwnPassword` makes, and the forced change's password write), counted until it settles so every update reload on every page holds for it — `sw-register.js` reads the count itself, as do the busy checks reading `writesInFlight` (Admin, Settings, Operations) — with no notice on screen.
 - `saveFailureMessage(err)` — the Admin save's error line: unconfirmed, refused, or connection.
 - `ownWritesSent(waitForPendingWrites, ms?)` → true once this device's queued writes have reached the server, false when `OWN_WRITES_WAIT_MS` (8 s) passes first; a rejection (the account changed) is passed on. Every checked write asks first (`whenOwnWritesSent`, `firebase-client.js`), because a transaction reads the server and a save made offline is not there yet (v25.95).
 - `watchIdentityLoss({ uid, watch, stillLost, onLost, settleMs? })` — `onLost` once, when NOBODY has been signed in for `settleMs` and `stillLost()` agrees. Another account arriving is never a loss: Firebase shares one account across a browser's tabs. Wired through `guardNamedSession` (`page-session.js`).

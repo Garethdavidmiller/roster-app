@@ -1076,16 +1076,6 @@ mode (toggleable)" is where it would be reopened. Do not answer the report with 
 inverted-back override: the algorithm runs on the computed colours, after the stylesheet, and would
 repaint the repair too.
 
-### An update can still land mid-way through the forced change (sign-in audit, 13 Nov 2026)
-
-The forced change's password write, and the record that follows it, are counted as writes in flight
-(`trackBackgroundWrite`, claim-retry.js), so a release's reload waits for them on the pages whose busy
-check reads `writesInFlight` — Admin, Settings and Operations. The Calendar holds an update's reload
-while it is on screen anyway. The Pay Calculator, Trains, New link, Links and Overtime do not ask, so
-an update arriving in the second the write takes reloads them under it. The cost is small and
-self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
-every page means changing the service worker's start-up on all of them, which was not worth the risk.
-
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.

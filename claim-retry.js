@@ -138,11 +138,10 @@ export function _resetUnconfirmedWrites() { _unconfirmedWrites = 0; }
 // the password itself has changed — from Settings' card or from the forced change, which can open on
 // any page — and the forced change's password write is counted the same way (sign-in audit E5, Nov 2026).
 // Only Settings held a release's reload for them, so a reload landing in that moment could lose one, and
-// the member was made to choose a password again at the next sign-in. Counted here, every busy check that
-// reads `writesInFlight` (slow-save.js) — Admin, Settings and Operations — waits for them, with no notice
-// on screen: the member did not ask for these writes and has nothing to wait for. The Calendar holds an
-// update while it is on screen anyway; the other pages reload at once, and the worst that costs is the
-// question asked again (KNOWN_LIMITATIONS → "An update can still land mid-way through the forced change").
+// the member was made to choose a password again at the next sign-in. Counted here, every update reload
+// on every page waits for them: sw-register.js reads `backgroundWritesInFlight` itself (13 Nov 2026), as
+// does every busy check that reads `writesInFlight` (slow-save.js) — Admin, Settings and Operations. No
+// notice is shown: the member did not ask for these writes and has nothing to wait for.
 let _background = 0;
 
 /**
