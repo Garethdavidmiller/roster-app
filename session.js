@@ -854,8 +854,10 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
     if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
     if (preserveCalendarViewer && isViewerUser(u)) return;   // the staff PIN, on a page that admits it — see the JSDoc
     // Release this device's push record FIRST, while the expired member is still the identity — the
-    // delete is theirs to make, and after the sign-out nobody can (whole-app review, Oct 2026).
-    await releasePushForEndingHold();
+    // delete is theirs to make, and after the sign-out nobody can (whole-app review, Oct 2026). NOT for
+    // the staff PIN (audit C3): it owns no record, so the release dropped THIS BROWSER's subscription — a
+    // member's own phone, used with the PIN, came back with notifications off — and held the notice up.
+    if (!isViewerUser(u)) await releasePushForEndingHold();
     // …or anybody else did: a PIN unlock on the Calendar, which moves no generation (sign-in check,
     // 11 Nov 2026 — the sign-out below signed out whoever was current, which could be the new viewer).
     if (gen !== _authGen || getSession() || auth.currentUser !== u) return;

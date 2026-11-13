@@ -676,6 +676,18 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(auth.currentUser, null, 'and must actually be gone, not merely decided against');
     });
 
+    // The PIN owns no push record, so a release there could only drop THIS BROWSER's own subscription —
+    // a member who used the PIN on their own phone found notifications off after signing back in — and
+    // it held up the "locked again" notice by up to two seconds (audit C3). A member's is still released.
+    test('shedding the PIN releases NO push record — there is none, and the browser\'s subscription is not its to drop', async () => {
+        _pushReleases.length = 0;
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true, 'premise: the PIN was signed out here');
+        await new Promise(r => setTimeout(r, 20));   // a release is a dynamic import: give it time to land
+        assert.equal(_pushReleases.length, 0, 'the staff PIN\'s teardown dropped the browser\'s push subscription');
+    });
+
     test('an explicit opts object with the flag ABSENT is still a teardown', async () => {
         // A caller that passes options for some other reason must not inherit preservation.
         auth.currentUser = /** @type {any} */ (viewerUser);
