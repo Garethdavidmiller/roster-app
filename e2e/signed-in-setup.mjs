@@ -65,10 +65,11 @@ export default async function provisionAccounts() {
 }
 
 /**
- * Put these members' passwords back to their surname default, through the Auth emulator's owner
- * API. A journey that sets a password of its own changes the account, and the next test must meet
- * the account as a first-time member would — the sign-in card, the surname, the "set your own"
- * screen — or its result would depend on the order the tests ran in.
+ * Put these members' passwords back to their surname default, and their accounts back in use, through
+ * the Auth emulator's owner API. A journey that sets a password of its own — or disables an account,
+ * as a leaver's is — changes it, and the next test must meet the account as a first-time member
+ * would — the sign-in card, the surname, the "set your own" screen — or its result would depend on
+ * the order the tests ran in.
  * @param {string[]} names
  */
 export async function resetPasswords(names) {
@@ -80,7 +81,25 @@ export async function resetPasswords(names) {
         const lookup = await fetch(`${base}:lookup`, { method: 'POST', headers: owner, body: JSON.stringify({ email: [helpers.nameToEmail(name)] }) });
         const localId = (await lookup.json()).users?.[0]?.localId;
         if (!localId) throw new Error(`resetPasswords: no account for ${name} — did the setup run?`);
-        const update = await fetch(`${base}:update`, { method: 'POST', headers: owner, body: JSON.stringify({ localId, password: helpers.nameToPassword(name) }) });
+        const update = await fetch(`${base}:update`, { method: 'POST', headers: owner,
+            body: JSON.stringify({ localId, password: helpers.nameToPassword(name), disableUser: false }) });
         if (!update.ok) throw new Error(`resetPasswords: could not reset ${name}: HTTP ${update.status}`);
     }
+}
+
+/**
+ * Disable a member's account the way the leaver sweep does — `updateUser(uid, { disabled: true })`
+ * through the Admin SDK, the server's own package, here against the Auth emulator. The beforeEach puts
+ * it back in use (`resetPasswords`).
+ * @param {string} name
+ */
+export async function disableAccount(name) {
+    process.env.FIREBASE_AUTH_EMULATOR_HOST = EMULATOR.auth;
+    const require = createRequire(new URL('../functions/package.json', import.meta.url));
+    const { initializeApp, getApps } = require('firebase-admin/app');
+    const { getAuth } = require('firebase-admin/auth');
+    const helpers = require('./roster-parse-helpers.js');
+    if (!getApps().length) initializeApp({ projectId: PROJECT });
+    const user = await getAuth().getUserByEmail(helpers.nameToEmail(name));
+    await getAuth().updateUser(user.uid, { disabled: true });
 }
