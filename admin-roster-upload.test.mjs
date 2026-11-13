@@ -114,7 +114,7 @@ mock.module('./firebase-client.js', {
 const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates,
         shiftDisplay, manualShiftDisplay, isZeroLengthRange, PARSE_ABORT_MS } = await import('./admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
-const { guardedWrites, replacedFromState, collectRosterWrites } = await import('./roster-review-states.js');
+const { guardedWrites, replacedFromState, collectRosterWrites, carryReviewAnswers } = await import('./roster-review-states.js');
 // The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
 // module, so this import needs none of the mocking above.
 const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD, driftCopy, stopCopy, geometryCopy } = await import('./roster-alignment.js');
@@ -2807,5 +2807,79 @@ describe('defaultWeekEnding — the week ending the upload form offers first', a
             // Wed 20:00 London is Thursday in Auckland; Thu 03:00 London is still Wednesday in Los Angeles.
             assert.equal(out, '2026-11-21,2026-11-28', TZ);
         }
+    });
+});
+
+// ── A REFUSED SAVE KEEPS THE ADMIN'S ANSWERS (v25.94, the 13 Nov review) ─────────────────────────
+//
+// v25.92's refusal re-read the week and recomputed every row, so every answer went back to its
+// default — an unticked row came back ticked and the second Save wrote it, while the message named
+// only the changed day. These hold `carryReviewAnswers` to real `computeCellStates` rows, and the
+// first one follows the answer through to what the second Save WRITES.
+describe('carryReviewAnswers — a refused Save keeps every answer but the changed day\'s', () => {
+    const member = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main');
+    const mname = member.name;
+    const [MO, TU, WE] = ['2026-06-15', '2026-06-16', '2026-06-17'];
+    /** A value that differs from the member's base shift on `date`. @param {string} date */
+    const differ = (date) => { const b = getBaseShift(member, new Date(date + 'T12:00:00')); return (b === 'RD' || b === 'OFF') ? '07:00-15:00' : 'RD'; };
+    const parse = { parsed: [{ memberName: mname, shifts: { [MO]: differ(MO), [TU]: differ(TU), [WE]: differ(WE) } }], dates: [MO, TU, WE] };
+    const key = (/** @type {string} */ d) => `${mname}|${d}`;
+    const m1 = { id: 'm1', memberName: mname, date: TU, value: '23:00-06:00', type: 'shift', source: 'manual' };
+    /** The review as the admin leaves it: Monday unticked, "Use new roster" on Tuesday, Wednesday as drawn. */
+    const answeredReview = () => {
+        const states = computeCellStates(parse, [m1]);
+        states.get(key(MO)).chosen = false;
+        states.get(key(TU)).chosen = 'pdf';
+        return states;
+    };
+
+    test('an answer on a row nobody changed is kept, the changed row starts from its default — and the second Save writes accordingly', () => {
+        const before = computeCellStates(parse, [m1]);
+        assert.deepEqual([before.get(key(MO)).state, before.get(key(TU)).state, before.get(key(WE)).state], ['DIFF', 'CONFLICT', 'DIFF'], 'premise');
+        // A manager rewrote Tuesday after the read: that is the day the refusal named.
+        const fresh = computeCellStates(parse, [{ ...m1, value: '14:00-22:00' }]);
+        const { states, changed } = carryReviewAnswers(answeredReview(), before, fresh);
+        assert.deepEqual(changed, [key(TU)]);
+        assert.equal(states.get(key(MO)).chosen, false, 'Monday stays unticked');
+        assert.equal(states.get(key(WE)).chosen, true, 'Wednesday stays ticked');
+        assert.equal(states.get(key(TU)).chosen, null, 'Tuesday is asked again, over what it holds now');
+        assert.equal(states.get(key(TU)).manualValue, '14:00-22:00');
+        // What the second Save writes: Wednesday only — not the Monday the admin left out, and not Tuesday.
+        assert.deepEqual(collectRosterWrites(states).map(w => w.date), [WE]);
+    });
+
+    test('a row whose OTHER records moved is asked again too — the whole row is compared, not its id', () => {
+        const before = computeCellStates(parse, [m1]);
+        // An older import copy of Monday appeared: the record the review showed is the same, the day is not.
+        const fresh = computeCellStates(parse, [m1, { id: 'imp', memberName: mname, date: MO, value: differ(MO), type: 'shift', source: 'roster_import' }]);
+        const { states, changed } = carryReviewAnswers(answeredReview(), before, fresh);
+        assert.ok(changed.includes(key(MO)), `Monday is asked again (changed: ${changed.join(', ')})`);
+        assert.notEqual(states.get(key(MO)).chosen, false, 'its untick went with it — the admin answers what the day holds now');
+        assert.equal(states.get(key(TU)).chosen, 'pdf', 'Tuesday, untouched, keeps "Use new roster"');
+    });
+
+    test('an entered shift and its editor survive, and nothing is invented for a row only one read has', () => {
+        const unreadable = { parsed: [{ memberName: mname, shifts: { [MO]: 'UNKNOWN|XZ9 GARBLED', [TU]: differ(TU) } }], dates: [MO, TU] };
+        const answered = computeCellStates(unreadable, []);
+        assert.equal(answered.get(key(MO)).state, 'UNREADABLE', 'premise');
+        Object.assign(answered.get(key(MO)), { chosen: 'entered', entered: '06:00-14:00', draft: { type: 'shift', from: '06:00', to: '14:00', open: false } });
+        const fresh = computeCellStates(unreadable, []);
+        fresh.set(`${mname}|2026-06-20`, { state: 'DIFF', chosen: true });   // a row the first read never had
+        const { states, changed } = carryReviewAnswers(answered, computeCellStates(unreadable, []), fresh);
+        assert.deepEqual(changed, []);
+        assert.deepEqual([states.get(key(MO)).chosen, states.get(key(MO)).entered, states.get(key(MO)).draft.from], ['entered', '06:00-14:00', '06:00']);
+        assert.equal(states.get(`${mname}|2026-06-20`).chosen, true, 'left as drawn');
+    });
+
+    test('Skip all is handed back: a skipped person\'s ticks are restored, so pressing it again skips them as before', () => {
+        const answered = answeredReview();
+        // The admin had unticked Monday, then pressed Skip all — which remembers each tick and clears it.
+        for (const d of [MO, WE]) { const s = answered.get(key(d)); s.preSkip = s.chosen !== false; s.chosen = false; }
+        const before = computeCellStates(parse, [m1]);
+        const kept = carryReviewAnswers(answered, before, computeCellStates(parse, [m1]), [mname]).states;
+        assert.deepEqual([kept.get(key(MO)).chosen, kept.get(key(WE)).chosen], [false, true], 'the ticks Restore would put back');
+        // Not skipped, the cleared ticks are carried as they are.
+        const asIs = carryReviewAnswers(answered, before, computeCellStates(parse, [m1])).states;
+        assert.deepEqual([asIs.get(key(MO)).chosen, asIs.get(key(WE)).chosen], [false, false]);
     });
 });

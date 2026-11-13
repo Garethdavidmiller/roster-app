@@ -149,7 +149,10 @@ roster" over a manual change, a stale import cleared). So each part of the impor
 deletes is one transaction that re-reads the records it deletes and refuses — writing nothing,
 naming the days — unless each is still what the review loaded, or already gone. Operations then
 re-reads the week and redraws the review, so the changed days show as they are now, without a second
-read of the PDF; the admin's choices on those days have to be made again. A part that only adds is a
+read of the PDF; the admin's choices on those days have to be made again, and every other row keeps
+its answer, Skip all included (v25.94 — before that, every row went back to its default and a second
+Save wrote rows the admin had unticked). A deleting part that is slow says to keep the page open, never
+that it is held on the device (v25.94). A part that only adds is a
 plain batch, held offline as before; a part that deletes needs the server, and one that fails
 without reaching it closes the review as a partial save does, because whether it landed is unknown.
 **What it does not see:** a second import of the same week running at the same time — import

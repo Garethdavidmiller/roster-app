@@ -2010,6 +2010,108 @@ test('operations: a roster Save over a day changed since the read is refused, na
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).filter((/** @type {string} */ p) => /\/m1$/.test(p)).length)).toBe(1);
 });
 
+// v25.94 (the 13 Nov review): the refusal's redraw put EVERY row back to its default, so a row the admin
+// had unticked came back ticked and the second Save wrote it, while the message named only Tuesday. Now
+// each row keeps its answer unless its own day changed — here an untick and a picked reading survive,
+// and only the changed Tuesday is asked again.
+test('operations: a refused roster Save keeps every answer but the changed day\'s', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const save = page.locator('#rosterApplyBtn');
+    const monday = page.locator('.roster-change-row[data-key="G. Miller|2026-08-03"] .roster-tick');
+    const fridayAL = page.locator('.roster-choice-btn[data-key="G. Miller|2026-08-07"][data-opt="0"]');
+    const tuesday = page.locator('.roster-change-row', { has: page.locator('.roster-choice-btn[data-pick="pdf"]') }).first();
+    await expect(save).toHaveText(/Save 3 changes/);
+    await monday.click();                                              // left out — a misread, say
+    await expect(monday).toHaveAttribute('aria-pressed', 'false');
+    await fridayAL.click();                                            // an unreadable cell, answered
+    await expect(fridayAL).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => {                                        // a manager rewrites Tuesday on the server
+        const e2e = /** @type {any} */ (window).__E2E;
+        Object.assign(e2e.docs.find((/** @type {any} */ r) => r.id === 'm1'), { value: '14:00-22:00' });
+        e2e.txDocs = e2e.docs;
+    });
+    await tuesday.locator('.roster-choice-btn[data-pick="pdf"]').click();
+    await save.click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Nothing was saved: G. Miller on Tue 4 Aug changed after the roster was read');
+    // Redrawn: the two answers stand, Tuesday is asked again over what it now holds.
+    await expect(monday).toHaveAttribute('aria-pressed', 'false');
+    await expect(fridayAL).toHaveAttribute('aria-pressed', 'true');
+    await expect(tuesday.locator('.roster-choice-btn[data-pick="manual"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(tuesday).toContainText('14:00-22:00');
+    await expect(save).toHaveText(/Save 3 changes/);
+    await save.click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 3 changes applied');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).map((/** @type {any} */ w) => w.date));
+    expect(written, 'the Monday the admin left out is not written').not.toContain('2026-08-03');
+    expect(written, 'the answered Friday is').toContain('2026-08-07');
+});
+
+// …and Skip all, which belongs to a PERSON rather than a row: the page presses it again after the
+// redraw, so a skipped person stays skipped, and Restore still puts back the ticks they had.
+test('operations: a refused roster Save keeps a skipped person skipped, and Restore still restores', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const MON = '2026-08-03';
+    // A second current member who works that Monday: their week as the base roster has it, but Monday changed.
+    const other = /** @type {any} */ (teamMembers.find((/** @type {any} */ m) => !m.hidden && !m.managerOnly && m.rosterType === 'main'
+        && m.name !== 'G. Miller' && /^\d/.test(getBaseShift(m, new Date(MON + 'T12:00:00')))));
+    const shifts = Object.fromEntries(ROSTER_REVIEW_DATES.map(d => [d, getBaseShift(other, new Date(d + 'T12:00:00'))]));
+    shifts[MON] = shifts[MON] === '13:00-21:00' ? '06:00-14:00' : '13:00-21:00';
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, parsed: [...ROSTER_REVIEW_PARSE.parsed, { memberName: other.name, shifts }] });
+    const save = page.locator('#rosterApplyBtn');
+    const section = page.locator(`.roster-person-section[data-member="${other.name}"]`);
+    const skipAll = section.locator('.roster-skip-all-btn');
+    await expect(save).toHaveText(/Save 4 changes/);
+    await skipAll.click();
+    await expect(save).toHaveText(/Save 3 changes/);
+    await page.evaluate(() => {                                        // a manager rewrites G. Miller's Tuesday
+        const e2e = /** @type {any} */ (window).__E2E;
+        Object.assign(e2e.docs.find((/** @type {any} */ r) => r.id === 'm1'), { value: '14:00-22:00' });
+        e2e.txDocs = e2e.docs;
+    });
+    await page.locator('.roster-choice-btn[data-pick="pdf"]').first().click();
+    await save.click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Nothing was saved');
+    await expect(section).toHaveClass(/section-skipped/);
+    await expect(skipAll).toHaveText('Restore');
+    await expect(save).toHaveText(/Save 3 changes/);
+    // Restore puts back the tick the row had before Skip all — what was remembered survived the redraw.
+    await skipAll.click();
+    await expect(section.locator('.roster-tick').first()).toHaveAttribute('aria-pressed', 'true');
+    await expect(save).toHaveText(/Save 4 changes/);
+});
+
+// v25.94: a part of the Save that DELETES is a transaction, which no device holds — so its slow notice
+// asks the admin to keep the page open and never says the change is held and will send by itself. A
+// part that only adds is still held offline, and still says so (the second test): both directions pinned.
+test('operations: a roster Save that deletes and is still waiting asks for the page to stay open', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 }; });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    await page.locator('.roster-choice-btn[data-pick="pdf"]').first().click();   // "Use new roster": this part deletes m1
+    await page.locator('#rosterApplyBtn').click();
+    const notice = page.locator('#slowSaveNotice');
+    await expect(notice).toBeVisible({ timeout: 5000 });
+    await expect(notice).toContainText('Keep this page open');
+    await expect(notice).not.toContainText('held on this device');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 4 changes applied');
+});
+
+test('operations: a roster Save that only adds is still held on the device, and says so', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 }; });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    await page.locator('#rosterApplyBtn').click();                                // three new days: nothing deleted
+    const notice = page.locator('#slowSaveNotice');
+    await expect(notice).toBeVisible({ timeout: 5000 });
+    await expect(notice).toContainText('held on this device');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 3 changes applied');
+});
+
 test('operations: a flagged roster cell can be resolved from the review table', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');

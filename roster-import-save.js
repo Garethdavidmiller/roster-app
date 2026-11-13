@@ -157,7 +157,9 @@ export async function saveRosterWrites(toWrite, currentUser, shown = new Map()) 
                     }
                     apply(tx);
                 });
-            }), { batched: chunks.length > 1 });
+            // A part that deletes is a TRANSACTION, which no device holds: its slow notice asks the admin to
+            // keep the page open, and never says the change is held and will send by itself (v25.94).
+            }), { batched: chunks.length > 1, held: !deletes.length });
             committed++;
         } catch (err) {
             const e = /** @type {any} */ (err);
