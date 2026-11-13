@@ -30,6 +30,7 @@ const { rotateDocumentLinks, downloadUrl } = createRequire(import.meta.url)('./f
 const BUCKET = 'myb-roster.appspot.com';
 const FILES = ['huddles/2026-11-12-a1.pdf', 'circulars/2026-11-06-b2.docx'];
 const DEAD_ONE = '1 document’s link no longer opens its file. Staff still open the document — the app opens it with a fresh link of its own, and uses this one only if that fails. Replacing the links fixes it.';
+const MENDED_ONE = '1 document whose link no longer opened its file now has a working link.';
 
 /**
  * The REAL server's preview over minimal fakes, read by this card: the contract between the two, which
@@ -43,6 +44,36 @@ async function serverPreview(files, records) {
     const db = { collection: (/** @type {string} */ name) => ({ get: async () => ({
         docs: (records[name] || []).map((d, i) => ({ ref: { path: `${name}/${i}` }, data: () => d })) }) }) };
     return describePreview(await rotateDocumentLinks({ bucket, db, newKey: () => 'k' }));
+}
+
+/**
+ * The REAL server's RUN, read by this card — the same contract for the counts only a run reports. The
+ * fakes keep each file's keys and each record's link; every write lands.
+ * @param {Record<string, string[]>} files  path → the keys it carries
+ * @param {Record<string, any>} records  record path → its data
+ */
+async function serverRun(files, records) {
+    const keys = new Map(Object.entries(files));
+    const store = new Map(Object.entries(records));
+    const resource = (/** @type {string} */ name) => ({ name, generation: 1, metageneration: 1,
+        timeCreated: '2026-01-01T00:00:00.000Z', metadata: { firebaseStorageDownloadTokens: (keys.get(name) || []).join(',') } });
+    const file = (/** @type {string} */ name) => ({ name, getMetadata: async () => [resource(name)],
+        setMetadata: async (/** @type {any} */ { metadata }) => {
+            keys.set(name, String(metadata.firebaseStorageDownloadTokens ?? '').split(',').filter(Boolean));
+            return [resource(name)];
+        } });
+    const bucket = { name: BUCKET, getFiles: async (/** @type {{ prefix: string }} */ { prefix }) =>
+        [[...keys.keys()].filter(p => p.startsWith(prefix)).map(file)] };
+    const snap = (/** @type {string} */ p) => ({ ref: { path: p }, exists: store.has(p), data: () => store.get(p) });
+    const db = {
+        collection: (/** @type {string} */ name) => ({ get: async () => ({
+            docs: [...store.keys()].filter(p => p.startsWith(`${name}/`)).map(snap) }) }),
+        runTransaction: async (/** @type {(tx: any) => Promise<any>} */ fn) => fn({
+            get: async (/** @type {{ path: string }} */ ref) => snap(ref.path),
+            update: (/** @type {{ path: string }} */ ref, /** @type {any} */ d) => { store.set(ref.path, { ...store.get(ref.path), ...d }); },
+        }),
+    };
+    return describeResult(await rotateDocumentLinks({ bucket, db, newKey: () => 'k', rotate: true }));
 }
 
 /** A report as the server sends one; `over` replaces fields. @param {Record<string, any>} [over] */
@@ -186,10 +217,10 @@ describe('describePreview — what a run would touch, and only from an answer it
     test('an older server’s report, without the newer counts, still reads — a malformed one does not', () => {
         // Functions and Hosting deploy in parallel, so this card can meet a server that predates the count.
         const older = report({ files: 2, linked: 1, unlinkedWithKey: 1 });
-        assert.ok(!('unlinkedTooNew' in older) && !('recordsDeadLink' in older));
+        assert.ok(!('unlinkedTooNew' in older) && !('recordsDeadLink' in older) && !('recordsMended' in older));
         assert.equal(describePreview(older)?.canReplace, true);
         assert.equal(describeResult({ ...older, rotate: true, rotated: 1, cleared: 1 })?.ok, true);
-        for (const field of ['unlinkedTooNew', 'recordsDeadLink']) {
+        for (const field of ['unlinkedTooNew', 'recordsDeadLink', 'recordsMended']) {
             for (const bad of [-1, 1.5, '1', null]) {
                 assert.equal(describePreview(report({ files: 1, [field]: bad })), null, `${field}: ${JSON.stringify(bad)}`);
                 assert.equal(describeResult(report({ rotate: true, [field]: bad })), null, `${field}: ${JSON.stringify(bad)}`);
@@ -265,6 +296,30 @@ describe('describeResult — "Done." only for what was done', () => {
         assert.deepEqual(describeResult(report({ rotate: true, unlinkedTooNew: 2 })), { ok: true, lines: [
             '2 files from the last day aren’t used by the app, so their links were left working, in case uploads are still saving the documents that use them. Check again tomorrow to finish them.',
         ] });
+    });
+
+    test('a run says how many documents whose link no longer opened their file it mended — and nothing of none', () => {
+        assert.deepEqual(describeResult(report({ rotate: true, rotated: 2, recordsMended: 1 })), { ok: true, lines: [
+            'Done. 2 files have new links, so old copies of their links no longer work.',
+            MENDED_ONE,
+        ] });
+        assert.deepEqual(describeResult(report({ rotate: true, rotated: 3, cleared: 1, recordsMended: 2 }))?.lines, [
+            'Done. 3 files have new links, so old copies of their links no longer work.',
+            '1 unused file had its link switched off.',
+            '2 documents whose links no longer opened their files now have working links.',
+        ]);
+        // None mended, and an older server that never counts them, say nothing of it.
+        for (const r of [report({ rotate: true, rotated: 2, recordsMended: 0 }), report({ rotate: true, rotated: 2 })]) {
+            assert.deepEqual(describeResult(r)?.lines, ['Done. 2 files have new links, so old copies of their links no longer work.'],
+                `recordsMended: ${JSON.stringify(r.recordsMended)}`);
+        }
+        assert.ok(!describePreview(report({ files: 1, linked: 1, recordsMended: 1 }))?.lines.some(l => /working link/.test(l)),
+            'a preview changes nothing, so it has nothing mended to report');
+    });
+
+    test('the server’s own run of a dead stored link says it now has a working link (the real module)', async () => {
+        const said = await serverRun({ [FILES[0]]: [] }, { 'huddles/2026-11-12': { storageUrl: downloadUrl(BUCKET, FILES[0], 'gone') } });
+        assert.deepEqual(said, { ok: true, lines: ['Done. 1 file has a new link, so old copies of its link no longer work.', MENDED_ONE] });
     });
 
     test('a file that changed mid-run is said plainly, with what to do — and is not a failure', () => {

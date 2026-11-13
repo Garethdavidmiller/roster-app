@@ -2,6 +2,7 @@
 paths:
   - "admin-roster-upload.*"
   - "roster-alignment.js"
+  - "roster-import-save.*"
   - "roster-cell-rules.*"
   - "roster-entry-control.js"
   - "roster-review-states.js"

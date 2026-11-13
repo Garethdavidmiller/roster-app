@@ -12,6 +12,8 @@
 //   · the SKIP_WAITING message is only posted for a waiting SW when a controller exists
 //   · registerServiceWorker is once-per-page-life (v16.23) — a re-invoked coordinator init()
 //     (in-place sign-in) must not stack a second controllerchange handler/update interval
+//   · no update reload runs while a write no page started is on its way (13 Nov 2026) — the last
+//     block, driven with claim-retry.js's real counter
 //
 // No module mocks — runs in test:hygiene. The browser environment (navigator.serviceWorker,
 // window, document, timers) is faked with plain objects; registerServiceWorker reads them
@@ -21,6 +23,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { registerServiceWorker, reloadWhileHidden, reloadWhenNotBusy, reloadForUpdate, lazyImport, hasPendingUpdate, _resetForTest } = await import('./sw-register.js');
+const { trackBackgroundWrite, backgroundWritesInFlight } = await import('./claim-retry.js');
 import { readFileSync } from 'node:fs';
 
 const _realSetInterval   = globalThis.setInterval;
@@ -759,5 +762,181 @@ describe('the page takes a notification\'s "open later" offer', () => {
             (h.swListeners.message || []).forEach(fn => fn({ data: { type: 'myb-open-later', url: 'https://evil.example/#x' } }));
             assert.equal(loc.href, 'https://myb-roster.web.app/admin.html');
         } finally { globalThis.location = prev; h.restore(); }
+    });
+});
+
+// ── A WRITE NO PAGE STARTED HOLDS EVERY UPDATE RELOAD (13 Nov 2026) ─────────────────────────────
+//
+// The forced password change can open on any page, and its password write and the record after it
+// are counted by `trackBackgroundWrite` (claim-retry.js). Only Admin, Settings and Operations read
+// that count, so on every other page an update in the second the write took reloaded the page under
+// it, and the member was asked to choose a password again at the next sign-in. sw-register.js now
+// asks the count itself, on every reload path. These cases count a REAL write through the real
+// `trackBackgroundWrite` — never a stand-in for the counter — so what they test is the wiring
+// between the two modules, which is where this went wrong (CLAUDE.md, "the rule tested, the wiring
+// not"). Each path is driven the way a page drives it: held at the update, held at a hide while the
+// write is still out, then exactly one reload at the first hide after it has landed.
+describe('a write no page started holds every update reload', () => {
+    const KEY = 'myb_perf_sw_reload';
+
+    /** One write the forced change would start, counted until `land()` settles it. */
+    function backgroundWrite() {
+        assert.equal(backgroundWritesInFlight(), 0, 'premise: no earlier case left a write counted');
+        /** @type {(v?: unknown) => void} */ let resolve = () => {};
+        trackBackgroundWrite(new Promise(r => { resolve = r; }));
+        assert.equal(backgroundWritesInFlight(), 1, 'premise: the write is counted');
+        // Settled, then a macrotask, so claim-retry.js has counted it down before the case goes on.
+        return { land: async () => { resolve(); await new Promise(r => setTimeout(r, 0)); } };
+    }
+
+    test('the default path (Pay, Trains, New link): held while the write is out, then ONE reload at the next hide', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        const w = backgroundWrite();
+        try {
+            registerServiceWorker();
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 0, 'the update reloaded the page under the password write');
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 0, 'hidden is not enough while the write is still on its way');
+            assert.equal(h.store.has(KEY), false, 'nothing has reloaded, so nothing may say a release caused the next load');
+            h.setVisibility('visible');
+            await w.land();
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'the first hide after the write landed takes the update');
+            assert.ok(h.store.has(KEY), 'stamped as it reloads, not when it was held');
+            h.setVisibility('visible'); h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'exactly once');
+        } finally { await w.land(); h.restore(); }
+    });
+
+    test('reloadWhenNotBusy (Overtime): the write is busy though the page\'s own check says idle', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        const w = backgroundWrite();
+        try {
+            reloadWhenNotBusy(() => false);   // Overtime's check knows only its form
+            assert.equal(h.state.reloads, 0, 'an idle form is not an idle page while the password write is out');
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 0, 'hidden, and the write still on its way');
+            h.setVisibility('visible');
+            await w.land();
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'the next hide with the write landed');
+            h.setVisibility('visible'); h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'exactly once');
+            assert.equal((h.docListeners['visibilitychange'] || []).length, 0, 'and its one listener is spent');
+        } finally { await w.land(); h.restore(); }
+    });
+
+    test('reloadWhileHidden (the Calendar): a hide mid-write does not reload, and landing while they look does not either', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        const w = backgroundWrite();
+        try {
+            reloadWhileHidden();
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 0, 'they looked away, but the password write is still on its way');
+            h.setVisibility('visible');
+            await w.land();
+            assert.equal(h.state.reloads, 0, 'the member is looking: the write landing is not a reason to reload under them');
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'tried again at the next hide, and taken');
+            assert.ok(h.store.has(KEY));
+            h.setVisibility('visible'); h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'exactly once');
+        } finally { await w.land(); h.restore(); }
+    });
+
+    test('the Calendar\'s own wiring: its delayed reload fires while hidden and mid-write — held, then taken at the next hide', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        /** @type {Function[]} */ const timers = [];
+        const w = backgroundWrite();
+        try {
+            registerServiceWorker({ deferWhileVisible: true,
+                beforeReload: () => { timers.push(() => reloadWhileHidden()); } });
+            await h.flush();
+            h.fireControllerChange();                 // the member is reading: held, as ever
+            h.setVisibility('hidden');                // they lock the phone the moment they press Save…
+            timers.forEach(fn => fn());               // …and the 500ms timer fires, hidden, mid-write
+            assert.equal(h.state.reloads, 0, 'the password write would be reloaded away');
+            h.setVisibility('visible');
+            await w.land();
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'the update still lands, the next time they look away');
+        } finally { await w.land(); h.restore(); }
+    });
+
+    test('reloadForUpdate (Links, its question answered): held while the write is out — and two releases arm ONE reload', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        const w = backgroundWrite();
+        try {
+            registerServiceWorker({ beforeReload: () => reloadForUpdate() });   // Links with nothing unsaved
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 0, 'Reload was the answer, but the password write is still on its way');
+            h.fireControllerChange();                 // Links' beforeReload runs on EVERY update
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 0, 'hidden, and the write still on its way');
+            h.setVisibility('visible');
+            await w.land();
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'one reload, at the first hide after the write landed');
+            h.setVisibility('visible'); h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'two releases while it waited, still one reload');
+        } finally { await w.land(); h.restore(); }
+    });
+
+    test('with nothing on its way every path is what it was: a write that has landed holds nothing', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        const w = backgroundWrite();
+        try {
+            await w.land();
+            registerServiceWorker();
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 1, 'the default path reloads at once, as before');
+            reloadForUpdate();
+            assert.equal(h.state.reloads, 2, 'reloadForUpdate reloads at once, as before');
+            reloadWhenNotBusy(() => false);
+            assert.equal(h.state.reloads, 3, 'an idle page reloads at once, as before');
+            h.setVisibility('hidden');
+            reloadWhileHidden();
+            assert.equal(h.state.reloads, 4, 'a hidden Calendar reloads at once, as before');
+        } finally { await w.land(); h.restore(); }
+    });
+
+    test('lazyImport: a failure mid-write keeps the caller\'s fallback rather than reloading; after it lands, it reloads', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        const w = backgroundWrite();
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.fireControllerChange();                 // the release is held while they read
+            await assert.rejects(lazyImport(async () => { throw new SyntaxError('missing export'); }),
+                'the caller must still get the rejection, and keep its fallback');
+            assert.equal(h.state.reloads, 0, 'a dead tap for a second, never a reload under the password write');
+            await w.land();
+            await assert.rejects(lazyImport(async () => { throw new SyntaxError('missing export'); }));
+            assert.equal(h.state.reloads, 1, 'once it has landed, the failed import reloads onto the release as before');
+        } finally { await w.land(); h.restore(); }
+    });
+
+    test('a notification tap finds the page busy mid-write — with no check of its own, or an idle one', async () => {
+        for (const opts of [{}, { isBusy: () => false }]) {   // the Calendar and Pay pass none; Overtime's can be idle
+            const h = makeHarness({ controlled: true });
+            const w = backgroundWrite();
+            try {
+                registerServiceWorker(opts);
+                await h.flush();
+                const ask = () => {
+                    const replies = /** @type {any[]} */ ([]);
+                    const port = { postMessage: (/** @type {any} */ m) => replies.push(m) };
+                    (h.swListeners.message || []).forEach(fn => fn({ data: { type: 'myb-busy?' }, ports: [port] }));
+                    return replies;
+                };
+                assert.deepEqual(ask(), [{ busy: true }], 'a tap that navigated would take the page away from the write');
+                await w.land();
+                assert.deepEqual(ask(), [{ busy: false }], 'and nothing is held once it has landed');
+            } finally { await w.land(); h.restore(); }
+        }
     });
 });

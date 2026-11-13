@@ -352,10 +352,11 @@ const ingestHuddle = onRequest(
             // Nobody else writes this path, whose uploadId is this request's, so a record naming it is
             // this ingest's own, whatever key it carries: it is left exactly as it is. The answer is what
             // the attempt that wrote it saw, so a first upload is still announced — before, the re-run
-            // read its own record as a re-send and stayed silent.
+            // read its own record as a re-send and stayed silent. When no attempt after the lost answer
+            // succeeds, a read after the transaction finds the record the same way (the catch below).
             /** @type {{ existed: boolean, replacedBy: any }} */
             let written = { existed: false, replacedBy: null };
-            /** What the last attempt that WROTE saw before writing: a re-run's answer (above). @type {{ existed: boolean, replacedBy: any }|null} */
+            /** What the last attempt that WROTE saw before writing: a re-run's answer (above), and the catch's. @type {{ existed: boolean, replacedBy: any }|null} */
             let seenByWrite = null;
             const huddleRef = getFirestore().collection('huddles').doc(date);
             try {
@@ -372,16 +373,30 @@ const ingestHuddle = onRequest(
                     return before;
                 });
             } catch (metaErr) {
-                if (isRetriableFirestoreError(metaErr)) {
-                    // Transaction exhausted its retries on a retriable/commit-ambiguous error. Deleting the
-                    // object could orphan a doc that actually committed (staff tap a 404), so LEAVE it (the
-                    // next upload's cleanup or pruneOldHuddles supersedes it) and rethrow.
-                    console.warn(`[ingestHuddle] metadata transaction failed (${metaErr.code}) — leaving new object in place (commit-ambiguous), not deleting`);
+                if (!isRetriableFirestoreError(metaErr)) {
+                    // Definite non-commit — safe to delete the just-uploaded object so it isn't orphaned.
+                    await bucket.file(storagePath).delete().catch(() => {});
                     throw metaErr;
                 }
-                // Definite non-commit — safe to delete the just-uploaded object so it isn't orphaned.
-                await bucket.file(storagePath).delete().catch(() => {});
-                throw metaErr;
+                // A RETRIABLE ERROR CAN FOLLOW A COMMIT THAT LANDED (13 Nov 2026). The transaction ran out of
+                // retries, and the attempt that committed may have lost its answer with every retry after it
+                // failing too. Answering 500 then left a live Huddle unannounced: Power Automate's retry is a
+                // new request, which finds this flow's own record and stays silent as a re-send. So READ, as
+                // the browser upload does (upload-commit.js). A record naming this request's storagePath means
+                // the commit landed — its uploadId is this request's, so nobody else wrote it — and the ingest
+                // carries on with what that attempt saw. No record, another path or a failed read is no
+                // answer: deleting the object could orphan a record that did commit (staff tap a 404), so it
+                // is LEFT (the next upload's cleanup or pruneOldHuddles supersedes it) and the error rethrown.
+                // A Huddle now goes unannounced only if Firestore stays unreachable through the retries AND
+                // this read.
+                const live = await huddleRef.get().then(snap => snap.data(), () => null);   // null: unread
+                if (!live || live.storagePath !== storagePath) {
+                    console.warn(`[ingestHuddle] metadata transaction failed (${metaErr.code}) and ${live === null ? 'the record could not be read back' : 'the record does not name this upload'} — leaving new object in place (commit-ambiguous), not deleting`);
+                    throw metaErr;
+                }
+                console.warn(`[ingestHuddle] metadata transaction failed (${metaErr.code}), but its commit had landed — carrying on`);
+                // Only an attempt that wrote can have put this path there, so seenByWrite is set.
+                written = /** @type {{ existed: boolean, replacedBy: any }} */ (seenByWrite);
             }
 
             // New metadata committed — delete the previous version's object (best-effort;
@@ -867,7 +882,7 @@ const sendTimetableReminder = onSchedule(
             console.log(`[rotateDocumentLinks] ${rotate ? 'rotated' : 'previewed'}: ${report.files} files, `
                 + `${report.linked} linked (${report.recordsDeadLink} dead stored links), ${report.unlinkedWithKey} unlinked with a key, `
                 + `${report.unlinkedTooNew} too new to clear, ${report.held} held; `
-                + `rotated ${report.rotated}, cleared ${report.cleared}, changed ${report.changedDuringRun}, `
+                + `rotated ${report.rotated} (${report.recordsMended} dead stored links mended), cleared ${report.cleared}, changed ${report.changedDuringRun}, `
                 + `failed ${report.failed.length}`);
             return res.status(200).json(report);
         },

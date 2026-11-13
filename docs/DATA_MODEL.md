@@ -95,7 +95,7 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 **huddles**
 ```
 date         "YYYY-MM-DD" — also the document ID
-storageUrl   Permanent tokenised download URL (both manual upload and Cloud Function ingest — the ingest path uses a download token, NOT a signed URL: GCS caps v4 signed-URL expiry at 7 days, too short for the 3-month retention window). The app opens a short-lived URL from `getDocumentUrl` first and falls back to this one (ARCHITECTURE.md EXC-007). `rotateDocumentLinks` (Operations → Document links) replaces its key, never its path
+storageUrl   Permanent tokenised download URL (both manual upload and Cloud Function ingest — the ingest path uses a download token, NOT a signed URL: GCS caps v4 signed-URL expiry at 7 days, too short for the 3-month retention window). The app opens a short-lived URL from `getDocumentUrl` first and falls back to this one (ARCHITECTURE.md EXC-007). `rotateDocumentLinks` (Operations → Document links) replaces its key, never its path, and only it may: the rules refuse a browser write that keeps `storagePath` and changes this (`linkChangesOnlyWithFile`), so a re-sent upload write cannot put an old link back
 storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf" — versioned suffix
              prevents overwriting the old file before Firestore commits; absent on the oldest docs —
              uploadHuddle's cleanup falls back to "huddles/{date}.{fileType}";
@@ -192,7 +192,9 @@ Written by `savePushSubscription`, deleted by `deletePushSubscription` in `fireb
 Each document ID is a SHA-256 hash of the endpoint URL (first 20 hex chars). One doc per subscribed browser/device.
 Read by the push senders in `functions/push.js` (Admin SDK) — `fanOutPush` for the broadcasts, `sendTargetedPush` for a notice addressed to named members (one person, the Overtime participants, or the pay reminder's CEA and CES members); a send that meets a 410/404 deletes that record server-side.
 Client read: denied (`allow read: if false`) — no client may enumerate endpoints/keys. Create/update:
-a signed-in member or the admin (never an anonymous token or the staff-PIN viewer), shape-validated
+a signed-in member or the admin (never an anonymous token or the staff-PIN viewer), never from a
+member's sign-in older than their last `resetAt` (`signedInSinceLastReset`: a reset's revocation reaches
+a token only when it renews, up to an hour later), shape-validated
 (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt`, and the optional `owner`). When `owner` is
 present the rules require it to equal `request.auth.uid`, and an update to a doc that already carries
 an `owner` must come from that same uid — or from the SAME BROWSER, proved by an unchanged `endpoint`
@@ -294,7 +296,7 @@ The `perf_<YYYY-MM>` doc holds anonymous page-load latency: `recordPageLatency(p
 **circulars**
 ```
 date         "YYYY-MM-DD" — also used as the document ID; re-uploading the same date overwrites
-storageUrl   Permanent tokenised download URL
+storageUrl   Permanent tokenised download URL; as for huddles, only Document links moves it to a new key
 storagePath  Firebase Storage object path, e.g. "circulars/2026-06-25-lv9kab12.pdf"
              (versioned suffix prevents overwriting the old file before Firestore commits);
              absent on the oldest docs — pruneOldDocs falls back to "{collection}/{date}.{fileType}".
@@ -311,7 +313,7 @@ Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage 
 **newsletters**
 ```
 date         "YYYY-MM-DD" — also used as the document ID; re-uploading the same date overwrites
-storageUrl   Permanent tokenised download URL
+storageUrl   Permanent tokenised download URL; as for huddles, only Document links moves it to a new key
 storagePath  Firebase Storage object path, e.g. "newsletters/2026-06-25-lv9kab12.pdf";
              absent on the oldest docs — pruneOldDocs falls back to "{collection}/{date}.{fileType}".
              Bound by the rules to its own collection, as for huddles

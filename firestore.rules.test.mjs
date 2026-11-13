@@ -30,7 +30,7 @@ import { buildDocumentClient } from './documents-client.js';
 import { resolveUploadCommit } from './upload-commit.js';
 import { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath } from './storage-utils.js';
 import {
-    setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
+    setDoc, getDoc, getDocFromServer, addDoc, deleteDoc, updateDoc, getDocs,
     collection, doc, serverTimestamp, increment, Timestamp,
     query, where, limit, deleteField, FieldPath, orderBy, onSnapshot, runTransaction,
 } from 'firebase/firestore';
@@ -165,21 +165,23 @@ function realAnalyticsClient(/** @type {any} */ db, /** @type {Record<string, Fu
 
 /** The real documents-client.js upload engine on a test identity's Firestore, with the real SDK.
  *  Storage is not what these rules judge, so it is a stand-in that keeps nothing and hands back a
- *  URL; the Firestore write the engine builds is the real one. */
-function realDocumentClient(/** @type {any} */ db) {
+ *  URL; the Firestore write the engine builds is the real one. `swap` replaces Storage calls or path
+ *  helpers, so a test can fix the upload's path and play an interleaving between the file and the record. */
+function realDocumentClient(/** @type {any} */ db, /** @type {{ storage?: Record<string, any>, utils?: Record<string, any> }} */ swap = {}) {
     return buildDocumentClient({
         db,
         collections: { huddles: 'huddles', circulars: 'circulars', newsletters: 'newsletters' },
-        fs: { doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, runTransaction, serverTimestamp },
+        fs: { doc, getDoc, getDocFromServer, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, runTransaction, serverTimestamp },
         getStorageSdk: async () => ({
             storage: {},
             ref: (/** @type {any} */ _s, /** @type {string} */ fullPath) => ({ fullPath }),
             uploadBytes: async () => {},
             getDownloadURL: async (/** @type {any} */ r) => `https://storage.example.com/${r.fullPath}`,
             deleteObject: async () => {},
+            ...swap.storage,
         }),
         uploadBytesWithClaimRetry: (/** @type {any} */ upload, /** @type {any} */ ref, /** @type {any} */ body, /** @type {any} */ meta) => upload(ref, body, meta),
-        utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath },
+        utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath, ...swap.utils },
         resolveUploadCommit,
         pruneOldDocs: async () => {},
     });
@@ -1712,6 +1714,59 @@ describe('newsletters', () => {
     });
 });
 
+// ── A DOCUMENT'S STORED LINK MOVES ONLY WITH ITS FILE (13 Nov 2026) ──────────────────────────
+// The SDK sends an upload's record write again when its acknowledgement was lost, possibly hours
+// later. If Operations → Document links had moved the record onto a new key in between (the Admin
+// SDK, which these rules do not see), the re-send put the first link back, and once the run had taken
+// the old key away the stored link opened nothing. So a browser write that keeps the path may not
+// change the link. Every collection is checked, because the rule is CALLED once per block, and a call
+// left out of one block fails nothing in the other two. The record is seeded with the rules off, as
+// the server writes it.
+describe('huddles / circulars / newsletters — the stored link moves only with its file', () => {
+    const FIRST = 'https://storage.example.com/x?alt=media&token=first';
+    const REPLACED = 'https://storage.example.com/x?alt=media&token=after-replace';
+    const record = (/** @type {string} */ coll, /** @type {string|null} */ path, /** @type {string} */ url) => {
+        const { storagePath: _p, ...base } = coll === 'huddles' ? VALID_HUDDLE() : VALID_CIRCULAR();
+        return { ...base, ...(path === null ? {} : { storagePath: path }), storageUrl: url };
+    };
+    const seed = (/** @type {string} */ coll, /** @type {string} */ id, /** @type {any} */ data) =>
+        testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), coll, id), data));
+
+    for (const coll of ['huddles', 'circulars', 'newsletters']) {
+        const OURS = `${coll}/2026-06-25-ours.pdf`;
+        const NEXT = `${coll}/2026-06-25-next.pdf`;
+
+        test(`${coll}: the SAME path with a different link is refused — the re-send after Replace`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, REPLACED));
+            await assertFails(setDoc(doc(adminDb(), coll, id), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: the same path with the SAME link is allowed — a re-send with no run between`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, FIRST));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: a NEW path is allowed, with its own link — every real upload`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, REPLACED));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, NEXT, FIRST)));
+        });
+        test(`${coll}: a record from before v13.99, with no storagePath, can still be uploaded over`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, null, REPLACED));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, NEXT, FIRST)));
+        });
+        test(`${coll}: a create is unaffected — there is no record to compare`, async () => {
+            await assertSucceeds(setDoc(doc(adminDb(), coll, uid()), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: a non-admin is still refused, even writing exactly what is there`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, FIRST));
+            await assertFails(setDoc(doc(namedDb('S. Boyle'), coll, id), record(coll, OURS, FIRST)));
+        });
+    }
+});
+
 // ── THE ADMIN'S REAL UPLOAD WRITER (whole-app fix, 10 Nov 2026) ──────────────────────────────
 // `uploadedAt` is pinned to the server's clock on all three document rules. The cases above write a
 // literal; this drives the real engine (documents-client.js) the Operations page uploads through, so
@@ -1741,7 +1796,41 @@ describe('huddles / circulars / newsletters — the real upload writer', () => {
     });
 
     test('a non-admin\'s upload is still refused', async () => {
-        await assert.rejects(realDocumentClient(namedDb('S. Boyle')).uploadCircular('2025-03-07', pdf(), 'S. Boyle'));
+        // …and reported as the refusal it is (13 Nov 2026): the engine reads a refused write back from
+        // the server before believing it, finds no record of its own, and lets the refusal stand.
+        await assert.rejects(realDocumentClient(namedDb('S. Boyle')).uploadCircular('2025-03-07', pdf(), 'S. Boyle'),
+            (/** @type {any} */ e) => e.code === 'permission-denied');
+    });
+
+    // THE SDK'S RE-SEND, END TO END (13 Nov 2026): the real engine, the real SDK and the real rules.
+    // Our first write committed and its answer was lost, Operations → Document links then moved the
+    // record onto a new key, and the SDK sent our write again. The rules must refuse it, and the engine
+    // must read that refusal as its own commit: Replace's link stays, and our file is not rolled back.
+    // A lost answer cannot be forced through the real SDK, so the commit and the run are played between
+    // the file and the record (`uploadBytes`), on a path fixed so the record can name it in advance.
+    test('a re-send refused because Replace moved its link is this upload\'s own commit — nothing is undone', async () => {
+        const date = '2025-03-08';
+        const OLD = `circulars/${date}-old.pdf`;
+        const OURS = `circulars/${date}-ours.pdf`;
+        const replaced = `https://storage.example.com/${OURS}?alt=media&token=after-replace`;
+        await testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'circulars', date),
+            { ...VALID_CIRCULAR(date), storagePath: OLD, storageUrl: `https://storage.example.com/${OLD}` }));
+        /** @type {string[]} */ const deleted = [];
+        const client = realDocumentClient(adminDb(), {
+            utils: { versionedDocPath: () => OURS },
+            storage: {
+                uploadBytes: () => testEnv.withSecurityRulesDisabled(ctx =>
+                    updateDoc(doc(ctx.firestore(), 'circulars', date), { storagePath: OURS, storageUrl: replaced })),
+                deleteObject: async (/** @type {any} */ r) => { deleted.push(r.fullPath); },
+            },
+        });
+        await client.uploadCircular(date, pdf(), 'G. Miller');
+        assert.deepEqual(deleted, [OLD], 'the file it superseded is swept, and ours is NOT rolled back');
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            const rec = (await getDoc(doc(ctx.firestore(), 'circulars', date))).data();
+            assert.equal(rec?.storagePath, OURS);
+            assert.equal(rec?.storageUrl, replaced, 'the re-send put the first link back');
+        });
     });
 });
 
@@ -1954,6 +2043,88 @@ describe('pushSubscriptions', () => {
         await assertFails(setDoc(doc(staffDb(), 'pushSubscriptions', uid()), VALID_SUB()));
         await assertFails(setDoc(doc(staffDb(), 'clientErrors', uid()), VALID_ERROR()));
         await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: {} }));
+    });
+});
+
+// ── A SIGN-IN FROM BEFORE THE MEMBER'S LAST RESET SAVES NO RECORD (13 Nov 2026) ──────────────────
+// A reset revokes the member's sessions, but a token still inside its hour passed this rule, so a lost
+// phone opened in that hour saved its record again — after a lost-phone reset had deleted it — and went
+// on receiving the member's targeted notices. The rule compares the token's `auth_time` (the sign-in it
+// descends from, in whole seconds) with `passwordStatus/{member}.resetAt`. The test library builds each
+// token from the claims it is handed, over its own defaults, so `auth_time` is set here exactly as
+// Firebase Auth sets it; `iat` is the same moment, so each token is one minted at that sign-in and still
+// inside its hour. Every case has its own member: the emulator keeps documents for the whole run.
+describe('pushSubscriptions — a sign-in from before the member\'s last reset saves no record', () => {
+    // A reset ten minutes ago, at .300 of its second, so the same second has room on either side of it.
+    const SEC = Math.floor(Date.now() / 1000) - 600;
+    const RESET_MS = SEC * 1000 + 300;
+    const uidOf = (/** @type {string} */ name) => `uid_${name.replace(/\W/g, '')}`;
+    /** A member's Firestore as a sign-in at `authTimeSec` (whole seconds) gives it, under its own uid. */
+    const signedInAt = (/** @type {string} */ name, /** @type {number} */ authTimeSec) =>
+        testEnv.authenticatedContext(uidOf(name), memberClaims(name, { auth_time: authTimeSec, iat: authTimeSec })).firestore();
+    /** The member's push record saved from that sign-in — a new one, or the re-save of `id`. */
+    const save = (/** @type {string} */ name, /** @type {number} */ authTimeSec, id = uid()) =>
+        setDoc(doc(signedInAt(name, authTimeSec), 'pushSubscriptions', id), { ...VALID_SUB(), owner: uidOf(name) });
+    /** What the server writes: `resetAt` on a reset, a new account, a take-back or a re-enable. */
+    const status = (/** @type {string} */ name, /** @type {Record<string, any>} */ data) =>
+        testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'passwordStatus', name), data));
+    const resetAt = (/** @type {string} */ name, ms = RESET_MS) => status(name, { resetAt: Timestamp.fromMillis(ms) });
+    /** The member's own record, already saved — the daily re-save is an UPDATE of it. */
+    const ownRecord = async (/** @type {string} */ name) => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'pushSubscriptions', id),
+            { ...VALID_SUB(), owner: uidOf(name) }));
+        return id;
+    };
+
+    test('signed in BEFORE the reset: a new record is refused — the lost phone in its last hour', async () => {
+        await resetAt('R. Before');
+        await assertFails(save('R. Before', SEC - 1800));
+    });
+    test('signed in BEFORE the reset: the re-save of its own record is refused too', async () => {
+        await resetAt('R. Resave');
+        await assertFails(save('R. Resave', SEC - 1800, await ownRecord('R. Resave')));
+    });
+    test('signed in AFTER the reset: a new record and a re-save are both allowed', async () => {
+        await resetAt('R. After');
+        await assertSucceeds(save('R. After', SEC + 300));
+        await assertSucceeds(save('R. After', SEC + 300, await ownRecord('R. After')));
+    });
+    test('no passwordStatus record, or one with no resetAt: allowed, however old the sign-in', async () => {
+        await assertSucceeds(save('R. Nostatus', SEC - 86400));
+        await status('R. Ownpassword', { passwordSetAt: Timestamp.fromMillis(RESET_MS) });
+        await assertSucceeds(save('R. Ownpassword', SEC - 86400));
+    });
+    test('the reset\'s own second reads as before it; a second later is always after it', async () => {
+        // `auth_time` is whole seconds and `resetAt` is finer: a sign-in in second SEC may have been
+        // before the reset at SEC.300 or after it, and is refused either way — the safe direction.
+        await resetAt('R. Second');
+        await assertFails(save('R. Second', SEC));
+        await assertSucceeds(save('R. Second', SEC + 1));
+    });
+    test('a reset on a whole second: a sign-in in that second is at or after it, and allowed', async () => {
+        await resetAt('R. Whole', SEC * 1000);
+        await assertSucceeds(save('R. Whole', SEC));
+        await assertFails(save('R. Whole', SEC - 1));
+    });
+    test('a token bound to no member is judged by the other clauses, as before', async () => {
+        // An admin-only token: no member to look a reset up for, so nothing to compare — and no error.
+        // No record is consulted for it at all. Without the `memberName() == null` guard the rule would
+        // look one up under the null name, which a path reads as the word "null" (measured: a mutation
+        // dropping the guard passed every other case here), so a record of that name is planted to show
+        // that it is never read.
+        await resetAt('null');
+        const adminOnly = testEnv.authenticatedContext('uid_admin_only', { admin: true, auth_time: 1, iat: 1 }).firestore();
+        await assertSucceeds(setDoc(doc(adminOnly, 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'uid_admin_only' }));
+        // …and the staff-PIN viewer is still refused by its own clause, reset or none.
+        await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    });
+    test('the delete is unchanged: a sign-in from before the reset may still remove its own record', async () => {
+        // Sign-out, and a session the reset refuses, RELEASE the record (`releaseDevicePush`); a refusal
+        // there would leave exactly the record this rule is keeping from coming back.
+        await resetAt('R. Release');
+        const id = await ownRecord('R. Release');
+        await assertSucceeds(deleteDoc(doc(signedInAt('R. Release', SEC - 1800), 'pushSubscriptions', id)));
     });
 });
 

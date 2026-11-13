@@ -135,6 +135,13 @@ export async function getDocs(q) {
 }
 export const getDocsFromCache = getDocs;
 export const getDocFromCache = getDoc;
+// The SERVER-only read, which the document upload asks after a refused write (documents-client.js).
+// Offline it rejects whether or not the cache holds the document — that is what it is for.
+export async function getDocFromServer(ref) {
+    failIfArmed(`read:${ref.path}`);
+    if (state.fromCache) throw Object.assign(new Error('Failed to get document from server.'), { code: 'unavailable' });
+    return snap(ref.path, ref.id);
+}
 export function onSnapshot() { return () => {}; }
 export function writeBatch() {
     const pending = [];

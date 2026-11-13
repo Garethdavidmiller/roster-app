@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.00';
+export const APP_VERSION = '26.01';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -918,7 +918,7 @@ export function getWeekNumberForDate(date, member) {
     member = resolveMemberRoster(member, date);
     const rosterType = member.rosterType || 'main';
     // Fixed rosters don't rotate — a member sits on one constant pattern, selected by their
-    // currentWeek (fixedRoster[currentWeek]). currentWeek 1 = C. Reen, 2 = S. Boyle, etc.
+    // currentWeek (fixedRoster[currentWeek]). Who sits on which is roster-member-data.js, and only there.
     if (rosterType === 'fixed') return member.currentWeek || 1;
 
     const cycleLength = rosterType === 'bilingual'   ? CONFIG.BILINGUAL_ROSTER_WEEKS

@@ -2750,6 +2750,48 @@ the run takes it back.
 
 ## Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)
 
+### An update could still land mid-way through the forced change — CLOSED v26.01
+
+Recorded by the sign-in audit and closed the same day, once, in `sw-register.js` rather than page by
+page, so no page's service-worker start-up changed. Every reload an update causes now waits while a
+write no page started is on its way (`backgroundWritesInFlight`, `claim-retry.js`): the default path
+(the Pay Calculator, Trains, New link), `reloadWhenNotBusy` whatever the page's own check says
+(Overtime's knows only its form), `reloadWhileHidden` (the Calendar) and `reloadForUpdate` (Links,
+once its question is answered) all wait for the next time the page is hidden with nothing on its
+way, as `reloadWhenNotBusy` always had. `lazyImport` does not reload then either, leaving the tap to
+its caller's fallback, and a notification tap finds such a page busy. Proven by the last block of
+`sw-register.test.mjs`, which drives each path with a real write counted by `trackBackgroundWrite`;
+each path's check was deleted in turn and its test failed. The entry as it stood:
+
+> The forced change's password write, and the record that follows it, are counted as writes in flight
+> (`trackBackgroundWrite`, claim-retry.js), so a release's reload waits for them on the pages whose busy
+> check reads `writesInFlight` — Admin, Settings and Operations. The Calendar holds an update's reload
+> while it is on screen anyway. The Pay Calculator, Trains, New link, Links and Overtime do not ask, so
+> an update arriving in the second the write takes reloads them under it. The cost is small and
+> self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
+> every page means changing the service worker's start-up on all of them, which was not worth the risk.
+
+### A revoked phone could save its push record again for up to an hour — CLOSED v26.01
+
+Recorded at v25.98 as the second of two gaps under "A lost-phone reset still leaves two narrow gaps";
+closed in the release after it by the fix the entry named. The `pushSubscriptions` create and update rule
+now refuses a token whose sign-in (`auth_time`, kept across renewals) is older than the member's
+`passwordStatus.resetAt` (`signedInSinceLastReset`, `firestore.rules`), which every reset, new account,
+take-back and re-enable stamps before the password changes. `auth_time` counts whole seconds, so a
+sign-in in the reset's own second is refused, the safe direction; the rule's comment says why that costs
+nothing in practice. No client change: `notif.js` already treats a refused re-save as one to try again
+on the next load. A LEAVER is not covered by it — the sweep stamps no `resetAt`, and a rule cannot see
+`disabled` — so the sweep's own re-release (`disabledLeaverUids`) still covers that hour. Proven by eight
+emulator cases in `firestore.rules.test.mjs`; deleting or loosening any part of the rule fails at least
+one of them. The first gap, the surname, stays in KNOWN_LIMITATIONS.md: closing it is an owner decision.
+The entry as it stood:
+
+> - **A revoked phone can save its push record again for up to an hour.** A revocation takes effect
+>   when the ID token next renews, and the push-record rule cannot see it, so a phone opened in that
+>   hour can save its record again once its daily re-save is due. Nothing re-checks it later, as the
+>   leaver sweep now does for leavers (`disabledLeaverUids`). A rule comparing the token's `auth_time`
+>   with `resetAt` would close it. Not built.
+
 ### A PIN session in the same tab outranked a member's at start-up — CLOSED v25.98
 
 Recorded at v25.77 under "A signed-in session lasts 60 days regardless of use"; closed by the
@@ -2825,6 +2867,11 @@ entries were pointed at 4 rather than given new ones, so the bank holidays since
 redrawn too, as the rest days they were. Pattern 2 is untouched: others sit on it, and nobody has said
 they rest on bank holidays.
 
+**v26.01 moved a third placeholder line onto pattern 4.** A CEA off the main link since 28 Jun 2026 sat on
+pattern 2 as well and does not work bank holidays either (owner, 13 Nov 2026). That entry now points at 4 in
+the same way, which redrew Mon 31 Aug 2026 as the rest day it was. A CEA's leave is set by the contract,
+not the line, so nothing else moved (`roster-data.test.mjs` pins both).
+
 **v25.96: the Links workspace had the same race, and has the same wait.** Its design store queues
 a save, a rename and a bin offline (rule 4), and every online one of those, a restore, a purge and
 the automatic bin is a transaction. So just after the signal returned, a save wrote over the
@@ -2859,6 +2906,21 @@ emulator with the network cut and restored mid-flow, which the stubbed e2e suite
 window is narrow, from reconnecting until the queue is sent, normally about a second. The likely fix
 is to wait for the device's pending writes (`waitForPendingWrites`) before any checked delete. Revisit
 if a deleted day that came back is ever reported.
+
+### `withTimeout`, kept as two copies on purpose — CLOSED v25.68
+
+The first of "Two twins kept apart on purpose", under "Left open by the full check of 3 November
+2026". The whole-app check of 10 Nov 2026 (v25.68) made it one copy: `login-overlay.js` imports
+`withTimeout` from `password-force.js` (its comment there: the card's copy "differed only in the
+error's code", and every page that loads the card statically already loads `password-force.js`), so
+the sign-in card's deadline rejects with `myb/timeout` too. The entry went on saying otherwise until the
+v26.00 review. The other twin, `fip-guide.js`'s chip-bar blocks, stays in KNOWN_LIMITATIONS.md. The
+half that closed, as it stood:
+
+> - **Two twins kept apart on purpose.** `withTimeout` (`login-overlay.js`, `password-force.js`):
+>   login's copy ignores the error and the other's callers read its `myb/timeout` code, and sharing
+>   one would pull the Firebase module graph into the sign-in overlay's unit tests or need a new
+>   module, for six lines.
 
 ## Moved out of ROADMAP.md (7 Nov 2026)
 

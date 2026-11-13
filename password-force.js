@@ -337,9 +337,9 @@ function _show(member) {
                 // migration stamp, a Firestore write that can be slow where the change was not, goes
                 // on in the background (`changeOwnPassword`), and waited for here it turned a changed
                 // password into "we couldn't confirm".
-                // COUNTED FOR AS LONG AS IT RUNS (audit E5): a release's reload waits for `writesInFlight` on
-                // the pages that ask, as it does for Settings' own card and the stamp, and this write was
-                // counted by none. Past the deadline too — `settleOrTimeout` stops waiting, never the write.
+                // COUNTED FOR AS LONG AS IT RUNS (audit E5): a release's reload waits for it on every page
+                // (sw-register.js reads the count), as it does for Settings' own card and the stamp, and this
+                // write was counted by none. Past the deadline too — `settleOrTimeout` stops waiting, never the write.
                 const res = await settleOrTimeout(trackBackgroundWrite(changeOwnPassword(member, next)), SAVE_TIMEOUT_MS);
                 if (res.status === 'pending') { onIndeterminate(res.settled); return; }
                 if (res.status === 'failed')  throw res.error;

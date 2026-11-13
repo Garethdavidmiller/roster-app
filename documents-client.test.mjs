@@ -20,6 +20,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildDocumentClient, assertFileSignature } from './documents-client.js';
 import { resolveUploadCommit } from './upload-commit.js';
 
@@ -65,6 +66,17 @@ function harness(opts = {}) {
                 const v = opts.liveAfterFailure;
                 return { exists: () => v !== null, data: () => v };
             }
+            const v = store.get(r._key);
+            return { exists: () => v !== undefined, data: () => v };
+        },
+        // The SERVER read a refused write is settled by (13 Nov 2026), apart from `getDoc` on
+        // purpose: `liveAfterFailure` above can then play a cache still holding the record as it was
+        // before the upload, which a refusal must never be judged by. `beforeServerRead` puts the
+        // server where an interleaving leaves it; `serverReadThrows` makes the read fail.
+        getDocFromServer: async (r) => {
+            log.push('server-read');
+            opts.beforeServerRead?.({ store, objects, deleted });
+            if (opts.serverReadThrows) throw Object.assign(new Error('read'), { code: 'unavailable' });
             const v = store.get(r._key);
             return { exists: () => v !== undefined, data: () => v };
         },
@@ -168,8 +180,9 @@ describe('a live document must never point at a file that is not there', () => {
     });
 
     test('a DEFINITE non-commit rolls the new object back, and leaves the old file alone', async () => {
-        // permission-denied is not retriable: the write certainly did not happen, so the bytes we
-        // just uploaded are certainly unreferenced and must go.
+        // permission-denied is not retriable, and the server's record still names the old file: the
+        // write certainly did not happen, so the bytes we just uploaded are certainly unreferenced and
+        // must go. (A refusal whose record names OUR file is a different case — the block below.)
         const h = harness({
             docs: [['circulars/2026-09-01', { storagePath: 'circulars/2026-09-01-old.pdf', fileType: 'pdf' }]],
             objects: ['circulars/2026-09-01-old.pdf'],
@@ -407,6 +420,96 @@ describe('when we cannot SEE, we write nothing and undo nothing', () => {
         assert.equal(h.store.get(KEY).storagePath, 'circulars/2026-09-01-BBB.pdf',
             "B's document is still the live one");
         assert.deepEqual(h.deleted, [], 'and A deleted nothing on the way out');
+    });
+});
+
+// ── A REFUSAL IS READ BEFORE IT IS BELIEVED (13 Nov 2026) ───────────────────────────────────────
+//
+// firestore.rules refuses a browser write that keeps a record's path and changes its link. So when
+// our first write committed, its acknowledgement was lost, and Operations → Document links moved the
+// record onto a new key before the SDK sent the write again, the re-send is refused — and the refusal
+// arrives on OUR `setDoc`, as `permission-denied`. Taken at its word, that is a definite non-commit,
+// and the rollback deletes the file the live record names: a 404 behind the staff Huddle button.
+// `replaced()` is that world: by the time the server is read, the record names our path, with
+// Replace's link.
+describe('a refused write is settled by reading the SERVER, never by rolling back on its word', () => {
+    const KEY = 'circulars/2026-09-01';
+    const OLD = 'circulars/2026-09-01-old.pdf';
+    const rotated = 'https://example.invalid/after-replace?alt=media&token=rotated';
+    /** Our first send committed and Replace moved its link. `h` is read late: our path is random. */
+    const replaced = (extra = {}) => {
+        /** @type {any} */ let h;
+        h = harness({
+            docs: [[KEY, { storagePath: OLD, fileType: 'pdf', storageUrl: 'https://example.invalid/old' }]],
+            objects: [OLD],
+            setDocFails: () => 'permission-denied',
+            beforeServerRead: ({ store }) => store.set(KEY, { storagePath: h.uploaded[0], fileType: 'pdf', storageUrl: rotated }),
+            ...extra,
+        });
+        return h;
+    };
+
+    test('the server names OUR path: it was our commit — a success, our file kept, the superseded one swept', async () => {
+        const h = replaced();
+        const url = await h.client.uploadCircular('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller');
+        const ours = h.uploaded[0];
+        assert.equal(url, `https://example.invalid/${ours}`, 'it resolves with the URL of the file it stored');
+        assert.ok(h.objects.has(ours), 'our file is NOT rolled back — the live record names it');
+        assert.deepEqual(h.deleted, [OLD], 'and the file it superseded is swept, as on any success');
+        assert.equal(h.store.get(KEY).storageUrl, rotated, 'Replace\'s link stands');
+        assert.ok(h.log.includes('pruned'), 'the post-commit sweep runs, as on any success');
+        assert.equal(h.setDocCalls(), 1, 'and nothing is written again after a refusal');
+    });
+
+    test('the server names any other path: the refusal stands, and our file is rolled back', async () => {
+        // Unchanged since we began (`retry`), and somebody else's (`superseded`): neither is ours.
+        for (const live of [{ storagePath: OLD, fileType: 'pdf' }, { storagePath: 'circulars/2026-09-01-THEIRS.pdf', fileType: 'pdf' }]) {
+            const h = harness({
+                docs: [[KEY, { storagePath: OLD, fileType: 'pdf' }]],
+                objects: [OLD],
+                setDocFails: () => 'permission-denied',
+                beforeServerRead: ({ store }) => store.set(KEY, live),
+            });
+            await assert.rejects(() => h.client.uploadCircular('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller'),
+                (/** @type {any} */ e) => e.code === 'permission-denied');
+            assert.ok(h.log.includes('server-read'), 'the refusal was read first');
+            assert.deepEqual(h.deleted, h.uploaded, `our orphan is rolled back (the server named ${live.storagePath})`);
+            assert.ok(h.objects.has(OLD), 'and the old file survives');
+            assert.equal(h.setDocCalls(), 1, 'and nothing is written again');
+        }
+    });
+
+    test('the server cannot be read: UNCONFIRMED, and nothing is deleted', async () => {
+        const h = replaced({ serverReadThrows: true });
+        await assert.rejects(() => h.client.uploadCircular('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller'),
+            (/** @type {any} */ e) => e.code === 'upload/unconfirmed' && e.cause?.code === 'permission-denied');
+        assert.deepEqual(h.deleted, [], 'our file may be the live one, so it stays — and so does the old one');
+        assert.equal(h.setDocCalls(), 1, 'and nothing is written again');
+    });
+
+    test('it asks the SERVER: a cache still holding the record as it was before the upload is not consulted', async () => {
+        // `liveAfterFailure` is what `getDoc` — which may answer from this device's cache — returns
+        // once a write has failed: here, the record from before the upload. Settled from that, the
+        // refusal would stand, and the rollback would delete the file the live record names.
+        const h = replaced({ liveAfterFailure: { storagePath: OLD, fileType: 'pdf' } });
+        await h.client.uploadCircular('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller');
+        assert.ok(h.log.includes('server-read'), 'the record was read from the server');
+        assert.ok(h.objects.has(h.uploaded[0]), 'and our file, the live one, was kept');
+    });
+
+    // The fakes above hand the engine every Firestore function it takes, so one the PRODUCTION build
+    // forgot would pass all of them — and fail quietly: an absent `getDocFromServer` throws inside the
+    // refusal's read, which counts as a read that failed, so a genuine refusal would be reported
+    // unconfirmed and its file kept. firebase-client.js cannot run an upload in Node (it has no Storage
+    // fake), so what it hands over is read as text.
+    test('firebase-client.js hands the engine every Firestore function the engine takes', () => {
+        const engine = readFileSync(new URL('./documents-client.js', import.meta.url), 'utf8');
+        const wanted = /const \{([^}]*)\} = fs;/.exec(engine)?.[1].split(',').map(s => s.trim()).filter(Boolean) ?? [];
+        assert.ok(wanted.includes('getDocFromServer') && wanted.length >= 10, `could not read what the engine takes: ${wanted}`);
+        const client = readFileSync(new URL('./firebase-client.js', import.meta.url), 'utf8');
+        const built = /buildDocumentClient\(\{[\s\S]*?\bfs: \{([^}]*)\}/.exec(client)?.[1].split(',').map(s => s.trim()).filter(Boolean);
+        assert.ok(built, 'could not find the `fs` firebase-client.js hands to buildDocumentClient');
+        assert.deepEqual(wanted.filter(n => !built.includes(n)), [], 'firebase-client.js does not hand the engine these');
     });
 });
 

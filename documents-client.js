@@ -16,7 +16,8 @@
  *   the document mid-commit;
  * · a failed `setDoc` rolls the new object back ONLY when the failure is definite. A still-retriable
  *   final error is commit-AMBIGUOUS, and deleting there would leave a committed document pointing
- *   at nothing — one orphaned file is recoverable, a 404 behind the staff Huddle button is not;
+ *   at nothing — one orphaned file is recoverable, a 404 behind the staff Huddle button is not. Nor
+ *   is a refusal definite until the server's record says it is not ours (the re-send, below);
  * · a retriable failure RESOLVES BY READING rather than re-issuing blind (`resolveUploadCommit`),
  *   because a `deadline-exceeded` can be raised after the server committed, and a blind retry can
  *   overwrite a competing upload's file reference with a path that upload has already deleted;
@@ -29,18 +30,35 @@
  * timestamps, the analytics counters and the error log — five domains that have nothing to do with
  * each other and no reason to be read together.
  *
- * ── ONE RE-WRITE IT CANNOT GUARD: THE SDK'S OWN RE-SEND (13 Nov 2026) ───────────────────────────
+ * ── THE SDK'S OWN RE-SEND: REFUSED BY THE RULES, AND READ BACK HERE (13 Nov 2026) ───────────────
  *
  * The retry below re-reads first and writes nothing when the record already names our path — the
- * same guard ingestHuddle's re-run now has. But the FIRST `setDoc` is sent at least once: when the
+ * same guard ingestHuddle's re-run has. But the FIRST `setDoc` is sent at least once: when the
  * connection drops after the server committed and before its acknowledgement arrived, the SDK sends
  * the same write again on reconnecting, which may be hours later. If Operations → Document links moved
- * the record onto a new key in between, the re-send puts our first link back, and once that run has
- * taken the old key away the stored link opens nothing. Only a transaction could recognise its own
- * write, and a transaction cannot wait offline as a `setDoc` does: in a weak signal it would turn an
- * upload that saves on reconnecting into one reported as unconfirmed. So it is left as it is — the
- * stored link is only the fallback (members open documents through a 15-minute link signed from the
- * path), Check counts such a record, and Replace mends it (functions/doc-link-rotation.js).
+ * the record onto a new key in between, the re-send put our first link back, and once that run had
+ * taken the old key away the stored link opened nothing. A transaction would recognise its own write,
+ * but it cannot wait offline as a `setDoc` does: in a weak signal it would turn an upload that saves
+ * on reconnecting into one reported as unconfirmed. So the guard is in two halves, and neither is
+ * enough alone:
+ *
+ * · firestore.rules refuses a browser write that keeps a record's `storagePath` and changes its
+ *   `storageUrl` (`linkChangesOnlyWithFile`). A real upload names a new path, and an identical
+ *   re-send with no run between changes no link, so neither is refused.
+ * · That refusal arrives on THIS upload's `setDoc` as `permission-denied`, although its first send
+ *   committed. Taken as a definite non-commit, the rollback below would delete the very file the live
+ *   record names. So a refusal is read back before it is believed (`settleRefusal`), from the SERVER
+ *   (`getDocFromServer`: this device's cache can still hold the record as it was before the upload),
+ *   and `resolveUploadCommit` judges what the read found: our path live is our commit, and the upload
+ *   ends as a success, the superseded file swept; a read that fails is `upload/unconfirmed`, and
+ *   nothing is undone; any other answer leaves the refusal standing, and the new file is rolled back
+ *   as before. Nothing is written again after a refusal.
+ *
+ * What neither half reaches: a re-send that arrives after ANOTHER upload has replaced the record names
+ * a different path, which no rule can tell from a deliberate re-upload, so it puts back a file that
+ * upload has already deleted. It needs a second upload for the same date — another admin's, or the
+ * automatic Huddle — to land between our first send and its re-send; Document links → Check counts
+ * such a record among those whose file is gone, and uploading that date again mends it.
  *
  * ── WHY IT IS A FACTORY, AND NOT A MODULE THAT IMPORTS `db` ─────────────────────────────────────
  *
@@ -115,8 +133,9 @@ export async function assertFileSignature(file, expectedType) {
  * @param {any} deps.db                        the Firestore instance
  * @param {Record<string,string>} deps.collections   COLLECTIONS (huddles/circulars/newsletters)
  * @param {any} deps.fs                        the Firestore functions this module calls: doc, getDoc,
- *                                             setDoc, collection, query, where, orderBy, limit,
- *                                             getDocs, onSnapshot, runTransaction, serverTimestamp
+ *                                             getDocFromServer, setDoc, collection, query, where,
+ *                                             orderBy, limit, getDocs, onSnapshot, runTransaction,
+ *                                             serverTimestamp
  * @param {() => Promise<any>} deps.getStorageSdk    resolves { storage, ref, uploadBytes, getDownloadURL, deleteObject }
  * @param {(uploadBytes:any, ref:any, file:any, meta:any) => Promise<any>} deps.uploadBytesWithClaimRetry
  * @param {object} deps.utils                  the pure path/type helpers
@@ -148,7 +167,7 @@ export function buildDocumentClient({
     guardCommit = (/** @type {Promise<any>} */ p) => p,
 }) {
     const {
-        doc, getDoc, setDoc, collection, query, where, orderBy, limit,
+        doc, getDoc, getDocFromServer, setDoc, collection, query, where, orderBy, limit,
         getDocs, onSnapshot, runTransaction, serverTimestamp,
     } = fs;
     const { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath } = utils;
@@ -156,9 +175,9 @@ export function buildDocumentClient({
     /**
      * The shared transactional upload engine behind all three collections. Flow: read the old
      * storagePath → write a VERSIONED Storage object → getDownloadURL → setDoc (resolve-by-reading
-     * on a retriable code) → roll the new object back only on a DEFINITE non-commit → best-effort
-     * delete of the superseded old object after commit. The reasoning for each step is in the
-     * module header; do not reorder them.
+     * on a retriable code, and on a refusal) → roll the new object back only on a DEFINITE
+     * non-commit → best-effort delete of the superseded old object after commit. The reasoning for
+     * each step is in the module header; do not reorder them.
      *
      * @param {string} collectionName  Firestore collection AND Storage folder prefix (e.g. 'huddles')
      * @param {string} date            ISO "YYYY-MM-DD" (also the Firestore doc id)
@@ -201,6 +220,40 @@ export function buildDocumentClient({
         // already proved the first bytes readable, so a read that fails here is a genuinely unreadable
         // file and surfaces as the upload failing, as it should.
         const body = new Blob([await file.arrayBuffer()], { type: mimeType });
+
+        /**
+         * A `permission-denied` on our record write, read before it is believed: it may be the SDK
+         * re-sending our own committed write, refused because Document links has since moved the
+         * record's link (the header). The record is read from the SERVER, never this device's cache,
+         * and judged by the same `resolveUploadCommit` as an ambiguous answer. Nothing is written.
+         * @param {any} refusal  the `permission-denied` the write was answered with
+         * @returns {Promise<void>} resolves only when the server's record names OUR path — our commit;
+         *   rejects `upload/unconfirmed` when it cannot be read, and with `refusal` itself otherwise
+         */
+        const settleRefusal = async (refusal) => {
+            /** @type {any} */
+            let live = null;
+            let readable = true;
+            try {
+                const snap = await getDocFromServer(doc(db, collectionName, date));
+                live = snap.exists() ? snap.data() : null;
+            } catch (readErr) {
+                readable = false;
+                console.warn(`[upload] ${logTag} write refused, and the record could not be read; cannot confirm:`, /** @type {any} */ (readErr)?.code);
+            }
+            const livePath = live ? (live.storagePath ?? legacyDocPath(collectionName, date, live.fileType)) : null;
+            const verdict = resolveUploadCommit({ ourPath: newStoragePath, oldPath: oldStoragePath, livePath, readable });
+            if (verdict === 'committed') {
+                console.log(`[upload] ${logTag} the refused write was a re-send of one that had committed — keeping it`);
+                return;
+            }
+            // Unreadable: our first send may be the live record, so this is never a rollback.
+            if (verdict === 'ambiguous') {
+                throw Object.assign(new Error('Could not confirm the upload saved.'), { code: 'upload/unconfirmed', cause: refusal });
+            }
+            throw refusal;   // the record is not ours: the refusal stands, and the outer catch rolls back
+        };
+
         let storageUrl;
         try {
             await uploadBytesWithClaimRetry(uploadBytes, storageRef, body, { contentType: mimeType });
@@ -211,7 +264,10 @@ export function buildDocumentClient({
                 uploadedAt: serverTimestamp(), uploadedBy, ...extraFields,
             };
             try {
-                await guardCommit(setDoc(doc(db, collectionName, date), firestoreDoc));
+                // A refusal is settled by reading before anything below sees it (`settleRefusal`):
+                // it may be our own committed write, re-sent by the SDK.
+                await guardCommit(setDoc(doc(db, collectionName, date), firestoreDoc).catch(
+                    (/** @type {any} */ e) => (e?.code === 'permission-denied' ? settleRefusal(e) : Promise.reject(e))));
             } catch (setErr) {
                 const e = /** @type {any} */ (setErr);
                 // SIGNED OUT MID-COMMIT (v24.39). Firestore keeps the write queued for that account

@@ -29,7 +29,7 @@ Download-token URL format (`ingestHuddle` always writes this — it never stores
 https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{uploadId}.pdf?alt=media&token={uuid}
 ```
 
-**Auto-prune (3 months):** at the end of every `ingestHuddle` run, `pruneOldHuddles()`
+**Auto-prune (3 months):** at the end of every successful `ingestHuddle` run, `pruneOldHuddles()`
 (`functions/huddle-retention.js`) deletes huddle Firestore docs *and* their Storage objects older
 than 3 months (`HUDDLE_RETENTION_MONTHS`).
 **It deletes only what it selected (v25.89):** each document is re-read in a transaction and left
@@ -67,6 +67,12 @@ Body:
 **Why plain-text body instead of JSON?** Power Automate's `@{body('...')?['contentBytes']}` template substitution in a JSON body silently truncates large base64 strings. Putting the file in the raw body as `text/plain` bypasses this. Metadata goes in custom headers instead.
 
 **Body reading:** The function reads `req.rawBody` first; falls back to streaming. Never use an Express body-parser — it consumes the stream.
+
+**A 500 does not always mean nothing was stored.** A record write can land and its answer be lost.
+The function then reads the record back, and finding its own upload there it finishes as usual:
+stored, announced, 200. Only if Firestore stays unreachable through the write's retries and that read
+too does it answer 500 with the Huddle possibly in the app — and nobody told, because Power Automate's
+retry finds the flow's own record and stays silent as a re-send (`functions/documents.js`).
 
 **File type detection:** Based on `X-Huddle-Filename` extension — never rely on `Content-Type` (Power Automate sends `text/plain` for both).
 
@@ -364,11 +370,16 @@ renderReviewTable() — per-person card list:
     — an Other day shows its RDW marker and times beside the badge
     — an UNKNOWN| value → "couldn't read …"
         ↓
-Apply approved changes:
+Apply approved changes — saveRosterWrites (roster-import-save.js), in parts of up to 450 writes:
   shiftValueToOverrideType(value, date) → Firestore type field (roster-cell-rules.js)
     — date detects Sunday: worked times → 'rdw'; AL/SICK → 'correction' (RD) backstop
   Strip "RDW|" prefix → save plain time as value
   source: 'roster_import' on all saved docs
+  A part that only adds records is a plain batch. A part that DELETES one ("Use new roster", a stale
+  import cleared, an older copy of a day) is one transaction, refused — writing nothing, naming the
+  days — when a record it deletes changed after the roster was read (v25.92). The review then reads
+  the week again and shows those days as they are now; every other row keeps its answer
+  (KNOWN_LIMITATIONS.md → "Two editors on one day").
 ```
 
 ---
@@ -422,7 +433,7 @@ before relying on this summary:
 ### Staff access flow
 
 1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer.
-2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
+2. `nav-panel.js` click handler fires. A `_docFetching` flag returns early if a fetch is already in flight (a guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
 4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8 s budget (`DOC_FETCH_BUDGET_MS`), with a short-lived URL requested from `getDocumentUrl` in parallel against the same budget. A read that runs past it is handled as a Firestore error (below); a short-lived URL that runs past it gives way to the stored `storageUrl`:
    - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted or when the server signed a different file than the one read (its returned `storagePath` does not match — `resolveDocumentOpenUrl`). A PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` so it renders with images instead of downloading (no Mammoth-style inline HTML conversion, unlike the Huddle). `closePanel()` closes the drawer, popping its history entry.
@@ -476,7 +487,8 @@ ever wanted (AUTH_PLAN.md §5).
 | Done. N files have new links | every old copy of those links is dead | nothing |
 | N files couldn't be changed, and their old links still work | a write failed; each such file stopped at the step it reached, its stored link still working | press Replace again — safe |
 | N files changed while this ran | an upload, or a run in another tab, landed mid-run; those files were left alone | Check again, and Replace if it is offered |
-| N documents' links no longer open their files | each stored link names a key its file no longer carries — a document saved after a run had taken its file's key away, or a browser's upload write re-sent after its answer was lost. Staff still open the document through the app's 15-minute link; only the fallback is broken | press Replace — a run gives each one a working link |
+| N documents' links no longer open their files | each stored link names a key its file no longer carries — a document saved after a run had taken its file's key away. Staff still open the document through the app's 15-minute link; only the fallback is broken | press Replace — a run gives each one a working link |
+| N documents whose links no longer opened their files now have working links | the run moved each of those stored links onto its file's new key | nothing |
 | N files from the last day aren't used by the app, so their links were left working | an upload may still be saving the document that names them; a run takes the key only from an unused file at least a day old | Check again tomorrow, and Replace if it is offered |
 | N files are left as they are, old links and all | a stored link this cannot read may open them, and touching them could break it | the unreadable links need looking at in a session; the card cannot fix them |
 | N files couldn't be checked, so it isn't known yet whether there is anything to replace | the check could not read those files' keys; nothing changes on a check | Check again in a minute |
@@ -521,18 +533,21 @@ design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
 1. **Member** taps "Can't get in?" on the login overlay — **always available there**, under the Sign
    in button → `requestPasswordReset` in `firebase-client.js` (the one caller there that sends **no**
    auth token) → the `requestPasswordReset` Cloud Function.
-2. **Function** (Admin SDK) upserts `resetRequests/{memberName}` — `requestedAt`, `count`, and
-   `provisioned` (false ⇒ the remedy is **Set up accounts**, not Reset). The doc ID is the member name
-   *deliberately*, so the collection can never exceed the roster; the name comes from the server-owned
-   `activeMembers` list, never the request body, and **no free text is ever stored**.
+2. **Function** (Admin SDK) upserts `resetRequests/{memberName}` — `requestedAt`, `count`,
+   `provisioned` and `disabled` (no account, or a disabled one, ⇒ the remedy is **Set up accounts**,
+   not Reset). The doc ID is the member name *deliberately*, so the collection can never exceed the
+   roster; the name must be on the server-owned roster (`processMembers`), never taken from the request
+   body, and **no free text is ever stored**.
 3. **Admin push** — a genuinely-recorded request (never a throttled repeat) sends
    `🙋 Reset requests — N waiting` to the **admin's devices only** (`sendTargetedPush`, never
    `fanOutPush` — `.claude/rules/notifications.md`), deep-linking to `operations.html#reset-requests`,
-   which opens and scrolls to that card. The push is a courtesy — the Firestore row is the doorbell.
-4. **Admin** actions it in Operations → Password Reset Requests (Reset, or Set up accounts if
-   `provisioned` is false), then clears the row (`clearResetRequest`). **A request proves nothing about
-   who sent it** — confirm with the member before resetting (PASSWORD_DESIGN.md §13). Create/update is
-   denied to every client **including the admin**; only the function writes.
+   which opens and scrolls to that card. A burst of requests within five minutes rings once, and its
+   headline counts the queue. The push is a courtesy — the Firestore row is the doorbell.
+4. **Admin** actions it in Operations → Password Reset Requests (Reset, or Set up accounts where the
+   row says *No account yet* or *Account disabled*), then clears the row (`clearResetRequest`). **A
+   request proves nothing about who sent it** — confirm with the member before resetting
+   (PASSWORD_DESIGN.md §13). Create/update is denied to every client **including the admin**; only the
+   function writes.
 5. **The member is told, on their own devices.** `resetMemberPassword` sends
    `🔑 Password reset — set a new one` via `sendTargetedPush` to the uid it has just written,
    deep-linking to `settings.html`, where the Password card opens itself. **The new password is never
@@ -706,8 +721,10 @@ until Confirm.
 **A manager or clerk (`managerOnly`) is the exception to step 2: remove their ROW from `teamMembers`.**
 Every active Management row already carries `hidden: true` (it keeps them off the Calendar's member
 selector), so `getMembersForGrade('Management')` does not filter on it — hiding one changes nothing,
-they stay in `activeMembers`, this step never disables them and step 4 reads clean. Their rows hold no
-roster to resolve. Take them out of `CONFIG.MANAGER_NAMES` in the same commit (step 2b).
+they stay in `activeMembers`, this step never disables them and step 4 reads clean. A row that has
+only ever been a manager's holds no roster to resolve; one moved off a line keeps that line, which
+`roster-data.test.mjs` reads ("A member changes grade", below). Take them out of
+`CONFIG.MANAGER_NAMES` in the same commit (step 2b).
 
 Hiding them removes them from `activeMembers`, which is the server-owned list `setupRosterAuth`
 trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
@@ -759,8 +776,8 @@ surname default and signed out by Set up accounts, so the card says so by name, 
 **"Access reduced and signed out of every device"** names anyone a run took admin, manager or Links
 designer from (`demoted`): the account's sessions are revoked, so the old access stops at once rather
 than when the sign-in renews. Their password is untouched. A **`lookup-failed`** or **`stamp-failed`**
-entry under failures means a new account was NOT created for that name (its `resetAt` must land first)
-— run Set up accounts again. A confirmed leaver run also switches off the notifications of leavers
+entry under failures means nothing was done for that name: no account created (a new one's `resetAt`
+must land first) and no claims stamped — run Set up accounts again. A confirmed leaver run also switches off the notifications of leavers
 disabled on an earlier run whose phones had saved them again, and counts them when there were any.
 
 ### What this does NOT do, and has to be done per week
@@ -907,7 +924,7 @@ PIN is what lets both be fixed at once.
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
 | Guides | Reachable **without** the PIN. The nav drawer is never locked. |
 | Huddle, Circular, Newsletter | Need the PIN or a sign-in. A locked tap says what to do rather than opening; a notification tap is held on the PIN card and finishes once access is given. |
-| Trains page | Opens with the PIN, from the drawer's 🚆 Trains pill, and the PIN is still held on the way back. Its drawer shows **Staff PIN access** and **Lock Calendar**, which locks the station and lands on the PIN card. Admin, Pay and Settings still ask for a member sign-in, and signing in there ends the PIN. A fresh browser that opens Trains directly is asked to sign in — the PIN is entered on the Calendar. |
+| Trains page | Opens with the PIN, from the drawer's 🚆 Trains pill, and the PIN is still held on the way back. Its drawer shows **Staff PIN access** and **Lock Calendar**, which locks the station and lands on the PIN card. Admin, Pay and Settings still ask for a member sign-in, and opening one ends the PIN: its sign-in card says the roster is locked again, and its way back opens the Calendar on the PIN box. A fresh browser that opens Trains directly is asked to sign in — the PIN is entered on the Calendar. |
 | A member whose sign-in has been lost from the device | They get **their own sign-in card**, never the PIN — see below. |
 | A slow start on a poor connection | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
 

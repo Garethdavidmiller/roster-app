@@ -9,9 +9,33 @@
  * future updates → on controllerchange, reload (or call beforeReload).
  * An hourly update check is wired via visibilitychange so it pauses when the
  * tab is hidden and fires immediately on return.
+ *
+ * No reload an update causes runs while a write no page started is on its way (the forced password
+ * change's, or the record after a password change) — not the default, `reloadWhenNotBusy`,
+ * `reloadWhileHidden`, `reloadForUpdate` or `lazyImport`'s — on any page, whatever its own busy check
+ * says, and a notification tap finds such a page busy. Why that is asked here, once, rather than by
+ * each page: the note beside `backgroundWriteOnItsWay`, below.
  */
 
 import { SW_UPDATE_RELOAD as SW_RELOAD_KEY } from './storage-keys.js';
+// claim-retry.js imports nothing, so this file stays free of the Firebase SDK and still loads in Node
+// with no mocks (sw-register.test.mjs runs in test:hygiene).
+import { backgroundWritesInFlight } from './claim-retry.js';
+
+// ── A WRITE NO PAGE STARTED HOLDS EVERY UPDATE RELOAD (13 Nov 2026) ─────────────────────────────
+//
+// The forced password change (password-force.js) can open on any page after a sign-in, and its
+// password write and the record that follows it (`changeOwnPassword`) are counted while they are on
+// their way (`trackBackgroundWrite`, claim-retry.js). Only Admin, Settings and Operations read that
+// count, in their own busy checks. So on the Pay Calculator, Trains, New link, Links and Overtime,
+// and on the Calendar once it was hidden, an update arriving in the second the write took reloaded
+// the page under it, and the member was asked to choose a password again at the next sign-in
+// (recorded in KNOWN_LIMITATIONS by the sign-in audit; its closing note is in ROADMAP_HISTORY).
+// Asking on each page meant changing every page's start-up, so it is asked HERE, once, by every
+// reload this file makes. A held reload waits the way `reloadWhenNotBusy` always has: for the next
+// time the page is hidden with nothing on its way. Nothing is shown — the member did not ask for
+// the write and has nothing to wait for — and with nothing on its way every path is what it was.
+const backgroundWriteOnItsWay = () => backgroundWritesInFlight() > 0;
 
 // Once-per-page-life guard (v16.23): coordinators whose init() can be RE-INVOKED (the in-place
 // sign-in re-entry on operations/links/paycalc) must not stack a second controllerchange handler
@@ -52,6 +76,12 @@ export function hasPendingUpdate() { return _updateClaimed; }
  * release instead of leaving the control that asked for it dead; either way the rejection still
  * reaches the caller, which keeps its own fallback. Only for pages where a reload loses nothing
  * the member typed — the Calendar's cards and Team View, not a page with unsaved work.
+ *
+ * NOT while a write no page started is on its way (the note above), because that write is the one
+ * thing on such a page a reload WOULD lose. The tap then gets the caller's own fallback, as it does
+ * when no update is pending; the release's reload stays held for the page (the Calendar's, until the
+ * member looks away with the write landed), and a tap once it has landed is handled as before. A
+ * control that fails for a second is the cheaper loss: the other is choosing a password again.
  * @template T
  * @param {() => Promise<T>} load  e.g. `() => import('./login-overlay.js')`
  * @returns {Promise<T>}
@@ -59,7 +89,7 @@ export function hasPendingUpdate() { return _updateClaimed; }
 export async function lazyImport(load) {
     try { return await load(); }
     catch (err) {
-        if (_updateClaimed) { markUpdateReload(); try { window.location.reload(); } catch { /* nothing more to do */ } }
+        if (_updateClaimed && !backgroundWriteOnItsWay()) { markUpdateReload(); try { window.location.reload(); } catch { /* nothing more to do */ } }
         throw err;
     }
 }
@@ -76,8 +106,9 @@ export async function lazyImport(load) {
 // `run()` used to stamp it at controllerchange, before asking `beforeReload` — and a `beforeReload`
 // may decline (links' confirm offers Cancel) or hold the reload while the page is busy, so the
 // marker then sat in sessionStorage and labelled whatever that tab opened next. Every reload path
-// now stamps immediately before its own `reload()`: `reloadForUpdate`, `reloadWhileHidden`,
-// `reloadWhenNotBusy` and `lazyImport`. A TIMESTAMP still, not a flag: the reader compares it with
+// now stamps immediately before its own `reload()`: `reloadWhileHidden`, `reloadWhenNotBusy` (and
+// `reloadForUpdate`, which reloads through it) and `lazyImport` — on a held reload too, when it finally
+// runs, never when it was armed. A TIMESTAMP still, not a flag: the reader compares it with
 // when its own load STARTED, so a marker that outlived its reload is refused there.
 //
 // sessionStorage, so it dies with the tab and never reaches another one. iOS private mode throws on
@@ -102,17 +133,20 @@ let _hiddenReloadArmed = false;
 /**
  * Reload now if nobody is looking; otherwise wait until they look away. For a `beforeReload` that
  * delays its reload: whatever the page looked like when the update arrived, this is decided when
- * the reload would actually happen.
+ * the reload would actually happen. Hidden with a write no page started still on its way (the note
+ * beside `backgroundWriteOnItsWay`), it waits for the next hide after the write has landed.
  * @param {() => void} [reload]
  */
 export function reloadWhileHidden(reload = () => window.location.reload()) {
+    // Nobody looking, and nothing still on its way — asked now, and again at every hide.
+    const clear = () => document.visibilityState === 'hidden' && !backgroundWriteOnItsWay();
     // Stamped as the reload actually runs (the marker's note, above): on the re-armed path that can be
     // hours after the update arrived, and perf-reporter compares it with when the next load started.
-    if (document.visibilityState === 'hidden') { markUpdateReload(); reload(); return; }
+    if (clear()) { markUpdateReload(); reload(); return; }
     if (_hiddenReloadArmed) return;   // one reload serves every update that arrives while they read
     _hiddenReloadArmed = true;
     document.addEventListener('visibilitychange', () => {
-        if (!_hiddenReloadArmed || document.visibilityState !== 'hidden') return;
+        if (!_hiddenReloadArmed || !clear()) return;
         _hiddenReloadArmed = false;
         markUpdateReload();
         reload();
@@ -125,16 +159,18 @@ export function reloadWhileHidden(reload = () => window.location.reload()) {
  * wrong (`{ once: true }`: hidden-while-busy spent the one listener, and the page never reloaded);
  * Settings and Overtime had no guard at all, so a release landing while a password change's two
  * writes were half done reloaded between them. `isBusy` is asked again at the moment of reloading,
- * never only when the update arrived.
+ * never only when the update arrived — and a write no page started counts as busy whatever `isBusy`
+ * says (the note beside `backgroundWriteOnItsWay`): Overtime's check, for one, knows only its form.
  * @param {() => boolean} isBusy  unsaved work on screen, or a write still on its way
  * @param {() => void} [reload]
  */
 export function reloadWhenNotBusy(isBusy, reload = () => window.location.reload()) {
-    if (!isBusy()) { markUpdateReload(); reload(); return; }
+    const busy = () => backgroundWriteOnItsWay() || isBusy();
+    if (!busy()) { markUpdateReload(); reload(); return; }
     if (_busyReloadArmed) return;   // one armed reload serves every update that arrives while busy
     _busyReloadArmed = true;
     const onHidden = () => {
-        if (document.visibilityState !== 'hidden' || isBusy()) return;
+        if (document.visibilityState !== 'hidden' || busy()) return;
         document.removeEventListener('visibilitychange', onHidden);
         _busyReloadArmed = false;
         markUpdateReload();
@@ -151,14 +187,17 @@ function markUpdateReload() {
 }
 
 /**
- * Reload now, onto the update that has just claimed this page — and say so first, so the next load's
+ * Reload onto the update that has just claimed this page — and say so first, so the next load's
  * speed sample knows a release caused it. For a `beforeReload` that reloads directly once it has its
- * answer (links' confirm), and for the default path below.
+ * answer (links' confirm), and for the default path below. Now — unless a write no page started is
+ * on its way (the note beside `backgroundWriteOnItsWay`), when it waits for the next time the page is
+ * hidden with nothing on its way; a Reload answered in Links' question in that second takes effect
+ * when the member next looks away. It is `reloadWhenNotBusy` for a page with nothing of its own to
+ * wait for, so the single armed listener and the stamp before the reload are that function's.
  * @param {() => void} [reload]
  */
 export function reloadForUpdate(reload = () => window.location.reload()) {
-    markUpdateReload();
-    reload();
+    reloadWhenNotBusy(() => false, reload);
 }
 
 /**
@@ -170,6 +209,9 @@ export function reloadForUpdate(reload = () => window.location.reload()) {
  * does not answer within the worker's half-second is navigated exactly as before, so an older release
  * still on screen behaves as it always did. Every page answers — `isBusy` absent means "not busy",
  * answered at once, so the Calendar and the Pay Calculator pay no wait for a check they do not need.
+ * And every page is busy while a write no page started is on its way, whatever `isBusy` says: it is
+ * the hold every update reload here keeps (the note beside `backgroundWriteOnItsWay`), and a tap that
+ * navigated would take the page away from the same write.
  * @param {(() => boolean)|undefined} isBusy  the same predicate the page's update reload waits on
  */
 function answerNotificationTaps(isBusy) {
@@ -177,7 +219,7 @@ function answerNotificationTaps(isBusy) {
         const data = /** @type {any} */ (e.data) || {};
         if (data.type === 'myb-busy?' && e.ports && e.ports[0]) {
             let busy;
-            try { busy = !!isBusy?.(); } catch { busy = true; }   // a predicate that throws must not cost work
+            try { busy = backgroundWriteOnItsWay() || !!isBusy?.(); } catch { busy = true; }   // a predicate that throws must not cost work
             e.ports[0].postMessage({ busy });
         } else if (data.type === 'myb-open-later' && typeof data.url === 'string') {
             const url = new URL(data.url, location.href);
@@ -261,7 +303,7 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                         // where it actually reloads (the marker's note, above).
                         if (beforeReload) { beforeReload(); return; }
                         if (reloadFired) return;
-                        reloadFired = true;
+                        reloadFired = true;   // fired, or armed behind a write no page started: one serves every update
                         reloadForUpdate();
                     };
                     // ── A RELEASE MUST NOT TAKE THE PAGE AWAY WHILE SOMEBODY IS READING IT ──────
@@ -286,7 +328,8 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                     // for themselves: Admin, Operations, Settings and Overtime wait for an idle moment
                     // (`reloadWhenNotBusy`), and Links asks first while it holds unsaved edits —
                     // holding THAT question until the app is backgrounded would greet the member with
-                    // a confirm dialog on return. The rest reload at once.
+                    // a confirm dialog on return. The rest reload at once. And every one of them waits
+                    // for a write no page started (the note beside `backgroundWriteOnItsWay`).
                     //
                     // Already hidden ⇒ run now: nobody is watching, which is the whole condition.
                     if (deferWhileVisible && document.visibilityState === 'visible') {

@@ -28,17 +28,19 @@
  * link that still works", which may be untrue of every one of them.
  *
  * ── NEWER FIELDS MAY BE ABSENT ───────────────────────────────────────────────
- * `unlinkedTooNew` (unused files too new to lose their key) and `recordsDeadLink` (documents whose
- * stored link no longer opens their file — both in the server's header) arrived after the card did,
- * and Functions and Hosting deploy in parallel, so an older server's report lacks them: each is read
- * as none. Present and malformed, either makes the answer unreadable like any other count. An older
- * card ignores both, and still offers Replace for a dead link, whose file it counts as in use.
+ * `unlinkedTooNew` (unused files too new to lose their key), `recordsDeadLink` (documents whose
+ * stored link no longer opens their file) and `recordsMended` (those a run gave a working link — all
+ * three in the server's header) arrived after the card did, and Functions and Hosting deploy in
+ * parallel, so an older server's report lacks them: each is read as none. Present and malformed, any
+ * of them makes the answer unreadable like any other count. An older card ignores all three, and still
+ * offers Replace for a dead link, whose file it counts as in use.
  *
  * ── A DOCUMENT WHOSE LINK NO LONGER OPENS ITS FILE ───────────────────────────
  * Said in what it means for staff — nothing, until the app's fresh link cannot be had, because that
  * is what they open documents with — and that Replace mends it. Such a document's file is always one
  * counted as in use (the server counts dead links nowhere else), so Replace is already offered for it;
- * it is not added to the offer separately, which would offer Replace with no file to confirm.
+ * it is not added to the offer separately, which would offer Replace with no file to confirm. A run
+ * then says how many such documents it gave a working link (`recordsMended`): the check promised it.
  *
  * ── AN UPDATE WAITS FOR THE ANSWER (v25.92) ──────────────────────────────────
  * A run can take minutes, and its report is the only record of what it did: a check made after a
@@ -98,6 +100,15 @@ const deadLinkLine = (n) => (n === 1
     ? '1 document’s link no longer opens its file. Staff still open the document — the app opens it with a fresh link of its own, and uses this one only if that fails. Replacing the links fixes it.'
     : `${n} documents’ links no longer open their files. Staff still open the documents — the app opens them with fresh links of its own, and uses these only if that fails. Replacing the links fixes them.`);
 
+/**
+ * Documents whose dead stored link a run moved onto its file's new key, so it opens the file again —
+ * what the preview's dead-link line said Replace would do (the server's header).
+ * @param {number} n
+ */
+const mendedLine = (n) => (n === 1
+    ? '1 document whose link no longer opened its file now has a working link.'
+    : `${n} documents whose links no longer opened their files now have working links.`);
+
 /** What `requestLinkRotation` throws when the request never left, so nothing reached the server. */
 const NOT_SENT = 'doc-links/not-sent';
 
@@ -127,15 +138,15 @@ export async function requestLinkRotation({ rotate, getToken, fetchFn = fetchWit
 const isCount = (n) => Number.isInteger(n) && n >= 0;
 
 /**
- * A report this card can read — every count a number, and the failures a list. The two newer counts
- * may be absent (an older server — the header), but not malformed.
+ * A report this card can read — every count a number, and the failures a list. The newer counts may
+ * be absent (an older server — the header), but not malformed.
  * @param {any} r
  */
 function isReport(r) {
     return !!r && typeof r === 'object' && Array.isArray(r.failed)
         && ['files', 'linked', 'unlinkedWithKey', 'held', 'recordsMissingFile', 'recordsUnreadable',
             'rotated', 'cleared', 'changedDuringRun'].every(k => isCount(r[k]))
-        && ['unlinkedTooNew', 'recordsDeadLink'].every(k => r[k] === undefined || isCount(r[k]));
+        && ['unlinkedTooNew', 'recordsDeadLink', 'recordsMended'].every(k => r[k] === undefined || isCount(r[k]));
 }
 
 /**
@@ -203,6 +214,7 @@ export function describeResult(report) {
     if (!isReport(report) || report.rotate !== true) return null;
     const { rotated, cleared, changedDuringRun, failed } = report;
     const tooNew = report.unlinkedTooNew ?? 0;
+    const mended = report.recordsMended ?? 0;
     const lines = [];
     if (rotated) {
         lines.push(rotated === 1
@@ -214,6 +226,7 @@ export function describeResult(report) {
             ? '1 unused file had its link switched off.'
             : `${cleared} unused files had their links switched off.`}`);
     }
+    if (mended) lines.push(mendedLine(mended));
     if (tooNew) lines.push(tooNewLine(tooNew, true));
     if (changedDuringRun) {
         lines.push(changedDuringRun === 1

@@ -18,7 +18,8 @@
  * literals, and the deps seam is what a future Node test drives fake boundaries through.
  * The pure DECISIONS in these endpoints already live in roster-parse-helpers.js
  * (resolveRosterAuthConfig, claimsForTier, computeOrphanLabels, summariseAccountGaps,
- * summariseSignIns) and member-identity.js, and are unit-tested there —
+ * summariseSignIns), member-identity.js and account-lifecycle.js (passwordWriteRefused,
+ * unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids), and are unit-tested there —
  * this module is the ORCHESTRATION around them.
  *
  * Deploy surface: index.js re-exports the returned handlers under the SAME names, so

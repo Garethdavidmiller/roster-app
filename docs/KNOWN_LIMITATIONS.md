@@ -29,13 +29,10 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
   largest stylesheets are capped the same way by `stylesheet-ratchet.test.mjs`. A file at its cap
   takes the next feature only by extracting something first; the ratchet's header says what a good
   response looks like, and raising a cap in passing is not one.
-- **Two twins kept apart on purpose.** `withTimeout` (`login-overlay.js`, `password-force.js`):
-  login's copy ignores the error and the other's callers read its `myb/timeout` code, and sharing
-  one would pull the Firebase module graph into the sign-in overlay's unit tests or need a new
-  module, for six lines. And `fip-guide.js` carries the chip-bar blocks of `guide-chips.js` — jump,
-  scrollspy, sticky offsets (watching the bar's size as well as the header's) and deep-link landing —
-  woven into its country finder, where a jump also opens the country's `<details>`; the other four
-  guides share the one file. Three rules are in the shared file only: the two-column rule (the FIP
+- **One twin kept apart on purpose.** `fip-guide.js` carries the chip-bar blocks of
+  `guide-chips.js` — jump, scrollspy, sticky offsets (watching the bar's size as well as the
+  header's) and deep-link landing — woven into its country finder, where a jump also opens the
+  country's `<details>`; the other four guides share the one file. Three rules are in the shared file only: the two-column rule (the FIP
   guide is one column), the hold that keeps a tapped or linked chip lit when its section cannot reach
   the top (taps v25.80, links v25.81), and a banner section starting at its banner (the FIP guide has
   no banners). Its last sections are long enough that nothing bottoms it out: a tap, measured at 375px
@@ -268,10 +265,13 @@ ESLint. Nothing in it is served to staff. **Do not trust a count written down he
 `npm audit`.** A transitive dev tree moves on its own, so a number in prose is stale the day after it
 is written. Its shape on 13 Nov 2026 was moderate findings only, none high or critical:
 
-- **Inside `firebase-tools`** (pubsub and opentelemetry, archiver, gaxios, glob, uuid and their
-  neighbours). For the CLI's chain npm offers only `npm audit fix --force`, which DOWNGRADES the CLI
-  a major version — the wrong direction, and declined. They clear when the CLI updates its own
-  dependencies; re-run `npm audit` after each CLI bump.
+- **Inside `firebase-tools`** (pubsub and opentelemetry, archiver, gaxios, glob, uuid, hono and
+  their neighbours). For most of the CLI's chain npm offers only `npm audit fix --force`, which
+  DOWNGRADES the CLI a major version — the wrong direction, and declined. They clear when the CLI
+  updates its own dependencies; re-run `npm audit` after each CLI bump. `hono`, under the CLI's MCP
+  SDK, is the exception: a plain `npm audit fix` clears it by taking a newer CLI and `hono` inside
+  their ranges, both under two weeks old on 13 Nov 2026, which the update bot's cooldown would not
+  yet take.
 - **Inside ESLint's own packages**, where npm's offer is likewise a major-version downgrade of
   ESLint.
 - **`gaxios` is the oldest of them (F-DEP-1).** `firebase-tools` still declares `gaxios@^6.7.0`,
@@ -281,11 +281,13 @@ is written. Its shape on 13 Nov 2026 was moderate findings only, none high or cr
   `firebase-tools` (or its Google dependencies) widen the range to `7.x`: bump the CLI then, and
   confirm `npm run test:rules` and a hosting-emulator run still pass.
 
-**One `overrides` entry is deliberate:** `package.json` raises `@grpc/grpc-js` under
+**Two `overrides` entries are deliberate.** `package.json` raises `@grpc/grpc-js` under
 `@firebase/firestore` to `^1.14.5`, though Firestore's own range is `~1.9.0`. It is accepted because
 the only code that uses it is the rules-emulator suite, which passes on it. **If `npm run test:rules`
 ever fails to CONNECT after a dependency change, remove that override first.** Drop it once
-Firestore's own range moves past 1.9.
+Firestore's own range moves past 1.9. And it pins `@napi-rs/canvas`, the optional native canvas
+`pdfjs-dist` 6 can load, to `1.1.0`, as `functions/package.json` does, so an install cannot take a
+release under two weeks old (v25.91).
 
 Each of the update bot's major versions is a decision of its own; `.github/dependabot.yml` says which
 dependencies it leaves alone, and why.
@@ -384,12 +386,16 @@ account and depends on the same grant (RECOVERY_RUNBOOK.md → 5b). Confirm by o
 looking for `storage.googleapis.com` rather than `firebasestorage` in the opened address.
 
 **That fallback can go dead, and Check says so.** A document's stored link can come to name a key its
-file no longer carries: a browser's upload write re-sent after its acknowledgement was lost puts the
-upload's first link back over one Operations → Document links had replaced (`documents-client.js` says
-why that write is not guarded), and a document saved more than a day after its file can miss the key a
-run took away. Members still open the document through the 15-minute link; only the fallback above is
-broken. Document links → Check counts such documents and says so, and Replace gives each one a working
-link (`functions/doc-link-rotation.js`).
+file no longer carries: a document saved more than a day after its file can miss the key a run took
+away. Members still open the document through the 15-minute link; only the fallback above is broken.
+Document links → Check counts such documents and says so, and Replace gives each one a working link
+and says how many it mended (`functions/doc-link-rotation.js`). A browser's upload write re-sent after its acknowledgement was lost
+used to be a second way: it put the upload's first link back over the one a run had given it. Since
+13 Nov 2026 the rules refuse a browser write that keeps a document's file and changes its link, and the
+upload reads that refusal as its own commit (`documents-client.js`). A re-send that arrives after
+ANOTHER upload for the same date is not refused — no rule can tell it from a re-upload — and leaves the
+document naming a file that upload deleted; Check counts it among the documents whose file is gone, and
+uploading that date again mends it.
 
 **Tightening the Firestore read rules does not put these documents behind authentication.** It
 changes who can *discover* a URL; anyone who has ever held a permanent one — a forwarded link,
@@ -511,7 +517,7 @@ now. What still holds:
 ### Admin/manager password is surname-derived (F-SEC-1) — the owner chose leave-as-is
 
 Every account's Firebase Auth password defaults to the member's surname (lowercased, non-alpha
-stripped, padded to ≥6 — `normaliseSurname`), derived from the public display name. So the **admin**
+stripped, padded to ≥6 — `surnamePassword`), derived from the public display name. So the **admin**
 and **manager** accounts — which can do everything, or write on behalf — are guessable by anyone who
 knows the app URL and the surname convention (stated in the login hint), **until each has set a
 password of its own**.
@@ -599,7 +605,8 @@ what protects an account, below, so its length is a UX dial). **Do not restore a
 assumption it was load-bearing; it was deleted rather than left dormant for exactly that reason.
 `session.test.mjs` pins the replacement properties: a long-untouched session inside its window is
 still valid, a read leaves the stored session byte-identical, and a newly written session holds
-exactly `name`/`ver`/`expiry`.
+exactly `name`/`ver`/`expiry`/`createdAt`. `createdAt` is no second clock: it is written once and
+read only to compare with the member's last reset (`sessionPredatesReset`).
 
 **What reads FROM this number, and gets further away as it grows:**
 - **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_DESIGN Track C) is driven
@@ -702,8 +709,9 @@ Check territory, or inherent platform behaviour, not bugs to patch:
   member's self-set and an admin reset can momentarily misreport the "migrated" chip. It self-heals
   on the next set/reset and stores no password material. The chip is a monitoring signal, but
   `resetAt` itself is a CONTROL: a device's silent sign-in is refused against it (AUTH_AND_SESSIONS.md
-  23), so every path that puts an account back on its surname default writes it FIRST, and changes
-  nothing if it cannot.
+  23), and so is a push record saved from a sign-in older than it (`signedInSinceLastReset`,
+  `firestore.rules`), so every path that puts an account back on its surname default writes it FIRST,
+  and changes nothing if it cannot.
 - **An open Huddle viewer can hold a superseded link.** Two Power-Automate runs for one date send one
   push (a transaction closes the check-then-act race), and the push carries only `/#huddle`, so the
   viewer opens whatever Huddle is current at the tap. What remains is a viewer already OPEN, holding a
@@ -813,10 +821,13 @@ Three things it depends on are therefore assumed, not known:
   shut" (above), not a way past the PIN. Reading one real request's headers in the function's logs
   would settle it.
 
-### A lost-phone reset still leaves two narrow gaps (sign-in audit, 13 Nov 2026)
+### A lost-phone reset still leaves one narrow gap: the surname (sign-in audit, 13 Nov 2026)
 
 Operations → Reset asks "Their phone is lost or stolen". Ticked, no reset notice is sent — it would
-land on that phone's lock screen — and every push record the account owns is deleted. Two gaps remain:
+land on that phone's lock screen — and every push record the account owns is deleted. The phone cannot
+save its record again in the hour its token outlives the reset: the rules refuse a push record from a
+sign-in older than the member's last `resetAt` (`signedInSinceLastReset`; ROADMAP_HISTORY.md has the
+gap as it was). One gap remains:
 
 - **The surname opens the account until the member chooses a new password.** A reset is the only
   tool that signs every device out, and it puts the password back to the surname default, which the
@@ -825,11 +836,6 @@ land on that phone's lock screen — and every push record the account owns is d
   and chooses a new one, and the outcome asks the admin to arrange exactly that. Closing it fully
   needs an action that signs every device out WITHOUT touching the password — a new endpoint, and an
   owner decision. Not built.
-- **A revoked phone can save its push record again for up to an hour.** A revocation takes effect
-  when the ID token next renews, and the push-record rule cannot see it, so a phone opened in that
-  hour can save its record again once its daily re-save is due. Nothing re-checks it later, as the
-  leaver sweep now does for leavers (`disabledLeaverUids`). A rule comparing the token's `auth_time`
-  with `resetAt` would close it. Not built.
 
 ### Firebase App Check — declined as an immediate action, RETAINED as Track D
 
@@ -1075,16 +1081,6 @@ the no-dark-mode decision across every page stylesheet and is declined for this;
 mode (toggleable)" is where it would be reopened. Do not answer the report with a darker palette or an
 inverted-back override: the algorithm runs on the computed colours, after the stylesheet, and would
 repaint the repair too.
-
-### An update can still land mid-way through the forced change (sign-in audit, 13 Nov 2026)
-
-The forced change's password write, and the record that follows it, are counted as writes in flight
-(`trackBackgroundWrite`, claim-retry.js), so a release's reload waits for them on the pages whose busy
-check reads `writesInFlight` — Admin, Settings and Operations. The Calendar holds an update's reload
-while it is on screen anyway. The Pay Calculator, Trains, New link, Links and Overtime do not ask, so
-an update arriving in the second the write takes reloads them under it. The cost is small and
-self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
-every page means changing the service worker's start-up on all of them, which was not worth the risk.
 
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
@@ -1683,9 +1679,9 @@ and only with the server-stamped `member` claim equal to it (`isMember` in `fire
 display name, client call or sign-in method can produce `member`, so an account registered from the
 client — at an invented name's address or a real member's — carries nothing the rules or endpoints
 believe. **Set up accounts takes back** an existing account at a roster email that carries no custom
-claim: it resets the password to the member's default, revokes every session and stamps `resetAt`
-before it stamps the claims, and a take-back that fails stamps nothing, so the outsider is never
-handed the claims. How it was built, in order: `ROADMAP_HISTORY.md`.
+claim: it stamps `resetAt` first, then resets the password to the member's default and revokes every
+session, and only then stamps the claims; a take-back that fails stamps no claims, so the outsider is
+never handed them. How it was built, in order: `ROADMAP_HISTORY.md`.
 
 **What remains is hygiene in the Firebase console, not a control** — neither grants anything now, and
 neither can be checked from the repository:

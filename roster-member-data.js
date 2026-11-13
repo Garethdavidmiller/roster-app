@@ -50,14 +50,17 @@ export const teamMembers = [
     { name: 'A. Panchal',              currentWeek: 7,  rosterType: 'main',       role: 'CEA' },
     { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA' },
     { name: 'O. Mylla',                currentWeek: 9,  rosterType: 'main',       role: 'CEA' },
-    // Temporary move to fixed pattern 2 (09:00–16:00 Mon–Fri) from Sun 28 Jun 2026 via
-    // rosterChanges — base stays main wk10 until then, so she only leaves the link from
-    // 28 Jun (vacating wk10, the slot after O. Mylla — taken by new starter K. Jedlinski).
-    // AL stays the standard CEA 32 (her contract decides it, not the line). To END the move, ADD a
-    // `rosterChanges` entry dated from the day it ends, onto whichever line she takes (wk10 is K.
-    // Jedlinski's now). Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
+    // Moves off the main link on Sun 28 Jun 2026, through rosterChanges, onto the placeholder line
+    // `fixedRoster[4]`: 09:00–16:00 Mon–Fri, weekends RD, and every bank holiday a rest day (owner,
+    // 13 Nov 2026). The base stays main wk10 until then (the slot after O. Mylla: K. Jedlinski's from
+    // 28 Jun, M. Campbell's from 22 Nov 2026). AL stays the standard CEA 32 (her contract decides it,
+    // not the line). To END the move, ADD a `rosterChanges` entry dated from the day it ends, onto
+    // whichever line she takes. Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
+    // Until v26.01 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
+    // holidays. Pointing it at 4 redrew only the bank holidays since 28 Jun, as the rest days they were.
+    // NOTE `fixedRoster[4]` is shared with S. Faure and A. Atkins (below): change its hours and you change all three.
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA',
-      rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'fixed', currentWeek: 2 }] },
+      rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'fixed', currentWeek: 4 }] },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
     { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true },
@@ -131,7 +134,7 @@ export const teamMembers = [
     // 29 Jun 2026.
     // Until v25.97 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
     // holidays. Pointing it at 4 redrew only the bank holidays since 29 Jun, as the rest days they were.
-    // NOTE `fixedRoster[4]` is shared with A. Atkins (below): change its hours and you change both.
+    // NOTE `fixedRoster[4]` is shared with A. Atkins (below) and S. Boyle (above): change its hours and you change all three.
     { name: 'S. Faure',                currentWeek: 4,  rosterType: 'dispatcher', role: 'Dispatcher',
       rosterChanges: [{ from: new Date(2026, 5, 29), rosterType: 'fixed', currentWeek: 4 }] },
     { name: 'L. Szpejer',              currentWeek: 5,  rosterType: 'dispatcher', role: 'Dispatcher' },
@@ -144,8 +147,8 @@ export const teamMembers = [
     // fields describe his line BEFORE 15 Nov, so the weeks before then still display as rostered. To end
     // the move, ADD a `rosterChanges` entry dated from the change; deleting this one would redraw every
     // date since 15 Nov 2026.
-    // NOTE `fixedRoster[4]` is SHARED with S. Faure (above): it is not a row of his own, and changing its
-    // hours changes both. Hours of his own need a pattern of his own.
+    // NOTE `fixedRoster[4]` is SHARED with S. Faure and S. Boyle (above): it is not a row of his own, and
+    // changing its hours changes all three. Hours of his own need a pattern of his own.
     { name: 'A. Atkins',               currentWeek: 9,  rosterType: 'dispatcher', role: 'Dispatcher',
       rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'fixed', currentWeek: 4 }] },
     { name: 'K. Yeboah',               currentWeek: 10, rosterType: 'dispatcher', role: 'Dispatcher' },
@@ -215,7 +218,7 @@ export const teamMembers = [
     { name: 'M. Bowler',               currentWeek: 8,  rosterType: 'ces',        role: 'CES' },
     // K. Jedlinski — a CEA new starter (3 Jun 2026), a CES from Sun 22 Nov 2026 (owner, 13 Nov), on the CES
     // line W. Cummings leaves that day to become a manager. Three phases, each a dated move:
-    //   · 3–27 Jun: an own fixed line, pattern 2 (09:00–16:00 Mon–Fri), the line S. Boyle later moved to.
+    //   · 3–27 Jun: an own fixed line, pattern 2 (09:00–16:00 Mon–Fri), the hours S. Boyle's placeholder line also has.
     //   · 28 Jun–21 Nov: the MAIN CEA link on wk10, the slot after O. Mylla that S. Boyle vacated. That line
     //     passes to M. Campbell on 22 Nov.
     //   · from 22 Nov: the CES link. `currentWeek: 9` there is REFERENCE-ANCHORED — W. Cummings's own base
