@@ -34,6 +34,7 @@ import { leaveYearChoices } from './al-entitlement.js';
 import { fmtPeriodDate } from './admin-period-dates.js';
 import { formatISO } from './roster-data.js';
 import { saveFailureMessage } from './claim-retry.js';
+import { withClearedDays } from './admin-own-write.js';
 
 /** "3 days left", "1 day left", "2 over" — a remaining figure as a reader says it. @param {number} n */
 export function leftWords(n) {
@@ -86,7 +87,7 @@ export function leaveYearPanelHtml(groups, { busyDate = null } = {}) {
  *   hasAuthority: (name: string) => boolean,
  *   getOverrides: () => any[],
  *   todayStr?: () => string,
- *   save: (args: { memberName: string, date: string, leaveYear: number|null }) => Promise<void>,
+ *   save: (args: { memberName: string, date: string, leaveYear: number|null }) => Promise<string[]|void>,
  *   onSaved: () => void,
  *   failureMessage?: (err: any) => string,
  * }} given
@@ -134,9 +135,10 @@ export function initLeaveYearPanel(given) {
         say('Saving…', '');
         refresh();
         try {
-            await deps.save({ memberName: member.name, date, leaveYear });
+            // The save hands back the day when a change staged on it in Change a Shift was cleared (admin-own-write.js).
+            const cleared = await deps.save({ memberName: member.name, date, leaveYear });
             busyDate = null;
-            say(`Saved — ${fmtPeriodDate(date)} now comes out of ${year}’s allowance.`, 'success');
+            say(withClearedDays(`Saved — ${fmtPeriodDate(date)} now comes out of ${year}’s allowance.`, cleared || []), 'success');
             deps.onSaved();
         } catch (err) {
             busyDate = null;

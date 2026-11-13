@@ -39,6 +39,7 @@ import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
 import { drawnRecords, drawnDays } from './admin-week-row-state.js';
 import { formatDisplay, namedDays } from './admin-period-dates.js';
+import { initOwnWrite, syncWeekAfterOwnWrite } from './admin-own-write.js';
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 let _currentUser      = '';
@@ -100,11 +101,12 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
         markChanged: () => _markChanged(),
         memberDateMap: buildMemberDateMap,
     });
+    // The page's OWN writes other than the week's save bring the grid into line through this (admin-own-write.js).
+    initOwnWrite({ build: buildWeekGridInto, redraw: renderWeekGrid, recount: updateSaveBtn, hasStagedEdits: _hasStagedEdits, markChanged: () => _markChanged() });
     initSavedChanges({
         currentIsAdmin, currentIsManager, showError,
         onEditRow, onAfterSave: () => _onAfterSave(),
-        onRenderWeekGrid: renderWeekGrid,
-        hasStagedEdits: _hasStagedEdits,
+        onOwnWrite: syncWeekAfterOwnWrite,
         formatDate: formatDisplay,
     });
     initOverrideStore({
@@ -394,8 +396,8 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
  * Writes a batch of AL or absence overrides for a date range.
  * Filters out rest days and Sundays — EXCEPT rest days passed in `swappedDates`, which the admin
  * has declared swapped-in working days; writes RD corrections for Sundays that
- * have a worked base shift. Updates the in-memory cache and re-renders the
- * table and week grid.
+ * have a worked base shift. Updates the in-memory cache, re-renders the table,
+ * and brings the week grid into line with the booking (admin-own-write.js).
  *
  * Does NOT handle entitlement checks, UI feedback, or picker reset — those
  * remain in admin-al.js and admin-sick.js respectively.
@@ -409,7 +411,8 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
  * @param {string[]} [opts.swappedDates] Rest days the admin has DECLARED swapped-in working days
  *        (v23.75). Written as leave that COSTS a day, carrying `replacedType: 'shift'`. Only the AL
  *        card supplies these — absence keeps the old skip-every-rest-day behaviour.
- * @returns {Promise<{workingCount: number, sundayCount: number}>}
+ * @returns {Promise<{workingCount: number, sundayCount: number, cleared: string[]}>} `cleared`: the days whose
+ *          change staged in Change a Shift the booking cleared — and on an error after part of it landed, `err.cleared`
  * @throws {Error} 'auth/session-expired' if no Firebase Auth session, or Firestore error
  */
 export async function recordRangeOverrides({ type, value, memberName, dates, changedBy, swappedDates = [] }) {
@@ -457,7 +460,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // accompany, so writing a standalone correction/RD would SILENTLY erase a worked (possibly
     // RDW/overtime) Sunday — worse than doing nothing. (This is UI-unreachable anyway: the AL/sick
     // save button is disabled when workDays === 0, computed with the same isWorkingDate rule.)
-    if (!workingDates.length) return { workingCount: 0, sundayCount: 0 };
+    if (!workingDates.length) return { workingCount: 0, sundayCount: 0, cleared: [] };
 
     // Combine the two write sets into one op list and CHUNK it. One un-chunked batch blew Firestore's
     // hard 500-writes-per-batch cap on a long absence range (~250 working days each already carrying
@@ -519,8 +522,11 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             // warn the user that some of the range may already have saved (v16.25). A first-chunk
             // SIGNED_OUT may still land; the write gate (claim-retry.js) refuses a retry until reload.
             if (newDocs.length || deletedIds.size) {
+                const landed = new Set([...deletedIds, ...newDocs.map(d => d.id)]);   // in the cache first, should the re-read fail
+                mutateCache(rows => [...rows.filter(o => !landed.has(o.id)), ...newDocs]);
                 try { await loadOverrides({ everyone: false, member: memberName }); } catch { /* best-effort resync — of the BOOKED member, not the dropdown's (A14); a capped re-read would not cover them */ }
                 /** @type {any} */ (err).partialCommit = true;
+                /** @type {any} */ (err).cleared = syncWeekAfterOwnWrite(newDocs);   // the week follows the days that landed
             }
             throw err;
         }
@@ -542,12 +548,10 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     mutateCache(rows => [...rows.filter(o => !deletedIds.has(o.id) && !newIds.has(o.id)), ...newDocs]);
     mutateCache(rows => [...rows].sort((a, b) => (b.date || '').localeCompare(a.date || '')));
     renderTable();
-    const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
-    const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
-    // Not over staged week-grid edits (review A5); the caller's jump then asks Discard/Keep (v16.82).
-    if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
-
-    return { workingCount: workingDates.length, sundayCount: sundayCorrections.length };
+    // The week follows the booking (admin-own-write.js): all of it when nothing is staged (review A5), else the booked
+    // days' rows, a change staged on one of them cleared and named rather than saved over the leave; the caller's jump asks.
+    const cleared = syncWeekAfterOwnWrite(newDocs);
+    return { workingCount: workingDates.length, sundayCount: sundayCorrections.length, cleared };
 }
 
 // ── DATE DISPLAY — lives in admin-period-dates.js; re-exported so its importers are unchanged ──

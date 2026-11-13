@@ -24,6 +24,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft } from './admin-week-row-state.js';
+import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
 import { setLeaveYear } from './admin-leave-year-save.js';
@@ -1313,14 +1314,15 @@ export function init() {
             updateALBookedBox();
             updateSickBookedBox();
             _refreshAlPreview?.(); _refreshSickPreview?.();   // a range already picked was drawn over the deleted days (admin-2-2)
-            // Preserve unsaved staged week-grid edits across an AL/absence range delete (v16.82).
-            if (fieldMember.value && fieldDate.value && !_hasStagedEdits()) renderWeekGrid();
+            // The week follows the delete (admin-own-write.js): only the deleted days' rows while edits are staged (v16.82), a
+            // change staged on one of them cleared — and named below, where the toast's short line has no room for it.
+            const cleared = syncWeekAfterOwnWrite(allForDelete.filter(o => idSet.has(o.id)));
             const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
             const said = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;
             if (feedbackEl) {
-                setStatus(feedbackEl, said);
+                setStatus(feedbackEl, withClearedDays(said, cleared));
                 feedbackEl.className = 'feedback success';
-                fadeFeedback(feedbackEl, 'feedback', 6000);   // the line's ONE fade, which a later message cancels (admin-2-7)
+                if (!cleared.length) fadeFeedback(feedbackEl, 'feedback', 6000);   // the line's ONE fade, which a later message cancels (admin-2-7)
             }
             // The inline line above sits at the top of the card; the row that was just deleted can
             // be a screen below it. A destructive action whose confirmation lands off-screen is one

@@ -40,7 +40,7 @@ import { whenOverridesReady, whenLoadSettled, hasOverrideAuthorityFor, idsReplac
          commitIfUnchanged, LEAVE_YEAR_CHANGED_LINE } from './admin-override-store.js';
 import { buildMemberDateMap } from './admin-overrides.js';
 import { renderTable } from './admin-saved-changes.js';
-import { renderWeekGrid, _hasStagedEdits } from './admin-week-editor.js';
+import { syncWeekAfterOwnWrite } from './admin-own-write.js';
 import { withSlowSaveNotice } from './slow-save.js';
 
 /** What this save's own refusals say. `saveFailureMessage` shows a refusal's `line` as it is; thrown
@@ -56,7 +56,8 @@ const refusal = (code) => Object.assign(new Error(code), { line: REFUSALS[code] 
 /**
  * Move one January leave day to `leaveYear`'s allowance (or back to its own, with null).
  * @param {{ memberName: string, date: string, leaveYear: number|null, changedBy: string }} opts
- * @returns {Promise<void>}
+ * @returns {Promise<string[]>} the day, when a change staged on it in Change a Shift was cleared because
+ *          the move changed it (admin-own-write.js) — for the panel to say; otherwise empty
  * @throws {Error} 'auth/session-expired', 'cache/load-failed' or 'leave-year/invalid' (as the message,
  *         with the words in `line`), a stale-page refusal carrying `line`, or a Firestore error —
  *         `saveFailureMessage` words every one of them
@@ -111,7 +112,7 @@ export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
     mutateCache(rows => [...rows.filter(o => !dropped.has(o.id) && !newIds.has(o.id)), ...docs]);
     mutateCache(rows => [...rows].sort((a, b) => (b.date || '').localeCompare(a.date || '')));
     renderTable();
-    const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
-    const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
-    if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
+    // The week follows the move: all of it with nothing staged, else this day's row — the record a save of the day
+    // compares with — a change staged on it cleared rather than saved over the moved leave (admin-own-write.js).
+    return syncWeekAfterOwnWrite(docs);
 }

@@ -166,6 +166,29 @@ treated as a duplicate. On the capped All-staff list a very old day may not be l
 the member first is the complete route. None has been counted; nothing in the app reports them (see
 also "Duplicate Firestore override documents", below).
 
+## A delete just after the signal returns can overtake this device's own queued save — not reproduced
+
+Every Admin delete — a Saved Changes ✕, Delete selected, a Recorded dates ✕, and the removals in a
+week's save — is a transaction (`deleteIfUnchanged`, `commitChecked`; `admin-override-store.js`), and
+a Firestore transaction reads the SERVER, never this device's queue of writes not yet sent. A save
+made offline waits in that queue until the signal returns ("Two editors on one day", above), and a
+read once the signal is back shows it as though saved. So in the moments after reconnecting, a delete
+of a record still in the queue can run first: the server holds nothing there, which a delete counts
+as already gone, so it reports "✓ Deleted" — and then the queued save lands and the record is back.
+
+**What the admin would see:** "✓ Deleted", the row gone from Saved Changes, and the same record back
+on the next read of that member (another member and back, All staff, or the page after five minutes
+away) and on the Calendar. Nothing is written that the admin did not ask for; the delete simply did
+not take, and deleting it again works, because the save has landed by then. **How to notice:** a day
+deleted soon after the device came back online that reappears.
+
+**Why it is recorded and not fixed:** it follows from the Firestore 13.1.0 semantics — a transaction
+does not see pending writes — but it has NOT been reproduced: that needs a real browser against the
+emulator with the network cut and restored mid-flow, which the stubbed e2e suite cannot express. The
+window is narrow, from reconnecting until the queue is sent, normally about a second. The likely fix
+is to wait for the device's pending writes (`waitForPendingWrites`) before any checked delete. Revisit
+if a deleted day that came back is ever reported.
+
 ## Admin saves are slow on iPhones — cause still being measured
 
 Reported 5 Oct 2026, then said to be on every iPhone: each Admin week-grid save sat on "Saving…" past
