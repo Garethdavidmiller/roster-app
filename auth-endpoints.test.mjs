@@ -1516,6 +1516,25 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
         assert.ok(!authOps.some((o) => o.op === 'updateUser' && o.uid === existing.uid && o.patch.disabled === true),
             'the active set is built from the members actually processed, not from the request');
     });
+
+    // A MANAGER WHO IS IN NO GRADE LIST (sign-in audit D4). resolveRosterAuthConfig unions the role
+    // lists into the processed set, and that union is all that stands between such a manager and the
+    // confirmed sweep — dropping `...manager` from it left every lane green.
+    test('a confirmed sweep never disables a manager who is not in activeMembers', async () => {
+        const managerAccount = { uid: uidFor(MANAGER), email: emailFor(MANAGER), displayName: MANAGER, disabled: false,
+            customClaims: { name: MANAGER, member: MANAGER, manager: true } };
+        const { eps, authOps } = build({
+            rosterJson: { activeMembers: [ADMIN, MEMBER], roles: { admin: [ADMIN], manager: [MANAGER], designer: [] } },
+            existingUsers: [managerAccount],
+        });
+        const out = await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.ok(!authOps.some((o) => o.uid === managerAccount.uid && o.op === 'updateUser' && o.patch && o.patch.disabled === true),
+            'the manager was disabled as a leaver');
+        assert.deepEqual(out.body.disabled, [], 'and nobody was reported disabled');
+        assert.deepEqual(authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === managerAccount.uid)?.claims,
+            { name: MANAGER, member: MANAGER, manager: true }, 'they are processed, and keep the manager tier');
+    });
 });
 
 // ── THE TWO SERVER-CONFIG REFUSALS: THE LOCKOUT THAT HAS NO REPAIR PATH ────────────────────────

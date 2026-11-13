@@ -1636,6 +1636,18 @@ describe('resolveRosterAuthConfig', () => {
         assert.ok(r.processMembers.includes('G. Miller'), 'admin unioned in even if absent from activeMembers');
         assert.ok(r.processMembers.includes('S. Silva'), 'designer unioned in too');
     });
+    test('a MANAGER missing from activeMembers is unioned in as well', () => {
+        // The case above passes `manager: []`, so dropping `...manager` from the union left this suite
+        // and the endpoint suite green (sign-in audit D4). A manager outside the grade lists would then
+        // be neither stamped nor protected: the confirmed leaver sweep disables them, and the tier the
+        // whole station's on-behalf writes depend on goes with the account.
+        const r = resolveRosterAuthConfig({
+            activeMembers: ['A. Staff'],
+            roles: { admin: ['G. Miller'], manager: ['S. Stewart'], designer: [] },
+        });
+        assert.equal(r.error, undefined);
+        assert.ok(r.processMembers.includes('S. Stewart'), 'manager unioned in even if absent from activeMembers');
+    });
     test('empty activeMembers → error (fail closed)', () => {
         assert.equal(resolveRosterAuthConfig({ activeMembers: [], roles: { admin: ['G. Miller'] } }).error, 'missing-active-members');
         assert.equal(resolveRosterAuthConfig({ roles: { admin: ['G. Miller'] } }).error, 'missing-active-members');
