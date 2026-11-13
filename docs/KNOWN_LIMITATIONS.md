@@ -203,7 +203,10 @@ connection. One from an installed iPhone app on 11 Nov 2026 (81.8s, token 0.0s) 
 why the figure was added.
 
 These entries are listed in the Error Log but not counted as unresolved errors (`DIAGNOSTIC_PREFIX`
-in `client-errors.js`). Read the entries from iPhones before choosing a fix.
+in `client-errors.js`), so the Operations strip leaves them out. The admin's Error Log notification
+(v26.04) does announce them, counted apart from errors, so a new reading no longer waits to be
+noticed (OPERATIONS_REFERENCE.md → "The Error Log notification"). Read the entries from iPhones
+before choosing a fix.
 
 ## Anybody can hold the staff PIN shut — an owner decision, not yet taken
 

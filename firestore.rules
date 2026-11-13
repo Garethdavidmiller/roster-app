@@ -3,8 +3,8 @@ rules_version = '2';
 //
 // ── SWEEP v20.12: the Calendar stops being public, and the `calendarViewer` audit ───────────────
 //
-// `overrides` read was `allow read;` — no auth of any kind — and is now a `name` claim (a real
-// member) OR the `calendarViewer` capability (the shared staff PIN, minted server-side by the
+// `overrides` read was `allow read;` — no auth of any kind — and is now a real member (a `name`
+// claim then; a bound member, `isMember()`, since v24.23) OR the `calendarViewer` capability (the shared staff PIN, minted server-side by the
 // unlockCalendarViewer function). Anonymous is DENIED, which is the substance of the change: the
 // Calendar used to sign every visitor in anonymously, so `request.auth != null` here would have
 // re-admitted precisely the people it closes out.
@@ -19,10 +19,11 @@ rules_version = '2';
 //                                              owner closed the three documents behind the PIN or a password)
 //   circulars           READ                   same rule as huddles (v23.18)
 //   newsletters         READ                   same rule as huddles (v23.18)
-//   linkDesigns         nothing                needs `name` or admin (v19.39) — the viewer has neither
+//   linkDesigns         nothing                needs a bound member (`isMember()`) or admin — the viewer
+//                                              is neither
 //   linkTargetSets      nothing                same read as linkDesigns; write per-creator (v21.04)
-//   staffContact        nothing                owner (`name`) or admin
-//   passwordStatus      nothing                owner (`name`) or admin
+//   staffContact        nothing                owner (`memberName()`) or admin
+//   passwordStatus      nothing                owner (`memberName()`) or admin
 //   resetRequests       nothing                admin read, server-only write
 //   clientErrors        WRITE only             deliberate: an office PC hitting a bug should still be
 //                                              able to report it. Read/update stay admin-only, so the
@@ -33,6 +34,8 @@ rules_version = '2';
 //   pushSubscriptions   nothing (TIGHTENED)    every office PC shares one uid, so a subscription
 //                                              written under it is owned by fifty people — see the block
 //   viewerAttempts      nothing (NEW)          the throttle store; server-only in both directions
+//   errorLogNotice      nothing                the admin's Error Log notification record (v26.04);
+//                                              server-only in both directions, the admin included
 //
 // Sweep v20.56: `overtimeWindows` added (Overtime Availability). Reviewer read, no client writes,
 // one posture for the whole tree — the viewer and every ordinary member get nothing, which is why
@@ -40,18 +43,23 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 13 Nov 2026 (v25.98, the sign-in audit): no rule changed. Five comments still described
+// Last swept 13 Nov 2026 (v26.04, the Error Log notification): one rule added — `errorLogNotice`,
+// closed to every client, the admin included (functions/error-log-notify.js writes it through the
+// Admin SDK) — with its line in the audit table above. The whole file re-read against its comments,
+// the two changes made after v25.98 with no re-sweep included: a document record's `storageUrl`
+// moves only with its `storagePath` (`linkChangesOnlyWithFile`), and a push record is refused to a
+// sign-in older than the member's last reset (`signedInSinceLastReset`); both read as written. Four
+// comments corrected: the audit table said `name` where the rules ask a bound member (`isMember()`,
+// `memberName()`); `replacedType` also accepts the three retired types, which survive as a historic
+// value (`LEGACY_OVERRIDE_TYPES`, override-utils.js); nothing destructive reads a Huddle's
+// `uploadedAt`, whose sweep keys on `date`; and `clientErrors` names its server-side reader.
+// Prior sweep 13 Nov 2026 (v25.98, the sign-in audit): no rule changed. Five comments still described
 // a member as "a `name` claim"; they now say what the rules ask — `isMember()` / `memberName()`, a
 // password sign-in at the address the name derives to, carrying the server-set `member` claim
 // (AUTH_AND_SESSIONS 19). A bare `name` proves nothing (any account may set its display name), so a
 // rule copied from the old wording would reopen that hole. And a static gate now reads this file and
 // storage.rules: every rule, and every function, that tests for a session must also ask a claim on
 // every path (rules-claim-gate.test.mjs, AUTH_AND_SESSIONS 9) — a bare `request.auth != null` fails it.
-// Changed after v25.98 with no re-sweep (13 Nov 2026): a browser may not change a document record's
-// `storageUrl` while keeping its `storagePath` (`linkChangesOnlyWithFile` — huddles, circulars,
-// newsletters); and a push record may not be saved from a sign-in older than the member's last reset
-// (`signedInSinceLastReset` — pushSubscriptions create/update, the first rule here to read another
-// document).
 // Prior sweep 13 Nov 2026 (v25.90, the checked save): no rule changed. The `overrides` read must
 // never consult `resource` — every online save now reads each day it writes inside one
 // transaction, and a day's first save reads a document that is not there (pinned by a rules test).
@@ -415,8 +423,10 @@ service cloud.firestore {
         // the entitlement check falls back to the base roster, sees a rest day and charges
         // nothing — the leave is free. So the write carries forward what it replaced.
         //
-        // Constrained to the same type vocabulary as `type` itself: it names an override that
-        // existed, so anything outside that set is meaningless. Absent on most docs (nothing was
+        // Constrained to the `type` vocabulary plus the three retired types, which survive as a
+        // historic value on leave recorded over those days (`LEGACY_OVERRIDE_TYPES`, override-utils.js,
+        // whose test holds this list to it): it names an override that existed, so anything outside
+        // that set is meaningless. Absent on most docs (nothing was
         // replaced) and on every doc written before v21.55, which is why it is validated only
         // when present — the readers treat its absence as "ask the base roster", i.e. exactly the
         // behaviour every existing document already has.
@@ -549,9 +559,11 @@ service cloud.firestore {
         request.resource.data.fileType in ['pdf', 'docx'] &&
         request.resource.data.uploadedBy is string &&
         // THE SERVER'S CLOCK, not merely a timestamp (10 Nov 2026; the same pin on circulars and
-        // newsletters). `pruneOldDocs` (doc-retention.js) reads this back as the TRUSTED time for its
-        // six-month sweep, a destructive one, so a writer's own clock could have deleted current
-        // documents. The upload engine always sends serverTimestamp(), which is request.time here.
+        // newsletters). There `pruneOldDocs` (doc-retention.js) reads it back as the TRUSTED time for
+        // its six-month sweep, a destructive one, so a writer's own clock could have deleted current
+        // documents. Nothing destructive reads a Huddle's: its three-month sweep keys on `date`
+        // (functions/huddle-retention.js), so here the pin is parity, one rule for the three. The
+        // upload engine always sends serverTimestamp(), which is request.time here.
         request.resource.data.uploadedAt == request.time &&
         // htmlContent is optional; when present it must be a string AND within the 250 KB cap.
         // Checking `is string` first guards .size() from being called on a non-string value.
@@ -786,7 +798,9 @@ service cloud.firestore {
     match /clientErrors/{docId} {
       // Written by error-reporter.js once a member, the admin or the PIN viewer is signed in
       // (`isKnownIdentity`, v24.56 — an anonymous token was enough until then).
-      // Read, update (resolve), and delete restricted to admins.
+      // Read, update (resolve), and delete restricted to admins. Also read on the server, every
+      // fifteen minutes, by the admin's Error Log notification (functions/error-log-notify.js,
+      // v26.04) through the Admin SDK, which bypasses these rules — for counts only.
       // Every string field is type- and size-checked so a modified client cannot
       // submit oversized values in any of them (caps mirror the client-side caps
       // in error-reporter.js). memberName is NOT bound to a token claim on purpose:
@@ -1036,6 +1050,15 @@ service cloud.firestore {
     // an automated traversal would pace itself under the limit), and one that could WRITE it could
     // clear its own failure count between guesses, which would remove the limit altogether.
     match /viewerAttempts/{sourceKey} {
+      allow read, write: if false;
+    }
+
+    // ── errorLogNotice — the admin's Error Log notification record (v26.04) ────────────────────
+    // One document, `state`: up to which Error Log entry the admin has been told, and when a notice
+    // was last attempted (functions/error-log-notify.js). Written ONLY by that scheduled function
+    // through the Admin SDK. Closed to every client, the admin included: a client that could WRITE
+    // it could move the line past entries nobody has been told about, or hold the hourly gap shut.
+    match /errorLogNotice/{docId} {
       allow read, write: if false;
     }
 

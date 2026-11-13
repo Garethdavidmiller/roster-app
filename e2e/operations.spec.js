@@ -698,6 +698,35 @@ test('operations: a reset-request tap on an OPEN page re-reads the queue, and a 
     await expect(page.locator('.rr-row')).toHaveCount(2);
 });
 
+// v26.04 — the admin's Error Log notification (functions/error-log-notify.js) opens operations.html#error-log.
+// Tapped while Operations is ALREADY open it only changes the hash, so the card opened over the entries read
+// at page load: "2 new" beside a log without them. The card re-reads on the tap itself (operations-errors.js),
+// from the hash the event CARRIED — the page's deep link strips location.hash in the same event.
+test('operations: an Error Log tap on an OPEN page re-reads the log, and a second tap still lands', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
+
+    const logged = (/** @type {string} */ id, /** @type {string} */ message) =>
+        ({ id, memberName: 'A. Hared', page: 'admin', message, appVersion: '26.04', resolved: false, timestamp: Date.now() });
+    await page.evaluate((row) => {
+        /** @type {any} */ (window).__E2E.docs = [row];
+        location.hash = '#error-log';
+    }, logged('n1', 'boom after the tap'));
+    await expect(page.locator('#errorLogBody')).toHaveClass(/\bopen\b/);
+    await expect(page.locator('#errorLogContent')).toContainText('boom after the tap');
+    // Followed, then stripped — so the next tap is a CHANGE of hash, not a repeat of one.
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('');
+
+    await page.evaluate((row) => {
+        /** @type {any} */ (window).__E2E.docs.push(row);
+        location.hash = '#error-log';
+    }, logged('n2', 'bang on the second tap'));
+    await expect(page.locator('#errorLogContent')).toContainText('bang on the second tap');
+});
+
 // REMOVED at v22.37: 'the typed value is not hidden under the Show button'. It measured that the
 // New Password field reserved enough padding-right for the `Show` button overlaid on it — a real
 // hazard, and one that cannot arise any more, because there is no overlaid button. The reveal is

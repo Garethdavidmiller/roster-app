@@ -24,6 +24,28 @@ function writeLine(text) {
     msg.setAttribute('role', 'alert');
     return msg;
 }
+/** Whether the notification-tap re-read below is wired — once per page. */
+let _tapRereadWired = false;
+/**
+ * A tap on the admin's Error Log notification (v26.04, functions/error-log-notify.js) while Operations is
+ * ALREADY open only changes the hash, so without this the card opened over the entries read at page
+ * load — "2 new" beside a log without them, the reset-request card's Sep 2026 bug again. The page's deep
+ * link (operations-app.js) opens the card and STRIPS the hash in the same event, so this reads the hash
+ * the event carried (`newURL`), never `location.hash`. It lives here rather than beside that deep link
+ * because the re-read must carry this card's `opts` (the header below says why), and they arrive here.
+ * Wired once, from the first call; a re-entry reuses it.
+ * @param {object} opts  initErrorLog's own options, forwarded
+ */
+function _rereadOnNotificationTap(opts) {
+    if (_tapRereadWired) return;
+    _tapRereadWired = true;
+    window.addEventListener('hashchange', (e) => {
+        let hash = '';
+        try { hash = new URL(e.newURL).hash; } catch { /* not a URL: not the notification */ }
+        if (hash === '#error-log') void initErrorLog(opts);
+    });
+}
+
 /**
  * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void, onWithdraw?: () => void}} [opts]
  *   `onWithdraw` (v25.06) — the count has become UNKNOWN (a refresh failed): the strip withdraws its
@@ -51,6 +73,7 @@ async function initErrorLog(opts = {}) {
     const { onAttention } = opts;
     const content = document.getElementById('errorLogContent');
     if (!content) return;
+    _rereadOnNotificationTap(opts);
 
     try {
         await sessionReady;

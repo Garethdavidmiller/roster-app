@@ -6,7 +6,7 @@
  *
  * Covers every top-level collection in firestore.rules — overrides, huddles, circulars,
  * newsletters, linkDesigns, linkTargetSets, staffContact, passwordStatus, resetRequests,
- * clientErrors, pushSubscriptions, viewerAttempts, overtimeWindows and analytics. This said "all 9
+ * clientErrors, errorLogNotice, pushSubscriptions, viewerAttempts, overtimeWindows and analytics. This said "all 9
  * collections" over a list of ten while the rules held fourteen (test audit, 7 Nov 2026); the rules
  * file is the authority, and a new collection there needs its own describe here.
  *
@@ -1378,6 +1378,36 @@ describe('clientErrors', () => {
     test('the admin\'s real Resolve is accepted', async () => {
         const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
         await assertSucceeds(realAnalyticsClient(adminDb()).resolveClientError(ref.id));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// errorLogNotice — the admin's Error Log notification record (v26.04)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('errorLogNotice (the Error Log notification record)', () => {
+    // Written only by the scheduled function, through the Admin SDK. A client that could WRITE it could
+    // move the line past entries nobody has been told about, or hold the hourly gap shut for ever.
+    const RECORD = () => ({ announcedThrough: Timestamp.fromMillis(0), lastAttemptAt: null });
+
+    test('no client reads it — not even the admin, whose notification it is', async () => {
+        for (const db of [adminDb(), memberDb(), managerDb('D. Watts'), viewerDb(), anonDb()]) {
+            await assertFails(getDoc(doc(db, 'errorLogNotice', 'state')));
+        }
+    });
+
+    test('no client writes it — not even the admin', async () => {
+        for (const db of [adminDb(), memberDb(), managerDb('D. Watts'), viewerDb(), anonDb()]) {
+            await assertFails(setDoc(doc(db, 'errorLogNotice', 'state'), RECORD()));
+            await assertFails(deleteDoc(doc(db, 'errorLogNotice', 'state')));
+        }
+    });
+
+    test('the closed record closes nothing else: the admin still reads the Error Log itself', async () => {
+        // Guard the guard — every assertion above is an assertFails, which a rules file denying
+        // everything would also pass.
+        await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        await assertSucceeds(getDocs(collection(adminDb(), 'clientErrors')));
     });
 });
 

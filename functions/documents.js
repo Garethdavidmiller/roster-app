@@ -5,8 +5,9 @@
  * Owns: ingestHuddle (the Power Automate upload), getDocumentUrl (the short-lived document url),
  * rotateDocumentLinks (new keys for the permanent links — the work is ./doc-link-rotation.js),
  * the three onDocumentCreated notification triggers, the scheduled pay reminder (its audience and
- * send: ./pay-reminder.js), the one-off timetable reminder (sendTimetableReminder), and their
- * private helpers (the fan-out wrappers; the Huddle prune it calls is ./huddle-retention.js).
+ * send: ./pay-reminder.js), the one-off timetable reminder (sendTimetableReminder), the admin's Error Log
+ * notification (sendErrorLogNotification — its work: ./error-log-notify.js), and their private helpers
+ * (the fan-out wrappers; the Huddle prune it calls is ./huddle-retention.js).
  * Everything DOCUMENT-shaped: a file arrives or a doc is created, staff are told, old copies are
  * reclaimed, and a member is handed a link to open one.
  *
@@ -42,6 +43,7 @@ const { setupWebPush, fanOutPush } = require('./push');
 const { memberNameFromClaims } = require('./member-identity');
 const { bearerToken, requireAdmin, readJsonBody } = require('./request-helpers');
 const { sendPayReminder } = require('./pay-reminder');
+const { notifyAdminOfErrorLog } = require('./error-log-notify');
 const { pruneOldHuddles } = require('./huddle-retention');
 const { rotateDocumentLinks: rotateLinks } = require('./doc-link-rotation');
 
@@ -58,7 +60,7 @@ const { rotateDocumentLinks: rotateLinks } = require('./doc-link-rotation');
  * @param {number}   deps.MAX_FILE_BYTES
  * @param {number}   deps.MAX_HUDDLE_HTML_CHARS
  * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  the CORS allowlist for the endpoints the browser calls here
- * @param {Record<string, any>} deps.rosterMembers  the server-owned roster (roster-members.json) — the pay reminder's audience
+ * @param {Record<string, any>} deps.rosterMembers  the server-owned roster (roster-members.json) — the pay reminder's audience, and the admin the Error Log notification goes to
  */
 function buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
@@ -706,6 +708,35 @@ const sendTimetableReminder = onSchedule(
     }
 );
 
+// ============================================================================
+// sendErrorLogNotification — the admin's Error Log notification (v26.04)
+// ============================================================================
+/**
+ * Every fifteen minutes: when new entries have reached the Error Log, tell the ADMIN's devices, at most
+ * once an hour. A schedule rather than a trigger on each entry, because every signed-in member and the
+ * staff-PIN viewer can write an entry; the reasons, the audience and the record are ./error-log-notify.js,
+ * and the rules ./error-log-notice.js. One instance at a time, so two checks never overlap.
+ */
+const sendErrorLogNotification = onSchedule(
+    {
+        schedule:       '*/15 * * * *',
+        timeZone:       'Europe/London',
+        region:         'europe-west2',
+        secrets:        [VAPID_PRIVATE_KEY],
+        maxInstances:   1,
+        timeoutSeconds: 60,
+    },
+    async () => {
+        try {
+            await notifyAdminOfErrorLog({ vapidPrivate: VAPID_PRIVATE_KEY, vapidPublic: VAPID_PUBLIC_KEY,
+                STAFF_SITE_URL, roster: rosterMembers });
+        } catch (err) {
+            console.error('[errorLog] Unhandled error:', err);
+            throw err;
+        }
+    }
+);
+
     /**
      * POST /getDocumentUrl  — a SHORT-LIVED URL for the latest document of one kind.
      *
@@ -888,7 +919,7 @@ const sendTimetableReminder = onSchedule(
         },
     );
 
-    return { ingestHuddle, getDocumentUrl, rotateDocumentLinks, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification, sendTimetableReminder };
+    return { ingestHuddle, getDocumentUrl, rotateDocumentLinks, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification, sendTimetableReminder, sendErrorLogNotification };
 }
 
 module.exports = { buildDocumentEndpoints };
