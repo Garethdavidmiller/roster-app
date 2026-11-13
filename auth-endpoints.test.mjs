@@ -264,6 +264,8 @@ function build({
     const sends = [];
     /** Every `releasePushForOwner` call — the leaver's push records leaving with the account (H4). */
     const released = [];
+    /** How many Auth calls had been made at each release, so a test can ask what came first. */
+    const releasedAt = [];
     /** Every Auth MUTATION, in order. The point of recording rather than counting: a test asking
      *  "did a refused call still reset the password?" needs the payload, not a tally. */
     const authOps = [];
@@ -400,6 +402,7 @@ function build({
         fanOutPush: async (payload) => { sends.push({ payload, uids: 'EVERYONE' }); return 0; },
         releasePushForOwner: async (uid) => {
             released.push(uid);
+            releasedAt.push(authOps.length);   // on the Auth timeline, as the stamps are
             if (releaseFail) throw new Error(releaseFail);
             return 1;
         },
@@ -421,7 +424,7 @@ function build({
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
         ...(answerFloorMs === null ? {} : { resetRequestAnswerFloorMs: answerFloorMs }),
     });
-    return { eps, sends, db, authOps, users, released, stamps,
+    return { eps, sends, db, authOps, users, released, releasedAt, stamps,
         /** Every held send answers, each accepted by `n` subscriptions. */
         acceptPush: (n) => { for (const resolve of held.splice(0)) resolve(n); } };
 }
@@ -2041,5 +2044,78 @@ describe('resetMemberPassword tells the member, and only the member', () => {
         const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
         assert.equal(out.code, 403);
         assert.equal(sends.length, 0, 'no notification for a reset that did not happen');
+    });
+});
+
+// ── A LOST OR STOLEN PHONE (sign-in audit D1, Nov 2026) ─────────────────────────────────────────
+//
+// A reset is the remedy for a lost phone, and the reset's own notice — the block above — landed on
+// THAT phone's lock screen, while its push record kept it receiving every notice addressed to the
+// member. `lostDevice: true` sends no notice and deletes every record the account owns, as a stage of
+// its own that never turns the reset into a failure. Without the flag nothing changes.
+describe('resetMemberPassword for a lost or stolen phone', () => {
+    const memberUid = `uid_${emailFor(MEMBER).split('@')[0]}`;
+    const lost = () => asAdmin({ member: MEMBER, lostDevice: true });
+    const passwordWrite = (authOps) => authOps.findIndex((o) => o.op === 'updateUser' && o.patch && 'password' in o.patch);
+
+    test('no notice is sent, to anybody', async () => {
+        const { eps, sends } = build();
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.deepEqual(sends, [], 'the notice would land on the lost phone\'s lock screen');
+    });
+
+    test('every push record the reset account owns goes — after the password, the stamp and the sign-out', async () => {
+        const { eps, released, releasedAt, authOps, stamps } = build();
+        await call(eps.resetMemberPassword, lost());
+        assert.deepEqual(released, [memberUid], 'the records of the account the reset changed, and nobody else\'s');
+        const revoke = authOps.findIndex((o) => o.op === 'revokeRefreshTokens');
+        assert.ok(stamps[0].at <= passwordWrite(authOps) && passwordWrite(authOps) < revoke, 'fixture check: stamp, password, revoke');
+        assert.ok(releasedAt[0] > revoke, 'released before the credential and the sessions were dealt with');
+    });
+
+    test('the answer says what happened', async () => {
+        const { eps } = build();
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.deepEqual(out.body, { ok: true, member: MEMBER, revoked: true, stamped: true, notified: false,
+            lostDevice: true, pushReleased: 1 });
+    });
+
+    test('a release that fails still answers ok — the reset happened — and says so', async () => {
+        const { eps, authOps } = build({ releaseFail: 'firestore down' });
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.equal(out.code, 200, 'the password has changed by then, and nothing may say otherwise');
+        assert.equal(out.body.ok, true);
+        assert.equal(out.body.pushReleaseFailed, true, 'named, so the admin knows the phone may still be told things');
+        assert.ok(!('pushReleased' in out.body), 'and no count is claimed');
+        assert.ok(passwordWrite(authOps) >= 0, 'the password really was rewritten');
+    });
+
+    test('an account taken back is released too', async () => {
+        const outsider = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: 'anything', disabled: false };
+        const { eps, released, sends } = build({ existingUsers: [outsider] });
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.equal(out.body.takenBack, true, 'fixture check: a take-back');
+        assert.deepEqual(released, [uidFor(MEMBER)]);
+        assert.deepEqual(sends, []);
+        assert.equal(out.body.pushReleased, 1);
+    });
+
+    test('only the boolean true — a string or a number is an ordinary reset', async () => {
+        for (const lostDevice of ['true', 1, {}]) {
+            const { eps, sends, released } = build();
+            const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, lostDevice }));
+            assert.equal(sends.length, 1, `lostDevice ${JSON.stringify(lostDevice)} silenced the notice`);
+            assert.deepEqual(released, [], `lostDevice ${JSON.stringify(lostDevice)} released the push records`);
+            assert.ok(!('lostDevice' in out.body) && !('pushReleased' in out.body));
+        }
+    });
+
+    test('without the flag, the member is told as before and nothing is released', async () => {
+        const { eps, sends, released } = build();
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.deepEqual(sends.map((s) => s.uids), [[memberUid]]);
+        assert.deepEqual(released, []);
+        assert.deepEqual(out.body, { ok: true, member: MEMBER, revoked: true, stamped: true, notified: true });
     });
 });

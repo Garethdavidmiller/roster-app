@@ -362,8 +362,9 @@ const setupRosterAuth = onRequest(
  * Admin-only (requireAdmin). Target must be a SERVER-OWNED provisioned account (roster-members.json),
  * never a raw client name.
  *
- * Body: { member: string }. A reset ALWAYS signs the other devices out. `revoke: false` belonged to
- * the Phase-2 migration nudge the forced overlay replaced; nothing sends it, and it is ignored.
+ * Body: { member: string, lostDevice?: true }. A reset ALWAYS signs the other devices out. `revoke: false`
+ * belonged to the Phase-2 migration nudge the forced overlay replaced; nothing sends it, and it is ignored.
+ * `lostDevice: true` — strictly the boolean — is the reset for a LOST OR STOLEN PHONE (the stage below).
  */
 const resetMemberPassword = onRequest(
     // The VAPID secret is for the "your password was reset" push below: without it the key reads '' in production.
@@ -376,6 +377,7 @@ const resetMemberPassword = onRequest(
         const body = readJsonBody(req);   // the member's name, in whatever shape the body arrived
         const member = typeof body.member === 'string' ? body.member.trim() : '';
         if (!member) return res.status(400).json({ error: 'Missing member' });
+        const lostDevice = body.lostDevice === true;   // strictly the boolean — anything else is an ordinary reset
 
         // Target must be a server-owned provisioned account (B4) — never trust a raw client name.
         const cfg = resolveRosterAuthConfig(rosterMembers);
@@ -465,8 +467,8 @@ const resetMemberPassword = onRequest(
             // 0 rather than an error. It is the admin's cue to tell them another way.
             let notified = false;
             // NOT for a taken-back account (v24.57, review): the subscriptions it owns are the
-            // OUTSIDER's devices, and the member never had any on it.
-            if (!takeBack) try {
+            // OUTSIDER's devices, and the member never had any on it. Nor for a lost phone (below).
+            if (!takeBack && !lostDevice) try {
                 setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
                 const accepted = await sendTargetedPush(
                     buildPushPayload({
@@ -486,6 +488,16 @@ const resetMemberPassword = onRequest(
                 console.error('[resetMemberPassword] notify failed (password WAS reset) for', member,
                               pushErr && pushErr.code, pushErr);
             }
+            // A LOST OR STOLEN PHONE (sign-in audit D1, Nov 2026). The notice above would land on THAT
+            // phone's lock screen, and its push record would go on receiving every notice addressed to
+            // this member. So no notice, and every record the account owns is deleted, taken-back or not;
+            // the member's own devices save theirs again at their next signed-in Calendar load. A FOURTH
+            // stage, reported on its own: the credential has changed, so it can never fail the reset.
+            let pushReleased = null;
+            if (lostDevice) try { pushReleased = await releasePushForOwner(user.uid); } catch (releaseErr) {
+                console.error('[resetMemberPassword] push release failed (password WAS reset) for', member,
+                              releaseErr && releaseErr.code, releaseErr);
+            }
             // `revoked` is what HAPPENED. `stamped` is always true here (no reset proceeds without
             // its stamp) and stays in the answer because Operations still reads it.
             return res.json({
@@ -494,6 +506,7 @@ const resetMemberPassword = onRequest(
                 // The account still carries NO claim, so the member cannot use the app on it until
                 // Set up accounts stamps one — Operations says so (v24.57).
                 ...(takeBack ? { takenBack: true } : {}),
+                ...(lostDevice ? { lostDevice: true, ...(pushReleased === null ? { pushReleaseFailed: true } : { pushReleased }) } : {}),
             });
         } catch (e) {
             if (e && e.code === 'auth/user-not-found') {
