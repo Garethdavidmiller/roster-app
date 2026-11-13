@@ -995,6 +995,10 @@ designer-only Links) stays with each coordinator, after sign-in.
 - `isAboutLinkAllowed(href)` — PURE: whether an `about` link may go on the card — a same-origin relative
   path (`./…`) only, never an absolute, protocol-relative or `javascript:` URL. `fillAbout` drops a refused
   link silently, so the rule is unit-tested rather than read (`login-overlay.test.mjs`).
+- `resetRequestFailureLine(err, timedOut)` — PURE: the line a failed reset request shows. A timeout says
+  it may have arrived (a repeat would be throttled away); a 404 (the server's staff list lacks the name)
+  and a 503 (requests switched off) each send the member to the admin; anything else, the connection line.
+  The status is read from the start of `requestPasswordReset`'s message, which firebase-client.test.mjs pins.
 - While a sign-in is in flight the back link is disabled and the status line escalates; `primeAuth()`
   warms Firebase Auth as the card mounts.
 - **The reset request:** "Can't get in? Ask the admin to reset your password" is always on the card; two

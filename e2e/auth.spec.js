@@ -685,6 +685,25 @@ test('reset request link: a failed send keeps the button and says so', async ({ 
     await expect(page.locator('#loginResetRequest')).toContainText('Ask the admin');
 });
 
+// A REFUSAL IS AN ANSWER, NOT A LOST CONNECTION (audit C12). The server's staff list may not have the
+// name yet (404), or requests may be switched off (503): no connection check or retry changes either, so
+// each says what it means and sends the member to the admin — through the real call and the real card.
+for (const [status, words] of /** @type {const} */ ([
+    [404, 'Your name isn’t on the app’s list for reset requests yet — contact the admin directly.'],
+    [503, 'Reset requests aren’t available at the moment — contact the admin directly.'],
+])) {
+    test(`reset request link: a ${status} says what it means, not "check your connection"`, async ({ page }) => {
+        await page.route('**/requestPasswordReset', route =>
+            route.fulfill({ status, contentType: 'application/json', body: '{"error":"refused"}' }));
+        await page.goto('/settings.html');
+        await signInThroughOverlay(page, 'G. Miller', { submit: false });
+        await page.locator('#loginResetRequest').click();
+        await expect(page.locator('#loginResetStatus')).toHaveText(words);
+        await expect(page.locator('#loginResetStatus')).toHaveClass(/login-receipt--fail/);
+        await expect(page.locator('#loginResetRequest')).toBeEnabled();
+    });
+}
+
 // WHERE THE LABEL BREAKS (polish round 2). `text-wrap: balance` alone split it as "Can’t get in? Ask
 // the admin" / "to reset your password" at every width — even lines, the request cut in half. The
 // question and the request are now one atomic span each, so the break falls between them. Checked

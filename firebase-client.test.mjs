@@ -372,6 +372,17 @@ describe('the public reset request sends NO token', () => {
         assert.deepEqual(JSON.parse(fetches[0].init.body), { member: MEMBER });
         assert.equal(state.authOps.filter((o) => /^getIdToken/.test(o.op)).length, 0);
     });
+
+    // The sign-in card words a refusal by its STATUS (login-overlay.js → `resetRequestFailureLine`, audit
+    // C12), and the status reaches it only in the message's first words. This pins that shape from this
+    // side, so a rewording of the error here fails beside the card's parser rather than quietly turning
+    // a 404 or a 503 back into "check your connection".
+    for (const status of [404, 503]) {
+        test(`a ${status} rejects with "Server responded ${status}" at the START of its message`, async () => {
+            fetchReply = () => new Response(JSON.stringify({ error: 'refused' }), { status });
+            await assert.rejects(fc.requestPasswordReset(MEMBER), (e) => new RegExp(`^Server responded ${status}\\b`).test(e?.message));
+        });
+    }
 });
 
 describe('the short-lived document URL', () => {

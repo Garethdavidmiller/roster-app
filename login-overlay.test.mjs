@@ -71,7 +71,7 @@ mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBo
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {} } });
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
-const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay } = await import('./login-overlay.js');
+const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay, resetRequestFailureLine } = await import('./login-overlay.js');
 const { CALENDAR_VIEWER_UID } = await import('./calendar-access-core.js');
 // The REAL teardown and the same staff-pin-ended.js instance the card listens to (audit B2/C2, below).
 const { reconcileExpiredIdentity } = await import('./session.js');
@@ -402,6 +402,44 @@ describe('isAboutLinkAllowed — the sign-in card links only within the app', ()
         for (const href of ['https://example.com/', '//example.com/x', 'javascript:alert(1)', 'data:text/html,x',
             '/paycalc-guide.html', 'paycalc-guide.html', './x.html"onmouseover="y', ' ./x.html', '', null, undefined, 42]) {
             assert.equal(isAboutLinkAllowed(href), false, String(href));
+        }
+    });
+});
+
+// A REFUSED reset request is an ANSWER, not a lost connection (audit C12): the server's staff list
+// lacks the name (404), or requests are switched off (503). Read as "check your connection", the
+// member retried something no retry could change. The errors are built exactly as
+// `requestPasswordReset` builds them; firebase-client.test.mjs pins that shape from its side.
+describe('resetRequestFailureLine — what a failed reset request says', () => {
+    const refused = (/** @type {number} */ status, /** @type {string} */ body) => new Error(`Server responded ${status}: ${body}`);
+
+    test('404: the name is not on the server\'s list yet — contact the admin, not "check your connection"', () => {
+        const line = resetRequestFailureLine(refused(404, '{"error":"Unknown member"}'), false);
+        assert.equal(line, 'Your name isn’t on the app’s list for reset requests yet — contact the admin directly.');
+    });
+
+    test('503: requests are switched off — contact the admin', () => {
+        const line = resetRequestFailureLine(refused(503, '{"error":"Reset requests are temporarily unavailable"}'), false);
+        assert.equal(line, 'Reset requests aren’t available at the moment — contact the admin directly.');
+    });
+
+    test('a timeout may have arrived, whatever the error says — the wording that stops a repeat stays', () => {
+        for (const err of [new Error('Timed out waiting for the server'), refused(404, '')]) {
+            assert.match(resetRequestFailureLine(err, true), /^Couldn’t confirm the request reached the admin — it may have gone through\./);
+        }
+    });
+
+    test('anything else keeps the connection line — a status only counts at the START of the message', () => {
+        for (const err of [new TypeError('Failed to fetch'), refused(500, 'Server roster config invalid'), refused(429, ''),
+            new Error('proxy said: Server responded 404: x'), null, undefined]) {
+            assert.equal(resetRequestFailureLine(err, false), 'Couldn’t send the request — check your connection, or contact the admin directly.', String(err));
+        }
+    });
+
+    test('no line names the PIN or tells the member to wait and retry for a refusal', () => {
+        for (const line of [resetRequestFailureLine(refused(404, ''), false), resetRequestFailureLine(refused(503, ''), false)]) {
+            assert.match(line, /contact the admin directly\.$/);
+            assert.doesNotMatch(line, /connection|try again|PIN|!/i);
         }
     });
 });

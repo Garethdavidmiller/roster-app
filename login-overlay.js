@@ -302,6 +302,19 @@ export function isAboutLinkAllowed(href) {
     return typeof href === 'string' && /^\.\/[\w.\-/#?=&]*$/.test(href);
 }
 
+/** What the card says when a reset request fails — PURE. A TIMEOUT may have arrived (the server records
+ *  before it answers, so "couldn't send" would have them ask again, for the throttle to drop it); a 404
+ *  (the server's staff list lacks the name) and a 503 (requests switched off) are ANSWERS that trying
+ *  again will not change, so each sends them to the admin. @param {any} err  `requestPasswordReset`'s
+ *  rejection ("Server responded <status>: …") @param {boolean} timedOut @returns {string} */
+export function resetRequestFailureLine(err, timedOut) {
+    if (timedOut) return 'Couldn’t confirm the request reached the admin — it may have gone through. If your password isn’t reset soon, contact the admin directly.';
+    const status = /^Server responded (\d{3})\b/.exec(String(err?.message ?? ''))?.[1];
+    if (status === '404') return 'Your name isn’t on the app’s list for reset requests yet — contact the admin directly.';
+    if (status === '503') return 'Reset requests aren’t available at the moment — contact the admin directly.';
+    return 'Couldn’t send the request — check your connection, or contact the admin directly.';
+}
+
 /**
  * Write the explanation into the card. Nodes and textContent only, as for the notice: the words are
  * the app's own today, and the front door is not the place to rely on that. The link must pass
@@ -695,12 +708,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
             if (!current()) return;
-            // A TIMEOUT is not a failure to send: the server records the request before it answers,
-            // so it may well have arrived (Sep 2026 review). Saying "couldn't send" would have the
-            // member ask again, and the throttle then drops the repeat without a word.
-            setResetStatus(timedOut(e)
-                ? 'Couldn’t confirm the request reached the admin — it may have gone through. If your password isn’t reset soon, contact the admin directly.'
-                : 'Couldn’t send the request — check your connection, or contact the admin directly.', 'fail');
+            setResetStatus(resetRequestFailureLine(e, timedOut(e)), 'fail');   // a timeout, a 404 and a 503 differ
         } finally {
             // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
