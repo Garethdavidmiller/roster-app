@@ -442,7 +442,7 @@ describe('the "Base roster" column says what the day WAS', () => {
 // ───────────────────────────────────────────────────────────────────────────────────────────────
 
 const { _activateRow, _deactivateRow } = await import('./admin-week-row-state.js');
-const { setSaveInFlight } = await import('./admin-week-editor.js');
+const { setSaveInFlight, sendingDays } = await import('./admin-week-editor.js');
 
 /** A row with the sub-controls the row-state module reaches for, by selector. */
 function liveRow({ alSwapAsk = '', spareChipOn = false } = {}) {
@@ -535,6 +535,21 @@ test('the week\'s own save holds the grid and the bulk bar still until it lands;
     setSaveInFlight(false);
 });
 
+test('what the week\'s own save sends is held while it is in flight, and only then (v25.97)', () => {
+    grid([]);
+    put('bulkBar');
+    put('saveBtn', makeEl('button'));
+    const sending = [{ member: 'G. Miller', date: '2026-12-08', type: 'sick', value: 'SICK' }];
+    assert.equal(sendingDays(), null, 'nothing is sending between saves');
+    setSaveInFlight(true, { grid: true, sending });
+    assert.deepEqual(sendingDays(), sending, 'a draft kept now must carry what this save sends');
+    setSaveInFlight(false);
+    assert.equal(sendingDays(), null, 'a save that has settled sends nothing: a draft kept after it must not claim it');
+    setSaveInFlight(true);   // a range booking: the same lock, and no week rows of its own
+    assert.equal(sendingDays(), null);
+    setSaveInFlight(false);
+});
+
 // ───────────────────────────────────────────────────────────────────────────────────────────────
 // A WEEK'S STAGED ROWS AS A KEPT DRAFT (iPhone audit, Nov 2026)
 // ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -543,7 +558,7 @@ test('the week\'s own save holds the grid and the bulk bar still until it lands;
 // the round trip: a control the save reads that the draft drops, a row put back over a record that
 // changed since, or a row the draft cannot take left half-changed — a phantom staged edit.
 
-const { isStagedRow, readRowDraft, applyRowDraft, readWeekDraft, applyWeekDraft, unsavedWeekDraft } = await import('./admin-week-row-state.js');
+const { isStagedRow, readRowDraft, applyRowDraft, readWeekDraft, applyWeekDraft, unsavedWeekDraft, sendingEntries, keptWeekDraft } = await import('./admin-week-row-state.js');
 const { PILL_TYPES } = await import('./admin-shift-types.js');
 
 /** A row carrying every control the save collector reads (admin-app.js), found by selector. */
@@ -739,6 +754,25 @@ describe('a week of staged rows, kept and put back', () => {
             assert.deepEqual(dates(unsavedWeekDraft({ rows: [rows[2]], sending: wrote }, () => ({ type: 'sick', value: 'SICK' }), () => false)), ['2026-12-10']);
             const deleted = [{ member: 'G. Miller', date: '2026-12-08', removeId: 'ov8' }];
             assert.deepEqual(dates(unsavedWeekDraft({ rows: rows.slice(0, 1), sending: deleted }, () => undefined, () => false)), ['2026-12-08']);
+        });
+
+        test('what a save sends: each day it writes, and each record it deletes, by the day its row named', () => {
+            const toSave = [{ memberName: 'G. Miller', date: '2026-12-08', type: 'sick', value: 'SICK' }];
+            const removed = [{ memberName: 'G. Miller', date: '2026-12-10' }, null, { date: '2026-12-12' }];
+            assert.deepEqual(sendingEntries(toSave, ['ov10', 'ovX', 'ov12'], removed, 'G. Miller'), [
+                { member: 'G. Miller', date: '2026-12-08', type: 'sick', value: 'SICK' },
+                { member: 'G. Miller', date: '2026-12-10', removeId: 'ov10' },
+                // 'ovX' has no row to name its day, and rule 6 can only ask a day: it is left out.
+                { member: 'G. Miller', date: '2026-12-12', removeId: 'ov12' },   // a row that did not say whose: the week's
+            ]);
+        });
+
+        test('a kept week carries only the member on screen\'s part of the save, and no list when there is none', () => {
+            const kept = rows.slice(0, 1);
+            const theirs = { member: 'A. Colleague', date: '2026-12-08', type: 'annual_leave', value: 'AL' };
+            assert.deepEqual(keptWeekDraft(kept, [...sending, theirs], 'G. Miller'), { rows: kept, sending });
+            assert.deepEqual(keptWeekDraft(kept, null, 'G. Miller'), { rows: kept }, 'no save in flight');
+            assert.deepEqual(keptWeekDraft(kept, [theirs], 'G. Miller'), { rows: kept }, 'only a colleague\'s: no `sending` at all');
         });
 
         test('read back from storage, nothing it cannot read counts as landed', () => {

@@ -1169,6 +1169,9 @@ renames it in the bin. A rename on a stale baseline writes the name and the revi
 you are about to replace. The pure comparison rules (`conflictOf`, the baseline helpers) are
 `links-concurrency.js`. A failed load sets `loadFailed`, and the empty state says so. The store's
 rules are pinned in `links-design-store.test.mjs`, the comparison rules in `links-concurrency.test.mjs`.
+Rule 5 also runs on the real SDK, signed in as the designer, in the signed-in lane
+(`e2e/signed-in.spec.js`, "Links, back online"): without the wait, a rename made while an offline save
+was still queued was undone when that save landed.
 
 The workspace's own rules, in `saveChanges`:
 

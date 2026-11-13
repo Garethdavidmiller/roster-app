@@ -21,9 +21,9 @@ import { saveFailureMessage } from './claim-retry.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
-         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight } from './admin-week-editor.js';
+         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays } from './admin-week-editor.js';
 export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
-         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight };
+         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates, commitChecked } from './admin-override-store.js';
@@ -37,7 +37,7 @@ import { rangeSundayCorrections } from './admin-al-projection.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
-import { drawnRecords, drawnDays } from './admin-week-row-state.js';
+import { drawnRecords, drawnDays, sendingEntries } from './admin-week-row-state.js';
 import { formatDisplay, namedDays } from './admin-period-dates.js';
 import { initOwnWrite, syncWeekAfterOwnWrite } from './admin-own-write.js';
 
@@ -129,17 +129,6 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
 /** A save refused because a day it touches has changed, named (v25.90): ONE commit, so nothing in it was saved. */
 const refusedLine = (/** @type {string[]} */ dates) => `Someone else has changed ${namedDays(dates)} since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.`;
 /**
- * The days the save in flight is SENDING, as it composed them — `{ member, date, type, value }` for a
- * day it writes, `{ member, date, removeId }` for a record it deletes — or null with no save in flight.
- * A draft kept while the page went mid-save carries them (admin-app.js), so the next load can tell work
- * that has since landed from work still unsaved (unsaved-draft.js, rule 6; `unsavedWeekDraft`).
- * @type {null|Array<{ member: string, date: string, type?: string, value?: string, removeId?: string }>}
- */
-let _sending = null;
-/** @returns {null|Array<{ member: string, date: string, type?: string, value?: string, removeId?: string }>} */
-export function sendingDays() { return _sending; }
-
-/**
  * Writes a batch of override changes to Firestore and updates the in-memory cache.
  * Disables the Save button while running; re-enables in the finally block.
  * @param {Array<{memberName:string, date:string, type:string, value:string, note:string, existingId:string,
@@ -191,8 +180,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // passed the collector twice and wrote duplicates. Fixed ids (v24.48) now make a second run land on
     // the same documents, so this is a guard against a wasted write. The finally re-enables it.
     // `grid`: the batch is the week as it stood at the press, and the week is redrawn when it lands —
-    // so the week is held still until then, rather than taking a change it would throw away.
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true, { grid: true });
+    // so the week is held still until then, rather than taking a change it would throw away. And what it
+    // sends is held with it, for a draft kept if the page goes before it is answered (v25.97).
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true, { grid: true, sending: sendingEntries(toSave, toDelete, removedRows, memberName) });
 
     await sessionReady;
     // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial
@@ -223,12 +213,6 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // have replaced its document, and deleting the stale id would leave the new one as a duplicate.
     toSave = toSave.map(e => ({ ...e, existingId: buildMemberDateMap(e.memberName).get(e.date)?.id ?? null }));
     const deleteIds = withManualDuplicates(toDelete);   // or a deleted day's older duplicate resurfaces (v24.48)
-    // What this save sends, for a draft kept if the page goes before it is answered (v25.97).
-    _sending = [
-        ...toSave.map(e => ({ member: e.memberName, date: e.date, type: e.type, value: e.value })),
-        ...toDelete.map((id, i) => ({ member: removedRows[i]?.memberName ?? memberName ?? '', date: removedRows[i]?.date ?? '', removeId: id }))
-            .filter(s => s.date),
-    ];
     try {
         // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a
         // stale-claim `permission-denied` (a just-provisioned manager on a pre-`manager`-claim token).
@@ -342,7 +326,6 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         console.error('[Admin] Save failed:', err);
         _showError(saveFailureMessage(err));
     } finally {
-        _sending = null;
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
         setSaveInFlight(false);
     }

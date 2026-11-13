@@ -138,8 +138,9 @@ behind them.
   this is the one place the app, the SDK, the rules and the server meet before production: a first
   sign-in and the forced password change, a day of leave saved, reloaded and drawn on the Calendar, a
   colleague's day refused, a manager recording on behalf, a save with no signal, a delete made just
-  after the signal returns while that save is still queued, the staff PIN's real exchange, and Back
-  after signing out (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
+  after the signal returns while that save is still queued, the same race in the Links workspace (a
+  rename made while a design's offline save is still queued, as the designer), the staff PIN's real
+  exchange, and Back after signing out (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
   throwaway Firebase project folder in the temp directory — the emulator settings from `firebase.json`,
   a random four-digit PIN, never the real one — and writes nothing into the checkout. Each page keeps
   its own CSP, widened only by the emulators' addresses. **What it cannot see** is what only
