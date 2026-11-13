@@ -15,6 +15,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const {
@@ -99,6 +100,34 @@ describe('pinMatches — constant time, and safe on every wrong input', () => {
         // If CALENDAR_VIEWER_PIN were set to something odd, this must return false rather than
         // throwing — a 500 here would distinguish "server misconfigured" from "wrong PIN".
         assert.equal(pinMatches('1234', 'not-a-pin-at-all'), false);
+    });
+
+    test('the compare IS constant-time: timingSafeEqual, in the source and in fact (sign-in audit C4)', () => {
+        // Every test above is about WHAT pinMatches answers, and `a.equals(b)` gives the same answers
+        // — replacing the compare with it left this whole file green. What the compare protects is how
+        // LONG an answer takes, which no answer can show, so the call itself is pinned: in the source,
+        // and seen happening, with both digests, on a right PIN and on a wrong one.
+        const src = readFileSync(new URL('./functions/calendar-viewer-auth.js', import.meta.url), 'utf8');
+        const start = src.indexOf('function pinMatches(');
+        assert.ok(start >= 0, 'pinMatches was not found — this check reads nothing');
+        const fn = src.slice(start, src.indexOf('\n}', start) + 2);
+        assert.match(fn, /\n {4}return crypto\.timingSafeEqual\(a, b\);\n\}$/,
+            'pinMatches must END by returning crypto.timingSafeEqual over the two digests');
+        assert.doesNotMatch(fn, /\.equals\(|\.compare\(|\b[ab]\s*[!=]==?\s*[ab]\b/,
+            'the digests are compared some other way as well — that way leaks timing');
+
+        const nodeCrypto = require('crypto');
+        const real = nodeCrypto.timingSafeEqual;
+        /** @type {Array<[Buffer, Buffer]>} */ const seen = [];
+        nodeCrypto.timingSafeEqual = (/** @type {Buffer} */ a, /** @type {Buffer} */ b) => { seen.push([a, b]); return real(a, b); };
+        try {
+            assert.equal(pinMatches('4821', '4821'), true);
+            assert.equal(pinMatches('4821', '4822'), false);
+        } finally {
+            nodeCrypto.timingSafeEqual = real;
+        }
+        assert.equal(seen.length, 2, 'every compare — a right PIN and a wrong one — goes through timingSafeEqual');
+        assert.ok(seen.every(([a, b]) => a.length === 32 && b.length === 32), 'over the two 32-byte digests, never the raw PINs');
     });
 });
 
