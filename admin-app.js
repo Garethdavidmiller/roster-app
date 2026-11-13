@@ -305,13 +305,14 @@ export function init() {
     // THE MEMBER BAR STAYS WHERE THE DOCUMENT PUTS IT (desktop audit, Nov 2026). From 1024px it was
     // MOVED into `.col-side`, which drew it atop the right column and made the page's one member control
     // the 23rd Tab stop, behind the whole Change a Shift card. admin.css now draws it there from its own
-    // place, so it comes straight after the header at every width. What CSS cannot know is two heights
-    // it lays out round — this bar's, and the fixed Unsaved bar's (0 while hidden) — so they are told.
+    // place, so it comes straight after the header at every width. What CSS cannot know is three heights it
+    // lays out round — this bar's, the fixed Unsaved bar's (0 while hidden) and the over-allowance question's.
     if (typeof ResizeObserver === 'function') {
-        const root = document.documentElement, memberBar = document.querySelector('.member-context-bar');
-        const ro = new ResizeObserver(es => es.forEach(e => root.style.setProperty(e.target === memberBar ? '--member-bar-h' : '--staged-bar-h',
+        const root = document.documentElement, heights = new Map([[document.querySelector('.member-context-bar'), '--member-bar-h'],
+            [document.getElementById('stagedBar'), '--staged-bar-h'], [document.getElementById('alConfirmBar'), '--al-confirm-h']]);
+        const ro = new ResizeObserver(es => es.forEach(e => root.style.setProperty(/** @type {string} */ (heights.get(e.target)),
             `${e.borderBoxSize?.[0]?.blockSize ?? /** @type {HTMLElement} */ (e.target).offsetHeight}px`)));
-        [memberBar, document.getElementById('stagedBar')].forEach(el => { if (el) ro.observe(el); });
+        heights.forEach((_, el) => { if (el) ro.observe(el); });
     }
 
     // ============================================
