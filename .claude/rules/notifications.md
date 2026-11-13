@@ -120,6 +120,12 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 - **A hold that ends without a sign-out.** `reconcileExpiredIdentity` releases the record before
   signing out an expired session's lingering identity, and a session the last password reset refuses
   releases it too — on a station PC left on the staff PIN, no next member ever comes to take it over.
+  So does a write page whose identity is lost mid-visit and offers its sign-in (`relogin`,
+  `page-session.js`), and a failed typed sign-in that clears ANOTHER member's held session
+  (`login-overlay.js`) — both through `releasePushForEndingHold` (`session.js`), bounded and never
+  throwing, before the session is cleared (sign-in audit, Nov 2026). **Never for the staff PIN**: the
+  viewer owns no record, and releasing as it dropped the browser's own subscription, so a member who
+  had used the PIN on their own phone found notifications off.
 - **A leaver.** `fanOutPush` consults no owner, so a leaver who never signed out would go on
   receiving every broadcast. The confirmed leaver sweep in `setupRosterAuth` deletes the records the
   disabled account owns (`releasePushForOwner`, `functions/push.js`). **And every confirmed sweep does

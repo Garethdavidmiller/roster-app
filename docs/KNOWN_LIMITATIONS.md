@@ -633,13 +633,10 @@ never the PIN. A silent re-sign-in is tried first, and one tap on "Sign in" re-e
 identity, so it is recoverable rather than a lockout — but it will generate a support question, it
 will land on iPhone users specifically, and it is worth expecting rather than diagnosing.
 
-**…and one case it does not yet handle (review, 11 Nov 2026 — not fixed, low priority).** If the
-same tab ALSO holds a staff-PIN session when the member's identity fails to restore, the start-up
-decision grants the viewer: it ranks a PIN session above a member session with no identity behind it.
-That member then reads the station's Calendar rather than their own, and a later loss of access shows
-them the PIN card. The late-restore path already refuses exactly this (`grantLateViewer`); the start-up
-path does not. It needs an identity failure and a PIN session in one tab, so it waits for a release
-that touches `decideAccess` anyway.
+**The case where the same tab also held a staff-PIN session is closed (v25.98).** The start-up
+decision now answers a held member session with the member's card, never the PIN, as the late-restore
+path already did (`decideAccess`, `CALENDAR_DATA.md` 11). The paragraph that recorded it is in
+ROADMAP_HISTORY.md → "Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)".
 
 **The cause is NOT Safari's seven-day rule** (corrected 7 Nov 2026, iPhone audit — this paragraph and
 five module headers said it was). WebKit's tracking prevention deletes ALL of a site's script-writable
@@ -1078,6 +1075,16 @@ the no-dark-mode decision across every page stylesheet and is declined for this;
 mode (toggleable)" is where it would be reopened. Do not answer the report with a darker palette or an
 inverted-back override: the algorithm runs on the computed colours, after the stylesheet, and would
 repaint the repair too.
+
+### An update can still land mid-way through the forced change (sign-in audit, 13 Nov 2026)
+
+The forced change's password write, and the record that follows it, are counted as writes in flight
+(`trackBackgroundWrite`, claim-retry.js), so a release's reload waits for them on the pages whose busy
+check reads `writesInFlight` — Admin, Settings and Operations. The Calendar holds an update's reload
+while it is on screen anyway. The Pay Calculator, Trains, New link, Links and Overtime do not ask, so
+an update arriving in the second the write takes reloads them under it. The cost is small and
+self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
+every page means changing the service worker's start-up on all of them, which was not worth the risk.
 
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
