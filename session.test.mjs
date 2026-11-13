@@ -1788,6 +1788,25 @@ describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that adm
         assert.equal(late, 0, 'the watcher outlived the sign-in that superseded it');
     });
 
+    test('…nor when a sign-in BEGINS while the PIN\'s token is being read — the check after the read (audit C4)', async () => {
+        // The check above runs as the restore lands; the token read after it is a round trip, and a
+        // typed sign-in can begin inside it — the v25.77 Trains double start. The PIN is kept current
+        // here (a browser that cannot sign it out), so only the generation can say the page moved on.
+        let late = 0;
+        assert.equal(await holdsStaffPin(60, () => { late++; }), false, 'premise: nothing held at the decision');
+        /** @type {(v: any) => void} */ let answer = () => {};
+        const token = new Promise(r => { answer = r; });   // ONE read for every watcher, so answering it reaches ours
+        const v = { ...viewer, getIdTokenResult: () => token };
+        mockAuth.currentUser = v;
+        for (const cb of [..._authCbs]) cb(v);   // the restore lands: the first check passes, the read starts
+        _signOutBehavior = 'auth/internal-error';
+        await ensureNamedSession('G. Miller', { password: 'miller', retries: 0, delayMs: 0 });   // a sign-in begins
+        assert.equal(mockAuth.currentUser, v, 'premise: the PIN is still current when its token answers');
+        answer({ claims: { calendarViewer: true } });
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(late, 0, 'the PIN page started under a sign-in that began while its token was read');
+    });
+
     test('a restore that never arrives answers within the budget — no PIN, never a hang', async () => {
         _authNeverEmits = true;
         const started = Date.now();
