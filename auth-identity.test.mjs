@@ -278,6 +278,15 @@ describe('passwordChangeFailure — what a failed password change says, and wher
             }
         }
     });
+    test('another account signed in on this browser says so, never blames a password, and offers the way out', () => {
+        for (const reauthed of [false, true]) {
+            const r = passwordChangeFailure('myb/account-mismatch', reauthed);
+            assert.equal(r.message, 'This browser is signed in to another account — sign out, sign in as yourself, then try again.');
+            assert.doesNotMatch(r.message, /incorrect|try again shortly/);
+            assert.equal(r.focus, null);
+            assert.equal(r.escape, true, 'no retyping gets past it');
+        }
+    });
     test('a weak new password returns to New; a missing current one to Current', () => {
         assert.equal(passwordChangeFailure('auth/weak-password', true).focus, 'new');
         assert.equal(passwordChangeFailure('auth/missing-password', false).focus, 'current');

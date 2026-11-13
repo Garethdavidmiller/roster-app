@@ -499,8 +499,10 @@ test('settings: a change refused AFTER the current password was accepted is not 
 
 test('forced password overlay: a change refused after sign-in says it was not updated, not that a password was wrong', async ({ page }) => {
     await forcePasswordSet(page);
+    // The member's OWN account (authUserEmail): since v25.98 a password call on any other account is refused before
+    // it is sent (own-password.js), so without it this would test that refusal instead of the update failing.
     await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
-        authUser: true, updateFailCode: 'auth/internal-error' }; });
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', updateFailCode: 'auth/internal-error' }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#pwForceOverlay')).toBeVisible();
@@ -563,8 +565,10 @@ test('forced password overlay: a real form under the member\'s name — a submit
 
 test('forced password overlay: a CONFIRMED save is submitted once, and only then does the overlay close', async ({ page }) => {
     await forcePasswordSet(page);
-    // A signed-in Firebase user, so the write can SUCCEED under the stub (window.__E2E.authUser).
-    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true }; });
+    // A signed-in Firebase user on the member's own account, so the write can SUCCEED under the stub
+    // (window.__E2E.authUser / authUserEmail — own-password.js refuses any other account).
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local' }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     const overlay = page.locator('#pwForceOverlay');
@@ -576,6 +580,37 @@ test('forced password overlay: a CONFIRMED save is submitted once, and only then
     await expect(overlay).toBeHidden();
     expect(await submits(page), 'one submit, once the write was confirmed, and it was cancelled').toEqual([true]);
     expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
+});
+
+// ── THE ENTER THAT ACCEPTS AN INPUT METHOD'S SUGGESTION IS LEFT TO IT (sign-in audit E4, 13 Nov 2026) ───────────
+// Somebody typing through an input method — a predictive keyboard, a Japanese or Chinese one — presses Enter to accept
+// what it offers, and the browser marks that keydown `isComposing`. The password form moved on, or SAVED, on it, and
+// the work email saved half-typed text. The forced overlay has left it alone since 11 Nov 2026 (password-force.js).
+// Sent as the browser sends it, since no keyboard Playwright drives composes: whether the page TOOK the key is
+// whether it cancelled it, and a plain Enter afterwards proves the guard is the only difference.
+test('settings: the Enter that accepts an input method\'s suggestion neither moves on nor saves', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });     // un-migrated: the password form is open
+    const composingEnter = (/** @type {string} */ sel) => page.locator(sel).evaluate(el =>
+        !el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })));
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwCurrent').focus();
+    expect(await composingEnter('#pwCurrent'), 'Current took a composition\'s Enter').toBe(false);
+    await expect(page.locator('#pwCurrent')).toBeFocused();
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    expect(await composingEnter('#pwConfirm'), 'Confirm saved on a composition\'s Enter').toBe(false);
+    await expect(page.locator('#pwFeedback')).toBeEmpty();
+    await page.locator('#pwCurrent').press('Enter');                    // a plain Enter still moves on
+    await expect(page.locator('#pwNew')).toBeFocused();
+
+    await expect(page.locator('#contactFeedback'), 'premise: the saved-email check has answered').not.toContainText('Checking');
+    await expect(page.locator('#workEmailInput'), 'premise: with no email saved, the card opens itself').toBeVisible();
+    await page.locator('#workEmailInput').fill('g.mil');
+    expect(await composingEnter('#workEmailInput'), 'the email took a composition\'s Enter').toBe(false);
+    await expect(page.locator('#workEmailSaveBtn')).toHaveText('Save email');
+    await expect(page.locator('#contactFeedback')).toBeEmpty();
+    await page.locator('#workEmailInput').press('Enter');               // a plain Enter still saves
+    await expect(page.locator('#contactFeedback')).toContainText('Saved');
 });
 
 test('settings: Show passwords reveals all THREE fields, not two', async ({ page }) => {

@@ -23,6 +23,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { summarise, shouldOpen, installNeed, CARD_ORDER } from './settings-status.js';
+import { MIN_PASSWORD_LENGTH } from './auth-identity.js';
 
 // `install` is 'n/a' in the ALL-OK set because that is what it reports almost everywhere: an
 // offer, not a setting to get right. Its 'action' state is the iPhone-in-a-browser case only.
@@ -210,5 +211,26 @@ describe('the list itself', () => {
         for (const s of [summarise({}), summarise(ALL_OK), summarise({ ...ALL_OK, password: 'error' })]) {
             assert.deepEqual([s.ids, s.cards], [[], []], `${s.tone}: nothing to lead to`);
         }
+    });
+});
+
+// ── THE MINIMUM A MEMBER IS TOLD IS THE MINIMUM THE SAVE ENFORCES (sign-in audit E4, 13 Nov 2026) ─────────────────
+// `validateNewPassword` refuses anything shorter than MIN_PASSWORD_LENGTH (auth-identity.js), and the forced overlay
+// words its hint from the constant. Three places a member reads the figure are HTML and prose instead — the Password
+// card's label, its `?` panel (settings-app.js's CARD_TIPS, which tips-content.test.mjs evaluates with no scope, so it
+// cannot interpolate the constant) and the staff guide — so a change to the constant left them stating the old rule.
+describe('the password minimum the page states', () => {
+    const SOURCES = ['settings.html', 'settings-app.js', 'staff-guide.html'];
+    /** Every "at least N characters" in a file, tags between the words ignored. @param {string} file */
+    const stated = (file) => [...readFileSync(new URL(`./${file}`, import.meta.url), 'utf8')
+        .replace(/<[^>]+>/g, '').matchAll(/at least (\d+) characters/g)].map(m => Number(m[1]));
+
+    test('is MIN_PASSWORD_LENGTH everywhere a member reads it', () => {
+        const wrong = SOURCES.flatMap(f => stated(f).filter(n => n !== MIN_PASSWORD_LENGTH).map(n => `${f} says ${n}`));
+        assert.deepEqual(wrong, [], `the save refuses anything under ${MIN_PASSWORD_LENGTH} characters`);
+    });
+
+    test('guard the guard — each source states it, so a reworded line cannot pass by saying nothing', () => {
+        for (const f of SOURCES) assert.ok(stated(f).length >= 1, `${f} no longer states the minimum in words this test reads`);
     });
 });

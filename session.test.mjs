@@ -676,6 +676,77 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(auth.currentUser, null, 'and must actually be gone, not merely decided against');
     });
 
+    // The PIN owns no push record, so a release there could only drop THIS BROWSER's own subscription —
+    // a member who used the PIN on their own phone found notifications off after signing back in — and
+    // it held up the "locked again" notice by up to two seconds (audit C3). A member's is still released.
+    test('shedding the PIN releases NO push record — there is none, and the browser\'s subscription is not its to drop', async () => {
+        _pushReleases.length = 0;
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true, 'premise: the PIN was signed out here');
+        await new Promise(r => setTimeout(r, 20));   // a release is a dynamic import: give it time to land
+        assert.equal(_pushReleases.length, 0, 'the staff PIN\'s teardown dropped the browser\'s push subscription');
+    });
+
+    // ENDING THE PIN LEAVES THIS TAB'S CALENDAR A MARK (audit B3): the card says "go back and enter the
+    // PIN", and the phone's Back carries no `#staff-pin`. staff-pin-ended.js writes it as it tells the
+    // card; the Calendar's boot takes it once (calendar-access.test.mjs drives that half).
+    test('ending the PIN leaves a one-tab mark, read once; a member\'s teardown leaves none; a sign-in forgets it', async () => {
+        const { takeStaffPinEndedMark, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+        /** @type {Map<string,string>} */ const tab = new Map();
+        /** @type {any} */ (globalThis).sessionStorage = { getItem: (/** @type {string} */ k) => tab.get(k) ?? null,
+            setItem: (/** @type {string} */ k, /** @type {string} */ v) => { tab.set(k, String(v)); }, removeItem: (/** @type {string} */ k) => { tab.delete(k); } };
+        try {
+            auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
+            await reconcileExpiredIdentity();
+            assert.equal(takeStaffPinEndedMark(), false, 'a member whose session expired never had the PIN');
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();
+            assert.equal(auth.currentUser, null, 'premise: the PIN was signed out here');
+            assert.equal(takeStaffPinEndedMark(), true, 'the Calendar in this tab was not told the PIN ended');
+            assert.equal(takeStaffPinEndedMark(), false, 'read once: the mark outlived the boot that took it');
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();
+            forgetStaffPinEnded();
+            assert.equal(tab.size, 0, 'a member signed in here, and the mark still sent the next Calendar to the PIN box');
+            const refuse = () => { throw new Error('SecurityError'); };
+            /** @type {any} */ (globalThis).sessionStorage = { getItem: refuse, setItem: refuse, removeItem: refuse };
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();   // iOS private mode: no mark, and nothing thrown
+            assert.equal(takeStaffPinEndedMark(), false);
+        } finally { delete /** @type {any} */ (globalThis).sessionStorage; }
+    });
+
+    // A PAGE WITH NO SIGN-IN CARD SAYS IT TOO (audit C1): paused Overtime offers none, and only a card
+    // listened, so it signed the PIN out in silence. Its line: the card's own sentence and way back, in a
+    // status region that is in the page — empty — before the teardown lands, so the words are announced.
+    test('sayStaffPinEndedIn: the region is there at once and empty; the teardown fills it with the card\'s words and the PIN box', async () => {
+        const { sayStaffPinEndedIn, STAFF_PIN_ENDED_NOTICE, BACK_TO_PIN, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+        forgetStaffPinEnded();   // earlier tests here ended the PIN; this page has not, yet
+        const made = (/** @type {string} */ tag) => {
+            /** @type {any} */ const el = { tag, kids: /** @type {any[]} */ ([]), attrs: /** @type {Record<string,string>} */ ({}), isConnected: true,
+                setAttribute(/** @type {string} */ k, /** @type {string} */ v) { el.attrs[k] = v; },
+                appendChild(/** @type {any} */ c) { el.kids.push(c); return c; },
+                append(/** @type {any[]} */ ...xs) { el.kids.push(...xs); } };
+            return el;
+        };
+        /** @type {any} */ (globalThis).document = { createElement: made };
+        try {
+            const host = made('div');
+            sayStaffPinEndedIn(host);
+            const region = host.kids[0];
+            assert.equal(region?.attrs.role, 'status', 'no live region was put in the page before the teardown');
+            assert.deepEqual(region.kids, [], 'the region said something before the PIN had ended');
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();
+            const [line] = region.kids;
+            assert.equal(line?.kids[0], STAFF_PIN_ENDED_NOTICE + ' ', 'the page did not say the PIN ended');
+            assert.equal(line.kids[1].href, BACK_TO_PIN);
+            assert.equal(BACK_TO_PIN, './#staff-pin', 'the way back is not the Calendar\'s PIN box');
+            assert.equal(sayStaffPinEndedIn(null)(), undefined, 'a page with nowhere to say it draws nothing and throws nothing');
+        } finally { delete /** @type {any} */ (globalThis).document; }
+    });
+
     test('an explicit opts object with the flag ABSENT is still a teardown', async () => {
         // A caller that passes options for some other reason must not inherit preservation.
         auth.currentUser = /** @type {any} */ (viewerUser);
@@ -908,6 +979,68 @@ describe('the no-surname-default memory (v21.62)', () => {
         assert.equal(_signInCalls, 1, 'the typed attempt was suppressed — the flag may only gate implicit ones');
         assert.equal(store.get(FLAG), '1',
             'a custom-password success cleared the memory — the surname is still wrong for this account');
+    });
+});
+
+// ── silent-sign-in.js — the same rules, as plain values (extracted from session.js, Nov 2026) ─────
+// The describe above drives them through the real sign-in; this pins each rule on its own, so a change
+// to one says which rule moved rather than which sign-in now behaves differently.
+const silentRules = await import('./silent-sign-in.js');
+const { noDefaultKey, RESET_RECHECK_MS, planSilentAttempt, afterRecheck, remembersRefusal } = silentRules;
+describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
+    const NOW = 1_800_000_000_000;
+    const plan = (/** @type {string|null} */ stored, unansweredThisAttempt = false, surname = 'miller') =>
+        planSilentAttempt({ surname, stored, now: NOW, unansweredThisAttempt });
+
+    test('the memory is per member, under the key the sign-in tests read', () => {
+        assert.equal(noDefaultKey('G. Miller'), 'myb_auth_nodefault_G. Miller');
+    });
+
+    test('nothing remembered: the surname, and no recheck', () => {
+        assert.deepEqual(plan(null), { candidates: ['miller'], recheck: false, held: false });
+    });
+
+    test('refused within six hours: nothing at all — the request could only fail', () => {
+        assert.deepEqual(plan(String(NOW - RESET_RECHECK_MS + 1)), { candidates: [], recheck: false, held: false });
+    });
+
+    test('refused more than six hours ago — or a pre-v25.77 "1" — asks again about a reset', () => {
+        assert.deepEqual(plan(String(NOW - RESET_RECHECK_MS - 1)), { candidates: ['miller'], recheck: true, held: false });
+        assert.deepEqual(plan('1'), { candidates: ['miller'], recheck: true, held: false });
+    });
+
+    test('a recheck this attempt already asked, unanswered, is held — but only a recheck', () => {
+        assert.deepEqual(plan('1', true), { candidates: [], recheck: true, held: true });
+        assert.deepEqual(plan(null, true), { candidates: ['miller'], recheck: false, held: false }, 'nothing remembered is not a recheck');
+    });
+
+    test('a name with no surname to try tries nothing', () => {
+        assert.deepEqual(plan(null, false, ''), { candidates: [], recheck: false, held: false });
+    });
+
+    test('a recheck\'s answer: a refusal is noted and stops, a throttle is noted, no answer is held', () => {
+        assert.deepEqual(afterRecheck('credential'), { note: true, stop: true, unanswered: false });
+        assert.deepEqual(afterRecheck('throttled'), { note: true, stop: false, unanswered: false });
+        assert.deepEqual(afterRecheck(null), { note: false, stop: false, unanswered: true });
+        assert.deepEqual(afterRecheck(NOW), { note: false, stop: false, unanswered: false });
+    });
+
+    test('a session starts at the server\'s record of the sign-in — within three days of the device, on the member\'s own account', () => {
+        const { sessionStartMs, SIGN_IN_CLOCK_SKEW_MS } = silentRules;
+        const me = 'g.miller@myb-roster.local';
+        const user = (/** @type {number} */ at, email = me) => ({ email, metadata: { lastSignInTime: new Date(at).toUTCString() } });
+        assert.equal(sessionStartMs(user(NOW - SIGN_IN_CLOCK_SKEW_MS), me, NOW), NOW - SIGN_IN_CLOCK_SKEW_MS, 'three days away is still this sign-in');
+        assert.equal(sessionStartMs(user(NOW + SIGN_IN_CLOCK_SKEW_MS), me, NOW), NOW + SIGN_IN_CLOCK_SKEW_MS);
+        assert.equal(sessionStartMs(user(NOW - SIGN_IN_CLOCK_SKEW_MS - 1000), me, NOW), NOW, 'further is not');
+        assert.equal(sessionStartMs(user(NOW - 1000, 's.silva@myb-roster.local'), me, NOW), NOW, 'another account says nothing about this session');
+        for (const odd of [null, undefined, {}, { email: me }, { email: me, metadata: { lastSignInTime: 'not a date' } }]) {
+            assert.equal(sessionStartMs(odd, me, NOW), NOW, JSON.stringify(odd));
+        }
+    });
+
+    test('only a definitive refusal of an account that EXISTS is remembered', () => {
+        for (const code of ['auth/invalid-credential', 'auth/wrong-password', 'auth/invalid-login-credentials']) assert.equal(remembersRefusal(code), true, code);
+        for (const code of ['auth/user-not-found', 'auth/network-request-failed', 'auth/too-many-requests', undefined]) assert.equal(remembersRefusal(code), false, String(code));
     });
 });
 
@@ -1728,6 +1861,25 @@ describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that adm
         assert.equal(late, 0, 'the watcher outlived the sign-in that superseded it');
     });
 
+    test('…nor when a sign-in BEGINS while the PIN\'s token is being read — the check after the read (audit C4)', async () => {
+        // The check above runs as the restore lands; the token read after it is a round trip, and a
+        // typed sign-in can begin inside it — the v25.77 Trains double start. The PIN is kept current
+        // here (a browser that cannot sign it out), so only the generation can say the page moved on.
+        let late = 0;
+        assert.equal(await holdsStaffPin(60, () => { late++; }), false, 'premise: nothing held at the decision');
+        /** @type {(v: any) => void} */ let answer = () => {};
+        const token = new Promise(r => { answer = r; });   // ONE read for every watcher, so answering it reaches ours
+        const v = { ...viewer, getIdTokenResult: () => token };
+        mockAuth.currentUser = v;
+        for (const cb of [..._authCbs]) cb(v);   // the restore lands: the first check passes, the read starts
+        _signOutBehavior = 'auth/internal-error';
+        await ensureNamedSession('G. Miller', { password: 'miller', retries: 0, delayMs: 0 });   // a sign-in begins
+        assert.equal(mockAuth.currentUser, v, 'premise: the PIN is still current when its token answers');
+        answer({ claims: { calendarViewer: true } });
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(late, 0, 'the PIN page started under a sign-in that began while its token was read');
+    });
+
     test('a restore that never arrives answers within the budget — no PIN, never a hang', async () => {
         _authNeverEmits = true;
         const started = Date.now();
@@ -1887,6 +2039,55 @@ describe('a silent re-sign-in after an admin reset', () => {
         const s = JSON.parse(store.get(AUTH_KEY));
         assert.ok(Math.abs(s.createdAt - Date.now()) < 5000);
         assert.equal(s.expiry - s.createdAt, SESSION_MS);
+    });
+
+    // ── THE START IS THE SERVER'S, NOT A WRONG DEVICE CLOCK (audit A2) ──────────────────────────────
+    // A phone a day ahead at sign-in stamped its start a day late, so a reset made later that day looked
+    // OLDER than the session, and the surname signed the phone the reset was aimed at straight back in.
+    const signedInAt = (/** @type {number} */ ms, email = nameToEmail('G. Miller')) => {
+        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email, metadata: { lastSignInTime: new Date(ms).toUTCString() } };
+    };
+    const saved = () => JSON.parse(store.get(AUTH_KEY));
+    const toSecond = (/** @type {number} */ ms) => Math.floor(ms / 1000) * 1000;   // all a UTC string keeps
+
+    test('a device clock a day AHEAD: the session starts when the server says the member signed in', () => {
+        const server = toSecond(Date.now() - 86_400_000);
+        signedInAt(server);
+        saveSession('G. Miller');
+        assert.equal(saved().createdAt, server, 'the session was dated by a device clock a day ahead');
+        assert.equal(saved().expiry, server + SESSION_MS, 'and its 60 days are counted from the same start');
+    });
+
+    test('…and a day BEHIND, the same', () => {
+        const server = toSecond(Date.now() + 86_400_000);
+        signedInAt(server);
+        saveSession('G. Miller');
+        assert.equal(saved().createdAt, server);
+    });
+
+    test('no record of the sign-in, another member\'s account, a record days away, or nobody: the device clock, as before', () => {
+        for (const [why, set] of /** @type {const} */ ([
+            ['no metadata', () => { mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: nameToEmail('G. Miller') }; }],
+            ['another account', () => signedInAt(Date.now() - 86_400_000, nameToEmail('S. Silva'))],
+            ['four days away', () => signedInAt(Date.now() - 4 * 86_400_000)],
+            ['nobody signed in', () => { mockAuth.currentUser = null; }],
+        ])) {
+            set();
+            const before = Date.now();
+            saveSession('G. Miller');
+            assert.ok(saved().createdAt >= before && saved().createdAt <= Date.now(), `${why}: not dated by the device clock`);
+        }
+    });
+
+    test('THE CASE ITSELF: signed in on a clock a day ahead, reset that afternoon — the surname does not sign it back in', async () => {
+        const signedIn = toSecond(Date.now() - 86_400_000);   // the server's clock; the device's said "now"
+        signedInAt(signedIn);
+        saveSession('G. Miller');
+        mockAuth.currentUser = null;                          // the reset revoked the account's tokens
+        _resetAtMs = signedIn + 2 * 3_600_000;                // made two hours after the sign-in
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_signInCalls, 0, 'the surname signed the phone the reset was aimed at straight back in');
+        assert.equal(store.has(AUTH_KEY), false, 'and its session was left standing');
     });
 });
 

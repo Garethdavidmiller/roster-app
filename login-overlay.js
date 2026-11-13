@@ -36,11 +36,12 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
+import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, releasePushForEndingHold } from './session.js';
 import { isCredentialRejection } from './auth-identity.js';
-// Already loaded wherever this card is: session.js imports both.
-import { PIN_FIRST_HASH } from './calendar-access-core.js';
-import { onStaffPinEnded } from './staff-pin-ended.js';
+// Already loaded wherever this card is: session.js imports it. The words are its own, shared with a
+// page that has no card (paused Overtime, which imports `sayStaffPinEndedIn` from here).
+import { onStaffPinEnded, forgetStaffPinEnded, STAFF_PIN_ENDED_NOTICE, BACK_TO_PIN } from './staff-pin-ended.js';
+export { sayStaffPinEndedIn } from './staff-pin-ended.js';
 // The one deadline helper (sessions-6 — this card kept a copy that differed only in the error's code).
 // Every page that loads this module statically already loads password-force.js statically, and the
 // Calendar loads this one on demand, so the import adds nothing to any page's start-up.
@@ -86,12 +87,15 @@ const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span>
  *   the shared `isCredentialRejection` (auth-identity.js) the sign-in ladder itself stops on
  * @param {() => boolean} [deps.keepsLocalSession]  true when this device already holds a session for
  *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
+ * @param {() => void} [deps.releaseEndedHold]  runs just before a failure clears the session, and
+ *   releases this device's push record when the session is ANOTHER member's (audit A1) — not awaited
+ * @param {() => void} [deps.forgetStaffPinEnded]  on success: the PIN's end is no longer this page's news
  * @param {number} [deps.timeoutMs]
  * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage' }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
@@ -104,8 +108,8 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // live 60-day session whose Firebase identity has gone; one mistyped password or a
         // timeout on weak signal wiped it, and with it the silent re-sign-in that would have
         // worked once back online. A failure tells us nothing about whether THEIR session is
-        // still theirs. Somebody else's session on this device still goes.
-        if (!keepsLocalSession()) clearSession();
+        // still theirs. Somebody else's session on this device still goes — with their push record.
+        if (!keepsLocalSession()) { releaseEndedHold(); clearSession(); }
         // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
         // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_DESIGN.md §3.5 +
         // the house wording rule (an account matter → "the admin").
@@ -141,6 +145,8 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         clearSession();
         return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
     }
+    // A member is signed in here now: a later card on this page must not say the PIN ended (audit B2/C2).
+    forgetStaffPinEnded();
     return { ok: true };
 }
 
@@ -160,6 +166,9 @@ export function signInDeps(name, typedPw) {
         isTransient:        isTransientAuthError,
         isCredential:       isCredentialRejection,
         keepsLocalSession:  () => getSession()?.name === name,
+        // A session this failure clears is ANOTHER member's: their targeted notices stop here too.
+        releaseEndedHold:   () => { if (getSession()) releasePushForEndingHold(); },
+        forgetStaffPinEnded,
     };
 }
 
@@ -189,14 +198,10 @@ export function dismissLoginOverlay() {
 // this card with nothing to say why, and "← Back to roster" found the roster locked again.
 //
 // So the card says what happened and what to do, and its way back — the link AND Escape — opens the
-// Calendar on the PIN box (`PIN_FIRST_HASH`), the box they were using a moment ago: what a Lock does
-// on the Calendar and Trains. Worded as what the PIN OPENS, never as a sign-in (AUTH_AND_SESSIONS 18).
-// The modal card only: the inline one is the Calendar's own front door, which never ends the PIN.
-/** The line the card shows when arriving on its page ended the staff PIN. */
-const STAFF_PIN_ENDED_NOTICE =
-    'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.';
-/** Where the card's way back goes once the PIN has ended: the Calendar, PIN box first. */
-const BACK_TO_PIN = './' + PIN_FIRST_HASH;
+// Calendar on the PIN box (`BACK_TO_PIN`), the box they were using a moment ago: what a Lock does on
+// the Calendar and Trains. The words are staff-pin-ended.js's (`STAFF_PIN_ENDED_NOTICE`), one sentence
+// wherever the PIN ends. The modal card only: the inline one is the Calendar's own front door, which
+// never ends the PIN.
 
 /**
  * Say on this card that arriving ended the staff PIN, and point its way back at the PIN box. The
@@ -295,6 +300,19 @@ function overlayHtml(pageLabel, alternative, notice, about, inline) {
  */
 export function isAboutLinkAllowed(href) {
     return typeof href === 'string' && /^\.\/[\w.\-/#?=&]*$/.test(href);
+}
+
+/** What the card says when a reset request fails — PURE. A TIMEOUT may have arrived (the server records
+ *  before it answers, so "couldn't send" would have them ask again, for the throttle to drop it); a 404
+ *  (the server's staff list lacks the name) and a 503 (requests switched off) are ANSWERS that trying
+ *  again will not change, so each sends them to the admin. @param {any} err  `requestPasswordReset`'s
+ *  rejection ("Server responded <status>: …") @param {boolean} timedOut @returns {string} */
+export function resetRequestFailureLine(err, timedOut) {
+    if (timedOut) return 'Couldn’t confirm the request reached the admin — it may have gone through. If your password isn’t reset soon, contact the admin directly.';
+    const status = /^Server responded (\d{3})\b/.exec(String(err?.message ?? ''))?.[1];
+    if (status === '404') return 'Your name isn’t on the app’s list for reset requests yet — contact the admin directly.';
+    if (status === '503') return 'Reset requests aren’t available at the moment — contact the admin directly.';
+    return 'Couldn’t send the request — check your connection, or contact the admin directly.';
 }
 
 /**
@@ -690,12 +708,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
             if (!current()) return;
-            // A TIMEOUT is not a failure to send: the server records the request before it answers,
-            // so it may well have arrived (Sep 2026 review). Saying "couldn't send" would have the
-            // member ask again, and the throttle then drops the repeat without a word.
-            setResetStatus(timedOut(e)
-                ? 'Couldn’t confirm the request reached the admin — it may have gone through. If your password isn’t reset soon, contact the admin directly.'
-                : 'Couldn’t send the request — check your connection, or contact the admin directly.', 'fail');
+            setResetStatus(resetRequestFailureLine(e, timedOut(e)), 'fail');   // a timeout, a 404 and a 503 differ
         } finally {
             // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure

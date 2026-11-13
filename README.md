@@ -140,7 +140,11 @@ behind them.
   colleague's day refused, a manager recording on behalf, a save with no signal, a delete made just
   after the signal returns while that save is still queued, the same race in the Links workspace (a
   rename made while a design's offline save is still queued, as the designer), the staff PIN's real
-  exchange, and Back after signing out (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
+  exchange, Back after signing out, and since v25.98 the sign-in audit's journeys: a real admin reset
+  and the member's phone opened again, a token renewal refused mid-save, the silent surname re-sign-in,
+  a disabled leaver, "Can't get in?", a new password from Settings, two tabs signing out, a browser
+  restart (the PIN gone, the member kept) and a new password whose record is still on its way
+  (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
   throwaway Firebase project folder in the temp directory — the emulator settings from `firebase.json`,
   a random four-digit PIN, never the real one — and writes nothing into the checkout. Each page keeps
   its own CSP, widened only by the emulators' addresses. **What it cannot see** is what only

@@ -1442,6 +1442,15 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         // SETTLED, not slept (test audit, 7 Nov 2026) — and for Links that includes the seeded
         // design having loaded, which is the state this walk exists to reach (see above).
         await waitForPageSettled(page);
+        // …AND NOTHING STILL LOADING (13 Nov 2026). "Settled" is the page-ready mark, and Operations
+        // stamps it with five cards still `aria-busy` — Account status alone is 4,700px once its
+        // member list lands, about 50ms later. The walk below read the page's height ONCE, so on a
+        // loaded runner it read 2,291px of 8,538, stopped there, and never reached the Retry under
+        // the list; the ratchet then reported that unmeasured button as fixed. Same on main, timed
+        // on both. `aria-busy` is the page's own word for "not finished", and every card clears it on
+        // a failed load as on a good one, so this ends; no other page is busy at this point.
+        await expect.poll(() => page.evaluate(() => document.querySelectorAll('[aria-busy="true"]').length),
+            { message: `${url} still says it is loading`, timeout: 15_000 }).toBe(0);
         // No wait after opening: `.open` is `display: block`, nothing animates (the 16px sweep above).
         await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
             .forEach(el => el.classList.add('open')));
@@ -1569,9 +1578,11 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
         // measuring the scroll position rather than the control — the same mistake the sticky-bar
         // exemption above exists to avoid.
         const best = new Map();
-        const height = await page.evaluate(() => document.documentElement.scrollHeight);
+        let height = await page.evaluate(() => document.documentElement.scrollHeight);
         for (let y = 0; y < height; y += 400) {
-            await page.evaluate((y) => window.scrollTo(0, y), y);
+            // The height is read again at every step, so a page that grows while it is walked is
+            // walked to its new end rather than to the one it had when the walk began (see above).
+            height = await page.evaluate((y) => { window.scrollTo(0, y); return document.documentElement.scrollHeight; }, y);
             await page.waitForTimeout(120);
             for (const line of await scan()) {
                 const key = line.split(' = ')[0];

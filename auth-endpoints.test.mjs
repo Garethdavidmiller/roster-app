@@ -152,19 +152,29 @@ function makeDb(seed = {}) {
     // A snapshot holds what was there WHEN it was read; a write replaces the stored object, never edits it.
     const snapOf = (name, id) => {
         const d = col(name).get(id);
-        return { id, exists: d !== undefined, data: () => d || {} };
+        return { id, exists: d !== undefined, data: () => d || {}, get: (field) => (d || {})[field] };
     };
     const querySnap = (name) => ({ size: col(name).size, docs: [...col(name).keys()].map((id) => snapOf(name, id)) });
     const notFound = () => { const e = new Error('NOT_FOUND'); e.code = 5; return e; };
+    // A write answers with its time, as Firestore's WriteResult does: the document's version after it.
+    const writeTimeOf = (name, id) => ({ _v: version(`${name}/${id}`) });
     const db = {
         collection(name) {
             return {
-                doc: (id) => ({ id, _col: name, set: async (data) => merge(name, id, data),
+                doc: (id) => ({ id, _col: name,
+                    get: async () => snapOf(name, id),
+                    set: async (data) => { merge(name, id, data); return { writeTime: writeTimeOf(name, id) }; },
                     // Firestore's update() refuses a document that is not there (NOT_FOUND) — the
-                    // property a late write relies on to not re-create a row somebody cleared.
-                    update: async (data) => {
+                    // property a late write relies on to not re-create a row somebody cleared — and,
+                    // given a `lastUpdateTime`, one written since that time (FAILED_PRECONDITION, 9).
+                    update: async (data, precondition) => {
                         if (!col(name).has(id)) throw notFound();
+                        if (precondition && precondition.lastUpdateTime
+                            && precondition.lastUpdateTime._v !== version(`${name}/${id}`)) {
+                            throw Object.assign(new Error('FAILED_PRECONDITION'), { code: 9 });
+                        }
                         merge(name, id, data);
+                        return { writeTime: writeTimeOf(name, id) };
                     } }),
                 select: () => ({ _query: name, get: async () => querySnap(name) }),
             };
@@ -196,6 +206,8 @@ function makeDb(seed = {}) {
             throw Object.assign(new Error('ABORTED'), { code: 10 });
         },
         _dump: (name) => Object.fromEntries(col(name)),
+        /** A write from somewhere else — a member's own device, say — that no wrapper records. */
+        _write: (name, id, data) => merge(name, id, data),
         /** Another request's write landing on a collection somebody has read: its version moves. */
         _bump: (name) => versions.set(name, version(name) + 1),
         /** What the admin's Operations card does when a reset is done: the row goes. */
@@ -257,6 +269,11 @@ function build({
     usersPerPage = Infinity,
     releaseFail = null,
     stampFail = null,
+    // A refused reset's stamp cannot be put back (sign-in audit E1).
+    restoreFail = null,
+    // Runs as the password is written, before any injected failure: another device's write landing
+    // between the stamp and its restore. Given the db.
+    onPasswordWrite = null,
     // The reset request's answer floor (functions-core-4). 0 keeps this suite fast; `null` builds the
     // endpoint exactly as index.js does, with production's floor.
     answerFloorMs = 0,
@@ -264,6 +281,8 @@ function build({
     const sends = [];
     /** Every `releasePushForOwner` call — the leaver's push records leaving with the account (H4). */
     const released = [];
+    /** How many Auth calls had been made at each release, so a test can ask what came first. */
+    const releasedAt = [];
     /** Every Auth MUTATION, in order. The point of recording rather than counting: a test asking
      *  "did a refused call still reset the password?" needs the payload, not a tally. */
     const authOps = [];
@@ -293,6 +312,8 @@ function build({
     // when it was attempted. That is what puts the stamp and the credential change on ONE timeline,
     // so a test can ask which came first (functions-core-2). `stampFail` makes the write refuse.
     const stamps = [];
+    /** Every passwordStatus update — only a refused reset putting its stamp back makes one. */
+    const restores = [];
     const plainCollection = db.collection.bind(db);
     db.collection = (name) => {
         const c = plainCollection(name);
@@ -303,6 +324,10 @@ function build({
                 stamps.push({ member: id, at: authOps.length });
                 if (stampFail) throw new Error(stampFail);
                 return d.set(data, opts);
+            }, update: async (data, precondition) => {
+                restores.push({ member: id, data, precondition });
+                if (restoreFail) throw new Error(restoreFail);
+                return d.update(data, precondition);
             } };
         } };
     };
@@ -337,6 +362,14 @@ function build({
             // stamped is set up per test through `existingUsers`.
             return known ? { uid: `uid_${email.split('@')[0]}`, email, customClaims: { stamped: true } } : notFound();
         },
+        // Set up accounts asks this before it creates (sign-in audit E3). It reads ONLY the accounts that
+        // exist in this fake world — the same map createUser fills — never getUserByEmail's fallback, so
+        // a test's "nobody has an account yet" is what the endpoint sees.
+        getUsers: async (identifiers) => {
+            if (authFail.getUsers) throw new Error(authFail.getUsers);
+            return { users: identifiers.filter((i) => users.has(i.email)).map((i) => users.get(i.email)),
+                notFound: identifiers.filter((i) => !users.has(i.email)) };
+        },
         createUser: async ({ email, password, displayName }) => {
             authOps.push({ op: 'createUser', email, password, displayName });
             if (users.has(email)) { const e = new Error('exists'); e.code = 'auth/email-already-exists'; throw e; }
@@ -346,7 +379,9 @@ function build({
         },
         updateUser: async (uid, patch) => {
             authOps.push({ op: 'updateUser', uid, patch });
-            if (authFail.updateUser) throw new Error(authFail.updateUser);
+            if (onPasswordWrite && patch && 'password' in patch) await onPasswordWrite(db);
+            // `updateUserCode` gives the failure an Auth code, as the SDK's errors carry one.
+            if (authFail.updateUser) throw Object.assign(new Error(authFail.updateUser), authFail.updateUserCode ? { code: authFail.updateUserCode } : {});
             return { uid, ...patch };
         },
         revokeRefreshTokens: async (uid) => {
@@ -400,6 +435,7 @@ function build({
         fanOutPush: async (payload) => { sends.push({ payload, uids: 'EVERYONE' }); return 0; },
         releasePushForOwner: async (uid) => {
             released.push(uid);
+            releasedAt.push(authOps.length);   // on the Auth timeline, as the stamps are
             if (releaseFail) throw new Error(releaseFail);
             return 1;
         },
@@ -409,6 +445,9 @@ function build({
     const rosterPath = require.resolve('./functions/roster-members.json');
     delete require.cache[rosterPath];
     if (rosterJson) stub(rosterPath, rosterJson);
+    // reset-request.js too (Nov 2026): it holds requestPasswordReset now and destructures the same
+    // transport at load, so a copy cached by an earlier build would send through that build's fakes.
+    delete require.cache[require.resolve('./functions/reset-request.js')];
     delete require.cache[require.resolve('./functions/auth-endpoints.js')];
     const { buildAuthEndpoints } = require('./functions/auth-endpoints.js');
     const eps = buildAuthEndpoints({
@@ -418,7 +457,7 @@ function build({
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
         ...(answerFloorMs === null ? {} : { resetRequestAnswerFloorMs: answerFloorMs }),
     });
-    return { eps, sends, db, authOps, users, released, stamps,
+    return { eps, sends, db, authOps, users, released, releasedAt, stamps, restores,
         /** Every held send answers, each accepted by `n` subscriptions. */
         acceptPush: (n) => { for (const resolve of held.splice(0)) resolve(n); } };
 }
@@ -1245,14 +1284,18 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
         // `{ admin: true }` and no name. Only the Admin SDK or the console can set a claim, so ANY
         // claim is proof the account is not self-registered — and resetting it would reset the admin
         // pressing the button and revoke the session making the call.
-        const acct = { ...outsiderAccount(MEMBER), customClaims: { admin: true } };
+        // THE ADMIN'S OWN ACCOUNT (Nov 2026): this fixture gave the hand-set claim to an ordinary member,
+        // and since the sign-in audit (D3) a member whose `admin` Set up accounts takes away IS signed
+        // out — "setupRosterAuth signs out an account whose tier it takes away" has that case. The
+        // recovery this comment describes is the admin's, whose tier the run keeps.
+        const acct = { ...outsiderAccount(ADMIN), customClaims: { admin: true } };
         const { eps, authOps } = build({ existingUsers: [acct] });
         const out = await call(eps.setupRosterAuth, asAdmin({}));
         assert.deepEqual(out.body.reclaimed, []);
-        const mine = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        const mine = authOps.filter((o) => o.uid === uidFor(ADMIN));
         assert.equal(mine.filter((o) => o.op === 'revokeRefreshTokens').length, 0, 'no session is ended');
         assert.equal(mine.filter((o) => o.op === 'updateUser' && 'password' in (o.patch || {})).length, 0, 'no password is touched');
-        assert.equal(claimFor(authOps, MEMBER).member, MEMBER, 'it is stamped as it stands');
+        assert.equal(claimFor(authOps, ADMIN).member, ADMIN, 'it is stamped as it stands');
     });
 
     test('an empty claims object is no claim — still an outsider\'s', async () => {
@@ -1458,6 +1501,128 @@ describe('a new account\'s first claim stamp is retried once', () => {
     });
 });
 
+// ── A TIER TAKEN AWAY STOPS AT ONCE (sign-in audit D3, Nov 2026) ────────────────────────────────
+// setCustomUserClaims replaces the claims, but a token already issued keeps the old ones until it
+// renews — up to an hour of a removed manager, admin or designer still holding the tier. Now the
+// account's refresh tokens are revoked when a run takes one away, so every checkRevoked endpoint
+// refuses the old tier at once. Never for the same tier or a higher one: a revocation signs the member
+// out of every device.
+describe('setupRosterAuth signs out an account whose tier it takes away', () => {
+    const roster = (/** @type {any} */ roles) => ({ activeMembers: [ADMIN, MEMBER, MANAGER],
+        roles: { admin: [ADMIN], manager: [], designer: [], ...roles } });
+    const holding = (name, claims) => ({ uid: uidFor(name), email: emailFor(name), displayName: name, disabled: false,
+        customClaims: { name, member: name, ...claims } });
+    const revokesOf = (authOps, name) => authOps.filter((o) => o.op === 'revokeRefreshTokens' && o.uid === uidFor(name));
+
+    for (const [what, claims, roles] of [
+        ['a manager taken off the manager list', { manager: true }, {}],
+        ['an admin taken off the admin list', { admin: true }, {}],
+        ['a designer taken off the designer list', { linksDesigner: true }, {}],
+        ['a member given admin by hand, who is not on the admin list', { admin: true }, { manager: [MANAGER] }],
+    ]) {
+        test(`${what} is signed out, AFTER the lesser claims are on`, async () => {
+            const { eps, authOps } = build({ rosterJson: roster(roles), existingUsers: [holding(MEMBER, claims)] });
+            const out = await call(eps.setupRosterAuth, asAdmin({}));
+            assert.deepEqual(out.body.demoted, [MEMBER], JSON.stringify(out.body));
+            const stamp = authOps.findIndex((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER));
+            assert.deepEqual(authOps[stamp].claims, { name: MEMBER, member: MEMBER }, 'fixture check: the tier went');
+            const revokes = revokesOf(authOps, MEMBER);
+            assert.equal(revokes.length, 1, 'the old tier\'s sessions were left running');
+            assert.ok(authOps.indexOf(revokes[0]) > stamp, 'revoked before the new claims were on — the next token would carry the old tier');
+        });
+    }
+
+    for (const [what, claims, roles] of [
+        ['the same tier', { manager: true }, { manager: [MEMBER] }],
+        ['a rise from member to manager', {}, { manager: [MEMBER] }],
+        ['a rise from manager to admin', { manager: true }, { admin: [ADMIN, MEMBER] }],
+        ['a designer kept, beside a new tier', { linksDesigner: true }, { manager: [MEMBER], designer: [MEMBER] }],
+    ]) {
+        test(`${what} signs nobody out`, async () => {
+            const { eps, authOps } = build({ rosterJson: roster(roles), existingUsers: [holding(MEMBER, claims)] });
+            const out = await call(eps.setupRosterAuth, asAdmin({}));
+            assert.deepEqual(revokesOf(authOps, MEMBER), [], 'a member whose tier stayed or rose was signed out of every device');
+            assert.deepEqual(out.body.demoted, []);
+        });
+    }
+
+    test('a sign-out that fails is reported — the old tier lasts until the token renews', async () => {
+        const { eps, authOps } = build({ rosterJson: roster({}), existingUsers: [holding(MEMBER, { manager: true })],
+            authFail: { revokeRefreshTokens: 'unavailable' } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.demoted, []);
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (lost manager but could not be signed out`)), out.body.failed.join(' | '));
+        assert.deepEqual(authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER)).claims,
+            { name: MEMBER, member: MEMBER }, 'the claims were still corrected');
+    });
+
+    test('a claim stamp that fails signs nobody out — the account still holds the tier', async () => {
+        const { eps, authOps } = build({ rosterJson: roster({}), existingUsers: [holding(MEMBER, { manager: true })],
+            authFail: { setCustomUserClaims: 'unavailable' } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(revokesOf(authOps, MEMBER), []);
+        assert.deepEqual(out.body.demoted, []);
+    });
+
+    test('a re-enabled account is signed out once, by the re-enable — never a second time for its tier', async () => {
+        const leaver = { ...holding(MEMBER, { manager: true }), disabled: true };
+        const { eps, authOps } = build({ rosterJson: roster({}), existingUsers: [leaver] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.reclaimed, [MEMBER], 'fixture check: re-enabled');
+        assert.equal(revokesOf(authOps, MEMBER).length, 1);
+        assert.deepEqual(out.body.demoted, []);
+    });
+});
+
+// ── A NEW ACCOUNT IS STAMPED BEFORE IT IS CREATED (sign-in audit E3, Nov 2026) ──────────────────
+// The take-back and the re-enable stamp resetAt first; the CREATE path did not. An account deleted in
+// the console and made again therefore inherited the member's old passwordSetAt: shown as "Own" in
+// Account status, no forced change, and an old device's silent sign-in with the surname let straight
+// back in (AUTH_AND_SESSIONS 23). The stamp must never touch an account that already exists — that
+// would sign its member out of every device — so the endpoint asks the account list first.
+describe('setupRosterAuth stamps a NEW account before creating it', () => {
+    const createOf = (authOps, name) => authOps.findIndex((o) => o.op === 'createUser' && o.email === emailFor(name));
+
+    test('the stamp lands before the account exists', async () => {
+        const { eps, authOps, stamps, db } = build();
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.ok(out.body.created.includes(MEMBER), 'fixture check: created');
+        const mine = stamps.filter((s) => s.member === MEMBER);
+        assert.equal(mine.length, 1, 'one stamp for the new account');
+        assert.ok(mine[0].at <= createOf(authOps, MEMBER), 'the account was created before its stamp');
+        assert.ok(db._dump('passwordStatus')[MEMBER].resetAt, 'and the stamp is on the record');
+    });
+
+    test('an account that already exists is never stamped by it — its member stays signed in', async () => {
+        const kept = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: MEMBER, disabled: false,
+            customClaims: { name: MEMBER, member: MEMBER } };
+        const setAt = { toMillis: () => NOW - 86_400_000 };
+        const { eps, stamps, db } = build({ existingUsers: [kept], seed: { passwordStatus: { [MEMBER]: { passwordSetAt: setAt } } } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.ok(out.body.skipped.includes(MEMBER), 'fixture check: adopted as it stands');
+        assert.deepEqual(stamps.filter((s) => s.member === MEMBER), [], 'an existing account was stamped');
+        assert.deepEqual(db._dump('passwordStatus')[MEMBER], { passwordSetAt: setAt }, 'their own password is still theirs');
+    });
+
+    test('a stamp that cannot be written creates NOTHING for that name, and says so', async () => {
+        const { eps, authOps } = build({ stampFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(createOf(authOps, MEMBER), -1, 'the account was created without its stamp');
+        assert.ok(!authOps.some((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER)), 'or claimed');
+        assert.ok(!out.body.created.includes(MEMBER));
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (stamp-failed`) && /no account was created/.test(f)),
+            out.body.failed.join(' | '));
+    });
+
+    test('a look-up that fails creates nothing either', async () => {
+        const { eps, authOps, stamps } = build({ authFail: { getUsers: 'unavailable' } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(createOf(authOps, MEMBER), -1, 'created without knowing whether it existed');
+        assert.deepEqual(stamps, [], 'and nothing was stamped on a guess');
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (lookup-failed`)), out.body.failed.join(' | '));
+    });
+});
+
 describe('setupRosterAuth previews leavers before it disables them', () => {
     const leaver = { uid: 'uid_leaver', email: 'x.gone@myb-roster.local', disabled: false };
 
@@ -1512,6 +1677,83 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
         await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
         assert.ok(!authOps.some((o) => o.op === 'updateUser' && o.uid === existing.uid && o.patch.disabled === true),
             'the active set is built from the members actually processed, not from the request');
+    });
+
+    // A MANAGER WHO IS IN NO GRADE LIST (sign-in audit D4). resolveRosterAuthConfig unions the role
+    // lists into the processed set, and that union is all that stands between such a manager and the
+    // confirmed sweep — dropping `...manager` from it left every lane green.
+    test('a confirmed sweep never disables a manager who is not in activeMembers', async () => {
+        const managerAccount = { uid: uidFor(MANAGER), email: emailFor(MANAGER), displayName: MANAGER, disabled: false,
+            customClaims: { name: MANAGER, member: MANAGER, manager: true } };
+        const { eps, authOps } = build({
+            rosterJson: { activeMembers: [ADMIN, MEMBER], roles: { admin: [ADMIN], manager: [MANAGER], designer: [] } },
+            existingUsers: [managerAccount],
+        });
+        const out = await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.ok(!authOps.some((o) => o.uid === managerAccount.uid && o.op === 'updateUser' && o.patch && o.patch.disabled === true),
+            'the manager was disabled as a leaver');
+        assert.deepEqual(out.body.disabled, [], 'and nobody was reported disabled');
+        assert.deepEqual(authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === managerAccount.uid)?.claims,
+            { name: MANAGER, member: MANAGER, manager: true }, 'they are processed, and keep the manager tier');
+    });
+});
+
+// ── A LEAVER ALREADY DISABLED (sign-in audit D2, Nov 2026) ──────────────────────────────────────
+// The sweep releases a leaver's push records as it disables the account. But a phone still holding a
+// valid ID token can save its record again in the hour after — the push-record rule cannot see
+// `disabled` — and every broadcast reached it again, because the sweep's filter skips a disabled
+// account and no later run looked. Every confirmed run now releases those records too.
+describe('setupRosterAuth releases the push records of leavers already disabled', () => {
+    const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
+    const gone = { uid: 'uid_gone', email: 'x.gone@myb-roster.local', displayName: 'X. Gone', disabled: true,
+        customClaims: { name: 'X. Gone', member: 'X. Gone' } };
+    const confirmed = () => asAdmin({ removeOrphans: true, confirmOrphanRemoval: true });
+
+    test('a confirmed run releases them, touches nothing else on the account, and lists nobody as newly disabled', async () => {
+        const { eps, released, authOps } = build({ existingUsers: [gone] });
+        const out = await call(eps.setupRosterAuth, confirmed());
+        assert.deepEqual(released, [gone.uid]);
+        assert.deepEqual(out.body.disabled, [], 'an account disabled long ago is not news');
+        assert.deepEqual(authOps.filter((o) => o.uid === gone.uid), [], 'the disabled account itself was changed');
+        assert.equal(out.body.disabledLeaverPushRemoved, 1, 'counted in the answer');
+    });
+
+    test('EVERY confirmed run looks again — idempotent, so a record saved since goes too', async () => {
+        const { eps, released } = build({ existingUsers: [gone] });
+        await call(eps.setupRosterAuth, confirmed());
+        await call(eps.setupRosterAuth, confirmed());
+        assert.deepEqual(released, [gone.uid, gone.uid]);
+    });
+
+    test('never the shared Calendar PIN account, by uid or by claim — and never a current member', async () => {
+        const viewer = { uid: CALENDAR_VIEWER_UID, email: 'nobody.here@myb-roster.local', disabled: true };
+        const viewerByClaim = { uid: 'some-uid', email: 'nobody.else@myb-roster.local', disabled: true, customClaims: { calendarViewer: true } };
+        const member = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: MEMBER, disabled: true,
+            customClaims: { name: MEMBER, member: MEMBER } };
+        const { eps, released } = build({ existingUsers: [viewer, viewerByClaim, member] });
+        await call(eps.setupRosterAuth, confirmed());
+        assert.ok(!released.includes(viewer.uid) && !released.includes(viewerByClaim.uid),
+            'the PIN account\'s records went — every PIN device on the station stops being told');
+        assert.deepEqual(released, [uidFor(MEMBER)],
+            'fixture check: the member\'s own release is the re-enable\'s, not the sweep\'s');
+    });
+
+    test('the dry run releases nothing, and says no count', async () => {
+        const { eps, released } = build({ existingUsers: [gone] });
+        const out = await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true }));
+        assert.deepEqual(released, []);
+        assert.ok(!('disabledLeaverPushRemoved' in out.body));
+    });
+
+    test('a release that fails costs nothing else — the sweep goes on and reports as usual', async () => {
+        const leaver = { uid: 'uid_leaver', email: 'y.gone@myb-roster.local', disabled: false };
+        const { eps } = build({ existingUsers: [gone, leaver], releaseFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, confirmed());
+        assert.equal(out.code, 200);
+        assert.ok(!out.body.orphanSweepFailed, JSON.stringify(out.body));
+        assert.ok(out.body.disabled.some((l) => l.includes('y.gone')), 'the enabled leaver was still disabled');
+        assert.equal(out.body.disabledLeaverPushRemoved, 0);
     });
 });
 
@@ -1643,12 +1885,17 @@ test('the module never reaches for a broadcast sender', () => {
     // Trailing comments are stripped only where `//` is not preceded by `:`, so a URL in real code
     // survives; the assertion below is the guard on the guard, because a strip that ate the whole
     // file would pass this test while checking nothing at all.
-    const raw = readFileSync(new URL('./functions/auth-endpoints.js', import.meta.url), 'utf8');
-    const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/[^\n]*/g, '');
-    assert.match(src, /sendTargetedPush\(/,
-        'the stripped source still holds the real call — otherwise this test guards nothing');
-    assert.ok(!/fanOutPush/.test(src),
-        'auth-endpoints.js must not reference fanOutPush — these notifications name one person');
+    //
+    // BOTH FILES (Nov 2026): requestPasswordReset — the notice that names a locked-out member — moved
+    // to reset-request.js, and a guard left reading only the old home would have gone quietly vacuous.
+    for (const file of ['auth-endpoints.js', 'reset-request.js']) {
+        const raw = readFileSync(new URL(`./functions/${file}`, import.meta.url), 'utf8');
+        const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/[^\n]*/g, '');
+        assert.match(src, /sendTargetedPush\(/,
+            `${file}: the stripped source still holds the real call — otherwise this test guards nothing`);
+        assert.ok(!/fanOutPush/.test(src),
+            `${file} must not reference fanOutPush — these notifications name one person`);
+    }
 });
 
 
@@ -1701,6 +1948,18 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
         const { eps } = build({ existingUsers: fullyProvisioned().filter((u) => u.displayName !== victim) });
         const out = await call(eps.getAccountSetupGaps, getReq());
         assert.deepEqual(out.body.setUp, [{ name: victim, why: 'no-account' }]);
+    });
+
+    test('an account with no claim at all comes back as `unstamped`, apart from a wrong tier', async () => {
+        // Set up accounts TAKES such an account back (password reset, signed out), so the admin must be
+        // able to tell it from a claim fix before pressing the button (sign-in audit).
+        const [unstamped, wrongTier] = rosterCfg.processMembers.filter((n) => !SETS.adminSet.has(n));
+        const { eps } = build({ existingUsers: fullyProvisioned().map((u) =>
+            u.displayName === unstamped ? { ...u, customClaims: undefined }
+                : u.displayName === wrongTier ? { ...u, customClaims: { name: wrongTier } } : u) });
+        const out = await call(eps.getAccountSetupGaps, getReq());
+        assert.deepEqual(new Set(out.body.setUp.map((g) => JSON.stringify(g))),
+            new Set([{ name: unstamped, why: 'unstamped' }, { name: wrongTier, why: 'claims' }].map((g) => JSON.stringify(g))));
     });
 
     test('a leaver still enabled comes back too, in the OTHER group', async () => {
@@ -2002,5 +2261,155 @@ describe('resetMemberPassword tells the member, and only the member', () => {
         const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
         assert.equal(out.code, 403);
         assert.equal(sends.length, 0, 'no notification for a reset that did not happen');
+    });
+});
+
+// ── A LOST OR STOLEN PHONE (sign-in audit D1, Nov 2026) ─────────────────────────────────────────
+//
+// A reset is the remedy for a lost phone, and the reset's own notice — the block above — landed on
+// THAT phone's lock screen, while its push record kept it receiving every notice addressed to the
+// member. `lostDevice: true` sends no notice and deletes every record the account owns, as a stage of
+// its own that never turns the reset into a failure. Without the flag nothing changes.
+describe('resetMemberPassword for a lost or stolen phone', () => {
+    const memberUid = `uid_${emailFor(MEMBER).split('@')[0]}`;
+    const lost = () => asAdmin({ member: MEMBER, lostDevice: true });
+    const passwordWrite = (authOps) => authOps.findIndex((o) => o.op === 'updateUser' && o.patch && 'password' in o.patch);
+
+    test('no notice is sent, to anybody', async () => {
+        const { eps, sends } = build();
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.deepEqual(sends, [], 'the notice would land on the lost phone\'s lock screen');
+    });
+
+    test('every push record the reset account owns goes — after the password, the stamp and the sign-out', async () => {
+        const { eps, released, releasedAt, authOps, stamps } = build();
+        await call(eps.resetMemberPassword, lost());
+        assert.deepEqual(released, [memberUid], 'the records of the account the reset changed, and nobody else\'s');
+        const revoke = authOps.findIndex((o) => o.op === 'revokeRefreshTokens');
+        assert.ok(stamps[0].at <= passwordWrite(authOps) && passwordWrite(authOps) < revoke, 'fixture check: stamp, password, revoke');
+        assert.ok(releasedAt[0] > revoke, 'released before the credential and the sessions were dealt with');
+    });
+
+    test('the answer says what happened', async () => {
+        const { eps } = build();
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.deepEqual(out.body, { ok: true, member: MEMBER, revoked: true, stamped: true, notified: false,
+            lostDevice: true, pushReleased: 1 });
+    });
+
+    test('a release that fails still answers ok — the reset happened — and says so', async () => {
+        const { eps, authOps } = build({ releaseFail: 'firestore down' });
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.equal(out.code, 200, 'the password has changed by then, and nothing may say otherwise');
+        assert.equal(out.body.ok, true);
+        assert.equal(out.body.pushReleaseFailed, true, 'named, so the admin knows the phone may still be told things');
+        assert.ok(!('pushReleased' in out.body), 'and no count is claimed');
+        assert.ok(passwordWrite(authOps) >= 0, 'the password really was rewritten');
+    });
+
+    test('an account taken back is released too', async () => {
+        const outsider = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: 'anything', disabled: false };
+        const { eps, released, sends } = build({ existingUsers: [outsider] });
+        const out = await call(eps.resetMemberPassword, lost());
+        assert.equal(out.body.takenBack, true, 'fixture check: a take-back');
+        assert.deepEqual(released, [uidFor(MEMBER)]);
+        assert.deepEqual(sends, []);
+        assert.equal(out.body.pushReleased, 1);
+    });
+
+    test('only the boolean true — a string or a number is an ordinary reset', async () => {
+        for (const lostDevice of ['true', 1, {}]) {
+            const { eps, sends, released } = build();
+            const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, lostDevice }));
+            assert.equal(sends.length, 1, `lostDevice ${JSON.stringify(lostDevice)} silenced the notice`);
+            assert.deepEqual(released, [], `lostDevice ${JSON.stringify(lostDevice)} released the push records`);
+            assert.ok(!('lostDevice' in out.body) && !('pushReleased' in out.body));
+        }
+    });
+
+    test('without the flag, the member is told as before and nothing is released', async () => {
+        const { eps, sends, released } = build();
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.deepEqual(sends.map((s) => s.uids), [[memberUid]]);
+        assert.deepEqual(released, []);
+        assert.deepEqual(out.body, { ok: true, member: MEMBER, revoked: true, stamped: true, notified: true });
+    });
+});
+
+// ── A PASSWORD WRITE THAT THROWS (sign-in audit E1, Nov 2026) ───────────────────────────────────
+//
+// resetAt is stamped FIRST (AUTH_AND_SESSIONS 23). When the password write then threw, the generic 500
+// left the stamp, so the member was shown back on their surname — Account status "Default", Settings,
+// the forced overlay — while their own password still worked. Now a REFUSAL (which proves nothing
+// changed) puts the stamp back, and an UNKNOWN outcome keeps it: the safe direction, because a missing
+// stamp would let an old device sign itself back in with the surname. account-lifecycle.js has the
+// rules; these drive the handler.
+describe('resetMemberPassword when the password write throws', () => {
+    const OLD = { toMillis: () => NOW - 30 * 24 * 3600 * 1000 };
+    const withOldStamp = { passwordStatus: { [MEMBER]: { resetAt: OLD, passwordSetAt: { toMillis: () => NOW - 3600_000 } } } };
+    const refused = (code) => ({ authFail: { updateUser: 'refused', updateUserCode: code } });
+    const after = (authOps, op) => authOps.filter((o) => o.op === op);
+
+    test('a REFUSED write puts the previous stamp back, and says nothing was changed', async () => {
+        const { eps, db, authOps, sends, released } = build({ seed: withOldStamp, ...refused('auth/invalid-password') });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, lostDevice: true }));
+        assert.equal(out.code, 409, JSON.stringify(out.body));
+        assert.match(out.body.error, /refused the new password[\s\S]*Nothing was changed\./);
+        assert.equal(db._dump('passwordStatus')[MEMBER].resetAt, OLD, 'the member would be shown back on their surname');
+        assert.ok(db._dump('passwordStatus')[MEMBER].passwordSetAt, 'and nothing else on the record moved');
+        assert.deepEqual(after(authOps, 'revokeRefreshTokens'), [], 'nobody is signed out of a reset that did not happen');
+        assert.deepEqual(sends, [], 'nor told of one');
+        assert.deepEqual(released, [], 'nor are their push records taken');
+    });
+
+    test('a refused write with NO earlier stamp removes the field, rather than leaving one', async () => {
+        const { eps, db } = build(refused('auth/invalid-password'));
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 409);
+        assert.ok(!('resetAt' in (db._dump('passwordStatus')[MEMBER] || {})), JSON.stringify(db._dump('passwordStatus')));
+    });
+
+    test('an account gone by the time of the write is a 404 — the stamp goes back there too', async () => {
+        const { eps, db } = build({ seed: withOldStamp, ...refused('auth/user-not-found') });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 404);
+        assert.match(out.body.error, /No Firebase account[\s\S]*Nothing was changed\./);
+        assert.equal(db._dump('passwordStatus')[MEMBER].resetAt, OLD);
+    });
+
+    for (const [what, code] of [['no code at all', undefined], ['a network error', 'app/network-error'],
+        ['an unknown service error', 'auth/internal-error'], ['a refusal of the read that follows the write', 'auth/quota-exceeded']]) {
+        test(`an UNKNOWN outcome (${what}) KEEPS the stamp, and says resetting again is safe`, async () => {
+            const { eps, db, authOps, restores } = build({ seed: withOldStamp, authFail: { updateUser: 'lost', updateUserCode: code } });
+            const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+            assert.equal(out.code, 500);
+            assert.match(out.body.error, /isn't known whether[\s\S]*Resetting again is safe\./);
+            assert.notEqual(db._dump('passwordStatus')[MEMBER].resetAt, OLD, 'the stamp was taken back from a password that may have changed');
+            assert.deepEqual(restores, [], 'and nothing tried to');
+            assert.deepEqual(after(authOps, 'revokeRefreshTokens'), []);
+        });
+    }
+
+    test('a refusal whose stamp cannot be put back says so — never "nothing was changed"', async () => {
+        const { eps, db } = build({ seed: withOldStamp, restoreFail: 'firestore down', ...refused('auth/invalid-password') });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 409);
+        assert.doesNotMatch(out.body.error, /Nothing was changed/);
+        assert.match(out.body.error, /password did not change, but the reset could not be taken off their record/);
+        assert.notEqual(db._dump('passwordStatus')[MEMBER].resetAt, OLD);
+    });
+
+    test('a write landing between the stamp and its restore wins — the restore is pinned to its own stamp', async () => {
+        // The member sets their own password on another device in that moment: putting the old stamp
+        // back over THAT would rewrite a record somebody else had just changed. The precondition refuses
+        // it, and the answer says what is true.
+        const { eps, db, restores } = build({ seed: withOldStamp, ...refused('auth/invalid-password'),
+            onPasswordWrite: (d) => d._write('passwordStatus', MEMBER, { passwordSetAt: { toMillis: () => Date.now() } }) });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(restores.length, 1, 'fixture check: the restore was tried');
+        assert.ok(restores[0].precondition && restores[0].precondition.lastUpdateTime, 'the restore names the stamp it may undo');
+        assert.notEqual(db._dump('passwordStatus')[MEMBER].resetAt, OLD, 'the old stamp went back over a newer write');
+        assert.doesNotMatch(out.body.error, /Nothing was changed/);
     });
 });

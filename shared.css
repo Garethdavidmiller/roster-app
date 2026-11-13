@@ -1107,10 +1107,8 @@ body.lb-open #stickyTotal { display: none !important; }
     flex-direction: column;
     gap: 12px;
     background: var(--surface);
-    /* --radius-xl, the compact-dialog family (v18.90). This was --radius-lg with a comment claiming
-       it matched "the modal-picker panel family" — but no picker sets that token, and --radius-lg is
-       the CARD radius every page uses for `.card`. So this overlay was wearing card corners, which
-       flattens the layering: an overlay sits ABOVE a card and should not share its silhouette. */
+    /* --radius-xl, the compact-dialog family: --radius-lg is the CARD radius, and an overlay sits ABOVE a
+       card, so it must not share the card's silhouette (css-tokens.md → "An overlay never wears the card radius"). */
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-3);
     padding: 22px 22px 18px;
@@ -1163,13 +1161,14 @@ body.lb-open #stickyTotal { display: none !important; }
     outline: none;
     background-color: white;
     border-color: var(--primary-blue);
-    /* The 4px ring every other focusable field in the app gets (admin, calendar, operations,
-       paycalc all use exactly this). This one input — the shared promptDialog's — was the only
-       field left with `outline: none` and nothing but a border-colour change in its place, so it
-       had the weakest focus indicator in the app while sitting inside a modal, where keyboard
-       users most need to see where they are. (v18.87) */
+    /* The 4px ring every focusable field wears — in a modal too, where a keyboard user most needs to see it. */
     box-shadow: var(--focus-ring);
 }
+/* A dialog's one option (overlay.js `confirmWithOption`): the shared drawn box, its whole row the label and the target. */
+.dialog-option { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; color: var(--text-dark); line-height: 1.4; }
+.dialog-option-text { display: grid; gap: 2px; font-size: var(--type-body); font-weight: 600; }
+.dialog-option-hint { font-size: var(--type-small); font-weight: 400; color: var(--text-mid); }
+@media (pointer: coarse) { .dialog-option { min-height: 44px; } }
 .dialog-actions {
     display: flex;
     justify-content: flex-end;

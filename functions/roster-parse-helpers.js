@@ -814,6 +814,11 @@ function isPayCutoffDay(date) {
 
 // ── Firebase Auth name helpers ───────────────────────────────────────────────
 
+/** The SURNAME half of an account identity — every word after the first, lower-cased, letters a–z only. The ONE copy on
+ *  this side, behind nameToEmail and nameToPassword; `normaliseSurname` (auth-identity.js) is the browser's, held equal
+ *  by surname-parity.test.mjs. @param {string} fullName @returns {string} */
+function surnameCore(fullName) { return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''); }
+
 /**
  * Derive the Firebase Auth email from a teamMembers display name.
  * Must stay in sync with nameToEmail() in auth-identity.js AND `memberEmailFor` in
@@ -822,10 +827,8 @@ function isPayCutoffDay(date) {
  * @param {string} fullName - e.g. "G. Miller" → "g.miller@myb-roster.local"
  */
 function nameToEmail(fullName) {
-    const parts   = fullName.split(' ');
-    const initial = parts[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
-    const surname = parts.slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-    return `${initial}.${surname}@myb-roster.local`;
+    const initial = fullName.split(' ')[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
+    return `${initial}.${surnameCore(fullName)}@myb-roster.local`;
 }
 
 /**
@@ -836,7 +839,7 @@ function nameToEmail(fullName) {
  * @param {string} fullName - e.g. "G. Miller" → "miller", "N. Tuck" → "tucktu"
  */
 function nameToPassword(fullName) {
-    const surname = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    const surname = surnameCore(fullName);
     // padEnd with an empty fill string cannot extend — guard so the caller gets a
     // clear error rather than '' being sent to Firebase as an invalid password.
     if (!surname) throw new Error(`no usable surname in "${fullName}"`);
@@ -1119,10 +1122,10 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  * else's behalf permission-denies. And a leaver whose disable step was skipped simply keeps a
  * working login. None of the three fails anything; all three are found by somebody complaining.
  *
- * GROUPED BY REMEDY, NOT BY CAUSE. The three "can't work properly" states have three different
- * causes and exactly ONE fix — press Set up accounts — so they are one group. A leaver still
- * enabled needs a different, confirmed action, so it is its own. An index that splits by cause
- * makes the reader do the mapping; splitting by the button they must press does not.
+ * GROUPED BY REMEDY, NOT BY CAUSE: every "can't work properly" state has ONE fix — press Set up
+ * accounts — so they are one group, and a leaver still enabled, needing a confirmed action, is its
+ * own. Within it `unstamped` (NO claim at all) is told apart from `claims`, because that press TAKES
+ * such an account BACK (`mustReclaim`: surname default, signed out, other ways in removed) — not a fix.
  *
  * IT REFUSES RATHER THAN CRIES WOLF. If not one `@myb-roster.local` account is visible, the
  * account list did not arrive — an empty page from a transient failure, a wrong project — and
@@ -1143,7 +1146,7 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  *        every Firebase Auth user (all pages of listUsers)
  * @param {{ processMembers: string[], adminSet: Set<string>, managerSet: Set<string>, designerSet: Set<string> }} cfg
  *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
- * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'claims' }>, leavers: string[] }}
+ * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'unstamped'|'claims' }>, leavers: string[] }}
  */
 function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
     const list = Array.isArray(users) ? users : [];
@@ -1158,7 +1161,7 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
     // "we cannot see the roster's accounts" situation and must not report all 51 as missing either.
     if (byEmail.size === 0) return { refused: 'no-accounts-visible', setUp: [], leavers: [] };
 
-    /** @type {Array<{name: string, why: 'no-account'|'disabled'|'claims'}>} */
+    /** @type {Array<{name: string, why: 'no-account'|'disabled'|'unstamped'|'claims'}>} */
     const setUp = [];
     /** @type {Set<string>} */
     const activeEmails = new Set();
@@ -1167,9 +1170,10 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
         activeEmails.add(email);
         const user = byEmail.get(email);
         if (!user)         { setUp.push({ name, why: 'no-account' }); continue; }
+        const actual = user.customClaims || {};   // no claim at all is `mustReclaim`'s test, asked in the button's order
+        if (!Object.keys(actual).length) { setUp.push({ name, why: 'unstamped' }); continue; }
         if (user.disabled) { setUp.push({ name, why: 'disabled' });   continue; }
         const expected = claimsForTier(name, { adminSet, managerSet, designerSet });
-        const actual   = user.customClaims || {};
         for (const key of MANAGED_CLAIMS) {
             // `undefined` vs absent must compare equal — setCustomUserClaims stores neither.
             if ((expected[key] ?? null) !== (actual[key] ?? null)) {
@@ -1253,7 +1257,7 @@ function isAllowedPushEndpoint(endpoint) {
  * member — see the endpoint)? Two reasons: a member tapping the link repeatedly should not inflate the
  * `count` the admin reads as "how badly are they stuck", and every recorded request is a potential
  * notification. The endpoint answers with the same body either way, and no sooner than
- * RESET_REQUEST_ANSWER_FLOOR_MS (auth-endpoints.js), so a throttled request cannot be told from a
+ * RESET_REQUEST_ANSWER_FLOOR_MS (reset-request.js), so a throttled request cannot be told from a
  * recorded one by its body or its ordinary timing.
  *
  * A missing/unparseable previous timestamp means "never asked" → record.
@@ -1381,6 +1385,7 @@ module.exports = {
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
+    surnameCore,
     NOTIFICATION_FEATURES,
     buildPushPayload,
     parseSetupActionFlags,

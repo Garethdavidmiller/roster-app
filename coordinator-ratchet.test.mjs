@@ -253,7 +253,10 @@ const CAPS = {
     // speed counters left for analytics-client.js — 1,099 measured lines down to ~855 — the one block
     // here with no tie to authentication, and the same injected-handles shape documents-client.js
     // took at v21.90, so it now runs in Node against a fake Firestore.
-    'firebase-client.js':       900,
+    // 900 → 851 in Nov 2026 (sign-in audit, track C), an EXTRACT at 899 of 900: re-authentication and the
+    // password change — the member's OWN credential, with the rule that a password change acts only on the
+    // page member's account coming next — left for own-password.js, the same injected-handles shape.
+    'firebase-client.js':       851,
     // NEW at v24.84, a decision rather than a discovery: the station PIN reads the Trains page, and
     // the two viewer transitions that took (`holdsStaffPin`, `signOutStaffPin`) carried session.js
     // from 874 lines to 925. They sit beside `reconcileExpiredIdentity` and `shedCalendarViewer` on
@@ -263,7 +266,11 @@ const CAPS = {
     // filled the file to its cap, and the staff-PIN notice's RULE was EXTRACTED to staff-pin-ended.js
     // rather than added here. What stays is its import and the one call made once the sign-out of
     // the viewer has landed — which can only be made where that sign-out is.
-    'session.js':              1002,
+    // 1002 → 970 in Nov 2026 (sign-in audit, track C), an EXTRACT: the silent sign-in's RULES — the
+    // surname memory, its six-hourly reset recheck and the unanswered-recheck guard — left for the pure
+    // silent-sign-in.js, 1,002 lines down to 966. The four above that are the room the same track's next
+    // two fixes take (the session's start on the server's clock, the PIN's push record), not headroom.
+    'session.js':               970,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four
@@ -378,7 +385,10 @@ const CAPS = {
     // operations-tips.js as Links, Overtime and Trains had done (−152). The ceiling comes down with
     // them, to the usual headroom over 875, rather than banking the saving. The Account-status seam
     // above is still the next one.
-    'operations-app.js':        920,
+    // 920 → 837 on 13 Nov 2026, a LOWER, to the measured size: the sign-in audit's lost-phone Reset (D1)
+    // and its two outcome fixes (E2, the 500's sentence) were RULES — what a reset may claim — so EXTRACT: every word the
+    // Reset asks and says left for operations-reset.js, and the doReset that stayed only asks and wires.
+    'operations-app.js':        837,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip
     // added ~14 lines of pure WIRING — the strip module owns every rule, the coordinator only
     // creates it and feeds it from the loads the cards already run. Capped as the ratchet asks
@@ -512,7 +522,10 @@ const CAPS = {
     // order and the claim verification are still here — and the ceiling comes down with the code.
     // 850 → 750 on 26 Sep 2026: the provisional paint the v22.97 raise was for was RETIRED (owner
     // decision), taking ~100 lines of wiring with it (measured 667 after).
-    'calendar-access.js':      750,
+    // 750 → 746 in Nov 2026 (sign-in audit, track C), at 750 of 750: WHETHER the PIN card was asked for
+    // first — read once, removed whatever the decision — left for calendar-lock-cards.js (`takePinFirst`),
+    // which owns which card follows which, 750 lines down to 745. The one above is the next fix's.
+    'calendar-access.js':      746,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;
@@ -552,7 +565,12 @@ const CAPS = {
     // PIN exchange, the password reset, account set-up — are the security-sensitive half of the
     // Functions, and a module that close to the line would otherwise cross it with nobody deciding
     // anything. Capped now so crossing is a decision. Measured + 50, rounded to the next 50.
-    'functions/auth-endpoints.js':        950,
+    // 950 → 750 in Nov 2026, at 949 of 950 with the sign-in audit's account fixes still to land: the
+    // public reset-request doorbell — its constants, its throttle, its admin push — left whole for
+    // functions/reset-request.js (659 measured after). A SPLIT: the file did two jobs, and the
+    // doorbell shared nothing with the account handlers but the roster and the transport. The
+    // ceiling comes down with the code, measured + 50 rounded to the next 50.
+    'functions/auth-endpoints.js':        750,
     // NEW at v25.88, when the document-link rotation's door joined (885 → 937). Its RULES left for
     // functions/doc-link-rotation.js before they arrived — pure, and tested in the no-install lane —
     // so what crossed the line is an endpoint: method, admin check, body, the 503, one log line. The

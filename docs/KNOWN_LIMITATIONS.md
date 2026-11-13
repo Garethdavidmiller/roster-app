@@ -633,13 +633,10 @@ never the PIN. A silent re-sign-in is tried first, and one tap on "Sign in" re-e
 identity, so it is recoverable rather than a lockout — but it will generate a support question, it
 will land on iPhone users specifically, and it is worth expecting rather than diagnosing.
 
-**…and one case it does not yet handle (review, 11 Nov 2026 — not fixed, low priority).** If the
-same tab ALSO holds a staff-PIN session when the member's identity fails to restore, the start-up
-decision grants the viewer: it ranks a PIN session above a member session with no identity behind it.
-That member then reads the station's Calendar rather than their own, and a later loss of access shows
-them the PIN card. The late-restore path already refuses exactly this (`grantLateViewer`); the start-up
-path does not. It needs an identity failure and a PIN session in one tab, so it waits for a release
-that touches `decideAccess` anyway.
+**The case where the same tab also held a staff-PIN session is closed (v25.98).** The start-up
+decision now answers a held member session with the member's card, never the PIN, as the late-restore
+path already did (`decideAccess`, `CALENDAR_DATA.md` 11). The paragraph that recorded it is in
+ROADMAP_HISTORY.md → "Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)".
 
 **The cause is NOT Safari's seven-day rule** (corrected 7 Nov 2026, iPhone audit — this paragraph and
 five module headers said it was). WebKit's tracking prevention deletes ALL of a site's script-writable
@@ -796,6 +793,43 @@ claim's retries are capped at two, which is why the floor is 3 s and not 2 s). W
 name such a burst probes is recorded as a request the admin sees, and each name can be probed once in
 ten minutes. Closing it fully means sending the push from a Firestore trigger, so no answer waits on it
 — a new deployed function, left for a release that needs one. App Check (below) would also blunt it.
+
+### Three settings outside the code that nobody has checked from here (sign-in audit, 13 Nov 2026)
+
+The sign-in audit could read the code and the rules, not the Firebase console or the live network.
+Three things it depends on are therefore assumed, not known:
+
+- **Who may change or delete their own account.** Every staff-PIN holder signs in to ONE shared
+  viewer account. If users may delete their own account, or link an email to it, one PIN holder can
+  end every station's PIN at its next token refresh. Nothing is exposed — the next unlock rebuilds
+  the account (`viewerAccountTamper`, AUTH_AND_SESSIONS 20) — but each station has to enter the PIN
+  again. Firebase console → Authentication → Settings → User actions.
+- **Email enumeration protection.** With it off, Firebase's own sign-in API can say which roster
+  addresses have accounts. The addresses are derivable from the public roster, so this tells an
+  outsider little, but it is a free signal. Same page.
+- **The address the PIN lockout counts by.** `unlockCalendarViewer` counts failures per source by the
+  LAST `x-forwarded-for` entry, which a caller cannot forge. If the hosting puts its own address
+  last, every caller shares one failure budget (`maxFailures`, `calendar-viewer-auth.js`) — a cheaper form of "Anybody can hold the staff PIN
+  shut" (above), not a way past the PIN. Reading one real request's headers in the function's logs
+  would settle it.
+
+### A lost-phone reset still leaves two narrow gaps (sign-in audit, 13 Nov 2026)
+
+Operations → Reset asks "Their phone is lost or stolen". Ticked, no reset notice is sent — it would
+land on that phone's lock screen — and every push record the account owns is deleted. Two gaps remain:
+
+- **The surname opens the account until the member chooses a new password.** A reset is the only
+  tool that signs every device out, and it puts the password back to the surname default, which the
+  sign-in card's hint names. For a member who had chosen their own password, that is a door the
+  finder did not have before the reset. It closes the moment the member signs in on another device
+  and chooses a new one, and the outcome asks the admin to arrange exactly that. Closing it fully
+  needs an action that signs every device out WITHOUT touching the password — a new endpoint, and an
+  owner decision. Not built.
+- **A revoked phone can save its push record again for up to an hour.** A revocation takes effect
+  when the ID token next renews, and the push-record rule cannot see it, so a phone opened in that
+  hour can save its record again once its daily re-save is due. Nothing re-checks it later, as the
+  leaver sweep now does for leavers (`disabledLeaverUids`). A rule comparing the token's `auth_time`
+  with `resetAt` would close it. Not built.
 
 ### Firebase App Check — declined as an immediate action, RETAINED as Track D
 
@@ -1041,6 +1075,16 @@ the no-dark-mode decision across every page stylesheet and is declined for this;
 mode (toggleable)" is where it would be reopened. Do not answer the report with a darker palette or an
 inverted-back override: the algorithm runs on the computed colours, after the stylesheet, and would
 repaint the repair too.
+
+### An update can still land mid-way through the forced change (sign-in audit, 13 Nov 2026)
+
+The forced change's password write, and the record that follows it, are counted as writes in flight
+(`trackBackgroundWrite`, claim-retry.js), so a release's reload waits for them on the pages whose busy
+check reads `writesInFlight` — Admin, Settings and Operations. The Calendar holds an update's reload
+while it is on screen anyway. The Pay Calculator, Trains, New link, Links and Overtime do not ask, so
+an update arriving in the second the write takes reloads them under it. The cost is small and
+self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
+every page means changing the service worker's start-up on all of them, which was not worth the risk.
 
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.

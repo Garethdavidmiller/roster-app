@@ -83,6 +83,7 @@ part.**
 - **CSS extraction + infra hardening** (v12.01–05) — page/guide CSS extracted to external files; DOMPurify self-hosted; security headers (HSTS/COOP/Permissions-Policy); pre-commit ESLint + single-SDK check. **v12.05 reverted** the v12.04 anonymous-auth requirement on calendar `overrides` reads (more complexity than value — anyone can mint an anonymous token as easily as the app; "Override data is publicly readable", below, is how that closed).
 - **Links design workspace** (v12.06–v12.47) — `.claude/rules/links-design.md`. Durable decisions: patterns-only documents (decouples pattern design from assignment); a slot-based generator over an early/late binary (the station is staffed in **waves**, 28 distinct start times, distinct Sat/Sun); an hourly heat map over a per-type bar chart (shows the real on-duty shape/gaps); CEAs do not work nights (`normaliseCustomShift` rejects 21:00–03:59).
 - **E2E smoke tests** (v12.65 → removed v12.75 → restored v13.95) — CLAUDE.md → `e2e/`. **The one principle to preserve — whatever E2E tool is ever chosen, keep the Firebase CDN-stub approach** (`e2e/fixtures.js`): every page's module graph statically imports the gstatic Firebase SDK, and in ES modules one failed static import aborts the whole graph — so a slow/blocked CDN on a CI runner fails every test in ways no timeout/retry can fix. Intercept `gstatic.com/firebasejs/**` and serve local no-op stubs; any tool with request interception can do it.
+- **The sign-in audit's fixes** (v25.98, 13 Nov 2026) — `docs/AUTH_AND_SESSIONS.md`, `.claude/rules/notifications.md`, OPERATIONS_REFERENCE.md. Durable decisions: Operations → Reset asks about a **lost or stolen phone** (an unticked box): no notice, and every push record the account owns deleted — it still puts the password on the surname, so a "sign out everywhere, keep the password" action was named and **not built** (KNOWN_LIMITATIONS); a tier Set up accounts takes away is **revoked at once**; a member's held session is **never answered with the staff PIN at start-up**; a session's start is the **server's record** of the sign-in, not the device clock; the own-password calls **refuse another account**; a refused password write **puts the reset stamp back**, an unknown one keeps it; and a static gate holds **every rule that tests for a session to asking a claim**. Eight real-SDK journeys were added; one found Settings and the forced change misreading a just-set password as the surname, fixed in the same release.
 
 
 ---
@@ -2748,6 +2749,21 @@ the run takes it back.
 ---
 
 ## Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)
+
+### A PIN session in the same tab outranked a member's at start-up — CLOSED v25.98
+
+Recorded at v25.77 under "A signed-in session lasts 60 days regardless of use"; closed by the
+sign-in audit of 13 Nov 2026, which made the start-up decision answer a held member session with the
+member's card (`decideAccess`, `calendar-access-core.js`) and made an unlock with a session held reload
+instead of granting. The entry as it stood:
+
+> **…and one case it does not yet handle (review, 11 Nov 2026 — not fixed, low priority).** If the
+> same tab ALSO holds a staff-PIN session when the member's identity fails to restore, the start-up
+> decision grants the viewer: it ranks a PIN session above a member session with no identity behind it.
+> That member then reads the station's Calendar rather than their own, and a later loss of access shows
+> them the PIN card. The late-restore path already refuses exactly this (`grantLateViewer`); the start-up
+> path does not. It needs an identity failure and a PIN session in one tab, so it waits for a release
+> that touches `decideAccess` anyway.
 
 ### A delete just after the signal returns could overtake this device's own queued save — CLOSED v25.95
 

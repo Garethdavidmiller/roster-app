@@ -87,7 +87,9 @@ compare to `getSurname(name)`, since removed); the real Firebase credential was 
 Firebase.
 
 ### 3.2 The GATED dual-attempt (critical review fix #1)
-The typed password is the real credential. `ensureFirebaseSession(name, { password? })`:
+The typed password is the real credential. A page asks for it through
+`ensureNamedSession(name, { password? })` (`session.js`), whose sign-in is
+`ensureFirebaseSession(name, gen, password)`:
 
 1. **Attempt 1 — raw typed value** (trimmed of leading/trailing whitespace, otherwise
    UN-normalised — custom passwords have case/digits/symbols). This is the migrated member's path
@@ -129,8 +131,11 @@ session, login screen skipped) — with **no password available**:
   (no typed value to gate here — this is automated re-auth of an existing session, not an attacker at a
   keyboard) — **except in three cases** (AUTH_AND_SESSIONS.md invariant 23): it is REFUSED when this
   device's session began before the admin's last reset of the account (`resetAt`), HELD when that time
-  cannot be confirmed, and SKIPPED after a definitive rejection on this device. Without the first, a
-  reset's sign-out of other devices (§5 — every reset revokes) would be undone by the very next load.
+  cannot be confirmed, and SKIPPED after a definitive rejection on this device — skipped, not
+  abandoned: a flagged device still asks every six hours (`RESET_RECHECK_MS`, `session.js`), and the
+  asking is itself a surname sign-in through the reset check (`probeResetAtMs`), so a reset that put
+  the surname back is found, and a refusal is noted again. Without the first, a reset's sign-out of
+  other devices (§5 — every reset revokes) would be undone by the very next load.
 - **Firebase session evicted, member migrated:** they **cannot be silently re-authenticated —
   ever.** The named session fails → the login overlay is shown again. **Honest UX cost:** migrated
   members are occasionally asked to sign in again. Inherent to real passwords, not a bug. (On paycalc —
@@ -160,8 +165,8 @@ pattern `password-force.js` follows.
 
 - **Settings card** ("Set / change your password"): current password → new password ×2 →
   reauthenticate → `updatePassword` — through `reauthenticateWithPassword` and `changeOwnPassword` in
-  `firebase-client.js`, which re-exports `updatePassword`, `reauthenticateWithCredential` and
-  `EmailAuthProvider` from the SDK.
+  `firebase-client.js`, which call the SDK's `updatePassword`, `reauthenticateWithCredential` and
+  `EmailAuthProvider` themselves (it imports them; it does not re-export them).
 - **Shared helper `credentialCandidatesFor(name, typed)`** — the §3.2 gate+padding logic written
   ONCE, used by both sign-in and the reauth step (an un-migrated "C. Reen" typing "reen" must
   reauth via the padded "reenre" exactly as sign-in does).
@@ -202,11 +207,24 @@ The admin-only Cloud Function **`resetMemberPassword`** (`functions/auth-endpoin
 - Server-stamps `passwordStatus.resetAt` FIRST (Admin SDK bypasses rules). A stamp that cannot be
   written stops the reset — 503, nothing changed — because a stamp written after the password would let
   a lost device sign itself straight back in (AUTH_AND_SESSIONS.md 23).
-- `getAuth().updateUser(uid, { password })`, then `revokeRefreshTokens(uid)` on every reset
-  (`revoke: false` was retired on 10 Nov 2026: nothing sent it). It tells the member on their own
-  devices — never naming the new password (`.claude/rules/notifications.md` → `password-reset`).
+- `getAuth().updateUser(uid, { password })`. **A write that throws is either REFUSED or UNKNOWN**
+  (sign-in audit, Nov 2026; `passwordWriteRefused`, `functions/account-lifecycle.js`): only a short
+  allowlist of codes proves nothing changed, and then the stamp is put back (`restoreResetAt`, only
+  while the record is as that stamp left it) and the answer is a 4xx that says so; anything else may
+  have landed — `updateUser` writes and then reads the account back — so the stamp stays and the answer
+  is a 500 saying it isn't known, and that resetting again is safe.
+- `revokeRefreshTokens(uid)` on every reset (`revoke: false` was retired on 10 Nov 2026: nothing sent
+  it). It tells the member on their own devices — never naming the new password
+  (`.claude/rules/notifications.md` → `password-reset`) — **except when the admin ticks "Their phone
+  is lost or stolen"** (`lostDevice: true`): then nothing is sent, because the notice would land on
+  that phone, and every push record the account owns is deleted, reported as a stage of its own
+  (`pushReleased` or `pushReleaseFailed`). The password is still the surname default afterwards, so
+  whoever holds the phone could type it until the member chooses a new one; Operations says so and
+  asks the admin to have them sign in elsewhere promptly.
 - **Nothing else clobbers custom passwords:** `setupRosterAuth` sets a password on `createUser` (first
-  creation), and otherwise uses `updateUser` for enable/disable — with two exceptions. An existing
+  creation — and stamps `resetAt` BEFORE creating, so an account deleted in the console and made again
+  never inherits an old `passwordSetAt`), and otherwise uses `updateUser` for enable/disable — with two
+  exceptions. An existing
   account at a roster email carrying NO custom claims (one the server never stamped, so registered from
   outside) is TAKEN BACK — `resetAt` stamped first, then its password reset to the surname default, its
   display name to the roster's, `disabled: false` and its refresh tokens revoked (reported as "Reset to
@@ -216,8 +234,9 @@ The admin-only Cloud Function **`resetMemberPassword`** (`functions/auth-endpoin
   members. The guard is `mustReclaim` (`functions/member-identity.js`), tested in
   `auth-endpoints.test.mjs`.
 
-**Operations UI:** a per-member Reset button (confirm dialog) in the Account status card. A refusal
-is shown in a dialog in the server's own words; a reply that is not one — an HTML error page, from a
+**Operations UI:** a per-member Reset button in the Account status card, whose confirm dialog carries
+one box, "Their phone is lost or stolen", that starts unticked (`confirmWithOption`, `overlay.js`; every
+word the Reset says is `operations-reset.js`). A refusal is shown in a dialog in the server's own words; a reply that is not one — an HTML error page, from a
 function not yet deployed, say — reads "The server answered <status> without a reason this page can
 show. Nothing was reset."
 
@@ -230,7 +249,7 @@ Named to avoid collision with the client `auth-state.js` module. Doc ID = displa
 
 | Field | Written by | Meaning |
 |-------|-----------|---------|
-| `resetAt` | **Admin SDK only** (reset function, and the take-back and the re-enable in Set up accounts) | last forced back to surname |
+| `resetAt` | **Admin SDK only** (reset function, and the creation, take-back and re-enable in Set up accounts) | last forced back to surname |
 | `passwordSetAt` | the member's client, after `updatePassword` resolves | last set their own |
 
 - **Migrated = Y** ⇔ `passwordSetAt` exists AND is newer than any `resetAt` (`isPasswordMigrated` in

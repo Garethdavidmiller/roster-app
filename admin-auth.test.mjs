@@ -240,6 +240,51 @@ describe('and the gaps themselves reach both the card and the strip', () => {
     });
 });
 
+// ── WHAT PRESSING WILL DO, SAID BEFORE IT IS PRESSED (sign-in audit E6, Nov 2026) ───────────────────────────────────
+// Set up accounts TAKES BACK an account with no permissions at all and RE-ENABLES a disabled one, each on the surname
+// default with every device signed out. Both were listed with "Press Set up accounts below." and nothing more, so the
+// admin learned from the result that colleagues had been put back on their surname. A wrong tier is only re-stamped.
+describe('the members Set up accounts will reset are named, before it is pressed', () => {
+    /** The remedy lines of the set-up line, in order. @param {any} gaps */
+    const remedies = (gaps) => {
+        const line = gaps.find((/** @type {any} */ e) => e.className === 'auth-gap-line');
+        return line.children.filter((/** @type {any} */ c) => typeof c !== 'string' && c.className === 'auth-gap-fix').map((/** @type {any} */ c) => c.textContent);
+    };
+
+    test('no permissions and a disabled account say what pressing will do to them, by name, each on its own line', async () => {
+        const { gaps, reported } = await wire({ setUp: [
+            { name: 'B. Toth', why: 'no-account' }, { name: 'S. Silva', why: 'unstamped' }, { name: 'B. Khalil', why: 'disabled' },
+        ], leavers: [] });
+        assert.match(gaps.textContent, /S\. Silva \(no permissions\)/);
+        assert.match(gaps.textContent, /B\. Khalil \(account disabled\)/);
+        assert.deepEqual(remedies(gaps), ['Press Set up accounts below.',
+            'It will reset the passwords of S. Silva and B. Khalil to their surnames and sign them out — tell them afterwards.']);
+        assert.deepEqual(reported, [{ setUp: 3, leavers: 0 }], 'the strip counts every gap, reset or not');
+    });
+
+    test('one member is told in the singular', async () => {
+        const { gaps } = await wire({ setUp: [{ name: 'B. Khalil', why: 'disabled' }], leavers: [] });
+        assert.equal(remedies(gaps)[1], 'It will reset B. Khalil’s password to their surname and sign them out — tell them afterwards.');
+    });
+
+    test('three are listed as a sentence lists them', async () => {
+        const { gaps } = await wire({ setUp: ['A. One', 'B. Two', 'C. Three'].map(name => ({ name, why: 'unstamped' })), leavers: [] });
+        assert.match(remedies(gaps)[1], /of A\. One, B\. Two and C\. Three to their surnames/);
+    });
+
+    test('a wrong tier, or no account at all, warns of no reset — neither is put back on a surname by the press', async () => {
+        const { gaps } = await wire({ setUp: [{ name: 'B. Toth', why: 'no-account' }, { name: 'S. Silva', why: 'claims' }], leavers: [] });
+        assert.deepEqual(remedies(gaps), ['Press Set up accounts below.']);
+        assert.match(gaps.textContent, /S\. Silva \(wrong permissions\)/, 'an older server sends this for no permissions too, and it still reads');
+    });
+
+    test('a reason this page does not know is shown as the server sent it, and warns of nothing', async () => {
+        const { gaps } = await wire({ setUp: [{ name: 'B. Toth', why: 'something-new' }], leavers: [] });
+        assert.match(gaps.textContent, /B\. Toth \(something-new\)/);
+        assert.deepEqual(remedies(gaps), ['Press Set up accounts below.']);
+    });
+});
+
 describe('the retry', () => {
     test('a failed check offers one, and it asks again', async () => {
         const { gaps } = await wire(new Error('offline'));
