@@ -120,11 +120,14 @@ test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_P
     // deep-linking to a NEW page forgotten from the allowlist silently falls back to the app root. This
     // asserts every hashPath's PAGE component is allowlisted. (The pay feature has no hashPath — its url
     // is passed at call time — so 'paycalc.html' is asserted explicitly.)
-    const helpers = readFileSync(join(ROOT, 'functions', 'roster-parse-helpers.js'), 'utf8');
+    // The table's home since v26.04 (it left roster-parse-helpers.js, which re-exports it). Read where it
+    // IS: a scan of the old home found no hashPath at all and passed, checking nothing — hence the floor.
+    const helpers = readFileSync(join(ROOT, 'functions', 'push-notices.js'), 'utf8');
     const sw      = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
     const safe = (sw.match(/const SAFE_NOTIFICATION_PAGES\s*=\s*\[([^\]]*)\]/)?.[1] ?? '')
         .split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
     const hashPaths = [...helpers.matchAll(/hashPath:\s*'([^']+)'/g)].map(m => m[1]);
+    assert.ok(hashPaths.length >= 3, `found ${hashPaths.length} hashPath(s) in functions/push-notices.js — has NOTIFICATION_FEATURES moved again?`);
     const missing = hashPaths
         .map(hp => ({ hp, page: hp.split('#')[0].replace(/^\.?\//, '') }))   // '/#huddle' → '' ; '/x.html#y' → 'x.html'
         .filter(({ page }) => !safe.includes(page));

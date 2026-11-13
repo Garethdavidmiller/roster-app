@@ -607,6 +607,52 @@ Migration history (v7.61 → v7.94) is in `ROADMAP_HISTORY.md` → Completed pha
 
 ---
 
+## The Error Log notification (the admin's phone only)
+
+**What it does.** When new entries reach Operations → Error Log, the admin's phone is told once:
+`🐛 Error Log — 3 new`, "1 error and 2 slow saves. Tap to open the Error Log." The tap opens
+Operations at the Error Log card (`operations.html#error-log`), and re-reads the log when the page was
+already open. Added at the owner's request on 13 November 2026 ("only for my login the master
+admin"): before it the Error Log told nobody anything, and the slow-save readings — which the
+Operations strip does not count — arrived without a sound.
+
+**Who gets it.** The admin only: the name in `roles.admin` of the server-owned `roster-members.json`,
+on an enabled account carrying the `admin` claim, on each device where that login turned notifications
+on (Settings → Notifications; on an iPhone, only in the installed Home Screen app). It goes through
+`sendTargetedPush`, never `fanOutPush`, so it cannot reach a member or a manager.
+
+**What it never says.** Counts only: no name, page, version or message. A notification shows on a
+lock screen; the Error Log is where the detail is read.
+
+**When.** A check runs every 15 minutes (`sendErrorLogNotification`, a Cloud Scheduler job in
+europe-west2). It sends **at most one notice an hour**, so a burst rings once, and each notice counts
+everything since the last one a device took. An entry already resolved by the time of the check is
+not counted. "100+ new" means more than a hundred.
+
+**The first check after it is deployed sends nothing.** It records that moment as the starting line,
+so the entries already in the log are never announced. The first notice comes with the first new
+entry after it.
+
+**If a notice never comes:**
+- Check that notifications are on for the admin login on that phone — the Settings card says so.
+- Cloud Logging, function `sendErrorLogNotification`: each notice logs `[errorLog] N error(s), N slow
+  save(s); N device(s) accepted`. `not an enabled admin account, so not told` means the account or its
+  claim is wrong — run Operations → Staff Login Accounts → Set up accounts. `the notice reached no
+  device` means no subscription took it; the same entries are counted again an hour later.
+
+**To stop it.** Turning notifications off on a phone stops it reaching that phone. Pausing its job in
+the GCP console (Cloud Scheduler → the job named after the function → Pause) stops it everywhere at
+once, but only until the next Functions deploy, which re-creates the schedule enabled — as with the
+timetable reminder below. To end it for good, remove `sendErrorLogNotification` from the builder's
+return in documents.js and from `functions-surface.test.mjs`, and deploy.
+
+**What it costs.** About $0.10 a month while it is the fourth Cloud Scheduler job (three are free per
+billing account); it becomes free again when the timetable reminder retires. Its 96 runs a day and
+their reads are far inside the free allowances. The rules are `functions/error-log-notice.js`; the
+sender is `functions/error-log-notify.js`; the record it keeps is DATA_MODEL.md → `errorLogNotice`.
+
+---
+
 ## When "Deploy Firebase Functions" fails at "Audit production dependencies"
 
 The Functions deploy refuses to ship while `npm audit --omit=dev` in `functions/` reports a high or

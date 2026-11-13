@@ -246,7 +246,21 @@ resolvedAt   Firestore server timestamp — set when an admin resolves; retentio
 Write: a signed-in member, the admin, or the Calendar PIN viewer (`isKnownIdentity`); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` (built in `analytics-client.js`, re-exported by `firebase-client.js`), called fire-and-forget from `error-reporter.js`.
+Also read by: the admin's Error Log notification (`functions/error-log-notify.js`, v26.04), every fifteen minutes — the entries after its line (`timestamp >`, ordered, at most 101), for COUNTS only; it never copies a name, page or message anywhere. Its record is **errorLogNotice**, below.
 Read/resolved by: `getClientErrors` / `resolveClientError` (same home), called from the Error Log card (`operations-errors.js`). `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. It returns `{ errors, truncated }`: the unresolved query shows at most 100 with **no `orderBy`** (an `orderBy` would need the composite index this design deliberately avoids), so above that volume the shown 100 are arbitrary — not the newest. It fetches `100 + 1` and sets `truncated` only when the extra row returns (i.e. > 100 genuinely exist, not exactly 100), so the card shows a "showing the first 100" banner rather than silently hiding the rest (no silent caps). The resolved query is capped the same way (200 + 1, returned as `resolvedTruncated`). The prune does not ride on it: a third read asks for records whose `resolvedAt` is past `CLIENT_ERROR_RETENTION_MS` (`client-errors.js`) — a single-field range, auto-indexed — at most 200 per Error Log open, and deletes those.
+
+**errorLogNotice** (the admin's Error Log notification record, v26.04) — one document, `state`
+```
+announcedThrough  the timestamp of the last Error Log entry a notice that REACHED a device covered —
+                  that entry's own Timestamp, never one rebuilt from milliseconds (Firestore keeps
+                  microseconds, and a line rounded down would announce the same entry every hour)
+lastAttemptAt     when a notice was last attempted, sent or not — the hour between notices runs from it
+```
+**Server-only: `allow read, write: if false`**, the admin included. The only writer is the scheduled
+`sendErrorLogNotification` (`functions/error-log-notify.js`) via the Admin SDK: a client that could
+write it could move the line past entries nobody has been told about, or hold the hourly gap shut.
+Holds no entry, name or message — two timestamps. The first check after a deploy creates it with the
+line at that moment, so the existing backlog is never announced. The rules: `functions/error-log-notice.js`.
 
 **analytics** — anonymous usage counters; **no member identity is ever stored**
 ```

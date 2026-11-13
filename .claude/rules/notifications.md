@@ -2,6 +2,8 @@
 paths:
   - "functions/push.js"
   - "functions/roster-parse-helpers.js"
+  - "functions/push-notices.js"
+  - "functions/error-log-*.js"
   - "functions/documents.js"
   - "functions/pay-reminder.js"
   - "functions/overtime*.js"
@@ -16,15 +18,18 @@ paths:
   - "sw-notification-tap.test.mjs"
   - "sw-asset-check.test.mjs"
   - "roster-parse-helpers.test.mjs"
+  - "error-log-*.test.mjs"
 ---
 
 # Push notification design language
 
 The one app surface rendered by the **OS**, not by our CSS — so it cannot inherit the design system
 and needs its own explicit rules. Every Web Push notification staff receive must follow them. They
-are enforced by a single builder, `buildPushPayload` in `functions/roster-parse-helpers.js`, which
-the senders import (`functions/documents.js`, `functions/pay-reminder.js`, `functions/overtime.js`,
-`functions/auth-endpoints.js`, `functions/reset-request.js`); the service worker renders the result.
+are enforced by a single builder, `buildPushPayload` in `functions/push-notices.js` (moved there from
+`functions/roster-parse-helpers.js` at v26.04, which re-exports it), which the senders import
+(`functions/documents.js`, `functions/pay-reminder.js`, `functions/overtime.js`,
+`functions/auth-endpoints.js`, `functions/reset-request.js`, `functions/error-log-notify.js`); the
+service worker renders the result.
 
 ## The core principle (what ties a notification to the app)
 
@@ -43,6 +48,7 @@ inline). The icon is always the app icon (brand identity); the **emoji carries f
 | Password reset request | 🙋 | Operations "Password Reset Requests" card | `reset-request` | event |
 | Password was reset | 🔑 | Settings "Password" card | `password-reset` | event |
 | Timetable change (one-off) | 🚆 | Trains nav pill / page badge | `timetable` | event |
+| New Error Log entries (admin only) | 🐛 | Operations "Needs attention" strip → Error Log | `error-log` | event |
 
 When the app gains a new notifying feature, add ONE row here and ONE entry to the
 `NOTIFICATION_FEATURES` map — never hand-write a payload.
@@ -77,6 +83,7 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 | Reset request | `🙋 Reset requests — 2 waiting` | `N. Surname asked for a reset. 1 other waiting.` |
 | Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Open Settings to choose your own.` |
 | Timetable change | `🚆 New timetable from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
+| Error Log | `🐛 Error Log — 3 new` | `1 error and 2 slow saves. Tap to open the Error Log.` |
 
 ## Who receives it — broadcast or targeted
 
@@ -87,6 +94,12 @@ to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov
 
 - **The reset request goes to the admin's devices only** — "N. Surname is locked out" sent to 50
   people is a leak, not a notification.
+- **The Error Log notice goes to the admin's devices only** (owner, 13 Nov 2026: "only for my login
+  the master admin") — `roles.admin`, and only an account that is enabled and carries the `admin`
+  claim. Never a manager, who cannot open the Error Log. It carries COUNTS and nothing else: no name,
+  page or message, because a push renders on a lock screen. Checked every fifteen minutes and sent at
+  most once an hour (`sendErrorLogNotification`, documents.js); the rules are
+  `functions/error-log-notice.js`, the sender and its record `functions/error-log-notify.js`.
 - **`password-reset` goes to the member whose password was reset, on their own devices.** Otherwise
   the one person the reset concerns is the only one not told: their credential became the surname
   default and their other devices were signed out, and they would find out by failing to sign in.
@@ -214,7 +227,8 @@ A push service holds a notice for a phone that is off, and web-push's default is
 enough for "hours cutoff today" to arrive days late. Every send passes a TTL from `PUSH_TTL_BY_TAG`
 (`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
 queue 6 h, password-reset 7 days, the timetable reminder 30 h (sent at 18:00 on the Saturday; 24 h
-would expire at 18:00 on the Sunday, before a phone that was off all day came back), anything
+would expire at 18:00 on the Sunday, before a phone that was off all day came back), the Error Log
+notice 24 h (still worth reading tomorrow, and the next notice counts what came after), anything
 unlisted one day. **A new notification feature adds its tag there**, or it gets a day;
 `push-transport.test.mjs` fails on a feature with no TTL.
 
@@ -267,11 +281,16 @@ round.
   a timetable every member will be asked about passes the "all 50 staff" test by itself. The next
   change moves the one constant; the function is harmless on every other evening.
 - Overtime → `overtime.html` (both the asked notice and the deadline reminder).
+- Error Log → `operations.html#error-log` (opens the Error Log card and scrolls to it, through the same
+  `DEEP_LINK_CARDS` as the reset requests). A tap while Operations is ALREADY open re-reads the log —
+  `operations-errors.js` does it, from the hash the event carried, because the page strips the hash in
+  the same event.
 
 ## The builder (single source of truth)
 
 All payloads go through `buildPushPayload({ feature, body, baseUrl, headline?, url? })` in
-`functions/roster-parse-helpers.js` (imported by each sender), backed by the `NOTIFICATION_FEATURES`
+`functions/push-notices.js` (imported by each sender, most through roster-parse-helpers.js's
+re-export), backed by the `NOTIFICATION_FEATURES`
 map (emoji + tag + default headline + default path). Hand-writing a `{ title, body, tag, url }`
 literal is **not allowed** — that is how the design drifted (one notification used the app name as
 its title, another a marketing headline). The builder guarantees the leading emoji, the tag, and the
