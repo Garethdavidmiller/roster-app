@@ -197,7 +197,7 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
 }
 
 /**
- * Single source for the "is this shift a WORKED day?" predicate (CLAUDE.md: "isWorkedDay: false for
+ * Single source for the "is this shift a WORKED day?" predicate (CLAUDE.md: "`isWorkedShift`: false for
  * RD, OFF, SPARE, AL, SICK"). Returns false for the non-worked set — RD/OFF (rest), SPARE (standby),
  * AL (annual leave), SICK (absence) — true for everything else (incl. RDW and worked times). Shared
  * by the dispatcher lieu-day count (above) and the calendar renderer so the two can never drift as
