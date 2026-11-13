@@ -142,12 +142,19 @@ when the booking started, so a read landing between the card's preview and its s
 window in which it compares with newer data than the reader saw. Revisit if a lost edit is ever
 reported from either.
 
-**Not covered: the weekly roster import.** Its save still writes in plain batches
-(`_saveOverrideBatches`, `admin-roster-upload.js`), deleting the record it replaces without asking the
-server first, so a day a colleague changes while the admin reviews the import is overwritten without
-a word. It needs its own design rather than this one's: the review is long-lived, a save runs to
-hundreds of rows in several commits, and a refusal has to say which part landed. Not built; raised
-with the owner on 13 Nov 2026.
+**The weekly roster import is covered differently, since v25.92** (`saveRosterWrites`,
+`roster-import-save.js`). A manual record always outranks an import, so a record the import ADDS can
+never hide a colleague's day; what can lose their edit is a record the import DELETES ("Use new
+roster" over a manual change, a stale import cleared). So each part of the import's Save that
+deletes is one transaction that re-reads the records it deletes and refuses — writing nothing,
+naming the days — unless each is still what the review loaded, or already gone. Operations then
+re-reads the week and redraws the review, so the changed days show as they are now, without a second
+read of the PDF; the admin's choices on those days have to be made again. A part that only adds is a
+plain batch, held offline as before; a part that deletes needs the server, and one that fails
+without reaching it closes the review as a partial save does, because whether it landed is unknown.
+**What it does not see:** a second import of the same week running at the same time — import
+records take random ids, which a transaction cannot look up without a query. Only the admin imports,
+so that is two tabs of one person.
 
 **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
 saved or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete.

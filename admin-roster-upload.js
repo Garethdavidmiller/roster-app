@@ -10,10 +10,9 @@
 // day. Every rule in it is there because a week was written onto the wrong days, or nearly was.
 
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { parseOtherValue, buildOverrideWrite, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
+import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
+import { parseOtherValue } from './override-utils.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
-import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE } from './roster-review-states.js';
@@ -25,7 +24,7 @@ export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange, comput
 import { setStatus } from './status-text.js';
 import { SIGNED_OUT_CODE, UNCONFIRMED_CODE, UNCONFIRMED_LINE, signedOutLine } from './claim-retry.js';
 import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy, defaultWeekEnding } from './roster-alignment.js';
-import { withSlowSaveNotice } from './slow-save.js';
+import { saveRosterWrites, IMPORT_CHANGED_CODE, refusalLine } from './roster-import-save.js';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -132,87 +131,9 @@ export function manualShiftDisplay(s) {
     return shiftDisplay(/** @type {string} */ (v));
 }
 
-/**
- * Write the reviewed roster changes to Firestore in chunked batches. Each chunk's batch is
- * built and committed INSIDE a `writeWithClaimRetry` thunk, so a freshly-provisioned or
- * claim-changed admin whose ID token is stale self-heals (permission-denied → force token
- * refresh → retry once), matching every other Admin write path. The batch is rebuilt on each
- * attempt because a `WriteBatch` cannot be reused after a failed commit. Exported for tests.
- *
- * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, alsoDelete?: string[], deleteOnly?: boolean, swapped?: boolean, replacedFrom?: {type?: string, replacedType?: string|null, leaveYear?: number}|null}>} toWrite
- * @param {string} currentUser  Logged-in member name, written to `changedBy`.
- * @returns {Promise<number>}  How many rows were REFUSED as zero-length and not written, so the
- *   receipt counts only what landed (v24.38). Rejects (after one retry) if the write is denied.
- */
-export async function _saveOverrideBatches(toWrite, currentUser) {
-    const refused = toWrite.filter(w => !w.deleteOnly && typeof w.value === 'string' && isZeroLengthRange(w.value)).length;
-    // Batches cap at 500 writes: an item is a delete + a set + a delete per `alsoDelete` (override-utils.js).
-    const chunks = chunkByWrites(toWrite, w => 2 + (w.alsoDelete?.length ?? 0));
-    let _committedChunks = 0;
-    for (const chunk of chunks) {
-        try {
-        await withSlowSaveNotice(writeWithClaimRetry(async () => {
-            const batch = writeBatch(db);
-            for (const { memberName, date, value, replaceId, deleteOnly, replacedFrom, swapped, alsoDelete } of chunk) {
-                const dropDuplicates = () => { for (const id of alsoDelete ?? []) batch.delete(doc(db, COLLECTIONS.overrides, id)); };
-                if (deleteOnly) {
-                    // REMOVE_IMPORT — delete the stale import doc and write nothing.
-                    if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
-                    dropDuplicates();
-                    continue;
-                }
-                // DEFENCE IN DEPTH: a zero-length worked range never reaches Firestore (v20.39).
-                // `normaliseShift` refuses equal start/end on the server, and this is the second
-                // lock on the same door — the audit's §24 asks for it here precisely because the
-                // server is not the only way a value arrives: the review table's CONFLICT picker
-                // lets an admin choose between two candidate readings, and a hand-edited cell goes
-                // through this path too. Skipping is the safe failure: the day keeps whatever it
-                // already had rather than gaining a shift the maths would read as 24 hours.
-                if (typeof value === 'string' && isZeroLengthRange(/** @type {string} */ (value))) {
-                    console.warn(`[roster-upload] Refused zero-length shift "${value}" for ${memberName} ${date} — not written`);
-                    continue;
-                }
-
-                // Map shift value to override type — pass date so Sunday shifts are correctly
-                // saved as 'rdw' and an explicit RDW| prefix is honoured. (value is a real string
-                // here — deleteOnly items, the only ones with a null value, continued above.)
-                const type = shiftValueToOverrideType(/** @type {string} */ (value), date);
-                // Strip the internal "RDW|" encoding before saving — Firestore stores the plain
-                // time as the value (e.g. "14:30-22:00"), type field carries 'rdw'.
-                let savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
-                // A 'correction' override always means "set as Rest Day" — its canonical value is
-                // 'RD'. Normalise every source that maps to correction (bilingual 'OFF', plain 'RD',
-                // or a Sunday AL/SICK) so firestore.rules doesn't reject a {correction, 'OFF'} write.
-                if (type === 'correction') savedValue = 'RD';
-                // Replace any existing override for this member/date in the same batch, so
-                // "Use new roster" / a re-import doesn't leave a stale doc beside the new one.
-                if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
-                dropDuplicates();   // after the zero-length refusal above: a refused row changes nothing
-                const ref = doc(collection(db, COLLECTIONS.overrides));
-                // source: 'roster_import' marks this as auto-applied, not hand-entered. buildOverrideWrite
-                // is the single source for the rules-required field set (shared with the two admin save paths).
-                // The import deletes the doc it replaces like every other write path, so it must
-                // preserve what that doc SAID (v21.56): over a swapped-in day, the only evidence the
-                // member was contracted to work it; over a moved January leave day, which year's
-                // allowance it comes out of (v25.18). Lose either and the day quietly changes cost.
-                batch.set(ref, buildOverrideWrite(
-                    { memberName, date, type, value: savedValue, note: '', source: 'roster_import', changedBy: currentUser,
-                      replacedType: swapped ? replacedTypeForSwap(replacedFrom, type) : nextReplacedType(replacedFrom, type), leaveYear: nextLeaveYear(replacedFrom, type, date) },
-                    serverTimestamp()));
-            }
-            await batch.commit();
-        }), { batched: chunks.length > 1 });
-        _committedChunks++;
-        } catch (err) {
-            // A chunk failed after earlier chunks committed → partial roster import is now in
-            // Firestore. Tag the error so the caller can resync + warn rather than imply nothing
-            // saved (v16.25). Untagged on chunk 1 — but a SIGNED_OUT there may still land (v24.39).
-            if (_committedChunks > 0) /** @type {any} */ (err).partialCommit = true;
-            throw err;
-        }
-    }
-    return refused;
-}
+// THE SAVE MOVED to roster-import-save.js (v25.92), where a part that deletes is checked against the
+// records this review loaded. Re-exported under its old name for the suites that drive it.
+export { saveRosterWrites as _saveOverrideBatches } from './roster-import-save.js';
 
 /**
  * Fetch all override documents for a specific set of dates from Firestore.
@@ -289,6 +210,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     // Cleared when "Start over" is clicked.
     /** @type {any} */ let _parsedResult = null;      // response from parseRosterPDF Cloud Function
     /** @type {any} */ let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
+    /** @type {Map<string, any>} */ let _shown = new Map();   // every record the review LOADED, by id: what a deleted one must still be
     /** @type {File|null} */ let _parsedFile = null;  // the PDF that WAS read — the picker may hold a newer one
     // A SAVE STILL WAITING FOR THE SERVER keeps every way to a second one shut (whole-app fix, Nov 2026).
     // Any touch in the review re-ran refreshOutcome, which handed Save back mid-save; a roster import
@@ -435,6 +357,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // Fetch existing overrides for this week from Firestore so we can detect conflicts
             parseFeedback.textContent = 'Checking for existing schedule changes…';
             const existingOverrides = await fetchOverridesForWeek(_parsedResult.dates);
+            _shown = new Map(existingOverrides.map((/** @type {any} */ o) => [o.id, o]));
             parseFeedback.textContent = '';
 
             // Compute cell states and render the review table
@@ -512,7 +435,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         lockForSave(true);
 
         try {
-            const refused = await _saveOverrideBatches(toWrite, currentUser);
+            const refused = await saveRosterWrites(toWrite, currentUser, _shown);
             const applied = toWrite.length - refused;
 
             // The older copies a written row took with it are SAID, never silent (48-hour review) —
@@ -534,6 +457,27 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         } catch (err) {
             console.error('[RosterUpload] Apply failed:', err);
             const _applyErr = /** @type {any} */ (err);
+            // A DAY CHANGED SINCE THE READ (v25.92): the refused part wrote nothing, so the week is read
+            // again and the review redrawn — the changed days now show as they are, the admin's own choices
+            // made against the old ones gone with them. No second read of the PDF. A failed re-read closes it.
+            if (_applyErr?.code === IMPORT_CHANGED_CODE) {
+                try {
+                    const fresh = await fetchOverridesForWeek(_parsedResult.dates);
+                    _shown = new Map(fresh.map((/** @type {any} */ o) => [o.id, o]));
+                    _cellStates = computeCellStates(_parsedResult, fresh);
+                    lockForSave(false);   // before the redraw, which re-arms Save only when nothing is sending
+                    renderReviewTable(_parsedResult, _cellStates);
+                    applyFeedback.textContent = refusalLine(_applyErr.days, { savedEarlier: _applyErr.savedEarlier, redrawn: true });
+                } catch {
+                    reviewSection.classList.remove('visible');
+                    _parsedResult = null;
+                    _cellStates   = null;
+                    applyFeedback.textContent = refusalLine(_applyErr.days, { savedEarlier: _applyErr.savedEarlier });
+                    applyBtn.textContent = 'Save changes';
+                }
+                applyFeedback.className = 'huddle-feedback huddle-feedback--err';
+                return;
+            }
             // A sign-out is AMBIGUOUS even on chunk 1 (the batch may still land): close as partial (v24.39).
             if (_applyErr?.partialCommit || _applyErr?.code === SIGNED_OUT_CODE) {
                 // Earlier chunks committed before the failure — partial import is live in Firestore.

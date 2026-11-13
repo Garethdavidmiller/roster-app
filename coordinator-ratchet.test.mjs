@@ -330,6 +330,8 @@ const CAPS = {
     // the file OVER its cap), and the Save collector then left for roster-review-states.js
     // (`collectRosterWrites`, -47): pure, Firebase-free, and the only form of it a test can run.
     // 37 lines of room again. The setting rule would put a fresh cap at 1250, so it does not move.
+    // Stays at 1200 at v25.92: the Save left for roster-import-save.js (1176 → 1120, its refusal
+    // handling staying here). The setting rule puts a fresh cap for 1120 at 1200, so it does not move.
     'admin-roster-upload.js':  1200,
     // 1300 → 1150 at v23.52 — a cap coming DOWN, which is the direction this mechanism is for and
     // the one it had not yet demonstrated. `computeCellStates` left for roster-review-states.js:
@@ -482,7 +484,11 @@ const CAPS = {
     // block, four lines that main's same-origin line now carries, and release D added one: the precache entry for
     // `legacy-redirect.js`, the one script the two legacy guide stubs carry (owner, 10 Nov 2026), whose reasoning
     // lives in its own header. Left at 1097 the cap would bank three lines as headroom.
-    'service-worker.js':       1094,
+    // 1094 → 1095 at v25.92, a RAISE of exactly one line, as at v25.50: the precache entry for
+    // `roster-import-save.js`, the weekly import's Save, which left admin-roster-upload.js for a module
+    // of its own. Every module the app serves must be in CORE_ASSETS, one entry per line, and nothing
+    // else in the worker grew.
+    'service-worker.js':       1095,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

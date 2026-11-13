@@ -46,6 +46,14 @@ time on save. **Do not strip `RDW` from the AI return value.**
 **`source: 'roster_import'`** on all roster-upload overrides — used by `computeCellStates()` for
 COVERED / DIFF / CONFLICT classification.
 
+**The Save is checked against what the review LOADED (v25.92)** — `saveRosterWrites`,
+`roster-import-save.js`, whose header carries the reasoning. Each part that DELETES a record is one
+transaction, refused (nothing written, the days named) when a record it deletes changed after the
+read; a part that only adds stays a plain batch, because a manual record outranks an import. A
+refusal re-reads the week and redraws the review rather than closing it. **Do not mint the new
+records' ids inside the transaction** — a re-run would write a second copy of every row — and do
+not turn a deleting part back into a batch.
+
 ## The review
 
 **An unreadable cell can be ANSWERED IN THE REVIEW.** Real rosters carry cells no parser will ever

@@ -29,7 +29,14 @@ import { readFileSync } from 'node:fs';
 let   _idTokenRefreshes = 0;
 let   _refreshShouldFail = false;     // model getIdToken(true) failing (offline/flaky)
 let   _commitBehavior   = () => {};   // called on each batch.commit(); may throw
-const _batchOps         = [];         // one ops-array per writeBatch() call
+const _batchOps         = [];         // one ops-array per COMMITTED writeBatch() or transaction
+// The import's checked save (v25.92). What a transaction READS is the SERVER's copy, which may differ
+// from what the review loaded — that difference is the whole point, so it has a seam of its own.
+const _serverDocs       = new Map();  // id → the record as the server holds it now
+const _txAttempts       = [];         // every attempt's ops, a re-run Firestore discarded included
+const _txReads          = [];         // every id a transaction read
+let   _txRerunOnce      = false;      // run the function twice, as Firestore does when a read record changed
+let   _minted           = 0;          // new ids are DISTINCT, so a second copy of a row would show
 // getDocs impl the fetchOverridesForWeek tests swap in (default: empty result set).
 let   _getDocsImpl      = async () => ({ docs: [] });
 
@@ -51,7 +58,7 @@ mock.module('./firebase-client.js', {
         // The ref RECORDS its id (test audit, 7 Nov 2026). `doc: () => ({})` and a delete that kept
         // nothing meant a delete pointed at the wrong document — the date, the member — passed every
         // test, and the stale import it was meant to remove stayed on the Calendar.
-        doc: (/** @type {any} */ _db, /** @type {any} */ _col, /** @type {any} */ id) => ({ id: id ?? '(new)' }),
+        doc: (/** @type {any} */ _db, /** @type {any} */ _col, /** @type {any} */ id) => ({ id: id ?? `(new-${++_minted})` }),
         writeBatch: () => {
             const ops = [];
             _batchOps.push(ops);
@@ -60,6 +67,24 @@ mock.module('./firebase-client.js', {
                 delete: (/** @type {any} */ ref) => ops.push({ op: 'delete', id: ref?.id }),
                 commit: async () => { _commitBehavior(); },
             };
+        },
+        // A transaction: its function runs against the server's copies (`_serverDocs`), and only the
+        // attempt that finishes counts as committed — an earlier one is discarded, as Firestore does.
+        runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
+            const attempt = async () => {
+                const ops = [];
+                _txAttempts.push(ops);
+                await fn({
+                    get: async (/** @type {any} */ ref) => { _txReads.push(ref.id); return { exists: () => _serverDocs.has(ref.id), data: () => _serverDocs.get(ref.id) }; },
+                    set: (/** @type {any} */ ref, /** @type {any} */ data) => ops.push({ op: 'set', id: ref?.id, data }),
+                    delete: (/** @type {any} */ ref) => ops.push({ op: 'delete', id: ref?.id }),
+                });
+                return ops;
+            };
+            if (_txRerunOnce) { _txRerunOnce = false; await attempt(); }
+            const ops = await attempt();
+            _commitBehavior();
+            _batchOps.push(ops);
         },
         serverTimestamp: () => 'TS',
         // Faithful mini-implementation of the real helper: run the thunk; on permission-denied,
@@ -250,7 +275,7 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         assert.deepEqual(deleted, ['stale-import', 'dupA', 'old-record']);
         const sets = _batchOps[0].filter(o => o.op === 'set');
         assert.equal(sets.length, 1, 'the delete-only row writes nothing');
-        assert.equal(sets[0].id, '(new)', 'the new value lands on a new document, not on the one deleted');
+        assert.match(sets[0].id, /^\(new-/, 'the new value lands on a new document, not on the one deleted');
     });
 
     test('a chunk is built by OPERATIONS, so the copies cannot push a batch past 500', async () => {
@@ -339,6 +364,131 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
             'G. Miller');
         assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 1);
         assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1);
+    });
+});
+
+// ── The Save is checked against what the review LOADED (v25.92) ─────────────────────────────────
+//
+// Between the read and the Save a manager can change one of the same days. A record the import ADDS
+// cannot hide theirs (a manual record outranks an import); a record it DELETES can destroy their newer
+// version. So a part that deletes is one transaction that re-reads what it deletes (roster-import-save.js).
+
+const { IMPORT_CHANGED_CODE, refusalLine } = await import('./roster-import-save.js');
+
+describe('the import\'s Save is checked against what the review loaded (v25.92)', () => {
+    beforeEach(() => {
+        _batchOps.length = 0; _txAttempts.length = 0; _txReads.length = 0; _serverDocs.clear();
+        _txRerunOnce = false; _commitBehavior = () => {}; _idTokenRefreshes = 0; _refreshShouldFail = false;
+    });
+    const TUE = '2026-06-16';
+    /** A record as the review loaded it — and, unless a test says otherwise, as the server still holds it. */
+    const rec = (/** @type {string} */ id, /** @type {any} */ extra = {}) => ({ id, memberName: 'G. Miller', date: MON, type: 'shift',
+        value: '23:00-06:00', note: '', source: 'manual', changedBy: 'S. Silva', createdAt: 1_700_000_000_000, ...extra });
+    const shownOf = (/** @type {any[]} */ ...rows) => new Map(rows.map(r => [r.id, r]));
+    const useNew = (/** @type {string} */ replaceId, /** @type {any} */ extra = {}) =>
+        ({ memberName: 'G. Miller', date: MON, value: '13:00-21:00', baseShift: 'RD', replaceId, alsoDelete: [], ...extra });
+
+    test('a part that only ADDS is a plain batch, as before — no transaction, so it is still held offline', async () => {
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD' }], 'G. Miller');
+        assert.equal(_txAttempts.length, 0, 'no transaction for a part that deletes nothing');
+        assert.equal(_batchOps.length, 1);
+    });
+
+    test('a part that deletes is ONE transaction that reads every record it deletes, and writes when each is unchanged', async () => {
+        const m1 = rec('m1'), dup = rec('dupA', { value: '22:00-06:00' });
+        _serverDocs.set('m1', m1).set('dupA', dup);
+        await _saveOverrideBatches([useNew('m1', { alsoDelete: ['dupA'] })], 'G. Miller', shownOf(m1, dup));
+        assert.deepEqual(_txReads.sort(), ['dupA', 'm1']);
+        assert.equal(_txAttempts.length, 1);
+        assert.deepEqual(_batchOps[0].filter(o => o.op === 'delete').map(o => o.id), ['m1', 'dupA']);
+        assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1);
+    });
+
+    test('a record a colleague REWROTE after the read refuses the part — nothing written, the day named', async () => {
+        const m1 = rec('m1');
+        _serverDocs.set('m1', { ...m1, value: '14:00-22:00', changedBy: 'B. Khan', createdAt: 1_700_000_500_000 });
+        const err = await _saveOverrideBatches([useNew('m1'), useNew(null, { date: TUE })], 'G. Miller', shownOf(m1)).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+        assert.deepEqual(err.days, [{ memberName: 'G. Miller', date: MON }], 'only the changed day is named');
+        assert.equal(err.savedEarlier, false);
+        assert.equal(err.partialCommit, undefined, 'a refusal is not an unknown outcome');
+        assert.equal(_batchOps.length, 0, 'nothing in the part was written — not even the other day');
+    });
+
+    test('a colleague who saved the SAME values still made a different record — refused', async () => {
+        const m1 = rec('m1');
+        _serverDocs.set('m1', { ...m1, createdAt: 1_700_000_900_000 });   // re-saved: same day, same value, a new revision
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(m1)).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+    });
+
+    test('a record already GONE is no difference — deleting what is not there harms nobody', async () => {
+        await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1')));
+        assert.deepEqual(_batchOps[0].map(o => o.op), ['delete', 'set']);
+    });
+
+    test('a record the review never LOADED is refused, never deleted on trust', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', new Map()).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+        assert.equal(_batchOps.length, 0);
+    });
+
+    test('new ids are minted ONCE: a re-run of the transaction writes the same documents, never a second copy', async () => {
+        const m1 = rec('m1');
+        _serverDocs.set('m1', m1);
+        _txRerunOnce = true;
+        await _saveOverrideBatches([useNew('m1'), useNew(null, { date: TUE })], 'G. Miller', shownOf(m1));
+        assert.equal(_txAttempts.length, 2, 'Firestore ran the function twice');
+        const ids = _txAttempts.map(ops => ops.filter(o => o.op === 'set').map(o => o.id));
+        assert.deepEqual(ids[0], ids[1], 'the second attempt wrote the very documents the first would have');
+        assert.equal(new Set(ids[1]).size, 2);
+    });
+
+    test('a later part refused after an earlier one landed says so — savedEarlier — and names only its own days', async () => {
+        // 300 rows of two operations: 225 to a part (chunkByWrites' 450), so two parts.
+        const rows = Array.from({ length: 300 }, (_, i) => useNew(`w${i}`, { date: `2026-07-${String(1 + (i % 28)).padStart(2, '0')}` }));
+        const shown = new Map(rows.map(r => [r.replaceId, rec(r.replaceId, { date: r.date })]));
+        for (const [id, r] of shown) _serverDocs.set(id, r);
+        _serverDocs.set('w280', { ...shown.get('w280'), value: 'AL', type: 'annual_leave' });
+        const err = await _saveOverrideBatches(rows, 'G. Miller', shown).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+        assert.equal(err.savedEarlier, true);
+        assert.deepEqual(err.days, [{ memberName: 'G. Miller', date: shown.get('w280').date }]);
+        assert.equal(_batchOps.length, 1, 'the first part landed; the refused one wrote nothing');
+        assert.equal(err.partialCommit, undefined, 'what landed is KNOWN: said by savedEarlier, never as an unknown outcome');
+    });
+
+    test('several changed records are named once a day, in date order', async () => {
+        const m1 = rec('m1'), dupA = rec('dupA', { value: '22:00-06:00' }), m2 = rec('m2', { date: TUE });
+        for (const r of [m1, dupA, m2]) _serverDocs.set(r.id, { ...r, createdAt: 1_700_000_777_000 });
+        const err = await _saveOverrideBatches([useNew('m2', { date: TUE }), useNew('m1', { alsoDelete: ['dupA'] })],
+            'G. Miller', shownOf(m1, dupA, m2)).catch(e => e);
+        assert.deepEqual(err?.days, [{ memberName: 'G. Miller', date: MON }, { memberName: 'G. Miller', date: TUE }]);
+    });
+
+    test('a deleting part that never reaches the server is an UNKNOWN outcome — marked partialCommit even first', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        _commitBehavior = () => { throw Object.assign(new Error('offline'), { code: 'unavailable' }); };
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(err?.partialCommit, true, 'its commit may have landed with the answer lost');
+        // …whereas a part that only adds is a batch the device keeps sending: its first failure is not one.
+        _commitBehavior = () => { throw Object.assign(new Error('offline'), { code: 'unavailable' }); };
+        const err2 = await _saveOverrideBatches([useNew(null)], 'G. Miller').catch(e => e);
+        assert.equal(err2?.partialCommit, undefined);
+    });
+
+    test('the refusal names the days, in the app\'s date style, and says what to do next', () => {
+        const one = [{ memberName: 'G. Miller', date: '2026-08-04' }];
+        assert.equal(refusalLine(one, { redrawn: true }),
+            'Nothing was saved: G. Miller on Tue 4 Aug changed after the roster was read. The review now shows that day as it is — check, then save again.');
+        assert.equal(refusalLine(one),
+            'Nothing was saved: G. Miller on Tue 4 Aug changed after the roster was read. Read the roster again to see the latest, then save again.');
+        const two = [...one, { memberName: 'S. Silva', date: '2026-08-05' }];
+        assert.match(refusalLine(two, { savedEarlier: true, redrawn: true }),
+            /^Part of the roster was saved, but not the rest: G\. Miller on Tue 4 Aug and S\. Silva on Wed 5 Aug changed .* those days as they are/);
+        const six = Array.from({ length: 6 }, (_, i) => ({ memberName: 'G. Miller', date: `2026-08-0${i + 2}` }));
+        assert.match(refusalLine(six), /Sun 2 Aug, G\. Miller on Mon 3 Aug, G\. Miller on Tue 4 Aug, G\. Miller on Wed 5 Aug and 2 more changed/);
     });
 });
 
