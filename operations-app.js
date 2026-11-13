@@ -26,7 +26,7 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
-import { initDocLinksCard } from './operations-doc-links.js';
+import { initDocLinksCard, docLinksRequestInFlight } from './operations-doc-links.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
@@ -74,11 +74,14 @@ export function init() {
     // rest (Nov 2026 review). That count includes a write whose outcome is UNKNOWN, which holds the
     // reload for good (v25.21; AUTH_AND_SESSIONS invariant 22): in a second tab Firestore keeps it in
     // memory only, so a reload could lose it. The reader was told to reload; that is theirs to do.
+    // And a Document links check or run still waiting for its answer holds it too (v25.92): a run can
+    // take minutes, and its report is the only record of what it did (operations-doc-links.js).
     const _opsBusy = () =>
         !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
         || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
         || !!document.querySelector('[data-uploading]')
-        || writesInFlight() > 0;
+        || writesInFlight() > 0
+        || docLinksRequestInFlight();
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_opsBusy), isBusy: _opsBusy });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).

@@ -1975,6 +1975,41 @@ test('operations: "Use new roster" also clears an older manual copy of the day',
     await expect(page.locator('#rosterApplyFeedback')).toContainText('1 older copy of the same day also removed');
 });
 
+// v25.92: a day a colleague changed between the read and the Save. The review loaded m1 (a manual
+// Tuesday shift) and a manager rewrote it before the admin pressed Save over it with "Use new roster".
+// The Save is refused — nothing written, not even the other rows in its part — the day is named, and the
+// review is redrawn from the latest, so the row now shows the colleague's value. No second read of the PDF.
+test('operations: a roster Save over a day changed since the read is refused, named, and the review redrawn', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const conflict = page.locator('.roster-change-row', { has: page.locator('.roster-choice-btn[data-pick="pdf"]') }).first();
+    await expect(conflict).toContainText('23:00-06:00');
+    // A manager rewrites the Tuesday the review loaded — on the server, so on the Save's re-read and any later read.
+    await page.evaluate(() => {
+        const e2e = /** @type {any} */ (window).__E2E;
+        Object.assign(e2e.docs.find((/** @type {any} */ r) => r.id === 'm1'), { value: '14:00-22:00' });
+        e2e.txDocs = e2e.docs;
+    });
+    await conflict.locator('.roster-choice-btn[data-pick="pdf"]').click();
+    await page.locator('#rosterApplyBtn').click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText(
+        'Nothing was saved: G. Miller on Tue 4 Aug changed after the roster was read. The review now shows that day as it is');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).length), 'nothing deleted').toBe(0);
+    // Redrawn, not closed: the row shows the colleague's value, its choice reset, and Save is offered again.
+    await expect(page.locator('#rosterReviewSection')).toHaveClass(/visible/);
+    await expect(conflict).toContainText('14:00-22:00');
+    await expect(conflict).not.toContainText('23:00-06:00');
+    await expect(page.locator('#rosterApplyBtn')).toHaveText(/Save 3 changes/);
+    await expect(page.locator('#rosterApplyBtn')).toBeEnabled();
+    // Chosen again over what the day now holds, the Save goes through — and deletes the colleague's record it was shown.
+    await conflict.locator('.roster-choice-btn[data-pick="pdf"]').click();
+    await page.locator('#rosterApplyBtn').click();
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('Done — 4 changes applied');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).filter((/** @type {string} */ p) => /\/m1$/.test(p)).length)).toBe(1);
+});
+
 test('operations: a flagged roster cell can be resolved from the review table', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
@@ -3875,4 +3910,50 @@ test('operations document links: a run that left a file, or whose answer is lost
     await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
     await expect(result).toHaveText('Couldn’t read the documents, so nothing was changed. Try again in a minute.');
     expect(sent).toEqual([{ rotate: false }, { rotate: true }, { rotate: true }, { rotate: true }]);
+});
+
+// v25.92: AN UPDATE WAITS FOR THE ANSWER. A run can take minutes, and its report is the only record of
+// what it did — a check made after a run reads exactly like one made before it — so a check or a run
+// still out is busy, asked here the way the worker asks. And the page stops being busy once the answer
+// is on screen: a count that never came back down would hold every later update for good.
+test('operations document links: a check or a run still waiting for its answer holds an update', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' };
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    /** Each answer the server has not yet given, released by the test. @type {Array<() => void>} */
+    const held = [];
+    await page.route('**/rotateDocumentLinks', async route => {
+        if (route.request().method() !== 'POST') return route.fulfill({ status: 204, headers: cors });
+        const run = route.request().postDataJSON().rotate === true;
+        await new Promise(release => held.push(() => release(undefined)));
+        return route.fulfill({ status: 200, headers: cors, contentType: 'application/json',
+            body: JSON.stringify(run ? linksReport({ rotate: true, rotated: 3, cleared: 1 }) : linksReport()) });
+    });
+    const busy = () => page.evaluate(() => new Promise(resolve => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = (e) => resolve(e.data?.busy);
+        navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.locator('#docLinksChevron').click();
+    const result = page.locator('#docLinksResult');
+    expect(await busy(), 'nothing has been asked yet').toBe(false);
+
+    await page.locator('#docLinksCheckBtn').click();
+    await expect(result).toHaveText('Checking the links');
+    await expect.poll(() => held.length).toBe(1);
+    expect(await busy(), 'a check waiting for its answer — a reload now loses what it found').toBe(true);
+    held.shift()?.();
+    await expect(result).toContainText('Nothing has changed yet.');
+    expect(await busy(), 'the check has answered').toBe(false);
+
+    await page.locator('#docLinksReplaceBtn').click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(result).toHaveText('Replacing the links — this can take a minute');
+    await expect.poll(() => held.length).toBe(1);
+    expect(await busy(), 'a run waiting for its answer — a reload now loses its report').toBe(true);
+    held.shift()?.();
+    await expect(result).toContainText('Done. 3 files have new links');
+    expect(await busy(), 'the report is on screen, so an update need wait no longer').toBe(false);
 });

@@ -18,8 +18,18 @@
  * timeout) and the endpoint's own "could not read" (503 with `changed: false` — the platform has
  * 503s of its own) both mean nothing ran, and say that.
  *
- * Exported pieces are pure apart from `initDocLinksCard`, so the wording and the request are tested
- * in Node (operations-doc-links.test.mjs) and the wiring in the browser (e2e/operations.spec.js).
+ * ── AN UPDATE WAITS FOR THE ANSWER (v25.92) ──────────────────────────────────
+ * A run can take minutes, and its report is the only record of what it did: a check made after a
+ * run reads exactly like one made before it, because a file with a new link is still a file in use.
+ * So while a check or a run waits for its answer, `docLinksRequestInFlight()` is true and Operations
+ * holds an update's reload (operations-app.js `_opsBusy`) — before this, a release landing mid-run
+ * reloaded the page under it, and the run went on, or did not, with nobody left to read what it did.
+ * The count covers the request, from the token to the answer; once the report is on screen the page
+ * is no longer busy, as with every other card.
+ *
+ * Exported pieces are pure apart from `initDocLinksCard` and the count it keeps, so the wording and
+ * the request are tested in Node (operations-doc-links.test.mjs) and the wiring in the browser
+ * (e2e/operations.spec.js).
  */
 import { fetchWithTimeout, serverRefusal } from './fetch-timeout.js';
 
@@ -27,6 +37,18 @@ import { fetchWithTimeout, serverRefusal } from './fetch-timeout.js';
 export const ROTATE_LINKS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/rotateDocumentLinks';
 /** Past the endpoint's own 300 s limit, so the platform's answer arrives before this gives up. */
 const ROTATE_TIMEOUT_MS = 310_000;
+
+/** This card's requests still waiting for an answer — a check or a run (the header, v25.92). */
+let _inFlight = 0;
+
+/**
+ * Whether a check or a run is still waiting for the server's answer — Operations' sign that an
+ * update's reload must wait (operations-app.js `_opsBusy`).
+ * @returns {boolean}
+ */
+export function docLinksRequestInFlight() {
+    return _inFlight > 0;
+}
 
 /** "1 file" / "3 files". @param {number} n @param {string} one @param {string} many */
 const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -197,6 +219,15 @@ export function initDocLinksCard({ auth, askToConfirm, fetchFn }) {
         if (!user) throw new Error('Not signed in');
         return (await user.getIdTokenResult(/* forceRefresh */ true)).token;
     };
+    /** One request, counted from the token to the answer (`docLinksRequestInFlight`). @param {boolean} rotate */
+    const ask = async (rotate) => {
+        _inFlight++;
+        try {
+            return await requestLinkRotation({ rotate, getToken, fetchFn });
+        } finally {
+            _inFlight--;
+        }
+    };
     /** @param {string[]} lines @param {'' | 'ok' | 'err' | 'working'} [tone] */
     const show = (lines, tone = '') => {
         out.textContent = '';
@@ -216,7 +247,7 @@ export function initDocLinksCard({ auth, askToConfirm, fetchFn }) {
         show(['Checking the links'], 'working');
         toReplace = 0;
         try {
-            const report = await requestLinkRotation({ rotate: false, getToken, fetchFn });
+            const report = await ask(false);
             const read = describePreview(report);
             if (!read) { show(['Couldn’t read the answer. Try again.'], 'err'); return; }
             show(read.lines);
@@ -244,7 +275,7 @@ export function initDocLinksCard({ auth, askToConfirm, fetchFn }) {
         replaceBtn.disabled = true;
         show(['Replacing the links — this can take a minute'], 'working');
         try {
-            const done = describeResult(await requestLinkRotation({ rotate: true, getToken, fetchFn }));
+            const done = describeResult(await ask(true));
             if (!done) { show(['Couldn’t read the answer.', UNKNOWN], 'err'); return; }
             show(done.lines, done.ok ? 'ok' : 'err');
             // A run that left a file unchanged keeps the button, so a retry is one press away.
