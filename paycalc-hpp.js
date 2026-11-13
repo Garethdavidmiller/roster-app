@@ -12,10 +12,10 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod, awardFromForYear, awardRatesFor,
+  taxYearForPeriod, capHours, getLondonAllowanceForPeriod, awardFromForYear, awardRatesFor,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible, payslipMayBeInHand } from './paycalc-periods.js';
-import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear, isPensionOptedOut } from './paycalc-settings.js';
+import { getLoggedMember, awardGrade, periodRate, settledRateFor, getEffectiveContr, getProRateFactor, getPensionDefault, isPensionOptedOut } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
@@ -197,8 +197,6 @@ export function knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHp
  *   carrying a back-pay lump that is inside the figure but cannot be split from the record, else null.
  */
 function _expectedNonPremiumYtd(ty) {
-  const grade       = getGrade();
-  const settledRate = getStoredRateForYear(ty);
   const srcNum      = parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0;
   // Cap at the YTD source payslip. With none recorded — or the figures detached, the stored '0' —
   // cap at the last PAID payslip, the standing assumption `ytdAutoSource` makes too: the payslip still
@@ -220,7 +218,8 @@ function _expectedNonPremiumYtd(ty) {
     // double-counted, biasing the rough 'ytd' HPP estimate LOW. Factor is 0 for a fully-pre-start
     // period and 1 for long-servers / noProRate returns, so this never over-reaches.
     const factor  = getProRateFactor(p);
-    const basic   = getEffectiveContr(p) * getRateForPeriod(p, grade, ty.label, settledRate);
+    // The rate the payslip was PAID at, by the grades of its days (paycalc-settings.js → periodRate).
+    const basic   = getEffectiveContr(p) * periodRate(ty, p).rate;
     const london  = getLondonAllowanceForPeriod(p, ty) * factor;
     // The member's OWN saved pension for the period when present — the typed YTD "Taxable Pay"
     // reflects the actual pension sacrifice, so subtracting only the default over-subtracts on any
@@ -231,10 +230,11 @@ function _expectedNonPremiumYtd(ty) {
   }
   // …plus the lumps the figure holds that are neither basic nor premium (see knownYtdLumps).
   const _paid  = hppPaidInTaxYear(ty, getPeriods(), CONFIG.TAX_YEARS);
-  const _award = _awardLumpInYear(ty, grade);
+  // The award's lump is priced at the grade its backdated months were worked under (awardGrade).
+  const _award = _awardLumpInYear(ty, awardGrade(ty));
   nonPremium += knownYtdLumps({
     covered, readSaved: readSavedPeriod,
-    rateFor: (/** @type {any} */ p) => getRateForPeriod(p, grade, ty.label, settledRate),
+    rateFor: (/** @type {any} */ p) => periodRate(ty, p).rate,
     hppCarrier: _paid?.payslip ?? null,
     priorHppAmount: _paid
       ? resolveHppForPeriod(lsGet(hppActualKey(_paid.taxYear)), lsGet(hppEstKey(_paid.taxYear))).amount
@@ -448,7 +448,6 @@ function _renderHppManual(ty, mode) {
  *             paidCount: number, skipped: number[], total: number, missingPaid: Date[] }}
  */
 function _hoursEstimate(ty, allPeriods) {
-  const rate    = getStoredRateForYear(ty);
   const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
     // Exclude periods ENTIRELY before a mid-year joiner's start (v18.54): getProRateFactor is 0
@@ -493,7 +492,8 @@ function _hoursEstimate(ty, allPeriods) {
       }
       pCount++;
       if (p.payday <= _now) paidCount++;
-      totalVar += _varPayForPeriod(p, parsed.data, rate);
+      // Each payslip at ITS settled rate: the grades it was worked under, weighted by their days.
+      totalVar += _varPayForPeriod(p, parsed.data, settledRateFor(p, ty));
     } catch (e) {
       // A corrupt saved period must not abort the whole estimate, but dropping it silently would
       // under-state the premium — record it (surfaced by calcHPP) and trace it.
@@ -531,7 +531,7 @@ function _updateModeAmounts(ty, hoursRes) {
  * Called by calculate() after every calculation.
  *
  * Back pay is deliberately NOT added into the premium here (v16.89 — double-count fix). calcHPP
- * prices EVERY period of the year at getStoredRateForYear(ty) — the SETTLED (post-award) rate — so a
+ * prices EVERY period of the year at its SETTLED (post-award) rate (settledRateFor) — so a
  * pre-award period already contributes its variable pay AT THE NEW RATE, which includes the award
  * uplift. The back-pay lump's "variable portion" is that SAME uplift, so adding it on top counted it
  * twice. Whether Chiltern pays one combined HPP or a separate HPP on the lump, the TOTAL a member
@@ -541,7 +541,7 @@ function _updateModeAmounts(ty, hoursRes) {
  * without also switching the whole-year pricing to period-aware rates (which was rejected — it made
  * the estimate shift with the viewed period; see the rate comment below).
  *
- * The RATE is priced settled-whole-year (getStoredRateForYear), so a pre-award period's variable
+ * The RATE is priced settled-whole-year (settledRateFor), so a pre-award period's variable
  * pay already carries the full award and there is nothing left for back pay to add here. (London
  * Allowance does NOT enter the HPP base at all — removed v17.23; see _varPayForPeriod.)
  */
@@ -758,8 +758,8 @@ export function updatePriorHpp(ty) {
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
       // The PRIOR year's settled rate — derived from AWARD_RATES per tax year (v17.87), so last
-      // year prices at last year's rate, never the current one.
-      const rate = getStoredRateForYear(priorTy);
+      // year prices at last year's rate, never the current one — and per payslip, by the grades its
+      // days were worked under (settledRateFor).
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {
@@ -768,7 +768,7 @@ export function updatePriorHpp(ty) {
           if (!parsed.data) return;
           const d = parsed.data;
           if (isDataEmpty(d)) return;
-          _priorVar += _varPayForPeriod(p, d, rate);
+          _priorVar += _varPayForPeriod(p, d, settledRateFor(p, priorTy));
         } catch (e) {
           _priorSkipped++;
           console.warn('[PayCalc] HPP prior-year skipped period', p.num, e);

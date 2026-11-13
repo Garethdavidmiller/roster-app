@@ -98,7 +98,7 @@ export const SCOTTISH_TAX_BY_YEAR = {
 
 // Grade contractual data. `rate` is the CURRENT (2026/27) settled rate — the 3.6% RMT award
 // paid from the 28 Aug 2026 payslip. Per-YEAR settled rates come from AWARD_RATES (consulted by
-// getStoredRateForYear), so an earlier year keeps its own rate; GRADES.rate is the grade default,
+// settledRate), so an earlier year keeps its own rate; GRADES.rate is the grade default,
 // used for a year AWARD_RATES has no settled rate for, and the figure the help text quotes. The
 // grade select's options are plain "CEA"/"CES" in paycalc.html, so no rate is written into them.
 // The mid-year step (pre-28-Aug-2026 periods still on £20.74/£21.81) is applied by
@@ -162,7 +162,7 @@ export const PENSION_STEPS = [
 // Each April, when the new award is agreed: set that year's `rate`, and add the next year with
 // `pre` = this year's rate. Consumed by paycalc-backpay.js, and by getRateForPeriod for a period
 // paid before its year's award (the `pre` rate); otherwise a period gets its year's settled `rate`
-// (getStoredRateForYear, which falls back to the GRADES default for a year with none).
+// (settledRate in paycalc-settings.js, which falls back to the GRADES default for a year with none).
 // `pre` = the rate paid BEFORE the year's award was applied (the prior year's rate). The DATE the
 // award was applied is NOT stored here — it is a property of the tax YEAR (rate + London step on
 // one payslip: 2025/26 = 24 Oct 2025) and lives once as `londonAllowFrom` on TAX_YEARS, read via
@@ -229,7 +229,7 @@ export function isPreAwardPeriod(p, grade, tyLabel) {
  * @param {{ payday: Date }} p        - the period
  * @param {string} grade              - 'cea' | 'ces'
  * @param {string} tyLabel            - e.g. '2025/26'
- * @param {number} settledRate        - the year's settled rate (from getStoredRateForYear / the field)
+ * @param {number} settledRate        - the year's settled rate for the grade (paycalc-settings.js → settledRate)
  * @returns {number}
  */
 export function getRateForPeriod(p, grade, tyLabel, settledRate) {

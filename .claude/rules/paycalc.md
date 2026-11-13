@@ -37,6 +37,7 @@ are about to break. Each states WHAT must hold; the WHY is below, or in the modu
 | 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, so `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay-accrual.js` → `awardWindowFactor` |
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary silently under-reported tax years — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so the headers are not the only EXPLANATION — they are the only route that costs the reader nothing and asks nothing of them first: a member who has never heard of HPP has no reason to open a guide looking for it. Never hide, group or shorten these headers without an owner decision; the case that nearly did is DECISIONS.md → "More pay tools" … DECLINED, and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
+| 17 | **A payslip is priced at the grade held on its days** (owner, 13 Nov 2026). The roster dates a grade (`roleHistory`), so a promotion re-prices nothing before it; a payslip that SPANS one is each grade's rate weighted by its days, UNROUNDED — `calculate()` asks `periodRate`, never the field's two decimals, which would leave 140 contracted hours 45p short of 35 at one rate and 105 at the other. A grade chosen by hand covers WHOLE payslips from the one the member names, and only the roster's own dates split one. A member who never changed grade is priced to the last binary digit as before (`byDays` hands back the shared figure itself). The back-pay card prices ONE grade, so a promotion dated inside an award's backdated months fails a data test before it can be priced. By days is the owner's reading, not yet a payslip's: VAL-PAY-005 holds it open until the real one settles it. | `paycalc-grade.js` · `paycalc-settings.js` (`periodRate`, `settledRateFor`, `awardGrade`) · `paycalc-grade.test.mjs` · `paycalc-grade-wiring.test.mjs` |
 
 Unverified assumptions behind these figures are in `VALIDATION_REGISTER.md`, not here; the back-pay
 accrual and the 28 Aug 2026 award step were settled against a real payslip and are in that file's
@@ -80,7 +81,7 @@ carries it as a checklist row).
 
 **How the step is applied.** The award applies automatically from its payslip: the hourly rate comes
 from `GRADES` (current default) + `AWARD_RATES['2026/27']` (the authoritative per-year settled rate,
-consulted by `getStoredRateForYear`), and the mid-year step — periods paid before 28 Aug 2026 still on
+consulted per grade by `settledRate`), and the mid-year step — periods paid before 28 Aug 2026 still on
 £20.74/£21.81 and London £276.16 — is applied by `getRateForPeriod`/`getLondonAllowanceForPeriod`,
 keyed on `TAX_YEARS['2026/27'].londonAllowFrom`. The **arrears** back to 1 Apr 2026 remain the
 **opt-in** back-pay lump (below), never auto-added to take-home.
@@ -170,20 +171,33 @@ the rates and contractual terms are not on record. **A session name the roster d
 the same way**: a leaver or a renamed member keeps a valid local session, and pricing them would fall
 back to CEA rates in the bare shared `myb_pc_` namespace.
 
-**A roster grade that differs from the saved one is ASKED about, never applied** (owner, 10 Nov
-2026). Grade is an editable setting and a saved grade outranks the roster role, so a member the roster
-moved from CEA to CES kept CEA rates with nothing saying so — and applying the roster silently would
-overwrite a deliberate choice (acting up, a roster row not yet corrected). So on load the page shows one
-line at the top offering the roster grade's rates (`gradeToOffer` / `renderGradePrompt`,
-`paycalc-settings.js`); "Keep" is remembered in `SK.gradeKept` against the grade it declined, so it is
-asked again only if the roster later names a different grade. "Use" goes through the Grade box's own
-change handler, so the rate, the pension default and back pay re-price exactly as a hand-picked grade does
-(and back pay's no-record box is blanked by `blobFitsGrade`, `paycalc-backpay-state.js`).
-- **The roster grade is read for the payslip on screen, not for today** (v25.99): `rosterRolesOnScreen`
-  asks `rolesInRange` (`roster-roles.js`) for the grades held over that payslip's days, and
-  `gradeToOffer` stays quiet while the saved grade is any of them. A promotion is released days before
-  it starts, so asking by today's `role` would offer the new rates against payslips still worked
-  wholly or partly under the old grade. A first visit takes the grade held TODAY (`roleOn`).
+**Each payslip is priced at the grade held on its days** (owner, 13 Nov 2026; invariant 17). The
+Grade setting is **From the roster** by default: `paycalc-grade.js` → `gradeDays` asks `rolesInRange`
+(`roster-roles.js`) for the grades over a payslip's 28 days, and a payslip across a promotion is priced
+by days — paid 18 Dec 2026, 7 days as a CEA and 21 as a CES is (7 × £21.49 + 21 × £22.60) / 28 =
+£22.3225 an hour, which `#rateStepNote` explains in one line. Contracted hours are exactly each day at
+its own grade; premium hours are an estimate on the same weighting, because hours are stored per
+PAYSLIP (the back-pay card's first-period fraction makes the same choice). VALIDATION_REGISTER.md holds
+the check against the real 18 Dec payslip.
+- **A grade chosen by hand** (CEA or CES, for acting up or a roster row not yet corrected) covers WHOLE
+  payslips from the one `#gradeFrom` names (`SK.gradeFrom`); earlier ones follow the roster.
+- **A roster grade that differs from a CHOSEN one is ASKED about, never applied** (owner, 10 Nov
+  2026): one line at the top (`gradeToOffer` / `renderGradePrompt`), for the payslip on screen
+  (`rosterRolesOnScreen`), quiet while the chosen grade is any grade held on its days. "Keep" is
+  remembered in `SK.gradeKept`; "Use" sets the Grade box to **From the roster** through its own change
+  handler, so everything a grade touches re-prices as for a hand-picked one. With the roster deciding
+  there is nothing to ask.
+- **A device's grade saved before grades had dates is converted ONCE** (`settingFromLegacy`, in
+  `loadSettings`): one the roster itself gives the member hands over to the roster, dates and all; one
+  they KEPT over the roster's, or one the roster never gives them, stays theirs from the first payslip
+  they can see. Until then it reads as covering every payslip — exactly what it did.
+- **Settings says what the roster says** (`#gradeRosterLine`: "The roster lists you as CEA until
+  21 Nov 2026, then CES from 22 Nov 2026."), and **a change of grade on the roster is said once**
+  (`#gradeNote`, `SK.gradeNote` keyed by the change's first day): each payslip is priced at the grade
+  held while it was worked, so there is nothing for the member to change.
+- **Back pay is priced at the grade of the months the award covers** (`awardGrade`), never the
+  payslip on screen's: a member promoted after an award was paid is owed it at the grade they earned it
+  under. The Holiday Pay Premium prices each payslip at its own grade's settled rate (`settledRateFor`).
 
 **The card's words are written for its reader** (`paycalc-role-card.js`, owner, 7 Nov 2026): a
 Dispatcher is told their pay is not covered *yet* and will be added once Dispatcher rates are
@@ -466,7 +480,8 @@ coordinator gates the gross addition (`_bpThisPeriod`) on it.
   browser can catch an arithmetic gate that has stopped reading the same flag — the figure gaining the
   lump while the banner beneath it still reads "not added to this estimate".
 - **The lump is deliberately NOT added into the HPP estimate** (invariant 5). `calcHPP` prices every
-  period of the year at the SETTLED (post-award) rate via `getStoredRateForYear`, so a pre-award
+  period of the year at the SETTLED (post-award) rate via `settledRateFor` — each payslip at its own
+  grade's, by its days (invariant 17) — so a pre-award
   period's variable pay is already valued at the new rate — which *includes* the award uplift. The
   lump's variable portion is that same uplift, so feeding it in as well double-counts it (by
   `bpVarAmount × 7.69%`). Whether Chiltern pays one combined HPP or a separate HPP on the lump, the
@@ -496,10 +511,10 @@ PAID from a mid-year date, so periods paid before that date were paid at the pri
 `getLondonAllowanceForPeriod`. `updateRateForPeriod(ty, p)` loads this period-aware rate into the
 **read-only** `hourlyRate` field, labelled "· pre-rise rate", "· post-rise rate" (a pre-award period
 whose earlier rate is not on record) or "· current rate", with a plain-language `#rateStepNote`
-explaining the step; since `calculate()` reads the field, a pre-24-Oct-2025 CEA period computes at
-£20.06 and matches the real payslip.
+explaining the step; `calculate()` asks `periodRate` for the same figure, unrounded, so a
+pre-24-Oct-2025 CEA period computes at £20.06 and matches the real payslip.
 - **The hourly rate is FIXED BY GRADE and never user-editable or stored** (owner: "those should be
-  fixed to the role"; invariant 8). `getStoredRateForYear` derives it purely from
+  fixed to the role"; invariant 8). `settledRate(grade, ty)` derives it purely from
   `AWARD_RATES`/`GRADES` (no localStorage), and `saveSettings` persists no rate. **Grade, Tax Code and
   Pension remain the editable settings.**
 - **The pension steps are modelled the same way:** `PENSION_STEPS` in `paycalc-calc.js` (newest-first,

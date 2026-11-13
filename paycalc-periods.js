@@ -272,6 +272,39 @@ export function appendPayslipOptions(sel, periods, { currentPNum } = {}) {
   }
 }
 
+/**
+ * Make a "from which payslip?" select able to SHOW the payslip already on record (paycalc-3-8).
+ *
+ * The pension opt-out start, the student-loan stop and a chosen grade's first payslip each list the
+ * payslips the member can see (`visiblePeriods()`), and setting a select to a value no option carries
+ * selects nothing. So a recorded payslip the list no longer reaches — a start date added after the
+ * choice was made, or a tax year dropped from the grid at a rollover — came up blank, `calculate()`
+ * read the blank loan stop as "still deducted", and the next settings save wrote the blank back:
+ * erasing the loan stop and MOVING the opt-out start to the payslip on screen. Nothing said so.
+ *
+ * So the recorded payslip is offered ahead of the rest, in its own tax-year group and worded as every
+ * payslip list words one (`appendPayslipOptions`) — or, when the grid no longer generates it at all,
+ * as a plain "An earlier payslip", which is all that is still known about it. The record is then
+ * what the control shows, what `calculate()` reads and what a save writes back.
+ * @param {HTMLSelectElement} sel
+ * @param {number|null} num  the recorded payslip (internal `p.num`); nothing is added for none
+ */
+export function offerRecordedPayslip(sel, num) {
+  if (!num || Array.from(sel.options).some(o => Number(o.value) === num)) return;
+  const p = getPeriods().find(/** @param {any} x */ x => x.num === num);
+  /** @type {Node} */ let node;
+  if (p) {
+    node = document.createDocumentFragment();
+    appendPayslipOptions(node, [p]);
+  } else {
+    const o = document.createElement('option');
+    o.value = String(num);
+    o.textContent = 'An earlier payslip, before this list starts';
+    node = o;
+  }
+  sel.insertBefore(node, sel.querySelector('optgroup'));
+}
+
 function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods, { placeholder, currentPNum } = /** @type {{ placeholder?: string, currentPNum?: number }} */ ({})) {
   if (!el) return;
   el.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : '';

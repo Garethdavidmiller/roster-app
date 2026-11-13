@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.99';
+export const APP_VERSION = '26.00';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -284,8 +284,8 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
  * The pay grade this app has CONFIRMED rates and contract terms for, given a member's role — or
  * null when it has none (v21.78).
  *
- * Written because the absence of a grade was indistinguishable from CEA. `getGrade()` returns ''
- * for anybody the app never stored one for, and every consumer then falls back to `GRADES.cea`, so
+ * Written because the absence of a grade was indistinguishable from CEA. The calculator's grade was
+ * '' for anybody the app never stored one for, and every consumer then fell back to `GRADES.cea`, so
  * a Dispatcher or a manager opening the calculator received a complete, plausible CEA estimate.
  * That is worse than an unsupported state: an unverified figure at least looks unverified, whereas
  * this one was somebody else's pay presented as theirs.

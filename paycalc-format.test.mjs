@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fd, fdShort, fdLong, fdList, fmt, clampMinute, decimalToHM, minutesFieldText } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fdList, fmt, fmtRate, clampMinute, decimalToHM, minutesFieldText } from './paycalc-format.js';
 
 test('clampMinute clamps into [0, 59]', () => {
     assert.equal(clampMinute(0), 0);
@@ -45,6 +45,15 @@ test('fmt renders GBP with thousands separators and 2dp', () => {
     assert.equal(fmt(0), '£0.00');
     assert.equal(fmt(1234.5), '£1,234.50');
     assert.equal(fmt(1000000), '£1,000,000.00');
+});
+
+test('fmtRate: a rate in whole pence reads exactly as fmt; a blended one keeps its real places', () => {
+    // Every grade's rate is whole pence, so every payslip but one kind is unchanged by this.
+    for (const r of [21.49, 22.6, 20.06, 0, 64.47]) assert.equal(fmtRate(r), fmt(r));
+    // A payslip across a change of grade: 7 days at £21.49 and 21 at £22.60, weighted by days.
+    assert.equal(fmtRate((7 * 21.49 + 21 * 22.6) / 28), '£22.3225');
+    assert.equal(fmtRate(22.325), '£22.325');
+    assert.equal(fmtRate(1 / 3), '£0.3333', 'never more than four places');
 });
 
 test('fmt signs a negative before the pound sign, as the subtracting rows do — and never a minus on nothing', () => {

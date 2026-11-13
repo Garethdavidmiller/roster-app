@@ -683,6 +683,23 @@ describe('a grade change never prices one grade\'s figure in another\'s box', ()
         } finally { setGrade('cea'); }
     });
 
+    test('a CES member\'s card opens filled from CES\'s record, so the box CES has none for opens blank', () => {
+        // The card as the page opens it: prefillBackPay fills the boxes, then calcBackPay re-checks
+        // them against the record of the grade the award's months were worked under (awardGrade).
+        // Opened from CEA's record, the old rate CES has none for showed CEA's £20.06, unlocked, and
+        // priced a rise from it as the member's own. (The prefill's own grade is only a first fill:
+        // broken alone, calcBackPay's re-check still blanks that box — paycalc-2-9.)
+        try {
+            openCard({ viewed: VIEW_25 });
+            setGrade('ces');
+            for (const id of ['oldRate', 'newRateInput', 'oldLondon', 'newLondon', 'bpRisePct']) els[id].value = '';
+            assert.equal(awardRatesFor('ces', '2025/26')?.pre, null, 'precondition: CES has no old rate on record');
+            prefillBackPay();
+            assert.equal(els.oldRate.value, '', 'the old-rate box opened on another grade\'s record');
+            assert.equal(Number(els.newRateInput.value), awardRatesFor('ces', '2025/26')?.rate, 'the new rate is CES\'s own');
+        } finally { setGrade('cea'); }
+    });
+
     test('a CES member\'s own typed old rate survives a reload', () => {
         try {
             openCard({ viewed: VIEW_25 });
@@ -729,7 +746,7 @@ describe('a member who started after the award\'s window is told so, not "your p
 const { calcHPP, _varPayForPeriod } = await import('./paycalc-hpp.js');
 const { HPP_FRACTION } = await import('./paycalc-calc.js');
 const { hppEstKey } = await import('./paycalc-migrations.js');
-const { getStoredRateForYear } = await import('./paycalc-settings.js');
+const { settledRateFor } = await import('./paycalc-settings.js');
 
 describe('back pay never reaches the holiday premium (invariant 5)', () => {
     test('a computed, ticked and saved lump leaves the premium estimate exactly where the hours put it', () => {
@@ -737,7 +754,7 @@ describe('back pay never reaches the holiday premium (invariant 5)', () => {
         const hours = { otH: 10, otM: 0 };                    // premium hours, so the lump has a premium share
         for (const p of WINDOW) _ls.set(periodKey(p.num), JSON.stringify(hours));
         const expected = (WINDOW.reduce((/** @type {number} */ s, /** @type {any} */ p) =>
-            s + _varPayForPeriod(p, hours, getStoredRateForYear(TY)), 0) * HPP_FRACTION).toFixed(2);
+            s + _varPayForPeriod(p, hours, settledRateFor(p, TY)), 0) * HPP_FRACTION).toFixed(2);
 
         calcHPP();
         assert.equal(_ls.get(hppEstKey(TY)), expected, 'precondition: with no back pay, the estimate is the hours\' own');

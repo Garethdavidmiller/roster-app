@@ -239,6 +239,14 @@ const BD_BASE = {
     _bpThisPeriod: 0, _bpIsEstimate: false, _hppForPeriod: 0, _hppIsEstimate: false,
 };
 
+test('buildBreakdownRows: a payslip across a change of grade shows the blended rate its basic is priced at', () => {
+    // 7 days as a CEA and 21 as a CES: the row's own multiplication must make the figure beside it.
+    const rate = (7 * 21.49 + 21 * 22.6) / 28;
+    const html = buildBreakdownRows({ ...BD_BASE, rate, gBasicNorm: 140 * rate });
+    assert.ok(html.includes('Basic pay — Mon–Fri (140h × £22.3225)'), html);
+    assert.ok(html.includes('£3,125.15'));
+});
+
 test('buildBreakdownRows: bare period → only Mon–Fri basic + London Allowance', () => {
     const html = buildBreakdownRows(BD_BASE);
     assert.ok(html.includes('Basic pay — Mon–Fri (140h × £21.49)'));

@@ -21,12 +21,12 @@
 
 import {
   computeGross, computeTax, computeNI, computeSL, getThresholds,
-  getRateForPeriod, getLondonAllowanceForPeriod, TAX_YEARS,
+  getLondonAllowanceForPeriod, TAX_YEARS,
 } from './paycalc-calc.js';
 import { getPeriods } from './paycalc-periods.js';
 import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import {
-  getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear,
+  periodRate, getEffectiveContr, getProRateFactor,
 } from './paycalc-settings.js';
 import { readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js';
@@ -58,8 +58,6 @@ import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js'
  */
 export function computeYearSoFar(ty, opts) {
   const now         = opts.now || new Date();
-  const grade       = getGrade();
-  const settledRate = getStoredRateForYear(ty);
   const T           = getThresholds(ty.label);
 
   const allPeriods  = getPeriods();
@@ -108,7 +106,8 @@ export function computeYearSoFar(ty, opts) {
       // London, the payslip's own saved pension (else the period default, pro-rated on a joining
       // period). _decodeHours names → computeGross names (ot→o, rdw→r, sun→s, box→b).
       const g = computeGross({
-        rate:     getRateForPeriod(p, grade, ty.label, settledRate),
+        // The rate the payslip was PAID at, by the grades of its days — calculate()'s one source.
+        rate:     periodRate(ty, p).rate,
         effContr: getEffectiveContr(p),
         satHrs: h.satHrs, bhHrs: h.bhHrs, bhOtHrs: h.bhOtHrs,
         oHrs: h.otHrs, rHrs: h.rdwHrs, sHrs: h.sunHrs, bHrs: h.boxHrs,
