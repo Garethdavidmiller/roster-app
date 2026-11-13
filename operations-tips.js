@@ -54,7 +54,8 @@ export const CARD_TIPS = {
         title: 'Staff Login Accounts',
         sections: [{ items: [
             { icon: '🔐', html: 'Creates an app login for every active staff member so the app knows who is saving changes' },
-            { icon: '✅', html: 'Safe to run any time — new joiners get an account, and an account registered outside the app is taken back and reset to the surname default (the result names them, so you can tell them)' },
+            { icon: '✅', html: 'Safe to run any time for everyone already set up — a working account keeps its password, and a new joiner gets an account with their surname as the password' },
+            { icon: '🔁', html: 'It <strong>resets</strong> two kinds of account to the surname default and signs them out: one with <strong>no permissions</strong> (registered outside the app) and one that is <strong>disabled</strong>. The card names them before you press, and the result names them again — tell them their password is their surname' },
             { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
             { icon: '🚪', html: 'Tick <strong>“Disable accounts for anyone no longer on the roster”</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
         ]}],
@@ -74,6 +75,7 @@ export const CARD_TIPS = {
             { icon: '🔑', html: 'Staff who tap <strong>“Can’t get in? Ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
             { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out of their other devices.' },
             { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means there is no Firebase account to reset. Run <strong>Set up accounts</strong> instead.' },
+            { icon: '🚫', html: 'A row saying <strong>“Account disabled”</strong> means the account is switched off, so a reset would not let them in. Run <strong>Set up accounts</strong> instead: it switches the account back on with their surname as the password, and signs them out.' },
             { icon: '🧹', html: '<strong>Clear</strong> removes the row once you have dealt with it. If they ask again it comes back, with the count showing how many times.' },
         ]}],
     },

@@ -3575,6 +3575,37 @@ test('operations: account gaps reach the card BY NAME and the strip by group', a
     await expect(gaps).toContainText('Tick the leavers box below');
 });
 
+// WHAT PRESSING WILL DO, SAID BEFORE IT IS PRESSED (sign-in audit E6, 13 Nov 2026). Set up accounts takes back an account
+// with no permissions at all and re-enables a disabled one, each on the surname default with every device signed out —
+// and both were listed with "Press Set up accounts below." alone. The card, its ? panel and the reset queue's ? panel
+// now say it; the names are admin-auth.test.mjs's to pin, this proves the real page shows them.
+test('operations: the account gaps name who Set up accounts will reset, before it is pressed', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [{ name: 'B. Toth', why: 'no-account' }, { name: 'S. Silva', why: 'unstamped' },
+            { name: 'B. Khalil', why: 'disabled' }], leavers: [] }),
+    }));
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('authSetupBody')?.classList.add('open'));
+    const gaps = page.locator('#authSetupGaps');
+    await expect(gaps).toContainText('S. Silva (no permissions)');
+    await expect(gaps).toContainText('B. Khalil (account disabled)');
+    await expect(gaps.locator('.auth-gap-fix')).toHaveText(['Press Set up accounts below.',
+        'It will reset the passwords of S. Silva and B. Khalil to their surnames and sign them out — tell them afterwards.']);
+    await expect(page.locator('#authSetupBody .auth-desc')).toContainText('resets two kinds of account to the surname default and signs them out');
+
+    const tips = page.locator('#tipsLightboxContent');
+    await page.locator('.btn-card-tips[data-card="staff-login"]').click();
+    await expect(tips).toContainText('no permissions');
+    await expect(tips).toContainText('disabled');
+    await page.locator('#tipsLightboxClose').click();
+    await expect(page.locator('#tipsLightbox')).toBeHidden();
+    await page.locator('.btn-card-tips[data-card="reset-requests"]').click();
+    await expect(tips).toContainText('A row saying “Account disabled” means the account is switched off');
+});
+
 // The leaver line is the one live access problem on the card, and it was the least legible text on it:
 // its red on its own tint was 4.36:1, and the remedy under it was faded on top (`opacity: 0.85`,
 // 3.62:1) — the line telling the admin which button closes the door. Nothing here may be faded
