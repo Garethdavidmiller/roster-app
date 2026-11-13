@@ -49,6 +49,18 @@
  *                         that ask about the last reset first (17, 23) — the real rules answering them.
  *  13. a leaver          — a disabled account's write page ends the session and shows its sign-in:
  *                         refused, not taken for a lost connection, which would keep the session (23).
+ *  14. can't get in      — the sign-in card's request reaches the real `requestPasswordReset`, the card
+ *                         says it was sent, and the admin's queue holds it; nothing is reset.
+ *  15. a new password    — Settings re-authenticates first, so a wrong current password is refused as
+ *                         that; after the change the old password is refused and the new one signs in.
+ *                         Beside it, a FIXME for an app defect it found: Settings opened while that
+ *                         change's record is still queued on the device reads the record's pending
+ *                         time as none, and says the member is still using their surname.
+ *  16. two tabs          — a sign-out in one tab sends the other to its sign-in, with nobody's week
+ *                         behind it, and neither tab writes as nobody (9, 21).
+ *  17. a browser restart — a new browser from the old one's disk (local storage and IndexedDB, not
+ *                         session storage): the staff PIN is gone even after a reload inside the
+ *                         session, and a member's sign-in survives (8; CALENDAR_DATA.md 12).
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -198,6 +210,34 @@ function signInTraffic(page) {
 /** The page's local session record (`AUTH_KEY`), parsed, or null. @param {import('@playwright/test').Page} page */
 async function localSession(page) {
     return JSON.parse(await page.evaluate((k) => localStorage.getItem(k), AUTH_KEY) || 'null');
+}
+
+/**
+ * Record every database write this page sends with NO account behind it, from now on.
+ *
+ * The SDK writes on a stream, or with a one-off commit. A stream carries its account once, in the
+ * body of the request that OPENS it (`Authorization:Bearer …` among its headers), and the SDK opens a
+ * fresh one whenever the signed-in account changes — so every write on a stream goes as whoever
+ * opened it, and a write as nobody is a stream opened with no account, or a commit sent with none. A
+ * write riding a stream the member opened earlier is the member's (measured on WebKit, 13 Nov 2026:
+ * a page that reloads as it is signed out from another tab sends its speed sample on the member's
+ * stream as it goes, and the server accepts it from them).
+ * @param {import('@playwright/test').Page} page
+ * @returns {string[]}  the address of each one, as it happens
+ */
+function writesAsNobody(page) {
+    /** @type {string[]} */
+    const seen = [];
+    page.on('request', (r) => {
+        const url = r.url();
+        if (!url.includes(EMULATOR.firestore)) return;
+        const opensStream = /\/Write\/channel\?/.test(url) && r.method() === 'POST' && !/[?&]SID=/.test(url);
+        const commits = /:commit\b|:batchWrite\b/.test(url);
+        if (!opensStream && !commits) return;
+        const carried = opensStream ? (new URLSearchParams(r.postData() || '').get('headers') || '') : `Authorization:${r.headers().authorization || ''}`;
+        if (!/(^|\n)Authorization:\s*Bearer\s+\S/i.test(carried)) seen.push(url);
+    });
+    return seen;
 }
 
 /**
@@ -753,4 +793,163 @@ test('a leaver\'s disabled account: their write page ends the session and asks f
     await expect(page.locator('#loginError')).not.toContainText(/connection|not recognised/);
     expect(await localSession(page)).toBeNull();
     expectNothingLeftForGoogle(page);
+});
+
+test('can\'t get in: the request from the sign-in card reaches the server, the card says so, and the admin\'s queue holds it', async ({ page }) => {
+    await page.goto('/');
+    await signInThroughOverlay(page, MEMBER, { submit: false });   // named on the card, nothing tried
+    await page.locator('#loginResetRequest').click();
+    await expect(page.locator('#loginResetStatus')).toHaveText('Request sent. The admin will reset your password and let you know.');
+    await expect(page.locator('#loginResetRequest'), 'nothing left to press').toBeHidden();
+
+    const rows = await readCollection('resetRequests');
+    expect(rows.map((r) => r._id), 'one request, filed under the member named on the card').toEqual([MEMBER]);
+    expect(rows[0]).toMatchObject({ memberName: MEMBER, count: 1, provisioned: true, disabled: false });
+    // A request resets nothing: no reset is stamped, and nobody was signed in to ask.
+    expect(await readCollection('passwordStatus')).toEqual([]);
+    expect(await sdkHolds(page)).toBeNull();
+    expectNothingLeftForGoogle(page);
+});
+
+test('a new password from Settings: a wrong current one is refused for what it is, and the new one is what signs in after', async ({ page }) => {
+    const NEW_PASSWORD = 'signed-in lane 14';
+    /** When the database says the member last chose a password. */
+    const passwordSetAt = async () => (await readCollection('passwordStatus')).find((d) => d._id === MEMBER)?.passwordSetAt ?? null;
+    await page.goto('/settings.html');
+    await signInFirstTime(page, MEMBER);
+    await ownPasswordRecorded(MEMBER);
+    const firstSet = await passwordSetAt();
+
+    // Settings opened again later: the Password card says a password of their own is set. Later means
+    // after this device has heard the record land, not merely after it has landed (see the fixme below).
+    expect(await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(20_000))),
+        'this device still had saves waiting').toBe(true);
+    await page.reload();
+    await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+    await page.locator('#passwordChevron').click();
+    await page.locator('#pwChangeBtn').click();
+
+    // The wrong current password: re-authentication refuses it, and it is named as the cause.
+    await page.locator('#pwCurrent').fill('not my password');
+    await page.locator('#pwNew').fill(NEW_PASSWORD);
+    await page.locator('#pwConfirm').fill(NEW_PASSWORD);
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwFeedback')).toHaveText('Current password incorrect — try again, or ask the admin to reset it.');
+
+    // The right one: re-authenticated, then changed, and the change recorded.
+    await page.locator('#pwCurrent').fill(OWN_PASSWORD);
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwFeedback')).toContainText('✓ Password updated');
+    await expect.poll(passwordSetAt, { message: 'the change must be recorded' }).not.toBe(firstSet);
+
+    // Signed out: the old password no longer works, and the new one does, with nothing more asked.
+    await signOutThroughDrawer(page);   // Settings signs out to the Calendar's front door
+    await signInThroughOverlay(page, MEMBER, { submit: false });
+    await page.locator('#loginPassword').fill(OWN_PASSWORD);
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginError'), 'the old password is refused').toContainText('Password not recognised');
+    await page.locator('#loginPassword').fill(NEW_PASSWORD);
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginOverlay')).toBeHidden();
+    await expect(liveGrid(page)).toBeVisible();
+    await expect(page.locator('#pwForceOverlay'), 'a password of their own is not asked for again').toBeHidden();
+    expect(await sdkHolds(page)).toBe(nameToEmail(MEMBER));
+    expectNothingLeftForGoogle(page);
+});
+
+test('a new password whose record is still on its way: Settings opened meanwhile says the password is set', async ({ page }) => {
+    test.fixme(true, 'APP DEFECT (13 Nov 2026): getPasswordStatus reads a still-queued passwordSetAt as null, so Settings says "Using surname" and asks for the password just set');
+    // The record of the change (`passwordStatus`) held on its way, as a weak signal holds it: the write
+    // stream is held. The password itself changes at once — that is Auth's, not the database's.
+    /** @type {import('@playwright/test').Route[]} */
+    const held = [];
+    await page.route((url) => url.host === EMULATOR.firestore && url.pathname.endsWith('/Write/channel'),
+        (route) => { held.push(route); });
+    page.on('dialog', (d) => d.accept());   // "Leave the page?" — the record is queued, not lost
+    await page.goto('/settings.html');
+    await signInFirstTime(page, MEMBER);
+    await expect.poll(() => held.length, { message: 'the record never set off' }).toBeGreaterThan(0);
+    expect(await readCollection('passwordStatus'), 'nothing has landed').toEqual([]);
+
+    // Settings opened again with the record still queued on this device. It is evidence the password
+    // was set (settings-app.js → refreshStatus: "every path into paint(true) is real evidence") — but
+    // the read hands it back with its pending server time as null, and the card says the opposite.
+    await page.reload();
+    await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+    await expect(page.locator('#passwordNudge'), 'not told to set the password they have just set').toBeHidden();
+});
+
+test('two tabs: signing out in one sends the other to its sign-in, and nothing is written from it as nobody', async ({ page, context }) => {
+    await page.goto('/admin.html');
+    await signInFirstTime(page, MEMBER);
+    await ownPasswordRecorded(MEMBER);
+    await expect(page.locator('.day-row').first()).toBeVisible();
+
+    // A second tab of the same browser: the same session and the same Firebase sign-in, so it opens
+    // straight into the member's page.
+    const other = await context.newPage();
+    await wireToEmulators(other);
+    await other.goto('/admin.html');
+    await expect(other.locator('.day-row').first()).toBeVisible();
+    await expect(other.locator('#loginOverlay')).toHaveCount(0);
+
+    // Every write either tab sends with nobody signed in, from the moment the first one signs out.
+    const asNobody = { here: writesAsNobody(page), other: writesAsNobody(other) };
+    await signOutThroughDrawer(page);
+
+    await expect(other.locator('#loginOverlay'), 'the other tab asks who you are').toBeVisible();
+    await expect(other.locator('.day-row:visible'), 'and shows nobody\'s week behind it').toHaveCount(0);
+    expect(await localSession(other)).toBeNull();
+    expect(await sdkHolds(other), 'nobody is signed in there either').toBeNull();
+    expectNothingLeftForGoogle(other);
+    expectNothingLeftForGoogle(page);
+
+    // Both tabs left: whatever a page sends on its way out — a speed sample, an error report — goes
+    // now. As nobody, each would be a write the rules refuse (AUTH_AND_SESSIONS.md 9 and 13).
+    await other.goto('about:blank');
+    await page.goto('about:blank');
+    expect(asNobody, 'a write went out with nobody signed in').toEqual({ here: [], other: [] });
+});
+
+test('a browser restart: the staff PIN dies with the browser, and a member\'s sign-in survives the same restart', async ({ page, context, browser }, testInfo) => {
+    const pin = process.env.E2E_VIEWER_PIN;
+    expect(pin, 'run this lane with `npm run test:signed-in`, which gives the emulator a PIN for the run').toMatch(/^\d{4}$/);
+
+    // The station PC, unlocked with the PIN and reloaded once. A reload is what once MOVED the viewer
+    // into the store that outlives the browser (CALENDAR_DATA.md 12, AUTH_AND_SESSIONS.md 8).
+    await page.goto('/');
+    await enterPin(page, /** @type {string} */ (pin));
+    await expect(page.locator('#calLockPin')).toBeHidden();
+    await page.locator('#teamMemberSelect').selectOption(MEMBER);
+    await expect(liveGrid(page)).toBeVisible();
+    await page.reload();
+    await expect(liveGrid(page), 'a reload inside the browser session stays unlocked').toBeVisible();
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+
+    // The browser closes and opens again: what it keeps on disk (local storage and IndexedDB, where a
+    // long-lived sign-in lives) comes back, and what it keeps for the session does not.
+    const station = await anotherPhone(browser, testInfo, await context.storageState({ indexedDB: true }));
+    await station.page.goto('/');
+    await expect(station.page.locator('#calendarLock'), 'the Calendar is locked again').toBeVisible();
+    await expect(station.page.locator('#calendarDisplay')).toBeHidden();
+    expect(await sdkHolds(station.page), 'the PIN\'s sign-in did not survive the restart').toBeNull();
+    expectNothingLeftForGoogle(station.page);
+    expectNothingLeftForGoogle(page);
+    await station.context.close();
+
+    // A member's phone, through the same restart: their own sign-in is meant to last (60 days).
+    const phone = await anotherPhone(browser, testInfo);
+    await phone.page.goto('/');
+    await signInFirstTime(phone.page, MEMBER);
+    await ownPasswordRecorded(MEMBER);
+    await expect(liveGrid(phone.page)).toBeVisible();
+    const kept = await phone.context.storageState({ indexedDB: true });
+    await phone.context.close();
+    const restarted = await anotherPhone(browser, testInfo, kept);
+    await restarted.page.goto('/');
+    await expect(liveGrid(restarted.page), 'the member\'s roster, after the restart').toBeVisible();
+    await expect(restarted.page.locator('#calendarLock'), 'with no sign-in card').toHaveCount(0);
+    expect(await sdkHolds(restarted.page), 'their own sign-in survived it').toBe(nameToEmail(MEMBER));
+    expectNothingLeftForGoogle(restarted.page);
+    await restarted.context.close();
 });
