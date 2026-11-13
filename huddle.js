@@ -118,8 +118,10 @@ export function initHuddleNotifications({ onState } = {}) {
             } else if (/Android/i.test(navigator.userAgent)) {
                 _deniedMsg.textContent = 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
             } else {
-                // The route is one unit: a line that starts "→" reads as broken punctuation (`.nav-path`).
-                _deniedMsg.replaceChildren('In Chrome: click the padlock in the address bar → ',
+                // The route is one unit (`.nav-path`), and the arrow into it keeps to the word before it
+                // (a no-break space): a line that starts "→" reads as broken punctuation. WebKit broke
+                // before that arrow where Chromium broke after it, so the space is what holds it.
+                _deniedMsg.replaceChildren('In Chrome: click the padlock in the address bar\u00a0→ ',
                     Object.assign(document.createElement('span'), { className: 'nav-path', textContent: 'Site settings → Notifications → Allow' }), '.');
             }
             _deniedMsg.style.display = 'block';

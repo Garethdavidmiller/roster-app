@@ -176,10 +176,11 @@
   </div>
 
   <!-- DESKTOP WORK COLUMN (columns 1–2): the notes that head the page, then Settings + period band +
-       Hours. `.pc-work` is display:contents on mobile (DOM order unchanged there) and a flex column on
-       desktop sharing ONE grid row with `.pc-side` — so neither column's height can inflate the
-       other's rows (the v18.47 fix for the expanded-sidebar mid-page void; flex `order` puts the
-       period band first on desktop while mobile keeps this DOM order).
+       Hours. `.pc-work` is a plain block on mobile (DOM order unchanged there; paycalc.css says why it
+       is not display:contents) and a flex column on desktop sharing ONE grid row with `.pc-side` — so
+       neither column's height can inflate the other's rows (the v18.47 fix for the expanded-sidebar
+       mid-page void; flex `order` puts the period band first on desktop while mobile keeps this DOM
+       order).
        THE NOTES ARE IN HERE, NOT ABOVE IT (laptop polish, 13 Nov 2026). As rows of their own above
        the workspace they took the work columns only, so the take-home column started below them —
        a navy void at the top right on every visit that showed the welcome banner — and the two
