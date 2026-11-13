@@ -17,7 +17,7 @@ service firebase.storage {
       // converted text is written to the Firestore document as `htmlContent`, and until v23.18
       // `firestore.rules` granted that collection a bare `allow read;` — so the Huddle's words
       // needed no URL and no credential (measured against the live project, 6 Sep 2026). The
-      // Firestore read now requires a `name` claim, `admin` or the shared `calendarViewer`, the
+      // Firestore read now requires a bound member (`isMember()`), `admin` or the shared `calendarViewer`, the
       // same doors as `overrides`, and the client refuses the read at source (calendar-doc-access.js).
       // What this file's caution above still means: the FILE behind a bearer URL is fetchable by
       // anyone who already holds the URL — ARCHITECTURE.md EXC-007.

@@ -43,7 +43,8 @@ localStorage session skips the login screen, so without the page-load sign-in, `
 stays null and all Firestore writes fail. `ensureNamedSession(name)` in `session.js` handles this (every
 page calls it; the sign-in inside it is `ensureFirebaseSession`, which nothing calls directly): it
 waits for `onAuthStateChanged` (to detect any IndexedDB-persisted session; at most
-`AUTH_READY_TIMEOUT_MS`), then signs in if none exists. No account self-heal and no anonymous
+`AUTH_RESTORE_TIMEOUT_MS` — `AUTH_READY_TIMEOUT_MS` is the separate, longer bound on Firebase Auth
+starting at all), then signs in if none exists. No account self-heal and no anonymous
 fallback: a refused sign-in leaves no named identity (`'none'`) and a sign-in prompt, while one that
 never reached an answer is `TRANSIENT` and keeps the 60-day session (AUTH_AND_SESSIONS.md 23).
 **Do not remove this call.**

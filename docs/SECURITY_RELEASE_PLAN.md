@@ -425,8 +425,9 @@ What remains here is only what code comments reference or what constrains future
 
 ### B0 — the identity signal
 `ensureFirebaseSession` exposes whether it established the member's **named** account:
-`getFirebaseIdentity()` → `'named'|'none'`, `firebaseSessionIsNamed()` (the exact signal B1/B2
-consume), `getFirebaseAuthError()`. It had an `'anonymous'` third value while an anonymous fallback
+`getFirebaseIdentity()` → `'named'|'none'`, `firebaseSessionIsNamed()` (the signal B1/B2 were built
+on; nothing outside `session.js` and its test reads them now — the pages read the auth store through
+`requirePage`), `getFirebaseAuthError()`. It had an `'anonymous'` third value while an anonymous fallback
 existed; there is none now. (`session.test.mjs`.)
 
 ### B1 — named-session separation + the kill-switch (Appendix: B1 detailed scope)
