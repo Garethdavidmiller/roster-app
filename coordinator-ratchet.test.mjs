@@ -379,7 +379,7 @@ const CAPS = {
     // them, to the usual headroom over 875, rather than banking the saving. The Account-status seam
     // above is still the next one.
     // 920 → 837 on 13 Nov 2026, a LOWER, to the measured size: the sign-in audit's lost-phone Reset (D1)
-    // and its two outcome fixes (E2, E5) were RULES — what a reset may claim — so EXTRACT: every word the
+    // and its two outcome fixes (E2, the 500's sentence) were RULES — what a reset may claim — so EXTRACT: every word the
     // Reset asks and says left for operations-reset.js, and the doReset that stayed only asks and wires.
     'operations-app.js':        837,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip

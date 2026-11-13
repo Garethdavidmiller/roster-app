@@ -37,9 +37,9 @@
  *    Retry — it would describe an outcome nobody knows.
  *  - A REFUSAL (4xx) comes before anything changes, names its reason, and offers no Retry: retrying cannot change it.
  *  - A 503 is the server saying, before it changed anything, that it could not record the reset (no stamp, no reset —
- *    functions-core-2), and its sentence says nothing changed. A 500 carries a sentence too (sign-in audit E5): that it
- *    is not known whether the password changed, or that nothing did. Each is shown as written, under a title that
- *    claims neither, beside Retry.
+ *    functions-core-2), and its sentence says nothing changed. A 500 carries a sentence too (sign-in audit, Nov 2026):
+ *    that it is not known whether the password changed, or that nothing did. Each is shown as written, under a title
+ *    that claims neither, beside Retry.
  *  - A body that is MARKUP — an HTML error page from in front of the function — is never shown as a reason.
  */
 import { isFetchTimeout, serverRefusal } from './fetch-timeout.js';

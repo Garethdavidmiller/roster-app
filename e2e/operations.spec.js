@@ -1175,7 +1175,7 @@ test('operations account status: every row button\'s name holds its visible word
     await resetOn(1);
     await expect(page.locator('.acct-row').nth(1).locator('.btn-acct-reset')).toHaveText('Retry');
     expect(await nameMismatches(page), 'a reset that failed: Retry').toEqual([]);
-    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();   // the 500's own sentence, shown since sign-in audit E5
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();   // the 500's own sentence, shown since the sign-in audit (Nov 2026)
     await resetOn(2);
     await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveText('Reset ✓');
     await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveAttribute('aria-label', /done/);
@@ -1660,7 +1660,7 @@ test('operations: a fully successful reset leaves a receipt on the row', async (
     await expect(row.locator('.btn-acct-reset')).toHaveText('Reset ✓');
 });
 
-// ── A LOST OR STOLEN PHONE, AND WHAT EVERY RESET SAYS (sign-in audit D1/A1, E2, E5 — 13 Nov 2026) ───────────────
+// ── A LOST OR STOLEN PHONE, AND WHAT EVERY RESET SAYS (sign-in audit D1/A1 and E2, and the 500's sentence — 13 Nov 2026) ──
 // A reset's "🔑 Password reset" notice landed on the lock screen of the very phone that was lost, and the phone kept
 // getting the member's notices. The Reset dialog now asks, with an unticked box; ticked, the request asks for
 // `lostDevice: true` and the server sends no notice and deletes every push record the member owns. The words are
@@ -1769,7 +1769,7 @@ test('operations: a reset whose sign-out failed still says nobody told them, and
     await expect(dialog, 'they are not signed out yet, so nothing may say they are').not.toContainText('and they are signed out');
 });
 
-// A 500 SAYS WHAT THE SERVER SAID (sign-in audit E5): the endpoint's 500 now carries a sentence — that it is not known
+// A 500 SAYS WHAT THE SERVER SAID (sign-in audit, Nov 2026): the endpoint's 500 now carries a sentence — that it is not known
 // whether the password changed, or that nothing did — and it is shown as written, as the 503's has been, under a title
 // that claims neither. A page from in front of the function is still not a reason.
 for (const [what, o, shown] of /** @type {Array<[string, any, boolean]>} */ ([
