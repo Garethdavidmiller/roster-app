@@ -1736,7 +1736,7 @@ test('K. Jedlinski: pre-start RD, fixed pattern 2 (3–27 Jun), then main wk10 (
     assert.equal(r.currentWeek, 10);
 });
 
-test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
+test('S. Boyle: main wk10 until 27 Jun, then the placeholder pattern 4 (28 Jun+) — whose bank holidays are rest days', () => {
     const m = teamMembers.find(x => x.name === 'S. Boyle');
     assert.ok(m, 'S. Boyle not found');
     const before = resolveMemberRoster(m, new Date(2026, 5, 27));
@@ -1744,12 +1744,26 @@ test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
     assert.equal(before.currentWeek, 10);
     const after = resolveMemberRoster(m, new Date(2026, 5, 28));
     assert.equal(after.rosterType, 'fixed');
-    assert.equal(after.currentWeek, 2);
-    assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');  // Mon 29 Jun — fixed pattern 2
-    assert.equal(getBaseShift(m, new Date(2026, 6, 4)),  'RD');           // Sat 4 Jul — fixed pattern 2 weekend
-    // Pattern 2 WORKS bank holidays. Pattern 4 (the placeholder line, v25.97) is the one that rests on them,
-    // and nothing about it may reach somebody still on 2.
-    assert.equal(getBaseShift(m, new Date(2026, 7, 31)), '09:00-16:00');  // Mon 31 Aug — a bank holiday, worked on 2
+    assert.equal(after.currentWeek, 4);
+    assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');  // Mon 29 Jun — the placeholder line
+    assert.equal(getBaseShift(m, new Date(2026, 6, 4)),  'RD');           // Sat 4 Jul — its weekend
+    // Until v25.99 she was on pattern 2, the same hours on a line that WORKS bank holidays (owner, 13 Nov 2026).
+    assert.equal(getBaseShift(m, new Date(2026, 7, 31)), 'RD', 'Mon 31 Aug 2026, the summer bank holiday: not worked on her line');
+    assert.equal(getBaseShift(m, new Date(2026, 8, 1)), '09:00-16:00', 'Tue 1 Sep 2026, the next day');
+    assert.equal(isChristmasLeaveDay(m, new Date(2026, 11, 25)), false,
+        'Fri 25 Dec 2026: Christmas Day is a bank holiday, so she was never due at work — a rest day, not Christmas leave');
+    assert.equal(getBaseShift(m, new Date(2026, 11, 28)), 'RD', 'Mon 28 Dec 2026 is a bank holiday: a rest day on her line');
+    assert.equal(getBaseShift(m, new Date(2026, 11, 29)), '09:00-16:00', 'Tue 29 Dec 2026 is an ordinary weekday');
+});
+
+// A CEA's leave is set by the CONTRACT, never the line: the same allowance on the line that works bank holidays
+// and the one that rests on them. (A Dispatcher's differs, by the days in lieu above.) A made-up member, so no
+// roster name sits beside a leave figure.
+test('a CEA on the placeholder line that rests on bank holidays keeps the allowance of the line that works them', () => {
+    const on = (/** @type {number} */ pattern) => ({ name: 'Test CEA', role: 'CEA', rosterType: 'fixed', currentWeek: pattern });
+    for (const year of [2026, 2027]) {
+        assert.equal(getALEntitlement(on(4), year, []), getALEntitlement(on(2), year, []), `${year}: the same on 2 and 4`);
+    }
 });
 
 // M. Campbell's training weeks are TRAINING WITH NO TIMES (owner, 6 Nov 2026: "show Other (Training

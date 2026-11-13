@@ -2825,6 +2825,11 @@ entries were pointed at 4 rather than given new ones, so the bank holidays since
 redrawn too, as the rest days they were. Pattern 2 is untouched: others sit on it, and nobody has said
 they rest on bank holidays.
 
+**v25.99 moved a third placeholder line onto pattern 4.** A CEA off the main link since 28 Jun 2026 sat on
+pattern 2 as well and does not work bank holidays either (owner, 13 Nov 2026). That entry now points at 4 in
+the same way, which redrew Mon 31 Aug 2026 as the rest day it was. A CEA's leave is set by the contract,
+not the line, so nothing else moved (`roster-data.test.mjs` pins both).
+
 **v25.96: the Links workspace had the same race, and has the same wait.** Its design store queues
 a save, a rename and a bin offline (rule 4), and every online one of those, a restore, a purge and
 the automatic bin is a transaction. So just after the signal returned, a save wrote over the

@@ -918,7 +918,7 @@ export function getWeekNumberForDate(date, member) {
     member = resolveMemberRoster(member, date);
     const rosterType = member.rosterType || 'main';
     // Fixed rosters don't rotate — a member sits on one constant pattern, selected by their
-    // currentWeek (fixedRoster[currentWeek]). currentWeek 1 = C. Reen, 2 = S. Boyle, etc.
+    // currentWeek (fixedRoster[currentWeek]). Who sits on which is roster-member-data.js, and only there.
     if (rosterType === 'fixed') return member.currentWeek || 1;
 
     const cycleLength = rosterType === 'bilingual'   ? CONFIG.BILINGUAL_ROSTER_WEEKS
