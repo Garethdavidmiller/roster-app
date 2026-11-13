@@ -57,7 +57,7 @@ const { rotateDocumentLinks: rotateLinks } = require('./doc-link-rotation');
  * @param {Function} deps.isRetriableFirestoreError  commit-ambiguous classifier
  * @param {number}   deps.MAX_FILE_BYTES
  * @param {number}   deps.MAX_HUDDLE_HTML_CHARS
- * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  the CORS allowlist for getDocumentUrl
+ * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  the CORS allowlist for the endpoints the browser calls here
  * @param {Record<string, any>} deps.rosterMembers  the server-owned roster (roster-members.json) — the pay reminder's audience
  */
 function buildDocumentEndpoints({

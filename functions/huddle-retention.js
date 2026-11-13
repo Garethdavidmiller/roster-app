@@ -113,7 +113,7 @@ async function pruneOldHuddles(excludeDate, { db, bucket, nowInLondon }) {
         try {
             await sweepHuddleOrphans(bucket, db, docSnap.id, Date.now());
         } catch (e) {
-            console.warn(`[pruneOldHuddles] Orphan sweep for ${docSnap.id} failed (left for the next run):`, e.message);
+            console.warn(`[pruneOldHuddles] Orphan sweep for ${docSnap.id} failed (no later run returns to this date; Operations → Document links counts what it left):`, e.message);
         }
     }));
     console.log(`[pruneOldHuddles] Pruned huddles older than ${cutoffISO}`);

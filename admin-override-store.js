@@ -342,8 +342,8 @@ function refuseCachedRead(snap) {
 // ONE id per member and day. So a manager deleting a row they saw this morning deleted the document
 // a colleague had since rewritten under that same id — silently, with a receipt saying "Deleted AL
 // day". So every delete compares what it removes with what this page showed, and refuses on any
-// difference. Saves stay last-writer-wins (an accepted decision); a delete is the one write that
-// cannot see what it removes.
+// difference. A delete was the first write checked this way, because it cannot see what it removes;
+// since v25.90 an ordinary save is checked too whenever the server can be asked (`commitChecked`, below).
 //
 // THE COMPARISON AND THE DELETE ARE ONE TRANSACTION (v25.89, external review, Nov 2026). They were a
 // re-read and then a separate batch, and a colleague's edit landing in the milliseconds between the
@@ -528,8 +528,8 @@ const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
  * @param {{ shownFor: (memberName: string, date: string) => any, removed?: Iterable<string|{id: string}>,
  *           line: string|((dates: string[]) => string), holdOffline?: boolean }} opts  `shownFor`: the record
  *        the page showed for a day this save writes, or null; `removed`: the days it removes, as
- *        `commitIfUnchanged` takes them; `holdOffline: false` for a save that removes any — a removal
- *        waits for the server, as it has since v25.89, so it is never held unchecked
+ *        `commitIfUnchanged` takes them; `holdOffline: false` for a save that removes any — with no
+ *        server such a save is refused, writing nothing, as a removal has been since v25.89; never held unchecked
  * @returns {Promise<{ checked: boolean, done: boolean }>} `checked` false: held unchecked, offline;
  *          `done`: the server already held exactly this save, so nothing was written
  */

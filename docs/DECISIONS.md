@@ -605,6 +605,15 @@ printed from there; the canonical address, where the install notice already send
 phone's own viewer is available everywhere without a library; or PDF.js proving too heavy for the
 oldest phones staff carry.
 
+**The viewer stays on PDF.js 4.10.38 while the roster reader moves to 6.5.438 (v25.91).** The two
+used to be one version, held by a test. They part because PDF.js 6's legacy build targets Safari 18,
+and the app supports iOS 16.4 (above): moving the viewer would stop it opening a file on any iPhone
+before iOS 18. The server cannot stay behind instead, because only 6.5.438 bounds the hang a malformed
+PDF function causes, and the server reads PDFs from outside the app, while this viewer opens only the
+app's own. `dependency-pin-parity.test.mjs` now holds the viewer to its own declared version, and
+says how to move it. **What would rejoin them:** the iOS floor reaching 18, or the viewer moving to
+the newest PDF.js whose legacy build still reaches the floor.
+
 ## The Calendar's state: one home per question, in four steps — and what was left on purpose (owner, 10–11 Nov 2026)
 
 The three Calendar bugs fixed in early November 2026 had one shape: the page's idea of the situation

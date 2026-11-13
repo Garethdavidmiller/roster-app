@@ -247,13 +247,14 @@ sample suggested. See KNOWN_LIMITATIONS.md.
 Needs `pdfjs-dist`, now a **devDependency** (owner decision, 1 Sep 2026 — it is a development tool
 for this experiment, is not served to anyone, and nothing in the app imports it).
 
-**Pinned to v4 deliberately.** `extract.mjs` reads `OPS.constructPath`'s argument shape directly to
-find the drawn rules, and pdfjs 6 changed that encoding: on 6.3.289 every one of the 12 documents
-failed identically with `fns is not iterable`, which looks exactly like a PDF problem and is not
-one. If this is ever upgraded, `rulesOf` is the function to rewrite first.
+**These scripts read the v4 encoding.** `extract.mjs` reads `OPS.constructPath`'s argument shape
+directly to find the drawn rules, and pdfjs 6 changed that encoding: on 6.3.289 every one of the 12
+documents failed identically with `fns is not iterable`, which looks exactly like a PDF problem and is
+not one. The app moved to 6.5.438 at v25.91 (`rulesFromOperatorList` in `functions/roster-geometry.js`
+reads the new encoding); these scripts did not.
 
-Run from this directory: `pdfjs-dist` resolves from the repository's own install (`npm ci`), at
-the exact v4 that package.json pins — there is nothing to install separately.
+So the repository's own install no longer runs them. Run them against a scratch install of
+`pdfjs-dist@4.10.38`, or port `rulesOf` from `rulesFromOperatorList` first.
 
 ```
 node rules2.mjs  <roster.pdf>          # the drawn rules, per page

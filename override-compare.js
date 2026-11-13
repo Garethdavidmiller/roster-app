@@ -4,9 +4,9 @@
  *
  * One answer, because two editors work the same days: a manager and the admin can both have Admin
  * open on one member's week. Every guarded Admin write — a delete from Saved Changes or a booked
- * period, a week-grid save that removes a day, a leave-year move — reads the day inside its
- * transaction (`commitIfUnchanged`, admin-override-store.js) and asks this before it deletes or
- * rewrites it. Pure: no DOM, no Firebase.
+ * period, a leave-year move, and since v25.90 every ordinary save of a day (`commitChecked`) — reads
+ * the day inside its transaction (`commitIfUnchanged`, admin-override-store.js) and asks this before
+ * it deletes or rewrites it. Pure: no DOM, no Firebase.
  *
  * Its own module because it is the RULE those writes share — what counts as "changed since you
  * looked" — and a rule wants one home and a test of its own (override-utils.test.mjs →

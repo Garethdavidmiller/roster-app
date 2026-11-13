@@ -90,25 +90,35 @@ describe('pdfjs-dist — the geometry reader is tested on the version it runs on
     });
 });
 
-describe('pdfjs-dist — the copy the PDF viewer loads is the version the server runs', () => {
+describe('pdfjs-dist — the copy the PDF viewer loads is the version it declares, and its worker agrees', () => {
     // The in-app PDF viewer (pdf-viewer.js, v25.67) loads PDF.js from pdfjs/ — the legacy build, VENDORED, so no package
-    // manager sees it. It is the same library the roster reader pins above, and the same rule holds: one version. Its
-    // two files must also agree with EACH OTHER — PDF.js refuses a worker of another version outright, so a library
-    // updated without its worker opens no file at all. Moving the pin above without re-vendoring fails here, by design:
-    // `npm pack pdfjs-dist@<ver>`, copy legacy/build/pdf.min.mjs and pdf.worker.min.mjs into pdfjs/, then run the
-    // viewer's e2e (e2e/newlink.spec.js) in both engines.
-    const pinned = ROOT_PKG.devDependencies?.['pdfjs-dist'];
+    // manager sees it. Until v25.91 it was the roster reader's version as well. It is NOT now, on purpose: PDF.js 6's
+    // legacy build targets Safari 18, and the app supports iOS 16.4 (DECISIONS.md → "The oldest iOS supported is 16.4"),
+    // so the viewer stays on a version whose legacy build reaches 16.4, while the server reads rosters with the first
+    // version that bounds the Type 4 hang (functions/roster-geometry.js header). The viewer opens only the app's own PDFs.
+    // VIEWER is that decision, written once. Change it only by re-vendoring: `npm pack pdfjs-dist@<ver>`, copy
+    // legacy/build/pdf.min.mjs and pdf.worker.min.mjs into pdfjs/, check that version's legacy build still targets the
+    // app's oldest iOS, then run the viewer's e2e (e2e/newlink.spec.js) in both engines. Its two files must agree with
+    // EACH OTHER — PDF.js refuses a worker of another version outright, so a library updated alone opens no file at all.
+    const VIEWER = '4.10.38';
     const found = (/** @type {string} */ f, /** @type {RegExp} */ re) => [...new Set([...read(f).matchAll(re)].map(m => m[1]))];
 
-    test('pdfjs/pdf.min.mjs is the pinned version', () => {
+    test('pdfjs/pdf.min.mjs is the version the viewer declares', () => {
         const lib = found('./pdfjs/pdf.min.mjs', /apiVersion:"(\d+\.\d+\.\d+)"/g);
-        assert.deepEqual(lib, [pinned], `pdfjs/pdf.min.mjs is PDF.js ${lib.join(', ') || '(no version found)'}, the pin is ${pinned}`);
+        assert.deepEqual(lib, [VIEWER], `pdfjs/pdf.min.mjs is PDF.js ${lib.join(', ') || '(no version found)'}, the viewer declares ${VIEWER}`);
     });
 
     test('pdfjs/pdf.worker.min.mjs is the same version — or the library refuses it', () => {
         const worker = found('./pdfjs/pdf.worker.min.mjs', /apiVersion:\w+\}=\w+,\w+="(\d+\.\d+\.\d+)"/g);
-        assert.deepEqual(worker, [pinned],
-            `pdfjs/pdf.worker.min.mjs is PDF.js ${worker.join(', ') || '(no version found — a new build may write it differently; read the file and adjust the pattern)'}, the pin is ${pinned}`);
+        assert.deepEqual(worker, [VIEWER],
+            `pdfjs/pdf.worker.min.mjs is PDF.js ${worker.join(', ') || '(no version found — a new build may write it differently; read the file and adjust the pattern)'}, the viewer declares ${VIEWER}`);
+    });
+
+    test('the viewer\'s header names the version it loads, and says why it is not the server\'s', () => {
+        // The reason lives in pdf-viewer.js's header, where an editor about to "bring it into line" is already looking.
+        const header = read('./pdf-viewer.js');
+        assert.match(header, new RegExp(`PDF\\.js ${VIEWER.replace(/\./g, '\\.')}\\b`), `pdf-viewer.js no longer names PDF.js ${VIEWER}`);
+        assert.match(header, /Safari 18/, 'pdf-viewer.js no longer says why it stays behind the server (PDF.js 6 targets Safari 18)');
     });
 });
 
