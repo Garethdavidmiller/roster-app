@@ -2383,10 +2383,12 @@
             --page-accent:      var(--accent-gold);
             --page-accent-ink:  var(--primary-blue);
             --page-accent-text: var(--gold-text);
-            /* The member bar's and the Unsaved bar's heights at the default text size; admin-app.js
-               measures both and writes the real ones on <html>, which outranks this rule. */
+            /* The member bar's, the Unsaved bar's and the over-allowance question's heights at the default
+               text size; admin-app.js measures all three and writes the real ones on <html>, which outranks
+               this rule. */
             --member-bar-h: 44px;
             --staged-bar-h: 54px;
+            --al-confirm-h: 120px;
         }
 
         /* AL balance shown in the collapsed card header */
@@ -2420,6 +2422,15 @@
         /* …and the save toast rises clear of it (Nov 2026): the two share the foot of the screen, and an
            Apply that stages days AND raises a toast drew it over the bar's label and buttons for 4s. */
         body:has(#stagedBar:not([hidden])) #saveToast { bottom: calc(var(--staged-bar-h) + 12px); }
+        /* THE OVER-ALLOWANCE QUESTION KEEPS THE SAME RULE (13 Nov 2026). It is a fixed sheet at the foot too,
+           taller than the Unsaved bar and drawn over it, and it reserved nothing: on a phone, at the page's end,
+           the last Saved Changes row's "Delete?" sat behind it with no further to scroll, so a change could not
+           be deleted while the question waited. The page gains the taller of the two, and so does the toast.
+           After the Unsaved bar's rules on purpose: with both up, these win on order. `--al-confirm-h` is
+           measured (admin-app.js). */
+        html:has(#alConfirmBar.visible) { scroll-padding-bottom: calc(max(var(--staged-bar-h), var(--al-confirm-h)) + 12px); }
+        body:has(#alConfirmBar.visible) { padding-bottom: calc(max(var(--staged-bar-h), var(--al-confirm-h)) + 12px); }
+        body:has(#alConfirmBar.visible) #saveToast { bottom: calc(max(var(--staged-bar-h), var(--al-confirm-h)) + 12px); }
         /* It WRAPS (Nov 2026): `nowrap` held "Unsaved: 2 days, 1 to remove" at its full width, so at 360px
            "Save changes" ran 22px off the screen. Balanced, it breaks after the comma; its longest word is
            its floor, so with large text the buttons wrap their own words too. `--staged-bar-h` is

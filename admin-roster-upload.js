@@ -15,7 +15,7 @@ import { parseOtherValue } from './override-utils.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { entryControlHtml, paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE, carryReviewAnswers } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -458,15 +458,23 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             console.error('[RosterUpload] Apply failed:', err);
             const _applyErr = /** @type {any} */ (err);
             // A DAY CHANGED SINCE THE READ (v25.92): the refused part wrote nothing, so the week is read
-            // again and the review redrawn — the changed days now show as they are, the admin's own choices
-            // made against the old ones gone with them. No second read of the PDF. A failed re-read closes it.
+            // again and the review redrawn — the changed days now show as they are. No second read of the
+            // PDF. A failed re-read closes it. Every OTHER row keeps the admin's answers, Skip all included
+            // (v25.94, `carryReviewAnswers`): reset to their defaults, a second Save wrote rows the admin
+            // had unticked, while the message named only the changed days.
             if (_applyErr?.code === IMPORT_CHANGED_CODE) {
                 try {
+                    const skipped = [...changeList.querySelectorAll('.roster-person-section.section-skipped')]
+                        .map(sec => /** @type {HTMLElement} */ (sec).dataset.member ?? '');
+                    const before = computeCellStates(_parsedResult, [..._shown.values()]);
                     const fresh = await fetchOverridesForWeek(_parsedResult.dates);
                     _shown = new Map(fresh.map((/** @type {any} */ o) => [o.id, o]));
-                    _cellStates = computeCellStates(_parsedResult, fresh);
+                    _cellStates = carryReviewAnswers(_cellStates, before, computeCellStates(_parsedResult, fresh), skipped).states;
                     lockForSave(false);   // before the redraw, which re-arms Save only when nothing is sending
                     renderReviewTable(_parsedResult, _cellStates);
+                    for (const member of skipped) {   // pressed again, so a row that changed under it is skipped too
+                        /** @type {HTMLElement|null} */ (changeList.querySelector(`.roster-skip-all-btn[data-member="${CSS.escape(member)}"]`))?.click();
+                    }
                     applyFeedback.textContent = refusalLine(_applyErr.days, { savedEarlier: _applyErr.savedEarlier, redrawn: true });
                 } catch {
                     reviewSection.classList.remove('visible');

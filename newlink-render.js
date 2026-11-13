@@ -209,7 +209,8 @@ export function renderCommon({ gains, costs }) {
         <section class="nl-side nl-side--cost" aria-labelledby="nlCostsH"><h3 class="nl-side-h" id="nlCostsH"><span aria-hidden="true">➖</span> What it costs everyone</h3>${renderList(costs)}</section>
     </div>
     <p class="nl-note"><strong>Fatigue warnings</strong> come from the Office of Rail and Road’s good-practice list of tiring
-        patterns — reported as found, never as a pass or a fail.</p>`;
+        patterns, and are never a pass or a fail. The counts here are the avoidable ones: two that every link has are left
+        out, starts before 07:00 and a weekly rotation.</p>`;
 }
 
 /**

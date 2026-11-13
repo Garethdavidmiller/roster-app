@@ -904,7 +904,9 @@ test('guides: a link\'s chip lets go if the page was moved away before it finish
 // edge was a section no mouse could learn existed. 641px, not the column's 800: a window snapped to half a
 // laptop screen is 683–768px wide, and there the Staff Guide hid three to five chips, the admin ones among them
 // (bug and regression check, 12 Nov 2026). A bar that fits stays one row, and a phone held sideways — wide,
-// but about 390px tall — keeps its one scrolling row rather than give a third of its screen to chips.
+// but about 390px tall — keeps its one scrolling row rather than give a third of its screen to chips. From
+// 1024px it wraps at any height (13 Nov 2026): a laptop window with the browser's bars and the taskbar, or a
+// page zoomed to 110%, is under 600px tall, and 1366×560 hid the Staff Guide's last four chips from a mouse.
 test('guides: a chip bar too long for the desktop column wraps; one that fits, or a phone on its side, keeps one row', async ({ page }) => {
     const layout = () => page.evaluate(() => {
         const bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
@@ -912,7 +914,7 @@ test('guides: a chip bar too long for the desktop column wraps; one that fits, o
         return { rows: tops.size, hidden: bar.scrollWidth > bar.clientWidth + 1 };
     });
     for (const guide of ['staff-guide', 'paycalc-guide']) {
-        for (const [width, height] of [[1280, 800], [683, 768]]) {
+        for (const [width, height] of [[1280, 800], [683, 768], [1366, 560], [1024, 480]]) {
             await page.setViewportSize({ width, height });
             await page.goto(`/${guide}.html`);
             const desk = await layout();
@@ -929,7 +931,8 @@ test('guides: a chip bar too long for the desktop column wraps; one that fits, o
 
 // A WRAPPING BAR CHANGES HEIGHT ON ITS OWN. A window made taller across 600px wraps the bar onto a second row
 // with no change to the header, and the scroll margins, measured for one row, landed a jump under the second
-// (bug and regression check, 12 Nov 2026). The page scripts watch the bar's size as well as the header's — FIP's
+// (bug and regression check, 12 Nov 2026). 900px wide, where the height still decides: from 1024px a bar wraps
+// at any height (13 Nov 2026). The page scripts watch the bar's size as well as the header's — FIP's
 // own script too. FIP's eight chips are a few pixels either side of fitting at the narrow end of the wrap range,
 // depending on the engine's text widths (CI's Chromium fitted them at 660px where this author's did not), so the
 // test widens them, making that bar too long for the window wherever it runs: what is under test is the script's
@@ -940,7 +943,7 @@ test('guides: a window made taller, so the bar wraps, still lands a jump below t
     const rows = () => page.evaluate(() => new Set([...document.querySelectorAll('.chip-bar .chip')]
         .map(c => Math.round(c.getBoundingClientRect().top))).size);
     for (const [guide, width, widen] of /** @type {Array<[string, number, boolean]>} */ ([
-        ['staff-guide', 1024, false], ['paycalc-guide', 1024, false], ['fip-guide', 700, true]])) {
+        ['staff-guide', 900, false], ['paycalc-guide', 900, false], ['fip-guide', 700, true]])) {
         await page.setViewportSize({ width, height: 580 });
         await page.goto(`/${guide}.html`);
         await page.waitForFunction(() => document.fonts.status === 'loaded');

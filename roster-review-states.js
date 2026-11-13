@@ -5,7 +5,8 @@
  *
  * Owns: `computeCellStates` — the classification (MATCH · DIFF · CONFLICT · COVERED ·
  *   REMOVE_IMPORT · UNREADABLE · GUARDED), the `chosen` default that decides what a Save writes,
- *   and what one Save writes and says (`collectRosterWrites`, `reviewOutcome`). The `UNKNOWN|` /
+ *   what one Save writes and says (`collectRosterWrites`, `reviewOutcome`), and which answers survive
+ *   a refused Save (`carryReviewAnswers`). The `UNKNOWN|` /
  *   `RDW|` review encodings are roster-cell-rules.js's, re-exported here for the renderer.
  * Does NOT own: the parse, the review table's DOM, the entry control, or any write.
  * Edit here for: a new cell state, or a change to what is ticked by default.
@@ -709,4 +710,62 @@ export function unreadableTagClass(s) {
     const picked  = typeof s?.chosen === 'number' && !!s.options?.[s.chosen];
     const entered = s?.chosen === 'entered' && !!s.entered;
     return picked || entered ? 'act-choice' : 'act-read';
+}
+
+/** The fields a review row's CONTROLS write — the admin's answers. Every other field on a row is
+ *  `computeCellStates`'s, so a fresh read recomputes it. */
+const ANSWER_FIELDS = /** @type {const} */ (['chosen', 'preSkip', 'entered', 'draft']);
+
+/** One computed row as text, its keys in a fixed order, so two rows compare whatever order they were
+ *  built in. Every value a row holds is plain data (strings, numbers, nulls, arrays, small objects).
+ *  @param {any} v @returns {string} */
+function rowText(v) {
+    if (Array.isArray(v)) return `[${v.map(rowText).join(',')}]`;
+    if (v && typeof v === 'object') return `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${rowText(v[k])}`).join(',')}}`;
+    return JSON.stringify(v) ?? 'undefined';
+}
+
+/**
+ * The admin's answers, carried onto the review redrawn after a refused Save (v25.94, the 13 Nov review).
+ *
+ * A refused Save (`saveRosterWrites`, roster-import-save.js) re-reads the week and recomputes every
+ * row. Recomputed alone, every row went back to its DEFAULT: a row the admin had unticked came back
+ * ticked, "Use new roster" went back to "Keep saved", a reading picked or a shift entered for an
+ * unreadable cell was cleared, a swapped-day answer was cleared, and Skip all was undone. The message
+ * named only the changed days, so a second Save wrote a row the admin had deliberately left out — a
+ * misread, say — with nothing on screen to say it would.
+ *
+ * So a row keeps its answers when the fresh read gives it EXACTLY what the first read gave it — every
+ * field `computeCellStates` set, compared whole — and only a row that changed starts again from its
+ * default. That is the day the refusal named, or one whose records moved with it. Comparing the whole
+ * row rather than its record id is the conservative choice: anything that could make an answer stale
+ * (the state, the saved value, an older copy appearing, the read's verdict) resets it.
+ *
+ * SKIP ALL IS A PERSON'S, not a row's: the page draws it, and pressing it again is the one way that
+ * also skips a row that changed under a skipped person. So it is handed back rather than carried: the
+ * rows of each skipped person get the ticks they had before the skip (`preSkip` — what Restore puts
+ * back), and the page presses Skip all again once the review is drawn. A CONFLICT, GUARDED or
+ * UNREADABLE row needs nothing undone: Skip all left it answering nothing, and pressing it again does
+ * the same.
+ *
+ * @param {Map<string, any>} answered  the review as the admin left it
+ * @param {Map<string, any>} before    `computeCellStates` on what that review LOADED — its defaults
+ * @param {Map<string, any>} fresh     `computeCellStates` on the week read again; answers are copied INTO it
+ * @param {string[]} [skipped]         the people whose section was skipped
+ * @returns {{ states: Map<string, any>, changed: string[] }}  `changed`: the rows started again from their default
+ */
+export function carryReviewAnswers(answered, before, fresh, skipped = []) {
+    const skippedPeople = new Set(skipped);
+    /** @type {string[]} */
+    const changed = [];
+    for (const [key, row] of fresh) {
+        const was = answered.get(key), base = before.get(key);
+        if (!was || !base) continue;
+        if (rowText(base) !== rowText(row)) { changed.push(key); continue; }
+        for (const field of ANSWER_FIELDS) if (field in was) row[field] = was[field];
+        if (skippedPeople.has(key.slice(0, key.lastIndexOf('|'))) && (row.state === 'DIFF' || row.state === 'REMOVE_IMPORT')) {
+            row.chosen = was.preSkip ?? true;
+        }
+    }
+    return { states: fresh, changed };
 }

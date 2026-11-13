@@ -136,10 +136,10 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
     // The coordinator's per-row check is what names the day, and it fires first in every ordinary
     // save. It cannot fire when its input is STALE, and that is reachable rather than theoretical:
     // `row.dataset.alSwapAsk` is written ONCE per row by `renderWeekGrid`, while this reads
-    // `buildMemberDateMap` at save time, and the AL/absence range delete deliberately skips the
-    // re-render while edits are staged (admin-app.js, v16.82). Deleting an AL that carried
-    // `replacedType: 'shift'` from a base rest day turns a not-asked row into an asked one with no
-    // question on screen.
+    // `buildMemberDateMap` at save time, and a read landing while edits are staged deliberately leaves
+    // the grid alone (admin-override-store.js; the page's own writes redraw the days they touch,
+    // admin-own-write.js). A colleague deleting an AL that carried `replacedType: 'shift'` from a base
+    // rest day turns a not-asked row into an asked one with no question on screen.
     //
     // So the decision lives HERE, beside the projection that makes it, and the surfaces keep the
     // message — which is the whole reason this module exists (see its header: one decision, no

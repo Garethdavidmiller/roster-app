@@ -34,6 +34,7 @@ import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDE
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, isAccessFailure } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
+import { withClearedDays } from './admin-own-write.js';
 // The two-tap ✕ and the feedback line's fade, shared with the Recorded-dates lists (their header says why).
 import { armConfirm, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 
@@ -56,8 +57,7 @@ let _currentIsManager = false;
 /** @type {(msg: string) => void} */          let _showError      = () => {};
 /** @type {(e: MouseEvent) => void} */        let _onEditRow      = () => {};
 /** @type {() => void} */                     let _onAfterSave    = () => {};
-/** @type {() => void} */                     let renderWeekGrid  = () => {};
-/** @type {() => boolean} */                  let _hasStagedEdits = () => false;
+/** @type {(rows: any[]) => string[]} */      let _onOwnWrite     = () => [];
 /** @type {(iso: string) => string} */        let formatDisplay   = (s) => s;
 
 /** Delegated listeners are attached once per page life — see the note in initWeekEditor. */
@@ -70,8 +70,8 @@ let _wired = false;
  * @param {(msg: string) => void} deps.showError
  * @param {(e: MouseEvent) => void} deps.onEditRow
  * @param {() => void} deps.onAfterSave
- * @param {() => void} deps.onRenderWeekGrid
- * @param {() => boolean} deps.hasStagedEdits
+ * @param {(rows: any[]) => string[]} deps.onOwnWrite  the week grid follows a delete: `syncWeekAfterOwnWrite`
+ *        (admin-own-write.js), handed the deleted rows; returns the days whose staged change it cleared
  * @param {(iso: string) => string} deps.formatDate
  * @returns {void}
  */
@@ -81,8 +81,7 @@ export function initSavedChanges(deps) {
     _showError        = deps.showError;
     _onEditRow        = deps.onEditRow;
     _onAfterSave      = deps.onAfterSave;
-    renderWeekGrid    = deps.onRenderWeekGrid;
-    _hasStagedEdits   = deps.hasStagedEdits;
+    _onOwnWrite       = deps.onOwnWrite;
     formatDisplay     = deps.formatDate;
     // Deps above every time; wiring once — see the note in `initWeekEditor` for why (v21.94).
     // `_initOverridesTable` delegates on `#overrideTableBody` and the bulk bar, so a second attach
@@ -303,16 +302,15 @@ async function _handleDelete(e) {
         await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(shown)), { held: false });
         removeFromCache(ids);
         renderTable();
+        // The week grid follows the delete (admin-own-write.js): redrawn with nothing staged; otherwise only this day's
+        // row, never over staged edits elsewhere (v16.82), and a change staged on THIS day is cleared and named here.
+        // Before `_onAfterSave`, which asks whether anything is still staged.
+        const cleared = _onOwnWrite(shown);
         _onAfterSave();
-        // Don't rebuild the week grid over unsaved staged edits — deleting a Saved-Changes row is
-        // unrelated to whatever the admin is mid-editing in the grid (v16.82). The delete is already
-        // reflected in the table above; the grid refreshes next time it's rebuilt.
-        const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
-        const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
-        if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
         if (deleted) {
             const typeMeta = TYPES[deleted.type];
-            _sayList(`✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})${_olderCopies(ids.length - 1)}`, 'success', 6000);
+            _sayList(withClearedDays(`✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})${_olderCopies(ids.length - 1)}`, cleared),
+                'success', cleared.length ? 0 : 6000);   // a cleared change is said until the next message, not for six seconds
         }
         if (hadFocus) _refocusAfterDelete(pos);
     } catch (err) {
@@ -333,7 +331,6 @@ function _initOverridesTable() {
     const bulkDeleteBtn      = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkDeleteBtn'));
     const overridesMonthFilter = document.getElementById('overridesMonthFilter');
     const fieldMember        = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
-    const fieldDate          = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
 
     // Delegated listeners — one per event type on the whole table body, replaces
     // attaching N per-row listeners on every renderTable() call.
@@ -407,23 +404,24 @@ function _initOverridesTable() {
                 }), { batched: chunks.length > 1, held: false });
                 removeFromCache(ids);
                 renderTable();
+                const cleared = _onOwnWrite([...shown.values()]);   // the week follows, as after one delete (_handleDelete)
                 _onAfterSave();
-                // Preserve unsaved staged week-grid edits across a bulk delete (v16.82) — see _handleDelete.
-                if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
-                _sayList(`✓ Deleted ${picked.length} saved change${picked.length !== 1 ? 's' : ''}${_olderCopies(ids.length - picked.length)}`, 'success', 6000);
+                _sayList(withClearedDays(`✓ Deleted ${picked.length} saved change${picked.length !== 1 ? 's' : ''}${_olderCopies(ids.length - picked.length)}`, cleared),
+                    'success', cleared.length ? 0 : 6000);
                 refocus = document.getElementById('listFeedback');
             } catch (err) {
                 console.error('[Admin] Bulk delete failed:', err);
-                if (committed.length) { removeFromCache(committed); renderTable(); }
+                /** @type {string[]} */ let cleared = [];   // the week follows what did land, as on success
+                if (committed.length) { removeFromCache(committed); renderTable(); cleared = _onOwnWrite(committed.map(id => shown.get(id))); }
                 const refused = /** @type {any} */ (err)?.code === DELETE_REFUSED, cause = refused ? PART_REFUSED : _cause(err);
                 const unsure = unconfirmedWriteLine(err, 'this delete', 'Saved Changes');
                 // AN UNKNOWN OUTCOME FIRST — the chunk in flight may still land, so nothing can be called "still
                 // listed" — then PART DONE (v25.89, review): a refusal's own line says "nothing was deleted".
-                _sayList(unsure ? '⚠ ' + unsure
+                _sayList(withClearedDays(unsure ? '⚠ ' + unsure
                     : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
                     : refused ? '⚠ ' + /** @type {any} */ (err).line
                     : (/** @type {any} */ (err))?.code === 'unavailable' ? '⚠ You appear to be offline — reconnect and try again.'
-                    : '⚠ Bulk delete failed — ' + cause, 'error');
+                    : '⚠ Bulk delete failed — ' + cause, cleared), 'error');
                 refocus = committed.length ? document.getElementById('listFeedback') : bulkDeleteBtn;
             } finally {
                 // RESTORE THE LABEL ON EVERY PATH, NOT JUST THE FAILING ONE (v21.94). Nothing else

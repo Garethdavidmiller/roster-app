@@ -145,10 +145,12 @@ export const teamMembers = [
     { name: 'A. Murray',               currentWeek: 7,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Clarke',               currentWeek: 8,  rosterType: 'dispatcher', role: 'Dispatcher' },
     // A. Atkins — moves off the rotating Dispatcher link on Sun 15 Nov 2026, through rosterChanges, onto
-    // a Mon–Fri row of his own: `fixedRoster[2]`, weekends RD (owner, 12 Nov 2026). A. Guinea takes his
+    // the Mon–Fri row `fixedRoster[2]`, 09:00–16:00, weekends RD (owner, 12 Nov 2026). A. Guinea takes his
     // line, 9, the same day. The base fields describe his line BEFORE 15 Nov, so the weeks before then
     // still display as rostered. To end the move, ADD a `rosterChanges` entry dated from the change;
     // deleting this one would redraw every date since 15 Nov 2026.
+    // NOTE `fixedRoster[2]` is SHARED, with S. Boyle and S. Faure (above): it is not a row of his own, and
+    // changing its hours changes all three. Hours of his own need a pattern of his own.
     { name: 'A. Atkins',               currentWeek: 9,  rosterType: 'dispatcher', role: 'Dispatcher',
       rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'K. Yeboah',               currentWeek: 10, rosterType: 'dispatcher', role: 'Dispatcher' },

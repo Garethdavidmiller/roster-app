@@ -259,6 +259,12 @@ const PAGE_IDS = ['overrideTableBody', 'bulkDeleteBtn', 'listFeedback', 'selectA
  * properties are cleared rather than the objects replaced.
  */
 let _wiredOnce = false;
+/** What each delete handed the week grid (`onOwnWrite`, admin-own-write.js), in order. @type {any[][]} */
+let _ownWrites = [];
+/** The order the week grid and `onAfterSave` heard about a delete. @type {string[]} */
+let _order = [];
+/** The days the week grid answers it cleared, given what it was handed. @type {(rows: any[]) => string[]} */
+let _clears = () => [];
 /**
  * @param {{ isAdmin?: boolean, isManager?: boolean }} [roles]
  */
@@ -289,10 +295,13 @@ function setup(roles = {}) {
     // holds: the listeners belong to the element objects from the first call, so `_els` is cleared
     // rather than rebuilt.
     _wiredOnce = true;
+    _ownWrites = []; _order = []; _clears = () => [];
     initSavedChanges({
         currentIsAdmin: roles.isAdmin ?? true, currentIsManager: roles.isManager ?? false,
-        showError: () => {}, onEditRow: () => {}, onAfterSave: () => {},
-        onRenderWeekGrid: () => {}, hasStagedEdits: () => false, formatDate: (/** @type {string} */ s) => s,
+        showError: () => {}, onEditRow: () => {}, onAfterSave: () => { _order.push('afterSave'); },
+        // RECORDED, not discarded: what a delete hands the week grid is the claim block 16 checks.
+        onOwnWrite: (/** @type {any[]} */ rows) => { _ownWrites.push(rows); _order.push('week'); return _clears(rows); },
+        formatDate: (/** @type {string} */ s) => s,
     });
     // `_tableShowAllOverrides` is module state and survives a test. Put it back through the
     // module's own reset, or one test's toggle decides the next test's answer.
@@ -962,5 +971,60 @@ describe('15. a stored date is escaped where the row prints it', () => {
         _rows = [{ id: 'x', memberName: 'G. Miller', date: '<img src=x>', type: 'annual_leave', value: 'AL', source: 'manual' }];
         renderTable();
         assert.doesNotMatch(el('overrideTableBody')._kids[0].innerHTML, /<img/);
+    });
+});
+
+// ── 16 · THE WEEK GRID FOLLOWS THE PAGE'S OWN DELETE (Nov 2026, review) ────────────────────────────────
+// Both controls used to leave the week grid alone whenever a change was staged there, so a row went on
+// comparing with a record this page had just deleted, and the week's next Save refused the admin's own
+// work as "Someone else has changed …". Each now hands the week what it deleted (`onOwnWrite`,
+// admin-own-write.js, which is unit-tested and driven in e2e/admin.spec.js); what only this file can see is
+// that each control HANDS it the right rows — after the cache has dropped them — and says what came back.
+describe('16. the week grid follows the page\'s own delete, and a cleared change is named', () => {
+    const LINE = 'Your unsaved change to Tue 1 Sep in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.';
+
+    test('the row ✕ hands the week the rows it deleted, as SHOWN — the older copy too — once the cache has dropped them', async () => {
+        _rows = [change('G. Miller', '2026-09-01')];
+        await rowDelete('G. Miller-2026-09-01');
+        assert.deepEqual(_ownWrites, [[change('G. Miller', '2026-09-01')]]);
+        assert.deepEqual(_removed, [['G. Miller-2026-09-01']], 'premise: the cache dropped it');
+        assert.deepEqual(_order, ['week', 'afterSave'], 'after the week, `onAfterSave` asks whether anything is still staged');
+    });
+
+    test('a change it cleared is named on the line, which then stays until the next message', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _rows = [change('G. Miller', '2026-09-01')];
+        _clears = () => ['2026-09-01'];
+        await rowDelete('G. Miller-2026-09-01');
+        assert.equal(el('listFeedback').textContent, `✓ Deleted: G. Miller — 2026-09-01 (Annual Leave). ${LINE}`);
+        t.mock.timers.tick(10_000);
+        assert.equal(el('listFeedback').className, 'list-feedback success', 'the line faded before it could be read');
+    });
+
+    test('Delete selected hands the week every row it deleted, and names what it cleared', async () => {
+        _rows = [change('G. Miller', '2026-09-01'), change('G. Miller', '2026-09-02')];
+        _clears = () => ['2026-09-01'];
+        await bulkDelete(['G. Miller-2026-09-01', 'G. Miller-2026-09-02']);
+        assert.deepEqual(_ownWrites, [[change('G. Miller', '2026-09-01'), change('G. Miller', '2026-09-02')]]);
+        assert.equal(el('listFeedback').textContent, `✓ Deleted 2 saved changes. ${LINE}`);
+    });
+
+    test('a ticked delete that stops part way hands the week only what landed, and still names what it cleared', async () => {
+        // One member each, so no two rows are copies of one day and the chunks are simply 200, 200 and 50.
+        const many = Array.from({ length: 450 }, (_, i) => ({ ...change(`M${i}`, '2026-09-01'), id: `r${i}` }));
+        _rows = many;
+        let n = 0;
+        _commit = async () => { if (++n === 2) throw new Error('network'); };
+        _clears = () => ['2026-09-01'];
+        await bulkDelete(many.map(r => r.id));
+        assert.deepEqual(_ownWrites, [many.slice(0, 200)], 'the week was handed rows that are still on the server');
+        assert.match(el('listFeedback').textContent, /^⚠ Deleted 200 of 450 before it stopped — the rest are still listed\. .* Your unsaved change to Tue 1 Sep in Change a Shift was cleared/);
+    });
+
+    test('a refused delete hands the week nothing: nothing changed', async () => {
+        _rows = [change('G. Miller', '2026-09-01')];
+        _refuseDelete = 'Someone else has changed this since your list loaded, so nothing was deleted.';
+        try { await rowDelete('G. Miller-2026-09-01'); await bulkDelete(['G. Miller-2026-09-01']); } finally { _refuseDelete = null; }
+        assert.deepEqual(_ownWrites, []);
     });
 });

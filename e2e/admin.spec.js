@@ -2895,6 +2895,233 @@ test('admin: a booked period a colleague has since changed is not deleted, and t
     await expect(page.locator('#alBookedBody .btn-period-delete')).toHaveCount(1);
 });
 
+// ── THE PAGE'S OWN WRITE IS NOT A COLLEAGUE'S (Nov 2026, review) ──────────────────────────────────────
+// A delete in Saved Changes, a leave or absence range, a Recorded dates delete and a leave-year move each
+// leave the week grid alone while a change is staged in it, so as not to throw that change away. The week
+// save compares each day with what its ROW showed, so the grid went on comparing with the record the page
+// itself had just deleted or replaced: the next Save refused the admin's own work as "Someone else has
+// changed …", and its advice — reload — threw every staged change away. The rows of the days such a write
+// touched now follow it, and only those (admin-own-write.js): a staged change on one of them is cleared and
+// named, never saved over the day as it now stands, and every other row keeps the record it was drawn from,
+// which is what keeps a colleague's change refused.
+const OWN_MON = 'm_2026-08-24_G.%20Miller', OWN_FRI = 'm_2026-08-28_G.%20Miller';
+/** Monday 24 Aug's annual leave on record, and the week of Thu 27 Aug open on it.
+ *  @param {import('@playwright/test').Page} page @param {any[]} [more] further saved records */
+async function openWeekWithMondayLeave(page, more = []) {
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: rows };
+    }, [{ id: OWN_MON, memberName: 'G. Miller', date: '2026-08-24', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }, ...more]);
+    await openAdminOnThisWeek(page);
+}
+/** @param {import('@playwright/test').Page} page @param {string} date */
+const weekRow = (page, date) => page.locator(`.week-panel .day-row[data-date="${date}"]`);
+/** Every day this page has written, as "date type", in order. @param {import('@playwright/test').Page} page */
+const writtenDays = (page) => page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || [])
+    .map((/** @type {any} */ w) => `${w.date} ${w.type}`));
+/** The two-tap ✕ of one Saved Changes row, the card already open. @param {import('@playwright/test').Page} page @param {string} id */
+async function deleteSavedChange(page, id) {
+    const del = page.locator(`#overrideTableBody .btn-delete[data-id="${id}"]`);
+    await clickInView(del);
+    await expect(del).toHaveText('Delete?');
+    await clickInView(del);
+}
+/** Book Annual Leave for Mon 24 – Tue 25 Aug on the leave card, and keep editing the week. @param {import('@playwright/test').Page} page */
+async function bookMondayTuesdayLeave(page) {
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-08-24"]').click();
+    await page.locator('#alRpGrid .rp-day[data-iso="2026-08-25"]').click();
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect(page.locator('#alFeedback')).toContainText('Recorded 2 days of Annual Leave', { timeout: 10000 });
+    // The card then shows the booked week in Change a Shift, which asks first while changes are staged.
+    await expect(page.locator('#unsavedBanner')).toBeVisible();
+    await page.locator('#unsavedKeepBtn').click();
+}
+
+test('admin: deleting a saved change for another day of the week keeps the staged edit, and the week then saves', async ({ page }) => {
+    await openWeekWithMondayLeave(page);
+    const monday = weekRow(page, '2026-08-24'), friday = weekRow(page, '2026-08-28');
+    await expect(monday.locator('.overwrite-badge')).toContainText('Saved');
+    await clickInView(friday.locator('.type-pill-btn[data-type="sick"]'));   // an absence staged on Friday
+    await page.locator('#overridesToggleHeader').click();
+    await deleteSavedChange(page, OWN_MON);
+    await expect(page.locator('#listFeedback')).toContainText('Deleted: G. Miller');
+    await expect(page.locator('#listFeedback'), 'nothing staged was on that day').not.toContainText('unsaved');
+    // Monday is drawn as it now stands, with nothing saved; Friday's staged absence is untouched.
+    await expect(monday, 'the deleted leave still showed as saved').not.toHaveClass(/has-override/);
+    await expect(monday.locator('.overwrite-badge')).toHaveCount(0);
+    await expect(friday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    expect(await writtenDays(page)).toEqual(['2026-08-28 sick']);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths), 'and the leave stays deleted')
+        .toEqual([`overrides/${OWN_MON}`]);
+});
+
+test('admin: booking leave on other days of the week keeps the staged edit, and the week then saves', async ({ page }) => {
+    await openAdminOnThisWeek(page);
+    const friday = weekRow(page, '2026-08-28');
+    await clickInView(friday.locator('.type-pill-btn[data-type="sick"]'));
+    await bookMondayTuesdayLeave(page);
+    await expect(page.locator('#alFeedback'), 'nothing staged was on those days').not.toContainText('unsaved');
+    // The booked days are drawn as saved leave; Friday's staged absence is untouched.
+    for (const date of ['2026-08-24', '2026-08-25']) {
+        await expect(weekRow(page, date).locator('.overwrite-badge'), `${date} did not show the leave just booked`).toContainText('Saved');
+        await expect(weekRow(page, date).locator('.type-pill-btn[data-type="annual_leave"]')).toHaveAttribute('aria-pressed', 'true');
+    }
+    await expect(friday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    expect(await writtenDays(page)).toEqual(['2026-08-24 annual_leave', '2026-08-25 annual_leave', '2026-08-28 sick']);
+});
+
+// THE SAME DAY: CLEARED AND NAMED, NEVER SAVED OVER IT. The staged change was made over the day as it was;
+// saving it over the day as the page's own write left it would silently undo that write. The day is drawn
+// as it now stands and named where the write was made, the other staged rows stay, and setting the day
+// again now saves, because the row compares with what the day holds now.
+test('admin: deleting the saved change of a day with a staged edit clears that edit and says so, and the day then saves', async ({ page }) => {
+    await openWeekWithMondayLeave(page);
+    const monday = weekRow(page, '2026-08-24'), friday = weekRow(page, '2026-08-28');
+    await clickInView(monday.locator('.type-pill-btn[data-type="sick"]'));   // re-type Monday's leave as an absence
+    await expect(monday.locator('.overwrite-badge')).toContainText('Updating');
+    await clickInView(friday.locator('.type-pill-btn[data-type="sick"]'));
+    await page.locator('#overridesToggleHeader').click();
+    await deleteSavedChange(page, OWN_MON);
+    await expect(page.locator('#listFeedback')).toContainText(
+        'Your unsaved change to Mon 24 Aug in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.');
+    await expect(monday.locator('.type-pill-btn[aria-pressed="true"]'), 'Monday still showed the cleared change').toHaveCount(0);
+    await expect(monday.locator('.overwrite-badge')).toHaveCount(0);
+    await expect(friday.locator('.type-pill-btn[data-type="sick"]'), 'the other staged day was lost').toHaveAttribute('aria-pressed', 'true');
+    await clickInView(monday.locator('.type-pill-btn[data-type="sick"]'));   // set again, over the day as it now stands
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText('2 changes saved for G. Miller', { timeout: 10000 });
+    await expect(page.locator('#formFeedback')).not.toContainText('Someone else');
+    expect(await writtenDays(page)).toEqual(['2026-08-24 sick', '2026-08-28 sick']);
+});
+
+test('admin: booking leave over a day with a staged edit clears that edit and names it in the receipt', async ({ page }) => {
+    await openAdminOnThisWeek(page);
+    const tuesday = weekRow(page, '2026-08-25'), friday = weekRow(page, '2026-08-28');
+    await clickInView(tuesday.locator('.type-pill-btn[data-type="sick"]'));
+    await clickInView(friday.locator('.type-pill-btn[data-type="sick"]'));
+    await bookMondayTuesdayLeave(page);
+    await expect(page.locator('#alFeedback .save-receipt')).toContainText(
+        'Your unsaved change to Tue 25 Aug in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.');
+    await expect(tuesday.locator('.type-pill-btn[data-type="annual_leave"]'), 'Tuesday did not show the leave just booked').toHaveAttribute('aria-pressed', 'true');
+    await expect(tuesday.locator('.overwrite-badge')).toContainText('Saved');
+    await expect(friday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    expect(await writtenDays(page), "the staged absence was written over the leave just booked")
+        .toEqual(['2026-08-24 annual_leave', '2026-08-25 annual_leave', '2026-08-28 sick']);
+});
+
+// …AND A COLLEAGUE'S CHANGE IS STILL REFUSED. A colleague has changed Monday, a read has brought it into the
+// page under Monday's staged edit, and the page then deletes FRIDAY's saved change itself. Only Friday's row
+// follows that delete: redrawing Monday from the page's records would have put the colleague's change under
+// the staged edit, and the save would then have written over it.
+test('admin: a colleague\'s change on a staged day is still refused after the page deletes another day\'s saved change', async ({ page }) => {
+    const fridayLeave = { id: OWN_FRI, memberName: 'G. Miller', date: '2026-08-28', type: 'annual_leave', value: 'AL', note: '', source: 'manual' };
+    await openWeekWithMondayLeave(page, [fridayLeave]);
+    const monday = weekRow(page, '2026-08-24'), friday = weekRow(page, '2026-08-28');
+    await clickInView(monday.locator('.type-pill-btn[data-type="sick"]'));   // re-type Monday's leave as an absence
+    await page.evaluate((fri) => {
+        const theirs = { id: 'm_2026-08-24_G.%20Miller', memberName: 'G. Miller', date: '2026-08-24', type: 'rdw', value: '14:00-22:00', note: '', source: 'manual', changedBy: 'S. Manager' };
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = [theirs, fri];
+        w.__E2E.txDocs = [theirs, fri];
+    }, fridayLeave);
+    await page.locator('#overridesToggleHeader').click();
+    await page.locator('#showAllOverridesBtn').click();   // the read that brings the colleague's change into the page
+    await waitForReadsToLand(page, 'the All staff read never landed');
+    await deleteSavedChange(page, OWN_FRI);
+    await expect(page.locator('#listFeedback')).toContainText('Deleted: G. Miller');
+    await expect(friday.locator('.overwrite-badge'), 'Friday follows the delete').toHaveCount(0);
+    await expect(monday.locator('.type-pill-btn[data-type="sick"]'), "premise: Monday's staged edit is still on screen").toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText(
+        'Someone else has changed Mon 24 Aug since the page loaded, so nothing was saved.', { timeout: 10000 });
+    expect(await writtenDays(page), "the colleague's RDW was overwritten").toEqual([]);
+});
+
+// …AND A CLEARED CHANGE TAKES THE OVER-ALLOWANCE QUESTION WITH IT. "Save anyway" writes the batch captured
+// when Save asked, and a change cleared since is still in it: answering would write what the page has just
+// said it cleared. Clearing is a change to the staged rows, so the question goes, as it does after a tap.
+test('admin: clearing a staged day withdraws the over-allowance question that was waiting to save it', async ({ page }) => {
+    const taken = [];
+    for (const m of ['06', '07']) for (let d = 1; d <= 28; d++) taken.push(`2026-${m}-${String(d).padStart(2, '0')}`);
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [
+            ...dates.map((date, i) => ({ id: `al-${i}`, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' })),
+            { id: 'm_2026-08-24_G.%20Miller', memberName: 'G. Miller', date: '2026-08-24', type: 'sick', value: 'SICK', note: '', source: 'manual' }] };
+    }, taken);
+    await openAdminOnThisWeek(page);
+    const monday = weekRow(page, '2026-08-24');
+    await clickInView(monday.locator('.type-pill-btn[data-type="annual_leave"]'));   // the absence re-typed as leave, over the allowance
+    await clickInView(page.locator('#saveBtn'));
+    const bar = page.locator('#alConfirmBar');
+    await expect(bar, 'premise: the leave is over the allowance, so Save asks').toHaveClass(/visible/);
+    await page.locator('#overridesToggleHeader').click();
+    await deleteSavedChange(page, 'm_2026-08-24_G.%20Miller');
+    await expect(page.locator('#listFeedback')).toContainText('Your unsaved change to Mon 24 Aug in Change a Shift was cleared');
+    await expect(bar, 'the question still offered to save the cleared change').not.toHaveClass(/visible/);
+    await expect(page.locator('#alConfirmSaveBtn')).toBeDisabled();
+    expect(await writtenDays(page)).toEqual([]);
+});
+
+// The two other own writes, each through its own card: a Recorded dates delete (admin-app.js) and a
+// leave-year move (admin-leave-year.js). The cleared day is named on the card's line, not in its toast.
+test('admin: a Recorded dates delete over a day with a staged edit clears that edit and names it on the card', async ({ page }) => {
+    await openWeekWithMondayLeave(page);
+    const monday = weekRow(page, '2026-08-24'), friday = weekRow(page, '2026-08-28');
+    await clickInView(monday.locator('.type-pill-btn[data-type="sick"]'));
+    await clickInView(friday.locator('.type-pill-btn[data-type="sick"]'));
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    const del = page.locator('#alBookedBody .btn-period-delete').first();
+    await clickInView(del);
+    await expect(del).toHaveText('Confirm?');
+    await clickInView(del);
+    await expect(page.locator('#alFeedback')).toHaveText('✓ Deleted 1 AL day for G. Miller. '
+        + 'Your unsaved change to Mon 24 Aug in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.');
+    await expect(page.locator('#saveToast')).toHaveText('✓ Deleted 1 AL day for G. Miller');
+    await expect(monday.locator('.type-pill-btn[aria-pressed="true"]')).toHaveCount(0);
+    await expect(friday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    expect(await writtenDays(page)).toEqual(['2026-08-28 sick']);
+});
+
+test('admin: a leave-year move of a day with a staged edit clears that edit and names it on the panel', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-03T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), leaveYearChoice: true, docs: [{ id: 'm_2027-01-05_G.%20Miller', memberName: 'G. Miller',
+            date: '2027-01-05', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }] };
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-05';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const tuesday = weekRow(page, '2027-01-05'), wednesday = weekRow(page, '2027-01-06');
+    await expect(tuesday.locator('.overwrite-badge')).toContainText('Saved');
+    await clickInView(tuesday.locator('.type-pill-btn[data-type="sick"]'));
+    await clickInView(wednesday.locator('.type-pill-btn[data-type="sick"]'));
+    await page.locator('#alToggleHeader').click();
+    await clickInView(page.locator('#alLeaveYear .leaveyear-opt[data-date="2027-01-05"][data-year="2026"]'));
+    await expect(page.locator('#alLeaveYearFeedback')).toHaveText('Saved — Tue 5 Jan now comes out of 2026’s allowance. '
+        + 'Your unsaved change to Tue 5 Jan in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.');
+    await expect(tuesday.locator('.type-pill-btn[data-type="annual_leave"]'), 'Tuesday shows the moved leave').toHaveAttribute('aria-pressed', 'true');
+    await expect(wednesday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
+    expect(await writtenDays(page)).toEqual(['2027-01-05 annual_leave', '2027-01-06 sick']);
+});
+
 // THE FEEDBACK LINE HAS ONE FADE (whole-app check, Nov 2026; routed from admin-2, admin-2-7). A delete's
 // "✓ Deleted" set its own untracked six-second timer, which then took down whatever the line said next —
 // here the refusal of a second delete, gone three seconds after it appeared.

@@ -848,7 +848,8 @@ const sendTimetableReminder = onSchedule(
             // Counts only: the admin who pressed it is the only possible caller, and the paths of any
             // failures travel back in the answer, where the admin can act on them.
             console.log(`[rotateDocumentLinks] ${rotate ? 'rotated' : 'previewed'}: ${report.files} files, `
-                + `${report.linked} linked, ${report.unlinkedWithKey} unlinked with a key, ${report.held} held; `
+                + `${report.linked} linked, ${report.unlinkedWithKey} unlinked with a key, `
+                + `${report.unlinkedTooNew} too new to clear, ${report.held} held; `
                 + `rotated ${report.rotated}, cleared ${report.cleared}, changed ${report.changedDuringRun}, `
                 + `failed ${report.failed.length}`);
             return res.status(200).json(report);

@@ -16,7 +16,21 @@
  * finished, so it is never reported as failed — and never as done. It says so, and that running it
  * again is safe, which it is: a run only ever issues fresh keys. A refusal (4xx, but not a 408
  * timeout) and the endpoint's own "could not read" (503 with `changed: false` — the platform has
- * 503s of its own) both mean nothing ran, and say that.
+ * 503s of its own) both mean nothing ran, and say that. So does a request that never LEFT — the
+ * sign-in token could not be had, so nothing was sent (`requestLinkRotation` marks it). A failed fetch
+ * is still nobody-knows: the browser says "Failed to fetch" both when it never connected and when the
+ * connection dropped after the request had gone.
+ *
+ * ── A PREVIEW THAT COULD NOT CHECK SAYS SO ───────────────────────────────────
+ * Files whose keys could not be read are counted in no box, so a preview that read none of them
+ * looks exactly like one that found nothing worth replacing. When nothing can be offered and some
+ * files went unchecked, the card leads with that and asks for another check — never "No file has a
+ * link that still works", which may be untrue of every one of them.
+ *
+ * ── A NEWER FIELD MAY BE ABSENT ──────────────────────────────────────────────
+ * `unlinkedTooNew` (unused files too new to lose their key — the server's header) arrived after the
+ * card did, and Functions and Hosting deploy in parallel, so an older server's report lacks it: read
+ * as none. Present and malformed, it makes the answer unreadable like any other count.
  *
  * ── AN UPDATE WAITS FOR THE ANSWER (v25.92) ──────────────────────────────────
  * A run can take minutes, and its report is the only record of what it did: a check made after a
@@ -59,12 +73,30 @@ const heldLine = (n) => (n === 1
     : `${n} files are left as they are, old links and all: documents’ links this can’t read may open them.`);
 
 /**
- * Ask the server for a preview, or for a run.
+ * Unused files from the last day, whose links a run leaves working: an upload may still be saving
+ * the document that names one (the server's header).
+ * @param {number} n @param {boolean} ran  a run's report rather than a preview's
+ */
+const tooNewLine = (n, ran) => (n === 1
+    ? `1 file from the last day isn’t used by the app, so its link ${ran ? 'was' : 'is'} left working, in case an upload is still saving the document that uses it. Check again tomorrow to finish it.`
+    : `${n} files from the last day aren’t used by the app, so their links ${ran ? 'were' : 'are'} left working, in case uploads are still saving the documents that use them. Check again tomorrow to finish them.`);
+
+/** What `requestLinkRotation` throws when the request never left, so nothing reached the server. */
+const NOT_SENT = 'doc-links/not-sent';
+
+/**
+ * Ask the server for a preview, or for a run. A token that cannot be had is thrown as NOT_SENT: no
+ * request left, so a run cannot have started (`runFailure`).
  * @param {{ rotate: boolean, getToken: () => Promise<string>, fetchFn?: typeof fetchWithTimeout }} opts
  * @returns {Promise<any>} the server's report
  */
 export async function requestLinkRotation({ rotate, getToken, fetchFn = fetchWithTimeout }) {
-    const token = await getToken();
+    let token;
+    try {
+        token = await getToken();
+    } catch (err) {
+        throw Object.assign(new Error('The request was not sent: no sign-in token.'), { code: NOT_SENT, cause: err });
+    }
     const r = await fetchFn(ROTATE_LINKS_URL, {
         method:  'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -74,11 +106,19 @@ export async function requestLinkRotation({ rotate, getToken, fetchFn = fetchWit
     return r.json();
 }
 
-/** A report this card can read — every count a number, and the failures a list. @param {any} r */
+/** A count this card can read. @param {any} n */
+const isCount = (n) => Number.isInteger(n) && n >= 0;
+
+/**
+ * A report this card can read — every count a number, and the failures a list. `unlinkedTooNew` may
+ * be absent (an older server — the header), but not malformed.
+ * @param {any} r
+ */
 function isReport(r) {
     return !!r && typeof r === 'object' && Array.isArray(r.failed)
         && ['files', 'linked', 'unlinkedWithKey', 'held', 'recordsMissingFile', 'recordsUnreadable',
-            'rotated', 'cleared', 'changedDuringRun'].every(k => Number.isInteger(r[k]) && r[k] >= 0);
+            'rotated', 'cleared', 'changedDuringRun'].every(k => isCount(r[k]))
+        && (r.unlinkedTooNew === undefined || isCount(r.unlinkedTooNew));
 }
 
 /**
@@ -90,6 +130,8 @@ function isReport(r) {
 export function describePreview(report) {
     if (!isReport(report) || report.rotate !== false) return null;
     const { files, linked, unlinkedWithKey, recordsMissingFile, recordsUnreadable } = report;
+    const tooNew = report.unlinkedTooNew ?? 0;
+    const unchecked = report.failed.length;
     const lines = [];
     if (linked) {
         lines.push(linked === 1
@@ -101,6 +143,7 @@ export function describePreview(report) {
             ? '1 older file is no longer used by the app. Its link will simply stop working.'
             : `${unlinkedWithKey} older files are no longer used by the app. Their links will simply stop working.`);
     }
+    if (tooNew) lines.push(tooNewLine(tooNew, false));
     if (recordsMissingFile) {
         lines.push(recordsMissingFile === 1
             ? '1 document points at a file that is no longer there, so its link already doesn’t work.'
@@ -112,16 +155,21 @@ export function describePreview(report) {
             : `${recordsUnreadable} documents have links this can’t read. They will be left as they are.`);
     }
     if (report.held) lines.push(heldLine(report.held));
-    if (report.failed.length) lines.push(`${count(report.failed.length, 'file', 'files')} couldn’t be checked.`);
     const canReplace = linked + unlinkedWithKey > 0;
     if (canReplace) {
+        if (unchecked) lines.push(`${count(unchecked, 'file', 'files')} couldn’t be checked.`);
         lines.push('Nothing has changed yet. Staff won’t notice the change: the app opens documents with fresh links of its own.');
+    } else if (unchecked) {
+        // Unchecked files are in no box above, so "nothing to replace" may be untrue of every one.
+        lines.unshift(`${count(unchecked, 'file', 'files')} couldn’t be checked, so it isn’t known yet whether there is anything to replace. Check the links again in a minute.`);
     } else {
         lines.unshift(files === 0
             ? 'No Huddle, Circular or Newsletter files were found, so there is nothing to replace.'
             : report.held
                 ? 'There is nothing this can safely replace.'
-                : 'No file has a link that still works, so there is nothing to replace.');
+                : tooNew
+                    ? 'There is nothing to replace yet.'
+                    : 'No file has a link that still works, so there is nothing to replace.');
     }
     return { lines, canReplace };
 }
@@ -134,6 +182,7 @@ export function describePreview(report) {
 export function describeResult(report) {
     if (!isReport(report) || report.rotate !== true) return null;
     const { rotated, cleared, changedDuringRun, failed } = report;
+    const tooNew = report.unlinkedTooNew ?? 0;
     const lines = [];
     if (rotated) {
         lines.push(rotated === 1
@@ -145,6 +194,7 @@ export function describeResult(report) {
             ? '1 unused file had its link switched off.'
             : `${cleared} unused files had their links switched off.`}`);
     }
+    if (tooNew) lines.push(tooNewLine(tooNew, true));
     if (changedDuringRun) {
         lines.push(changedDuringRun === 1
             ? '1 file changed while this ran — a new upload, perhaps — so it was left alone. Check the links again to finish it.'
@@ -188,11 +238,15 @@ const UNKNOWN = 'It isn’t known whether it finished. Press Replace the links a
 
 /**
  * Why a RUN failed — or that nobody knows whether it did. "Nothing was changed" is said only where
- * the endpoint itself said so: the platform answers a 503 of its own when an instance dies, which may
- * be halfway through the writes, and a 408 is a timeout, which may come mid-run too.
+ * it is known: the endpoint itself said so, or the request never left. The platform answers a 503 of
+ * its own when an instance dies, which may be halfway through the writes, and a 408 is a timeout,
+ * which may come mid-run too.
  * @param {any} err
  */
 export function runFailure(err) {
+    if (err && err.code === NOT_SENT) {
+        return 'Couldn’t replace the links: the request was never sent, so nothing was changed. Check your connection and try again.';
+    }
     const { status, body } = answerOf(err);
     if (status === 503 && body && body.changed === false) {
         return 'Couldn’t read the documents, so nothing was changed. Try again in a minute.';

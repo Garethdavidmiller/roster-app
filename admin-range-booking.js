@@ -35,7 +35,7 @@ import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { rangeSundayCorrections } from './admin-al-projection.js';
 import { holdFeedback, fadeFeedback } from './admin-booked-periods.js';
-
+import { clearedDaysLine, withClearedDays } from './admin-own-write.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim-retry.js';
 /**
@@ -378,7 +378,7 @@ export function createRangeBookingSection(cfg) {
         const receipt = _receipt(member, plan);
 
         try {
-            const { workingCount, sundayCount } = await recordRangeOverrides({
+            const { workingCount, sundayCount, cleared = [] } = await recordRangeOverrides({
                 type: cfg.overrideType, value: cfg.overrideValue, memberName: member, dates, changedBy: cfg.getCurrentUser() ?? '',
                 swappedDates: [...swapAnswers].filter(([, yes]) => yes).map(([d]) => d),
             });
@@ -393,7 +393,8 @@ export function createRangeBookingSection(cfg) {
             // the one fact about them that comes back, and a receipt may not name a day it did not change.
             const sundays = sundayCount === plan.sundays.length ? receipt.sundays
                 : sundayCount ? [`${sundayCount === 1 ? '1 Sunday' : `${sundayCount} Sundays`} in the range set as ${sundayCount === 1 ? 'a rest day' : 'rest days'}`] : [];
-            const lines = [...receipt.leftAlone, ...sundays];
+            // …and a change staged in Change a Shift on a booked day, which the booking cleared (admin-own-write.js).
+            const lines = [...receipt.leftAlone, ...sundays, ...(cleared.length ? [clearedDaysLine(cleared)] : [])];
             _say('success');
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
@@ -415,7 +416,8 @@ export function createRangeBookingSection(cfg) {
             cfg.showInChangeAShift?.(member, dates[0]);
         } catch (err) {
             console.error(`[Admin] ${cfg.logLabel} save failed:`, err);
-            _say('error', unconfirmedWriteLine(err, 'this booking', 'Saved Changes')
+            // Whatever is said, a change staged on a day that DID land was cleared, and is named (admin-own-write.js).
+            _say('error', withClearedDays(unconfirmedWriteLine(err, 'this booking', 'Saved Changes')
                 // Signed out while a chunk waited (claim-retry.js): held for that account, and
                 // earlier chunks may have landed — the same check either way (v24.37). Or refused
                 // because an earlier write on this page is unconfirmed (v24.39).
@@ -436,7 +438,7 @@ export function createRangeBookingSection(cfg) {
                         ? "⚠ You've been signed out — please sign in again."
                         // Everything else is the week grid's own wording (whole-app check): a refused
                         // write (`permission-denied`) is a sign-in problem, not the connection.
-                        : '⚠ ' + saveFailureMessage(err));
+                        : '⚠ ' + saveFailureMessage(err), /** @type {any} */ (err)?.cleared ?? []));
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
             // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled

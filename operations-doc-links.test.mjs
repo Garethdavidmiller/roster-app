@@ -6,20 +6,25 @@
  *
  * Organised by the three ways this card could mislead the admin who presses it:
  *  - CLAIMING NOTHING CHANGED WHEN IT MAY HAVE. A run whose answer is lost may have finished, so
- *    "nothing was changed" is said only where the endpoint itself said so — never on a 503 the
- *    platform sent when an instance died halfway through the writes, and never on a timeout.
+ *    "nothing was changed" is said only where it is known — the endpoint itself said so, or the
+ *    request never left — never on a 503 the platform sent when an instance died halfway through
+ *    the writes, and never on a timeout.
  *  - CLAIMING IT IS DONE WHEN IT IS NOT. A run that changed nothing and failed on a file must not
- *    lead with "Done.", and an answer this card cannot read is never shown as "nothing to replace".
+ *    lead with "Done.", and neither an answer this card cannot read nor a preview that could not
+ *    check its files is shown as "nothing to replace".
  *  - ASKING FOR A RUN BY ACCIDENT. The body says `rotate: true` only when the caller passed `true`
  *    itself; anything else is a preview, as it is on the server.
  * The wiring — the confirm, the buttons, the request leaving the real page — is e2e/operations.spec.js.
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import {
     ROTATE_LINKS_URL, requestLinkRotation, describePreview, describeResult, checkFailure, runFailure,
 } from './operations-doc-links.js';
 import { FETCH_TIMEOUT_CODE } from './fetch-timeout.js';
+
+const { rotateDocumentLinks, downloadUrl } = createRequire(import.meta.url)('./functions/doc-link-rotation.js');
 
 /** A report as the server sends one; `over` replaces fields. @param {Record<string, any>} [over] */
 const report = (over = {}) => ({
@@ -131,6 +136,65 @@ describe('describePreview — what a run would touch, and only from an answer it
         assert.ok(p.lines.includes('1 document has a link this can’t read. It will be left as it is.'));
         assert.ok(p.lines.includes('1 file couldn’t be checked.'));
     });
+
+    test('files it could not check are never "nothing to replace" — it says so once, and asks for another check', () => {
+        // An unchecked file is in no box, so with nothing else to offer the preview looked exactly like
+        // one that found no working link — while every file it could not read may still have one.
+        const failed = [{ path: 'huddles/a.pdf', step: 'read' }, { path: 'circulars/b.docx', step: 'read' }];
+        for (const p of [describePreview(report({ files: 2, recordsUnreadable: 1, failed })),
+            describePreview(report({ files: 3, held: 1, recordsUnreadable: 1, unlinkedTooNew: 1, failed }))]) {
+            assert.ok(p);
+            assert.equal(p.canReplace, false);
+            assert.equal(p.lines[0], '2 files couldn’t be checked, so it isn’t known yet whether there is anything to replace. Check the links again in a minute.');
+            assert.ok(!p.lines.some(l => /nothing to replace|nothing this can safely replace|link that still works/i.test(l)), p.lines.join(' / '));
+            assert.equal(p.lines.filter(l => /couldn’t be checked/.test(l)).length, 1, p.lines.join(' / '));
+        }
+        assert.equal(describePreview(report({ files: 1, failed: [failed[0]] }))?.lines[0],
+            '1 file couldn’t be checked, so it isn’t known yet whether there is anything to replace. Check the links again in a minute.');
+    });
+
+    test('unused files from the last day are named, left working and not offered — "nothing to replace YET"', () => {
+        const only = describePreview(report({ files: 1, unlinkedTooNew: 1 }));
+        assert.deepEqual(only, { canReplace: false, lines: [
+            'There is nothing to replace yet.',
+            '1 file from the last day isn’t used by the app, so its link is left working, in case an upload is still saving the document that uses it. Check again tomorrow to finish it.',
+        ] });
+        const mixed = describePreview(report({ files: 5, linked: 2, unlinkedWithKey: 1, unlinkedTooNew: 2 }));
+        assert.equal(mixed?.canReplace, true);
+        assert.ok(mixed?.lines.includes('2 files from the last day aren’t used by the app, so their links are left working, in case uploads are still saving the documents that use them. Check again tomorrow to finish them.'));
+    });
+
+    test('an older server’s report, without the newest count, still reads — a malformed one does not', () => {
+        // Functions and Hosting deploy in parallel, so this card can meet a server that predates the count.
+        const older = report({ files: 2, linked: 1, unlinkedWithKey: 1 });
+        assert.ok(!('unlinkedTooNew' in older));
+        assert.equal(describePreview(older)?.canReplace, true);
+        assert.equal(describeResult({ ...older, rotate: true, rotated: 1, cleared: 1 })?.ok, true);
+        for (const bad of [-1, 1.5, '1', null]) {
+            assert.equal(describePreview(report({ files: 1, unlinkedTooNew: bad })), null, JSON.stringify(bad));
+            assert.equal(describeResult(report({ rotate: true, unlinkedTooNew: bad })), null, JSON.stringify(bad));
+        }
+    });
+
+    test('the server’s own preview, when no file’s keys could be read, is read as "couldn’t check" (the real module)', async () => {
+        // Through the real rotation: a stored link it cannot read, carrying a key, makes it read every
+        // file's keys — and every read fails.
+        const B = 'myb-roster.appspot.com';
+        const files = ['huddles/2026-11-12-a1.pdf', 'circulars/2026-11-06-b2.docx'];
+        const bucket = { name: B, getFiles: async (/** @type {{ prefix: string }} */ { prefix }) => [files.filter(p => p.startsWith(prefix))
+            .map(name => ({ name, getMetadata: async () => { throw new Error('read failed'); } }))] };
+        /** @type {Record<string, any[]>} */
+        const records = {
+            huddles: [{ storageUrl: downloadUrl(B, files[0], 'old-h') }],
+            circulars: [{ storageUrl: downloadUrl(B, files[1], 'old-c') }],
+            newsletters: [{ storageUrl: 'https://example.com/n.pdf?token=zzz' }],
+        };
+        const db = { collection: (/** @type {string} */ name) => ({ get: async () => ({
+            docs: (records[name] || []).map((d, i) => ({ ref: { path: `${name}/${i}` }, data: () => d })) }) }) };
+        const said = describePreview(await rotateDocumentLinks({ bucket, db, newKey: () => 'k' }));
+        assert.equal(said?.canReplace, false);
+        assert.match(said?.lines[0] ?? '', /^2 files couldn’t be checked, so it isn’t known yet/);
+    });
 });
 
 describe('describeResult — "Done." only for what was done', () => {
@@ -163,6 +227,16 @@ describe('describeResult — "Done." only for what was done', () => {
         assert.equal(r.ok, false);
         assert.ok(!r.lines.some(l => l.startsWith('Done.')), r.lines.join(' / '));
         assert.match(r.lines[0], /^2 files couldn’t be changed, and their old links still work\./);
+    });
+
+    test('a run names the unused files from the last day it left working — not a failure, and not "nothing"', () => {
+        assert.deepEqual(describeResult(report({ rotate: true, rotated: 3, unlinkedTooNew: 1 })), { ok: true, lines: [
+            'Done. 3 files have new links, so old copies of their links no longer work.',
+            '1 file from the last day isn’t used by the app, so its link was left working, in case an upload is still saving the document that uses it. Check again tomorrow to finish it.',
+        ] });
+        assert.deepEqual(describeResult(report({ rotate: true, unlinkedTooNew: 2 })), { ok: true, lines: [
+            '2 files from the last day aren’t used by the app, so their links were left working, in case uploads are still saving the documents that use them. Check again tomorrow to finish them.',
+        ] });
     });
 
     test('a file that changed mid-run is said plainly, with what to do — and is not a failure', () => {
@@ -203,6 +277,22 @@ describe('runFailure — "nothing was changed" only where the endpoint said so',
             assert.match(said, UNKNOWN, String(err.message));
             assert.doesNotMatch(said, /nothing was changed/i);
         }
+    });
+
+    test('a request that never left — no sign-in token — changed nothing, and says so rather than "isn’t known"', async () => {
+        // Through requestLinkRotation itself, so the answer is about the error it really throws.
+        /** @type {any[]} */
+        const calls = [];
+        /** @type {any} */
+        const fetchFn = async (/** @type {any[]} */ ...args) => { calls.push(args); return { ok: true, json: async () => report() }; };
+        const err = await requestLinkRotation({ rotate: true, getToken: async () => { throw new Error('Not signed in'); }, fetchFn })
+            .then(() => null, (/** @type {any} */ e) => e);
+        assert.equal(calls.length, 0, 'a request left');
+        assert.equal(runFailure(err),
+            'Couldn’t replace the links: the request was never sent, so nothing was changed. Check your connection and try again.');
+        assert.equal(checkFailure(err), 'Couldn’t check the links — check your connection and try again.');
+        // A request that DID leave and then failed may have finished: still unknown.
+        assert.match(runFailure(new TypeError('Failed to fetch')), UNKNOWN);
     });
 
     test('a check that fails changes nothing either way, so it only says what to do', () => {

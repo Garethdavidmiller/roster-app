@@ -6,7 +6,7 @@
  * global.document is stubbed so validateShiftRules' DOM marking no-ops cleanly.
  */
 
-import { test, describe, mock, beforeEach, after } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 // validateShiftRules calls document.getElementById to mark grid rows with .row-error.
@@ -1898,5 +1898,111 @@ describe('a Sunday RD correction never erases a worked override', () => {
         const correction = getAllOverrides()
             .find(o => o.date === SUNDAY && o.type === 'correction');
         assert.equal(correction?.value, 'RD');
+    });
+});
+
+// ── THE WEEK FOLLOWS THE PAGE'S OWN BOOKING AND LEAVE-YEAR MOVE (Nov 2026, review) ────────────────────
+//
+// Both left the week grid alone while a change was staged in it, so a row went on comparing with what
+// the day held BEFORE the page's own write, and the week's next Save refused that write as "Someone
+// else has changed …". Driven here through the real writers, the real `syncWeekAfterOwnWrite`
+// (admin-own-write.js, injected the way `initOverrides` injects it, over a fake grid) and the real row
+// state — so what is checked is the record each day's row will compare with, not a call count.
+describe('the week grid follows a range booking and a leave-year move', () => {
+    /** @type {any} */ let rs, ow, grid, realDocument;
+    /** @type {string[]} */ let shownDays = [];
+    const container = () => {
+        /** @type {any} */ const c = { rows: /** @type {any[]} */ ([]),
+            querySelectorAll: (/** @type {string} */ s) => (s === '.day-row' ? c.rows : []),
+            querySelector: (/** @type {string} */ s) => c.rows.find((/** @type {any} */ r) => s.includes(`"${r.dataset.date}"`)) ?? null,
+            appendChild: (/** @type {any} */ r) => { c.rows.push(r); r.parent = c; return r; } };
+        return c;
+    };
+    /** A row as the grid draws it, from what the page holds for the day now. @param {string} member @param {string} date */
+    const drawRow = (member, date) => {
+        const classes = new Set(['day-row']), cb = { checked: false };
+        /** @type {any} */ const row = { dataset: { date }, cb,
+            classList: { add: (/** @type {string[]} */ ...c) => c.forEach(x => classes.add(x)), remove: (/** @type {string[]} */ ...c) => c.forEach(x => classes.delete(x)),
+                toggle: (/** @type {string} */ c, /** @type {any} */ on) => ((on ?? !classes.has(c)) ? classes.add(c) : classes.delete(c)),
+                contains: (/** @type {string} */ c) => classes.has(c) },
+            querySelector: (/** @type {string} */ s) => (s === '.day-cb' ? cb : null), querySelectorAll: () => [], setAttribute() {}, removeAttribute() {},
+            replaceWith(/** @type {any} */ next) { row.parent.rows[row.parent.rows.indexOf(row)] = next; next.parent = row.parent; } };
+        const saved = buildMemberDateMap(member).get(date);
+        if (saved) { row.dataset.existingId = saved.id; rs.prefillRow(row, saved); }
+        return row;
+    };
+    /** `member`'s days on screen, drawn from the page's records, with the sync wired to them. @param {string} member @param {string[]} days */
+    const showWeek = (member, days) => {
+        shownDays = days; grid = container();
+        for (const d of days) grid.appendChild(drawRow(member, d));
+        global.document = /** @type {any} */ ({ ...realDocument, createElement: () => container(),
+            getElementById: (/** @type {string} */ id) => (id === 'weekGrid' ? grid : id === 'fieldMember' ? { value: member }
+                : id === 'fieldDate' ? { value: days[0] } : null) });
+        ow.initOwnWrite({ build: (/** @type {any} */ c) => { for (const d of shownDays) c.appendChild(drawRow(member, d)); },
+            redraw: () => {}, recount: () => {}, markChanged: () => {},
+            hasStagedEdits: () => grid.rows.some((/** @type {any} */ r) => rs.isStagedRow(r)) });
+    };
+    const rowOf = (/** @type {string} */ date) => grid.querySelector(`"${date}"`);
+    /** Stage a change on the day's row, as a pill tap does. @param {string} date @param {string} type */
+    const stage = (date, type) => { const r = rowOf(date); r.classList.remove('prefilled-existing'); rs._activateRow(r, r.cb, [], null, null, type); };
+
+    beforeEach(async () => {
+        rs = await import('./admin-week-row-state.js');
+        ow = await import('./admin-own-write.js');
+        realDocument = global.document;
+        _failNextCommits = 0; _commitsThatLand = null; _failNextGetDocs = 0;
+        mockAuth.currentUser = { uid: 'gm', getIdToken: async () => {} };
+    });
+    afterEach(() => {
+        global.document = realDocument;
+        ow.initOwnWrite({ build: () => {}, redraw: () => {}, recount: () => {}, hasStagedEdits: () => false, markChanged: () => {} });
+        mockAuth.currentUser = null; _commitsThatLand = null; _failNextGetDocs = 0;
+    });
+
+    test('a booking over a day with a staged edit clears it and says which; the row then compares with the booking', async () => {
+        const MON = '2026-08-24', TUE = '2026-08-25', FRI = '2026-08-28';   // all worked on his line
+        setAllOverrides([]);
+        showWeek('G. Miller', [MON, TUE, FRI]);
+        stage(TUE, 'sick'); stage(FRI, 'sick');
+        const res = await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: 'G. Miller', dates: [MON, TUE], changedBy: 'G. Miller' });
+        assert.deepEqual(res.cleared, [TUE], 'the cleared day is handed back for the card to name');
+        assert.equal(rs.drawnDays(grid).get(TUE)?.type, 'annual_leave', 'Tuesday still compared with nothing — its Save would refuse the booking');
+        assert.equal(rs.drawnDays(grid).get(MON)?.id, 'm_2026-08-24_G.%20Miller');
+        assert.equal(rs.isStagedRow(rowOf(TUE)), false, 'the staged absence would be saved over the leave just booked');
+        assert.equal(rs.isStagedRow(rowOf(FRI)), true, 'the other staged day was lost');
+    });
+
+    test('a booking that stops part way brings the days that DID land into the week — even when the re-read fails', async () => {
+        // C. Reen works Mon–Fri; 230 weekdays, each already holding two shift records, need more than one commit.
+        const range = [];
+        for (let d = new Date(Date.UTC(2026, 1, 2)); range.length < 230; d.setUTCDate(d.getUTCDate() + 1)) {
+            const dow = d.getUTCDay();
+            if (dow !== 0 && dow !== 6) range.push(d.toISOString().slice(0, 10));
+        }
+        const dup = (/** @type {string} */ date, /** @type {string} */ tag, /** @type {number} */ secs) =>
+            ({ id: `${tag}-${date}`, memberName: 'C. Reen', date, type: 'shift', value: '12:00-19:00', source: 'manual', createdAt: { seconds: secs } });
+        setAllOverrides(range.flatMap(date => [dup(date, 'dupA', 100), dup(date, 'dupB', 200)]));
+        showWeek('C. Reen', range.slice(0, 5));                       // the first week, inside the first commit
+        stage(range[1], 'annual_leave');
+        _commitsThatLand = 1; _failNextGetDocs = 1;                   // the second commit refused, and the re-read fails too
+        /** @type {any} */ let err;
+        const realError = console.error; console.error = () => {};
+        try { await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: 'C. Reen', dates: range, changedBy: 'G. Miller' }); }
+        catch (e) { err = e; } finally { console.error = realError; }
+        assert.equal(err?.partialCommit, true, 'premise: the first commit landed and a later one did not');
+        assert.deepEqual(err.cleared, [range[1]], 'the error carries the day whose staged change it cleared, for the card to name');
+        assert.equal(rs.drawnDays(grid).get(range[0])?.type, 'sick', 'a day that landed still compared with the shift it replaced');
+        assert.equal(rs.drawnDays(grid).get(range[1])?.type, 'sick');
+    });
+
+    test('a leave-year move of a day with a staged edit clears it and hands the day back', async () => {
+        const DAY = '2027-01-05', NEXT = '2027-01-06';                // both worked on his line
+        setAllOverrides([{ id: 'm_2027-01-05_G.%20Miller', memberName: 'G. Miller', date: DAY, type: 'annual_leave', value: 'AL', note: '',
+            source: 'manual', createdAt: new Date(2026, 10, 1) }]);
+        showWeek('G. Miller', [DAY, NEXT]);
+        stage(DAY, 'sick'); stage(NEXT, 'sick');
+        assert.deepEqual(await setLeaveYear({ memberName: 'G. Miller', date: DAY, leaveYear: 2026, changedBy: 'G. Miller' }), [DAY]);
+        assert.equal(rs.drawnDays(grid).get(DAY)?.leaveYear, 2026, 'the day still compared with the leave before the move — its Save would be refused');
+        assert.equal(rs.isStagedRow(rowOf(NEXT)), true, 'the other staged day was lost');
     });
 });

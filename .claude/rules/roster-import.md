@@ -50,7 +50,9 @@ COVERED / DIFF / CONFLICT classification.
 `roster-import-save.js`, whose header carries the reasoning. Each part that DELETES a record is one
 transaction, refused (nothing written, the days named) when a record it deletes changed after the
 read; a part that only adds stays a plain batch, because a manual record outranks an import. A
-refusal re-reads the week and redraws the review rather than closing it. **Do not mint the new
+refusal re-reads the week and redraws the review rather than closing it, and **every row the re-read
+leaves unchanged keeps the admin's answers, Skip all included** (`carryReviewAnswers`, v25.94):
+reset to their defaults, a second Save wrote rows the admin had unticked. **Do not mint the new
 records' ids inside the transaction** — a re-run would write a second copy of every row — and do
 not turn a deleting part back into a batch.
 
@@ -315,7 +317,10 @@ occupied cell — those are phases 2 and 3, and KNOWN_LIMITATIONS says so. `pdfj
 dependency of `functions/` (server-side; the fourth vetted library — the owner's call to keep, and one
 line to remove). Never pin it below 6.5.438, and run the real-pdfjs tests before moving it: the module
 header of `functions/roster-geometry.js` says why for both. **The move to 6.x was proven on synthetic
-pages only** (no real roster was to hand, 13 Nov 2026), and there is one drawing — rows as closed
-boxes in a `re`'s own corner order — on which 6.x reads no grid where v4 did. So if an import's review
-says "The extra PDF layout check couldn't run for this file", read that roster's operator list before
-assuming the file is at fault.
+pages only** (no real roster was to hand, 13 Nov 2026), and v25.91 misread every path painted with
+`s`, `b` or `b*` until v25.94 — at worst a row highlight that emptied a Sunday cell, a worked Sunday
+dropped with nothing on the review. Against v4 on thirty-five drawings it now reads the same rows on
+all but three — rows as closed boxes in a `re`'s own corner order, and a rule closed before its
+stroke (`m l h S`, `m l h s`) — and on those it reads no grid rather than a different one. So if an
+import's review says "The extra PDF layout check couldn't run for this file", read that roster's
+operator list before assuming the file is at fault.

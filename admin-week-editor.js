@@ -93,9 +93,9 @@ export function initWeekEditor(deps) {
  *  save/delete counts so it catches BOTH a staged addition/change (a row with a chosen type that
  *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row whose type was taken away →
  *  existingId, no type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
- *  loadOverrides AND by the Saved-Changes delete paths (v16.82: deleting an unrelated saved change
- *  must not silently discard staged pills; the old active-pill-only check also missed staged
- *  removals). Exported so admin-app's period-delete path can apply the same guard. The row test is
+ *  loadOverrides AND by the page's own writes, which then redraw only the days they touched (admin-own-write.js;
+ *  v16.82: deleting an unrelated saved change must not silently discard staged pills; the old active-pill-only
+ *  check also missed staged removals). Exported for admin-app's unsaved-changes guard. The row test is
  *  `isStagedRow` (admin-week-row-state.js), which a kept draft reads its rows with too. */
 export function _hasStagedEdits() {
     const weekGrid = document.getElementById('weekGrid');

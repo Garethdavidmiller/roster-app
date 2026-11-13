@@ -99,9 +99,14 @@ describe('rulesFromOperatorList — the drawn rules', () => {
     // [paintOp, [data], bbox], where `data` is the path's codes (`_PATH_OP`) and absolute
     // coordinates in one flat array. The codes are held to the REAL library at the bottom of this
     // file, so a fake that drifted from it would fail there rather than pass here on its own say-so.
-    const OPS = { constructPath: 91, stroke: 20 };
+    // The paint operators carry pdfjs's own numbers (held to the library by the real-pdfjs test below).
+    const OPS = { constructPath: 91, stroke: 20, closeStroke: 21, fillStroke: 24, closeFillStroke: 26, closeEOFillStroke: 27 };
     const { moveTo: M, lineTo: L, curveTo: C, quadraticCurveTo: Q, closePath: Z } = _PATH_OP;
     const path = (/** @type {number[]} */ ...data) => [OPS.stroke, [Float32Array.from(data)], new Float32Array(4)];
+    /** A path painted by `paint`, its data as pdfjs writes it — for `s`/`b`/`b*`, ending in the close pdfjs added. */
+    const painted = (/** @type {number} */ paint, /** @type {number[]} */ ...data) => [paint, [Float32Array.from(data)], new Float32Array(4)];
+    /** @type {Array<[string, number]>} */
+    const CLOSING = [['s', OPS.closeStroke], ['b', OPS.closeFillStroke], ['b*', OPS.closeEOFillStroke]];
     const seg = (/** @type {number} */ x1, /** @type {number} */ y1, /** @type {number} */ x2, /** @type {number} */ y2) => path(M, x1, y1, L, x2, y2);
     const ops = (/** @type {any[]} */ ...paths) => ({ fnArray: paths.map(() => OPS.constructPath), argsArray: paths });
     const box = (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ w, /** @type {number} */ h) => [M, x, y, L, x + w, y, L, x + w, y + h, L, x, y + h, Z];
@@ -146,9 +151,54 @@ describe('rulesFromOperatorList — the drawn rules', () => {
     });
 
     test('a zero-width or zero-height `re` arrives as one line and a close, and is skipped as v4 skipped it', () => {
+        // A line closed before its stroke (`m l h S`) is these same bytes, so it is skipped too — one
+        // of the drawings on which 6.x reads less than v4, and fails open (`isRectangleOp`).
         assert.deepEqual(rulesFromOperatorList(ops(path(M, 154.8, 100, L, 154.8, 700, Z), path(M, 25.3, 650, L, 822.5, 650, Z)), OPS), { vx: [], hy: [] });
         // The same line with no close is a stroke, not a `re`, and is a rule.
         assert.deepEqual(rulesFromOperatorList(ops(seg(154.8, 100, 154.8, 700)), OPS).vx, [154.8]);
+    });
+
+    test('a rule painted with `s`, `b` or `b*` is read: the close pdfjs adds for those three was never drawn (v25.94)', () => {
+        for (const [label, paint] of CLOSING) {
+            // `x y m x y l s` arrives as a move, a line and pdfjs's close — kept, exactly a zero-width `re`.
+            const { vx, hy } = rulesFromOperatorList(ops(painted(paint, M, 154.8, 100, L, 154.8, 700, Z), painted(paint, M, 25.3, 650, L, 822.5, 650, Z)), OPS);
+            assert.deepEqual([vx, hy], [[154.8], [650]], label);
+        }
+        // Painted with a plain stroke, the same bytes ARE `m l h S`: still skipped, as above.
+        assert.deepEqual(rulesFromOperatorList(ops(painted(OPS.stroke, M, 154.8, 100, L, 154.8, 700, Z)), OPS).vx, []);
+        // A line closed BEFORE `s` (`m l h s`) keeps its own close once pdfjs's is dropped: skipped, never read.
+        assert.deepEqual(rulesFromOperatorList(ops(painted(OPS.closeStroke, M, 154.8, 100, L, 154.8, 700, Z, Z)), OPS).vx, []);
+    });
+
+    test('a `re` painted with `s`, `b` or `b*` is still a rectangle, and so is a `re` closed again before its stroke (v25.94)', () => {
+        // Kept, pdfjs's close made the `re` six codes long, and its four edges were read as rules — a
+        // page border or a shaded cell added columns, a row highlight added row boundaries.
+        for (const [label, paint] of CLOSING) {
+            assert.deepEqual(rulesFromOperatorList(ops(painted(paint, ...box(10, 10, 822, 822), Z)), OPS), { vx: [], hy: [] }, label);
+            assert.deepEqual(rulesFromOperatorList(ops(painted(paint, ...box(10, 10, 822, 822), Z, Z)), OPS), { vx: [], hy: [] }, `${label} after h`);
+        }
+        // `re h S` and `re B`: no close added, one of their own.
+        assert.deepEqual(rulesFromOperatorList(ops(painted(OPS.stroke, ...box(10, 10, 822, 822), Z)), OPS), { vx: [], hy: [] }, 're h S');
+        assert.deepEqual(rulesFromOperatorList(ops(painted(OPS.fillStroke, ...box(10, 10, 822, 822))), OPS), { vx: [], hy: [] }, 're B');
+    });
+
+    test('only the close pdfjs added is dropped — the LAST subpath\'s, in the last path (v25.94)', () => {
+        // `s` closes the current subpath only. An earlier `m l h` in the same path keeps its close and
+        // is skipped; the last line, whose close pdfjs added, is read.
+        const twoLines = rulesFromOperatorList(ops(painted(OPS.closeStroke, M, 154.8, 100, L, 154.8, 700, Z, M, 250.3, 100, L, 250.3, 700, Z)), OPS);
+        assert.deepEqual(twoLines.vx, [250.3]);
+        // A `re` and a rule in one `s` path: the `re` is still skipped, the rule read.
+        assert.deepEqual(rulesFromOperatorList(ops(painted(OPS.closeStroke, ...box(10, 10, 50, 50), M, 154.8, 100, L, 154.8, 700, Z)), OPS).vx, [154.8]);
+        // pdfjs writes one array per paint; were there more, its close is at the end of the last.
+        const twoArrays = { fnArray: [OPS.constructPath], argsArray: [[OPS.closeStroke,
+            [Float32Array.from([M, 154.8, 100, L, 154.8, 700, Z]), Float32Array.from([M, 250.3, 100, L, 250.3, 700, Z])], null]] };
+        assert.deepEqual(rulesFromOperatorList(twoArrays, OPS).vx, [250.3]);
+    });
+
+    test('an operator table without the closing paint operators drops no close (v25.94)', () => {
+        // The set holds only real numbers, so a missing name can never match a missing paint operator.
+        const noPaint = { fnArray: [OPS.constructPath], argsArray: [[undefined, [Float32Array.from([M, 154.8, 100, L, 154.8, 700, Z])], null]] };
+        assert.deepEqual(rulesFromOperatorList(noPaint, { constructPath: OPS.constructPath }), { vx: [], hy: [] });
     });
 
     test('rules within 2px are one rule — the same line stroked twice does not become two columns', () => {
@@ -807,6 +857,82 @@ describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip
         const g = await extractRosterGeometry(buildPdf([page]));
         assert.equal(g.available, true, g.reason);
         assert.deepEqual(g.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant']);
+    });
+
+    test('pdfjs writes the close that `s`, `b` and `b*` paint into the path itself, and for no other paint (v25.94)', async () => {
+        // `rulesFromOperatorList` drops exactly this close. If a later pdfjs stopped adding it, every
+        // `re s` would arrive as five codes, lose its last close to the drop, and read as four rules —
+        // so the behaviour the reader depends on is asked of the library here, by name.
+        const pdfjs = await import(pathToFileURL(adapterRequire.resolve(PDFJS_SPECIFIER)).href);
+        const page = ['100 100 m 100 700 l s', '120 100 m 120 700 l S', '10 10 50 50 re b', '10 10 50 50 re b*', '10 10 50 50 re B', '10 10 50 50 re f'];
+        const task = pdfjs.getDocument({ data: new Uint8Array(buildPdf([page])), useSystemFonts: true, verbosity: 0, useWasm: false });
+        try {
+            const ops = await (await (await task.promise).getPage(1)).getOperatorList();
+            const painted = ops.fnArray.flatMap((/** @type {number} */ fn, /** @type {number} */ i) => fn === pdfjs.OPS.constructPath
+                ? [[ops.argsArray[i][0], ...ops.argsArray[i][1].map((/** @type {any} */ d) => Array.from(d, (/** @type {number} */ v) => Math.round(v * 10) / 10))]] : []);
+            const { moveTo: M, lineTo: L, closePath: Z } = _PATH_OP;
+            const re = [M, 10, 10, L, 60, 10, L, 60, 60, L, 10, 60, Z];
+            const { OPS } = pdfjs;
+            assert.deepEqual(painted, [
+                [OPS.closeStroke, [M, 100, 100, L, 100, 700, Z]],
+                [OPS.stroke, [M, 120, 100, L, 120, 700]],
+                [OPS.closeFillStroke, [...re, Z]],
+                [OPS.closeEOFillStroke, [...re, Z]],
+                [OPS.fillStroke, re],
+                [OPS.fill, re],
+            ]);
+        } finally {
+            await task.destroy();
+        }
+    });
+
+    test('a table whose rules are painted with `s`, `b` or `b*` keeps its grid (v25.94)', async () => {
+        // The shipped 6.x reader read none of these — every rule looked like a zero-width `re`.
+        const plain = rosterPage(ROSTER);
+        const want = (await extractRosterGeometry(buildPdf([plain]))).rows;
+        for (const paint of ['s', 'b', 'b*']) {
+            const g = await extractRosterGeometry(buildPdf([plain.map(line => line.replace(/ l S$/, ` l ${paint}`))]));
+            assert.equal(g.available, true, `${paint}: ${g.reason}`);
+            assert.deepEqual(g.rows, want, paint);
+        }
+    });
+
+    test('a border or a shaded cell painted with `s`, `b` or `b*` adds no column (v25.94)', async () => {
+        const plain = rosterPage(ROSTER);
+        const want = (await extractRosterGeometry(buildPdf([plain]))).rows;
+        for (const extra of ['q 1 w 10 10 822 822 re s Q', 'q 1 w 10 10 822 822 re h S Q', 'q 160 610 85 30 re b Q', 'q 160 610 85 30 re b* Q',
+            'q 160 610 85 30 re 250 610 85 30 re b Q']) {
+            const g = await extractRosterGeometry(buildPdf([[extra, ...plain]]));
+            assert.equal(g.available, true, `${extra}: ${g.reason}`);
+            assert.deepEqual(g.rows, want, extra);
+        }
+    });
+
+    test('a row highlight painted with `b` cannot move a Sunday out of its row — the 13 Nov review\'s worst case (v25.94)', async () => {
+        // The time sits on the row's top line (y 642), the name mid-row (y 625), and the highlight is
+        // inset 5pt inside the row (y 605–640). Read as four rules, its top edge split the row, the
+        // time left it, and the Sunday read EMPTY: a rest day on the grid path, which the witness
+        // cannot refuse and, over a rest-day base Sunday, the review never shows.
+        const plain = rosterPage(ROSTER);
+        const rules = plain.slice(1, plain.indexOf('Q'));
+        const tw = (/** @type {string} */ s, /** @type {number} */ x, /** @type {number} */ y) => `BT /F1 9 Tf ${x} ${y} Td (${s}) Tj ET`;
+        const row = [tw('Sunday', NAME_X, 675), tw('A. Person', NAME_X, 625), tw('08:00-16:00', COL_X[0], 642), tw('RD', COL_X[1], 625)];
+        for (const paint of ['B', 'b', 'b*', 's']) {
+            const band = `q 0.9 g ${VX[0]} 605 ${VX[8] - VX[0]} 35 re ${paint} Q`;
+            const g = await extractRosterGeometry(buildPdf([['q 0.5 w', ...rules, 'Q', band, ...row]]));
+            assert.equal(g.available, true, `${paint}: ${g.reason}`);
+            const person = g.rows.find(r => r.name === 'A. Person');
+            assert.equal(person?.cells[0], '08:00-16:00', paint);
+            assert.equal(person?.occupancy[0], true, paint);
+        }
+    });
+
+    test('a line closed before its stroke still reads NO grid, and says so — never a wrong one (v25.94)', async () => {
+        // `m l h S` is the bytes of a zero-width `re` (`isRectangleOp`): this reader skips it where v4
+        // read it. That costs the page its grid, openly, rather than risking a wrong one.
+        const g = await extractRosterGeometry(buildPdf([rosterPage(ROSTER).map(line => line.replace(/ l S$/, ' l h S'))]));
+        assert.equal(g.available, false);
+        assert.equal(g.reason, 'no-grid');
     });
 
     test('the adapter asks pdfjs for no WebAssembly, and no longer passes the removed eval switch (v25.91)', async () => {

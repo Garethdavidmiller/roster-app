@@ -18,7 +18,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const shell = readFileSync(new URL('./guide-shell.css', import.meta.url), 'utf8');
 const doc   = readFileSync(new URL('./guide-doc.css', import.meta.url), 'utf8');
@@ -35,6 +35,35 @@ test('guide-shell brand mirrors match the documented Chiltern brand hex', () => 
         'guide-shell --navy must mirror the brand navy (#001e3c)');
     assert.equal(tokenValue(shell, '--gold'), '#f5c800',
         'guide-shell --gold must mirror the brand gold (#f5c800)');
+});
+
+// THE PLACEHOLDER READS ON THE FIELD IT SITS IN (bug and regression check, 13 Nov 2026). v23.51 measured
+// --placeholder on white (4.83:1); v25.84 gave the FIP country finder the app's sunken field fill, and on it the
+// same grey measured 4.34:1, under the 4.5:1 floor. axe does not measure a ::placeholder, so no scan could see
+// it, and the comment beside the token went on saying it passed. Measured here on white (a focused field) and on
+// every field fill a guide stylesheet declares, so a new fill or a lighter grey fails where it is written.
+test('the guides\' placeholder clears 4.5:1 on white and on every guide field fill', () => {
+    /** WCAG relative luminance of a #rrggbb colour. @param {string} hex */
+    const lum = hex => {
+        const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+            .map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    /** @param {string} a @param {string} b */
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const placeholder = tokenValue(shell, '--placeholder');
+    assert.match(placeholder ?? '', /^#[0-9a-f]{6}$/i, 'guide-shell.css must declare --placeholder as a six-digit hex');
+    const grounds = [['white, a focused field', '#ffffff']];
+    for (const f of readdirSync(new URL('./', import.meta.url)).filter(n => /guide.*\.css$/.test(n))) {
+        const fill = tokenValue(readFileSync(new URL(`./${f}`, import.meta.url), 'utf8'), '--field-bg');
+        if (fill) grounds.push([`${f} --field-bg`, fill]);
+    }
+    assert.ok(grounds.length > 1, 'premise: the FIP guide declares a --field-bg — the fill the finder sits on');
+    for (const [name, ground] of grounds) {
+        assert.match(ground, /^#[0-9a-f]{6}$/i, `${name} must be a six-digit hex for this measurement`);
+        const r = ratio(/** @type {string} */ (placeholder), ground);
+        assert.ok(r >= 4.5, `the guides' placeholder ${placeholder} is ${r.toFixed(2)}:1 on ${name} (${ground}) — under the 4.5:1 floor`);
+    }
 });
 
 test('guide-doc defines the complete --sb-* shift palette', () => {

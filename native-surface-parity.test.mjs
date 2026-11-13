@@ -80,7 +80,9 @@
  *     beside it; Trains and New link each carried a border rule of their own, and Trains' lost to a
  *     later rule on its in-card tabs. The fix is ONE outline in `Highlight` in shared.css, read off
  *     the aria states — so this checks it is there, covers every state, and is not restated by a
- *     page. `e2e/forced-colors.spec.js` proves the painting on real controls.
+ *     page. `e2e/forced-colors.spec.js` proves the painting on real controls. The ONE other place
+ *     it is stated is guide-shell.css, for the guides' section chip (13 Nov 2026): the guides load
+ *     none of shared.css, so it is their shared.css, held here to the same ring and focus pair.
  *
  * 15. **No `<input type="date">` is left to the OS** (test audit, 7 Nov 2026). The rule had lived in
  *     `date-picker.js`'s header since v23.37 with nothing behind it: every date input is either in
@@ -282,7 +284,9 @@ test('every forced-colours block uses the theme\'s colours, and shared.css rings
                 const last = m[2].trim().split(/\s+/).pop() || '';
                 if (!SYSTEM.test(last) && !/^(0|none)$/.test(m[2].trim())) offenders.push(`${f}: \`${m[1]}: ${m[2].trim()}\` does not end in a system colour`);
             }
-            if (f !== 'shared.css' && /\[aria-(?:pressed|selected|checked|current)=/.test(block)) restated.push(f);
+            // guide-shell.css is the guides' shared.css: they load none of the app's stylesheets, so the rule
+            // above cannot reach a guide's chip — the shell states it for them, and is held to it below.
+            if (f !== 'shared.css' && f !== 'guide-shell.css' && /\[aria-(?:pressed|selected|checked|current)\b/.test(block)) restated.push(f);
         }
     }
     assert.deepEqual(offenders, [], 'under forced colours only the reader\'s own palette may be painted');
@@ -307,6 +311,15 @@ test('every forced-colours block uses the theme\'s colours, and shared.css rings
     for (const state of ['aria-pressed="true"', 'aria-selected="true"', 'aria-checked="true"', 'aria-current="true"', 'aria-current="page"']) {
         assert.ok(focus[1].includes(state), `the focus rule for a chosen control must cover [${state}], as the ring does`);
     }
+
+    // …and the GUIDES ring theirs (bug and regression check, 13 Nov 2026). A guide's one chosen control is the
+    // section chip — gold, which the theme repaints as Canvas — and the rule above is in a stylesheet no guide
+    // loads, so until guide-shell.css said it too the chosen chip painted like the rest.
+    const guides = blocks(strip(read('guide-shell.css'))).join('\n');
+    assert.match(guides, /\.chip\[aria-current\]\s*\{[^{}]*outline:\s*2px\s+solid\s+Highlight\b/,
+        'guide-shell.css must ring the chosen section chip in Highlight under forced colours — the guides load no shared.css');
+    assert.match(guides, /\.chip\[aria-current\]:focus-visible\s*\{[^{}]*outline:[^;}]*\bdouble\s+Highlight\b/,
+        'a chosen guide chip that takes keyboard focus must still show it, as the app\'s chosen controls do');
 });
 
 // ── 5. no resize grip ───────────────────────────────────────────────────────────────────────────
