@@ -797,6 +797,25 @@ name such a burst probes is recorded as a request the admin sees, and each name 
 ten minutes. Closing it fully means sending the push from a Firestore trigger, so no answer waits on it
 — a new deployed function, left for a release that needs one. App Check (below) would also blunt it.
 
+### Three settings outside the code that nobody has checked from here (sign-in audit, 13 Nov 2026)
+
+The sign-in audit could read the code and the rules, not the Firebase console or the live network.
+Three things it depends on are therefore assumed, not known:
+
+- **Who may change or delete their own account.** Every staff-PIN holder signs in to ONE shared
+  viewer account. If users may delete their own account, or link an email to it, one PIN holder can
+  end every station's PIN at its next token refresh. Nothing is exposed — the next unlock rebuilds
+  the account (`viewerAccountTamper`, AUTH_AND_SESSIONS 20) — but each station has to enter the PIN
+  again. Firebase console → Authentication → Settings → User actions.
+- **Email enumeration protection.** With it off, Firebase's own sign-in API can say which roster
+  addresses have accounts. The addresses are derivable from the public roster, so this tells an
+  outsider little, but it is a free signal. Same page.
+- **The address the PIN lockout counts by.** `unlockCalendarViewer` counts failures per source by the
+  LAST `x-forwarded-for` entry, which a caller cannot forge. If the hosting puts its own address
+  last, every caller shares one failure budget (`maxFailures`, `calendar-viewer-auth.js`) — a cheaper form of "Anybody can hold the staff PIN
+  shut" (above), not a way past the PIN. Reading one real request's headers in the function's logs
+  would settle it.
+
 ### Firebase App Check — declined as an immediate action, RETAINED as Track D
 
 > **`SECURITY_RELEASE_PLAN.md` → Track D is authoritative for whether and when.** App Check is NOT
