@@ -52,8 +52,9 @@ function make(/** @type {AuthStatus} */ status, /** @type {string|null} */ membe
  * returns `state` unchanged (Redux convention), so out-of-vocabulary events are inert.
  *
  * Events (dispatched by the Phase-2 shell from real auth signals):
- *  - `RESOLVE_START { member }` — begin establishing identity. `member` set → named
- *    resolution; `member` null → anonymous (calendar) bootstrap.
+ *  - `RESOLVE_START { member }` — begin establishing the named identity of `member`. Its one
+ *    producer, session.js's `ensureNamedSession`, always names one: the Calendar's anonymous
+ *    bootstrap, which sent `member` null, was retired at v24.34 and has no producer now.
  *  - `NAMED { member }`         — the member's named session is confirmed.
  *  - `ANONYMOUS`                — an anonymous session is active (no live producer since v24.34).
  *  - `NONE { error }`           — no session could be established; recoverable → `signedOut`.
