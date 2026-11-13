@@ -1034,8 +1034,9 @@
            wide; at 1280 (a 1920-pixel laptop at 150%, a usual Windows setting) an Early badge or
            today's cell stacked again, so ONE month drew two kinds of cell, and the one that stacked made
            every row 75px and pushed the last week off the screen anyway. Only the spacing tightens now:
-           the type does not change, and every line has a stated `line-height`, so the cell is the same
-           62px on every engine and font stack. Measured: e2e "the whole month fits a laptop window". */
+           the type does not change, and every line has a stated `line-height`, so the cell's height
+           does not rest on the font's own line spacing (62px, measured in Chromium; the same tests run
+           under WebKit in CI). Measured: e2e "the whole month fits a laptop window". */
         @media screen and (min-width: 1024px) and (max-height: 820px) {
             .controls { padding-top: 6px; padding-bottom: 6px; }
             .calendar-container { padding-top: 8px; padding-bottom: 10px; }
