@@ -264,6 +264,24 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         assert.equal((await attempt()).kind, 'transient');
     });
 
+    // AUTH_AND_SESSIONS 1, second half, through the wiring the card uses (audit F2): only the browser
+    // suite caught `keepsLocalSession` reduced to `() => false`, which signs a returning member out of
+    // their own device on one mistyped password or one timeout on weak signal.
+    const holdSession = (/** @type {string} */ name) => store.set('myb_admin_session', JSON.stringify({ name, ver: 2, expiry: Date.now() + 86_400_000 }));
+    test('a failed sign-in by the member whose session this device holds leaves that session alone', async () => {
+        holdSession('G. Miller');
+        signInCode = 'auth/invalid-credential';
+        assert.equal((await attempt()).kind, 'credential', 'premise: the sign-in failed');
+        assert.equal(JSON.parse(store.get('myb_admin_session') ?? 'null')?.name, 'G. Miller', 'their own session was cleared by a typo');
+    });
+
+    test('…but a failed sign-in by ANOTHER member clears the session this device held', async () => {
+        holdSession('S. Silva');
+        signInCode = 'auth/invalid-credential';
+        assert.equal((await attempt()).kind, 'credential', 'premise: the sign-in failed');
+        assert.equal(store.has('myb_admin_session'), false, 'somebody else\'s session survived a failed sign-in on their device');
+    });
+
     test('and a sign-in that works saves the session for the member named', async () => {
         const r = await attempt();
         assert.deepEqual(r, { ok: true });
