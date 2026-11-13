@@ -524,21 +524,26 @@ export function renderWeekGrid() {
 let _saveInFlight = false;
 /** Is the week itself held still for its own save? @type {boolean} */
 let _weekHeld = false;
+/** What the week's save in flight sends, for a draft kept mid-save (v25.97). @type {null|import('./admin-week-row-state.js').SendingDay[]} */ let _sending = null;
 /**
  * @param {boolean} on
- * @param {{ grid?: boolean }} [opts] `grid`: the write is this WEEK's own save, which resets and redraws
+ * @param {{ grid?: boolean, sending?: null|import('./admin-week-row-state.js').SendingDay[] }} [opts] `grid`: the write is this WEEK's own save, which resets and redraws
  *   every row when it lands — so a change made in the wait (seconds, on an iPhone) was taken and then
  *   thrown away without a word. The grid and the bulk bar are `inert` until it settles. A range booking
  *   leaves them live: it never redraws over staged rows, and asks before it moves the week.
+ *   `sending`: what it sends (`sendingEntries`), held until it settles, for `sendingDays`.
  */
-export function setSaveInFlight(on, { grid = false } = {}) {
+export function setSaveInFlight(on, { grid = false, sending = null } = {}) {
     _saveInFlight = !!on;
     _weekHeld = _saveInFlight && grid;
+    _sending = _saveInFlight ? sending : null;
     for (const id of ['weekGrid', 'bulkBar']) { const el = document.getElementById(id); if (el) el.inert = _weekHeld; }
     updateSaveBtn();
 }
 /** Is any override write on this page still sending? One lock for the grid AND the range cards (v24.38). @returns {boolean} */
 export function isSaveInFlight() { return _saveInFlight; }
+/** What the week's save in flight is sending, or null between saves: kept with a draft taken mid-save (unsaved-draft.js rule 6). @returns {null|import('./admin-week-row-state.js').SendingDay[]} */
+export function sendingDays() { return _sending; }
 
 export function updateSaveBtn() {
     const weekGrid = document.getElementById('weekGrid');

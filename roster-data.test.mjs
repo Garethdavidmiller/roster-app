@@ -48,6 +48,7 @@ import {
     formatISO,
     CONFIG,
     fixedRoster,
+    FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS,
     weeklyRoster,
     bilingualRoster,
     cesRoster,
@@ -59,6 +60,7 @@ import {
     getMembersForGrade,
     parseSmartFloatOrNull,
 } from './roster-data.js';
+import { isChristmasLeaveDay } from './christmas-leave.js';
 
 describe('isChilternWorkEmail', () => {
     test('accepts a valid Chiltern work email (any case on the domain)', () => {
@@ -529,7 +531,7 @@ describe('a pattern in force is never edited in place', () => {
         weeklyRoster: ['1089a547', '1eabcfbc', 'baa733f8', '45a0efd8', 'b402c7d5', '4de0e2e6', '1089a547', 'b9e0c3bb', '3cc3f934', '2f2d51b0',
                        '790b1ee8', '1089a547', 'da69c2a2', 'dbebf081', '078d038f', 'edc96eb1', '1089a547', 'e04d76a0', '4fb50022', '45adc273'],
         bilingualRoster: ['1089a547', '45a0fabe', 'd8aabddb', '32db854e', '57d55631', '5a8850a7', '51b43c2c', '1089a547'],
-        fixedRoster: ['cc3c67d4', '036722bc', '005e3a19'],
+        fixedRoster: ['cc3c67d4', '036722bc', '005e3a19', '036722bc'],   // 4 is 2's week; its bank holidays differ (below)
         cesRoster: ['5f974d01', 'abdac8bd', 'a72314b0', '1089a547', '7f51ec7e', '9b06e81f', '719872fb', 'efc75714', '1089a547', 'e6afee3f'],
         dispatcherRoster: ['b5d10c52', 'ceeca403', '787c08de', '52f118ff', 'efd0ff79', 'f8b3ec7b', 'ec1a9db3', '1efb4600', '4e9ea548', '697433ff'],
     };
@@ -546,6 +548,13 @@ describe('a pattern in force is never edited in place', () => {
             `these weeks were edited in place, which redraws every past date they cover:\n  ${edited.join('\n  ')}\n`
             + 'Bring a new base roster in as a NEW table and roster type, and move members onto it with a dated\n'
             + 'rosterChanges entry (roster-cycle-data.js header). Update a digest only for a cell that was always wrong.');
+    });
+
+    test('and the fixed patterns that rest on bank holidays are the ones they were', () => {
+        // A week of seven cells cannot say it, so the digests above cannot see it: a pattern added to this
+        // list redraws every past bank holiday of everyone on it, exactly as an edited week would.
+        assert.deepEqual([...FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS], [4],
+            'a fixed line that changes how it treats bank holidays is a NEW pattern and a dated rosterChanges entry');
     });
 
     test('and the constants that place each cycle in time are unchanged', () => {
@@ -1738,6 +1747,9 @@ test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
     assert.equal(after.currentWeek, 2);
     assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');  // Mon 29 Jun — fixed pattern 2
     assert.equal(getBaseShift(m, new Date(2026, 6, 4)),  'RD');           // Sat 4 Jul — fixed pattern 2 weekend
+    // Pattern 2 WORKS bank holidays. Pattern 4 (the placeholder line, v25.97) is the one that rests on them,
+    // and nothing about it may reach somebody still on 2.
+    assert.equal(getBaseShift(m, new Date(2026, 7, 31)), '09:00-16:00');  // Mon 31 Aug — a bank holiday, worked on 2
 });
 
 // M. Campbell's training weeks are TRAINING WITH NO TIMES (owner, 6 Nov 2026: "show Other (Training
@@ -1826,7 +1838,7 @@ test('A. Guinea: pre-start RD, Training with no times Mon–Fri 5 Oct–14 Nov, 
     }
 });
 
-test('A. Atkins: his Dispatcher line until Sat 14 Nov 2026, then fixed pattern 2 (Mon–Fri, weekends RD) from 15 Nov', () => {
+test('A. Atkins: his Dispatcher line until Sat 14 Nov 2026, then the placeholder pattern 4 (Mon–Fri 09:00–16:00, weekends and bank holidays RD) from 15 Nov', () => {
     const m = teamMembers.find(x => x.name === 'A. Atkins');
     assert.ok(m, 'A. Atkins not found');
     const before = resolveMemberRoster(m, new Date(2026, 10, 14));         // Sat 14 Nov
@@ -1834,12 +1846,68 @@ test('A. Atkins: his Dispatcher line until Sat 14 Nov 2026, then fixed pattern 2
     assert.equal(before.currentWeek, 9);
     const after = resolveMemberRoster(m, new Date(2026, 10, 15));          // Sun 15 Nov
     assert.equal(after.rosterType, 'fixed');
-    assert.equal(after.currentWeek, 2);
+    assert.equal(after.currentWeek, 4);
     for (let day = 15; day <= 21; day++) {                                  // his first week on it
         const d = new Date(2026, 10, day);
         const weekend = d.getDay() === 0 || d.getDay() === 6;
-        assert.equal(getBaseShift(m, d), weekend ? 'RD' : fixedRoster[2].mon, d.toDateString());
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : '09:00-16:00', d.toDateString());
     }
+    assert.equal(getBaseShift(m, new Date(2026, 11, 28)), 'RD', 'Mon 28 Dec 2026 is a bank holiday: a rest day on his line');
+    assert.equal(getBaseShift(m, new Date(2026, 11, 29)), '09:00-16:00', 'Tue 29 Dec 2026 is an ordinary weekday');
+});
+
+test('S. Faure: her Dispatcher line until Sun 28 Jun 2026, then the placeholder pattern 4 from Mon 29 Jun — whose bank holidays are rest days', () => {
+    const m = teamMembers.find(x => x.name === 'S. Faure');
+    assert.ok(m, 'S. Faure not found');
+    const before = resolveMemberRoster(m, new Date(2026, 5, 28));          // Sun 28 Jun
+    assert.equal(before.rosterType, 'dispatcher');
+    assert.equal(before.currentWeek, 4);
+    const after = resolveMemberRoster(m, new Date(2026, 5, 29));           // Mon 29 Jun
+    assert.equal(after.rosterType, 'fixed');
+    assert.equal(after.currentWeek, 4);
+    assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');   // Mon 29 Jun, her first day on it
+    assert.equal(getBaseShift(m, new Date(2026, 7, 31)), 'RD', 'Mon 31 Aug 2026, the summer bank holiday: not worked on her line');
+    assert.equal(getBaseShift(m, new Date(2026, 8, 1)), '09:00-16:00', 'Tue 1 Sep 2026, the next day');
+    assert.equal(isChristmasLeaveDay(m, new Date(2026, 11, 25)), false,
+        'Fri 25 Dec 2026: Christmas Day is a bank holiday, so she was never due at work — a rest day, not Christmas leave');
+});
+
+// A FIXED LINE THAT RESTS ON BANK HOLIDAYS (fixedRoster[4], v25.97). A Dispatcher earns a day in lieu for each
+// bank holiday the resolved shift says they worked, so a Mon–Fri line that WORKS them (pattern 2) earns one
+// for every weekday bank holiday, and the line that rests on them earns none — unless a day is RECORDED as
+// worked, which wins as it always has. A made-up member, so no roster name sits beside a leave figure.
+test('a Dispatcher on a fixed line that rests on bank holidays earns no day in lieu for them, unless one is recorded as worked', () => {
+    const on = (/** @type {number} */ pattern) => ({ name: 'Test Dispatcher', role: 'Dispatcher', rosterType: 'fixed', currentWeek: pattern });
+    const year = getBankHolidays(2027);
+    assert.equal(year.length, 8);
+    assert.ok(year.every(d => d.getDay() >= 1 && d.getDay() <= 5), 'every 2027 bank holiday falls on a weekday');
+    assert.equal(getALEntitlement(on(2), 2027, []), 22 + 8, 'pattern 2 works all eight');
+    assert.equal(getALEntitlement(on(4), 2027, []), 22, 'pattern 4 works none');
+    const worked = [{ memberName: 'Test Dispatcher', date: '2027-05-03', type: 'rdw', value: 'RDW', source: 'manual' }];
+    assert.equal(getALEntitlement(on(4), 2027, worked), 22 + 1, 'a bank holiday recorded as worked still earns its day');
+    // The rule is the bank holiday, not the weekday: the Monday after one is an ordinary working day.
+    assert.equal(getBaseShift(on(4), new Date(2027, 4, 3)), 'RD');
+    assert.equal(getBaseShift(on(4), new Date(2027, 4, 10)), '09:00-16:00');
+    assert.equal(getBaseShift(on(2), new Date(2027, 4, 3)), '09:00-16:00');
+});
+
+test('a ROTATING line\'s week 4 still works its bank holidays: the rest rule belongs to the fixed pattern, not the number', () => {
+    // Fixed pattern 4 and a rotating link's week 4 share only a number. Every rotating table, on every 2027
+    // bank holiday, put on its own week 4: each must read exactly as its table says, rest day or shift.
+    const DAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    let shifts = 0;
+    for (const [rosterType, table, len] of /** @type {[string, any, number][]} */ ([['main', weeklyRoster, CONFIG.MAIN_ROSTER_WEEKS],
+        ['bilingual', bilingualRoster, CONFIG.BILINGUAL_ROSTER_WEEKS], ['ces', cesRoster, CONFIG.CES_ROSTER_WEEKS],
+        ['dispatcher', dispatcherRoster, CONFIG.DISPATCHER_ROSTER_WEEKS]])) {
+        for (const bh of getBankHolidays(2027)) {
+            const currentWeek = Array.from({ length: len }, (_, i) => i + 1)
+                .find(c => getWeekNumberForDate(bh, { rosterType, currentWeek: c }) === 4);
+            const want = table[4][DAY[bh.getDay()]];
+            assert.equal(getBaseShift({ name: 'Test', role: 'CEA', rosterType, currentWeek }, bh), want, `${rosterType} week 4, ${bh.toDateString()}`);
+            if (want !== 'RD' && want !== 'OFF') shifts++;
+        }
+    }
+    assert.ok(shifts > 0, 'no rotating week 4 has a shift on a 2027 bank holiday, so this test checks nothing');
 });
 
 test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', () => {

@@ -404,6 +404,72 @@ export function readWeekDraft(grid, was) {
 }
 
 /**
+ * One day a save SENDS: `type` and `value` for a day it writes, `removeId` for a record it deletes.
+ * @typedef {{ member: string, date: string, type?: string, value?: string, removeId?: string }} SendingDay
+ */
+
+/**
+ * What a save sends, one entry a day, as it composed them (v25.97). The week editor holds them while
+ * the save is in flight (`setSaveInFlight` → `sendingDays`), so a draft kept mid-save can carry them.
+ * A deleted id whose row is not known names no day, and rule 6 can only ask a day, so it is left out.
+ * @param {Array<{ memberName: string, date: string, type: string, value: string }>} toSave
+ * @param {string[]} toDelete
+ * @param {Array<{ memberName?: string, date?: string }|null>} removedRows  the rows `toDelete` names, index for index
+ * @param {string} [member]  whose week it is, for a removed row that does not say
+ * @returns {SendingDay[]}
+ */
+export function sendingEntries(toSave, toDelete, removedRows, member) {
+    return [
+        ...toSave.map(e => ({ member: e.memberName, date: e.date, type: e.type, value: e.value })),
+        ...toDelete.map((id, i) => ({ member: removedRows[i]?.memberName ?? member ?? '', date: removedRows[i]?.date ?? '', removeId: id }))
+            .filter(s => s.date),
+    ];
+}
+
+/**
+ * A week as a draft keeps it: its staged rows and, while a save is in flight, what that save is
+ * sending for `member` — so the next load can tell the rows it has since landed from work still
+ * unsaved (`unsavedWeekDraft`). With nothing in flight for them, the rows alone.
+ * @param {RowDraft[]} rows
+ * @param {SendingDay[]|null} sending  `sendingDays()`
+ * @param {string} member  the member on screen
+ * @returns {{ rows: RowDraft[], sending?: SendingDay[] }}
+ */
+export function keptWeekDraft(rows, sending, member) {
+    const mine = (sending ?? []).filter(s => s.member === member);
+    return mine.length ? { rows, sending: mine } : { rows };
+}
+
+/**
+ * What is still UNSAVED in a kept week (unsaved-draft.js, rule 6), or null when nothing is. A draft
+ * kept while a save was in flight carries what that save was sending (`sending`, from `sendingDays`).
+ * A row whose day now holds exactly what the save was writing — or whose deleted record is gone — is
+ * the member's own save, landed: not unsaved work, and offering it back drew "Restore your unsaved
+ * changes?" and then "changed since" about it. Every other row is still unsaved, whatever became of
+ * the save: one held only in memory, or a transaction the page abandoned, landed nowhere.
+ * @param {any} data  the draft's data, as read back from storage: `{ rows, sending? }`
+ * @param {(date: string) => any} recordOn  the record each day holds now (`buildMemberDateMap`)
+ * @param {(id: string) => boolean} stillHeld  whether a record with that id is still there
+ * @returns {Record<string, any>|null}
+ */
+export function unsavedWeekDraft(data, recordOn, stillHeld) {
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    /** @type {Map<string, any>} */
+    const sent = new Map((Array.isArray(data?.sending) ? data.sending : [])
+        .filter((/** @type {any} */ s) => s && typeof s.date === 'string')
+        .map((/** @type {any} */ s) => [s.date, s]));
+    const landed = (/** @type {any} */ r) => {
+        const s = sent.get(r?.date);
+        if (!s) return false;
+        if (s.removeId) return !!r.remove && !stillHeld(String(s.removeId));
+        const now = recordOn(r.date);
+        return !r.remove && !!now && now.type === s.type && now.value === s.value;
+    };
+    const left = rows.filter((/** @type {any} */ r) => !landed(r));
+    return left.length ? { ...data, rows: left } : null;
+}
+
+/**
  * Put a kept week back on the grid on screen. A row is restored only while its saved record is still
  * the one it was edited over: a colleague's change since, or a booking made from another card, is
  * never overwritten by a draft nobody has looked at again. Those days come back in `left`, with any

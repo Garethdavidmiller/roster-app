@@ -132,27 +132,30 @@ export const teamMembers = [
     { name: 'A. Targanov',             currentWeek: 2,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher', hidden: true }, // left 10 Sep 2026 — Dispatcher week-3 line is a vacancy. Row kept so his past shifts, overrides and any frozen Overtime week still resolve
     // S. Faure — moves off the rotating Dispatcher link on Mon 29 Jun 2026, through rosterChanges, onto
-    // a Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, weekends RD (B. Toth took her line 4). The base
-    // fields describe her line BEFORE 29 Jun, so the weeks before then still display as rostered. To
-    // end the move, ADD a `rosterChanges` entry dated from the change; deleting this one would redraw
-    // every date since 29 Jun 2026.
-    // NOTE `fixedRoster[2]` is shared — S. Boyle is on it too, and it drew several starters' first
-    // weeks: change those hours and you change all of theirs.
+    // a placeholder line of her own: `fixedRoster[4]`, 09:00–16:00 Mon–Fri, weekends RD, and every bank
+    // holiday a rest day (owner, 13 Nov 2026). B. Toth took her line 4. The base fields describe her line
+    // BEFORE 29 Jun, so the weeks before then still display as rostered. To end the move, ADD a
+    // `rosterChanges` entry dated from the change; deleting this one would redraw every date since
+    // 29 Jun 2026.
+    // Until v25.97 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
+    // holidays. Pointing it at 4 redrew only the bank holidays since 29 Jun, as the rest days they were.
+    // NOTE `fixedRoster[4]` is shared with A. Atkins (below): change its hours and you change both.
     { name: 'S. Faure',                currentWeek: 4,  rosterType: 'dispatcher', role: 'Dispatcher',
-      rosterChanges: [{ from: new Date(2026, 5, 29), rosterType: 'fixed', currentWeek: 2 }] },
+      rosterChanges: [{ from: new Date(2026, 5, 29), rosterType: 'fixed', currentWeek: 4 }] },
     { name: 'L. Szpejer',              currentWeek: 5,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'K. Porter',               currentWeek: 6,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Murray',               currentWeek: 7,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Clarke',               currentWeek: 8,  rosterType: 'dispatcher', role: 'Dispatcher' },
     // A. Atkins — moves off the rotating Dispatcher link on Sun 15 Nov 2026, through rosterChanges, onto
-    // the Mon–Fri row `fixedRoster[2]`, 09:00–16:00, weekends RD (owner, 12 Nov 2026). A. Guinea takes his
-    // line, 9, the same day. The base fields describe his line BEFORE 15 Nov, so the weeks before then
-    // still display as rostered. To end the move, ADD a `rosterChanges` entry dated from the change;
-    // deleting this one would redraw every date since 15 Nov 2026.
-    // NOTE `fixedRoster[2]` is SHARED, with S. Boyle and S. Faure (above): it is not a row of his own, and
-    // changing its hours changes all three. Hours of his own need a pattern of his own.
+    // a placeholder line of his own: `fixedRoster[4]`, 09:00–16:00 Mon–Fri, weekends RD, and every bank
+    // holiday a rest day (owner, 12 and 13 Nov 2026). A. Guinea takes his line, 9, the same day. The base
+    // fields describe his line BEFORE 15 Nov, so the weeks before then still display as rostered. To end
+    // the move, ADD a `rosterChanges` entry dated from the change; deleting this one would redraw every
+    // date since 15 Nov 2026.
+    // NOTE `fixedRoster[4]` is SHARED with S. Faure (above): it is not a row of his own, and changing its
+    // hours changes both. Hours of his own need a pattern of his own.
     { name: 'A. Atkins',               currentWeek: 9,  rosterType: 'dispatcher', role: 'Dispatcher',
-      rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'fixed', currentWeek: 2 }] },
+      rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'fixed', currentWeek: 4 }] },
     { name: 'K. Yeboah',               currentWeek: 10, rosterType: 'dispatcher', role: 'Dispatcher' },
 
     // B. Toth — started Mon 29 Jun 2026 on S. Faure's line (4), after THREE weeks of initial

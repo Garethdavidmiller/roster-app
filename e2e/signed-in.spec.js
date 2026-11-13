@@ -27,7 +27,15 @@
  *                         this device's queue waits for it, then deletes the member's own record
  *                         and it stays deleted. The SDK's write stream is held to keep that
  *                         second open; this is the race v25.95 closed, and the false "someone else
- *                         has changed this" v25.96 closed, neither of which a stub can order.
+ *                         has changed this" v25.96 closed, neither of which a stub can order. The
+ *                         same reload proves the draft kept mid-save is not offered back once its
+ *                         save is in the queue (v25.97).
+ *   9. Links, back online — the designer's own account: a change to a design saved with no signal
+ *                         is still in this device's queue when the design is renamed, so the
+ *                         rename waits for it, and the queued save cannot then land on top and put
+ *                         the old name back. Links store rule 5 (v25.96), on the real SDK and the
+ *                         real `linkDesigns` rules. With the wait removed, that is exactly what
+ *                         happened here (measured 13 November 2026).
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -42,7 +50,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect, expectNothingLeftForGoogle, wireToEmulators } from './signed-in-fixtures.js';
 import { resetDatabase, readCollection, seedDocument, EMULATOR } from './signed-in-env.mjs';
 import { resetPasswords } from './signed-in-setup.mjs';
-import { signInThroughOverlay, enterPin } from './helpers.js';
+import { signInThroughOverlay, enterPin, sheetAction, clickDialogConfirm, activeDesignName } from './helpers.js';
 import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data.js';
 import { manualOverrideId } from '../override-id.js';
 
@@ -52,6 +60,8 @@ const plain = roster.cea.filter((/** @type {string} */ n) => !withARole.has(n));
 const MEMBER = plain[0];
 const COLLEAGUE = plain[1];
 const MANAGER = roster.roles.manager[0];
+/** Whoever the server's role list makes a Links designer: the claim Links saves through. */
+const DESIGNER = roster.roles.designer[0];
 /** The password each journey's member chooses on the real "set your own password" screen. */
 const OWN_PASSWORD = 'signed-in lane 7';
 /**
@@ -112,7 +122,7 @@ function dayLabel(day) {
 test.beforeEach(async ({ page }) => {
     expect(NOTICE_KEYS.length, 'calendar-notices.js no longer declares its notices as DONE_KEY — update quietNotices').toBeGreaterThan(0);
     await resetDatabase();
-    await resetPasswords([MEMBER, COLLEAGUE, MANAGER]);
+    await resetPasswords([MEMBER, COLLEAGUE, MANAGER, DESIGNER]);
     await quietNotices(page);
 });
 
@@ -309,15 +319,22 @@ test('back online: a delete waits for the save this device has not sent yet, and
     let holding = true;
     await page.route((url) => url.host === EMULATOR.firestore && url.pathname.endsWith('/Write/channel'),
         (route) => { if (holding) held.push(route); else route.continue().catch(() => { /* the page has moved on */ }); });
-    // The staged day is a draft when the page goes; it is the save that matters here, not the offer.
-    await page.addInitScript(() => {
-        for (const k of Object.keys(localStorage)) if (k.startsWith('myb_draft_')) localStorage.removeItem(k);
-    });
+    // The page goes with its save still waiting, so it keeps the staged day as a draft — with what the
+    // save was sending (unsaved-draft.js, rule 6). Read as the next load starts, before the app does.
+    const draft = `myb_draft_admin_${encodeURIComponent(MEMBER)}`;
+    await page.addInitScript((k) => { /** @type {any} */ (window).__keptDraft = localStorage.getItem(k); }, draft);
     page.on('dialog', (d) => d.accept());   // "Leave the page?" — the save is queued, not lost
     await context.setOffline(false);
     await page.reload();
     await openAdminWeek(page, day);
     await expect.poll(() => held.length, { message: 'the SDK never tried to send the save it had queued' }).toBeGreaterThan(0);
+    const kept = JSON.parse(await page.evaluate(() => /** @type {any} */ (window).__keptDraft) || 'null');
+    expect(kept?.data?.sending, 'the draft kept what its save was sending').toEqual([expect.objectContaining({ date: day, type: 'annual_leave', value: 'AL' })]);
+    // That save is in this device's queue, which counts: the day holds it, so it is not offered back as
+    // unsaved. It used to be — "Restore your unsaved changes?", then "changed since" about this very save.
+    await expect.poll(() => page.evaluate((k) => localStorage.getItem(k), draft),
+        { message: 'the queued save was still kept as unsaved work' }).toBeNull();
+    await expect(page.locator('.dialog-overlay.visible'), 'asked to restore a change that is saved').toHaveCount(0);
 
     await page.locator('#overridesToggleHeader').click();
     const del = page.locator(`#overrideTableBody .btn-delete[data-id="${id}"]`);
@@ -339,6 +356,62 @@ test('back online: a delete waits for the save this device has not sent yet, and
         'this device still had saves waiting').toBe(true);
     // …and the day is gone from the database, not put back by the save queued before it.
     expect(await overridesFor(MEMBER, day), 'the save queued offline landed after the delete and put the day back').toHaveLength(0);
+    expectNothingLeftForGoogle(page);
+});
+
+test('Links, back online: a rename waits for the save this device has not sent yet, and is not undone by it', async ({ page, context }) => {
+    const NAME = 'Option A';
+    const RENAMED = 'Option A, renamed';
+    /** The design as the database holds it, read past the rules. */
+    const stored = async () => (await readCollection('linkDesigns')).find((d) => d.name === NAME || d.name === RENAMED);
+    await page.addInitScript(() => { try { localStorage.setItem('myb_links_welcome_seen', '1'); } catch { /* private mode */ } });
+    await page.goto('/links.html');
+    await signInFirstTime(page, DESIGNER);
+
+    // A design made with a signal, so the database holds it before anything is queued.
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill(NAME);
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(activeDesignName(page)).toHaveText(NAME);
+    await expect.poll(async () => (await stored())?.name, { message: 'the new design must reach the database' }).toBe(NAME);
+
+    // No signal: a change to the staffed window is saved into this device's queue (store rule 4). The
+    // store tries its transaction first, which takes a few seconds to give up offline.
+    await context.setOffline(true);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved in this browser', { timeout: 45_000 });
+
+    // The signal returns with the SDK's write stream HELD, so the queued save cannot land yet, and the
+    // design is renamed meanwhile. A rename is a transaction, which reads the server: without the
+    // wait it read the design before the queued save, committed, and the save — a whole design,
+    // name included — then landed on top and put the old name back. Store rule 5 (v25.96).
+    /** @type {import('@playwright/test').Route[]} */
+    const held = [];
+    let holding = true;
+    await page.route((url) => url.host === EMULATOR.firestore && url.pathname.endsWith('/Write/channel'),
+        (route) => { if (holding) held.push(route); else route.continue().catch(() => { /* the page has moved on */ }); });
+    await context.setOffline(false);
+    await expect.poll(() => held.length, { message: 'the SDK never tried to send the save it had queued', timeout: 30_000 }).toBeGreaterThan(0);
+    await sheetAction(page, 'designRenameMenuBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill(RENAMED);
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+
+    const early = await expect(activeDesignName(page)).toHaveText(RENAMED, { timeout: 2_000 }).then(() => true, () => false);
+    expect(early, 'the rename went ahead before this device\'s own save had reached the database').toBe(false);
+    expect((await stored())?.name, 'nothing of the rename can have reached the database yet').toBe(NAME);
+
+    holding = false;
+    for (const route of held.splice(0)) await route.continue().catch(() => { /* the SDK gave up on it */ });
+    await expect(activeDesignName(page)).toHaveText(RENAMED, { timeout: 30_000 });
+    // Nothing of this device's is left to land on top of the rename…
+    expect(await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(20_000))),
+        'this device still had saves waiting').toBe(true);
+    // …and the database holds both: the save from before the signal returned, and the rename after it.
+    const after = await stored();
+    expect(after?.name, 'the save queued offline landed after the rename and put the old name back').toBe(RENAMED);
+    expect(after?.window?.monSat?.end, 'the change saved offline never reached the database').toBe('14:20');
     expectNothingLeftForGoogle(page);
 });
 

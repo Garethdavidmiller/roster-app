@@ -2779,6 +2779,36 @@ this device's own unsent write is now held as the page's own copy (`overrideFrom
 list reads and the roster import's week read. The journey now passes, and fails with either fix
 taken out.
 
+**v25.97: the draft kept mid-save no longer offers back a save that landed.** The same real-SDK
+journey found it: Admin closed while a save waited for signal keeps the staged rows as a draft (rightly
+— in a second tab the save is held only in memory, and is lost with the page), and the next load asked
+"Restore your unsaved changes?" about a save that had since landed; Restore then said the day had
+"changed since", about the member's own save. The draft now carries what the save was sending
+(`sendingDays`, held with the write lock in `admin-week-editor.js`), and the next load offers back only
+rows whose day does not hold it (`unsavedWeekDraft`; `unsaved-draft.js` rule 6). The shaping is pure
+(`sendingEntries`, `keptWeekDraft`), which kept Admin's two coordinators inside their size caps. Nothing else changed: the browser's own "Leave
+site?" while a save waits stays, because in that second-tab case it is true. Proven by the journey,
+which now reloads with its draft and fails if it is offered back, two Admin browser tests (landed: not
+offered; never landed: offered and restored) and the unit tests of the rule.
+
+**v25.97 also ran the Links fix (v25.96, below) on the real SDK.** A new signed-in journey signs in as
+the designer, saves a change to a design with no signal, and renames the design once the signal is
+back, while that save is held in the SDK's queue. With the wait taken out, real Firestore did exactly
+what the stubbed test had modelled: the rename committed at once, then the queued save, a whole design
+with its name, landed on top and put the old name back. With the wait in place the rename waits for
+the save, and both reach the database. This run found no new fault; the journey fails if the wait goes.
+
+**v25.97 also gave two placeholder lines a pattern that rests on bank holidays.** Two Dispatchers off
+their rotating link for the time being are on a placeholder Monday-to-Friday line, 09:00–16:00, and do
+not work bank holidays while on it (owner, 13 Nov 2026). The app had them on `fixedRoster[2]`, which has
+those hours but works bank holidays. So every weekday bank holiday showed a shift, and the Dispatcher
+allowance added a day in lieu for each one, all eight in 2027. They are now on `fixedRoster[4]`:
+pattern 2's hours, with every bank holiday a rest day (`FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS`, read in
+`getPatternShift`, so the Calendar, the days in lieu and the Christmas rules agree). Their existing
+entries were pointed at 4 rather than given new ones, so the bank holidays since each move were
+redrawn too, as the rest days they were. Pattern 2 is untouched: others sit on it, and nobody has said
+they rest on bank holidays.
+
 **v25.96: the Links workspace had the same race, and has the same wait.** Its design store queues
 a save, a rename and a bin offline (rule 4), and every online one of those, a restore, a purge and
 the automatic bin is a transaction. So just after the signal returned, a save wrote over the

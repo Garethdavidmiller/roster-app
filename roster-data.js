@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.96';
+export const APP_VERSION = '25.97';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -343,9 +343,9 @@ export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDa
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS } from './roster-cycle-data.js';
 import { shouldReplaceOverride, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
-export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
+export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS };
 
 // ============================================
 // SHARED CONSTANTS
@@ -985,7 +985,7 @@ export function getBaseShift(member, date) {
  * same lookup, not a copy of it: start-date suppression and any scheduled roster change apply
  * exactly as they do for every other date, and `getBaseShift` is now the Christmas rule on top of
  * this. **Use `getBaseShift` for everything else**; this answers "what was the pattern", which is a
- * question only the Christmas rules ask.
+ * question only the Christmas rules ask. A bank holiday on a pattern that rests on them is RD here.
  * @param {any} member  teamMembers entry
  * @param {Date}   date
  * @returns {string}  Shift value e.g. "RD", "SPARE", "06:00-14:00"
@@ -1000,9 +1000,9 @@ export function getPatternShift(member, date) {
         if (dateMidnight < startMidnight) return 'RD';
     }
     const weekNum = getWeekNumberForDate(date, member);
-    const dayKey  = DAY_KEYS[date.getDay()];
-    const data    = getRosterForMember(member, date).data;
-    return (data[weekNum] && data[weekNum][dayKey]) || 'RD';
+    const { type, data } = getRosterForMember(member, date);
+    if (type === 'fixed' && FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS.includes(weekNum) && isBankHoliday(date)) return 'RD';   // roster-cycle-data.js
+    return (data[weekNum] && data[weekNum][DAY_KEYS[date.getDay()]]) || 'RD';
 }
 
 // ============================================

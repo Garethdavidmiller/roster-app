@@ -21,9 +21,9 @@ import { saveFailureMessage } from './claim-retry.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
-         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight } from './admin-week-editor.js';
+         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays } from './admin-week-editor.js';
 export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
-         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight };
+         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates, commitChecked } from './admin-override-store.js';
@@ -37,7 +37,7 @@ import { rangeSundayCorrections } from './admin-al-projection.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
-import { drawnRecords, drawnDays } from './admin-week-row-state.js';
+import { drawnRecords, drawnDays, sendingEntries } from './admin-week-row-state.js';
 import { formatDisplay, namedDays } from './admin-period-dates.js';
 import { initOwnWrite, syncWeekAfterOwnWrite } from './admin-own-write.js';
 
@@ -180,8 +180,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // passed the collector twice and wrote duplicates. Fixed ids (v24.48) now make a second run land on
     // the same documents, so this is a guard against a wasted write. The finally re-enables it.
     // `grid`: the batch is the week as it stood at the press, and the week is redrawn when it lands —
-    // so the week is held still until then, rather than taking a change it would throw away.
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true, { grid: true });
+    // so the week is held still until then, rather than taking a change it would throw away. And what it
+    // sends is held with it, for a draft kept if the page goes before it is answered (v25.97).
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true, { grid: true, sending: sendingEntries(toSave, toDelete, removedRows, memberName) });
 
     await sessionReady;
     // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial

@@ -62,11 +62,29 @@ export const bilingualRoster = {
 //                 `validateRosterPatterns` refuses all three in a pattern.
 //                 Pay is unchanged by it: contracted hours come from the grade, never the pattern,
 //                 and a weekday contributes nothing to the roster-assist either way.
+//   4 — 09:00–16:00 Mon–Fri, RD weekends, and a REST DAY ON EVERY BANK HOLIDAY (v25.97, owner 13 Nov
+//                 2026): a placeholder line for somebody off a rotating link for the time being, who
+//                 does not work bank holidays while on it. Pattern 2's hours; the bank holidays are the
+//                 one difference, so it is a pattern of its own rather than an edit to 2, which others
+//                 sit on and which works them. FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS, below.
 export const fixedRoster = {
     1: { sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00', wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD' },
     2: { sun: 'RD', mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00', thu: '09:00-16:00', fri: '09:00-16:00', sat: 'RD' },
     3: { sun: 'RD', mon: 'TRG',         tue: 'TRG',         wed: 'TRG',         thu: 'TRG',         fri: 'TRG',         sat: 'RD' },
+    4: { sun: 'RD', mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00', thu: '09:00-16:00', fri: '09:00-16:00', sat: 'RD' },
 };
+
+/**
+ * The fixed patterns on which a bank holiday is a REST DAY, whatever its weekday says (v25.97). A week of
+ * seven cells cannot say it: a bank holiday falls on a date, not a weekday. Read where every pattern is
+ * read, `getPatternShift` (roster-data.js), so the Calendar, Team Week, Admin's grid, a Dispatcher's days
+ * in lieu (none is earned for a bank holiday the line never worked) and the Christmas rules (nobody on
+ * the line is due at work on 25 December) all see the same day off.
+ * IN FORCE, LIKE A PATTERN: adding a number here redraws every past bank holiday of everyone on that
+ * pattern, so `roster-data.test.mjs` pins the list with the weeks. A line that changes how it treats bank
+ * holidays is a new pattern and a dated `rosterChanges` entry, as any other change to a line is.
+ */
+export const FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS = Object.freeze([4]);
 
 // 10-week CES (Customer Experience Supervisor) roster — Marylebone.
 // Weeks 4 and 9 are Spare all week; weeks 5 and 10 open with a rostered Sunday, then Spare to Thursday.

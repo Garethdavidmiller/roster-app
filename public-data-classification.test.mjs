@@ -229,6 +229,7 @@ const PUBLIC_DATA_EXPORTS = /** @type {const} */ ({
     cesRoster:        'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
     dispatcherRoster: 'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
     fixedRoster:      'The fixed patterns. Public by the owner’s decision (AUTH_PLAN.md §2).',
+    FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS: 'Which fixed patterns rest on bank holidays: part of those patterns, public as they are.',
     TEAM_GRADES:      'The grade groups Team Week offers.',
     DAY_NAMES:        'Calendar words.',
     MONTH_ABB:        'Calendar words.',

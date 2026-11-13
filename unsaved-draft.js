@@ -41,6 +41,18 @@
  *      (`draftBaseline`), so a colleague's save since still meets "Someone else saved"; Admin puts
  *      back only the rows whose saved record is still the one the row was edited over
  *      (`savedSignature`), and names the days it left alone.
+ *   6. WORK A SAVE HAS SINCE LANDED IS NOT UNSAVED (v25.97). A page hidden while a save was still
+ *      waiting for its answer keeps that save's rows, and rightly: a save held only in memory (the
+ *      app open in a second tab, where the IndexedDB lease is single-tab) or a transaction still
+ *      waiting is lost with the page. But a save held in this device's queue usually lands, and the
+ *      next load then asked "Restore your unsaved changes?" about changes that WERE saved — and
+ *      Restore named each day as changed since, about the member's own save (found on the real SDK,
+ *      13 Nov 2026). So `offer` takes `unsaved`: the draft's data with what has since landed taken
+ *      out, or null when that is all of it. Null deletes the draft without a question; anything else
+ *      is what is asked about and put back. Admin judges it from what the save was SENDING when the
+ *      page went (`sendingDays`, admin-week-editor.js) against what each day holds now
+ *      (`unsavedWeekDraft`, admin-week-row-state.js) — the outcome, never a guess about which queue
+ *      the save was in.
  *
  * ── WHAT IT IS NOT ──────────────────────────────────────────────────────────────────────────────
  *
@@ -191,7 +203,8 @@ function sweepStaleDrafts(now) {
  * once, through the page's own `confirmDialog`: Discard deletes the draft; Restore runs `apply`
  * and deletes it afterwards — unless `apply` could not put it back (it returned false, or threw),
  * in which case it stays for the next load; and a question dismissed unanswered leaves it waiting,
- * still unanswered (rule 1), for the next load to ask.
+ * still unanswered (rule 1), for the next load to ask. Before asking, an `unsaved` hook takes out
+ * what has since saved (rule 6); when nothing is left the draft is deleted and nothing is asked.
  *
  * `usable(data)` is the page's own test of a draft it could put back WHOLE: one that fails it is
  * neither offered nor kept. A Links draft whose patterns were unreadable would otherwise come back
@@ -226,13 +239,23 @@ export function createDraftSlot({ page, by, now = Date.now, usable = () => true 
         /**
          * `ask` is the page's `confirmDialog`, which resolves `dismissResult` — null — when the question
          * is put away without an answer.
+         * `unsaved(draft)` is the page's answer to "is any of this still unsaved?" (rule 6): the data
+         * with what has since landed taken out, or null when nothing is left. A hook that throws is no
+         * answer, so the whole draft is asked about, as it was before the hook existed.
          * @param {{ ask: (o: { title: string, message: string, confirmLabel: string, cancelLabel: string, dismissResult: null }) => Promise<boolean|null>,
-         *           apply: (draft: Draft) => any }} o
-         * @returns {Promise<'none'|'discarded'|'restored'|'kept'|'unanswered'>}
+         *           apply: (draft: Draft) => any,
+         *           unsaved?: (draft: Draft) => Record<string, any>|null }} o
+         * @returns {Promise<'none'|'saved'|'discarded'|'restored'|'kept'|'unanswered'>}
          */
-        async offer({ ask, apply }) {
-            const draft = peek();
+        async offer({ ask, apply, unsaved }) {
+            let draft = peek();
             if (!draft) { waiting = false; return 'none'; }
+            if (unsaved) {
+                /** @type {Record<string, any>|null} */ let left = draft.data;
+                try { left = unsaved(draft); } catch (err) { console.error('[unsaved-draft] could not tell what has since saved:', err); }
+                if (!left) { waiting = false; lsDel(key); return 'saved'; }   // all of it landed: nothing to ask about
+                draft = { ...draft, data: left };
+            }
             const restore = await ask({ title: 'Unsaved changes', message: restoreQuestion(draft.savedAt, now()),
                 confirmLabel: 'Restore', cancelLabel: 'Discard', dismissResult: null });
             // Only an explicit Discard deletes (rule 1); `waiting` stays as it was, so a clean hide keeps it (rule 3).

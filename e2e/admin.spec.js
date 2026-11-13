@@ -540,6 +540,55 @@ test('admin: Discard deletes the kept rows, changes nothing, and the next load a
     await expect(page.locator('.dialog-overlay'), 'discarded is discarded').toHaveCount(0);
 });
 
+// WORK A SAVE HAS SINCE LANDED IS NOT UNSAVED (unsaved-draft.js, rule 6; v25.97). Found on the real SDK:
+// the page went while its save was still waiting, the save landed, and the next load asked "Restore your
+// unsaved changes?" about it — then Restore named the day as changed since, about the member's own save.
+// The draft now carries what the save was SENDING, and the next load judges the outcome: a day that holds
+// it landed. A save that never landed — held only in memory, or a transaction the page abandoned — is
+// still work, and is offered as before.
+/** Stage an absence, start its save and hold it unanswered, then hide the page: the draft a phone keeps
+ *  when the app is put away mid-save. @param {import('@playwright/test').Page} page */
+async function stageAbsenceSaveHeldAndHide(page) {
+    await openAdminOnDecember(page);
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="sick"]:not([disabled])') }).first();
+    const date = /** @type {string} */ (await row.getAttribute('data-date'));
+    await clickInView(row.locator('.type-pill-btn[data-type="sick"]'));
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.holdCommits = true; });
+    await clickInView(page.locator('#saveBtn'));
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E._held || []).length),
+        { message: 'the save never reached its commit' }).toBeGreaterThan(0);
+    await setVisibility(page, 'hidden');
+    const kept = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), ADMIN_DRAFT);
+    expect(kept?.data?.rows, 'hidden mid-save: the staged row is kept').toEqual([expect.objectContaining({ date, type: 'sick' })]);
+    expect(kept?.data?.sending, 'with what its save was sending').toEqual([{ member: 'G. Miller', date, type: 'sick', value: 'SICK' }]);
+    return { date };
+}
+
+test('admin: a save still waiting when the page went, and landed since, is not offered back as unsaved', async ({ page }) => {
+    const { date } = await stageAbsenceSaveHeldAndHide(page);
+    await page.addInitScript((d) => {   // the next load: the save has landed
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: `m_${d}_G.%20Miller`, memberName: 'G. Miller', date: d, type: 'sick', value: 'SICK',
+            note: '', source: 'manual', changedBy: 'G. Miller' }] };
+    }, date);
+    await reloadPastLeaveSite(page);
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await waitForReadsToLand(page);
+    await expect.poll(() => page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT),
+        { message: 'the landed save was still kept as unsaved work' }).toBeNull();
+    await expect(page.locator('.dialog-overlay'), 'asked "Restore your unsaved changes?" about a change that was saved').toHaveCount(0);
+});
+
+test('admin: a save still waiting when the page went that never landed is offered back, and Restore puts it back', async ({ page }) => {
+    const { date } = await stageAbsenceSaveHeldAndHide(page);
+    await reloadPastLeaveSite(page);   // nothing landed: a save held only in memory, or a transaction the page abandoned
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText('Restore your unsaved changes from');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator(`.day-row[data-date="${date}"] .type-pill-btn[data-type="sick"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes are back');
+});
+
 // A DISMISSAL IS NOT AN ANSWER (shared-ui-2). The question arrives a moment after the page, once the
 // member's records are in, so a tap meant for the grid lands on the backdrop — most of a phone screen.
 // That, Escape and Android Back each used to count as Discard and delete the kept rows for good.
