@@ -74,11 +74,15 @@
  * witness stops SILENTLY. The real-pdfjs tests in roster-geometry.test.mjs are what say so — run
  * them on any new version before the pin moves. What the move from v4 established:
  *   · the encoding is `rulesFromOperatorList`'s header. A `re` arrives as lines and is skipped
- *     (`isRectangleOp`), or a page clip or a shaded cell adds columns. Compared with 4.10.38 on
- *     eleven ways of drawing the table (13 Nov 2026), the rows read were the same to the byte on
- *     every one but rows drawn as closed boxes in a `re`'s own corner order: there 6.x reads no
- *     grid, fails open, and the review says so. No real roster was to hand that day, so the first
- *     import after the move is the check — its review must not say the layout check couldn't run;
+ *     (`isRectangleOp`), or a page clip or a shaded cell adds columns; and `s`, `b` and `b*` arrive
+ *     carrying a close pdfjs added, which is dropped. Compared with 4.10.38 on thirty-five ways of
+ *     drawing the table (13 Nov 2026, v25.94), the rows read are the same to the byte on every one
+ *     but three, all named in `isRectangleOp`, where 6.x reads NO grid, fails open, and the review
+ *     says so — never a different grid. The first comparison, at the move (v25.91), had eleven
+ *     drawings and no closing paint operator among them, and that release misread 16 of these 35,
+ *     four of them by reading a WRONG row; the review that day found it. No real roster was to
+ *     hand, so the first import after the move is the check — its review must not say the layout
+ *     check couldn't run;
  *   · the legacy build stays — from 5.x it polyfills `Map.prototype.getOrInsertComputed`, which
  *     neither Node 22 nor Node 24.22 has (measured 4 Nov 2026);
  *   · `isEvalSupported` is gone (pdf.js PR 21005), and with it every route from a PDF to `eval`:
@@ -154,20 +158,27 @@ function subpathsOf(data) {
  *
  * So a box drawn by hand in any other order — down the page first, as a table drawing each cell as a
  * closed path may — cannot be a `re`; v4 read its sides, and so does this. One drawn by hand in a
- * `re`'s own order cannot be told from one, and is skipped. That is the one drawing on which 6.5.438
- * reads LESS than 4.10.38 did (measured 13 Nov 2026, on synthetic pages: rows drawn as closed boxes
- * in that order cost the page its grid). Reading less fails open, and the review says so ("The extra
- * PDF layout check couldn't run"); reading more could hand the cell read a WRONG grid, and a wrong
- * grid puts a duty on the wrong day — the failure this whole module exists to stop.
+ * `re`'s own order and closed with `h` cannot be told from one, and is skipped; nor can a single
+ * line closed with `h` before its stroke (`m l h S`), which pdfjs writes exactly as it writes a
+ * zero-width `re`. Those are the two drawings on which 6.5.438 reads LESS than 4.10.38 did
+ * (measured 13 Nov 2026, on synthetic pages: either one costs the page its grid). Reading less fails
+ * open, and the review says so ("The extra PDF layout check couldn't run"); reading more could hand
+ * the cell read a WRONG grid, and a wrong grid puts a duty on the wrong day — the failure this whole
+ * module exists to stop.
+ *
+ * A close straight after a close closes nothing new, so a run of them counts as one: `re h S` — a
+ * `re` closed again before its stroke — is still a `re` (v25.94).
  * @param {{ ops: number[], points: number[][] }} subpath
  */
 function isRectangleOp({ ops: codes, points: pts }) {
     const { moveTo: M, lineTo: L, closePath: Z } = PATH_OP;
-    if (codes.length === 5 && codes[0] === M && codes[1] === L && codes[2] === L && codes[3] === L && codes[4] === Z) {
+    let n = codes.length;
+    while (n > 1 && codes[n - 1] === Z && codes[n - 2] === Z) n--;
+    if (n === 5 && codes[0] === M && codes[1] === L && codes[2] === L && codes[3] === L && codes[4] === Z) {
         const [p0, p1, p2, p3] = pts;
         return p1[1] === p0[1] && p2[0] === p1[0] && p3[1] === p2[1] && p3[0] === p0[0];
     }
-    if (codes.length === 3 && codes[0] === M && codes[1] === L && codes[2] === Z) {
+    if (n === 3 && codes[0] === M && codes[1] === L && codes[2] === Z) {
         const [p0, p1] = pts;
         return p1[0] === p0[0] || p1[1] === p0[1];
     }
@@ -191,6 +202,24 @@ function isRectangleOp({ ops: codes, points: pts }) {
  * (measured on 6.4.299, 4 Nov 2026). A box drawn BY HAND is not skipped wholesale: a table can draw
  * its cells as closed boxes, and v4 read their sides (`isRectangleOp` says which ones it cannot).
  *
+ * `s`, `b` and `b*` CLOSE the path as they paint it, and pdfjs writes that close INTO the path's
+ * data: its evaluator pushes one onto the path buffer for exactly those three paint operators (read
+ * at 6.5.438, where the buffer becomes the operator's only data array). Nobody drew it, so it is
+ * dropped before anything else reads the path (v25.94). Kept, it cost both ways (the 13 Nov 2026
+ * review, on synthetic pages): a rule stroked with `s` arrived as a move, a line and a close —
+ * exactly a zero-width `re` — and was skipped, so a table drawn that way read no grid; and a `re`
+ * painted with `s` or `b` arrived with two closes, stopped looking like a `re`, and was read as four
+ * rules — a page border or a shaded cell added columns, and a row highlight inset in a row added two
+ * row boundaries, which moved a Sunday time printed above the highlight out of its own row. That
+ * row's Sunday then read as an EMPTY cell: on the grid path an empty Sunday is a rest day, the
+ * witness refuses only claims, and over a rest-day base Sunday the review showed nothing at all — a
+ * worked Sunday dropped silently. The real-pdfjs test pins the appended close to the installed
+ * library, because if a later pdfjs stopped adding it, dropping the last close would make every
+ * `re s` four rules again.
+ *
+ * The close is not a segment either way: the reader never draws one (the pen just goes back to the
+ * start, below), so dropping it removes no line — it only stops the `re` test being fooled.
+ *
  * A curve's end point is NOT taken as the current point, exactly as under v4 — the corpus was
  * measured that way (experiments/roster-pdf-geometry), and the rules are straight. Its operands are
  * still stepped over (`subpathsOf`), which is what import-server-7 was about.
@@ -201,14 +230,26 @@ function isRectangleOp({ ops: codes, points: pts }) {
  */
 function rulesFromOperatorList(ops, OPS) {
     const vx = new Set(), hy = new Set();
+    // The paint operators that close as they paint (the header). Only real numbers: an OPS table
+    // without these names must not make every `undefined` paint operator look like one.
+    const closesAsItPaints = new Set([OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]
+        .filter(op => typeof op === 'number'));
     for (let i = 0; i < ops.fnArray.length; i++) {
         if (ops.fnArray[i] !== OPS.constructPath) continue;
         const paths = ops.argsArray[i]?.[1];
         if (!Array.isArray(paths)) continue;
-        for (const data of paths) {
+        const addedClose = closesAsItPaints.has(ops.argsArray[i]?.[0]);
+        for (let p = 0; p < paths.length; p++) {
+            const data = paths[p];
             if (!data || typeof data.length !== 'number') continue;
             const subpaths = subpathsOf(data);
             if (!subpaths) continue;
+            // pdfjs added its close at the END of the buffer, so it is the last code of the last path.
+            const last = subpaths[subpaths.length - 1];
+            if (addedClose && p === paths.length - 1 && last?.ops[last.ops.length - 1] === PATH_OP.closePath) {
+                last.ops.pop();
+                last.points.pop();
+            }
             for (const subpath of subpaths) {
                 if (isRectangleOp(subpath)) continue;
                 const { ops: codes, points } = subpath;
