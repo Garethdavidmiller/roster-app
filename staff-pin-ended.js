@@ -30,9 +30,22 @@
  * audit B2/C2). Kept for good, a LATER card on the same page — the member signed in in place, then
  * lost their identity — said again that the PIN had ended, and pointed a member at the shared code.
  *
+ * ── AND THE CALENDAR IN THIS TAB HEARS IT TOO (audit B3) ─────────────────────────────────────────
+ *
+ * The card's way back is a link to the PIN box (`#staff-pin`); the phone's Back is not. It returns to
+ * the Calendar, which reloads a restored viewer page — with no hash — and a fresh load has none either,
+ * so both landed on the member sign-in card, one tap short of the box the card had just sent them to.
+ * So noting it also leaves a ONE-TAB mark in sessionStorage, which the Calendar's boot reads exactly as
+ * it reads `#staff-pin`: once, removed whatever the decision (`takeStaffPinEndedMark`, through
+ * calendar-lock-cards.js's `takePinFirst`). A tab's storage, so it reaches no other tab and no later
+ * browser session; forgotten with the fact. Every access is in a try — iOS private mode can throw.
+ *
  * Why a module of its own: session.js was at its size cap (coordinator-ratchet.test.mjs) when this
  * landed, and this is one subject a Node test can hold without a DOM — the ratchet's EXTRACT.
  */
+
+/** sessionStorage: a page in THIS tab ended the PIN. One writer and one reader, both here. */
+const PIN_ENDED_MARK = 'myb_staff_pin_ended';
 
 let ended = false;
 /** @type {Set<() => void>} */
@@ -44,6 +57,7 @@ const waiting = new Set();
  */
 export function noteStaffPinEnded() {
     ended = true;
+    try { sessionStorage.setItem(PIN_ENDED_MARK, '1'); } catch { /* no mark: Back is one tap longer, as before */ }
     const now = [...waiting];
     waiting.clear();
     for (const fn of now) {
@@ -57,6 +71,20 @@ export function noteStaffPinEnded() {
  */
 export function forgetStaffPinEnded() {
     ended = false;
+    try { sessionStorage.removeItem(PIN_ENDED_MARK); } catch { /* nothing to forget */ }
+}
+
+/**
+ * Did a page in this tab end the PIN? The Calendar's boot asks ONCE, beside `#staff-pin`, and the mark
+ * is removed whatever the answer (see the header).
+ * @returns {boolean}
+ */
+export function takeStaffPinEndedMark() {
+    try {
+        const marked = sessionStorage.getItem(PIN_ENDED_MARK) === '1';
+        sessionStorage.removeItem(PIN_ENDED_MARK);
+        return marked;
+    } catch { return false; }
 }
 
 /**

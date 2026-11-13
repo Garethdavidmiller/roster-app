@@ -905,6 +905,31 @@ for (const [label, pill, url, way] of [['Admin', 'admin', /admin\.html/, 'link']
     });
 }
 
+// …AND THE PHONE'S BACK OPENS THE PIN BOX TOO (audit B3). The card says "go back and enter the PIN", but
+// Back is not its link: it returns to the Calendar, which reloads a restored viewer page with no hash (and
+// a fresh load has none), so both landed on the member sign-in card, one tap short of the box. The page
+// that ended the PIN leaves this tab a mark the Calendar's boot reads once, as it reads `#staff-pin`.
+test('a viewer who opens Pay and goes BACK lands on the PIN box, not the member sign-in card', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-pill--pay').click();
+    await expect(page).toHaveURL(/paycalc\.html/);
+    await expect(page.locator('#loginNotice')).toContainText('the roster is locked again');
+
+    await page.goBack();
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#loginCard')).toHaveCount(0);
+    expect(new URL(page.url()).hash, 'the way back carried a hash — the mark is in the tab, not the address').toBe('');
+    expect(await page.evaluate(() => sessionStorage.getItem('myb_staff_pin_ended')), 'read once: the mark outlived the boot').toBeNull();
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    expect(errors, errors.join('\n')).toEqual([]);
+});
+
 test('a visitor who never held the PIN is told nothing about it, and the way back is the roster', async ({ page }) => {
     // The guard on the line above's other side: a card that always said it would pass every test there.
     await page.goto('/admin.html');

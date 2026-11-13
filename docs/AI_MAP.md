@@ -347,8 +347,8 @@ things an edit can silently break.
   `dismissSignInForm()` (on a grant: the come-back card's full-screen form, which is not in the slot —
   never the inline card, nor a form whose own sign-in is in flight) ·
   `resetUnlockFailures()` (on a grant) · `PIN_FIRST_HASH` (re-exported from `calendar-access-core.js`).
-- `takePinFirst()` — was the PIN card asked for first (`#staff-pin`)? The boot asks once; the hash is
-  removed whatever the decision, so a member never carries a station's bookmark into their Calendar.
+- `takePinFirst()` — was the PIN card asked for first (`#staff-pin`, or this tab's PIN-ended mark)? The
+  boot asks once; both are removed whatever the decision, so a member never carries either into their Calendar.
 - Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
 
 ### `calendar-lock-slot.js`
@@ -1100,6 +1100,7 @@ Whether arriving on THIS page ended the shared staff PIN, and who is waiting to 
 - `noteStaffPinEnded()` — records it and tells each listener already waiting, once; one that throws does not stop the rest. ONE caller: `reconcileExpiredIdentity` (session.js), and only once its sign-out of the viewer has landed — never a Lock, a member's expired identity, or a sign-out that failed.
 - `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once: when the teardown lands, or on a microtask if it already has (sticky for the page's life, until `forgetStaffPinEnded`). Unsubscribing cancels a call already queued. Its one reader is the sign-in card (`login-overlay.js`).
 - `forgetStaffPinEnded()` — a member signed in on this page (the sign-in core, `runNamedSignIn`), so a LATER card there is not told the PIN ended.
+- `takeStaffPinEndedMark()` — did a page in this TAB end the PIN? `noteStaffPinEnded` leaves a one-tab sessionStorage mark (`forgetStaffPinEnded` clears it) so the phone's Back, which carries no hash, still opens the Calendar on the PIN box; read and removed once, by `takePinFirst` (calendar-lock-cards.js).
 - Imports nothing. Tested through the real teardown by `session.test.mjs`.
 
 ### `silent-sign-in.js`

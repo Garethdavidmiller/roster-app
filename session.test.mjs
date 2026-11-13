@@ -688,6 +688,35 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(_pushReleases.length, 0, 'the staff PIN\'s teardown dropped the browser\'s push subscription');
     });
 
+    // ENDING THE PIN LEAVES THIS TAB'S CALENDAR A MARK (audit B3): the card says "go back and enter the
+    // PIN", and the phone's Back carries no `#staff-pin`. staff-pin-ended.js writes it as it tells the
+    // card; the Calendar's boot takes it once (calendar-access.test.mjs drives that half).
+    test('ending the PIN leaves a one-tab mark, read once; a member\'s teardown leaves none; a sign-in forgets it', async () => {
+        const { takeStaffPinEndedMark, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+        /** @type {Map<string,string>} */ const tab = new Map();
+        /** @type {any} */ (globalThis).sessionStorage = { getItem: (/** @type {string} */ k) => tab.get(k) ?? null,
+            setItem: (/** @type {string} */ k, /** @type {string} */ v) => { tab.set(k, String(v)); }, removeItem: (/** @type {string} */ k) => { tab.delete(k); } };
+        try {
+            auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
+            await reconcileExpiredIdentity();
+            assert.equal(takeStaffPinEndedMark(), false, 'a member whose session expired never had the PIN');
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();
+            assert.equal(auth.currentUser, null, 'premise: the PIN was signed out here');
+            assert.equal(takeStaffPinEndedMark(), true, 'the Calendar in this tab was not told the PIN ended');
+            assert.equal(takeStaffPinEndedMark(), false, 'read once: the mark outlived the boot that took it');
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();
+            forgetStaffPinEnded();
+            assert.equal(tab.size, 0, 'a member signed in here, and the mark still sent the next Calendar to the PIN box');
+            const refuse = () => { throw new Error('SecurityError'); };
+            /** @type {any} */ (globalThis).sessionStorage = { getItem: refuse, setItem: refuse, removeItem: refuse };
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();   // iOS private mode: no mark, and nothing thrown
+            assert.equal(takeStaffPinEndedMark(), false);
+        } finally { delete /** @type {any} */ (globalThis).sessionStorage; }
+    });
+
     test('an explicit opts object with the flag ABSENT is still a teardown', async () => {
         // A caller that passes options for some other reason must not inherit preservation.
         auth.currentUser = /** @type {any} */ (viewerUser);

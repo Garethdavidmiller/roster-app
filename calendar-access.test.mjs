@@ -22,7 +22,7 @@
  * The fake DOM is deliberately minimal: this file tests the module's decisions, not its markup. The
  * card's appearance and behaviour under a real browser are e2e's job (`e2e/calendar-pin.spec.js`).
  */
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // ── Fakes ───────────────────────────────────────────────────────────────────────────────────────
@@ -847,6 +847,48 @@ describe('initCalendarAccess', () => {
         assert.equal(loginMounts.length, 0, 'the sign-in card was mounted as well');
         assert.ok(ops.some(o => o.startsWith('replaceState:')), 'the hash was left in the address bar');
         assert.ok(!ops.some(o => o.includes('#staff-pin')), 'the replaced URL still carries the hash');
+    });
+
+    // …AND SO DOES A PAGE IN THIS TAB THAT ENDED THE PIN (audit B3). Its card said "go back and enter
+    // the PIN"; the phone's Back reached the Calendar with no hash, and the member sign-in card. The
+    // mark is staff-pin-ended.js's, read and removed once by the boot (`takePinFirst`), as the hash is.
+    describe('a page in this tab that ended the PIN asks for the PIN card too — its one-tab mark', () => {
+        const MARK = 'myb_staff_pin_ended';
+        /** @type {Map<string,string>} */ const tab = new Map();
+        beforeEach(() => {
+            tab.clear();
+            /** @type {any} */ (globalThis).sessionStorage = { getItem: (/** @type {string} */ k) => tab.get(k) ?? null,
+                setItem: (/** @type {string} */ k, /** @type {string} */ v) => { tab.set(k, String(v)); }, removeItem: (/** @type {string} */ k) => { tab.delete(k); } };
+        });
+        afterEach(() => { delete /** @type {any} */ (globalThis).sessionStorage; });
+
+        test('the PIN card first, and the mark is gone — read once, with no hash to rewrite', async () => {
+            tab.set(MARK, '1');
+            await initCalendarAccess({ onGranted: () => {} });
+            assert.ok(lastPanelHtml().includes('calLockPin'), 'the tab that ended the PIN was sent to the member sign-in card');
+            assert.equal(loginMounts.length, 0, 'the sign-in card was mounted as well');
+            assert.equal(tab.has(MARK), false, 'the mark outlived the boot that read it');
+            assert.equal(ops.some(o => o.startsWith('replaceState:')), false, 'the address was rewritten with no hash in it');
+        });
+
+        test('a member\'s held session still gets their own card — and the mark goes all the same', async () => {
+            tab.set(MARK, '1');
+            sessionValue = { name: 'G. Miller' };
+            await initCalendarAccess({ onGranted: () => {} });
+            assert.ok(lastPanelHtml().includes('calLockWho'), 'a member was not offered their own sign-in');
+            assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN (CALENDAR_DATA 11)');
+            assert.equal(tab.has(MARK), false);
+        });
+
+        test('no mark: the front door, as before — and storage that throws (iOS private mode) costs only the mark', async () => {
+            await initCalendarAccess({ onGranted: () => {} });
+            await waitFor(() => loginMounts.length === 1, 'the front door to mount');
+            handleAccessLost(); await drainTurns(); loginMounts = [];
+            const refuse = () => { throw new Error('SecurityError'); };
+            /** @type {any} */ (globalThis).sessionStorage = { getItem: refuse, setItem: refuse, removeItem: refuse };
+            await initCalendarAccess({ onGranted: () => {} });
+            await waitFor(() => loginMounts.length === 1, 'the front door to mount with storage refusing');
+        });
     });
 
     test('an ANONYMOUS identity is locked out — the old bootstrap grants nothing', async () => {
