@@ -29,13 +29,15 @@ export const state = {
      *  (`metadata.fromCache`), and a document the cache does not hold rejects `unavailable`, as the
      *  real `getDoc` does (settings-ops-1) */
     fromCache: false,
+    /** what `waitForPendingWrites` waits on — null: nothing queued on this device, so it answers at once */
+    pendingWrites: /** @type {Promise<any>|null} */ (null),
 };
 
 /** Put the recorder back to empty between tests. */
 export function resetState() {
     state.ops.length = 0; state.reads.length = 0; state.docs.clear(); state.authOps.length = 0;
     state.currentUser = null; state.failNext.clear(); state.holdNext.clear(); state.reauthRejects.clear();
-    state.fromCache = false;
+    state.fromCache = false; state.pendingWrites = null;
 }
 
 /**

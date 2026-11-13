@@ -187,6 +187,38 @@ export function unconfirmedWriteLine(err, what, whereToCheck) {
     return null;
 }
 
+/** How long a checked write waits for this device's own queued writes before it answers as offline. */
+export const OWN_WRITES_WAIT_MS = 8000;
+
+/**
+ * Wait until every write THIS DEVICE has queued has reached the server — or `ms` passes first.
+ *
+ * ── WHY A CHECKED WRITE WAITS FOR IT (v25.95) ────────────────────────────────────────────────────
+ *
+ * A save made offline waits in the device's queue — across a closed app too, in the persistent
+ * cache — and every read on the device shows it as saved. A TRANSACTION reads the server, never that
+ * queue. So in the moments after the signal returned, a checked delete of such a record found
+ * nothing there, counted it already gone and said "Deleted"; then the queued save landed and the
+ * record was back. A checked rewrite was worse placed still: refused as somebody else's change, or
+ * — where the day held nothing before — written, and then put back by the older queued save
+ * (recorded in KNOWN_LIMITATIONS at v25.94, closed here). Asked after the queue has drained, the
+ * server holds what the device shows, and the check compares like with like.
+ *
+ * `ms` bounds the wait: offline, the queue never drains. `false` then says "treat this as an offline
+ * transaction" — a save that only writes is held as a batch, which joins the queue BEHIND what is
+ * already there, so the order the device made them in is the order they land; anything else is
+ * refused, writing nothing. With nothing queued the SDK answers at once, offline included.
+ * @param {() => Promise<void>} waitForPendingWrites  the SDK's, bound to the page's Firestore — it
+ *        rejects ('cancelled') if the account changes while it waits, and that rejection is passed on
+ * @param {number} [ms]
+ * @returns {Promise<boolean>} true once the queue has drained; false when `ms` passed first
+ */
+export function ownWritesSent(waitForPendingWrites, ms = OWN_WRITES_WAIT_MS) {
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+    const limit = new Promise(resolve => { timer = setTimeout(() => resolve(false), ms); });
+    return Promise.race([waitForPendingWrites().then(() => true), limit]).finally(() => clearTimeout(timer));
+}
+
 /**
  * What a failed Admin save tells the person who pressed Save. Three causes, three instructions: an
  * account that went mid-save (the change may still send once they sign back in, so it is called

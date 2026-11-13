@@ -702,3 +702,31 @@ describe('probeResetAtMs — every way the probe ends', () => {
         assert.match(fetches.at(-1).url, /passwordStatus\/L\.%20Springer$/);
     });
 });
+
+// ── a checked write first waits for this device's own queued writes (v25.95) ─────────────────────
+// The rule (bounded, a rejection passed on) is ownWritesSent in claim-retry.js, tested there. What is
+// tested HERE is the wiring: that the export asks the SDK about the app's own Firestore — a wait
+// pointed at another instance would answer "nothing queued" at once, and every check would run
+// exactly as it did before the fix, green.
+describe('whenOwnWritesSent — the wait a checked write makes before it reads the server', () => {
+    const waits = () => state.ops.filter((o) => o.op === 'waitForPendingWrites');
+
+    test('nothing queued: true at once, asked about the app\'s own Firestore', async () => {
+        assert.equal(await fc.whenOwnWritesSent(50), true);
+        assert.equal(waits().length, 1);
+        assert.equal(waits()[0].db, fc.db);
+    });
+    test('a queue that drains in time: true', async () => {
+        /** @type {() => void} */ let send = () => {};
+        state.pendingWrites = new Promise((r) => { send = () => r(undefined); });
+        const answer = fc.whenOwnWritesSent(2_000);
+        setTimeout(send, 10);
+        assert.equal(await answer, true);
+    });
+    test('a queue that does not drain in time: false — the caller answers as offline', async () => {
+        state.pendingWrites = new Promise(() => {});
+        const started = Date.now();
+        assert.equal(await fc.whenOwnWritesSent(20), false);
+        assert.ok(Date.now() - started < 1_000, 'the limit it was given was not the one it kept');
+    });
+});

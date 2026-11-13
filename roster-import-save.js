@@ -37,6 +37,12 @@
  * is unknown, so the error is marked `partialCommit` even on the first part: the review closes, and
  * reading the roster again shows what was saved (admin-roster-upload.js).
  *
+ * And it starts only once THIS DEVICE'S own queued saves have reached the server (v25.95): the
+ * transaction reads the server, so a Change a Shift saved offline on this device is not there yet,
+ * its record would be deleted as already gone, and the queued save would then put it back over the
+ * import's. One that has not drained in time ends the part before its transaction starts, so that
+ * error is NOT `partialCommit` on the first part: nothing was sent, and the review stays open.
+ *
  * ── WHAT IT DOES NOT SEE ────────────────────────────────────────────────────────────────────────
  *
  * A second IMPORT of the same week running at the same time: its records take random ids, which a
@@ -48,7 +54,7 @@
  * admin-roster-upload.test.mjs (the save) and e2e/operations.spec.js (a colleague's edit, end to end).
  */
 
-import { db, collection, doc, writeBatch, runTransaction, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { db, collection, doc, writeBatch, runTransaction, serverTimestamp, writeWithClaimRetry, whenOwnWritesSent, COLLECTIONS } from './firebase-client.js';
 import { buildOverrideWrite, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { sameOverrideRecord } from './override-compare.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
@@ -62,6 +68,10 @@ export const IMPORT_CHANGED_CODE = 'roster-import/changed';
 
 /** How a transaction ends when it never reached the server. */
 const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
+
+/** What the admin reads, after "Couldn't save — ", when this device's earlier saves have not reached
+ *  the server in time and the part that deletes was never started (v25.95). */
+export const UNSENT_SAVES_DETAIL = "this device has earlier changes it hasn't sent yet. Check the connection, then save again.";
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -144,6 +154,9 @@ export async function saveRosterWrites(toWrite, currentUser, shown = new Map()) 
                     await batch.commit();
                     return;
                 }
+                if (!(await whenOwnWritesSent())) {   // its own queued saves first (the module header)
+                    throw Object.assign(new Error(UNSENT_SAVES_DETAIL), { code: 'unavailable', unsent: true });
+                }
                 await runTransaction(db, async (/** @type {any} */ tx) => {
                     const snaps = await Promise.all(deletes.map(({ id }) => tx.get(doc(db, COLLECTIONS.overrides, id))));
                     const changed = deletes.filter((d, i) => snaps[i].exists() && !sameOverrideRecord(shown.get(d.id), snaps[i].data()));
@@ -167,8 +180,9 @@ export async function saveRosterWrites(toWrite, currentUser, shown = new Map()) 
             if (e?.code === IMPORT_CHANGED_CODE) throw err;
             // Earlier parts committed, or a transaction that never reached the server may have: either
             // way some of the roster may be saved, and the caller re-reads rather than inviting a
-            // second copy (v16.25; v24.39 for the same reasoning on a sign-out).
-            if (committed > 0 || (deletes.length && NO_SERVER.has(e?.code))) e.partialCommit = true;
+            // second copy (v16.25; v24.39 for the same reasoning on a sign-out). A part that waited for
+            // this device's own saves and gave up (`unsent`) started no transaction, so sent nothing.
+            if (committed > 0 || (deletes.length && NO_SERVER.has(e?.code) && !e.unsent)) e.partialCommit = true;
             throw err;
         }
     }

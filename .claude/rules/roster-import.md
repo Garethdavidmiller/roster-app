@@ -54,7 +54,9 @@ refusal re-reads the week and redraws the review rather than closing it, and **e
 leaves unchanged keeps the admin's answers, Skip all included** (`carryReviewAnswers`, v25.94):
 reset to their defaults, a second Save wrote rows the admin had unticked. **Do not mint the new
 records' ids inside the transaction** — a re-run would write a second copy of every row — and do
-not turn a deleting part back into a batch.
+not turn a deleting part back into a batch. A deleting part waits for this device's own unsent saves
+before its transaction (v25.95, `whenOwnWritesSent`), and one that gives up has sent nothing, so it
+is not `partialCommit`.
 
 ## The review
 

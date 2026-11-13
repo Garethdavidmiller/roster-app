@@ -100,6 +100,10 @@ mock.module('./firebase-client.js', {
         // function again, and the re-run meets the change. A fake that ran it once could only test the
         // comparison, never the race the comparison used to lose.
         runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => _runTx(fn),
+        // THIS DEVICE'S OWN QUEUE (v25.95): what a checked write waits on before its transaction. It
+        // answers `_queueAnswer`; a queue that drained LANDS what it held first, as the signal returning
+        // does. Counted, so a test can say the wait came first and came once.
+        whenOwnWritesSent: async () => { _queueAsks++; const sent = await _queueAnswer; if (sent) _drain(); return sent; },
         // A BATCH (v25.90): what an ordinary save commits OFFLINE — no reads, no check, applied as it
         // stands. Counted, so a test can say which kind of commit carried a save.
         writeBatch: () => {
@@ -114,6 +118,13 @@ mock.module('./firebase-client.js', {
 });
 /** Batches committed — the offline path's only trace. */
 let _batchCommits = 0;
+/** Saves made OFFLINE on this device (v25.95): the page shows them, the server does not hold them yet.
+ *  They land when the queue drains — at a checked write's wait, or when a test calls `_drain()`. */
+/** @type {Array<[string, any]>} */ let _queued = [];
+/** What the device's wait answers: true once the queue has drained, false when it did not in time. */
+/** @type {Promise<boolean>} */ let _queueAnswer = Promise.resolve(true);
+let _queueAsks = 0;
+function _drain() { for (const [id, data] of _queued) serverWrite(id, data); _queued = []; }
 /** @type {Map<string, any>} */ const _server = new Map();
 let _serverCached = false;
 let _serverFails = false;
@@ -193,6 +204,7 @@ beforeEach(() => {
     _reads = [];
     _handler = async () => [];
     _session = Promise.resolve(true);
+    _queued = []; _queueAnswer = Promise.resolve(true); _queueAsks = 0;
 });
 
 const row = (/** @type {string} */ id, /** @type {string} */ member, /** @type {string} */ date) =>
@@ -942,5 +954,78 @@ describe('7 · an ordinary save is checked too, whenever the server can be asked
         _txFails = Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' });
         await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => null, line }), (/** @type {any} */ e) => e.code === 'permission-denied');
         assert.equal(_batchCommits, 0);
+    });
+});
+
+// ── 8 · THIS DEVICE'S OWN UNSENT SAVES GO FIRST (v25.95; a KNOWN_LIMITATIONS entry at v25.94) ────────
+// A save made offline waits in the device's queue and the page shows it as saved; a transaction reads
+// the server, which does not hold it yet. In the second after the signal returned, a delete of such a
+// record met nothing, called it already gone, said "Deleted" — and the queued save then landed and put
+// the record back. Every checked write now waits for the queue first (`whenOwnWritesSent`).
+describe('8 · a checked write waits for the saves this device has not sent yet (v25.95)', () => {
+    const ID = 'm_2026-08-24_G.%20Miller', DAY = '2026-08-24';
+    const leave = { id: ID, memberName: 'G. Miller', date: DAY, type: 'annual_leave', value: 'AL', note: '',
+        source: 'manual', changedBy: 'A. Manager', createdAt: { toMillis: () => 1_000 } };
+    const { id: _omit, ...leaveData } = leave;
+    const seed = async (/** @type {any[]} */ rows) => { const { store } = await freshStore(); store.setAllOverrides(rows.map(r => ({ ...r }))); return store; };
+    const tick = () => new Promise(r => setTimeout(r, 0));
+    const offline = (/** @type {any} */ e) => e.code === 'unavailable' && e.unsent === true;
+    beforeEach(() => {
+        _server.clear(); _versions.clear(); _serverCached = false; _serverFails = false;
+        _betweenReadAndCommit = null; _txRuns = 0; _txDeleted.length = 0; _txFails = null; _landsUnanswered = 0;
+        _batchCommits = 0;
+    });
+
+    test('a delete of a record saved offline waits for it to land, so it stays deleted', async () => {
+        const store = await seed([leave]);           // the page shows the leave…
+        _queued = [[ID, { ...leaveData }]];          // …which is this device's save, still in the queue
+        /** @type {(sent: boolean) => void} */ let signal = () => {};
+        _queueAnswer = new Promise(r => { signal = r; });
+        const deleting = store.deleteIfUnchanged(store.asShown([ID]));
+        await tick();
+        assert.equal(_txRuns, 0, 'the transaction read the server before this device\'s own save had reached it');
+        signal(true);                                // the signal returns; the queued save lands first
+        await deleting;
+        _drain();                                    // whatever is still queued lands now, as it would
+        assert.equal(_server.has(ID), false, 'the queued save put the deleted leave back');
+        assert.deepEqual(_txDeleted, [ID]);
+        assert.equal(_queueAsks, 1);
+    });
+
+    test('a queue that has not drained in time → refused as offline, and no transaction is started', async () => {
+        const store = await seed([leave]);
+        _queued = [[ID, { ...leaveData }]];
+        _queueAnswer = Promise.resolve(false);
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([ID])), offline);
+        assert.equal(_txRuns, 0);
+        assert.deepEqual(_txDeleted, []);
+    });
+
+    test('a save that only WRITES is held behind the queue instead — in the order the device made them', async () => {
+        const store = await seed([]);
+        _queueAnswer = Promise.resolve(false);
+        const save = (/** @type {any} */ w) => w.set({ id: ID }, { ...leaveData, createdAt: null });
+        const res = await store.commitChecked(save, { shownFor: () => null, line: 'changed' });
+        assert.deepEqual(res, { checked: false, done: false });
+        assert.equal(_txRuns, 0, 'it was checked against a server that has not got this device\'s earlier saves');
+        assert.equal(_batchCommits, 1);
+    });
+
+    test('a save that REMOVES a day is refused instead, writing nothing', async () => {
+        const store = await seed([leave]);
+        _queueAnswer = Promise.resolve(false);
+        const save = (/** @type {any} */ w) => w.delete({ id: ID });
+        await assert.rejects(store.commitChecked(save, { shownFor: () => null, removed: [leave], line: 'changed', holdOffline: false }), offline);
+        assert.equal(_batchCommits, 0);
+        assert.equal(_txRuns, 0);
+    });
+
+    test('nothing queued → the wait answers at once, once, and the check runs as it always has', async () => {
+        const store = await seed([leave]);
+        serverWrite(ID, { ...leaveData });
+        await store.deleteIfUnchanged(store.asShown([ID]));
+        assert.equal(_queueAsks, 1);
+        assert.equal(_txRuns, 1);
+        assert.equal(_server.has(ID), false);
     });
 });

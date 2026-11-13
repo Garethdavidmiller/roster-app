@@ -150,6 +150,9 @@ mock.module('./firebase-client.js', {
         // since v24.48; only an auto-id call mints a fresh one.
         doc:             (() => { let n = 0; return (/** @type {any[]} */ ...a) => { const id = a.length >= 3 ? String(a[2]) : 'mock-doc-' + (++n); _issuedDocIds.push(id); return { id }; }; })(),
         serverTimestamp: () => null,
+        // Nothing queued on this device (v25.95): the wait a checked write makes first answers at once.
+        // What the wait does is admin-override-store.test.mjs block 8.
+        whenOwnWritesSent: async () => true,
         writeBatch:      () => {
             let committed = false;
             /** @type {any[]} */ const ops = [];

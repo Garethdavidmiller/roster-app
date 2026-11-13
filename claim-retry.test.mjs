@@ -5,7 +5,7 @@ import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
     runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, unconfirmedWriteLine,
-    trackBackgroundWrite, backgroundWritesInFlight } from './claim-retry.js';
+    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, OWN_WRITES_WAIT_MS } from './claim-retry.js';
 
 // ── trackBackgroundWrite (review, 11 Nov 2026) — a write no page started, counted until it settles ──
 describe('trackBackgroundWrite', () => {
@@ -353,4 +353,28 @@ test('WIRING: every write, the document commit and the push record are bounded b
     assert.match(src, /guardCommit: \(\/\*\* @type \{Promise<any>\} \*\/ p\) => abandonOnSignOut\(p, \{ uid: auth\.currentUser\?\.uid, watch: cb => onAuthStateChanged\(auth, cb\) \}\)/);
     assert.match(src, /await abandonOnSignOut\(setDoc\(doc\(db, COLLECTIONS\.pushSubscriptions, id\), data\), \{ uid: owner, watch: cb => onAuthStateChanged\(auth, cb\) \}\)/);
     assert.match(src, /const owner = auth\.currentUser\?\.uid;/, 'the push record is bounded by the uid it is stamped with');
+});
+
+// ── ownWritesSent — a checked write waits for this device's own queue first (v25.95) ───────────────
+// The wiring (that firebase-client.js asks about its own Firestore) is firebase-client.test.mjs; the
+// use (no transaction before the answer, and what each answer does) is admin-override-store.test.mjs
+// block 8 and admin-roster-upload.test.mjs. What is pinned here is the rule's three answers.
+describe('ownWritesSent — how long a checked write waits for this device\'s queued saves', () => {
+    it('true as soon as the queue has drained', async () => {
+        assert.equal(await ownWritesSent(async () => {}, 1_000), true);
+    });
+    it('false when it has not drained in time — never a wait without end, which offline would be', async () => {
+        const started = Date.now();
+        assert.equal(await ownWritesSent(() => new Promise(() => {}), 30), false);
+        assert.ok(Date.now() - started < 1_000);
+    });
+    it('a wait the SDK abandons (the account changed) is passed on, not read as "sent"', async () => {
+        const cancelled = Object.assign(new Error('user changed'), { code: 'cancelled' });
+        await assert.rejects(ownWritesSent(() => Promise.reject(cancelled), 1_000), (/** @type {any} */ e) => e.code === 'cancelled');
+    });
+    it('waits long enough for a queue to drain on a returning signal, and not so long a person gives up', () => {
+        // Firestore spends about eight seconds on a transaction that cannot reach the server before it
+        // gives up; the wait matches it, so a save is never refused sooner than it would have been.
+        assert.ok(OWN_WRITES_WAIT_MS >= 5_000 && OWN_WRITES_WAIT_MS <= 10_000, `OWN_WRITES_WAIT_MS is ${OWN_WRITES_WAIT_MS}`);
+    });
 });
