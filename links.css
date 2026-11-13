@@ -1192,6 +1192,11 @@ body:not(.auth-ready) .app-header { display: none; }
     padding: 6px;
 }
 .gen-th-time   { text-align: left; }
+/* THE LEFT-ALIGNED CELLS ARE LEFT-ALIGNED (laptop polish, 13 Nov 2026). Each rule here and below says so, and none of
+   them won: the table-wide `th, td { text-align: center }` above is (0,1,1) and a bare class is (0,1,0), so "SHIFT TIME",
+   "Spare weeks", "Total on duty" and "Hours a week" sat centred over selects that start at the left edge, and the spare
+   and hours sentences centred themselves across the three day columns. The table qualifier is what makes them count. */
+.gen-slot-table :is(.gen-th-time, .gen-td-time, .gen-td-label, .gen-td-hours, .gen-td-spare) { text-align: left; }
 .gen-th-remove { width: 32px; border-left: none; }
 .gen-td-time   { text-align: left; }
 .gen-td-label  {
@@ -1600,6 +1605,10 @@ body:not(.auth-ready) .app-header { display: none; }
     .dm-title { grid-area: title; padding: 14px 8px 14px 18px; }
     .dm-eyebrow { display: flex; }
     .dm-face-name { font-size: var(--type-large); letter-spacing: -0.25px; }
+    /* The chevron FOLLOWS the name (laptop polish, 13 Nov 2026). Grown to fill a ~700px title column, the name pushed it
+       ~480px away, beside ✎, where it read as a third round button rather than "this opens a list". The whole face is
+       still the button, so the target is unchanged, and a long name still ends in "…" (`min-width: 0` stays). */
+    .dm-face-name { flex: 0 1 auto; }
     .dm-chev { width: 26px; height: 26px; } .dm-chev::after { width: 7px; height: 7px; }
     .dm-icon-btn { width: 40px; height: 40px; font-size: var(--type-button); }
     .dm-rule { grid-area: rule; height: 3px; margin: 0 18px; background: linear-gradient(90deg, var(--accent-gold) 0 88px, var(--border-light) 88px); }

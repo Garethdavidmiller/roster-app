@@ -427,6 +427,12 @@ body {
     line-height: 1.55;
     color: var(--text-mid);
 }
+/* A message, not a banner: on a laptop the paused line ran as ONE centred line of 113 characters across 1,068px. At a
+   measure and balanced it reads as two even lines under its icon (laptop polish, 13 Nov 2026). The error box keeps the
+   full width, because its fill is the box. */
+@media (min-width: 1024px) {
+    .ot-state:not(.ot-state--error) { max-width: 48ch; margin-inline: auto; text-wrap: balance; }
+}
 
 .ot-state-icon {
     display: block;

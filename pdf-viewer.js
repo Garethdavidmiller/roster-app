@@ -137,7 +137,7 @@ export function initPdfViewer() {
     /**
      * The load on screen. Replaced on every open and every retry; null while closed.
      * @type {{ url: string, abort: AbortController, task: any, entries: PageEntry[], zoom: number,
-     *          observer: IntersectionObserver|null, resize: ResizeObserver|null, boxWidth: number }|null}
+     *          observer: IntersectionObserver|null, resize: ResizeObserver|null, boxWidth: number, boxHeight: number }|null}
      */
     let current = null;
     /** @type {string} */ let currentUrl = '';
@@ -209,7 +209,7 @@ export function initPdfViewer() {
         const mine = {
             url, abort: new AbortController(), task: /** @type {any} */ (null), entries: /** @type {PageEntry[]} */ ([]),
             zoom: 1, observer: /** @type {IntersectionObserver|null} */ (null), resize: /** @type {ResizeObserver|null} */ (null),
-            boxWidth: 0,
+            boxWidth: 0, boxHeight: 0,
         };
         current = mine;
         updateZoom();
@@ -249,10 +249,17 @@ export function initPdfViewer() {
         return pagesEl.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
     }
 
+    /** The height a LANDSCAPE page may fill at 1× (pageLayout fits a slide both ways): the scroll box less its padding. */
+    function boxHeight() {
+        const style = getComputedStyle(pagesEl);
+        return pagesEl.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    }
+
     /** @param {NonNullable<typeof current>} mine @param {any[]} pages */
     function build(mine, pages) {
         const total = pages.length;
         mine.boxWidth = boxWidth();
+        mine.boxHeight = boxHeight();
         mine.entries = pages.map((page, i) => {
             const viewport = page.getViewport({ scale: 1 });
             const wrap = document.createElement('div');
@@ -265,7 +272,7 @@ export function initPdfViewer() {
             sheetEl.append(wrap);
             return {
                 page, width: viewport.width, height: viewport.height, wrap, words,
-                layout: pageLayout({ pageWidth: viewport.width, pageHeight: viewport.height, boxWidth: mine.boxWidth }),
+                layout: pageLayout({ pageWidth: viewport.width, pageHeight: viewport.height, boxWidth: mine.boxWidth, boxHeight: mine.boxHeight }),
                 canvas: null, drawnWidth: 0, task: null, near: false, failed: false, notice: null,
             };
         });
@@ -299,8 +306,10 @@ export function initPdfViewer() {
                 settle = setTimeout(() => {
                     if (current !== mine) return;
                     const width = boxWidth();
-                    if (Math.abs(width - mine.boxWidth) < 1) return;
+                    const height = boxHeight();
+                    if (Math.abs(width - mine.boxWidth) < 1 && Math.abs(height - mine.boxHeight) < 1) return;
                     mine.boxWidth = width;
+                    mine.boxHeight = height;
                     layout(mine);
                     drawNext();
                 }, 150);
@@ -313,7 +322,7 @@ export function initPdfViewer() {
     function layout(mine) {
         const dpr = window.devicePixelRatio || 1;
         for (const entry of mine.entries) {
-            entry.layout = pageLayout({ pageWidth: entry.width, pageHeight: entry.height, boxWidth: mine.boxWidth, zoom: mine.zoom, dpr });
+            entry.layout = pageLayout({ pageWidth: entry.width, pageHeight: entry.height, boxWidth: mine.boxWidth, boxHeight: mine.boxHeight, zoom: mine.zoom, dpr });
             entry.wrap.style.width = `${entry.layout.cssWidth}px`;
             entry.wrap.style.height = `${entry.layout.cssHeight}px`;
             clearFailure(entry);   // a new size is worth one more try
