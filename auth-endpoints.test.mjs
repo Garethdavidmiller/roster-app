@@ -362,6 +362,14 @@ function build({
             // stamped is set up per test through `existingUsers`.
             return known ? { uid: `uid_${email.split('@')[0]}`, email, customClaims: { stamped: true } } : notFound();
         },
+        // Set up accounts asks this before it creates (sign-in audit E3). It reads ONLY the accounts that
+        // exist in this fake world — the same map createUser fills — never getUserByEmail's fallback, so
+        // a test's "nobody has an account yet" is what the endpoint sees.
+        getUsers: async (identifiers) => {
+            if (authFail.getUsers) throw new Error(authFail.getUsers);
+            return { users: identifiers.filter((i) => users.has(i.email)).map((i) => users.get(i.email)),
+                notFound: identifiers.filter((i) => !users.has(i.email)) };
+        },
         createUser: async ({ email, password, displayName }) => {
             authOps.push({ op: 'createUser', email, password, displayName });
             if (users.has(email)) { const e = new Error('exists'); e.code = 'auth/email-already-exists'; throw e; }
@@ -1486,6 +1494,55 @@ describe('a new account\'s first claim stamp is retried once', () => {
         const { eps } = build({ authFail: { setCustomUserClaimsTimes: 2 } });
         const out = await call(eps.setupRosterAuth, asAdmin({}));
         assert.equal(out.body.failed.filter((f) => /claim-failed/.test(f)).length, 1);
+    });
+});
+
+// ── A NEW ACCOUNT IS STAMPED BEFORE IT IS CREATED (sign-in audit E3, Nov 2026) ──────────────────
+// The take-back and the re-enable stamp resetAt first; the CREATE path did not. An account deleted in
+// the console and made again therefore inherited the member's old passwordSetAt: shown as "Own" in
+// Account status, no forced change, and an old device's silent sign-in with the surname let straight
+// back in (AUTH_AND_SESSIONS 23). The stamp must never touch an account that already exists — that
+// would sign its member out of every device — so the endpoint asks the account list first.
+describe('setupRosterAuth stamps a NEW account before creating it', () => {
+    const createOf = (authOps, name) => authOps.findIndex((o) => o.op === 'createUser' && o.email === emailFor(name));
+
+    test('the stamp lands before the account exists', async () => {
+        const { eps, authOps, stamps, db } = build();
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.ok(out.body.created.includes(MEMBER), 'fixture check: created');
+        const mine = stamps.filter((s) => s.member === MEMBER);
+        assert.equal(mine.length, 1, 'one stamp for the new account');
+        assert.ok(mine[0].at <= createOf(authOps, MEMBER), 'the account was created before its stamp');
+        assert.ok(db._dump('passwordStatus')[MEMBER].resetAt, 'and the stamp is on the record');
+    });
+
+    test('an account that already exists is never stamped by it — its member stays signed in', async () => {
+        const kept = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: MEMBER, disabled: false,
+            customClaims: { name: MEMBER, member: MEMBER } };
+        const setAt = { toMillis: () => NOW - 86_400_000 };
+        const { eps, stamps, db } = build({ existingUsers: [kept], seed: { passwordStatus: { [MEMBER]: { passwordSetAt: setAt } } } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.ok(out.body.skipped.includes(MEMBER), 'fixture check: adopted as it stands');
+        assert.deepEqual(stamps.filter((s) => s.member === MEMBER), [], 'an existing account was stamped');
+        assert.deepEqual(db._dump('passwordStatus')[MEMBER], { passwordSetAt: setAt }, 'their own password is still theirs');
+    });
+
+    test('a stamp that cannot be written creates NOTHING for that name, and says so', async () => {
+        const { eps, authOps } = build({ stampFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(createOf(authOps, MEMBER), -1, 'the account was created without its stamp');
+        assert.ok(!authOps.some((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER)), 'or claimed');
+        assert.ok(!out.body.created.includes(MEMBER));
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (stamp-failed`) && /no account was created/.test(f)),
+            out.body.failed.join(' | '));
+    });
+
+    test('a look-up that fails creates nothing either', async () => {
+        const { eps, authOps, stamps } = build({ authFail: { getUsers: 'unavailable' } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(createOf(authOps, MEMBER), -1, 'created without knowing whether it existed');
+        assert.deepEqual(stamps, [], 'and nothing was stamped on a guess');
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (lookup-failed`)), out.body.failed.join(' | '));
     });
 });
 

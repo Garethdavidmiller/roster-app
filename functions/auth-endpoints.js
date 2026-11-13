@@ -202,6 +202,22 @@ const setupRosterAuth = onRequest(
             seenEmails.set(email, name);
             // Derivation succeeded — this is an active member; never orphan-disable it.
             activeEmails.add(email);
+            // A NEW ACCOUNT IS STAMPED FIRST too (sign-in audit E3), as a take-back and a re-enable are: one
+            // deleted in the console and made again inherited an old passwordSetAt — shown "Own", no forced
+            // change, an old device's silent sign-in let back in. Only an account the list does NOT hold is
+            // stamped (a stamp on an existing one would sign its member out); no answer, or no stamp, and
+            // nothing is created for that name.
+            let exists;
+            try { exists = (await getAuth().getUsers([{ email }])).users.length > 0; } catch (lookupErr) {
+                failed.push(`${name} (lookup-failed: ${lookupErr.message})`);
+                console.error(`[setupRosterAuth] lookup-failed for ${name}: ${lookupErr.message}`);
+                continue;
+            }
+            if (!exists) try { await stampResetAt(name); } catch (stampErr) {
+                failed.push(`${name} (stamp-failed: ${stampErr.message} — no account was created)`);
+                console.error(`[setupRosterAuth] resetAt stamp failed, so ${email} was not created: ${stampErr.message}`);
+                continue;
+            }
             let uid, justCreated = false;
             try {
                 const user = await getAuth().createUser({ email, password, displayName: name });
