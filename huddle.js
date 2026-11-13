@@ -118,7 +118,9 @@ export function initHuddleNotifications({ onState } = {}) {
             } else if (/Android/i.test(navigator.userAgent)) {
                 _deniedMsg.textContent = 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
             } else {
-                _deniedMsg.textContent = 'In Chrome: click the padlock in the address bar → Site settings → Notifications → Allow.';
+                // The route is one unit: a line that starts "→" reads as broken punctuation (`.nav-path`).
+                _deniedMsg.replaceChildren('In Chrome: click the padlock in the address bar → ',
+                    Object.assign(document.createElement('span'), { className: 'nav-path', textContent: 'Site settings → Notifications → Allow' }), '.');
             }
             _deniedMsg.style.display = 'block';
             // BLOCKED, not off. The member cannot fix this from here — the browser will refuse

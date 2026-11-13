@@ -2398,6 +2398,48 @@ test('paycalc: a manager is told who the calculator is for — with nothing prom
     expect(errors, 'Uncaught JS exceptions on the manager card').toHaveLength(0);
 });
 
+// …and on a short laptop window the refusal is read whole (laptop polish, 13 Nov 2026): at 1280×593 its
+// way back sat 23px under the fold. The role emoji over its title steps aside there (a taller window
+// keeps it), and the card takes the sign-in card's short-window padding, because it wears that card's
+// panel: signed out, this same page shows the sign-in card, so the two are compared directly.
+test('paycalc: on a short laptop window the refusal card ends on screen, its way back included', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a laptop window');
+    await page.setViewportSize({ width: 1280, height: 593 });
+    const padding = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+        const cs = getComputedStyle(el); return [cs.paddingTop, cs.paddingBottom]; });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#loginCard')).toBeVisible();
+    const door = await padding('#loginCard');
+    await seedSession(page, 'D. Minto');
+    await page.goto('/paycalc.html');
+    const back = page.locator('#unsupportedGradeBanner a.login-back');
+    await expect(back).toBeVisible();
+    expect(await padding('#unsupportedGradeBanner'), 'the refusal and the sign-in card are one door: one padding').toEqual(door);
+    const bottom = await back.evaluate(el => Math.round(el.getBoundingClientRect().bottom));
+    expect(bottom, `the way back ends ${bottom - 593}px under the fold of a 1280×593 window`).toBeLessThanOrEqual(593);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.locator('#unsupportedGradeBanner .pc-role-icon'), 'a tall window keeps the emoji').toBeVisible();
+});
+
+// From 768px the Earlier and Later buttons share the select's row, and centred beside it they were 36px
+// to its 44 (laptop polish, 13 Nov 2026). They take the row's height now, so the three read as one row.
+test('paycalc: from 768px the period buttons are as tall as the select beside them', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window');
+    await seedMemberSession(page, 'G. Miller');
+    for (const width of [800, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#prevBtn')).toBeVisible();
+        const h = await page.evaluate(() => {
+            const tall = (/** @type {string} */ s) => { const e = /** @type {HTMLElement|null} */ (document.querySelector(s));
+                return e && e.offsetParent ? Math.round(e.getBoundingClientRect().height) : null; };
+            return { select: tall('#periodSelectTrigger') ?? tall('#periodSelect'), earlier: tall('#prevBtn'), later: tall('#nextBtn') };
+        });
+        expect(h.select, `premise: the select is drawn at ${width}px`).toBeGreaterThanOrEqual(44);
+        expect([h.earlier, h.later], `${width}px: Earlier and Later against the select's ${h.select}px`).toEqual([h.select, h.select]);
+    }
+});
+
 // THE SIGN-IN CARD EXPLAINS THE PAGE (v25.50). A visitor with no named session — a member whose
 // session lapsed, or the shared staff PIN, which carries no name — met a bare "Pay Calculator · Sign
 // in" with nothing to say what it was or who it was for. The PIN line is worded for everybody rather

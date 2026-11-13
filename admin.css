@@ -2316,6 +2316,26 @@
             .day-row.active, .day-row.selected { padding-top: 8px; padding-bottom: 8px; }
             .col-day .day-date { display: inline; margin-left: 6px; }
         }
+        /* ── ON A SHORT LAPTOP WINDOW THE WEEK STARTS HIGHER (laptop polish, 13 Nov 2026) ──
+           At 1280×593 (a 1920-pixel laptop at Windows' 150%) 474px stood above Sunday, and the window
+           showed two days of seven. The bulk bar alone was 214px. Spacing only: no control moves, the
+           Apply hint stays under its button (owner, Nov 2026), and the rows keep their order. With the
+           rows below, the opening screen shows three days at 593, four at 650 and six at 735. AFTER
+           the density block above, which these override at equal specificity; a chosen row
+           (`.day-row.active`, 0,2,0) keeps its 8px either way. */
+        @media (min-width: 1024px) and (max-height: 820px) {
+            .selectors      { margin-bottom: 8px; }
+            .bulk-bar       { padding: 8px 12px; margin-bottom: 8px; }
+            .bulk-bar-label { margin-bottom: 6px; padding-bottom: 6px; }
+            .bulk-step      { padding-bottom: 6px; margin-bottom: 6px; }
+            .btn-bulk-apply { margin-top: 0; }
+            #bulkApplyHint  { margin-top: 4px; }
+        }
+        /* Density is a pointer decision (css-tokens.md): a mouse needs no thumb's padding, so the row is
+           42px here, not 52px; a wide touch screen keeps the 44px targets. */
+        @media (min-width: 1024px) and (max-height: 820px) and (pointer: fine) {
+            .day-row { padding-top: 10px; padding-bottom: 10px; }
+        }
 
         /* From 681px the six pills fit one line, so they join the row's left edge with the times below
            them (v22.22); a phone keeps them centred where they wrap (`.col-pills`). */

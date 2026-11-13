@@ -793,9 +793,16 @@ the one refused-read tick. The full account is `operations.css` → the dims not
 `.app-header-brand` (`flex: 1`, content centred) holding the logo and title, then the page badge. The
 brand takes all the space between the burger and the badge, so the two can never overlap whatever the
 badge's width, and the title ellipses rather than wraps. A brand centred in that leftover space is
-centred on the page only when the burger and the badge are the same width. The Calendar's full-bleed
-`.header` (`index.css`) is separate and does not use these rules — but **from 768px up it draws the
-same header**: from the width where `.app-header` takes its desktop metrics it has the same height,
+centred on the page only when the burger and the badge are the same width — it sat 16–43px left of the
+centre, by a different amount on each page, so the name moved on every hop. **So from 1024px the brand is
+centred on the HEADER** (absolute, `left: 50%`), as the Calendar's title is, and the badge holds the right
+edge (laptop polish, 13 Nov 2026). From 1024px every page's header shares one band, and the name keeps
+45px or more from ☰ and the badge even at double text size. **Below 1024px keep the flex rule**: a page's
+header can be far narrower there, and centred, 1.6× text ran the name into the badge. Pinned by
+`e2e/pages.spec.js` → "from 1024px the app's name sits at the window's centre" and its below-1024 sibling.
+
+The Calendar's full-bleed `.header` (`index.css`) is separate and does not use these rules — but **from
+768px up it draws the same header**: from the width where `.app-header` takes its desktop metrics it has the same height,
 logo, gap, title and top edge, and its burger sits in the same place, so a hop between the Calendar
 and any page does not rearrange the header. Only the width differs (`--page-max-width`, above).
 Below 768px, and on a phone held on its side, the Calendar keeps its own compact header — asked and

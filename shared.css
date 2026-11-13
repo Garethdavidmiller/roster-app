@@ -82,8 +82,6 @@
        ONE colour per page, declared ONCE in that page's own stylesheet `:root`, and read by
        everything that wears it: the header badge (.badge-page), the About badge (.lightbox-badge),
        the current row of a picker sheet (.picker-opt.is-current) and every CHOSEN control (below).
-       Until v25.14 every page restated its colour in hand-written rules, and the copies had already
-       drifted — Links' About badge had a full-strength border where every other page's was a 35% tint.
          --page-accent       the colour itself: the badge fill, and what every tint is mixed from
          --page-accent-ink   text ON the full colour — white, or navy on a bright accent
          --page-accent-text  the colour as TEXT on a pale tint of itself. A bright accent (gold,
@@ -93,11 +91,8 @@
 
        CHOSEN = THE PAGE'S COLOUR (v25.16). Whatever you have chosen — a tab, a segment, a chip, a
        toggle that is on — fills with --page-accent, its text --page-accent-ink, and nothing else:
-       no gold underline, no darker edge. Raspberry on Trains, green on Pay, gold on the Calendar.
-       Until v25.16 a chosen control was navy on most pages, raspberry on one Trains row, gold on the
-       Calendar's Team button and a gold tint on Links, so one page could show two colours for the one
-       idea (owner, with screenshots: Trains' raspberry tab above a navy day; New link's navy chip on
-       a teal page). Three things are NOT this, on purpose:
+       no gold underline, no darker edge, so one page never shows two colours for one idea (owner,
+       with screenshots; css-tokens.md has the account). Three things are NOT this, on purpose:
          · NAVY IS FOR A BUTTON THAT DOES SOMETHING (Save, View, Answer). Chosen and do-something
            were both navy before, so a selected tab and an action button looked alike.
          · A CHOICE WITH A MEANING keeps its meaning's colour: the shift types, yes and no, enter and
@@ -231,18 +226,10 @@
     --success-text: oklch(42.5% 0.1159 144.3deg);
 
     /* SW update status */
-    /* The "✓ Up to date" pill in the About panel, and the only consumer of either token.
-       Both changed at v23.95 and the reason is worth keeping, because the surface they sit on
-       argues for the opposite of what they were. The panel is DARK GLASS — three translucent
-       layers whose only opaque backing is the page behind the modal — so a translucent pill's
-       legibility was a function of whatever happened to be on screen underneath it. Measured:
-       the old green-on-glass came out at 2.88:1 against WCAG AA's 4.5.
-
-       The fix is the one its sibling `.lightbox-status.needs-update` already used: an OPAQUE
-       background, so the pill answers for its own contrast and no layout change can move it.
-       The green is darkened to suit a light pill (5.2:1 measured); it is not a "less green"
-       green, it is the same hue at a lightness that can be read. Since v25.14 the panel itself is
-       an opaque navy sheet as well, so nothing behind the modal reaches either surface any more. */
+    /* The "✓ Up to date" pill in the About panel, and the only consumer of either token. OPAQUE, as its
+       sibling `.lightbox-status.needs-update` is, so it answers for its own contrast: translucent, on the
+       panel's old dark glass, it measured 2.88:1, set by whatever was behind the modal. The green is the
+       same hue at a lightness a light pill can carry (5.2:1). The panel is an opaque navy sheet now too. */
     --status-ok:    oklch(50% 0.13 144.2deg);
     --status-ok-bg: color-mix(in oklch, var(--status-ok) 10%, white);
 
@@ -1051,9 +1038,9 @@ body.lb-open #stickyTotal { display: none !important; }
    A mask rather than an overlaid gradient: on a scroll container the mask is applied to the border
    box, so it stays pinned at the bottom edge instead of scrolling away with the content. `has-more`
    is toggled by overlay.js, so a panel that fits is never faded — fading the last line of a SHORT
-   panel would invent the very ambiguity this removes. The drawer's body wears it too (nav-panel.js). */
+   panel would invent the very ambiguity this removes. The drawer's body and Admin's side column too. */
 .lb-content.has-more,
-.nav-panel-body.has-more {
+.nav-panel-body.has-more, .col-side.has-more {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }
@@ -1411,13 +1398,9 @@ button.lightbox-bug-link {
     color: var(--primary-blue);
     font-weight: 600;
 }
-/* The outcome of tapping it. It wore `.login-hint` until v20.49 — the same class as the instruction
-   under the password field — so "Request sent. The admin will reset your password and let you know."
-   rendered as small grey text indistinguishable from "Your surname in lowercase", directly above the
-   Back link, and a completed action read as a footnote. A receipt for a message sent to a real person
-   should look like a receipt. Geometry is deliberately `.login-error`'s: the card already has one
-   message-box shape and this is the same slot, differing only in tint, so success and failure are
-   told apart by colour within one familiar form rather than by two competing layouts. */
+/* The outcome of tapping it: a receipt for a message sent to a real person, so it looks like one (as
+   small grey `.login-hint` text, a completed action read as a footnote). Geometry is `.login-error`'s,
+   the card's one message-box shape in the same slot, so success and failure differ only in tint. */
 .login-receipt {
     font-size: var(--type-label);
     border-radius: var(--radius-sm);
@@ -2279,6 +2262,16 @@ button.lightbox-bug-link {
         font-size: var(--type-badge);
         padding: 5px 12px;
     }
+}
+/* THE NAME STAYS PUT ON A HOP (laptop polish, 13 Nov 2026). Centred in the room the badge left, it sat
+   16–43px left of centre, by a different amount on every page. From 1024px every header shares one band,
+   so the name is centred on the header, as the Calendar's is; not below, where a narrower header put
+   large text (1.6×) into the badge. The zero margin undoes the focus-ring trick above, which offsets it. */
+@media (min-width: 1024px) {
+    .app-header { position: relative; min-height: 72px; }
+    .app-header > :last-child { margin-left: auto; }   /* the badge, or Links' .header-end */
+    .app-header-brand { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+                        width: max-content; margin-block: 0; overflow: visible; }
 }
 
 /* ---- Utility ---- */
@@ -3413,11 +3406,24 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 @media (min-width: 1024px) and (max-height: 820px) {
     #loginOverlay, #pwForceOverlay { padding-top: max(14px, env(safe-area-inset-top)); }
     #loginCard img, #pwForceContent img, .cal-lock-card img { display: none; }
-    #loginCard, #pwForceContent, .cal-lock-card { padding-top: 24px; padding-bottom: 22px; }
+    #loginCard, #pwForceContent, .cal-lock-card, .pc-role-card { padding-top: 24px; padding-bottom: 22px; }
     .login-subtitle { margin-bottom: 16px; }
     .login-about { padding: 10px 14px; margin-bottom: 16px; }
     .login-about-line { line-height: 1.4; }
     .login-field { margin-bottom: 10px; }
+    /* About is read whole, as the sign-in card is (laptop polish, 13 Nov 2026): at 80% of the window it
+       scrolled inside itself at every laptop size, with "Report a bug" below its fold. */
+    #iconLightboxContent { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); padding-top: 28px; padding-bottom: 24px; }
+    #iconLightboxContent img { width: 64px; height: 64px; border-radius: 15px; margin-bottom: 4px; }
+}
+/* …and with a mouse the drawer keeps Reference on screen: an admin's eight pills put it under the fold at
+   650px, where the fade fell on empty navy. Density is a pointer decision (css-tokens.md). */
+@media (min-width: 1024px) and (max-height: 820px) and (pointer: fine) {
+    .nav-panel-head  { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: 8px; }
+    .nav-panel-body  { gap: 16px; }
+    .nav-panel-pills { gap: 4px; }
+    .nav-panel-pill  { padding-block: 6px; }
+    .nav-panel-link  { padding-block: 7px; }
 }
 
 
@@ -3628,25 +3634,15 @@ body.auth-ready .boot-placeholder { display: none; }
    so it can't nest the Tips button). It needs its own pointer + a visible keyboard focus ring. */
 .collapse-chevron { cursor: pointer; position: relative; touch-action: manipulation; }
 
-/* ── AND IT NEEDS A TAP TARGET, WHICH IT DID NOT HAVE UNTIL v21.53 ──────────────────────────────
-   Measured by probing `elementFromPoint` outward from each control on every page: the chevron's
-   real tap region was 6×15px — the glyph and nothing else — on operations, settings, links and
-   overtime alike. It is the primary way to open and close every card in the app, and it is the
-   smallest target on any of those pages.
-
-   The fix is not a new idea; it is the one already sitting 120 lines below, on `.btn-card-tips`,
-   whose circle (20px then, 24px since v25.12) has carried a 44px `::before` since it was written. The two controls sit 5px
-   apart in the same cluster and only one of them had it.
-
-   ENLARGING THE GLYPH WAS THE OTHER OPTION AND IT IS THE WRONG ONE: the cluster is `flex-shrink: 0`,
-   so every pixel it gains comes out of the title column, and paycalc's "🏖️ Holiday Pay Premium
-   (HPP)" already wraps to two lines at 360px — v18.53 exists to claw ~25px back there. So the hit
-   area grows and nothing moves.
-
-   `inset` is SYMMETRIC deliberately. `.collapse-chevron.open` is `transform: rotate(180deg)`, which
-   rotates this pseudo-element too — an asymmetric region would swing across the Tips button every
-   time a card opened. Symmetric maps onto itself. The two expanded regions do overlap, and the
-   chevron paints later so it wins that band; both keep more than 24px, which is what matters. */
+/* ── AND IT NEEDS A TAP TARGET (v21.53) ─────────────────────────────────────────────────────────
+   Probed with `elementFromPoint`, its real tap region was 6×15px, the glyph alone, on every card page:
+   the way to open and close every card, and the smallest target there. The fix is `.btn-card-tips`'s
+   own 44px `::before`, below; the two sit 5px apart in one cluster.
+   ENLARGING THE GLYPH IS THE WRONG FIX: every pixel of a `flex-shrink: 0` cluster comes out of the title
+   column, where paycalc's "🏖️ Holiday Pay Premium (HPP)" already wraps at 360px. Only the hit area grows.
+   `inset` is SYMMETRIC deliberately: `.collapse-chevron.open` rotates 180deg, and this pseudo-element
+   with it, so an asymmetric region would swing across the Tips button every time a card opened. The two
+   regions overlap; the chevron paints later and wins that band, and both keep more than 24px. */
 .collapse-chevron::after,
 .card-toggle-arrow::after {
     content: '';
@@ -3777,6 +3773,10 @@ body.auth-ready .boot-placeholder { display: none; }
        and 28px of padding + 32 = 60. "🙋 Password Reset Requests" ran 8px under it at 360px (Nov 2026). */
     padding-right: 32px;
 }
+/* THE ✕ AND THE TITLE STAY WHILE THE TIPS SCROLL (laptop polish, 13 Nov 2026), as `.picker-top` does: a
+   long panel scrolled them away. The block fills the panel's top padding, and `top` is minus that padding,
+   because a sticky box stops at the scroller's padding edge: at rest and stuck, nothing moves. */
+.tips-lb-top { position: sticky; top: -28px; z-index: 1; display: flow-root; background: white; margin: -28px -28px 0; padding: 28px 28px 0; }
 .tips-lb-section {
     font-size: var(--type-badge);
     font-weight: 700;

@@ -555,10 +555,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
    (css-tokens.md → "Reading measure") is a ~64–72ch cap from 1024px, and the guides keep it too: a
    paragraph or a list line stops at 64ch. The coloured boxes, tables and cards keep the column, and
    so does each country's "✓ Checked" line, whose hairline spans its card. The centred disclaimer
-   stays centred. Screen only: print is as it was. */
+   stays centred. Screen only: print is as it was.
+   A rule-list row and a step draw their card's dividers, so they keep the column too and the measure
+   goes on their WORDS (laptop polish, 13 Nov 2026): capped, the rows' dividers stopped ~165px short of
+   the card, and the steps ran at 92 characters on 23px lines. A row takes it as padding (the same text
+   width as the old 64ch box); a step's body becomes a block, which also gives it its own 20px lines. */
 @media screen and (min-width: 1024px) {
     /* `.cf-nomatch` is a <p> but a boxed callout, so it keeps the column with the other boxes. */
-    main p:not(.country-reviewed):not(.cf-nomatch), .rule-list li { max-width: 64ch; }
+    main p:not(.country-reviewed):not(.cf-nomatch) { max-width: 64ch; }
+    .rule-list li { padding-right: max(14px, calc(100% - 64ch + 14px)); }
+    .steps li > span { display: block; max-width: 64ch; }
     .foot-disclaimer { margin-inline: auto; }
 }
 

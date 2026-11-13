@@ -36,7 +36,7 @@ import { openDatePicker } from './date-picker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 import { initNavPanel } from './nav-panel.js';
-import { initCardCollapse, createLightbox, confirmDialog } from './overlay.js';
+import { initCardCollapse, createLightbox, confirmDialog, watchScrollFade } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -314,6 +314,7 @@ export function init() {
             `${e.borderBoxSize?.[0]?.blockSize ?? /** @type {HTMLElement} */ (e.target).offsetHeight}px`)));
         heights.forEach((_, el) => { if (el) ro.observe(el); });
     }
+    watchScrollFade(document.querySelector('.col-side'));   // a short window scrolls the side column: the fade says so
 
     // ============================================
     // POPULATE MEMBER DROPDOWNS

@@ -35,6 +35,30 @@ test('operations: the page loads none of Admin\'s saved-changes modules', async 
     expect(loaded.filter(f => /^admin-(overrides|override-store|saved-changes|week-editor)$/.test(f))).toEqual([]);
 });
 
+// AN EMPTY STATUS LINE TAKES NO ROOM (laptop polish, 13 Nov 2026). Every upload card ends in a status line
+// that is empty until something is said, and its 10px margin made an open card end 22px under its
+// controls where it starts 12px over them. It stays in the page — it is a live region — and only its
+// margin goes; when it speaks, the gap comes back with it.
+test('operations: an open upload card ends as close under its controls as it starts over them', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const fb = page.locator('#huddleFeedback');
+    await expect(page.locator('#huddleUploadBtn')).toBeVisible();
+    const gap = () => page.evaluate(() => {
+        const btn = /** @type {Element} */ (document.getElementById('huddleUploadBtn')).getBoundingClientRect();
+        const body = /** @type {Element} */ (document.getElementById('huddleFeedback')).parentElement?.getBoundingClientRect();
+        return Math.round((body?.bottom ?? 0) - btn.bottom);
+    });
+    expect(await fb.evaluate(el => el.childNodes.length), 'premise: nothing has been said yet').toBe(0);
+    const quiet = await gap();
+    await fb.evaluate(el => { el.textContent = 'Uploaded.'; });
+    const said = await gap();
+    expect(said - quiet, 'a status line that speaks keeps its gap above it').toBeGreaterThanOrEqual(10 + 12);
+    await fb.evaluate(el => { el.textContent = ''; });
+    expect(await gap(), 'an empty one adds nothing under the button').toBe(quiet);
+    expect(await fb.evaluate(el => getComputedStyle(el).marginTop)).toBe('0px');
+});
+
 // Desktop layout contract: the wrapper-column grid (v14.35) must keep the three
 // publishing cards in the narrow LEFT column and the width-hungry cards (roster +
 // monitoring) in the wide RIGHT column — not auto-placed into mismatched positions.

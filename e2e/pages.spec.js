@@ -436,6 +436,55 @@ test('drawer: the body fades at the fold only while there is more below it', asy
     await expect(body, 'a drawer that fits wears no fade').not.toHaveClass(/\bhas-more\b/);
 });
 
+// …and with a mouse, on a short laptop window, Reference itself is on screen (laptop polish, 13 Nov 2026):
+// an admin's eight pills put it under the fold at 650px, so the fade fell across empty navy and the
+// guides gave no sign of being there. A short window with a fine pointer draws the drawer a step denser.
+for (const [width, height] of [[1366, 650], [1280, 593]]) {
+    test(`drawer: an admin's Reference heading is on screen in a ${width}×${height} window`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'the denser drawer is for a mouse');
+        await seedSession(page, 'G. Miller');
+        await page.setViewportSize({ width, height });
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('#navPanel')).toHaveClass(/\bopen\b/);
+        expect(await page.locator('.nav-panel-pill').count(), 'premise: the owner\'s eight pages').toBe(8);
+        const at = await page.evaluate(() => ({
+            reference: Math.round(/** @type {Element} */ (document.getElementById('navGuidesToggle')).getBoundingClientRect().bottom),
+            fold: Math.round(/** @type {Element} */ (document.querySelector('.nav-panel-body')).getBoundingClientRect().bottom) }));
+        expect(at.reference, `Reference ends ${at.reference - at.fold}px under the drawer's fold`).toBeLessThanOrEqual(at.fold);
+    });
+}
+
+// ── ABOUT IS READ WHOLE ON A SHORT LAPTOP WINDOW (laptop polish, 13 Nov 2026) ───────────────────────
+// At 80% of a 593–672px window the panel scrolled inside itself, with "Report a bug" under its fold. In
+// a short window it now takes the height the sign-in card does, with a smaller logo.
+for (const [width, height] of [[1280, 593], [1366, 650]]) {
+    test(`About is read whole in a ${width}×${height} window, from the Calendar's logo and from a page's drawer`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a laptop window');
+        // seedSession, not seedMemberSession: it is the seeder that also keeps the Pay page's own notice away.
+        await seedSession(page, 'G. Miller');
+        await seedMember(page, 'G. Miller');
+        await page.addInitScript(() => {
+            const w = /** @type {any} */ (window);
+            w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+        });
+        await page.setViewportSize({ width, height });
+        for (const url of ['/', '/paycalc.html']) {
+            await page.goto(url);
+            await waitForPageSettled(page);
+            if (url === '/') await page.locator('.title-icon').first().click();
+            else { await page.locator('#navMenuBtn').click(); await page.locator('#navPanelBrand').click(); }
+            const panel = page.locator('#iconLightboxContent');
+            await expect(panel).toBeVisible();
+            await expect.poll(() => panel.evaluate(el => el.getAnimations().length), 'the panel settles').toBe(0);
+            const fit = await panel.evaluate(el => ({ inner: el.scrollHeight - el.clientHeight, bottom: Math.round(el.getBoundingClientRect().bottom) }));
+            expect(fit.inner, `About scrolls ${fit.inner}px inside itself (${url})`).toBeLessThanOrEqual(1);
+            expect(fit.bottom, `About runs past the window (${url})`).toBeLessThanOrEqual(height);
+        }
+    });
+}
+
 // ── THE MENU BUTTON TAKES A 44px TAP (owner, 10 Nov 2026) ─────────────────────────────────────────
 // ☰ drew about 34×30px, under the 44px touch target, and it is the way into every other page. The
 // glyph stays as it was; an invisible square round it takes the tap. Hit-tested on every page, because
@@ -468,6 +517,72 @@ test('the menu button ☰ takes a tap anywhere in a 44px square round its centre
         checked++;
     }
     expect(checked, 'no page showed its menu button — the test checked nothing').toBeGreaterThan(5);
+});
+
+// ── THE APP'S NAME STAYS PUT ON A HOP (laptop polish, 13 Nov 2026) ──────────────────────────────────
+// Centred in the room its page's badge left, the name sat 16–43px left of the centre, by a different
+// amount on every page, so it moved on every hop, while the Calendar's title is centred. From 1024px,
+// where every page's header shares one band, it is centred on the header: measured against the WINDOW's
+// centre, so the Calendar is held to the same place. Below 1024px a page's header can be far narrower,
+// and centred there, large text ran into the badge; the second test holds that line.
+/** Where the app's name sits: its centre against the window's, and its clearance to ☰ and the badge.
+ *  @param {import('@playwright/test').Page} page */
+const namePlace = (page) => page.evaluate(() => {
+    const name = document.querySelector('.app-header .app-header-brand, .header h1');
+    if (!name || !name.getBoundingClientRect().width) return null;   // a page showing its sign-in card
+    const header = /** @type {Element} */ (name.closest('header'));
+    // The logo and the words, not the box round them: the Calendar's title box is not its text.
+    const range = document.createRange(); range.selectNodeContents(name);
+    const parts = [...range.getClientRects()].filter(r => r.width);
+    const left = Math.min(...parts.map(r => r.left)), right = Math.max(...parts.map(r => r.right));
+    /** @param {string} s */
+    const box = (s) => { const r = header.querySelector(s)?.getBoundingClientRect(); return r && r.width ? r : null; };
+    const burger = box('#navMenuBtn'), badge = box('.badge-page');   // the Calendar's badge shows in Team View only
+    // Clearance is what is SEEN: below 1024px the brand clips its words at its own edges.
+    const clip = getComputedStyle(name).overflow === 'visible' ? null : name.getBoundingClientRect();
+    const seenL = clip ? Math.max(left, clip.left) : left, seenR = clip ? Math.min(right, clip.right) : right;
+    return { off: Math.round((left + right) / 2 - document.documentElement.clientWidth / 2),
+             left: burger ? Math.round(seenL - burger.right) : null, right: badge ? Math.round(badge.left - seenR) : null };
+});
+test('from 1024px the app\'s name sits at the window\'s centre on every page, clear of ☰ and the badge', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window');
+    test.setTimeout(120_000);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    let checked = 0;
+    for (const width of [1024, 1366]) {
+        await page.setViewportSize({ width, height: 800 });
+        for (const p of APP_PAGES_LIST) {
+            await page.goto(p.url);
+            await waitForPageSettled(page);
+            const m = await namePlace(page);
+            if (!m) continue;
+            expect(Math.abs(m.off), `${p.file} at ${width}px: the name is ${m.off}px off the window's centre`).toBeLessThanOrEqual(1);
+            if (m.left !== null) expect(m.left, `${p.file} at ${width}px: the name's room from ☰`).toBeGreaterThanOrEqual(16);
+            if (m.right !== null) expect(m.right, `${p.file} at ${width}px: the name's room before the badge`).toBeGreaterThanOrEqual(16);
+            checked++;
+        }
+    }
+    expect(checked, 'too few pages showed their header — the test checked almost nothing').toBeGreaterThan(12);
+});
+test('below 1024px the app\'s name keeps to the room between ☰ and the badge, in large text too', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    // The narrowest headers at this width, and the widest badge: where a centred name met the badge.
+    for (const file of ['settings.html', 'overtime.html', 'operations.html']) {
+        await page.goto(`/${file}`);
+        await waitForPageSettled(page);
+        await scaleText(page, 1.6);
+        const m = /** @type {{ right: number }} */ (await namePlace(page));
+        expect(m.right, `${file} at 800px in 1.6× text: the name runs ${-m.right}px into the badge`).toBeGreaterThanOrEqual(0);
+    }
 });
 
 // ── A PAGE'S FIELD RULES STAY ON THE PAGE (css-admin-ops-1 and -5, Nov 2026) ────────────────────────
