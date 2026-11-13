@@ -68,7 +68,7 @@ export const CONFIG = {
     // auth-policy.js → `canOpenNewlink` reads it.
     NEWLINK_PREVIEW:                  ['S. Silva'],
     OVERTIME_BETA:                    /** @type {string[]} */ ([]),                           // CEA beta participants (none since 7 Oct 2026 — T. Bibi and J. Sumaili withdrawn, owner request) — availability only, no reviewer access
-    MANAGER_NAMES:                    ['D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
+    MANAGER_NAMES:                    ['D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers', 'W. Cummings'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js) AND the admin member-selector optgroups (admin-app.js), so the two can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
     // Phase 2 of PASSWORD_DESIGN.md — compel un-migrated members to set their own password at their

@@ -52,11 +52,11 @@ export const teamMembers = [
     { name: 'O. Mylla',                currentWeek: 9,  rosterType: 'main',       role: 'CEA' },
     // Moves off the main link on Sun 28 Jun 2026, through rosterChanges, onto the placeholder line
     // `fixedRoster[4]`: 09:00–16:00 Mon–Fri, weekends RD, and every bank holiday a rest day (owner,
-    // 13 Nov 2026). The base stays main wk10 until then (the slot after O. Mylla, K. Jedlinski's now).
-    // AL stays the standard CEA 32 (her contract decides it, not the line). To END the move, ADD a
-    // `rosterChanges` entry dated from the day it ends, onto whichever line she takes. Never delete
-    // this one: that redraws every date since 28 Jun 2026 as wk10.
-    // Until v25.99 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
+    // 13 Nov 2026). The base stays main wk10 until then (the slot after O. Mylla: K. Jedlinski's from
+    // 28 Jun, M. Campbell's from 22 Nov 2026). AL stays the standard CEA 32 (her contract decides it,
+    // not the line). To END the move, ADD a `rosterChanges` entry dated from the day it ends, onto
+    // whichever line she takes. Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
+    // Until v26.00 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
     // holidays. Pointing it at 4 redrew only the bank holidays since 28 Jun, as the rest days they were.
     // NOTE `fixedRoster[4]` is shared with S. Faure and A. Atkins (below): change its hours and you change all three.
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA',
@@ -78,20 +78,7 @@ export const teamMembers = [
     { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA', bilingualContract: true },
     { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA', bilingualContract: true },
     { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA' },
-    // New starter (3 Jun 2026). Phase 1 (3–27 Jun): own fixed line — pattern 2 (09:00–16:00
-    // Mon–Fri), the hours S. Boyle's placeholder line also has. Phase 2 (from Sun 28 Jun): joins the main
-    // link on wk10 (the slot S. Boyle vacates, after O. Mylla) via rosterChanges.
-    // `proRatedAL: 18` is TRANSCRIBED from the clerk's workbook, not derived; standard 32 from 2027.
-    // DO NOT recompute it from `startDate`. This comment used to state the old formula
-    // (`CEA 32 → ⌈212/365×32⌉ = 19`) directly above the number 18, which read as an arithmetic
-    // slip and invited exactly the "correction" that would have been wrong: 19 is the FORMULA's
-    // answer and 18 is the clerk's. Measured 6 Sep 2026, that formula missed every mid-year
-    // starter in the roster — Toth 12 vs 11, Jedlinski 19 vs 18, Davies 22 vs 20, Okeke 23 vs 24 —
-    // and two of them are not reachable by any formula from the fields this file holds. See
-    // `.claude/skills/new-starter/SKILL.md`, which is why the step now says ASK AND TRANSCRIBE.
-    { name: 'K. Jedlinski',            currentWeek: 2,  rosterType: 'fixed',      role: 'CEA',
-      startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 18 },
-      rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'main', currentWeek: 10 }] },
+    // K. Jedlinski — a CEA from 3 Jun 2026 to 21 Nov 2026, now a CES: the row is with the CES, below.
 
     // I. Melikian — started Mon 10 Aug 2026, in two phases. Phase 1 (to 12 Sep): initial training,
     // which is `fixedRoster[2]` (Mon–Fri 09:00–16:00) as the BASE roster rather than overrides — the
@@ -125,9 +112,14 @@ export const teamMembers = [
     // joiner. They carry the reduction in the next column, whose note reads "9 DAYS LEAVE ALLOWANCE"
     // (AL_WORKBOOK.md §5). It agrees with the day-count entered provisionally on 6 Nov; re-read the
     // book, never recompute.
+    // Phase 3 (from Sun 22 Nov 2026, owner, 13 Nov): the MAIN CEA link on the line K. Jedlinski leaves
+    // that day to become a CES. `currentWeek: 10` is REFERENCE-ANCHORED — the anchor K. Jedlinski held
+    // from 28 Jun, the slot after O. Mylla. The bilingual line M. Campbell leaves is a vacancy from then.
+    // The contract does not change, so neither does the leave: 32 a year, 9 for 2026.
     { name: 'M. Campbell',             currentWeek: 3,  rosterType: 'fixed',      role: 'CEA',
       startDate: new Date(2026, 8, 20), proRatedAL: { 2026: 9 },
-      rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'bilingual', currentWeek: 7 }] },
+      rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'bilingual', currentWeek: 7 },
+                      { from: new Date(2026, 10, 22), rosterType: 'main', currentWeek: 10 }] },
 
     // Dispatchers — 10-week rotating cycle, reference week starting 01/02/26
     // currentWeek reflects each person's row in the base roster on that date
@@ -224,7 +216,34 @@ export const teamMembers = [
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES', hidden: true }, // left by 11 Nov 2026 (owner); the CES week-7 line is a vacancy. Row kept so their past shifts and overrides still resolve
     { name: 'M. Bowler',               currentWeek: 8,  rosterType: 'ces',        role: 'CES' },
-    { name: 'W. Cummings',             currentWeek: 9,  rosterType: 'ces',        role: 'CES' },
+    // K. Jedlinski — a CEA new starter (3 Jun 2026), a CES from Sun 22 Nov 2026 (owner, 13 Nov), on the CES
+    // line W. Cummings leaves that day to become a manager. Three phases, each a dated move:
+    //   · 3–27 Jun: an own fixed line, pattern 2 (09:00–16:00 Mon–Fri), the hours S. Boyle's placeholder line also has.
+    //   · 28 Jun–21 Nov: the MAIN CEA link on wk10, the slot after O. Mylla that S. Boyle vacated. That line
+    //     passes to M. Campbell on 22 Nov.
+    //   · from 22 Nov: the CES link. `currentWeek: 9` there is REFERENCE-ANCHORED — W. Cummings's own base
+    //     value, the line at the 15 Feb 2026 CES reference Sunday — not the week that line shows on 22 Nov.
+    // The row sits here, among the CES, because every list draws a grade in this file's order.
+    // ⚠️ `role` is the grade NOW. The pickers, Team Week and the roster import's name lists read it as of
+    // the release, past weeks included, so 'CES' took effect for them the moment it went live. That is why
+    // the release went out after the week of 15 Nov was uploaded and before the week of 22 Nov
+    // (OPERATIONS_REFERENCE.md → "A member changes grade"). `roleHistory` dates the grade BEFORE it — CEA
+    // up to and including Sat 21 Nov — for anything that must know the grade on a day, the Pay Calculator
+    // among them, through `roleOn` (roster-roles.js).
+    // `proRatedAL: 18` is TRANSCRIBED from the clerk's workbook, not derived; 34 a year from 2027 as a CES
+    // (it would have been 32 as a CEA). 2026 stays 18 through the promotion unless the workbook changes it.
+    // DO NOT recompute it from `startDate`. This comment used to state the old formula
+    // (`CEA 32 → ⌈212/365×32⌉ = 19`) directly above the number 18, which read as an arithmetic
+    // slip and invited exactly the "correction" that would have been wrong: 19 is the FORMULA's
+    // answer and 18 is the clerk's. Measured 6 Sep 2026, that formula missed every mid-year
+    // starter in the roster — Toth 12 vs 11, Jedlinski 19 vs 18, Davies 22 vs 20, Okeke 23 vs 24 —
+    // and two of them are not reachable by any formula from the fields this file holds. See
+    // `.claude/skills/new-starter/SKILL.md`, which is why the step now says ASK AND TRANSCRIBE.
+    { name: 'K. Jedlinski',            currentWeek: 2,  rosterType: 'fixed',      role: 'CES',
+      startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 18 },
+      roleHistory: [{ role: 'CEA', until: new Date(2026, 10, 21) }],
+      rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'main', currentWeek: 10 },
+                      { from: new Date(2026, 10, 22), rosterType: 'ces', currentWeek: 9 }] },
     { name: 'S. Horsman',              currentWeek: 10, rosterType: 'ces',        role: 'CES' },
 
     // Management & clerks — login-only accounts; no roster of their own; hidden from the staff selector.
@@ -235,4 +254,15 @@ export const teamMembers = [
     { name: 'N. Bedingfield', currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true }, // started 15 Jun 2026; managerOnly has no roster, so no startDate/proRatedAL needed
     { name: 'H. Croft',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
     { name: 'N. Sobers',  currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
+    // W. Cummings — a CES on line 9 until Sat 21 Nov 2026, a manager from Sun 22 Nov (owner, 13 Nov). K. Jedlinski
+    // takes the CES line that day. Unlike the rows above, the base fields are REAL: `ces`, anchor 9, is the line
+    // W. Cummings worked, so anything that still reads one of their past days reads it against the right shifts,
+    // and roster-data.test.mjs checks K. Jedlinski's days from 22 Nov against this line. Nothing draws the row:
+    // `managerOnly` takes it off every staff list, for every date, past ones included, because the lists read
+    // `role`, the grade NOW — it left the CES lists when the release went out (OPERATIONS_REFERENCE.md → "A
+    // member changes grade"). `roleHistory` keeps the CES grade, to Sat 21 Nov, for anything that asks the grade
+    // on a day (`roleOn`, roster-roles.js). Manager access is `CONFIG.MANAGER_NAMES` (roster-data.js); it starts when Operations →
+    // Set up accounts is next pressed, which the owner does on 22 Nov, and W. Cummings then signs out and back in.
+    { name: 'W. Cummings', currentWeek: 9, rosterType: 'ces', role: 'Management', hidden: true, managerOnly: true,
+      roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] },
 ];
