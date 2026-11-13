@@ -126,10 +126,12 @@ every base-shift, date and shift-classification helper. Rules: `.claude/rules/ro
   reads a generated copy of several: run `npm run generate:roster-members` in the same commit (CLAUDE.md
   → Change impact).
 - `teamMembers` (from `roster-member-data.js`) · `weeklyRoster` · `bilingualRoster` · `fixedRoster` ·
-  `cesRoster` · `dispatcherRoster` (from `roster-cycle-data.js`) — world-readable (CLAUDE.md → teamMembers).
+  `cesRoster` · `dispatcherRoster` · `FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS` (from `roster-cycle-data.js`) — world-readable (CLAUDE.md → teamMembers).
 - **Base shifts.** `getBaseShift(member, date)` — **always use this, never read `roster.data`**; it
   applies start-date suppression, roster changes and the Christmas rule. `getPatternShift(member, date)`
   — the same lookup without the Christmas rule, for the Christmas leave rules only (`christmas-leave.js`).
+  Both read a bank holiday on a fixed pattern that rests on them (`fixedRoster[4]`) as RD, so the
+  Calendar, a Dispatcher's days in lieu and Christmas leave agree (v25.97).
   `resolveMemberRoster(member, date)` — applies `rosterChanges` (latest `from` ≤ date wins); never
   special-case `rosterType` at a call site. `getWeekNumberForDate(date, member)` ·
   `getRosterForMember(member, date?)` → `{ type, data, cycleLength, weekPrefix }` (`weekPrefix` is `''` for a
@@ -2239,7 +2241,7 @@ The offline-first service worker. **The caching strategy and the update lifecycl
 - `pushsubscriptionchange` re-subscribes with the key the old subscription carried, so this file holds no copy of the VAPID key; `notif.js` re-saves the server record.
 
 ### `roster-cycle-data.js`
-The raw roster cycles — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster` — with no logic and no imports. Imported only by `roster-data.js`, which re-exports them; app code reads shifts through `getBaseShift`, never from a pattern directly. A cell is `RD`, `OFF`, `SPARE`, `AL`, `RDW`, `HH:MM-HH:MM` or, Monday to Saturday, a bare Other flavour (`fixedRoster[3]` is Training with no times); `validateRosterPatterns` in `roster-data.js` checks every pattern. **A fixed pattern is SHARED**: editing one member's line edits everyone on it.
+The raw roster cycles — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster` — and `FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS` (v25.97: the fixed patterns on which a bank holiday is a rest day; `fixedRoster[4]`, the placeholder line, is the one), with no logic and no imports. Imported only by `roster-data.js`, which re-exports them; app code reads shifts through `getBaseShift`, never from a pattern directly. A cell is `RD`, `OFF`, `SPARE`, `AL`, `RDW`, `HH:MM-HH:MM` or, Monday to Saturday, a bare Other flavour (`fixedRoster[3]` is Training with no times); `validateRosterPatterns` in `roster-data.js` checks every pattern. **A fixed pattern is SHARED**: editing one member's line edits everyone on it.
 
 ### `roster-member-data.js`
 The roster's PEOPLE and nothing else — `teamMembers`, one entry per member, no logic and no imports. Its length tracks headcount, which is why it is not in `roster-data.js` (whose size guard was crossing on hiring rather than on complexity). **Re-exported by `roster-data.js`**, where every consumer reads it, the generator and the classification test included. To add or remove somebody: `/new-starter` and `/leaver`.

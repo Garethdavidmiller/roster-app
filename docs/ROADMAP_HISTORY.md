@@ -2798,6 +2798,17 @@ what the stubbed test had modelled: the rename committed at once, then the queue
 with its name, landed on top and put the old name back. With the wait in place the rename waits for
 the save, and both reach the database. This run found no new fault; the journey fails if the wait goes.
 
+**v25.97 also gave two placeholder lines a pattern that rests on bank holidays.** Two Dispatchers off
+their rotating link for the time being are on a placeholder Monday-to-Friday line, 09:00–16:00, and do
+not work bank holidays while on it (owner, 13 Nov 2026). The app had them on `fixedRoster[2]`, which has
+those hours but works bank holidays. So every weekday bank holiday showed a shift, and the Dispatcher
+allowance added a day in lieu for each one, all eight in 2027. They are now on `fixedRoster[4]`:
+pattern 2's hours, with every bank holiday a rest day (`FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS`, read in
+`getPatternShift`, so the Calendar, the days in lieu and the Christmas rules agree). Their existing
+entries were pointed at 4 rather than given new ones, so the bank holidays since each move were
+redrawn too, as the rest days they were. Pattern 2 is untouched: others sit on it, and nobody has said
+they rest on bank holidays.
+
 **v25.96: the Links workspace had the same race, and has the same wait.** Its design store queues
 a save, a rename and a bin offline (rule 4), and every online one of those, a restore, a purge and
 the automatic bin is a transaction. So just after the signal returned, a save wrote over the
