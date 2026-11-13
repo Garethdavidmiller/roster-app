@@ -326,7 +326,7 @@ jobs:
   # workflow-hygiene.test.mjs fails if a WebKit run is added here. The SDK, the rules and the functions
   # are the same on both engines, which is most of what this lane is for.
   #
-  # What it costs is not time — about three minutes, beside the smoke jobs' sixteen or more — but one
+  # What it costs is not time — about three minutes, beside the smoke shards' five to eight — but one
   # more way for a release to be held: red here, and nothing is uploaded, as for any gate job. The Rules
   # and Functions deploys keep their own suites (test:rules, test:functions) and do not run it.
   signed-in:

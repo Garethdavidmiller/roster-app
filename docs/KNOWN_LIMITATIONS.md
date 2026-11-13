@@ -130,7 +130,8 @@ A save made while the device says it is offline, or whose check could not reach 
 (Firestore has tried five times over about eight seconds by then), is held on the device as a batch
 and sent unchecked when the signal returns — exactly as every save was before v25.90. Offline-first
 is the older promise, and a device that cannot reach the server cannot ask it anything. A save that
-REMOVES a day is never held that way: it waits for the server, as it has since v25.89.
+REMOVES a day is never held that way: with no server it is refused, writing nothing, as it has been
+since v25.89.
 
 **Also deliberate.** A colleague who made exactly the same change is still a colleague — their name
 is on the record — so the save is refused rather than counted as done. A range booking long enough
@@ -140,6 +141,13 @@ and refreshes the saved list. And what a range booking compares with is what the
 when the booking started, so a read landing between the card's preview and its save is the one
 window in which it compares with newer data than the reader saw. Revisit if a lost edit is ever
 reported from either.
+
+**Not covered: the weekly roster import.** Its save still writes in plain batches
+(`_saveOverrideBatches`, `admin-roster-upload.js`), deleting the record it replaces without asking the
+server first, so a day a colleague changes while the admin reviews the import is overwritten without
+a word. It needs its own design rather than this one's: the review is long-lived, a save runs to
+hundreds of rows in several commits, and a refusal has to say which part landed. Not built; raised
+with the owner on 13 Nov 2026.
 
 **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
 saved or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete.
@@ -244,7 +252,7 @@ seven-day rule, is unknown; `IPHONE_RELEASE_CHECKLIST.md` has the device check.
 The ROOT tree is development tooling only — the Firebase CLI, the rules-test harness, Playwright,
 ESLint. Nothing in it is served to staff. **Do not trust a count written down here; run
 `npm audit`.** A transitive dev tree moves on its own, so a number in prose is stale the day after it
-is written. Its shape on 7 Nov 2026 was moderate findings only, none high or critical:
+is written. Its shape on 13 Nov 2026 was moderate findings only, none high or critical:
 
 - **Inside `firebase-tools`** (pubsub and opentelemetry, archiver, gaxios, glob, uuid and their
   neighbours). For the CLI's chain npm offers only `npm audit fix --force`, which DOWNGRADES the CLI
@@ -331,12 +339,12 @@ the viewport for a tall surface), under the iPhone 13 descriptor. Three things a
   artifact (checking its digest). It is why the update bot leaves `@playwright/test` alone
   (`.github/dependabot.yml`): each release brings new browsers, and the baselines are redrawn from
   the upgrade's own CI render, by hand.
-- **The repository's Playwright can be ahead of the dev container's browsers**, as it is on 7 Nov
-  2026. Until a container carries the pinned release's browsers, a local run needs the environment's
-  remedy: launch Chromium with `executablePath: '/opt/pw-browsers/chromium'` from a scratch config
-  that imports the project's, giving `testDir` and the web server's `cwd` as absolute paths. Nothing
-  in the repo changes. WebKit takes `npx playwright install webkit`, about a minute. CI and the deploy
-  gate install their own browsers and need none of this.
+- **The repository's Playwright can be ahead of the dev container's browsers**, as it still is on
+  13 Nov 2026. Until a container carries the pinned release's browsers, a local run needs the
+  environment's remedy: launch Chromium with `executablePath: '/opt/pw-browsers/chromium'` from a
+  scratch config that imports the project's, giving `testDir` and the web server's `cwd` as absolute
+  paths. Nothing in the repo changes. WebKit takes `npx playwright install webkit`, about a minute. CI
+  and the deploy gate install their own browsers and need none of this.
 
 ### Every browser job is pinned to Ubuntu 24.04
 
@@ -415,11 +423,13 @@ residual risk:
   somebody next uploads". The right long-term home is a scheduled Function.
 - **No server time, no sweep.** `doc-retention.js` refuses to run on a client clock, deliberately —
   correct, and it means the sweep can silently not happen.
-- **A partial failure ORPHANS the Storage object.** `pruneOldHuddles` deletes Firestore first, then
-  Storage, because the reverse leaves a user-facing broken link. The accepted cost is an orphaned
-  object — invisible to staff, unreferenced by any document, and **still serving its bearer URL,
-  permanently**. That is the one genuinely unbounded case, nothing lists it, and rotation is the only
-  step that reaches it.
+- **A partial failure ORPHANS the Storage object.** Both sweeps delete Firestore first, then Storage,
+  because the reverse leaves a user-facing broken link. The accepted cost is an orphaned object —
+  invisible to staff, unreferenced by any document, and **still serving its bearer URL**. Since v25.89
+  the Huddle sweep tries again in the same run (`sweepHuddleOrphans`), but no later run returns to a
+  date whose document has gone, and the Circular and Newsletter sweep has no such step. That is the
+  one genuinely unbounded case. Operations → Document links counts such files among those "no longer
+  used by the app", and a run there is the only step that switches their links off.
 
 **And there is a second reader nobody authorised.** Word circulars and newsletters open via
 `officeViewerUrl` (`storage-utils.js`), which passes the URL to **Microsoft's Office Online viewer** —
@@ -970,15 +980,15 @@ moves to another month. It cannot happen again after that.
 ## Navigation / accessibility
 
 ### No `inert` behind dialogs (focus is trapped; the background is not inert)
-Every dialog traps Tab/Shift+Tab — the nav panel and every lightbox through `createLightbox` (`overlay.js`) — and each is declared `role="dialog" aria-modal="true"`. Screen-reader users can still reach page content behind the overlay via browse mode: `inert` on background content is deferred (its only uses are local, in `admin-roster-upload.js` and `paycalc-inputs.js`). Android and iOS are both first class here, so this matters to TalkBack and VoiceOver alike.
+Every dialog traps Tab/Shift+Tab — the nav panel and every lightbox through `createLightbox` (`overlay.js`) — and each is declared `role="dialog" aria-modal="true"`. Screen-reader users can still reach page content behind the overlay via browse mode: `inert` on background content is deferred (its only uses are local, in `admin-roster-upload.js` and `admin-week-editor.js`). Android and iOS are both first class here, so this matters to TalkBack and VoiceOver alike.
 
 ### The drawer does not pull back focus the iPhone keyboard's arrows move out of it
 The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the document
 and fire no key event, so a Tab trap never sees them. Since 7 Nov 2026 every `createLightbox` dialog
 pulls such focus back (`_guardFocus`, `overlay.js`); the nav drawer, its two lightboxes and the Huddle
 viewer keep their own Tab traps and have no guard, so the arrows can leave the drawer's *Search the
-guides* box for a field behind it. Deferred because `nav-panel.js` is at its line cap; the device check
-is in `IPHONE_RELEASE_CHECKLIST.md` → B.
+guides* box for a field behind it. Not built yet: `nav-panel.js` was at its line cap when this was
+found, and has room now. The device check is in `IPHONE_RELEASE_CHECKLIST.md` → B.
 
 ### On an iPhone, reloading a guide opened at a heading goes back to that heading
 A guide opened at a `#heading` (a drawer search result, a card link) lands below the sticky header, and
@@ -987,8 +997,8 @@ exception on WebKit: Safari scrolls to the `#fragment` again itself, where Chrom
 place. The app moves nothing afterwards — `e2e/guides.spec.js` → "a deep link does not pull back a
 reader who has moved, or a reload" passes on both engines — so the "or a reload" half holds on Android
 and not on an iPhone. Countering it (taking over `history.scrollRestoration`) would mean the app
-fighting Safari's own reload behaviour on four pages for a rare gesture, so it is recorded rather than
-built (whole-app check, integration-e2e, 10 Nov 2026).
+fighting Safari's own reload behaviour on every guide page for a rare gesture, so it is recorded
+rather than built (whole-app check, integration-e2e, 10 Nov 2026).
 
 ---
 
@@ -998,8 +1008,8 @@ built (whole-app check, integration-e2e, 10 Nov 2026).
 Changes to `manifest.json` shortcuts do not take effect on existing installs until the user
 reinstalls the PWA (removes and re-adds it to the home screen). The same is true of `name`, which
 Chrome's pre-Android-12 splash draws as text in the device's system font: an installed phone shows
-the current short "Marylebone Roster" only after a reinstall regenerates its WebAPK (CLAUDE.md →
-architecture decisions says why it is short and ASCII).
+the current short "Marylebone Roster" only after a reinstall regenerates its WebAPK
+(`.claude/rules/pwa.md` says why it is short and ASCII).
 
 ### Printing from the installed app on iOS 27 does nothing — so the app says so
 In a home-screen web app on iOS 27, `window.print()` is a no-op: no print sheet, no error, no
@@ -1175,9 +1185,9 @@ threshold would trade silence for false refusals across the rotating links where
 **Measured 2 Sep 2026** over every active member across ten consecutive weeks, both shift
 directions: **538 of 900 one-day shifts detected, 60%.** Three members were blind in at least 18 of
 their 20 sampled cases — **S. Boyle, C. Reen and S. Faure**, all on flat fixed lines — and anybody
-temporarily on one (a trainee's weeks, for example) is in the same position. So the population that
-is hardest to check by eye — the people whose weeks all look alike — is exactly the population this
-check cannot speak for.
+else on such a line (a member moved onto one, a trainee's weeks) is in the same position. So the
+population that is hardest to check by eye — the people whose weeks all look alike — is exactly the
+population this check cannot speak for.
 
 **What still covers them is the PDF's own grid.** On the geometry path the grid assigns every day by
 coordinate (`functions/roster-prompt.js`), so a row cannot shift at all. When an upload falls back to

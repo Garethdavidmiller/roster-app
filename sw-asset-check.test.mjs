@@ -803,7 +803,7 @@ for (const page of APP_PAGES) {
 }
 
 // The pages that deliberately carry no LOCAL preload list — asserted so a stray or hand-written one
-// fails CI rather than rotting unnoticed, and so the claim in CLAUDE.md stays true. The three fixed
+// fails CI rather than rotting unnoticed; this test is where that decision is recorded. The three fixed
 // gstatic tags above are a different thing and are REQUIRED on every page: they name one immutable
 // URL each and cannot fall behind the graph, which is the whole objection to a local list.
 //
@@ -813,13 +813,13 @@ for (const page of APP_PAGES) {
 // getting there. It is in PRELOAD_PAGES above instead, where the exhaustive graph check applies —
 // which is the important half: an unguarded hand-maintained list is worse than none, because it
 // silently stops covering the module it was written for.
-test('admin/operations/settings/overtime.html carry NO local modulepreload hints (per CLAUDE.md)', () => {
+test('admin/operations/settings/overtime.html carry NO local modulepreload hints', () => {
     for (const page of ['admin.html', 'operations.html', 'settings.html', 'overtime.html']) {
         const html = readFileSync(join(ROOT, page), 'utf8');
         const local = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)].map(x => x[1]);
         assert.deepEqual(local, [],
             `${page} has ${local.length} LOCAL <link rel="modulepreload"> hint(s): ${local.join(', ')}. ` +
-            `CLAUDE.md says these pages deliberately carry none. ` +
+            `These pages deliberately carry none: only the deepest module graphs earn a checked list (the comment above this test). ` +
             `Either remove them, or add the page to PRELOAD_PAGES so its list is checked against the real graph.`);
     }
 });

@@ -36,19 +36,20 @@ than 3 months (`HUDDLE_RETENTION_MONTHS`).
 alone if a replacement has moved its `storagePath`, then only that version's object is deleted, by
 name. Other objects under `huddles/<date>` — legacy fixed paths, and versions a failed read left
 behind — are reclaimed by `sweepHuddleOrphans` only when they are over a day old and no live document
-names them. Until v25.89 it swept the whole prefix after the delete, and a back-dated replacement
-landing between the two kept its new document and lost its file (external review, Nov 2026). It is
-awaited (so it runs before Cloud Run reclaims the container) but best-effort — failures are swallowed
-and never block the upload response. Circulars/newsletters keep 6 months; huddles are higher-volume
-and rarely referenced after the day, so retention is shorter.
+names them (the race this closes is in that module's header). It is awaited (so it runs before Cloud
+Run reclaims the container) but best-effort — failures are swallowed and never block the upload
+response. Circulars/newsletters keep 6 months; huddles are higher-volume and rarely referenced after
+the day, so retention is shorter.
 
 ### Firestore — `huddles` collection
 
 Document ID = `YYYY-MM-DD` (the London date of the huddle). The fields are **`docs/DATA_MODEL.md` →
 huddles**, which is their one home. Two operational points: `uploadedBy` is `"power-automate"` for the
 Cloud Function and a member name for a manual admin upload; and `htmlContent` (DOCX converted to HTML
-by mammoth.js at upload time) is absent for PDFs and for a conversion longer than
-`MAX_HUDDLE_HTML_CHARS` (200,000 characters) — the viewer then falls back to the file.
+by mammoth.js at upload time) is absent for PDFs, for a conversion longer than `MAX_HUDDLE_HTML_CHARS`
+(200,000 characters), and for a Word file that was not converted: one Power Automate sends over 2 MB
+(`MAX_DOCX_CONVERT_BYTES` in `functions/documents.js`), or one whose conversion failed. The viewer then
+falls back to the file.
 
 ### Cloud Function — `ingestHuddle` request format
 
@@ -454,19 +455,18 @@ It carries a key, and whoever holds a copy opens the file with no sign-in: from 
 forwarded message, or Microsoft's Word viewer (ARCHITECTURE.md EXC-007). **Operations → Document
 links** gives every file a new key, and every old copy stops working at once. Staff notice nothing:
 the app opens documents with a 15-minute link signed from the file's PATH, never its key, and each
-record's stored link is moved onto the new key before the old one is taken away. First run: the
-owner, 12 Nov 2026 (DECISIONS.md).
+record's stored link is moved onto the new key before the old one is taken away. The owner asked
+for one run when it was built (12 Nov 2026, DECISIONS.md); ARCHITECTURE.md EXC-007 records whether it
+has been made.
 
 **When:** a document link has been shared somewhere it should not be — or on a schedule, if one is
 ever wanted (AUTH_PLAN.md §5).
 
 **How:**
-1. Wait until BOTH deploys of the release that carries it have finished — Functions and Hosting run in
-   parallel. Before the function exists the card says "the server answered 404".
-2. Operations → **Document links** → **Check the links**. This only counts, and says what a run would
+1. Operations → **Document links** → **Check the links**. This only counts, and says what a run would
    touch: files in use; older files no record uses (their link is switched off, the file is never
    deleted); documents whose file is gone; and stored links this cannot read.
-3. **Replace the links**, then confirm.
+2. **Replace the links**, then confirm.
 
 | The card says | It means | Do |
 |---|---|---|
@@ -476,6 +476,7 @@ ever wanted (AUTH_PLAN.md §5).
 | N files are left as they are, old links and all | a stored link this cannot read may open them, and touching them could break it | the unreadable links need looking at in a session; the card cannot fix them |
 | It isn't known whether it finished | the answer was lost — a timeout, or the platform's own error | press Replace again — safe |
 | Couldn't read the documents, so nothing was changed | the records or the file listing could not be read | try again in a minute |
+| Couldn't check the links: the server answered 404 | `rotateDocumentLinks` is not deployed | check the latest "Deploy Firebase Functions" run, then Check again |
 
 **Why pressing it twice is safe:** a run only ever issues fresh keys and moves each record onto its
 file's newest one. Every key write is a compare-and-set against the file as it was read, and a record
@@ -611,11 +612,12 @@ than leading it, so "both origins behind" during a release is not reported.
 1. **Require the checks on `main` — still open.** GitHub → the repo → Settings → Rules → Rulesets → New branch
    ruleset. Target the default branch. Turn on **Require status checks to pass** and **Require
    branches to be up to date before merging**, and add the checks from a recent pull request run:
-   `version`, `unit`, `nodeps`, `functions`, `rules`, `csp` and every `smoke` entry (three per screen
-   size since 12 Nov 2026: `smoke (chromium, 1/3)` to `3/3`, and the same for `mobile-chrome`). Leave out
-   `guard` (it decides whether the others run), and `visual` / `visual-webkit`, which are report-only
-   by design. Whether the `webkit` entries gate merging is your call: the deploy gate deliberately
-   runs Chromium only (DECISIONS.md, 8 Sep 2026).
+   `version`, `unit`, `nodeps`, `functions`, `rules`, `csp`, `signed-in` and every `smoke` entry (three
+   per screen size since 12 Nov 2026: `smoke (chromium, 1/3)` to `3/3`, and the same for
+   `mobile-chrome`). `signed-in` is one check for both phone engines; its Android Chrome half has gated
+   the Hosting deploy since 12 Nov 2026. Leave out `guard` (it decides whether the others run), and
+   `visual` / `visual-webkit`, which are report-only by design. Whether the `webkit` entries gate
+   merging is your call: the deploy gate deliberately runs Chromium only (DECISIONS.md, 8 Sep 2026).
 2. **Require approval for outside contributors — made 10 Nov 2026.** Settings → Actions → General →
    "Approval for running fork pull request workflows from contributors" → **Require approval for all
    external contributors**. The mirror does not trust such runs anyway; this stops them running at all.
@@ -629,11 +631,11 @@ private window — past the splash, no red errors in the console (the deployment
 of CLAUDE.md).
 
 **What it means for a release.** The mirror updates after a Hosting deploy finishes, not a minute
-after the push. A deploy lasts as long as its slowest gate job plus about a minute: the browser
-tests, 16 to 18 minutes each when they became parallel jobs on 10 November 2026 (in one job they had
-reached 38), and 5 to 8 minutes a job since each screen size was cut into three shards on 12
-November. The mirror's own publish then takes under a minute (40 and 55 seconds
-on 10 November 2026; the first, v25.65, took about nine). A push that changes only docs or tests republishes neither
+after the push. A deploy lasts as long as its slowest gate job plus about a minute. The gate jobs are
+`check`, the six `smoke` shards, `csp` and `signed-in` (Android Chrome only), and the slowest is a
+`smoke` shard: 5 to 8 minutes since each screen size was cut into three on 12 November 2026. The
+mirror's own publish then takes under a minute (40 and 55 seconds on 10 November 2026; the first,
+v25.65, took about nine). A push that changes only docs or tests republishes neither
 origin, exactly as Hosting already behaves. A failed gate leaves BOTH origins on the previous release,
 and the issue says so.
 
@@ -727,9 +729,10 @@ to choose a new one, and a stamp that cannot be written changes nothing), then r
 the member's surname default and signs out every session on it. A disabled account also has the push
 records it owns removed, and is enabled only after all of that. The claims are stamped last. The
 member named there should be told their password is their surname.
-For anybody provisioned before v24.24 this never fires: their accounts already carry claims. A
-**`reclaim-failed`** entry under failures means the take-back did not complete and NO claims were
-stamped on that account — run Set up accounts again.
+The take-back never fires for an account provisioned before v24.24: those already carry claims. A
+**`reclaim-failed`** (the take-back) or **`re-enable-failed`** (a disabled account) entry under
+failures means it did not complete and NO claims were stamped on that account (after
+`re-enable-failed` it also stays disabled) — run Set up accounts again.
 
 ### What this does NOT do, and has to be done per week
 
