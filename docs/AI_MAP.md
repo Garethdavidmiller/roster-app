@@ -1098,6 +1098,15 @@ Whether arriving on THIS page ended the shared staff PIN, and who is waiting to 
 - `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once: when the teardown lands, or on a microtask if it already has (sticky for the page's life). Unsubscribing cancels a call already queued. Its one reader is the sign-in card (`login-overlay.js`).
 - Imports nothing. Tested through the real teardown by `session.test.mjs`.
 
+### `silent-sign-in.js`
+The rules of the sign-in nobody typed — a page load re-establishing the identity behind a 60-day local session with the surname default. Pure: no storage, no Firebase, no clock of its own; `ensureFirebaseSession` (session.js) reads and writes the memory and hands the time in. The reasoning (the station NAT's shared rate limit, the six-hourly reset recheck) is its header.
+- `noDefaultKey(name)` — the per-member memory key: WHEN this device last saw the surname refused, or asked about a reset.
+- `RESET_RECHECK_MS` — how often a flagged device still asks whether an admin reset ended its session (AUTH_AND_SESSIONS 23).
+- `planSilentAttempt({ surname, stored, now, unansweredThisAttempt })` → `{ candidates, recheck, held }` — the surname unless remembered refused or a recheck is due; `held` when a recheck already asked in this attempt got no answer.
+- `afterRecheck(resetAt)` → `{ note, stop, unanswered }` — what a recheck's probe answer does to the memory and the attempt.
+- `remembersRefusal(code)` — a definitive rejection of the surname is remembered; never `auth/user-not-found`.
+- Imports only `auth-identity.js`. Tested by `session.test.mjs`, alone and through the real sign-in.
+
 ### `auth-state-core.js`
 The pure identity state machine (`AUTH_ARCHITECTURE.md` Track 1, Phase 1): no DOM, no Firebase, no storage. States are facts about who the user is; `login` and `forbidden` are decisions in `auth-policy.js`, never states.
 - `AUTH_STATUSES` — `initialising` · `resolving` · `named` · `anonymous` · `signedOut` · `degraded` · `error`. `INITIAL_STATE` — `initialising`, no member.

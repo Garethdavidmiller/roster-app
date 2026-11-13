@@ -263,7 +263,11 @@ const CAPS = {
     // filled the file to its cap, and the staff-PIN notice's RULE was EXTRACTED to staff-pin-ended.js
     // rather than added here. What stays is its import and the one call made once the sign-out of
     // the viewer has landed — which can only be made where that sign-out is.
-    'session.js':              1002,
+    // 1002 → 970 in Nov 2026 (sign-in audit, track C), an EXTRACT: the silent sign-in's RULES — the
+    // surname memory, its six-hourly reset recheck and the unanswered-recheck guard — left for the pure
+    // silent-sign-in.js, 1,002 lines down to 966. The four above that are the room the same track's next
+    // two fixes take (the session's start on the server's clock, the PIN's push record), not headroom.
+    'session.js':               970,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four

@@ -23,6 +23,7 @@ import * as firebaseClient from './firebase-client.js';
 import { isViewerUser, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { noteStaffPinEnded } from './staff-pin-ended.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
+import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal } from './silent-sign-in.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
@@ -266,35 +267,9 @@ export function primeAuth() {
         .catch(() => null);
 }
 
-/**
- * Device-local memory that a member's account does NOT accept the surname default (v21.62).
- *
- * Every implicit re-establishment — a page load with a live session but no Firebase identity —
- * used to fire the derived surname at Firebase unconditionally. For a MIGRATED member that is a
- * GUARANTEED wrong-password, once per locked load, from every affected device: pure cost, and two
- * real harms. First, the actionable "enter your password" state waits behind a round trip that can
- * only fail. Second — and the reason this is a flag rather than a tidy-up — Firebase's abuse
- * protection throttles by IP as well as by account, and the whole station sits behind ONE corporate
- * NAT address (the same fact `calendar-viewer-auth.js` sizes its throttles against): enough doomed
- * attempts from enough migrated members' devices and the throttle starts rejecting CORRECT typed
- * passwords with `auth/too-many-requests`, which reads to staff as "the app keeps asking and won't
- * take my password".
- *
- * The flag is set only on a wrong-password-class rejection of the SURNAME candidate — never on
- * `auth/user-not-found`, where the account simply doesn't exist yet and a later provisioning would
- * make the surname valid. It is cleared the moment any sign-in SUCCEEDS with the surname (the
- * admin break-glass reset returns an account to the default, and the member's next typed surname
- * both signs them in and re-arms the silent recovery). A stale flag therefore costs exactly one
- * typed sign-in, ever. Typed passwords are NEVER gated by it — it suppresses only the implicit,
- * nothing-typed attempt that cannot succeed.
- */
-const _NO_DEFAULT_PREFIX = 'myb_auth_nodefault_';
-/** @param {string} name @returns {string} */
-const _noDefaultKey = (name) => _NO_DEFAULT_PREFIX + name;
-/** How often a FLAGGED device still asks whether an admin reset ended its session (invariant 23). The
- *  flag holds when it last asked ('1' from before v25.77 reads as long ago). Sign-in check, 11 Nov
- *  2026: with no surname to try, the reset check never ran, and a reset left this session standing. */
-const RESET_RECHECK_MS = 6 * 3_600_000;
+// The sign-in nobody typed — the device-local memory that a member's account does NOT accept the
+// surname default (v21.62), its six-hourly reset recheck, and the guard on a recheck nobody answered —
+// is decided in silent-sign-in.js (pure, with the reasoning). This module reads and writes the memory.
 
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.
@@ -446,18 +421,13 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // (login overlay): raw typed → derived surname (gated on the typed value normalising to the
     // surname). WITHOUT one (page-load re-establishment): the derived surname only (auto-reauth of
     // an un-migrated member; a migrated member fails cleanly here → 'none' → overlay re-shown).
-    const flaggedAt = password == null ? Number(lsGet(_noDefaultKey(name))) || 0 : 0;
-    const recheck = flaggedAt > 0 && Date.now() - flaggedAt > RESET_RECHECK_MS;
-    // A recheck that got NO answer is asked once per sign-in attempt, not again on each of its retries
-    // (review, 11 Nov 2026): three requests a load to a server that had not answered one.
-    if (recheck && _recheckUnansweredGen === gen) { recordError('auth/reset-check-unavailable'); return commit('none', false); }
-    const candidates = password != null
-        ? credentialCandidatesFor(name, password)
-        // Implicit path: skip the surname when this device has already seen it definitively
-        // rejected for this name (see `_noDefaultKey`) — the attempt cannot succeed, and firing it
-        // anyway is what compounds the station-NAT rate limit. Empty candidates fall through to
-        // the definitive-rejection branch below, exactly as a no-surname name always has.
-        : (surnamePassword(name) && (!lsGet(_noDefaultKey(name)) || recheck) ? [surnamePassword(name)] : []);
+    // Implicit path: the surname only while this device has not seen it refused, or a reset recheck is
+    // due — and a recheck nobody answered is asked once per attempt (silent-sign-in.js has why).
+    const plan = password == null
+        ? planSilentAttempt({ surname: surnamePassword(name), stored: lsGet(noDefaultKey(name)), now: Date.now(), unansweredThisAttempt: _recheckUnansweredGen === gen })
+        : { candidates: credentialCandidatesFor(name, password), recheck: false, held: false };
+    if (plan.held) { recordError('auth/reset-check-unavailable'); return commit('none', false); }
+    const { candidates, recheck } = plan;
     let   lastError;
     let   nonCredentialStop = false;   // true → we stopped on a NON-credential error (network etc.)
 
@@ -477,13 +447,11 @@ export async function ensureFirebaseSession(name, _gen, password) {
         if (password == null) {
             const resetAt = await probeResetAtMs(email, candidate, name, 5000);
             if (!fresh()) return commit('none', false);
-            // A flagged device's recheck stops at a refused surname: the SDK sign-in below would only
-            // repeat the same doomed request. It notes when it asked, and the answer stands ('none') —
-            // after a THROTTLED answer too (review, 11 Nov 2026), or every load asked again and kept the
-            // station's lock-out going. Not after NO answer: the next load would read it as refused.
-            if (recheck && (resetAt === 'credential' || resetAt === 'throttled')) lsSet(_noDefaultKey(name), String(Date.now()));
-            if (recheck && resetAt === 'credential') break;
-            if (recheck && resetAt === null) _recheckUnansweredGen = gen;
+            // A flagged device's recheck: noted, stopped at a refused surname, or held (`afterRecheck`).
+            const after = recheck ? afterRecheck(resetAt) : null;
+            if (after?.note) lsSet(noDefaultKey(name), String(Date.now()));
+            if (after?.stop) break;
+            if (after?.unanswered) _recheckUnansweredGen = gen;
             if (resetAt === null || resetAt === 'throttled') {
                 recordError(resetAt === 'throttled' ? 'auth/too-many-requests' : 'auth/reset-check-unavailable');
                 console.warn('[Auth] silent sign-in held — could not confirm the last password reset');
@@ -519,19 +487,15 @@ export async function ensureFirebaseSession(name, _gen, password) {
             }
             // The surname default WORKED — the account is on it (or back on it, after an admin
             // reset), so the silent recovery must be re-armed for this device.
-            if (candidate === surnamePassword(name)) lsDel(_noDefaultKey(name));
+            if (candidate === surnamePassword(name)) lsDel(noDefaultKey(name));
             return commit('named', true);
         } catch (e) {
             const _e = /** @type {any} */ (e);
             lastError = _e.code;
             console.warn('[Auth] signIn failed:', _e.code, 'for', email);
             // The surname default was definitively REJECTED for an account that exists — a migrated
-            // member. Remember it, so later implicit attempts stop repeating a doomed request (see
-            // `_noDefaultKey`). Never on user-not-found: provisioning would make the surname valid.
-            if (candidate === surnamePassword(name)
-                && _isCredentialRejection(_e.code) && _e.code !== 'auth/user-not-found') {
-                lsSet(_noDefaultKey(name), String(Date.now()));
-            }
+            // member. Remember it, so later implicit attempts stop repeating a doomed request.
+            if (candidate === surnamePassword(name) && remembersRefusal(_e.code)) lsSet(noDefaultKey(name), String(Date.now()));
             // A definitive credential rejection for THIS candidate → try the next one (if any). A
             // NON-credential error (network / provider-disabled) → stop; it isn't a password problem.
             if (!_isCredentialRejection(_e.code)) { nonCredentialStop = true; break; }

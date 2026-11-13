@@ -711,7 +711,7 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     //
     // The card is DEFERRED, not withheld: it appears the moment silence definitively fails (a
     // wrong-password rejection returns in well under a second — and instantly for a member this
-    // device already knows is migrated, see session.js `_noDefaultKey`), or at the defer bound if
+    // device already knows is migrated, see silent-sign-in.js's memory), or at the defer bound if
     // the attempt is merely hanging — whichever is first. And when it appears it is immediately
     // actionable, because the waiting it used to represent has already happened.
     // Put the skeleton up NOW unless it already is — the timer may not have fired when the decision

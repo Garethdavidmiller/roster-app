@@ -911,6 +911,54 @@ describe('the no-surname-default memory (v21.62)', () => {
     });
 });
 
+// ── silent-sign-in.js — the same rules, as plain values (extracted from session.js, Nov 2026) ─────
+// The describe above drives them through the real sign-in; this pins each rule on its own, so a change
+// to one says which rule moved rather than which sign-in now behaves differently.
+const { noDefaultKey, RESET_RECHECK_MS, planSilentAttempt, afterRecheck, remembersRefusal } = await import('./silent-sign-in.js');
+describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
+    const NOW = 1_800_000_000_000;
+    const plan = (/** @type {string|null} */ stored, unansweredThisAttempt = false, surname = 'miller') =>
+        planSilentAttempt({ surname, stored, now: NOW, unansweredThisAttempt });
+
+    test('the memory is per member, under the key the sign-in tests read', () => {
+        assert.equal(noDefaultKey('G. Miller'), 'myb_auth_nodefault_G. Miller');
+    });
+
+    test('nothing remembered: the surname, and no recheck', () => {
+        assert.deepEqual(plan(null), { candidates: ['miller'], recheck: false, held: false });
+    });
+
+    test('refused within six hours: nothing at all — the request could only fail', () => {
+        assert.deepEqual(plan(String(NOW - RESET_RECHECK_MS + 1)), { candidates: [], recheck: false, held: false });
+    });
+
+    test('refused more than six hours ago — or a pre-v25.77 "1" — asks again about a reset', () => {
+        assert.deepEqual(plan(String(NOW - RESET_RECHECK_MS - 1)), { candidates: ['miller'], recheck: true, held: false });
+        assert.deepEqual(plan('1'), { candidates: ['miller'], recheck: true, held: false });
+    });
+
+    test('a recheck this attempt already asked, unanswered, is held — but only a recheck', () => {
+        assert.deepEqual(plan('1', true), { candidates: [], recheck: true, held: true });
+        assert.deepEqual(plan(null, true), { candidates: ['miller'], recheck: false, held: false }, 'nothing remembered is not a recheck');
+    });
+
+    test('a name with no surname to try tries nothing', () => {
+        assert.deepEqual(plan(null, false, ''), { candidates: [], recheck: false, held: false });
+    });
+
+    test('a recheck\'s answer: a refusal is noted and stops, a throttle is noted, no answer is held', () => {
+        assert.deepEqual(afterRecheck('credential'), { note: true, stop: true, unanswered: false });
+        assert.deepEqual(afterRecheck('throttled'), { note: true, stop: false, unanswered: false });
+        assert.deepEqual(afterRecheck(null), { note: false, stop: false, unanswered: true });
+        assert.deepEqual(afterRecheck(NOW), { note: false, stop: false, unanswered: false });
+    });
+
+    test('only a definitive refusal of an account that EXISTS is remembered', () => {
+        for (const code of ['auth/invalid-credential', 'auth/wrong-password', 'auth/invalid-login-credentials']) assert.equal(remembersRefusal(code), true, code);
+        for (const code of ['auth/user-not-found', 'auth/network-request-failed', 'auth/too-many-requests', undefined]) assert.equal(remembersRefusal(code), false, String(code));
+    });
+});
+
 // ── ensureFirebaseSession requires the member's OWN named session (B1.1) ──────
 // B1.1 (SECURITY_RELEASE_PLAN.md): write pages require the member's OWN named session —
 // ensureFirebaseSession must NOT create accounts and must NOT fall back to an anonymous session;
