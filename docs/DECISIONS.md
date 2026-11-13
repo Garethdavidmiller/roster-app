@@ -102,6 +102,19 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **A short laptop window keeps the desktop's day cell** (owner, 13 Nov 2026: "it looks fine on a
+  desktop PC but on this laptop the calendar looks weird") · **Trigger to revisit: a laptop staff
+  actually use where a five-row month's last week falls below the window.** From v25.51 a desktop
+  window under 821px tall put each day's badge and time on one line so the month fitted. It fitted
+  only from ~1366px wide: in narrower cells the pair stacked again, so one month drew two kinds of
+  day, and at 1280px (a 1920-pixel laptop at Windows' 150%) the stacked cell made every row taller and
+  the month did not fit anyway. From v26.02 the cell is the desktop's (the date, the badge under it,
+  the time under that) with tighter spacing. A five-row month and its key fit 1366×650 and 1280×672;
+  at 1280×593 (a 1920×1080 laptop at 150%, taskbar showing) a five-row month's last week fits and the
+  key, and a six-row month's last week, are below the window. **Putting the badge and the time back on
+  one line to win those pixels is the thing not to do.** The reasoning is the short-window block in
+  `index.css`.
+
 - **The month grid takes no pinch-zoom** (owner, 10 Nov 2026) · **Trigger to revisit: a member who
   needs to zoom the month and cannot.** The grid's `touch-action: pan-y` keeps a sideways swipe for
   changing month, so a pinch that STARTS on the grid does not zoom; a pinch anywhere else on the page
