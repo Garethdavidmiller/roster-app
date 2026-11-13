@@ -66,7 +66,10 @@
  * record is counted in `recordsDeadLink`, and only on a file a run will rotate, because a run is what
  * mends it: MIGRATE moves a dead link onto the new key exactly as it moves a working one, so the record
  * ends the run opening its file. A dead link on a HELD file is not counted: a run leaves that file
- * alone, so Replace could not mend it.
+ * alone, so Replace could not mend it. A run counts, in `recordsMended`, each such record its MIGRATE
+ * rewrote, so its report can say the fallback works again — once per record, after the transaction,
+ * however often Firestore ran it. A record somebody else rewrote first is not counted, nor one on a
+ * file the run left before its records moved: held, changed mid-run, or failed.
  *
  * ── EVERY FILE'S KEYS ARE READ FRESH, NEVER FROM THE LISTING ────────────────
  * The keys are read from the file itself wherever they decide anything: whether a run touches an
@@ -306,6 +309,8 @@ async function eachLimited(items, limit, fn) {
  * @property {number}  recordsUnreadable    records whose stored link this cannot read (left alone)
  * @property {number}  recordsWithoutLink   records with no stored link at all
  * @property {number}  rotated              files given a new key, their records moved onto it
+ * @property {number}  recordsMended        of the records in `recordsDeadLink`, those a run moved onto the new
+ *                                          key, so they open their file again (always 0 in a preview)
  * @property {number}  cleared              unlinked files whose key was taken away
  * @property {number}  changedDuringRun     files an upload or another run changed mid-run: left alone
  * @property {{ path: string, step: 'read'|'expand'|'migrate'|'contract'|'clear' }[]} failed
@@ -343,10 +348,10 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
         rotate: rotate === true,
         files: files.length, linked: 0, unlinkedWithKey: 0, unlinkedTooNew: 0, unlinkedWithoutKey: 0, held: 0,
         recordsDeadLink: 0, recordsMissingFile, recordsUnreadable, recordsWithoutLink,
-        rotated: 0, cleared: 0, changedDuringRun: 0, failed: [],
+        rotated: 0, recordsMended: 0, cleared: 0, changedDuringRun: 0, failed: [],
     };
 
-    /** @type {{ file: any, refs: { ref: any, url: string }[]|null, meta?: any, namedSince?: boolean }[]} */
+    /** @type {{ file: any, refs: { ref: any, url: string, dead: boolean }[]|null, meta?: any, namedSince?: boolean }[]} */
     const plan = [];
     await eachLimited(files, limit, async (file) => {
         const refs = linkedBy.get(file.name);
@@ -361,8 +366,9 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
         if (refs) {
             report.linked++;
             // A stored link naming a key this file no longer carries: dead, and mended by a run (the header).
-            report.recordsDeadLink += refs.filter(({ url }) => !keys.includes(tokenOfAnyLink(url) ?? '')).length;
-            plan.push({ file, refs });
+            const marked = refs.map(r => ({ ...r, dead: !keys.includes(tokenOfAnyLink(r.url) ?? '') }));
+            report.recordsDeadLink += marked.filter(r => r.dead).length;
+            plan.push({ file, refs: marked });
             return;
         }
         if (!keys.length) { report.unlinkedWithoutKey++; return; }
@@ -419,7 +425,7 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
         const url = downloadUrl(bucket.name, file.name, key);
         let moved = 0;
         try {
-            for (const { ref, url: was } of refs) {
+            for (const { ref, url: was, dead } of refs) {
                 const changed = await db.runTransaction(async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
                     const now = snap.exists ? (snap.data() || {}) : null;
@@ -432,7 +438,9 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
                     tx.update(ref, { storageUrl: url });
                     return true;
                 });
+                // Out here, once per record: Firestore may run the function above more than once.
                 if (!changed) moved++;
+                else if (dead) report.recordsMended++;
             }
         } catch (_) { report.failed.push({ path: file.name, step: 'migrate' }); return; }
         // Every record was rewritten by somebody else: the file is left as it is — with the spare

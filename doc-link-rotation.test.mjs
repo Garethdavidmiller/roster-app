@@ -706,13 +706,52 @@ describe('a stored link that no longer opens its file is counted, and a run mend
             'circulars/2026-11-08': { storageUrl: link(SHARED, 'stale') },
         } });
         const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
-        assert.deepEqual({ rotated: r.rotated, changedDuringRun: r.changedDuringRun, failed: r.failed },
-            { rotated: 2, changedDuringRun: 0, failed: [] });
+        assert.deepEqual({ rotated: r.rotated, changedDuringRun: r.changedDuringRun, failed: r.failed, recordsMended: r.recordsMended },
+            { rotated: 2, changedDuringRun: 0, failed: [], recordsMended: 2 }, 'the two dead links, and not the working one beside them');
         for (const [rec, fp] of [[LREC, LATE], ['circulars/2026-11-07', SHARED], ['circulars/2026-11-08', SHARED]]) {
             assert.deepEqual(w.keysNow(fp), [keyOfLink(w.store.get(rec).storageUrl)], `${rec} still holds a dead link`);
         }
         const after = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
         assert.equal(after.recordsDeadLink, 0);
+    });
+
+    test('a run says how many dead links it mended, each record now opening its file — a preview mends none', async () => {
+        const w = world({ files: { ...ORDINARY().files, [LATE]: null },
+            records: { ...ORDINARY().records, [LREC]: { storageUrl: link(LATE, 'gone') } } });
+        const preview = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        assert.deepEqual({ recordsDeadLink: preview.recordsDeadLink, recordsMended: preview.recordsMended },
+            { recordsDeadLink: 1, recordsMended: 0 }, 'a preview changes nothing, so it mends nothing — as it rotates nothing');
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ rotated: r.rotated, recordsMended: r.recordsMended }, { rotated: 4, recordsMended: 1 },
+            'three working links moved too, and none of them was dead');
+        assert.deepEqual(w.keysNow(LATE), [keyOfLink(w.store.get(LREC).storageUrl)], 'the record counted as mended does not open its file');
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('a dead link is counted once when Firestore ran its move again after a lost answer', async () => {
+        const w = world({ files: { [LATE]: null }, records: { [LREC]: { storageUrl: link(LATE, 'gone') } },
+            lostCommit: (p) => p === LREC });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ rotated: r.rotated, recordsMended: r.recordsMended }, { rotated: 1, recordsMended: 1 });
+        assert.deepEqual(w.keysNow(LATE), [keyOfLink(w.store.get(LREC).storageUrl)]);
+    });
+
+    test('a dead link somebody else rewrote first is not counted as mended, nor one on a held file', async () => {
+        // An upload gives the record a link of its own between the plan and the record's transaction.
+        const fresh = link('huddles/2026-11-10-NEW.pdf', 'upload-key');
+        const w = world({ files: { [LATE]: null }, records: { [LREC]: { storageUrl: link(LATE, 'gone') } },
+            onTxGet: (p, store) => { if (p === LREC) store.set(p, { storageUrl: fresh }); } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ recordsDeadLink: r.recordsDeadLink, changedDuringRun: r.changedDuringRun, recordsMended: r.recordsMended },
+            { recordsDeadLink: 1, changedDuringRun: 1, recordsMended: 0 }, 'the upload mended it, not this run');
+        assert.equal(w.store.get(LREC).storageUrl, fresh);
+        const held = world({ files: { [LATE]: ['held-k'] }, records: {
+            [LREC]: { storageUrl: link(LATE, 'gone') },
+            'newsletters/2026-11-01': { storageUrl: 'https://cdn.example.com/n.pdf?alt=media&token=held-k' },
+        } });
+        const h = await rotateDocumentLinks({ bucket: held.bucket, db: held.db, newKey: held.newKey, rotate: true });
+        assert.deepEqual({ held: h.held, recordsMended: h.recordsMended }, { held: 1, recordsMended: 0 });
+        assert.equal(held.store.get(LREC).storageUrl, link(LATE, 'gone'), 'a held file’s record was rewritten');
     });
 
     test('a dead link on a file a link it cannot read holds is not counted — a run leaves that file alone', async () => {

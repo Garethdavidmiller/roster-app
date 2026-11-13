@@ -882,7 +882,7 @@ const sendTimetableReminder = onSchedule(
             console.log(`[rotateDocumentLinks] ${rotate ? 'rotated' : 'previewed'}: ${report.files} files, `
                 + `${report.linked} linked (${report.recordsDeadLink} dead stored links), ${report.unlinkedWithKey} unlinked with a key, `
                 + `${report.unlinkedTooNew} too new to clear, ${report.held} held; `
-                + `rotated ${report.rotated}, cleared ${report.cleared}, changed ${report.changedDuringRun}, `
+                + `rotated ${report.rotated} (${report.recordsMended} dead stored links mended), cleared ${report.cleared}, changed ${report.changedDuringRun}, `
                 + `failed ${report.failed.length}`);
             return res.status(200).json(report);
         },

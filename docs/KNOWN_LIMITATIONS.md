@@ -389,7 +389,7 @@ upload's first link back over one Operations → Document links had replaced (`d
 why that write is not guarded), and a document saved more than a day after its file can miss the key a
 run took away. Members still open the document through the 15-minute link; only the fallback above is
 broken. Document links → Check counts such documents and says so, and Replace gives each one a working
-link (`functions/doc-link-rotation.js`).
+link and says how many it mended (`functions/doc-link-rotation.js`).
 
 **Tightening the Firestore read rules does not put these documents behind authentication.** It
 changes who can *discover* a URL; anyone who has ever held a permanent one — a forwarded link,

@@ -1556,6 +1556,28 @@ describe('rotateDocumentLinks — asked to rotate, every old link stops and the 
             { rotated: 2, cleared: 1, unlinkedTooNew: 1 }, 'the year-old unused file still loses its key');
     });
 
+    test('a dead stored link is mended, the answer says so, and so does the log line', async () => {
+        const world = ROTATABLE();
+        world.seed['huddles/2026-11-12'].storageUrl = dlink('huddles/2026-11-12-a1.pdf', 'gone');   // a key its file no longer carries
+        const w = build(world);
+        w.setClaims({ admin: true });
+        /** @type {string[]} */
+        const said = [];
+        const realLog = console.log;
+        console.log = (...a) => { said.push(a.map(String).join(' ')); };
+        let out;
+        try {
+            out = await askToRotate(w.eps, { rotate: true });
+        } finally {
+            console.log = realLog;
+        }
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.deepEqual({ recordsDeadLink: out.body.recordsDeadLink, recordsMended: out.body.recordsMended }, { recordsDeadLink: 1, recordsMended: 1 });
+        assert.equal(w.meta.get('huddles/2026-11-12-a1.pdf')?.firebaseStorageDownloadTokens, keyIn(w.store.get('huddles/2026-11-12').storageUrl),
+            'the record counted as mended does not open its file');
+        assert.match(said.find(l => l.startsWith('[rotateDocumentLinks]')) ?? '', /\(1 dead stored links mended\)/);
+    });
+
     test('the body may arrive unparsed — rotate: true in raw bytes is still a run', async () => {
         const w = build(ROTATABLE());
         w.setClaims({ admin: true });
