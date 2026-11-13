@@ -612,6 +612,20 @@ describe('unsaved-draft.js', () => {
             assert.equal(ls.has(KEY), false, 'once answered, the slot holds this page\'s own work and may forget it');
         });
 
+        test('a clean hide in one tab cannot delete the copy ANOTHER tab kept (rule 3, v26.03)', () => {
+            // Two tabs open at once, neither with a draft waiting. The second keeps a copy of work that exists nowhere
+            // else — a save its memory-only queue may never send — and then the first, clean, goes into the background.
+            const first = slotFor('A. Member'), second = slotFor('A. Member');
+            second.keep({ member: 'A. Member', date: '2026-12-07' }, { rows: [{ date: '2026-12-08', type: 'sick' }] });
+            first.forget();
+            assert.ok(ls.has(KEY), 'the first tab deleted the copy the second had just kept');
+            second.forget();
+            assert.equal(ls.has(KEY), false, 'the tab that kept it may still forget it');
+            ls.set(KEY, stored());   // kept before the mark existed: forgotten as it always was
+            first.forget();
+            assert.equal(ls.has(KEY), false);
+        });
+
         test('Discard deletes it; Restore puts it back, then deletes it — asked once, in the app\'s words (rule 1)', async () => {
             ls.set(KEY, stored());
             /** @type {any[]} */ const applied = [];

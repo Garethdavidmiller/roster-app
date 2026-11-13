@@ -67,6 +67,7 @@ list.
 |--------|------|
 | `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore write of its own — designs go through `links-design-store.js` — and one direct read remains, `loadDesigns`, which needs `metadata.fromCache` (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and the refresh's read (`createDesignStore`) |
+| `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, and whether an answer still counts (v26.03) |
 | `links-design-library.js` | the import panel, the Recently deleted bin and its list, and Keep only the shortlist (`createDesignLibrary`). Rename, duplicate and delete stay in `links-app.js`, because they change the open design's baseline |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the picker sheet, the Save buttons' label and the ··· More sheet |
 | `links-design.js` | the design maths — classification, coverage, hours, the generator and its rest repair, `runDesignChecks`, `endMinutesAbs` |
@@ -188,8 +189,12 @@ concurrency baseline it was edited against (`keepDraftWhenHidden`, page-session.
 the SAME designer asks "Restore your unsaved changes from 14:20?" (`unsaved-draft.js`). Restore puts it
 back UNSAVED on its own design, so a colleague's save since still meets "Someone else saved"; a design
 gone from the list comes back as a new one; nothing is offered over a failed load. An answered leave or
-sign-out keeps nothing — it was a discard. This is why the app-update question no longer says the work
-"will be lost".
+sign-out keeps nothing — it was a discard — except a save the server has not confirmed, which is saved
+work, not unsaved (Concurrency, below). This is why the app-update question no longer says the work
+"will be lost". Three rules of the slot (v26.03): a draft the design now holds exactly is dropped
+without asking (`_draftStillUnsaved`); a clean hide in one tab never deletes the copy another tab kept
+(unsaved-draft.js rule 3); and there is ONE slot, so unsaved edits to one design win it over another
+design's unconfirmed save.
 
 **Save a copy as… is worded differently, on purpose.** The copy is taken from the LIVE patterns, so
 unsaved work goes INTO it and the original reverts to its last save; "changes will be lost" would warn
@@ -1141,7 +1146,7 @@ model (`FIXED_POS`, `fixed-link-separator`, `fixed-cell`) and the vacant-placeho
 
 **Every design write goes through `links-design-store.js`** (`createDesignStore`, with the Firebase
 handles injected by `links-app.js`); the coordinator makes none of its own. The store's header is the
-authority on the reasoning, and owns five rules:
+authority on the reasoning, and owns six rules:
 
 1. **A read that a write depends on happens INSIDE the write's transaction**, not before it, so the
    decision is true at commit.
@@ -1160,6 +1165,10 @@ authority on the reasoning, and owns five rules:
    never starts and fails as it would offline (`unavailable`): a save, a rename or a delete queues
    behind the earlier writes, and a restore, a purge or the automatic bin is refused. `ownWritesSent`
    is a REQUIRED dependency, so a store built without the wait throws rather than run unguarded.
+6. **A queued save says how it ENDED** (v26.03). A queued create or save carries `settled`, which
+   resolves `'acked'` (the server has it), `'held'` (signed out with it queued) or `'failed'` (the
+   server refused it), and never rejects. "Queued" is not "saved": in a SECOND tab Firestore's cache is
+   memory only (the IndexedDB lease is the first tab's), so a write queued there dies with the page.
 
 A conflict comes back as `{ status: 'conflict', conflict }`, and `links-app.js` decides whether to ask,
 overwrite or fork — the store never asks. A design deleted elsewhere, binned or removed for good, comes
@@ -1184,11 +1193,19 @@ The workspace's own rules, in `saveChanges`:
   generator apply that replaces the object mid-save must not let a second press create a second design.
 - **A queued save does not say "✓ Saved".** It says *Saved in this browser — it uploads the next time
   Links is open here with a connection*, without the success colour (iPhone audit, Nov 2026: "when
-  you're back online" promised an upload a closed page cannot make). It still clears `dirty`: the write is in the device's
-  persistent queue, a re-save would only queue a duplicate, and a leave-page warning would claim work is
-  at risk that is not. Nor does the masthead's pill say "Saved": while a design's last write — a save,
-  a new design, a copy or an import — is only in this browser's queue, it reads "Saved in this browser". An online
-  create the server has not answered within `SLOW_SAVE_MS` is queued the same way.
+  you're back online" promised an upload a closed page cannot make). It still clears `dirty`: a re-save
+  would only queue a duplicate, and a leave-page warning would claim work is at risk that is not. Nor
+  does the masthead's pill say "Saved": while a design's last write — a save, a new design, a copy or an
+  import — is only in this browser's queue, it reads "Saved in this browser". An online create the server
+  has not answered within `SLOW_SAVE_MS` is queued the same way.
+- **Until the server confirms a queued SAVE, its copy is kept** (store rule 6, v26.03; the rules are
+  `links-queued-saves.js`): the copy that save wrote, with the baseline from before it, goes into the
+  unsaved-work draft at once and on every hide, so a second tab closed before the signal returns still
+  offers the work on the next load. Confirmed (`'acked'`), the line becomes "✓ Saved", the pill drops
+  "in this browser" and the copy goes. Refused (`'failed'`), the design is unsaved again, on that earlier
+  baseline, and says so — and again whenever it is reopened, because the list holds what the refused
+  save wrote. A new design, a copy and an import clear the pill on their answer too, and keep no copy:
+  each is one press to make again.
 - **`dirty` clears only if nothing was edited while the save was in flight**, and the payload recorded is
   the one actually WRITTEN, window and revision included.
 - **A save that finds its design deleted drops it from the live list even when the page has moved on**

@@ -834,8 +834,9 @@ gap as it was). One gap remains:
   sign-in card's hint names. For a member who had chosen their own password, that is a door the
   finder did not have before the reset. It closes the moment the member signs in on another device
   and chooses a new one, and the outcome asks the admin to arrange exactly that. Closing it fully
-  needs an action that signs every device out WITHOUT touching the password — a new endpoint, and an
-  owner decision. Not built.
+  needs an action that signs every device out WITHOUT touching the password — a new endpoint. **Declined
+  (owner, 13 Nov 2026)**: DECISIONS.md → "No 'sign out everywhere, keep the password' action" records
+  it, with what would reopen it.
 
 ### Firebase App Check — declined as an immediate action, RETAINED as Track D
 

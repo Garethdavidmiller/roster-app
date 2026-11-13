@@ -56,6 +56,15 @@
  * queue BEHIND what is waiting, so the writes land in the order they were made; a restore, a
  * purge and the automatic bin fail, as they do offline.
  *
+ * **6. A queued save says how it ENDED** (v26.03). `queued` is not `saved`: in a SECOND tab Firestore's
+ * cache lives only in memory (the IndexedDB lease is the first tab's), so a write queued there dies
+ * with the page, though the page had already said "Saved in this browser". So a queued create or save
+ * carries `settled`, a promise that resolves `'acked'` when the server has the write, `'held'` when the
+ * designer signed out with it still queued (the SDK keeps it for that account), and `'failed'` when the
+ * server refused it. It never rejects. links-app.js keeps the designer's copy of the work until it
+ * hears `'acked'` (unsaved-draft.js rule 6). A rename and a delete do not carry it: a lost rename or
+ * bin is small and visible, where a lost save is an afternoon's grid.
+ *
  * ── WHAT IS DELIBERATELY NOT HERE ───────────────────────────────────────────────────────────────
  *
  * No DOM, no dialogs, no confirm, no picker, no generator, no status text, and no decision about
@@ -91,6 +100,9 @@ import { SLOW_SAVE_MS } from './slow-save.js';
  *                                                REQUIRED: a store without it would read the server
  *                                                before this device's own unsent saves
  */
+
+/** How a queued write ENDED (rule 6): the server has it, it is held for a designer who signed out, or
+ *  the server refused it. @typedef {'acked'|'held'|'failed'} Settled */
 
 /** Firestore reports an unreachable backend as `unavailable`; the browser has its own view. */
 const _offlineByDefault = () => typeof navigator !== 'undefined' && navigator.onLine === false;
@@ -170,11 +182,17 @@ export function createDesignStore(deps) {
      * to queue. Started-not-awaited, that refusal was only logged and the store answered "queued" for
      * nothing (whole-app fix, Nov 2026). The bound starts when the write is ISSUED, so it can never
      * outrun a refusal.
+     *
+     * `onSettle` hears how the write ENDED, whenever that is (rule 6) — an hour later, on a page that
+     * has long moved on: `'acked'`, `'held'` (signed out with it queued) or `'failed'`.
      * @param {() => Promise<any>} write
      * @param {number} waitMs  0 to issue and move on, for a device known to be offline
+     * @param {(how: Settled) => void} [onSettle]
      * @returns {Promise<'acked'|'queued'>}
      */
-    const sendWrite = (write, waitMs) => new Promise((resolve, reject) => {
+    const sendWrite = (write, waitMs, onSettle) => new Promise((resolve, reject) => {
+        /** @param {Settled} how */
+        const tell = (how) => { try { onSettle?.(how); } catch (err) { console.error('[Links] A queued write\'s ending could not be reported:', err); } };
         let answered = false;
         /** @type {any} */ let timer = null;
         /** The first answer wins, once. @param {() => void} settle */
@@ -188,15 +206,26 @@ export function createDesignStore(deps) {
         withClaimRetry(() => {
             if (timer === null) timer = setTimeout(() => answer(() => resolve('queued')), waitMs);
             return write();
-        }).then(() => { answer(() => resolve('acked')); }, (/** @type {any} */ err) => {
-            if (answer(() => reject(err))) return;
+        }).then(() => { tell('acked'); answer(() => resolve('acked')); }, (/** @type {any} */ err) => {
             // Signed out while queued is NOT a failure: the SDK keeps it for that account (v24.37).
-            if (err?.code === SIGNED_OUT_CODE) { console.warn('[Links] Queued write held until that designer signs in again'); return; }
+            const held = err?.code === SIGNED_OUT_CODE;
+            tell(held ? 'held' : 'failed');
+            if (answer(() => reject(err))) return;
+            if (held) { console.warn('[Links] Queued write held until that designer signs in again'); return; }
             console.error('[Links] Queued write failed on sync:', err);
         });
     });
-    /** A write for a device that is offline: issued, then answered `queued`. @param {() => Promise<any>} write */
-    const queueWrite = (write) => sendWrite(write, 0);
+    /**
+     * A write for a device that is offline: issued, then answered `queued`.
+     * @param {() => Promise<any>} write @param {(how: Settled) => void} [onSettle]
+     */
+    const queueWrite = (write, onSettle) => sendWrite(write, 0, onSettle);
+    /** How one queued write will end (rule 6): `settle` is handed to `sendWrite`, `settled` to the caller. */
+    const settlement = () => {
+        /** @type {(how: Settled) => void} */ let settle = () => {};
+        /** @type {Promise<Settled>} */ const settled = new Promise((r) => { settle = r; });
+        return { settle, settled };
+    };
 
     /**
      * The revision a QUEUED write stamps. Not `known + 1`: that is precisely what a colleague's
@@ -267,7 +296,7 @@ export function createDesignStore(deps) {
          * design carried `updatedAt: null`, the guard treated that as "nothing to compare", and a
          * concurrent edit was clobbered silently.
          * @param {any} payload
-         * @returns {Promise<{ id: string, updatedAt: any, queued?: boolean, baseline: { loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean } }>}
+         * @returns {Promise<{ id: string, updatedAt: any, queued?: boolean, settled?: Promise<Settled>, baseline: { loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean } }>}
          */
         async create(payload) {
             // Revision 1, stamped here rather than discovered by reading back (v22.18). A create has
@@ -278,15 +307,16 @@ export function createDesignStore(deps) {
             // answered still has an id to come back with — still revision 1, and still exact, because
             // nobody else can write a document whose id only this device holds.
             const ref = doc(designsCol);
-            const queued = () => ({ id: ref.id, updatedAt: null, queued: true, baseline: baselineAfterCommit(1) });
+            const end = settlement();   // rule 6: a queued create says how it ended
+            const queued = () => ({ id: ref.id, updatedAt: null, queued: true, settled: end.settled, baseline: baselineAfterCommit(1) });
             // OFFLINE, RULE 4 (Sep 2026 re-review): a create resolves only on the server's ack, so it held
             // "Saving…" until the signal came back. Offline it is queued and returned at once.
-            if (offlineNow()) { await queueWrite(() => setDoc(ref, body)); return queued(); }
+            if (offlineNow()) { await queueWrite(() => setDoc(ref, body), end.settle); return queued(); }
             // ONLINE, BOUNDED (links-design-2, whole-app fix, Nov 2026). On a connection that is up but
             // cannot reach Firestore the create was AWAITED with no bound, unlike the transactions, which
             // the SDK fails there: "Creating…" until the signal came back, while the designer went on
             // working. It waits as long as a slow save does, and unanswered comes back queued, with its id.
-            if (await sendWrite(() => setDoc(ref, body), SLOW_SAVE_MS) === 'queued') return queued();
+            if (await sendWrite(() => setDoc(ref, body), SLOW_SAVE_MS, end.settle) === 'queued') return queued();
             return { id: ref.id, updatedAt: await readStamp(ref), baseline: baselineAfterCommit(1) };
         },
 
@@ -309,7 +339,7 @@ export function createDesignStore(deps) {
          * @param {number|null} [o.forceAgainstRev]  the REVISION that dialog showed them. Preferred
          *                                     over the timestamp; the timestamp remains for a design
          *                                     nobody has saved since v22.18
-         * @returns {Promise<{status: 'saved'|'conflict'|'deleted-elsewhere'|'queued', conflict?: any, deletedData?: any, baseline?: any, updatedAt?: any}>}
+         * @returns {Promise<{status: 'saved'|'conflict'|'deleted-elsewhere'|'queued', conflict?: any, deletedData?: any, baseline?: any, updatedAt?: any, settled?: Promise<Settled>}>}
          */
         async save({ id, buildPayload, baseline, baselineUnknown, currentUser, loadedRevision = null,
             forcing = false, forceAgainstRevision = null, forceAgainstRev = null }) {
@@ -385,8 +415,9 @@ export function createDesignStore(deps) {
                         const again = movedOnOf(d);
                         if (again) return { status: 'conflict', conflict: again };
                     } catch { /* nothing cached to consult — proceed, as the ordinary offline save does */ }
-                    await queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
-                    return { status: 'queued', baseline: baselineAfterWrite(null, false) };
+                    const end = settlement();   // rule 6
+                    await queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }), end.settle);
+                    return { status: 'queued', baseline: baselineAfterWrite(null, false), settled: end.settled };
                 }
                 if (gone)         return { status: 'deleted-elsewhere', deletedData: null };
                 if (deletedData)  return { status: 'deleted-elsewhere', deletedData };
@@ -453,10 +484,11 @@ export function createDesignStore(deps) {
                 // A queued write may NOT increment from what we last knew: `known + 1` is exactly
                 // the number a colleague's online save from the same revision commits, so when ours
                 // landed the two matched and her next save overwrote ours with no prompt. See
-                // `queuedRevision`. Issued, not awaited — rule 4.
-                await queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
+                // `queuedRevision`. Issued, not awaited — rule 4; how it ENDS comes later, as `settled` (rule 6).
+                const end = settlement();
+                await queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }), end.settle);
                 // Nothing verified what the server held, so the baseline is UNKNOWN, never null.
-                return { status: 'queued', baseline: baselineAfterWrite(null, false) };
+                return { status: 'queued', baseline: baselineAfterWrite(null, false), settled: end.settled };
             }
             const updatedAt = await readStamp(ref);
             return { status: 'saved', updatedAt, baseline: baselineAfterCommit(committed) };

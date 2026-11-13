@@ -30,7 +30,10 @@
  *      clean deletes it, which is what clears it after a save, a discard, or a design switched away
  *      from; a save clears it at once as well, and Restore and Discard both delete it. The one thing
  *      a clean hide may NOT delete is a draft an EARLIER page life left that has not been answered
- *      yet — the page can be hidden while it is still loading the data its offer waits for.
+ *      yet — the page can be hidden while it is still loading the data its offer waits for — or one
+ *      ANOTHER TAB kept (v26.03): each page life marks what it keeps (`life`), and `forget` deletes
+ *      only its own. A clean tab once deleted the copy a second tab had just kept of work that
+ *      existed nowhere else. A draft from before the mark carries none, and is forgotten as before.
  *   4. A DAY, THEN GONE. A draft older than `DRAFT_MAX_AGE_MS` — or dated in the future, whose age
  *      cannot be judged — is not offered, and is deleted when it is read. Every page that keeps
  *      drafts also sweeps such drafts away for EVERY member when it opens, because one is otherwise
@@ -52,7 +55,9 @@
  *      is what is asked about and put back. Admin judges it from what the save was SENDING when the
  *      page went (`sendingDays`, admin-week-editor.js) against what each day holds now
  *      (`unsavedWeekDraft`, admin-week-row-state.js) — the outcome, never a guess about which queue
- *      the save was in.
+ *      the save was in. Links keeps the copy a QUEUED save wrote until the server confirms it
+ *      (links-design-store.js rule 6) — a second tab's queue is memory only — and takes out a draft
+ *      the design now holds exactly (`_draftStillUnsaved`, links-app.js).
  *
  * ── WHAT IT IS NOT ──────────────────────────────────────────────────────────────────────────────
  *
@@ -98,12 +103,13 @@ export function draftKey(page, by) {
  */
 
 /**
- * A draft as it is stored.
- * @param {Draft} draft
+ * A draft as it is stored. `life` names the page life that kept it (rule 3), so another tab's clean
+ * hide leaves it alone; it is never read back as part of the draft.
+ * @param {Draft & { life?: string }} draft
  * @returns {string}
  */
-export function encodeDraft({ page, by, scope, data, savedAt }) {
-    return JSON.stringify({ v: DRAFT_VERSION, page, by, scope, data, savedAt });
+export function encodeDraft({ page, by, scope, data, savedAt, life }) {
+    return JSON.stringify({ v: DRAFT_VERSION, page, by, scope, data, savedAt, ...(life ? { life } : {}) });
 }
 
 /**
@@ -199,7 +205,8 @@ function sweepStaleDrafts(now) {
  * One page's draft slot for the signed-in member.
  *
  * `peek` reads what may be offered. `keep` writes this page's unsaved work; `forget` deletes it,
- * except a draft an earlier page life left that has not been answered yet (rule 3). `offer` asks
+ * except a draft an earlier page life left that has not been answered yet, or one another tab kept
+ * (rule 3). `offer` asks
  * once, through the page's own `confirmDialog`: Discard deletes the draft; Restore runs `apply`
  * and deletes it afterwards — unless `apply` could not put it back (it returned false, or threw),
  * in which case it stays for the next load; and a question dismissed unanswered leaves it waiting,
@@ -227,15 +234,24 @@ export function createDraftSlot({ page, by, now = Date.now, usable = () => true 
     };
     // An earlier page life's draft, still waiting for its question (rule 3).
     let waiting = !!peek();
+    // What THIS page life marks its own copy with (rule 3): a clean hide here must not delete a copy
+    // another tab kept. Unique enough for two tabs opened in the same millisecond.
+    const life = `${now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    /** Was the stored draft kept by another page life? One with no mark is from before marks, and is not. */
+    const anotherLifes = () => {
+        /** @type {any} */ let stored = null;
+        try { stored = JSON.parse(lsGet(key) ?? ''); } catch { /* unreadable: nobody's, so it may go */ }
+        return typeof stored?.life === 'string' && stored.life !== life;
+    };
     return {
         peek,
         /** @param {Record<string, any>} scope @param {Record<string, any>} data */
         keep(scope, data) {
             if (!by) return;
-            lsSet(key, encodeDraft({ page, by, scope, data, savedAt: now() }));
+            lsSet(key, encodeDraft({ page, by, scope, data, savedAt: now(), life }));
             waiting = false;   // what is stored now is this page's own work
         },
-        forget() { if (!waiting) lsDel(key); },
+        forget() { if (!waiting && !anotherLifes()) lsDel(key); },
         /**
          * `ask` is the page's `confirmDialog`, which resolves `dismissResult` — null — when the question
          * is put away without an answer.

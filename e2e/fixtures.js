@@ -362,6 +362,30 @@ export const addDoc = (/** @type {any} */ ref, /** @type {any} */ data) => {
   }
   return Promise.resolve(created);
 };
+// OFFLINE, A SET WAITS FOR THE SIGNAL (v26.03), as the real SDK's does: a write made while the browser
+// is offline resolves only once the server has it. Resolved at once, the stub told the Links store that
+// every queued save had already landed (store rule 6) — the one thing a queued save cannot know. It is
+// recorded as it is made, and answered on the page's next 'online' event, oldest first: refused then
+// with the code in window.__E2E.queuedSetRefusal when a test sets one (the server turning it down),
+// delivered otherwise. window.__E2E.holdSetsWhenOnline keeps them held past the signal, and
+// window.__E2E.deliverQueuedSet() then answers the OLDEST alone — a real queue sends one write after
+// another, so a test can land the first before the second. A page reloaded first never answers them,
+// as a second tab's memory-only queue dies with the page. No backticks: inside FIREBASE_STUB.
+const _offlineNow = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+const _answerHeld = (/** @type {any} */ e2e, /** @type {any} */ held) => {
+  if (e2e.queuedSetRefusal) held.reject(Object.assign(new Error('e2e queued set refused'), { code: e2e.queuedSetRefusal }));
+  else held.resolve(undefined);
+};
+const _answerWhenOnline = (/** @type {any} */ e2e) => new Promise((resolve, reject) => {
+  e2e._heldSets = e2e._heldSets || [];
+  e2e._heldSets.push({ resolve, reject });
+  e2e.deliverQueuedSet = () => { const held = e2e._heldSets.shift(); if (held) _answerHeld(e2e, held); };
+  if (e2e._heldSetsWired) return;
+  e2e._heldSetsWired = true;
+  globalThis.addEventListener('online', () => {
+    if (!e2e.holdSetsWhenOnline) while (e2e._heldSets.length) _answerHeld(e2e, e2e._heldSets.shift());
+  });
+});
 // setDoc RECORDS its payload (v19.41), for the same reason writeBatch does: a test that can only
 // see the UI is checking the SUMMARY of a write, not the write. The Links soft delete is exactly
 // that trap — a hard delete and a soft delete BOTH make the design vanish from the picker, so
@@ -381,10 +405,10 @@ export const setDoc = (/** @type {any} */ ref, /** @type {any} */ data, /** @typ
       if (!e2e._addDocGate) e2e._addDocGate = new Promise(r => { e2e.releaseAddDoc = r; });
       return e2e._addDocGate.then(() => undefined);
     }
-    return Promise.resolve();
+    return _offlineNow() ? _answerWhenOnline(e2e) : Promise.resolve();
   }
   e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
-  return Promise.resolve();
+  return _offlineNow() ? _answerWhenOnline(e2e) : Promise.resolve();
 };
 export const updateDoc = () => Promise.resolve();
 // deleteDoc REMOVES the row from the seeded set (v18.97) instead of no-opping, so a card that
@@ -686,44 +710,54 @@ function _setConfigOverride(page, key, pattern, value) {
     _configOverrides.set(page, current);
 }
 
+/**
+ * Every route the suite's pages run under: the Firebase SDK stub, the hermetic network defaults and
+ * the roster-data overrides. The `page` fixture applies it; a test that opens a SECOND tab
+ * (`context.newPage()`) applies it to that page too, or the tab loads the real SDK and draws nothing.
+ * @param {import('@playwright/test').Page} page
+ */
+export async function routeAppPage(page) {
+    await page.route('https://www.gstatic.com/firebasejs/**', route =>
+        route.fulfill({ contentType: 'text/javascript', body: FIREBASE_STUB }));
+
+    // The lock card fires a fire-and-forget warm-up GET at the real exchange URL the moment it
+    // shows (v20.45). This suite is hermetic — nothing may leave the test machine — so it is
+    // aborted by default. Specs that stub the exchange register their route AFTER this one and
+    // Playwright consults routes newest-first, so stubPinExchange wins where it is used; the
+    // abort is caught by the pre-warm's own `.catch` and changes nothing it does.
+    await page.route('**/unlockCalendarViewer', route => route.abort('failed'));
+
+    // The silent re-sign-in asks about the last admin reset BEFORE it signs in, over the two REST
+    // APIs (Oct 2026 — `probeResetAtMs` in firebase-client.js). Hermetic default: the sign-in is
+    // accepted and the account has never been reset, which is what every spec before this assumed.
+    // A spec that needs a reset routes `**/documents/passwordStatus/**` itself (newest route wins).
+    await page.route('https://identitytoolkit.googleapis.com/**', route =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ idToken: 'e2e-probe' }) }));
+    await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route =>
+        route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+
+    await page.route('**/roster-data.js', async route => {
+        const res = await route.fetch();
+        let body  = await res.text();
+        // DEFAULT OFF for the whole suite: the forced set-password overlay (PASSWORD_DESIGN Phase 2)
+        // fires after any confirmed sign-in for a member the stubbed Firestore reports as
+        // un-migrated — which, since `getDoc` resolves `exists: () => false`, is EVERY member. It
+        // would therefore cover the page in every test that signs in through the overlay and break
+        // assertions that have nothing to do with passwords. Compel tests opt back in with
+        // `forcePasswordSet(page)`.
+        body = body.replace(/FORCE_PASSWORD_SET:\s*(?:true|false)/, 'FORCE_PASSWORD_SET: false');
+        for (const [pattern, value] of Object.values(_configOverrides.get(page) || {})) {
+            body = body.replace(pattern, value);
+        }
+        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
+    });
+}
+
 export const test = base.extend({
     // Auto-apply the routes before any test navigates. Registering them inside the
     // `page` fixture guarantees they are in place before the first page.goto().
     page: async ({ page }, use) => {
-        await page.route('https://www.gstatic.com/firebasejs/**', route =>
-            route.fulfill({ contentType: 'text/javascript', body: FIREBASE_STUB }));
-
-        // The lock card fires a fire-and-forget warm-up GET at the real exchange URL the moment it
-        // shows (v20.45). This suite is hermetic — nothing may leave the test machine — so it is
-        // aborted by default. Specs that stub the exchange register their route AFTER this one and
-        // Playwright consults routes newest-first, so stubPinExchange wins where it is used; the
-        // abort is caught by the pre-warm's own `.catch` and changes nothing it does.
-        await page.route('**/unlockCalendarViewer', route => route.abort('failed'));
-
-        // The silent re-sign-in asks about the last admin reset BEFORE it signs in, over the two REST
-        // APIs (Oct 2026 — `probeResetAtMs` in firebase-client.js). Hermetic default: the sign-in is
-        // accepted and the account has never been reset, which is what every spec before this assumed.
-        // A spec that needs a reset routes `**/documents/passwordStatus/**` itself (newest route wins).
-        await page.route('https://identitytoolkit.googleapis.com/**', route =>
-            route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ idToken: 'e2e-probe' }) }));
-        await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route =>
-            route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
-
-        await page.route('**/roster-data.js', async route => {
-            const res = await route.fetch();
-            let body  = await res.text();
-            // DEFAULT OFF for the whole suite: the forced set-password overlay (PASSWORD_DESIGN Phase 2)
-            // fires after any confirmed sign-in for a member the stubbed Firestore reports as
-            // un-migrated — which, since `getDoc` resolves `exists: () => false`, is EVERY member. It
-            // would therefore cover the page in every test that signs in through the overlay and break
-            // assertions that have nothing to do with passwords. Compel tests opt back in with
-            // `forcePasswordSet(page)`.
-            body = body.replace(/FORCE_PASSWORD_SET:\s*(?:true|false)/, 'FORCE_PASSWORD_SET: false');
-            for (const [pattern, value] of Object.values(_configOverrides.get(page) || {})) {
-                body = body.replace(pattern, value);
-            }
-            await route.fulfill({ response: res, body, contentType: 'text/javascript' });
-        });
+        await routeAppPage(page);
         await use(page);
         // A test that ends mid-navigation leaves this route's `route.fetch()` in flight when the context
         // closes, and Playwright fails the TEST for it ("Target page, context or browser has been closed")
