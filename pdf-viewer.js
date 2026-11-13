@@ -14,9 +14,11 @@
  *
  * ── THE LIBRARY ─────────────────────────────────────────────────────────────────────────────────
  *
- * PDF.js 4.10.38 — Mozilla's renderer, the one inside Firefox and the version the server's roster
- * reader already uses — VENDORED in pdfjs/ (the legacy build: it supports Safari 16.4, the oldest iOS
- * the app supports). Served from our own origin because its worker must be: a browser will not start
+ * PDF.js 4.10.38 — Mozilla's renderer, the one inside Firefox — VENDORED in pdfjs/ (the legacy build:
+ * it supports Safari 16.4, the oldest iOS the app supports). The server's roster reader moved to PDF.js
+ * 6 at v25.91 and this did NOT follow, on purpose: 6.x's legacy build targets Safari 18, and this
+ * viewer only ever opens the app's own PDFs (dependency-pin-parity.test.mjs holds the version, and
+ * says how to move it). Served from our own origin because its worker must be: a browser will not start
  * a Worker from another origin, and `worker-src 'self'` would refuse one anyway. It is NOT precached —
  * about 1.8 MB that most members never need — so the service worker's cache-first branch keeps it once
  * it has been used. It loads by URL, not by a static import, so no page pays for it until a file opens

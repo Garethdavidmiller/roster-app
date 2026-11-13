@@ -139,8 +139,8 @@ each text run by coordinate places every cell. Three phases, in this order:
    probable — a deterministic parser is testable in a way a model call is not, which is what would
    finally close the "we cannot show the model normalises well" caveat phase 2 ships with.
 
-**The dependency decision is the owner's to reverse.** `pdfjs-dist` (pinned `4.10.38`, the v4 line
-the experiment established) is a dependency of `functions/` — server-side, so the no-bundler rule
+**The dependency decision is the owner's to reverse.** `pdfjs-dist` (pinned `6.5.438` since v25.91; the
+experiment established the v4 line) is a dependency of `functions/` — server-side, so the no-bundler rule
 does not bear on it, but "a few vetted libraries" is a discuss-first rule and this is the fourth.
 Declining it costs one line: with the package absent the adapter returns `pdfjs-unavailable` and the
 import behaves as it did before the witness. An archive from before a system change, or a scanned

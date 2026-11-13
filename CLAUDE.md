@@ -221,7 +221,7 @@ regression somewhere the author was not looking.
 
 | Change this | And you have changed | Verify with |
 |---|---|---|
-| `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
+| `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Admin · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
 | the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects (a frozen 85% scale, a date under the close button) were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
 | `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on the Calendar, Team Week, the legend, Overtime's roster and Admin's week grid, the leave records, and the allowance (`entitlementFor`) | `christmas-leave.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
@@ -419,7 +419,7 @@ current-notices table**, which is kept current there.
 
 **Classification:** Early 04:00–10:59 · Late 11:00–20:59 · Night 21:00–03:59
 
-**isWorkedDay:** false for RD, OFF, SPARE, AL, SICK. True for everything else including RDW.
+**`isWorkedShift`:** false for RD, OFF, SPARE, AL, SICK. True for everything else including RDW.
 
 ---
 
@@ -466,7 +466,7 @@ deserves part of, a lieu day is owed because a specific day was worked.
 | CEA, every other contract (main, fixed) | 32/year |
 | CES (`ces`) | 34/year |
 | Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) — a joining year's `proRatedAL` replaces the **22**, never the total |
-| anything else, or an unresolved member | **`null`** — no entitlement on record, never a guessed figure. Not reachable today: every Management row is hidden from the pickers (`calendar-member.test.mjs` pins that). **Callers must TEST for null and refuse to render**: `null - taken - booked` is a NUMBER, not NaN, so the arithmetic that looks harmless is the one that invents a balance. |
+| anything else, an unresolved member, or a year before the member joined | **`null`** — no entitlement on record, never a guessed figure; `getALEntitlement`'s comments say which case is reachable today. **Callers must TEST for null and refuse to render**: `null - taken - booked` is a NUMBER, not NaN, so the arithmetic that looks harmless is the one that invents a balance. |
 
 ### Firestore collections
 

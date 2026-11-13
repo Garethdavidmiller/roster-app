@@ -46,7 +46,7 @@ const require = createRequire(import.meta.url);
 // named when its flag is absent.
 //
 // So it skips, and says why. What it must NEVER do is go quiet where the dependency IS installed:
-// there a failed import is a real breakage (a bad install, a version that moved off the v4 pin the
+// there a failed import is a real breakage (a bad install, a version that moved off the pin the
 // adapter reads), and skipping it would leave the roster import's only non-AI witness untested
 // with the suite green. Hence two questions, not one — is it loadable, and is it supposed to be.
 const PDFJS_SPECIFIER = 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -68,7 +68,7 @@ const REAL_PDFJS_SKIP = (!pdfjsLoads && !pdfjsInstalled)
 const {
     GRID_COLUMNS, rulesFromOperatorList, assignRunsToGrid, extractRosterGeometry,
     matchGeometryRow, applyGeometryWitness, geometryCoverage, awaitGeometryWithin,
-    GEOMETRY_WAIT_BUDGET_MS, GEOMETRY_WORK_BUDGET_MS, _isClaim, _nameTokens,
+    GEOMETRY_WAIT_BUDGET_MS, GEOMETRY_WORK_BUDGET_MS, _isClaim, _nameTokens, _PATH_OP,
 } = require('./functions/roster-geometry.js');
 
 import { VX, COL_X, NAME_X, DATES, ROSTER_FIXTURE, rosterPage, buildPdf } from './test-fixtures/roster-pdf.mjs';
@@ -95,21 +95,60 @@ function pageFrom(rowSpecs, { top = 700, rowH = 50 } = {}) {
 // ── The grid, from the ops list ─────────────────────────────────────────────────────────────────
 
 describe('rulesFromOperatorList — the drawn rules', () => {
-    // A fake OPS enum and a fake operator list in pdfjs's shape: [fns[], args[]] per constructPath.
-    // curveTo2/curveTo3 are PDF `v`/`y`, with pdfjs v4's own numbers; the enum lacked them until
-    // import-server-7, which is how the reader came to skip them without stepping over their operands.
-    const OPS = { constructPath: 91, moveTo: 13, lineTo: 14, rectangle: 19, curveTo: 15, curveTo2: 16, curveTo3: 17, closePath: 18 };
-    const seg = (x1, y1, x2, y2) => [[OPS.moveTo, OPS.lineTo], [x1, y1, x2, y2]];
-    const ops = (...paths) => ({ fnArray: paths.map(() => OPS.constructPath), argsArray: paths });
+    // A fake operator list in pdfjs's 5.4.394+ shape: one constructPath per path, carrying
+    // [paintOp, [data], bbox], where `data` is the path's codes (`_PATH_OP`) and absolute
+    // coordinates in one flat array. The codes are held to the REAL library at the bottom of this
+    // file, so a fake that drifted from it would fail there rather than pass here on its own say-so.
+    const OPS = { constructPath: 91, stroke: 20 };
+    const { moveTo: M, lineTo: L, curveTo: C, quadraticCurveTo: Q, closePath: Z } = _PATH_OP;
+    const path = (/** @type {number[]} */ ...data) => [OPS.stroke, [Float32Array.from(data)], new Float32Array(4)];
+    const seg = (/** @type {number} */ x1, /** @type {number} */ y1, /** @type {number} */ x2, /** @type {number} */ y2) => path(M, x1, y1, L, x2, y2);
+    const ops = (/** @type {any[]} */ ...paths) => ({ fnArray: paths.map(() => OPS.constructPath), argsArray: paths });
+    const box = (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ w, /** @type {number} */ h) => [M, x, y, L, x + w, y, L, x + w, y + h, L, x, y + h, Z];
 
     test('vertical and horizontal segments are read as rules; a rectangle is not', () => {
         const { vx, hy } = rulesFromOperatorList(ops(
             seg(154.8, 100, 154.8, 700),          // vertical
             seg(25.3, 650, 822.5, 650),           // horizontal
-            [[OPS.rectangle], [10, 10, 50, 50]],  // a filled box, not a rule
+            path(...box(10, 10, 50, 50)),         // a PDF `re` — a filled box or a clip, not a rule
         ), OPS);
         assert.deepEqual(vx, [154.8]);
         assert.deepEqual(hy, [650]);
+    });
+
+    test('only the rectangle is skipped: a rule in the same path is still read, and an open four-line box is not a rectangle', () => {
+        // A page clip and a rule can share one path; skipping the whole path would lose the rule.
+        assert.deepEqual(rulesFromOperatorList(ops(path(...box(0, 0, 842, 595), M, 154.8, 100, L, 154.8, 700)), OPS).vx, [154.8]);
+        // Drawn back to its start with no close, a box is four lines, as it was under v4: read.
+        const open = rulesFromOperatorList(ops(path(M, 100, 100, L, 200, 100, L, 200, 150, L, 100, 150, L, 100, 100)), OPS);
+        assert.deepEqual([open.vx, open.hy], [[100, 200], [100, 150]]);
+    });
+
+    test('a closed box drawn down the page first is no `re`: its drawn sides are read, as v4 read them', () => {
+        // A table may draw each cell as a closed path. pdfjs writes a `re` along x first, so a box that
+        // starts down the page cannot be one — and v4 read its three drawn sides, never the close.
+        const { vx, hy } = rulesFromOperatorList(ops(path(M, 100, 700, L, 100, 650, L, 200, 650, L, 200, 700, Z)), OPS);
+        assert.deepEqual([vx, hy], [[100, 200], [650]]);
+        // In a `re`'s own corner order it cannot be told from one, so it is skipped — the one drawing
+        // on which this reads less than v4 did (the module header says what that costs).
+        assert.deepEqual(rulesFromOperatorList(ops(path(M, 100, 650, L, 200, 650, L, 200, 700, L, 100, 700, Z)), OPS), { vx: [], hy: [] });
+        // A closed four-sided shape one corner away from a `re` is no `re`: its straight sides are
+        // rules. One near-miss per corner, so each part of the check is pinned on its own.
+        for (const [label, data, want] of /** @type {Array<[string, number[], number[][]]>} */ ([
+            ['first edge on a slant',      [M, 100, 640, L, 200, 650, L, 200, 700, L, 100, 700, Z], [[200], [700]]],
+            ['second edge on a slant',     [M, 100, 650, L, 200, 650, L, 250, 700, L, 100, 700, Z], [[], [650, 700]]],
+            ['third edge on a slant',      [M, 100, 650, L, 200, 650, L, 200, 700, L, 100, 690, Z], [[200], [650]]],
+            ['last corner off the start',  [M, 100, 650, L, 200, 650, L, 200, 700, L, 120, 700, Z], [[200], [650, 700]]],
+        ])) {
+            const { vx, hy } = rulesFromOperatorList(ops(path(...data)), OPS);
+            assert.deepEqual([vx, hy], want, label);
+        }
+    });
+
+    test('a zero-width or zero-height `re` arrives as one line and a close, and is skipped as v4 skipped it', () => {
+        assert.deepEqual(rulesFromOperatorList(ops(path(M, 154.8, 100, L, 154.8, 700, Z), path(M, 25.3, 650, L, 822.5, 650, Z)), OPS), { vx: [], hy: [] });
+        // The same line with no close is a stroke, not a `re`, and is a rule.
+        assert.deepEqual(rulesFromOperatorList(ops(seg(154.8, 100, 154.8, 700)), OPS).vx, [154.8]);
     });
 
     test('rules within 2px are one rule — the same line stroked twice does not become two columns', () => {
@@ -122,22 +161,40 @@ describe('rulesFromOperatorList — the drawn rules', () => {
         assert.deepEqual(vx, []); assert.deepEqual(hy, []);
     });
 
-    test('a `v` or `y` curve steps over its four operands, so the rest of its path is read true', () => {
-        // m 400 20 · v 400.2 60 420 40 · l 430 45 — a curve, then a short diagonal: no rule at all.
-        // With the curve's operands left unread, the line took 400.2 60 for its end point, and a
-        // vertical "rule" at x 400 gave the page ten columns and cost it the grid.
-        for (const op of [OPS.curveTo2, OPS.curveTo3]) {
-            const { vx, hy } = rulesFromOperatorList(ops([[OPS.moveTo, op, OPS.lineTo], [400, 20, 400.2, 60, 420, 40, 430, 45]]), OPS);
-            assert.deepEqual([vx, hy], [[], []], `op ${op}`);
+    test('a curve or a quadratic steps over its operands, so the rest of its path is read true (import-server-7)', () => {
+        // m 400 20 · v 400.2 60 420 40 · l 430 45 — pdfjs now writes `v` and `y` as a full curve.
+        // With the curve's operands left unread, the line would take 400.2 60 for its end point, and a
+        // vertical "rule" at x 400 would give the page ten columns and cost it the grid.
+        for (const [label, curve] of [['curve', [C, 400, 20, 400.2, 60, 420, 40]], ['quadratic', [Q, 400.2, 60, 420, 40]]]) {
+            const { vx, hy } = rulesFromOperatorList(ops(path(M, 400, 20, ...curve, L, 430, 45)), OPS);
+            assert.deepEqual([vx, hy], [[], []], label);
             // …and a rule drawn after the curve in the same path is still found where it is.
-            const after = rulesFromOperatorList(ops([[OPS.moveTo, op, OPS.moveTo, OPS.lineTo],
-                [10, 10, 1, 2, 3, 4, 154.8, 100, 154.8, 700]]), OPS);
-            assert.deepEqual(after.vx, [154.8], `op ${op}`);
+            const after = rulesFromOperatorList(ops(path(M, 10, 10, ...curve, M, 154.8, 100, L, 154.8, 700)), OPS);
+            assert.deepEqual(after.vx, [154.8], label);
         }
     });
 
-    test('the pdfjs-6 encoding (a non-iterable fns) is skipped, not thrown — the v4 pin, stated', () => {
-        assert.deepEqual(rulesFromOperatorList({ fnArray: [OPS.constructPath], argsArray: [[42, [0, 0]]] }, OPS), { vx: [], hy: [] });
+    test('the pen stays put at a curve, exactly as under v4 — the corpus was measured that way', () => {
+        // From (100,100), a curve ending at (500,500), then a line to (100,700): read from where the
+        // pen was BEFORE the curve, that line is the vertical at x 100. Moving the pen would be the
+        // truer geometry, and a change to what the real rosters were measured on; it waits for one.
+        const { vx } = rulesFromOperatorList(ops(path(M, 100, 100, C, 0, 0, 0, 0, 500, 500, L, 100, 700)), OPS);
+        assert.deepEqual(vx, [100]);
+    });
+
+    test('a code it does not know, or data that runs short, reads nothing from that path — and never throws', () => {
+        // Operands cannot be stepped over without knowing how many there are; guessing is the
+        // import-server-7 failure. The path is dropped whole, and the next one is still read.
+        const unknown = rulesFromOperatorList(ops(path(M, 10, 10, L, 10, 300, 9, 1, 2), seg(154.8, 100, 154.8, 700)), OPS);
+        assert.deepEqual(unknown.vx, [154.8]);
+        assert.deepEqual(rulesFromOperatorList(ops(path(M, 10, 10, L, 10)), OPS), { vx: [], hy: [] });
+    });
+
+    test('the v4 encoding reads no rule and never throws — the page fails open as `no-grid`', () => {
+        // [fns[], args[]] — what 4.10.38 sent — has no array of paths where 5.4.394+ puts them.
+        const v4 = { fnArray: [OPS.constructPath], argsArray: [[[13, 14], [154.8, 100, 154.8, 700], null]] };
+        assert.deepEqual(rulesFromOperatorList(v4, OPS), { vx: [], hy: [] });
+        assert.deepEqual(rulesFromOperatorList({ fnArray: [OPS.constructPath], argsArray: [[42]] }, OPS), { vx: [], hy: [] });
     });
 });
 
@@ -701,5 +758,65 @@ describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip
         assert.equal(g.available, false);
         assert.equal(g.reason, 'pdfjs-unavailable');
         assert.equal(applyGeometryWitness([{ memberName: 'G. Miller', shifts: { [DATES[0]]: 'AL' } }], g, DATES).status, 'unavailable');
+    });
+
+    test('the path codes the reader assumes are the ones the installed pdfjs writes (v25.91)', async () => {
+        // pdfjs does not export these codes, so the reader restates them (`PATH_OP`), and a
+        // renumbering — it happened once, at 5.4.394 — would read no rule on any roster and fail
+        // open as `no-grid` with nothing red. This asks the library itself, on one stroked line, one
+        // `re` and one curve, so the next version that moves them fails HERE, by name.
+        const pdfjs = await import(pathToFileURL(adapterRequire.resolve(PDFJS_SPECIFIER)).href);
+        const page = ['q 0.5 w 100 100 m 100 700 l S Q', '10 10 50 50 re f', '400 20 m 401 30 402 40 420 40 c S'];
+        const task = pdfjs.getDocument({ data: new Uint8Array(buildPdf([page])), useSystemFonts: true, verbosity: 0, useWasm: false });
+        try {
+            const ops = await (await (await task.promise).getPage(1)).getOperatorList();
+            const paths = ops.fnArray.flatMap((/** @type {number} */ fn, /** @type {number} */ i) =>
+                fn === pdfjs.OPS.constructPath ? ops.argsArray[i][1].map((/** @type {any} */ d) => Array.from(d, (/** @type {number} */ v) => Math.round(v * 10) / 10)) : []);
+            const { moveTo: M, lineTo: L, curveTo: C, closePath: Z } = _PATH_OP;
+            assert.deepEqual(paths, [
+                [M, 100, 100, L, 100, 700],
+                [M, 10, 10, L, 60, 10, L, 60, 60, L, 10, 60, Z],
+                [M, 400, 20, C, 401, 30, 402, 40, 420, 40],
+            ]);
+        } finally {
+            await task.destroy();
+        }
+    });
+
+    test('a table drawn as closed boxes keeps its grid, and a border stroked round the page is no column', async () => {
+        // Each cell its own closed path, starting down the page: no `re` is written that way, so its
+        // drawn sides are read — the same rows to the byte as 4.10.38 read (compared 13 Nov 2026).
+        const top = 700, rowH = 50, plain = rosterPage(ROSTER, { top, rowH });
+        const ys = Array.from({ length: ROSTER.length + 1 }, (_, r) => top - r * rowH);
+        const boxes = ys.slice(1).flatMap((y0, r) => VX.slice(1).map((x1, c) =>
+            `${VX[c]} ${ys[r]} m ${VX[c]} ${y0} l ${x1} ${y0} l ${x1} ${ys[r]} l h S`));
+        const text = plain.slice(plain.indexOf('Q') + 1);
+        const boxed = await extractRosterGeometry(buildPdf([['q 0.5 w', ...boxes, 'Q', ...text]]));
+        assert.equal(boxed.available, true, boxed.reason);
+        assert.deepEqual(boxed.rows, (await extractRosterGeometry(buildPdf([plain]))).rows);
+        // A `re` stroked round the whole page is a rectangle, not two more columns.
+        const bordered = await extractRosterGeometry(buildPdf([['q 1 w 10 10 822 822 re S Q', ...plain]]));
+        assert.equal(bordered.available, true, bordered.reason);
+    });
+
+    test('a page clip and a shaded cell — both rectangles — add no column (the 6.4.299 measurement)', async () => {
+        // Under 5.4.394+ a PDF `re` reaches the reader as a move, three lines and a close. Read as
+        // lines, the clip's edges at x 0 and 842 and the shaded cell's at 160 and 245 would give the
+        // page thirteen columns, and the grid would be refused.
+        const page = ['q 0 0 842 595 re W n', ...rosterPage(ROSTER), '160 610 85 30 re f', 'Q'];
+        const g = await extractRosterGeometry(buildPdf([page]));
+        assert.equal(g.available, true, g.reason);
+        assert.deepEqual(g.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant']);
+    });
+
+    test('the adapter asks pdfjs for no WebAssembly, and no longer passes the removed eval switch (v25.91)', async () => {
+        // The production call, recorded through the same seam the tests use for a missing pdfjs.
+        /** @type {any} */
+        let asked = null;
+        const fake = { OPS: {}, getDocument: (/** @type {any} */ opts) => { asked = opts; return { promise: Promise.reject(new Error('stop here')), destroy: async () => {} }; } };
+        const g = await extractRosterGeometry(buildPdf([rosterPage(ROSTER)]), { loadPdfjs: async () => fake });
+        assert.equal(g.reason, 'unreadable-pdf');
+        assert.equal(asked?.useWasm, false, 'a PDF\'s Type 4 functions must not be compiled to WebAssembly here');
+        assert.equal('isEvalSupported' in asked, false, 'isEvalSupported is ignored by pdfjs 6; passing it implies a protection that is not there');
     });
 });

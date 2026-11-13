@@ -1,7 +1,7 @@
 // @ts-check
 // admin-range-booking.js — shared skeleton for the two admin.html date-range booking
 // sections (Annual Leave Booking + Sick Days Recording). Both were near-identical:
-// dropdown + range picker → live preview → Firestore batch write via recordRangeOverrides.
+// dropdown + range picker → live preview → a checked Firestore save via recordRangeOverrides.
 // The per-section differences (range-length rule, preview copy, the AL over-entitlement
 // pre-save check, which boxes refresh) are passed in as config/hooks; admin-al.js and
 // admin-sick.js are thin wrappers over this factory (they keep their own public exports).

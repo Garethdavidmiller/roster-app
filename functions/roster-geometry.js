@@ -67,22 +67,31 @@
  * TRANSFORMED ones, so a page drawn under a scaling `cm` puts its text beside its grid rather than in
  * it. The corpus draws none; such a page places no row and fails open as `no-rows`.
  *
- * pdfjs is PINNED to v4: this file reads `OPS.constructPath`'s argument shape directly, and pdfjs
- * changed that encoding at 5.1.91 (pdf.js PR 19689). MEASURED on 6.4.299 (4 Nov 2026), this code
- * does not throw there: every document reports `no-grid`, so the witness would stop SILENTLY, and
- * only the real-pdfjs test in roster-geometry.test.mjs says so. `rulesFromOperatorList` is the
- * function to rewrite first, and what the measurement found is the brief for it:
- *   · each path is ONE Float32Array of op codes and absolute coordinates — moveTo 0, lineTo 1,
- *     curveTo 2, quadraticCurveTo 3, closePath 4 (renumbered once, at 5.4.394);
- *   · a rectangle arrives as four lines, and must be SKIPPED rather than read as rules: a page clip
- *     or a shaded cell otherwise adds columns;
+ * pdfjs is PINNED EXACTLY, to 6.5.438 (v25.91), in functions/package.json and the root's copy for
+ * the tests — dependency-pin-parity.test.mjs holds the two together. This file reads
+ * `OPS.constructPath`'s argument shape directly, and pdfjs has changed it before (5.1.91, and the
+ * codes renumbered at 5.4.394): a change does not throw, it makes every document `no-grid`, so the
+ * witness stops SILENTLY. The real-pdfjs tests in roster-geometry.test.mjs are what say so — run
+ * them on any new version before the pin moves. What the move from v4 established:
+ *   · the encoding is `rulesFromOperatorList`'s header. A `re` arrives as lines and is skipped
+ *     (`isRectangleOp`), or a page clip or a shaded cell adds columns. Compared with 4.10.38 on
+ *     eleven ways of drawing the table (13 Nov 2026), the rows read were the same to the byte on
+ *     every one but rows drawn as closed boxes in a `re`'s own corner order: there 6.x reads no
+ *     grid, fails open, and the review says so. No real roster was to hand that day, so the first
+ *     import after the move is the check — its review must not say the layout check couldn't run;
  *   · the legacy build stays — from 5.x it polyfills `Map.prototype.getOrInsertComputed`, which
  *     neither Node 22 nor Node 24.22 has (measured 4 Nov 2026);
- *   · `isEvalSupported` was removed (pdf.js PR 21005), so the option passed below is ignored there.
- *     Find out what replaced it before trusting a PDF's font programs to the new version;
- *   · target 6.5.438 or later, never 6.4.299: that one can HANG synchronously on a malformed
- *     Type 4 function (fixed in pdf.js PR 22365), and no time budget in this file can stop a
- *     synchronous loop.
+ *   · `isEvalSupported` is gone (pdf.js PR 21005), and with it every route from a PDF to `eval`:
+ *     the 6.5.438 builds hold no `Function` constructor but a polyfill's fixed `return this`
+ *     (counted 13 Nov 2026). What a PDF CAN still become is WebAssembly, so the adapter turns that
+ *     off (`useWasm: false`, below);
+ *   · NEVER below 6.5.438: every 5.x and 6.x before it can HANG synchronously on a malformed
+ *     Type 4 function (its tree builder had no work limit until pdf.js PR 22365; 5.7.284's is
+ *     byte-identical to 6.4.299's), and no time budget in this file can stop a synchronous loop;
+ *   · its optional native canvas is pinned too (`overrides`, 1.1.0), so an install cannot take a
+ *     release younger than the two weeks every dependency here waits;
+ *   · the in-app PDF viewer does NOT follow: it stays on PDF.js 4.10.38, because 6.x's legacy build
+ *     targets Safari 18 and the app supports iOS 16.4 (pdf-viewer.js; DECISIONS.md).
  */
 
 'use strict';
@@ -103,10 +112,88 @@ const FOOTER_CELL = /\bPage\s+\d+\s+of\s+\d+\b/i;
 // ── 1. The drawn rules ──────────────────────────────────────────────────────────────────────────
 
 /**
+ * The codes pdfjs writes into a path's data, since 5.4.394 (its `DrawOPS`, which the library does
+ * not export, so they are restated here). A renumbering would read no rule at all — every roster
+ * `no-grid`, silently — and the real-pdfjs test that pins these codes to the installed library is
+ * what says so (roster-geometry.test.mjs).
+ */
+const PATH_OP = Object.freeze({ moveTo: 0, lineTo: 1, curveTo: 2, quadraticCurveTo: 3, closePath: 4 });
+/** How many numbers follow each code. A code missing here cannot be stepped over safely. */
+const PATH_OPERANDS = Object.freeze({ 0: 2, 1: 2, 2: 6, 3: 4, 4: 0 });
+
+/**
+ * Split one path's data into subpaths — `[{ points: [[x, y], …], ops: [code, …] }]`. Null when the
+ * data holds a code this reader does not know, or runs short: an operand cannot be stepped over
+ * without knowing how many there are, and reading past one turns every later number into a phantom
+ * point (the import-server-7 lesson). The caller reads nothing from such a path.
+ * @param {ArrayLike<number>} data
+ */
+function subpathsOf(data) {
+    /** @type {Array<{ ops: number[], points: number[][] }>} */
+    const subpaths = [];
+    let current = null;
+    for (let k = 0; k < data.length;) {
+        const op = data[k];
+        const n = PATH_OPERANDS[op];
+        if (n === undefined || k + 1 + n > data.length) return null;
+        if (op === PATH_OP.moveTo || !current) { current = { ops: [], points: [] }; subpaths.push(current); }
+        current.ops.push(op);
+        // The operands' LAST pair is where the pen ends: a line's or a move's only point, and a
+        // curve's end point (a closePath has none).
+        current.points.push(n ? [data[k + n - 1], data[k + n]] : []);
+        k += 1 + n;
+    }
+    return subpaths;
+}
+
+/**
+ * Whether a subpath is EXACTLY what pdfjs writes for a PDF `re` (`buildPath` in its worker, read at
+ * 6.5.438): a move to the corner, a line along x, a line along y, a line back along x, then a close —
+ * or, when the width or height is zero, a move, one straight line and a close. v4 kept every `re`
+ * out of the rules, and the corner order is the only trace of one that 6.x leaves.
+ *
+ * So a box drawn by hand in any other order — down the page first, as a table drawing each cell as a
+ * closed path may — cannot be a `re`; v4 read its sides, and so does this. One drawn by hand in a
+ * `re`'s own order cannot be told from one, and is skipped. That is the one drawing on which 6.5.438
+ * reads LESS than 4.10.38 did (measured 13 Nov 2026, on synthetic pages: rows drawn as closed boxes
+ * in that order cost the page its grid). Reading less fails open, and the review says so ("The extra
+ * PDF layout check couldn't run"); reading more could hand the cell read a WRONG grid, and a wrong
+ * grid puts a duty on the wrong day — the failure this whole module exists to stop.
+ * @param {{ ops: number[], points: number[][] }} subpath
+ */
+function isRectangleOp({ ops: codes, points: pts }) {
+    const { moveTo: M, lineTo: L, closePath: Z } = PATH_OP;
+    if (codes.length === 5 && codes[0] === M && codes[1] === L && codes[2] === L && codes[3] === L && codes[4] === Z) {
+        const [p0, p1, p2, p3] = pts;
+        return p1[1] === p0[1] && p2[0] === p1[0] && p3[1] === p2[1] && p3[0] === p0[0];
+    }
+    if (codes.length === 3 && codes[0] === M && codes[1] === L && codes[2] === Z) {
+        const [p0, p1] = pts;
+        return p1[0] === p0[0] || p1[1] === p0[1];
+    }
+    return false;
+}
+
+/**
  * Every vertical and horizontal rule actually STROKED on the page, clustered to the nearest 2px.
  *
  * They are `moveTo`/`lineTo` segments, not rectangles — the first version of the experiment looked
  * only for rectangles and reported zero rules on every page, a confident wrong answer.
+ *
+ * The 5.4.394+ encoding (pdf.js PR 19689 changed it at 5.1.91, and 5.4.394 renumbered the codes):
+ * each `constructPath` carries `[paintOp, [pathData…], bbox]`, and each path's data is ONE flat
+ * array of codes (`PATH_OP`) and absolute coordinates. Anything else — the v4 shape included — has
+ * no array where the paths are, so it reads no rule and the page fails open as `no-grid`.
+ *
+ * A RECTANGLE IS NOT A RULE, and the new encoding no longer says which subpaths were rectangles: a
+ * PDF `re` arrives as lines and a close. So exactly what a `re` becomes is skipped (`isRectangleOp`),
+ * as v4 skipped its `rectangle` operator — a page clip or a shaded cell otherwise adds columns
+ * (measured on 6.4.299, 4 Nov 2026). A box drawn BY HAND is not skipped wholesale: a table can draw
+ * its cells as closed boxes, and v4 read their sides (`isRectangleOp` says which ones it cannot).
+ *
+ * A curve's end point is NOT taken as the current point, exactly as under v4 — the corpus was
+ * measured that way (experiments/roster-pdf-geometry), and the rules are straight. Its operands are
+ * still stepped over (`subpathsOf`), which is what import-server-7 was about.
  *
  * @param {{ fnArray: number[], argsArray: any[] }} ops   a pdfjs operator list
  * @param {Record<string, number>} OPS                     pdfjs's OPS enum
@@ -116,26 +203,28 @@ function rulesFromOperatorList(ops, OPS) {
     const vx = new Set(), hy = new Set();
     for (let i = 0; i < ops.fnArray.length; i++) {
         if (ops.fnArray[i] !== OPS.constructPath) continue;
-        const [fns, args] = ops.argsArray[i];
-        if (!fns || typeof fns[Symbol.iterator] !== 'function') continue;
-        let a = 0, cx = 0, cy = 0, sx = 0, sy = 0;
-        // EVERY operator's operands must be stepped over, or each later point of the path is read
-        // from the wrong numbers: pdfjs v4 sends `v` and `y` (curveTo2/3) here with four, and
-        // skipping them turned one stroked curve into a phantom rule that rejected the page
-        // (import-server-7). A curve's end point is not taken as the current point — the corpus
-        // was measured that way (experiments/roster-pdf-geometry), and the rules are straight.
-        for (const fn of fns) {
-            if (fn === OPS.moveTo)      { cx = args[a]; cy = args[a + 1]; sx = cx; sy = cy; a += 2; }
-            else if (fn === OPS.lineTo) {
-                const nx = args[a], ny = args[a + 1]; a += 2;
-                if (Math.abs(nx - cx) < 0.6 && Math.abs(ny - cy) > 3) vx.add(+((nx + cx) / 2).toFixed(1));
-                if (Math.abs(ny - cy) < 0.6 && Math.abs(nx - cx) > 3) hy.add(+((ny + cy) / 2).toFixed(1));
-                cx = nx; cy = ny;
+        const paths = ops.argsArray[i]?.[1];
+        if (!Array.isArray(paths)) continue;
+        for (const data of paths) {
+            if (!data || typeof data.length !== 'number') continue;
+            const subpaths = subpathsOf(data);
+            if (!subpaths) continue;
+            for (const subpath of subpaths) {
+                if (isRectangleOp(subpath)) continue;
+                const { ops: codes, points } = subpath;
+                let cx = 0, cy = 0, sx = 0, sy = 0;
+                codes.forEach((code, j) => {
+                    const [x, y] = points[j];
+                    if (code === PATH_OP.moveTo) { cx = x; cy = y; sx = x; sy = y; }
+                    else if (code === PATH_OP.lineTo) {
+                        if (Math.abs(x - cx) < 0.6 && Math.abs(y - cy) > 3) vx.add(+((x + cx) / 2).toFixed(1));
+                        if (Math.abs(y - cy) < 0.6 && Math.abs(x - cx) > 3) hy.add(+((y + cy) / 2).toFixed(1));
+                        cx = x; cy = y;
+                    }
+                    else if (code === PATH_OP.closePath) { cx = sx; cy = sy; }
+                    // A curve (2) or quadratic (3): operands already stepped over; the pen stays put.
+                });
             }
-            else if (fn === OPS.curveTo)   { a += 6; }
-            else if (fn === OPS.curveTo2 || fn === OPS.curveTo3) { a += 4; }
-            else if (fn === OPS.rectangle) { a += 4; }
-            else if (fn === OPS.closePath) { cx = sx; cy = sy; }
         }
     }
     const cluster = (/** @type {Set<number>} */ set, /** @type {number} */ tol) => {
@@ -221,7 +310,7 @@ function assignRunsToGrid({ items, vx, hy }) {
  * every page with text, grid or not: the heading sits above the grid (roster-week-heading.js).
  *
  * @param {Buffer|Uint8Array} pdfBytes
- * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports pdfjs-dist v4
+ * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports the pinned pdfjs-dist (6.5.438)
  * @returns {Promise<RosterGeometry>}
  */
 async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOMETRY_WORK_BUDGET_MS, now = Date.now } = {}) {
@@ -239,9 +328,12 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
     let task = null;
     try {
         const data = pdfBytes instanceof Uint8Array ? new Uint8Array(pdfBytes) : new Uint8Array(Buffer.from(pdfBytes));
-        // isEvalSupported:false — a PDF's font programs must never reach `eval`, whatever pdfjs's
-        // own patch state. Text and geometry need no font execution.
-        task = pdfjs.getDocument({ data, useSystemFonts: true, verbosity: 0, isEvalSupported: false });
+        // useWasm:false — nothing in a PDF is compiled into code that runs here. PDF.js 6 has no
+        // `eval` left to switch off (`isEvalSupported` went with it: glyphs become path data), but by
+        // default it compiles a PDF's Type 4 functions to WebAssembly; off, it runs them from its own
+        // instruction list. Text and geometry need neither. The hang a malformed Type 4 function
+        // caused is bounded on BOTH routes only from 6.5.438 (pdf.js PR 22365): never pin below it.
+        task = pdfjs.getDocument({ data, useSystemFonts: true, verbosity: 0, useWasm: false });
         const doc = await task.promise;
         for (let p = 1; p <= doc.numPages; p++) {
             // Checked BETWEEN pages, where the loop is genuinely between awaits. Pages already read
@@ -531,4 +623,6 @@ module.exports = {
     // exposed for the tests that pin the vocabulary
     _isClaim: isClaim,
     _nameTokens: nameTokens,
+    // …and the path codes, which the real-pdfjs test holds to the installed library
+    _PATH_OP: PATH_OP,
 };

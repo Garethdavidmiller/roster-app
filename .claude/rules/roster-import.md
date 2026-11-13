@@ -303,6 +303,11 @@ landing in a physically EMPTY cell is refused, not weighed** — the cell become
 comes back as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift
 (unticked, and counted toward the breaker). Zero false refusals on the corpus. It fails open
 everywhere and says so (`geometry.status`), and it cannot see a fully occupied week or an `RD` in an
-occupied cell — those are phases 2 and 3, and KNOWN_LIMITATIONS says so. `pdfjs-dist@4.10.38` is a
+occupied cell — those are phases 2 and 3, and KNOWN_LIMITATIONS says so. `pdfjs-dist@6.5.438` (v25.91) is a
 dependency of `functions/` (server-side; the fourth vetted library — the owner's call to keep, and one
-line to remove).
+line to remove). Never pin it below 6.5.438, and run the real-pdfjs tests before moving it: the module
+header of `functions/roster-geometry.js` says why for both. **The move to 6.x was proven on synthetic
+pages only** (no real roster was to hand, 13 Nov 2026), and there is one drawing — rows as closed
+boxes in a `re`'s own corner order — on which 6.x reads no grid where v4 did. So if an import's review
+says "The extra PDF layout check couldn't run for this file", read that roster's operator list before
+assuming the file is at fault.

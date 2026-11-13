@@ -103,7 +103,7 @@ export function slowSaveText(batched, held = true) {
 }
 
 /**
- * The event a SLOW save announces twice, both carrying the save's `id`: `{ phase: 'slow' }` the moment it passes SLOW_SAVE_MS
+ * The event a SLOW save announces twice, both carrying the save's `id`: `{ phase: 'slow', batched }` the moment it passes SLOW_SAVE_MS
  * (v24.55), and `{ phase: 'done', ms, hiddenMs, onlineWhenSlow, batched, ok }` when it settles (v24.54;
  * `hiddenMs`, the part of `ms` the page spent in the background, v25.87 — see trackHiddenTime). A
  * diagnostic, not a feature — error-reporter.js listens and records the case that cannot be explained
