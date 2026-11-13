@@ -411,7 +411,7 @@ test('service-worker.js cross-version fallback uses matchNewestManagedCache, not
 });
 
 // Every .md doc that carries a version stamp must be current to the latest 0.10
-// milestone. CLAUDE.md uses a "Current app version `X.YZ`" line; the others use a
+// milestone. CLAUDE.md uses its "Documentation milestone `X.YZ`" row; the others use a
 // "Last updated: … vX.YZ" header. The policy (CLAUDE.md) is that ALL the docs are
 // swept every 0.10 version — this test enforces that for all of them, not just one.
 const DOC_STAMPS = [

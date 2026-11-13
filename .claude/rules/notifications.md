@@ -6,6 +6,7 @@ paths:
   - "functions/pay-reminder.js"
   - "functions/overtime*.js"
   - "functions/auth-endpoints.js"
+  - "functions/reset-request.js"
   - "functions/index.js"
   - "service-worker.js"
   - "notif.js"
@@ -23,7 +24,7 @@ The one app surface rendered by the **OS**, not by our CSS — so it cannot inhe
 and needs its own explicit rules. Every Web Push notification staff receive must follow them. They
 are enforced by a single builder, `buildPushPayload` in `functions/roster-parse-helpers.js`, which
 the senders import (`functions/documents.js`, `functions/pay-reminder.js`, `functions/overtime.js`,
-`functions/auth-endpoints.js`); the service worker renders the result.
+`functions/auth-endpoints.js`, `functions/reset-request.js`); the service worker renders the result.
 
 ## The core principle (what ties a notification to the app)
 

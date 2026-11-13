@@ -2,6 +2,7 @@
 /**
  * roster-import-save.js — what one Save of the weekly roster review writes, and the check it makes
  * before it deletes anything (v25.92).
+ * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
  * ── WHY THE CHECK IS ABOUT WHAT THE IMPORT DELETES, AND NOTHING ELSE ──────────────────────────────
  *
