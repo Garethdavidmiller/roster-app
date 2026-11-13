@@ -193,6 +193,8 @@ export function newPasswordProblemField(next, confirm) {
  *   past it — a rate limit, or no connection (a hang reads as one) — so the forced change offers its way out
  */
 export function passwordChangeFailure(code, reauthed) {
+    // Another account is signed in on this browser (own-password.js refuses before sending): no retyping fixes that.
+    if (code === 'myb/account-mismatch') return { message: 'This browser is signed in to another account — sign out, sign in as yourself, then try again.', focus: null, escape: true };
     if (code === 'auth/too-many-requests') return { message: 'Too many attempts — wait a few minutes and try again.', focus: null, escape: true };
     if (code === 'auth/network-request-failed' || code === 'myb/timeout') return { message: 'Couldn’t connect — check your connection and try again.', focus: null, escape: true };
     if (code === 'auth/weak-password') return { message: 'That password is too weak — choose a longer one.', focus: 'new' };

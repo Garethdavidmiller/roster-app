@@ -3113,6 +3113,19 @@ test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ 
     await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
 });
 
+/**
+ * Write a member's local session into a page that is ALREADY PIN-unlocked — the way a name reaches a
+ * station PC after the unlock (another tab signing in), now that a session held at start-up gets the
+ * member's card instead of the PIN (v25.98, `decideAccess`). Writing it in the page fires no `storage`
+ * event there, so the unlocked grid stays as it is, and `getSession()` reads the name from then on.
+ * @param {import('@playwright/test').Page} page @param {string} name
+ */
+async function writeStaleSessionAfterUnlock(page, name) {
+    await page.evaluate((n) => localStorage.setItem('myb_admin_session', JSON.stringify({
+        name: n, ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
+    })), name);
+}
+
 test('day detail: a PIN-unlocked screen offers neither personal action', async ({ page }) => {
     // The station PC — and deliberately the HARD version of it: a stale local session naming the
     // very member whose calendar is on screen. That state is reachable, not contrived (an iOS ITP
@@ -3120,8 +3133,13 @@ test('day detail: a PIN-unlocked screen offers neither personal action', async (
     // to `viewer` with the name still in localStorage), and it is the only fixture that can see the
     // viewer refusal work. With no session seeded the buttons are hidden by the NAME check instead,
     // which is why the first cut of this test survived a mutation hardcoding the access type to
-    // `named`. The viewer seed must come last so it is not outranked.
-    await seedSession(page, 'G. Miller');
+    // `named`.
+    // SINCE v25.98 THE SESSION ARRIVES AFTER THE UNLOCK, not before it: a member's session held at
+    // start-up is answered with the member's own card, never the PIN (sign-in audit F1,
+    // `decideAccess`), so seeding it first no longer reaches a PIN-unlocked screen at all. The state
+    // is still reachable the other way round — a name written by another tab after this one was
+    // unlocked, while this tab's access stays `viewer` — and the day panel reads `getSession()` live,
+    // so it is written here once the grid is up.
     await seedMember(page, 'G. Miller');
     await seedViewerAccess(page);
     await page.addInitScript(() => {
@@ -3131,6 +3149,7 @@ test('day detail: a PIN-unlocked screen offers neither personal action', async (
     });
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await writeStaleSessionAfterUnlock(page, 'G. Miller');
 
     const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
         .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
@@ -3332,11 +3351,17 @@ test('calendar: a PIN-unlocked screen cannot click through to the calculator', a
     // THE STATION PC — and deliberately the HARD version of it: a stale local session naming the
     // very member on screen (reachable — an iOS ITP eviction drops the Firebase user while the
     // 60-day session lives on) and a rule that only compared names would wave this straight through.
-    await seedSession(page, 'G. Miller');
+    // SINCE v25.98 THE SESSION ARRIVES AFTER THE UNLOCK, not before it: a member's session held at
+    // start-up is answered with the member's own card, never the PIN (sign-in audit F1,
+    // `decideAccess`), so seeding it first no longer reaches a PIN-unlocked screen at all. The state
+    // is still reachable the other way round — a name written by another tab after this one was
+    // unlocked, while this tab's access stays `viewer` — and the day panel reads `getSession()` live,
+    // so it is written here once the grid is up.
     await seedMember(page, 'G. Miller');
     await seedViewerAccess(page);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await writeStaleSessionAfterUnlock(page, 'G. Miller');
 
     const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
         .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));

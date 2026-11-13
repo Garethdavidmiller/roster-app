@@ -584,13 +584,13 @@ export async function getAllStaffContacts() {
 // member-writable doc.
 
 /**
- * Read a member's password-migration record. Owner or admin (Firestore rules).
- * @param {string} memberName
- * @returns {Promise<{ resetAt?: any, passwordSetAt?: any } | null>}
+ * Read a member's password-migration record (owner or admin, Firestore rules). A `passwordSetAt` not yet confirmed reads as
+ * its local ESTIMATE, not null — as null it told a member who had just chosen a password they were on their surname (13 Nov 2026).
+ * @param {string} memberName @returns {Promise<{ resetAt?: any, passwordSetAt?: any } | null>}
  */
 export async function getPasswordStatus(memberName) {
     const snap = await getDoc(doc(db, COLLECTIONS.passwordStatus, memberName));
-    return snap.exists() ? snap.data() : null;
+    return snap.exists() ? snap.data({ serverTimestamps: 'estimate' }) : null;
 }
 
 /**

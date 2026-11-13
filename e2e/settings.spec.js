@@ -499,8 +499,10 @@ test('settings: a change refused AFTER the current password was accepted is not 
 
 test('forced password overlay: a change refused after sign-in says it was not updated, not that a password was wrong', async ({ page }) => {
     await forcePasswordSet(page);
+    // The member's OWN account (authUserEmail): since v25.98 a password call on any other account is refused before
+    // it is sent (own-password.js), so without it this would test that refusal instead of the update failing.
     await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
-        authUser: true, updateFailCode: 'auth/internal-error' }; });
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', updateFailCode: 'auth/internal-error' }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#pwForceOverlay')).toBeVisible();
@@ -563,8 +565,10 @@ test('forced password overlay: a real form under the member\'s name — a submit
 
 test('forced password overlay: a CONFIRMED save is submitted once, and only then does the overlay close', async ({ page }) => {
     await forcePasswordSet(page);
-    // A signed-in Firebase user, so the write can SUCCEED under the stub (window.__E2E.authUser).
-    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true }; });
+    // A signed-in Firebase user on the member's own account, so the write can SUCCEED under the stub
+    // (window.__E2E.authUser / authUserEmail — own-password.js refuses any other account).
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local' }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     const overlay = page.locator('#pwForceOverlay');

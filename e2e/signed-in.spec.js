@@ -104,11 +104,11 @@ const AUTH_KEY = readFileSync(new URL('../session.js', import.meta.url), 'utf8')
 const NOTICE_KEYS = [...readFileSync(new URL('../calendar-notices.js', import.meta.url), 'utf8')
     .matchAll(/\bDONE_KEY\s*=\s*'([^']+)'/g)].map((m) => m[1]);
 /**
- * What the sign-in card says when opening a page ended the staff PIN, read from login-overlay.js where
- * it is declared. The wording itself is pinned by e2e/calendar-pin.spec.js; here it is only the sign
+ * What the sign-in card says when opening a page ended the staff PIN, read from staff-pin-ended.js where
+ * it is declared (it moved there from login-overlay.js when paused Overtime began saying it too). The wording itself is pinned by e2e/calendar-pin.spec.js; here it is only the sign
  * that the real exchange reached the same end.
  */
-const PIN_ENDED_NOTICE = (readFileSync(new URL('../login-overlay.js', import.meta.url), 'utf8')
+const PIN_ENDED_NOTICE = (readFileSync(new URL('../staff-pin-ended.js', import.meta.url), 'utf8')
     .match(/\bSTAFF_PIN_ENDED_NOTICE\s*=\s*'((?:\\.|[^'\\])*)'/)?.[1] ?? '').replace(/\\(.)/g, '$1');
 
 /** @param {import('@playwright/test').Page} page */
@@ -586,7 +586,7 @@ test('the staff PIN: the real exchange opens the Calendar, the viewer reads a re
     await expect(page.locator(`.calendar-day[data-detail-day="${dayLabel(day)}"]`), 'the viewer reads the record through the rules').toHaveAttribute('data-detail-shift-value', 'AL');
 
     await page.goto('/admin.html');
-    expect(PIN_ENDED_NOTICE, 'login-overlay.js no longer declares STAFF_PIN_ENDED_NOTICE as one quoted string — update PIN_ENDED_NOTICE').not.toBe('');
+    expect(PIN_ENDED_NOTICE, 'staff-pin-ended.js no longer declares STAFF_PIN_ENDED_NOTICE as one quoted string — update PIN_ENDED_NOTICE').not.toBe('');
     await expect(page.locator('#loginNotice'), 'the sign-in card says opening Admin ended the PIN').toHaveText(PIN_ENDED_NOTICE);
     await signInFirstTime(page, MEMBER);
     await expect(page.locator('.day-row').first()).toBeVisible();
@@ -858,7 +858,6 @@ test('a new password from Settings: a wrong current one is refused for what it i
 });
 
 test('a new password whose record is still on its way: Settings opened meanwhile says the password is set', async ({ page }) => {
-    test.fixme(true, 'APP DEFECT (13 Nov 2026): getPasswordStatus reads a still-queued passwordSetAt as null, so Settings says "Using surname" and asks for the password just set');
     // The record of the change (`passwordStatus`) held on its way, as a weak signal holds it: the write
     // stream is held. The password itself changes at once — that is Auth's, not the database's.
     /** @type {import('@playwright/test').Route[]} */
@@ -872,8 +871,10 @@ test('a new password whose record is still on its way: Settings opened meanwhile
     expect(await readCollection('passwordStatus'), 'nothing has landed').toEqual([]);
 
     // Settings opened again with the record still queued on this device. It is evidence the password
-    // was set (settings-app.js → refreshStatus: "every path into paint(true) is real evidence") — but
-    // the read hands it back with its pending server time as null, and the card says the opposite.
+    // was set (settings-app.js → refreshStatus: "every path into paint(true) is real evidence"). Until
+    // v25.98 the read handed it back with its pending server time as null, and the card said the
+    // opposite — found here first, kept as a fixme, and fixed by reading the time as its estimate
+    // (`getPasswordStatus`, firebase-client.js).
     await page.reload();
     await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
     await expect(page.locator('#passwordNudge'), 'not told to set the password they have just set').toBeHidden();
