@@ -36,6 +36,19 @@
  *                         the old name back. Links store rule 5 (v25.96), on the real SDK and the
  *                         real `linkDesigns` rules. With the wait removed, that is exactly what
  *                         happened here (measured 13 November 2026).
+ *  10. an admin reset    — the admin presses Reset in Operations on their own phone, through the real
+ *                         `resetMemberPassword`. The member's phone, opened again, is refused its silent
+ *                         surname sign-in BEFORE it signs in, ends its 60-day session and offers the
+ *                         member's own sign-in; a typed sign-in still works (AUTH_AND_SESSIONS.md 23).
+ *  11. a refused renewal — a save's commit held on its way, the account disabled, and the ID token's
+ *                         renewal refused: the save is reported unconfirmed, never failed, the page
+ *                         offers its sign-in, and the save then lands (21). Not after a reset: the Auth
+ *                         emulator's renewal ignores the revocation a reset makes.
+ *  12. the silent sign-in — a member on the surname default whose stored Firebase sign-in has gone is
+ *                         signed back in with nothing typed and no card, through the two REST calls
+ *                         that ask about the last reset first (17, 23) — the real rules answering them.
+ *  13. a leaver          — a disabled account's write page ends the session and shows its sign-in:
+ *                         refused, not taken for a lost connection, which would keep the session (23).
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -49,10 +62,12 @@
 import { readFileSync } from 'node:fs';
 import { test, expect, expectNothingLeftForGoogle, wireToEmulators } from './signed-in-fixtures.js';
 import { resetDatabase, readCollection, seedDocument, EMULATOR } from './signed-in-env.mjs';
-import { resetPasswords } from './signed-in-setup.mjs';
+import { resetPasswords, disableAccount } from './signed-in-setup.mjs';
 import { signInThroughOverlay, enterPin, sheetAction, clickDialogConfirm, activeDesignName } from './helpers.js';
 import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data.js';
 import { manualOverrideId } from '../override-id.js';
+import { nameToEmail } from '../auth-identity.js';
+import { signedOutLine } from '../claim-retry.js';
 
 const roster = JSON.parse(readFileSync(new URL('../functions/roster-members.json', import.meta.url), 'utf8'));
 const withARole = new Set(Object.values(roster.roles).flat());
@@ -62,8 +77,13 @@ const COLLEAGUE = plain[1];
 const MANAGER = roster.roles.manager[0];
 /** Whoever the server's role list makes a Links designer: the claim Links saves through. */
 const DESIGNER = roster.roles.designer[0];
+/** Whoever the server's role list makes the admin: the claim an admin reset is made with. */
+const ADMIN = roster.roles.admin[0];
 /** The password each journey's member chooses on the real "set your own password" screen. */
 const OWN_PASSWORD = 'signed-in lane 7';
+/** The one local session record, read from session.js where it is declared (`AUTH_KEY`). */
+const AUTH_KEY = readFileSync(new URL('../session.js', import.meta.url), 'utf8')
+    .match(/\bAUTH_KEY\s*=\s*'([^']+)'/)?.[1] ?? '';
 /**
  * Every one-time notice's "seen" key, read from calendar-notices.js where each notice declares it
  * (`DONE_KEY`), so a new notice is quietened here without anybody remembering to. The notices are
@@ -121,10 +141,72 @@ function dayLabel(day) {
 
 test.beforeEach(async ({ page }) => {
     expect(NOTICE_KEYS.length, 'calendar-notices.js no longer declares its notices as DONE_KEY — update quietNotices').toBeGreaterThan(0);
+    expect(AUTH_KEY, 'session.js no longer declares AUTH_KEY as one quoted string — update AUTH_KEY').not.toBe('');
     await resetDatabase();
-    await resetPasswords([MEMBER, COLLEAGUE, MANAGER, DESIGNER]);
+    await resetPasswords([MEMBER, COLLEAGUE, MANAGER, DESIGNER, ADMIN]);
     await quietNotices(page);
 });
+
+/**
+ * Another phone: a browser of its own, the same device as the test's page, wired to the emulators the
+ * same way. `storageState` starts it from what an earlier browser kept on disk — a restart.
+ * @param {import('@playwright/test').Browser} browser
+ * @param {import('@playwright/test').TestInfo} testInfo
+ * @param {any} [storageState]
+ */
+async function anotherPhone(browser, testInfo, storageState) {
+    const context = await browser.newContext({ ...testInfo.project.use, baseURL: testInfo.project.use.baseURL, ...(storageState ? { storageState } : {}) });
+    const page = await context.newPage();
+    await wireToEmulators(page);
+    await quietNotices(page);
+    return { context, page };
+}
+
+/**
+ * Who the page's own Firebase SDK holds once its start-up has settled — the account's email, or
+ * `(no email)` for the staff PIN's account, which has none — or null for nobody.
+ * @param {import('@playwright/test').Page} page
+ */
+function sdkHolds(page) {
+    return page.evaluate(async () => {
+        const { auth } = await import('/firebase-client.js');
+        await auth.authStateReady();
+        return auth.currentUser ? (auth.currentUser.email || '(no email)') : null;
+    });
+}
+
+/**
+ * Record, in order, the sign-in traffic of this page's loads from now on: `check` and `read`, the two
+ * REST calls the silent path makes to ask about the last reset (firebase-client.js → probeResetAtMs) —
+ * by their production addresses, which the fixture forwards to the emulators — and `sign-in`, the SDK's
+ * own sign-in, which goes to the Auth emulator itself. So the two can be told apart, and ordered.
+ * @param {import('@playwright/test').Page} page
+ * @returns {string[]}
+ */
+function signInTraffic(page) {
+    /** @type {string[]} */
+    const seen = [];
+    page.on('request', (r) => {
+        const u = r.url();
+        if (u.startsWith('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword')) seen.push('check');
+        else if (u.startsWith('https://firestore.googleapis.com/') && u.includes('/documents/passwordStatus/')) seen.push('read');
+        else if (u.startsWith(`http://${EMULATOR.auth}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword`)) seen.push('sign-in');
+    });
+    return seen;
+}
+
+/** The page's local session record (`AUTH_KEY`), parsed, or null. @param {import('@playwright/test').Page} page */
+async function localSession(page) {
+    return JSON.parse(await page.evaluate((k) => localStorage.getItem(k), AUTH_KEY) || 'null');
+}
+
+/**
+ * The Calendar's LIVE grid, drawn once access is granted. Not any `.calendar-day`: a member's own
+ * stored roster is painted before the grant, in a card of its own (CALENDAR_DATA.md 17), so a day
+ * cell on screen proves nothing about who was let in.
+ * @param {import('@playwright/test').Page} page
+ */
+const liveGrid = (page) => page.locator('#calendarDisplay .calendar-day').first();
 
 /**
  * Sign in as a first-time member: the surname default on the sign-in card, then the compelled "set
@@ -140,6 +222,41 @@ async function signInFirstTime(page, name) {
     await page.locator('#pwfConfirm').fill(OWN_PASSWORD);
     await page.locator('#pwfSave').click();
     await expect(force).toBeHidden();
+}
+
+/**
+ * Wait for the record that `name` chose their own password (`passwordStatus`) to reach the database.
+ * It is a background write (firebase-client.js → changeOwnPassword): until it lands, the account still
+ * reads as on the surname default, and the next sign-in is compelled to choose again.
+ * @param {string} name
+ */
+async function ownPasswordRecorded(name) {
+    await expect.poll(async () => (await readCollection('passwordStatus')).some((d) => d._id === name && d.passwordSetAt),
+        { message: `the "own password" record for ${name} must reach the database` }).toBe(true);
+}
+
+/**
+ * Sign out the way a member does — the drawer's Sign out — and wait for the page's sign-in card.
+ * @param {import('@playwright/test').Page} page
+ */
+async function signOutThroughDrawer(page) {
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+}
+
+/**
+ * Sign in on the card with a password the member TYPES (their own, not the surname), and wait for
+ * the card to go.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} name
+ * @param {string} password
+ */
+async function signInWith(page, name, password) {
+    await signInThroughOverlay(page, name, { submit: false });
+    await page.locator('#loginPassword').fill(password);
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginOverlay')).toBeHidden();
 }
 
 /**
@@ -267,10 +384,7 @@ test('on behalf: a manager records a colleague\'s absence, and the colleague see
     expectNothingLeftForGoogle(page);
 
     // The colleague's own phone: a separate browser, their own first sign-in.
-    const theirs = await browser.newContext({ ...testInfo.project.use, baseURL: testInfo.project.use.baseURL });
-    const phone = await theirs.newPage();
-    await wireToEmulators(phone);
-    await quietNotices(phone);
+    const { context: theirs, page: phone } = await anotherPhone(browser, testInfo);
     await phone.goto('/');
     await signInFirstTime(phone, COLLEAGUE);
     // The dated link AFTER signing in: `?date=` is honoured once and then taken off the address
@@ -466,5 +580,177 @@ test('signing out: Back loads the page again with nobody signed in, in the app o
         await auth.authStateReady();
         return auth.currentUser?.uid ?? null;
     }), { message: 'Firebase still holds the member after they signed out' }).toBeNull();
+    expectNothingLeftForGoogle(page);
+});
+
+test('an admin reset: the member\'s next load does not sign itself back in with the surname, and a typed sign-in still works', async ({ page, browser }, testInfo) => {
+    // The member's phone: signed in, a password of their own chosen, then put away with the sign-in
+    // kept — the lost phone a reset is for.
+    await page.goto('/');
+    await signInFirstTime(page, MEMBER);
+    await expect(liveGrid(page)).toBeVisible();
+    await ownPasswordRecorded(MEMBER);
+    const before = await localSession(page);
+    await page.goto('about:blank');
+
+    // The admin's own phone: Operations → Account status → Reset, through the real endpoint. The admin
+    // chose their own password on an earlier day, so signs in with it now. (Signing in for the first
+    // time here, the emulator's token after the forced change keeps the sign-in's auth_time while the
+    // change moves the account's revocation time, and the endpoint's checkRevoked refused the reset
+    // whenever the two fell in different seconds — measured, 13 Nov 2026; not known for production.)
+    const adminPhone = await anotherPhone(browser, testInfo);
+    const ops = adminPhone.page;
+    await ops.goto('/operations.html');
+    await signInFirstTime(ops, ADMIN);
+    await ownPasswordRecorded(ADMIN);
+    await signOutThroughDrawer(ops);   // Operations signs out to the Calendar's front door
+    await signInWith(ops, ADMIN, OWN_PASSWORD);
+    await ops.goto('/operations.html');
+    await ops.locator('#accountStatusToggleHeader').click();
+    // The endpoint's own answer is what is read here, not the page's report of it: what Operations says
+    // after a reset is its own spec's business (e2e/operations.spec.js).
+    const answered = ops.waitForResponse((r) => r.url().endsWith('/resetMemberPassword') && r.request().method() === 'POST');
+    await ops.locator(`.acct-row[data-member="${MEMBER}"] .btn-acct-reset`).click();
+    await clickDialogConfirm(ops);   // "Reset password?" → Reset
+    expect(await (await answered).json(), 'reset, stamped first, and the member\'s other sessions revoked')
+        .toMatchObject({ ok: true, member: MEMBER, stamped: true, revoked: true });
+    const status = (await readCollection('passwordStatus')).find((d) => d._id === MEMBER);
+    expect(Date.parse(status?.resetAt), 'the reset is stamped after the phone\'s session began').toBeGreaterThan(before.createdAt);
+    expectNothingLeftForGoogle(ops);
+    await adminPhone.context.close();
+
+    // The member's phone, opened again. The password is the surname again, which is exactly what the
+    // no-typed-password path tries — so the reset's stamp must refuse it BEFORE any sign-in (the SDK
+    // announces and stores a user the moment it signs in, and the Calendar would let the phone in on
+    // that), end the session, and offer the member their own sign-in — never the PIN (CALENDAR_DATA.md 11).
+    const traffic = signInTraffic(page);
+    await page.goto('/');
+    await expect(page.locator('#calLockWho'), 'the member\'s own sign-in card').toHaveText(`Calendar · ${MEMBER}`);
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+    expect(await localSession(page), 'the 60-day session the reset was aimed at is ended').toBeNull();
+    expect(await sdkHolds(page)).toBeNull();
+    expect(traffic, 'the last reset was asked about, and the SDK never signed in').toEqual(['check', 'read']);
+
+    // A TYPED sign-in is never refused by it: the surname works, and the member must choose again.
+    await page.locator('#calLockSubmit').click();
+    await signInFirstTime(page, MEMBER);
+    await expect(liveGrid(page)).toBeVisible();
+    expect(await sdkHolds(page)).toBe(nameToEmail(MEMBER));
+    expectNothingLeftForGoogle(page);
+});
+
+test('a refused token renewal mid-save: the save is reported unconfirmed, never failed, and the page asks for a sign-in', async ({ page }) => {
+    // Invariant 21 needs a renewal the server REFUSES. After a reset the Auth emulator still grants
+    // one (its renewal ignores the revocation a reset makes), so the refusal here is the one it does
+    // make: a disabled account — a leaver's, while a save of theirs is on its way.
+    const day = workingDay(MEMBER);
+    await page.goto('/admin.html');
+    await signInFirstTime(page, MEMBER);
+    await ownPasswordRecorded(MEMBER);
+    await openAdminWeek(page, day);
+    await stageDay(page, day, 'annual_leave');
+
+    // The save's commit is HELD, so it is still on its way when the account goes.
+    /** @type {import('@playwright/test').Route[]} */
+    const held = [];
+    let holding = true;
+    await page.route((url) => url.host === EMULATOR.firestore && url.pathname.endsWith(':commit'),
+        (route) => { if (holding) held.push(route); else route.continue().catch(() => { /* the page has moved on */ }); });
+    await page.locator('#saveBtn').click();
+    await expect.poll(() => held.length, { message: 'the save never reached its commit' }).toBeGreaterThan(0);
+
+    await disableAccount(MEMBER);
+    // The renewal every ID token needs within the hour, made now rather than waited for. The server
+    // refuses it, and the SDK signs the account out (`_logoutIfInvalidated`) — the account the held save
+    // was made as.
+    expect(await page.evaluate(() => import('/firebase-client.js').then(({ auth }) => /** @type {any} */ (auth.currentUser)
+        .getIdToken(true).then(() => 'renewed', (/** @type {any} */ e) => e?.code))), 'the renewal must be refused').toBe('auth/user-disabled');
+
+    await expect(page.locator('#formFeedback'), 'unconfirmed, never "failed"').toHaveText(`⚠ ${signedOutLine('this change', 'Saved Changes')}`);
+    await expect(page.locator('#loginOverlay'), 'and the page offers its sign-in').toBeVisible();
+    expect(await localSession(page), 'the session of an account that has gone is ended').toBeNull();
+
+    // Unconfirmed was the truth: the commit was already on its way with the member's token, and lands.
+    holding = false;
+    for (const route of held.splice(0)) await route.continue().catch(() => { /* the SDK gave up on it */ });
+    await expect.poll(async () => (await overridesFor(MEMBER, day)).length,
+        { message: 'the save the page could not confirm' }).toBe(1);
+    expectNothingLeftForGoogle(page);
+});
+
+/**
+ * In the page: delete the Firebase SDK's own stored sign-in — its `firebase:authUser:` record in the
+ * SDK's IndexedDB store — and nothing else. Resolves how many records it deleted. Run from a page of
+ * the same site that loads no Firebase, so nothing holds the store open or writes the user back.
+ * @returns {Promise<number>}
+ */
+function forgetStoredSignIn() {
+    return new Promise((resolve, reject) => {
+        const open = indexedDB.open('firebaseLocalStorageDb');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+            const db = open.result;
+            const tx = db.transaction('firebaseLocalStorage', 'readwrite');
+            const store = tx.objectStore('firebaseLocalStorage');
+            let deleted = 0;
+            const keys = store.getAllKeys();
+            keys.onsuccess = () => {
+                for (const k of keys.result) if (String(k).startsWith('firebase:authUser:')) { store.delete(k); deleted++; }
+            };
+            tx.oncomplete = () => { db.close(); resolve(deleted); };
+            tx.onerror = () => reject(tx.error);
+        };
+    });
+}
+
+test('the silent re-sign-in: a member on the surname default whose stored sign-in has gone is signed back in with nothing typed', async ({ page }) => {
+    // Signed in on the surname default. The "set your own" screen comes up, and is left for later.
+    await page.goto('/');
+    await signInThroughOverlay(page, MEMBER);
+    await expect(page.locator('#pwForceOverlay'), 'signed in, and asked to choose their own').toBeVisible();
+    const session = await localSession(page);
+
+    // The SDK's stored sign-in goes and the 60-day session stays: a local session with no restored
+    // identity (AUTH_AND_SESSIONS.md 17) — on an iPhone, an IndexedDB read that failed.
+    await page.goto('/robots.txt');
+    expect(await page.evaluate(forgetStoredSignIn), 'the SDK kept one stored sign-in').toBe(1);
+
+    const traffic = signInTraffic(page);
+    await page.goto('/');
+    await expect(liveGrid(page)).toBeVisible();
+    await expect(page.locator('#calendarLock'), 'no sign-in card, not even their own').toHaveCount(0);
+    expect(await sdkHolds(page), 'signed back in, as themselves').toBe(nameToEmail(MEMBER));
+    // The last reset is asked about FIRST — the real rules answering the REST read — and only then
+    // does the SDK sign in (AUTH_AND_SESSIONS.md 23).
+    expect(traffic, 'asked about the last reset, then signed in').toEqual(['check', 'read', 'sign-in']);
+    expect(await localSession(page), 'the same session — a silent sign-in starts no new one').toEqual(session);
+    expectNothingLeftForGoogle(page);
+});
+
+test('a leaver\'s disabled account: their write page ends the session and asks for a sign-in, and the refusal is not taken for a lost connection', async ({ page }) => {
+    // Signed in on Admin on the surname default, so the one thing that can refuse the next silent
+    // sign-in is the account itself. Then the phone is put away with the sign-in kept.
+    await page.goto('/admin.html');
+    await signInThroughOverlay(page, MEMBER);
+    await expect(page.locator('#pwForceOverlay'), 'signed in, and asked to choose their own').toBeVisible();
+    await page.goto('about:blank');
+
+    // They leave, and the account is disabled the way the leaver sweep does it.
+    await disableAccount(MEMBER);
+
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay'), 'Admin asks who you are again').toBeVisible();
+    // REFUSED, not unreachable: the 60-day session ends. A sign-in that could not reach an answer keeps
+    // it and holds the card over it (AUTH_AND_SESSIONS.md 23, `terminalAuthEvent` in session.js).
+    expect(await localSession(page), 'the session is ended').toBeNull();
+    expect(await sdkHolds(page), 'and the SDK holds nobody').toBeNull();
+
+    // Typed, the card says it could not sign them in: not "check your connection", and not "password
+    // not recognised", which would send them after a reset that cannot help.
+    await signInThroughOverlay(page, MEMBER);
+    await expect(page.locator('#loginError')).toContainText('Couldn’t sign you in');
+    await expect(page.locator('#loginError')).not.toContainText(/connection|not recognised/);
+    expect(await localSession(page)).toBeNull();
     expectNothingLeftForGoogle(page);
 });
