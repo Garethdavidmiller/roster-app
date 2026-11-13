@@ -552,7 +552,12 @@ const CAPS = {
     // PIN exchange, the password reset, account set-up — are the security-sensitive half of the
     // Functions, and a module that close to the line would otherwise cross it with nobody deciding
     // anything. Capped now so crossing is a decision. Measured + 50, rounded to the next 50.
-    'functions/auth-endpoints.js':        950,
+    // 950 → 750 in Nov 2026, at 949 of 950 with the sign-in audit's account fixes still to land: the
+    // public reset-request doorbell — its constants, its throttle, its admin push — left whole for
+    // functions/reset-request.js (659 measured after). A SPLIT: the file did two jobs, and the
+    // doorbell shared nothing with the account handlers but the roster and the transport. The
+    // ceiling comes down with the code, measured + 50 rounded to the next 50.
+    'functions/auth-endpoints.js':        750,
     // NEW at v25.88, when the document-link rotation's door joined (885 → 937). Its RULES left for
     // functions/doc-link-rotation.js before they arrived — pure, and tested in the no-install lane —
     // so what crossed the line is an endpoint: method, admin check, body, the 503, one log line. The

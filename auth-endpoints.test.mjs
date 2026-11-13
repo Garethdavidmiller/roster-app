@@ -409,6 +409,9 @@ function build({
     const rosterPath = require.resolve('./functions/roster-members.json');
     delete require.cache[rosterPath];
     if (rosterJson) stub(rosterPath, rosterJson);
+    // reset-request.js too (Nov 2026): it holds requestPasswordReset now and destructures the same
+    // transport at load, so a copy cached by an earlier build would send through that build's fakes.
+    delete require.cache[require.resolve('./functions/reset-request.js')];
     delete require.cache[require.resolve('./functions/auth-endpoints.js')];
     const { buildAuthEndpoints } = require('./functions/auth-endpoints.js');
     const eps = buildAuthEndpoints({
@@ -1643,12 +1646,17 @@ test('the module never reaches for a broadcast sender', () => {
     // Trailing comments are stripped only where `//` is not preceded by `:`, so a URL in real code
     // survives; the assertion below is the guard on the guard, because a strip that ate the whole
     // file would pass this test while checking nothing at all.
-    const raw = readFileSync(new URL('./functions/auth-endpoints.js', import.meta.url), 'utf8');
-    const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/[^\n]*/g, '');
-    assert.match(src, /sendTargetedPush\(/,
-        'the stripped source still holds the real call — otherwise this test guards nothing');
-    assert.ok(!/fanOutPush/.test(src),
-        'auth-endpoints.js must not reference fanOutPush — these notifications name one person');
+    //
+    // BOTH FILES (Nov 2026): requestPasswordReset — the notice that names a locked-out member — moved
+    // to reset-request.js, and a guard left reading only the old home would have gone quietly vacuous.
+    for (const file of ['auth-endpoints.js', 'reset-request.js']) {
+        const raw = readFileSync(new URL(`./functions/${file}`, import.meta.url), 'utf8');
+        const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/[^\n]*/g, '');
+        assert.match(src, /sendTargetedPush\(/,
+            `${file}: the stripped source still holds the real call — otherwise this test guards nothing`);
+        assert.ok(!/fanOutPush/.test(src),
+            `${file} must not reference fanOutPush — these notifications name one person`);
+    }
 });
 
 
