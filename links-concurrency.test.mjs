@@ -205,12 +205,23 @@ describe('the design protocol has exactly one owner', () => {
     test('the store decides inside its transactions, never before them', () => {
         // The rename bug in one line: `canAdvanceBaseline` called before the transaction opens is
         // answering about a revision that may already have been replaced by the time we commit.
+        // A transaction opens through `runTx` (rule 5), so that is what the rename must call.
         const body = store.slice(store.indexOf('async rename('));
-        const txAt = body.indexOf('runTransaction');
+        const txAt = body.search(/\brunTx\s*\(/);
         const decideAt = body.indexOf('canAdvanceBaseline');
         assert.notEqual(txAt, -1, 'rename no longer uses a transaction');
         assert.notEqual(decideAt, -1, 'rename no longer consults canAdvanceBaseline');
         assert.ok(decideAt > txAt, 'the decision is made before the transaction opens');
+    });
+
+    test('every transaction in the store opens through runTx, which waits for the device\'s queue', () => {
+        // Rule 5 (v25.96). The store's own tests drive each of today's transactions through the
+        // wait; this catches the NEXT one, written as a bare `runTransaction(db, …)` that would read
+        // the server before this device's own unsent saves.
+        const calls = [...store.matchAll(/\brunTransaction\s*\(/g)];
+        assert.equal(calls.length, 1, 'a transaction opened outside runTx skips the wait for this device\'s queued saves');
+        const wrapper = store.slice(store.indexOf('const runTx'), calls[0].index);
+        assert.match(wrapper, /await\s+ownWritesSent\s*\(\s*\)/, 'runTx no longer waits for ownWritesSent before the transaction');
     });
 
     test('the store has exactly one unserialised write path, and it is gated on OFFLINE', () => {

@@ -2764,6 +2764,18 @@ Proven by `admin-override-store.test.mjs` block 8, the import's tests in
 has still not been run against a real Firestore with the network cut mid-flow: the browser suite
 models the queue rather than running it.
 
+**v25.96: the Links workspace had the same race, and has the same wait.** Its design store queues
+a save, a rename and a bin offline (rule 4), and every online one of those, a restore, a purge and
+the automatic bin is a transaction. So just after the signal returned, a save wrote over the
+server's older copy and the save queued offline then landed on top, older work over newer; a rename
+was undone; and a design binned online came back, because a queued save carries no `deletedAt`.
+Every transaction in the store now opens through `runTx`, which waits for the queue first (store
+rule 5, `links-design-store.js`); one that has not drained in time fails as it would offline, so a
+save, a rename or a bin queues behind the earlier writes and a restore, a purge or the automatic bin
+is refused. Proven by `links-design-store.test.mjs` ("rule 5"), a source guard in
+`links-concurrency.test.mjs` that no transaction opens outside `runTx`, and a Links browser test that
+holds the queue (`e2e/links.spec.js`, "a delete waits for the saves this device has not sent yet").
+
 The entry as it stood at v25.94, verbatim:
 
 Every Admin delete — a Saved Changes ✕, Delete selected, a Recorded dates ✕, and the removals in a

@@ -1141,7 +1141,7 @@ model (`FIXED_POS`, `fixed-link-separator`, `fixed-cell`) and the vacant-placeho
 
 **Every design write goes through `links-design-store.js`** (`createDesignStore`, with the Firebase
 handles injected by `links-app.js`); the coordinator makes none of its own. The store's header is the
-authority on the reasoning, and owns four rules:
+authority on the reasoning, and owns five rules:
 
 1. **A read that a write depends on happens INSIDE the write's transaction**, not before it, so the
    decision is true at commit.
@@ -1153,6 +1153,13 @@ authority on the reasoning, and owns four rules:
 4. **A queued (offline) write is started, not awaited, and never stamps a revision a colleague's online
    save could also produce** (`queueWrite`, `queuedRevision`) — a save, a rename, a create (named with an
    auto-id `doc(col)` so that it can be queued) and a soft delete alike.
+5. **Every transaction waits for this device's own queued writes first** (`runTx`, v25.96). A
+   transaction reads the server, which does not yet hold rule 4's queued writes: just after the signal
+   returned, a save wrote over the server's older copy and the queued save then landed on top, a rename
+   was undone, and a binned design came back. If the queue has not drained in time, the transaction
+   never starts and fails as it would offline (`unavailable`): a save, a rename or a delete queues
+   behind the earlier writes, and a restore, a purge or the automatic bin is refused. `ownWritesSent`
+   is a REQUIRED dependency, so a store built without the wait throws rather than run unguarded.
 
 A conflict comes back as `{ status: 'conflict', conflict }`, and `links-app.js` decides whether to ask,
 overwrite or fork — the store never asks. A design deleted elsewhere, binned or removed for good, comes

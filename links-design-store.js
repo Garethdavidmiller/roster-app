@@ -44,6 +44,18 @@
  * reach FAILS them and they are queued; the create, a plain write, is given `SLOW_SAVE_MS` to be
  * answered and is called queued after that.
  *
+ * **5. A transaction waits for this device's own queued writes first** (v25.96). A transaction
+ * reads the SERVER, and rule 4's queued writes are not there yet. In the second after the signal
+ * returned, an online save read the server's older copy and wrote over it, and the save this device
+ * had queued offline then landed on top — older work over newer, with nothing on screen to say so.
+ * A rename was undone the same way, and a design binned online came back, because a queued save
+ * carries no `deletedAt`. So every transaction here starts only once the queue has drained
+ * (`runTx`, through the injected `ownWritesSent` — firebase-client.js → `whenOwnWritesSent`, whose
+ * reasoning is claim-retry.js → `ownWritesSent`). One that has not drained in time ends as a
+ * transaction that never reached the server does, `unavailable`: a save, a rename and a delete then
+ * queue BEHIND what is waiting, so the writes land in the order they were made; a restore, a
+ * purge and the automatic bin fail, as they do offline.
+ *
  * ── WHAT IS DELIBERATELY NOT HERE ───────────────────────────────────────────────────────────────
  *
  * No DOM, no dialogs, no confirm, no picker, no generator, no status text, and no decision about
@@ -74,6 +86,10 @@ import { SLOW_SAVE_MS } from './slow-save.js';
  * @property {() => boolean} [isOnline]           overridable for tests
  * @property {Function} [getDocFromCache]         the CACHE's own answer for one document, for the
  *                                                offline consult — see `cacheRead`
+ * @property {() => Promise<boolean>} ownWritesSent  true once this device's queued writes have reached
+ *                                                the server, false when they have not in time (RULE 5).
+ *                                                REQUIRED: a store without it would read the server
+ *                                                before this device's own unsent saves
  */
 
 /** Firestore reports an unreachable backend as `unavailable`; the browser has its own view. */
@@ -111,6 +127,22 @@ export function createDesignStore(deps) {
     } = deps;
     const _isOnline = deps.isOnline;
     const offlineNow = _isOnline ? () => !_isOnline() : _offlineByDefault;
+    const { ownWritesSent } = deps;
+    if (typeof ownWritesSent !== 'function') {
+        throw new TypeError('createDesignStore: ownWritesSent is required (RULE 5) — a transaction would read the server before this device\'s own unsent saves');
+    }
+    /**
+     * Every transaction this store runs (RULE 5): this device's own queued writes first, then the
+     * server. A queue that has not drained in time is answered as no server at all, so each caller
+     * takes the path it already has for being offline.
+     * @param {(tx: any) => Promise<any>} fn
+     */
+    const runTx = async (fn) => {
+        if (!(await ownWritesSent())) {
+            throw Object.assign(new Error('this device still has saves it has not sent'), { code: 'unavailable', unsent: true });
+        }
+        return runTransaction(db, fn);
+    };
     /**
      * WHAT THIS DEVICE HOLDS for one document — the offline consult before a queued write (whole-app
      * fix, Nov 2026). `getDocFromCache` answers from the cache alone: a deletion the cache recorded
@@ -323,7 +355,7 @@ export function createDesignStore(deps) {
                     return moved ? { by: d.updatedBy || 'Someone', at: d.updatedAt || null, rev: liveRev } : null;
                 };
                 try {
-                    await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    await withClaimRetry(() => runTx(async (/** @type {any} */ tx) => {
                         // A retried transaction must not keep the losing attempt's verdict — the same
                         // reset `rename` makes below, for the same reason. Pinned by "a RETRIED forced
                         // save decides afresh" in links-design-store.test.mjs, whose fake runs this
@@ -371,7 +403,7 @@ export function createDesignStore(deps) {
             // must still get the compare-and-set: a wrong "offline" may not buy the path rule 2 keeps for
             // the absence of a server. `rename` tries first for the same reason.
             try {
-                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                await withClaimRetry(() => runTx(async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
                     // A document that has GONE (removed for good from the bin) takes the same exit
                     // as the forced path's `gone`, with no deleter. Writing here would recreate it
@@ -448,7 +480,7 @@ export function createDesignStore(deps) {
             /** What the transaction found where a live design should be. @type {any} */
             let gone = null;
             try {
-                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                await withClaimRetry(() => runTx(async (/** @type {any} */ tx) => {
                     gone = null;
                     const snap = await tx.get(ref);
                     // IS IT STILL A LIVE DESIGN? Asked here like every other transaction in this
@@ -545,7 +577,7 @@ export function createDesignStore(deps) {
             if (offlineNow()) return consultThenQueue();
             /** @type {any} */ let found = null;
             try {
-                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                await withClaimRetry(() => runTx(async (/** @type {any} */ tx) => {
                     found = null;   // a retried transaction re-decides from scratch
                     const snap = await tx.get(ref);
                     if (!snap.exists()) { found = { status: 'gone' }; return; }
@@ -576,7 +608,7 @@ export function createDesignStore(deps) {
          */
         async binIfStill(id, by, stillMatches) {
             let moved = false;
-            await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+            await withClaimRetry(() => runTx(async (/** @type {any} */ tx) => {
                 moved = false;
                 const snap = await tx.get(refFor(id));
                 if (!snap.exists() || isDeleted(snap.data()) || !stillMatches(snap.data())) return;
@@ -611,7 +643,7 @@ export function createDesignStore(deps) {
             /** @type {{name: any, patterns: any, window: any}|null} */
             let content = null;
             try {
-                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                await withClaimRetry(() => runTx(async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
                     // WHAT IS ACTUALLY THERE, asked inside the transaction — the same rule `purge`
                     // already follows, and for the same reason: the row that was pressed came from
@@ -676,7 +708,7 @@ export function createDesignStore(deps) {
             const ref = refFor(id);
             let outcome = /** @type {'removed'|'gone'} */ ('removed');
             try {
-                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                await withClaimRetry(() => runTx(async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
                     if (!snap.exists()) { outcome = 'gone'; return; }
                     if (!isDeleted(snap.data())) throw new Error('design-restored');

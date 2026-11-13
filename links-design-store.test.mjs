@@ -91,6 +91,7 @@ function makeDb({ initial = null, onRead = null, failTx = null, cache = /** @typ
         designsCol: {},
         withClaimRetry: (/** @type {Function} */ fn) => fn(),
         isOnline: () => true,
+        ownWritesSent: async () => true,   // nothing queued on this device (rule 5 has its own block)
     };
     // `setStore` lets a test move the server at a moment no ordering of real calls can
     // reach — see the read-back window block at the foot of this file.
@@ -1228,5 +1229,91 @@ describe('offline: our own queued rename is not a colleague\'s save, and Replace
         assert.equal(forced.status, 'conflict');
         assert.equal(forced.conflict?.by, 'M. Robson');
         assert.equal(db.writes.length, 0, 'nothing queued over a version nobody was asked about');
+    });
+});
+
+// ── RULE 5: A TRANSACTION WAITS FOR THIS DEVICE'S OWN QUEUED WRITES FIRST (v25.96) ─────────────────
+// A transaction reads the server, and a save this store queued offline (rule 4) is not there yet. In
+// the second after the signal returned, an online save read the server's older copy, wrote over it,
+// and the queued save then landed on top: older work over newer. The fake below holds that queued
+// write and lands it when the queue DRAINS — at the wait, or at `drain()`, whichever comes first, as
+// the signal returning would.
+describe('rule 5 — every transaction waits for this device\'s own queued writes first', () => {
+    /** The server as it was before this device went offline, and the save this device queued since. */
+    const SERVER = { name: 'A', patterns: 'before', revision: 5, updatedAt: ts(1000), updatedBy: ME };
+    const QUEUED = { name: 'A', patterns: 'queued offline', revision: 1_763_000_000_000, updatedAt: ts(2000), updatedBy: ME };
+    /** @param {{ sent?: Promise<boolean>|boolean }} [o] */
+    function withQueue({ sent = true } = {}) {
+        const db = makeDb({ initial: { ...SERVER } });
+        let queued = /** @type {any} */ ({ ...QUEUED });
+        const drain = () => { if (queued) { db.setStore(queued); queued = null; } };
+        let asked = 0, txRuns = 0;
+        db.api.ownWritesSent = async () => { asked++; const ok = await sent; if (ok) drain(); return ok; };
+        const realTx = db.api.runTransaction;
+        db.api.runTransaction = async (/** @type {any} */ d, /** @type {any} */ fn) => { txRuns++; return realTx(d, fn); };
+        return { ...db, drain, asked: () => asked, txRuns: () => txRuns };
+    }
+    // Just after a queued save the baseline is UNKNOWN (rule 3), and the last saver is this designer.
+    const saveNew = (/** @type {any} */ store) => store.save({ id: ID, buildPayload: () => ({ name: 'A', patterns: 'newer' }),
+        baseline: null, baselineUnknown: true, currentUser: ME, loadedRevision: null });
+
+    test('a save made after reconnecting waits for the queued one, so the newer work is what stays', async () => {
+        const q = withQueue();
+        const res = await saveNew(createDesignStore(q.api));
+        q.drain();   // anything still queued lands now, whatever the store did
+        assert.equal(res.status, 'saved');
+        assert.equal(q.current().patterns, 'newer', 'the save queued offline landed over the newer one');
+        assert.equal(q.current().revision, QUEUED.revision + 1, 'counted on from the revision the queued save stamped');
+        assert.equal(q.asked(), 1);
+    });
+
+    test('a queue that has not drained in time: the save is queued BEHIND it, never checked against a stale server', async () => {
+        const q = withQueue({ sent: false });
+        const res = await saveNew(createDesignStore(q.api));
+        assert.equal(res.status, 'queued');
+        assert.equal(q.txRuns(), 0, 'a transaction read the server before this device\'s own save had reached it');
+        assert.equal(q.writes.at(-1)?.kind, 'set', 'queued as a plain write, behind the one already waiting');
+        assert.equal(res.baseline.baselineUnknown, true);
+    });
+
+    test('…and a rename and a delete queue behind it the same way', async () => {
+        const r = withQueue({ sent: false });
+        const renamed = await createDesignStore(r.api).rename({ id: ID, name: 'B', by: ME, preBaseline: null });
+        assert.equal(renamed.queued, true);
+        assert.equal(r.txRuns(), 0);
+        const d = withQueue({ sent: false });
+        const deleted = await createDesignStore(d.api).softDelete(ID, ME);
+        assert.deepEqual([deleted.queued, deleted.status], [true, 'deleted']);
+        assert.equal(d.txRuns(), 0);
+        assert.equal(d.writes.at(-1)?.kind, 'merge');
+    });
+
+    test('a restore, a purge and the automatic bin are refused as offline — no transaction, nothing written', async () => {
+        for (const run of [
+            (/** @type {any} */ s) => s.restore(ID, ME),
+            (/** @type {any} */ s) => s.purge(ID),
+            (/** @type {any} */ s) => s.binIfStill(ID, ME, () => true),
+        ]) {
+            const q = withQueue({ sent: false });
+            await assert.rejects(run(createDesignStore(q.api)), (/** @type {any} */ e) => e.code === 'unavailable' && e.unsent === true);
+            assert.equal(q.txRuns(), 0);
+            assert.deepEqual(q.writes, []);
+        }
+    });
+
+    test('the automatic bin reads what the queued save left, not the server before it', async () => {
+        // A design redrawn offline no longer matches the old-length rule; read before the queued save
+        // landed, it still did, was binned — and the queued save then brought it back without `deletedAt`.
+        const q = withQueue();
+        const stillOld = (/** @type {any} */ data) => data.patterns === 'before';
+        assert.equal(await createDesignStore(q.api).binIfStill(ID, ME, stillOld), 'skipped');
+        q.drain();
+        assert.equal(q.current().deletedAt, undefined);
+    });
+
+    test('the store refuses to be built without the wait', () => {
+        const { api } = makeDb();
+        delete (/** @type {any} */ (api)).ownWritesSent;
+        assert.throws(() => createDesignStore(api), /ownWritesSent is required/);
     });
 });

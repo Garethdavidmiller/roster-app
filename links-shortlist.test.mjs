@@ -99,6 +99,7 @@ function makeDb(initial) {
         }),
         serverTimestamp: () => ({ __serverTimestamp: true }), deleteField: () => ({}),
         designsCol: {}, withClaimRetry: (/** @type {any} */ fn) => fn(), isOnline: () => true,
+        ownWritesSent: async () => true,
     };
     return { store: createDesignStore(/** @type {any} */ (api)), writes, now: () => doc };
 }
