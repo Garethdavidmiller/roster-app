@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: November 2026 — v25.90 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.00 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `25.90` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states (a current-version row rots on every release, because bumping it is not part of shipping). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Documentation milestone | `26.00` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; the **primary install + notification target**). A GitHub Pages mirror is served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path** (the bare origin is a separate empty repo that 404s). **Most staff still open the app there** (owner, Sep 2026 — the changeover to the canonical URL is deliberate and gradual, not a rump to be discounted). The mirror serves **no redirects and no HTTP headers**, so a change relying on something only Firebase Hosting can do — a rename protected by a `redirects` entry, a policy carried by a header — reaches the smaller half of the staff: weigh it against the mirror, not the canonical URL. That is why every page carries a `<meta>` CSP. `STAFF_SITE_URL` in `functions/index.js` is the bare canonical origin; it only sets the notification payload's path/hash, and each device's service worker re-bases that onto its own scope, so github.io installs keep working. See the API key note below. |
 | Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name: |
@@ -38,7 +38,7 @@
 | `VAPID_PRIVATE_KEY` | Web Push private key. The PUBLIC key is a literal in `functions/index.js` **and** `notif.js`, and the two must match (see Change impact) |
 | `CALENDAR_VIEWER_PIN` | The shared staff Calendar PIN — set INTERACTIVELY, never committed. Rotating it needs no client release; see OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN" |
 
-**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting) · `deploy-rules.yml` (Firestore/Storage rules). **All three authenticate via Workload Identity Federation** (`google-github-actions/auth`, pinned `v3.0.0`; only the `deploy` jobs declare `permissions: id-token: write`). **The three fire in PARALLEL from one push, with no ordering guarantee** (successive pushes QUEUE per workflow — a `concurrency` group with `cancel-in-progress: false` — so an older push can never release last, and a re-run a newer run has overtaken stops itself, `.github/actions/refuse-overtaken-rerun`). So any change where the new client DEPENDS on new rules (a schema expansion: a new override field, a new analytics counter id, a new collection) must ship **backend-first, in its own push**: rules that ACCEPT the field first, the client that WRITES it only after the rules deploy is confirmed. In one push there is a minutes-long window where the live client writes a field the live rules' `hasOnly()` still rejects, and every such write permission-denies — it has happened. Loosening in the opposite direction (rules gaining a field no client writes yet) is always safe. **The GitHub Pages mirror** is published by **`deploy-mirror.yml`**, only from a commit a passing Hosting run released, under a minute after it (the first took about nine) (Settings → Pages → Source has been GitHub Actions since 10 November 2026). The root **`.nojekyll`** marker (empty file — do not delete) is for the way back: set the source to the branch again and it stops that build running Jekyll, which hard-times-out at 10 minutes.
+**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting) · `deploy-rules.yml` (Firestore/Storage rules). **All three authenticate via Workload Identity Federation** (`google-github-actions/auth`, pinned `v3.0.0`; only the `deploy` jobs declare `permissions: id-token: write`). **The three fire in PARALLEL from one push, with no ordering guarantee** (successive pushes QUEUE per workflow — a `concurrency` group with `cancel-in-progress: false` — so an older push can never release last, and a re-run a newer run has overtaken stops itself, `.github/actions/refuse-overtaken-rerun`). So any change where the new client DEPENDS on new rules (a schema expansion: a new override field, a new analytics counter id, a new collection) must ship **backend-first, in its own push**: rules that ACCEPT the field first, the client that WRITES it only after the rules deploy is confirmed. In one push there is a minutes-long window where the live client writes a field the live rules' `hasOnly()` still rejects, and every such write permission-denies — it has happened. Loosening in the opposite direction (rules gaining a field no client writes yet) is always safe. **The GitHub Pages mirror** is published by **`deploy-mirror.yml`**, only from a commit a passing Hosting run released, under a minute after it (Settings → Pages → Source has been GitHub Actions since 10 November 2026). The root **`.nojekyll`** marker (empty file — do not delete) is for the way back: set the source to the branch again and it stops that build running Jekyll, which hard-times-out at 10 minutes.
 
 **⚠️ Firebase API key referrer restriction — add every domain the app is served from:**
 The Firebase web API key is restricted to specific HTTP referrers in GCP Console → APIs & Services → Credentials. If a domain is missing, **every Firebase Auth call fails** — sign-ins, Firestore writes and push subscriptions all break, and nothing on screen names the cause (a typed sign-in says only "Couldn’t sign you in"). Current allowlist must include:
@@ -179,8 +179,8 @@ only that area; a decision that binds more than one area stays in this file.
 | `admin.md` | the Admin page — the pill types, "Recording for", AL on a rest day, Sunday corrections, checked saves, the range picker | `admin.*` · `admin-*` · `al-*` · `e2e/admin.spec.js` |
 | `nav-drawer.md` | the drawer, About and the header logo, sign-out, the bell, App Notices, Android Back, the topmost overlay | `nav-panel.js` · `nav-guide-search.js` · `overlay.js` · `about-lightbox.js` and their tests |
 | `pwa.md` | the service worker's caching and update lifecycle, the offline fallback, the manifest, Firestore's local cache | `service-worker.js` · `sw-register.js` · `sw-*.test.mjs` · `manifest.json` · `firebase-client.js` · the offline lane |
-| `sessions.md` | one local session, re-establishing Firebase on load, strict write isolation, the claim tiers, `normaliseSurname` | `session.js` · `page-session.js` · `login-overlay.js` · `auth-*` · `claim-retry.js` · `password-force.js` · `firebase-client.js` · `firestore.rules` · the functions' auth and identity files |
-| `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` |
+| `sessions.md` | one local session, re-establishing Firebase on load, strict write isolation, the claim tiers, `normaliseSurname` | `session.js` · `silent-sign-in.js` · `page-session.js` · `login-overlay.js` · `auth-*` · `claim-retry.js` · `password-force.js` · `own-password.js` · `firebase-client.js` · `firestore.rules` · the functions' auth and identity files |
+| `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` · `roster-roles.js` |
 | `roster-import.md` | the weekly roster import, and every defence against a week written onto the wrong days | the import modules and `functions/roster-*` |
 | `paycalc.md` | the Pay Calculator — rates, payroll rules, state, layout, the real-payslip net | `paycalc*` |
 | `links-design.md` | the Links workspace | `links*` |
@@ -225,8 +225,8 @@ regression somewhere the author was not looking.
 | the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects (a frozen 85% scale, a date under the close button) were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
 | `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on the Calendar, Team Week, the legend, Overtime's roster and Admin's week grid, the leave records, and the allowance (`entitlementFor`) | `christmas-leave.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
-| `session.js` · `login-overlay.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (the overlay on every sign-in page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
-| `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, and what it reports when its outcome is unknown | `claim-retry.test.mjs` · `e2e/admin.spec.js` · `e2e/operations.spec.js` |
+| `session.js` · `silent-sign-in.js` · `login-overlay.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (the overlay on every sign-in page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
+| `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, what it reports when its outcome is unknown, and when any page may reload for an update | `claim-retry.test.mjs` · `sw-register.test.mjs` · `e2e/admin.spec.js` · `e2e/operations.spec.js` |
 | a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` — for `overrides` it writes the REAL `buildOverrideWrite` output; for every other collection check the writer's keys against the rule's `hasOnly()` BY HAND (`firestore-contract-parity.test.mjs` checks ids and allowlists, not field sets) |
 | `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |
 | `firebase.json` CSP header | every page's `<meta>` CSP, because the Pages mirror serves no headers | `csp-meta-parity.test.mjs` · `npm run test:csp` |
@@ -255,8 +255,7 @@ correct. So when you add a module, give it a one-line entry in `FILE_INDEX.md` a
 in its header; see `AI_MAP.md` for full module descriptions and export lists. Reasoning leaves a doc
 only after it is verified in the module header. `doc-parity.test.mjs` caps each catalogue entry and
 the version stamps in it, refuses a file routed twice, and caps this file's total size, because it is
-loaded into every session; `githooks/pre-commit` refuses a module that is not listed in
-`FILE_INDEX.md` and `AI_MAP.md`.
+loaded into every session.
 
 **The rule tested, the wiring not** — the named risk. This repo's breadth of rule, contract and
 hygiene tests is its strength and also its blind spot: a helper can be perfect and the answer still
@@ -430,10 +429,11 @@ current-notices table**, which is kept current there.
 > **⚠️ The member table is WORLD-READABLE.** It lives in `roster-member-data.js` (re-exported by
 > `roster-data.js`), and both are served from both origins with no session, no PIN and no token:
 > every name on the roster, each one's pattern and cycle position, and whatever optional fields an
-> entry carries — join dates, a joining year's pro-rated leave, scheduled roster moves, and which
-> people hold a BILINGUAL CONTRACT, which is a fact about their terms rather than their rota. That the
-> base roster is public is a deliberate classification (owner, 4 Sep 2026 — shift patterns are on the
-> station's own printed rosters); the reasoning is `AUTH_PLAN.md` §2. **A field added there is
+> entry carries — join dates, a joining year's pro-rated leave, scheduled roster moves, earlier
+> grades and when each ended, and which people hold a BILINGUAL CONTRACT, which is a fact about
+> their terms rather than their rota. That the base roster is public is a deliberate classification
+> (owner, 4 Sep 2026 — shift patterns are on the station's own printed rosters); the reasoning is
+> `AUTH_PLAN.md` §2. **A field added there is
 > published the moment it ships**, so anything a stranger should not read belongs in Firestore behind
 > a claim — as `staffContact` (the work email) already does. `public-data-classification.test.mjs`
 > fails on an unclassified field. State the exposure as KINDS of field, never as counts: a tally
