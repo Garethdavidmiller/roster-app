@@ -313,7 +313,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     /** Record auth-error diagnostics for the CURRENT attempt only. @param {string|undefined} code */
     const recordError = (code) => {
         if (!fresh()) return;
-        _fbAuthError = code;   // read via getFirebaseAuthError() (admin-auth.js, operations-app.js)
+        _fbAuthError = code;   // read via getFirebaseAuthError() (admin-auth.js, login-overlay.js, operations-app.js)
     };
 
     // Reset for this attempt — but ONLY while it is still current. A SUPERSEDED retry (ensureNamedSession
