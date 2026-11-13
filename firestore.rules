@@ -44,7 +44,9 @@ rules_version = '2';
 // a member as "a `name` claim"; they now say what the rules ask — `isMember()` / `memberName()`, a
 // password sign-in at the address the name derives to, carrying the server-set `member` claim
 // (AUTH_AND_SESSIONS 19). A bare `name` proves nothing (any account may set its display name), so a
-// rule copied from the old wording would reopen that hole.
+// rule copied from the old wording would reopen that hole. And a static gate now reads this file and
+// storage.rules: every rule, and every function, that tests for a session must also ask a claim on
+// every path (rules-claim-gate.test.mjs, AUTH_AND_SESSIONS 9) — a bare `request.auth != null` fails it.
 // Prior sweep 13 Nov 2026 (v25.90, the checked save): no rule changed. The `overrides` read must
 // never consult `resource` — every online save now reads each day it writes inside one
 // transaction, and a day's first save reads a document that is not there (pinned by a rules test).

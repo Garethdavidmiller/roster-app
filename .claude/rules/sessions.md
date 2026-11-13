@@ -74,8 +74,11 @@ has `name` but not `manager`.
 Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for
 the Firebase *password* is applied separately by the password builders in `session.js` / `functions`,
 **not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is
-**re-exported by `firebase-client.js`**. A deliberate
-duplicate lives in `functions/roster-parse-helpers.js`, inside `nameToPassword()` and `nameToEmail` —
-Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build
-step. If the rule ever changes, update both locations (`surname-parity.test.mjs` enforces it), and
-read AUTH_AND_SESSIONS.md 12 first: `firestore.rules` carries a third copy of the email derivation.
+**re-exported by `firebase-client.js`**. The letters-only rule is spelled ONCE on each side
+(sign-in audit, Nov 2026): `lettersOnly` in `auth-identity.js`, which `normaliseSurname`,
+`credentialCandidatesFor` and `validateNewPassword` all go through, and `surnameCore` in
+`functions/roster-parse-helpers.js`, which `nameToEmail` and `nameToPassword()` share — Cloud
+Functions are CommonJS and cannot import browser ES modules, so unification requires a build step.
+If the rule ever changes, update both cores (`surname-parity.test.mjs` compares them across the whole
+roster and checks each side spells the rule once), and read AUTH_AND_SESSIONS.md 12 first:
+`firestore.rules` carries a third copy of the email derivation.

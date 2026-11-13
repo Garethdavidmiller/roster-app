@@ -509,7 +509,7 @@ function log — counts only.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. The client never CREATES a missing account: one that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js`.
 
-**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **A DISABLED account is refused** (v25.77): a reset would leave it unable to sign in, so Reset says so and changes nothing, and the reset-request card marks it "Account disabled — run Set up accounts", which re-enables it on the surname default. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's. It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
+**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **A DISABLED account is refused** (v25.77): a reset would leave it unable to sign in, so Reset says so and changes nothing, and the reset-request card marks it "Account disabled — run Set up accounts", which re-enables it on the surname default. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's — unless you tick *Their phone is lost or stolen*, which sends nothing (below, step 5). It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
 
 ### Locked-out member → reset request queue
 
@@ -540,8 +540,16 @@ design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
 
    Operationally the figure to read is **`notified`**, reported beside `revoked` and `stamped`: the
    credential has already changed by that line, so a push failure never means the reset failed. A
-   member with no subscription is a legitimate `false`, and that case — signed out AND not told — is
-   the admin's cue to reach them another way.
+   member with no subscription is a legitimate `false`, and any reset nobody was told about — whether
+   or not the sign-out worked — is the admin's cue to reach them another way.
+
+   **A lost or stolen phone: tick the box.** The Reset dialog asks "Their phone is lost or stolen",
+   unticked. Ticked, the server sends no notice (it would land on that phone's lock screen) and deletes
+   every push record the account owns, so the phone receives nothing more; the result says so, or that
+   the records could not be removed, and to reset again with the box ticked. Either way **you tell the
+   member yourself**. The password is the surname default afterwards, and the sign-in card names it, so
+   ask them to sign in on another device and choose a new one promptly — until they do, whoever holds
+   the phone could type it too.
 
 **A device that subscribed before v17.76** (when `owner` was first stamped on subscriptions) needs
 nothing doing: `notif.js` re-saves the record with its owner at the next load, outside its 24-hour
@@ -742,6 +750,18 @@ The take-back never fires for an account provisioned before v24.24: those alread
 **`reclaim-failed`** (the take-back) or **`re-enable-failed`** (a disabled account) entry under
 failures means it did not complete and NO claims were stamped on that account (after
 `re-enable-failed` it also stays disabled) — run Set up accounts again.
+
+**The card names who a run will reset before you press it** (sign-in audit, Nov 2026). The audit's
+reasons are *no account*, *wrong permissions*, *no permissions* (an account registered from outside —
+`unstamped`; an older server called it `claims`) and *account disabled*. The last two are reset to the
+surname default and signed out by Set up accounts, so the card says so by name, and you can tell them.
+
+**"Access reduced and signed out of every device"** names anyone a run took admin, manager or Links
+designer from (`demoted`): the account's sessions are revoked, so the old access stops at once rather
+than when the sign-in renews. Their password is untouched. A **`lookup-failed`** or **`stamp-failed`**
+entry under failures means a new account was NOT created for that name (its `resetAt` must land first)
+— run Set up accounts again. A confirmed leaver run also switches off the notifications of leavers
+disabled on an earlier run whose phones had saved them again, and counts them when there were any.
 
 ### What this does NOT do, and has to be done per week
 
