@@ -22,6 +22,15 @@
  * and their like can come from that read, AFTER the password changed. Only a code that cannot arise
  * once the write has landed proves nothing changed: the SDK's own checks of its arguments, made before
  * any request, and the service refusing the password or not finding the account.
+ *
+ * ── A TIER TAKEN AWAY STOPS AT ONCE (audit D3) ──────────────────────────────────────────────────
+ *
+ * setCustomUserClaims replaces an account's claims, but a token already issued carries the old ones
+ * until it renews — up to an hour, in which a member just taken off the admin, manager or designer
+ * list still has that tier. So when Set up accounts takes one away, it revokes the account's refresh
+ * tokens: `requireAdmin` verifies with `checkRevoked`, so the Cloud Functions refuse the old tier at
+ * once (the Firestore rules read the token itself, and catch up when it renews). Never for the same
+ * tier or a higher one: a revocation signs the member out of every device.
  */
 
 /** Auth codes that PROVE a password write changed nothing — the header says why the list is short. */
@@ -68,4 +77,22 @@ function unwrittenResetAnswer(member, err, { restored }) {
     };
 }
 
-module.exports = { passwordWriteRefused, unwrittenResetAnswer };
+/** The claims a tier adds above `name`/`member` — what a re-stamp can take away (the header, D3). */
+const ELEVATED_CLAIMS = Object.freeze(['admin', 'manager', 'linksDesigner']);
+
+/**
+ * Which elevated claims an account HELD before a re-stamp and will not hold after it. Only `true`
+ * counts as held, as the rules read it. An account with nothing before — new, or taken back — loses
+ * nothing, and neither does one whose tier stays or RISES: manager → admin drops `manager` only on
+ * paper, because admin outranks it and claimsForTier never stamps both.
+ * @param {Record<string, any>|null|undefined} before  the account's customClaims, as read before the stamp
+ * @param {Record<string, any>} after                  the claims being stamped (claimsForTier)
+ * @returns {string[]}  in ELEVATED_CLAIMS order; empty when nothing is taken away
+ */
+function elevatedClaimsLost(before, after) {
+    if (!before || typeof before !== 'object') return [];
+    const has = (/** @type {any} */ c, /** @type {string} */ k) => !!c && c[k] === true;
+    return ELEVATED_CLAIMS.filter((k) => has(before, k) && !has(after, k) && !(k === 'manager' && has(after, 'admin')));
+}
+
+module.exports = { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS };

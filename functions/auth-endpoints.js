@@ -43,7 +43,7 @@ const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push'
 const { requireAdmin, readJsonBody } = require('./request-helpers');
 const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('./member-identity');
 const { buildResetRequestEndpoint } = require('./reset-request');
-const { passwordWriteRefused, unwrittenResetAnswer } = require('./account-lifecycle');
+const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost } = require('./account-lifecycle');
 
 /**
  * Stamp `passwordStatus/{member}.resetAt`, the marker a device's SILENT sign-in is refused against
@@ -118,12 +118,13 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  * Auth: Authorization: Bearer <Firebase ID token with admin custom claim>
  *
  * Response:
- *   { created, skipped, reclaimed, disabled, failed: string[],
+ *   { created, skipped, reclaimed, disabled, failed, demoted: string[],
  *     orphanSweepFailed?: true,
  *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
  *   `reclaimed` names every member whose account this run put back on the surname default and
  *   signed out — an account registered from outside (taken back) or a disabled one re-enabled.
- *   The admin is the only person who can tell them, which is why they are named.
+ *   The admin is the only person who can tell them, which is why they are named. `demoted` names
+ *   every member this run took admin, manager or linksDesigner from, each signed out of every device.
  */
 const setupRosterAuth = onRequest(
     {
@@ -165,6 +166,7 @@ const setupRosterAuth = onRequest(
         const reclaimed = [];
         const disabled = [];
         const failed   = [];
+        const demoted  = [];   // lost admin, manager or linksDesigner this run, and signed out (account-lifecycle.js)
         // Emails of members whose name+email derivation succeeded — the authoritative
         // "active" set for orphan removal. Built here (not re-derived from the raw,
         // unvalidated `members` array later) so a single bad entry can't throw during
@@ -218,7 +220,7 @@ const setupRosterAuth = onRequest(
                 console.error(`[setupRosterAuth] resetAt stamp failed, so ${email} was not created: ${stampErr.message}`);
                 continue;
             }
-            let uid, justCreated = false;
+            let uid, justCreated = false, previousClaims = null;
             try {
                 const user = await getAuth().createUser({ email, password, displayName: name });
                 uid = user.uid;
@@ -284,6 +286,7 @@ const setupRosterAuth = onRequest(
                             reclaimed.push(name);
                             console.warn(`[setupRosterAuth] Re-enabled a disabled account on the default password, signed out: ${email}`);
                         } else {
+                            previousClaims = existing.customClaims;   // what the stamp below may take away
                             skipped.push(name);
                         }
                     } catch (lookupErr) {
@@ -308,6 +311,7 @@ const setupRosterAuth = onRequest(
             // a member removed from the admin/manager list loses the elevated claim on the next run.
             if (uid) {
                 const claims = claimsForTier(name, { adminSet: adminMembers, managerSet: managerMembers, designerSet: designerMembers });
+                let lost = [];
                 try {
                     // A just-created account left claimless is one the NEXT run takes back (password
                     // reset + revoke, `mustReclaim`), so its first stamp gets one immediate retry.
@@ -317,9 +321,20 @@ const setupRosterAuth = onRequest(
                     });
                     const tier = (claims.admin ? 'admin+name' : claims.manager ? 'manager+name' : 'name') + (claims.linksDesigner ? '+designer' : '');
                     console.log(`[setupRosterAuth] Set ${tier} claim: ${email}`);
+                    lost = elevatedClaimsLost(previousClaims, claims);   // only once the new claims are on
                 } catch (claimErr) {
                     failed.push(`${name} (claim-failed: ${claimErr.message})`);
                     console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${claimErr.message}`);
+                }
+                // A TIER TAKEN AWAY STOPS AT ONCE (sign-in audit D3): its sessions are revoked, so the old
+                // tier's cached token is refused by every checkRevoked endpoint now, not when it renews.
+                if (lost.length) try {
+                    await getAuth().revokeRefreshTokens(uid);
+                    demoted.push(name);
+                    console.warn(`[setupRosterAuth] ${email} lost ${lost.join(' and ')} — signed out of every device`);
+                } catch (revokeErr) {
+                    failed.push(`${name} (lost ${lost.join(' and ')} but could not be signed out, so the old access lasts until their sign-in renews: ${revokeErr.message})`);
+                    console.error(`[setupRosterAuth] revoke after a lost tier failed for ${name}: ${revokeErr.message}`);
                 }
             }
         }
@@ -374,7 +389,7 @@ const setupRosterAuth = onRequest(
         }
 
         res.json({
-            created, skipped, reclaimed, disabled, failed,
+            created, skipped, reclaimed, disabled, failed, demoted,
             ...(orphanSweepFailed ? { orphanSweepFailed: true } : {}),
             // Present only for a removeOrphans request WITHOUT confirm — the admin previews these,
             // then re-submits with confirmOrphanRemoval:true to actually disable them.

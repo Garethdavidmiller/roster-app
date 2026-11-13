@@ -1284,14 +1284,18 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
         // `{ admin: true }` and no name. Only the Admin SDK or the console can set a claim, so ANY
         // claim is proof the account is not self-registered — and resetting it would reset the admin
         // pressing the button and revoke the session making the call.
-        const acct = { ...outsiderAccount(MEMBER), customClaims: { admin: true } };
+        // THE ADMIN'S OWN ACCOUNT (Nov 2026): this fixture gave the hand-set claim to an ordinary member,
+        // and since the sign-in audit (D3) a member whose `admin` Set up accounts takes away IS signed
+        // out — "setupRosterAuth signs out an account whose tier it takes away" has that case. The
+        // recovery this comment describes is the admin's, whose tier the run keeps.
+        const acct = { ...outsiderAccount(ADMIN), customClaims: { admin: true } };
         const { eps, authOps } = build({ existingUsers: [acct] });
         const out = await call(eps.setupRosterAuth, asAdmin({}));
         assert.deepEqual(out.body.reclaimed, []);
-        const mine = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        const mine = authOps.filter((o) => o.uid === uidFor(ADMIN));
         assert.equal(mine.filter((o) => o.op === 'revokeRefreshTokens').length, 0, 'no session is ended');
         assert.equal(mine.filter((o) => o.op === 'updateUser' && 'password' in (o.patch || {})).length, 0, 'no password is touched');
-        assert.equal(claimFor(authOps, MEMBER).member, MEMBER, 'it is stamped as it stands');
+        assert.equal(claimFor(authOps, ADMIN).member, ADMIN, 'it is stamped as it stands');
     });
 
     test('an empty claims object is no claim — still an outsider\'s', async () => {
@@ -1494,6 +1498,79 @@ describe('a new account\'s first claim stamp is retried once', () => {
         const { eps } = build({ authFail: { setCustomUserClaimsTimes: 2 } });
         const out = await call(eps.setupRosterAuth, asAdmin({}));
         assert.equal(out.body.failed.filter((f) => /claim-failed/.test(f)).length, 1);
+    });
+});
+
+// ── A TIER TAKEN AWAY STOPS AT ONCE (sign-in audit D3, Nov 2026) ────────────────────────────────
+// setCustomUserClaims replaces the claims, but a token already issued keeps the old ones until it
+// renews — up to an hour of a removed manager, admin or designer still holding the tier. Now the
+// account's refresh tokens are revoked when a run takes one away, so every checkRevoked endpoint
+// refuses the old tier at once. Never for the same tier or a higher one: a revocation signs the member
+// out of every device.
+describe('setupRosterAuth signs out an account whose tier it takes away', () => {
+    const roster = (/** @type {any} */ roles) => ({ activeMembers: [ADMIN, MEMBER, MANAGER],
+        roles: { admin: [ADMIN], manager: [], designer: [], ...roles } });
+    const holding = (name, claims) => ({ uid: uidFor(name), email: emailFor(name), displayName: name, disabled: false,
+        customClaims: { name, member: name, ...claims } });
+    const revokesOf = (authOps, name) => authOps.filter((o) => o.op === 'revokeRefreshTokens' && o.uid === uidFor(name));
+
+    for (const [what, claims, roles] of [
+        ['a manager taken off the manager list', { manager: true }, {}],
+        ['an admin taken off the admin list', { admin: true }, {}],
+        ['a designer taken off the designer list', { linksDesigner: true }, {}],
+        ['a member given admin by hand, who is not on the admin list', { admin: true }, { manager: [MANAGER] }],
+    ]) {
+        test(`${what} is signed out, AFTER the lesser claims are on`, async () => {
+            const { eps, authOps } = build({ rosterJson: roster(roles), existingUsers: [holding(MEMBER, claims)] });
+            const out = await call(eps.setupRosterAuth, asAdmin({}));
+            assert.deepEqual(out.body.demoted, [MEMBER], JSON.stringify(out.body));
+            const stamp = authOps.findIndex((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER));
+            assert.deepEqual(authOps[stamp].claims, { name: MEMBER, member: MEMBER }, 'fixture check: the tier went');
+            const revokes = revokesOf(authOps, MEMBER);
+            assert.equal(revokes.length, 1, 'the old tier\'s sessions were left running');
+            assert.ok(authOps.indexOf(revokes[0]) > stamp, 'revoked before the new claims were on — the next token would carry the old tier');
+        });
+    }
+
+    for (const [what, claims, roles] of [
+        ['the same tier', { manager: true }, { manager: [MEMBER] }],
+        ['a rise from member to manager', {}, { manager: [MEMBER] }],
+        ['a rise from manager to admin', { manager: true }, { admin: [ADMIN, MEMBER] }],
+        ['a designer kept, beside a new tier', { linksDesigner: true }, { manager: [MEMBER], designer: [MEMBER] }],
+    ]) {
+        test(`${what} signs nobody out`, async () => {
+            const { eps, authOps } = build({ rosterJson: roster(roles), existingUsers: [holding(MEMBER, claims)] });
+            const out = await call(eps.setupRosterAuth, asAdmin({}));
+            assert.deepEqual(revokesOf(authOps, MEMBER), [], 'a member whose tier stayed or rose was signed out of every device');
+            assert.deepEqual(out.body.demoted, []);
+        });
+    }
+
+    test('a sign-out that fails is reported — the old tier lasts until the token renews', async () => {
+        const { eps, authOps } = build({ rosterJson: roster({}), existingUsers: [holding(MEMBER, { manager: true })],
+            authFail: { revokeRefreshTokens: 'unavailable' } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.demoted, []);
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (lost manager but could not be signed out`)), out.body.failed.join(' | '));
+        assert.deepEqual(authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(MEMBER)).claims,
+            { name: MEMBER, member: MEMBER }, 'the claims were still corrected');
+    });
+
+    test('a claim stamp that fails signs nobody out — the account still holds the tier', async () => {
+        const { eps, authOps } = build({ rosterJson: roster({}), existingUsers: [holding(MEMBER, { manager: true })],
+            authFail: { setCustomUserClaims: 'unavailable' } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(revokesOf(authOps, MEMBER), []);
+        assert.deepEqual(out.body.demoted, []);
+    });
+
+    test('a re-enabled account is signed out once, by the re-enable — never a second time for its tier', async () => {
+        const leaver = { ...holding(MEMBER, { manager: true }), disabled: true };
+        const { eps, authOps } = build({ rosterJson: roster({}), existingUsers: [leaver] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.reclaimed, [MEMBER], 'fixture check: re-enabled');
+        assert.equal(revokesOf(authOps, MEMBER).length, 1);
+        assert.deepEqual(out.body.demoted, []);
     });
 });
 

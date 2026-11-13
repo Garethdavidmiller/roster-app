@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { passwordWriteRefused, unwrittenResetAnswer } = require('./functions/account-lifecycle.js');
+const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS } = require('./functions/account-lifecycle.js');
 
 // ── A PASSWORD WRITE THAT THROWS (audit E1) ─────────────────────────────────────────────────────
 //
@@ -79,5 +79,47 @@ describe('unwrittenResetAnswer — the admin is told what is TRUE, in every bran
             [{ code: 'auth/user-not-found' }, true], [new Error('x'), false]]) {
             assert.doesNotMatch(unwrittenResetAnswer(M, err, { restored }).error, /!/);
         }
+    });
+});
+
+// ── A TIER TAKEN AWAY (audit D3) ────────────────────────────────────────────────────────────────
+//
+// Missing a loss leaves a removed admin or manager their tier for up to an hour. Inventing one signs a
+// member out of every device for nothing — on every Set up accounts run, for every account it reads —
+// so the "nothing lost" cases matter as much as the losses.
+describe('elevatedClaimsLost — what a re-stamp takes away', () => {
+    const base = { name: 'A. Member', member: 'A. Member' };
+    const tier = (/** @type {object} */ extra = {}) => ({ ...base, ...extra });
+
+    test('each elevated claim, taken away, is reported', () => {
+        assert.deepEqual(ELEVATED_CLAIMS, ['admin', 'manager', 'linksDesigner']);
+        for (const k of ELEVATED_CLAIMS) {
+            assert.deepEqual(elevatedClaimsLost(tier({ [k]: true }), tier()), [k], k);
+        }
+        assert.deepEqual(elevatedClaimsLost(tier({ admin: true, linksDesigner: true }), tier()), ['admin', 'linksDesigner']);
+        assert.deepEqual(elevatedClaimsLost(tier({ admin: true }), tier({ manager: true })), ['admin'], 'admin → manager is a loss');
+        assert.deepEqual(elevatedClaimsLost({ admin: true }, tier()), ['admin'], 'a hand-set claim counts as held');
+    });
+
+    test('the same tier, or a higher one, loses nothing', () => {
+        const same = [tier(), tier({ manager: true }), tier({ admin: true, linksDesigner: true })];
+        for (const t of same) assert.deepEqual(elevatedClaimsLost(t, { ...t }), [], JSON.stringify(t));
+        assert.deepEqual(elevatedClaimsLost(tier(), tier({ manager: true })), [], 'member → manager');
+        assert.deepEqual(elevatedClaimsLost(tier(), tier({ admin: true })), [], 'member → admin');
+        assert.deepEqual(elevatedClaimsLost(tier({ manager: true }), tier({ admin: true })), [],
+            'manager → admin: admin outranks manager, and the two are never stamped together');
+        assert.deepEqual(elevatedClaimsLost(tier({ linksDesigner: true }), tier({ manager: true, linksDesigner: true })), []);
+    });
+
+    test('an account with nothing before — new, or taken back — loses nothing', () => {
+        for (const before of [undefined, null, {}, 'admin']) {
+            assert.deepEqual(elevatedClaimsLost(/** @type {any} */ (before), tier()), [], JSON.stringify(before));
+        }
+    });
+
+    test('only `true` counts as held, as the rules read it', () => {
+        assert.deepEqual(elevatedClaimsLost(tier({ admin: 'true', manager: 1, linksDesigner: false }), tier()), []);
+        assert.deepEqual(elevatedClaimsLost(tier({ manager: true }), tier({ manager: 'true' })), ['manager'],
+            'a stamp the rules would not believe is not the tier kept');
     });
 });
