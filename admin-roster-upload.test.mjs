@@ -37,6 +37,9 @@ const _txAttempts       = [];         // every attempt's ops, a re-run Firestore
 const _txReads          = [];         // every id a transaction read
 let   _txRerunOnce      = false;      // run the function twice, as Firestore does when a read record changed
 let   _minted           = 0;          // new ids are DISTINCT, so a second copy of a row would show
+// This device's own queued saves (v25.95): what a deleting part waits on before its transaction.
+let   _ownWritesSent    = () => Promise.resolve(true);   // true: drained; false: not in time
+let   _ownWritesAsked   = 0;
 // getDocs impl the fetchOverridesForWeek tests swap in (default: empty result set).
 let   _getDocsImpl      = async () => ({ docs: [] });
 
@@ -87,6 +90,7 @@ mock.module('./firebase-client.js', {
             _batchOps.push(ops);
         },
         serverTimestamp: () => 'TS',
+        whenOwnWritesSent: async () => { _ownWritesAsked++; return _ownWritesSent(); },
         // Faithful mini-implementation of the real helper: run the thunk; on permission-denied,
         // "force a token refresh" (counter) and retry once; any other error rethrows immediately.
         writeWithClaimRetry: async (/** @type {Function} */ fn) => {
@@ -373,12 +377,13 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
 // cannot hide theirs (a manual record outranks an import); a record it DELETES can destroy their newer
 // version. So a part that deletes is one transaction that re-reads what it deletes (roster-import-save.js).
 
-const { IMPORT_CHANGED_CODE, refusalLine } = await import('./roster-import-save.js');
+const { IMPORT_CHANGED_CODE, refusalLine, UNSENT_SAVES_DETAIL } = await import('./roster-import-save.js');
 
 describe('the import\'s Save is checked against what the review loaded (v25.92)', () => {
     beforeEach(() => {
         _batchOps.length = 0; _txAttempts.length = 0; _txReads.length = 0; _serverDocs.clear();
         _txRerunOnce = false; _commitBehavior = () => {}; _idTokenRefreshes = 0; _refreshShouldFail = false;
+        _ownWritesSent = () => Promise.resolve(true); _ownWritesAsked = 0;
     });
     const TUE = '2026-06-16';
     /** A record as the review loaded it — and, unless a test says otherwise, as the server still holds it. */
@@ -476,6 +481,52 @@ describe('the import\'s Save is checked against what the review loaded (v25.92)'
         _commitBehavior = () => { throw Object.assign(new Error('offline'), { code: 'unavailable' }); };
         const err2 = await _saveOverrideBatches([useNew(null)], 'G. Miller').catch(e => e);
         assert.equal(err2?.partialCommit, undefined);
+    });
+
+    // THE QUEUED-SAVE RACE (v25.95): a transaction reads the SERVER, so a Change a Shift this device saved offline is not
+    // there yet — its record would be deleted as already gone, and the queued save would then land
+    // and stand over the import's. A deleting part waits for the device's own queue first.
+    test('a deleting part waits for this device\'s own unsent saves before its transaction starts', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        /** @type {(sent: boolean) => void} */ let drained = () => {};
+        _ownWritesSent = () => new Promise(r => { drained = r; });
+        const saving = _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1')));
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(_txAttempts.length, 0, 'the transaction read the server before this device\'s own saves had reached it');
+        drained(true);
+        await saving;
+        assert.equal(_txAttempts.length, 1);
+        assert.equal(_ownWritesAsked, 1);
+    });
+
+    test('…and when they have not reached the server in time, nothing is sent and the review stays open', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        _ownWritesSent = () => Promise.resolve(false);
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(err?.code, 'unavailable');
+        assert.equal(err.partialCommit, undefined, 'no transaction started, so nothing can have landed: the review must not close as "may be saved"');
+        assert.equal(err.message, UNSENT_SAVES_DETAIL, 'the admin reads this after "Couldn\'t save — "');
+        assert.equal(_txAttempts.length, 0);
+        assert.equal(_batchOps.length, 0);
+    });
+
+    test('a part that only ADDS does not wait — its batch joins the queue behind them', async () => {
+        _ownWritesSent = () => Promise.resolve(false);
+        await _saveOverrideBatches([useNew(null)], 'G. Miller');
+        assert.equal(_ownWritesAsked, 0);
+        assert.equal(_batchOps.length, 1);
+    });
+
+    test('a LATER deleting part that gives up after an earlier part landed is still "part of it may be saved"', async () => {
+        // 230 rows that only add, then 5 that delete: the first part (225 rows) is a batch that lands.
+        const adds = Array.from({ length: 230 }, (_, i) => useNew(null, { date: `2026-07-${String(1 + (i % 28)).padStart(2, '0')}` }));
+        const dels = Array.from({ length: 5 }, (_, i) => useNew(`d${i}`));
+        const shown = new Map(dels.map(r => [r.replaceId, rec(r.replaceId)]));
+        _ownWritesSent = () => Promise.resolve(false);
+        const err = await _saveOverrideBatches([...adds, ...dels], 'G. Miller', shown).catch(e => e);
+        assert.equal(err?.code, 'unavailable');
+        assert.equal(err.partialCommit, true);
+        assert.equal(_batchOps.length, 1);
     });
 
     test('the refusal names the days, in the app\'s date style, and says what to do next', () => {

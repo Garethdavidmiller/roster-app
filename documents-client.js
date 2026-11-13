@@ -29,6 +29,19 @@
  * timestamps, the analytics counters and the error log — five domains that have nothing to do with
  * each other and no reason to be read together.
  *
+ * ── ONE RE-WRITE IT CANNOT GUARD: THE SDK'S OWN RE-SEND (13 Nov 2026) ───────────────────────────
+ *
+ * The retry below re-reads first and writes nothing when the record already names our path — the
+ * same guard ingestHuddle's re-run now has. But the FIRST `setDoc` is sent at least once: when the
+ * connection drops after the server committed and before its acknowledgement arrived, the SDK sends
+ * the same write again on reconnecting, which may be hours later. If Operations → Document links moved
+ * the record onto a new key in between, the re-send puts our first link back, and once that run has
+ * taken the old key away the stored link opens nothing. Only a transaction could recognise its own
+ * write, and a transaction cannot wait offline as a `setDoc` does: in a weak signal it would turn an
+ * upload that saves on reconnecting into one reported as unconfirmed. So it is left as it is — the
+ * stored link is only the fallback (members open documents through a 15-minute link signed from the
+ * path), Check counts such a record, and Replace mends it (functions/doc-link-rotation.js).
+ *
  * ── WHY IT IS A FACTORY, AND NOT A MODULE THAT IMPORTS `db` ─────────────────────────────────────
  *
  * Two reasons, and the second is the one that earns it:

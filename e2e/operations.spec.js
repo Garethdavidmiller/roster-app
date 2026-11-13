@@ -3800,6 +3800,7 @@ test.describe('operations: the roster read, cut off', () => {
             const real = window.fetch;
             /** @type {any} */ (window).fetch = (/** @type {any} */ input, /** @type {any} */ init) => {
                 if (!String(input instanceof Request ? input.url : input).includes('parseRosterPDF')) return real(input, init);
+                /** @type {any} */ (window).__parseSent = true;
                 const json = () => new Promise((_, reject) => init?.signal?.addEventListener('abort',
                     () => reject(new DOMException('The operation was aborted.', 'AbortError'))));
                 return Promise.resolve({ ok: true, status: 200, json });
@@ -3809,6 +3810,11 @@ test.describe('operations: the roster read, cut off', () => {
         await choosePdf(page);
         await page.locator('#rosterParseBtn').click();
         await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
+        // The read's own bound starts as the request goes, after the file is read and a token fetched —
+        // not at "Reading…". Moved before then, the clock left the bound to run in real time, and on a
+        // busy machine the line never came (13 Nov 2026).
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__parseSent === true),
+            { message: 'the read was never sent' }).toBe(true);
         await page.clock.runFor(131_000);
         await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Parsing took longer than expected.");
         await expect(page.locator('#rosterParseBtn')).toHaveText('Read roster');
@@ -3922,8 +3928,9 @@ const linksReport = (over = {}) => ({
  * ({ status, body } — a string body is sent as it is). Returns the bodies the page sent, in order.
  * @param {import('@playwright/test').Page} page
  * @param {{ status: number, body: any }[]} runs
+ * @param {any} [preview]  the preview's report (default: the ordinary one)
  */
-async function stubLinkRotation(page, runs) {
+async function stubLinkRotation(page, runs, preview = linksReport()) {
     /** @type {any[]} */
     const sent = [];
     const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST' };
@@ -3932,7 +3939,7 @@ async function stubLinkRotation(page, runs) {
         if (route.request().method() !== 'POST') return route.fulfill({ status: 204, headers: cors });
         const body = route.request().postDataJSON();
         sent.push(body);
-        const answer = body.rotate === true ? runs.shift() ?? { status: 500, body: 'no run planned' } : { status: 200, body: linksReport() };
+        const answer = body.rotate === true ? runs.shift() ?? { status: 500, body: 'no run planned' } : { status: 200, body: preview };
         return route.fulfill({ status: answer.status, headers: cors,
             contentType: typeof answer.body === 'string' ? 'text/html' : 'application/json',
             body: typeof answer.body === 'string' ? answer.body : JSON.stringify(answer.body) });
@@ -3977,6 +3984,22 @@ test('operations document links: Check changes nothing, Replace asks first, and 
     await expect(result).toHaveClass(/huddle-feedback--ok/);
     expect(sent, 'only the confirmed press asked for a run').toEqual([{ rotate: false }, { rotate: true }]);
     await expect(replace, 'a clean run puts the button away').toBeHidden();
+});
+
+// A document whose stored link no longer opens its file (functions/doc-link-rotation.js): the check
+// says what that means for staff and that Replace mends it — and Replace is there to press.
+test('operations document links: a document whose link no longer opens its file is named, and Replace is offered', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    const sent = await stubLinkRotation(page, [], linksReport({ files: 3, linked: 3, unlinkedWithKey: 0, recordsDeadLink: 1 }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.locator('#docLinksChevron').click();
+    await page.locator('#docLinksCheckBtn').click();
+    const result = page.locator('#docLinksResult');
+    await expect(result).toContainText('1 document’s link no longer opens its file. Staff still open the document — the app opens it '
+        + 'with a fresh link of its own, and uses this one only if that fails. Replacing the links fixes it.');
+    await expect(page.locator('#docLinksReplaceBtn'), 'Replace is what mends it').toBeVisible();
+    expect(sent, 'a check asks for a preview, and nothing else').toEqual([{ rotate: false }]);
 });
 
 test('operations document links: a run that left a file, or whose answer is lost, keeps Replace and says so', async ({ page }) => {

@@ -410,6 +410,21 @@ export const deleteDoc = (ref) => {
   }
   return Promise.resolve();
 };
+// waitForPendingWrites(db) answers when THIS DEVICE'S queued writes have reached the server (v25.95) —
+// at once by default, as the real SDK does with nothing queued. window.__E2E.queuedWrites models a
+// save made offline that is still in the queue: every wait is COUNTED (queueWaits) and stays open
+// until the test calls window.__E2E.sendQueuedWrites() — the signal returning. A held batch
+// (holdCommits) is deliberately NOT counted as queued here, so no spec that holds a commit changes.
+// A GATE, like txHold. No backticks: inside FIREBASE_STUB.
+export const waitForPendingWrites = () => {
+  const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+  if (!e2e.queuedWrites) return Promise.resolve();
+  e2e.queueWaits = (e2e.queueWaits || 0) + 1;
+  if (!e2e._queueGate) {
+    e2e._queueGate = new Promise(r => { e2e.sendQueuedWrites = () => { e2e.queuedWrites = false; r(); }; });
+  }
+  return e2e._queueGate;
+};
 export const increment = () => marker('increment');   // FieldValue sentinel (usage counters)
 export const deleteField = () => marker('deleteField'); // FieldValue sentinel (usage prune)
 export class FieldPath {}                               // literal field path (usage daily-bucket prune)

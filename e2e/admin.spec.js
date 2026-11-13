@@ -2958,6 +2958,29 @@ test('admin: deleting a saved change for another day of the week keeps the stage
         .toEqual([`overrides/${OWN_MON}`]);
 });
 
+// THIS DEVICE'S OWN UNSENT SAVE GOES FIRST (v25.95). A save made offline waits in the device's queue and
+// shows as saved, but a delete's transaction reads the SERVER, which does not hold it yet. Just after the
+// signal returned, the delete called the record already gone and said "Deleted" — then the queued save
+// landed and the record was back. Now the delete waits for the queue: held while it is held, and away the
+// moment it is sent. The queue is the stub's (fixtures.js → waitForPendingWrites), a model of the SDK's.
+test('admin: a delete waits for the saves this device has not sent yet, then goes ahead', async ({ page }) => {
+    await page.addInitScript(() => {   // before the week's own seed, which keeps what is already here
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), queuedWrites: true };
+    });
+    await openWeekWithMondayLeave(page);
+    await page.locator('#overridesToggleHeader').click();
+    await deleteSavedChange(page, OWN_MON);
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.queueWaits || 0),
+        { message: 'the delete never waited for this device\'s queue' }).toBeGreaterThan(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []),
+        'the delete read the server before this device\'s own save had reached it').toEqual([]);
+    await expect(page.locator('#listFeedback')).not.toContainText('Deleted');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.sendQueuedWrites());   // the signal returns
+    await expect(page.locator('#listFeedback')).toContainText('Deleted: G. Miller', { timeout: 10000 });
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths)).toEqual([`overrides/${OWN_MON}`]);
+});
+
 test('admin: booking leave on other days of the week keeps the staged edit, and the week then saves', async ({ page }) => {
     await openAdminOnThisWeek(page);
     const friday = weekRow(page, '2026-08-28');
@@ -5396,7 +5419,9 @@ test('admin: each calendar is ONE Tab stop, and the arrow keys move the day — 
     await page.keyboard.press('Enter');
     await expect(page.locator('.dp-content')).toBeVisible();
     await expect(page.locator('#dpGrid .dp-day:not([tabindex="-1"])'), 'one stop in the picker\'s month').toHaveCount(1);
-    expect(await at(), 'it opens on the chosen day').toBe('2026-07-15');
+    // The picker takes focus in the frame AFTER it opens (createLightbox, overlay.js), so this waits for
+    // it: read once, on a busy machine it was still on the week label (13 Nov 2026).
+    await expect.poll(at, { message: 'it opens on the chosen day' }).toBe('2026-07-15');
     await page.keyboard.press('ArrowRight');
     expect(await at()).toBe('2026-07-16');
     await page.keyboard.press('ArrowUp');

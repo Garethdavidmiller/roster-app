@@ -2747,6 +2747,46 @@ the run takes it back.
 
 ---
 
+## Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)
+
+### A delete just after the signal returns could overtake this device's own queued save — CLOSED v25.95
+
+Recorded at v25.94 and not reproduced; closed at v25.95 by the fix the entry named. Every checked
+write — each Admin delete and save of a day, the leave-year move, and each part of the weekly roster
+import that deletes — now waits for this device's queue to drain before its transaction reads the
+server (`whenOwnWritesSent`, `firebase-client.js`; the rule and its reasoning are `ownWritesSent` in
+`claim-retry.js`). A queue that has not drained within eight seconds ends the write as a
+transaction that never reached the server does: a save that only writes is held as a batch BEHIND
+the queue, so the two land in the order they were made, and a removal is refused, writing nothing.
+Proven by `admin-override-store.test.mjs` block 8, the import's tests in
+`admin-roster-upload.test.mjs`, and an Admin browser test that holds the queue
+(`e2e/admin.spec.js`, "a delete waits for the saves this device has not sent yet"). The race itself
+has still not been run against a real Firestore with the network cut mid-flow: the browser suite
+models the queue rather than running it.
+
+The entry as it stood at v25.94, verbatim:
+
+Every Admin delete — a Saved Changes ✕, Delete selected, a Recorded dates ✕, and the removals in a
+week's save — is a transaction (`deleteIfUnchanged`, `commitChecked`; `admin-override-store.js`), and
+a Firestore transaction reads the SERVER, never this device's queue of writes not yet sent. A save
+made offline waits in that queue until the signal returns ("Two editors on one day", above), and a
+read once the signal is back shows it as though saved. So in the moments after reconnecting, a delete
+of a record still in the queue can run first: the server holds nothing there, which a delete counts
+as already gone, so it reports "✓ Deleted" — and then the queued save lands and the record is back.
+
+**What the admin would see:** "✓ Deleted", the row gone from Saved Changes, and the same record back
+on the next read of that member (another member and back, All staff, or the page after five minutes
+away) and on the Calendar. Nothing is written that the admin did not ask for; the delete simply did
+not take, and deleting it again works, because the save has landed by then. **How to notice:** a day
+deleted soon after the device came back online that reappears.
+
+**Why it is recorded and not fixed:** it follows from the Firestore 13.1.0 semantics — a transaction
+does not see pending writes — but it has NOT been reproduced: that needs a real browser against the
+emulator with the network cut and restored mid-flow, which the stubbed e2e suite cannot express. The
+window is narrow, from reconnecting until the queue is sent, normally about a second. The likely fix
+is to wait for the device's pending writes (`waitForPendingWrites`) before any checked delete. Revisit
+if a deleted day that came back is ever reported.
+
 ## Moved out of ROADMAP.md (7 Nov 2026)
 
 Finished work and closed indexes, moved **verbatim** by line range from `ROADMAP.md` as it stood at

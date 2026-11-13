@@ -145,6 +145,12 @@ export function writeBatch() {
         commit: async () => { for (const p of pending) await p(); },
     };
 }
+/** The SDK's wait for this device's queued writes (v25.95): RECORDED with the instance it was asked
+ *  about, and open until `state.pendingWrites` settles — at once when nothing is queued. */
+export async function waitForPendingWrites(fs) {
+    state.ops.push({ op: 'waitForPendingWrites', path: '', db: fs });
+    await state.pendingWrites;
+}
 export async function runTransaction(_db, fn) {
     return fn({ get: getDoc, set: (r, d, o) => setDoc(r, d, o), update: updateDoc, delete: deleteDoc });
 }

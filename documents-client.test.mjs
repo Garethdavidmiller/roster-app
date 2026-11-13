@@ -317,22 +317,26 @@ describe('the retry cannot overwrite somebody who committed while it was decidin
         assert.ok(!h.deleted.includes(theirs.storagePath), 'and it is ours, never theirs');
     });
 
-    test('our OWN write landing in the window is not re-written', async () => {
+    test('our OWN write landing in the window is not re-written — not even its link', async () => {
         // The first attempt's commit arrives late, after the reconciliation read said nothing was
-        // live. Re-issuing would be harmless here and returning early is still right: it is one
-        // fewer write, and the branch has to exist for the assertion above to mean anything.
+        // live. Re-issuing it is NOT harmless (13 Nov 2026): Operations → Document links may have
+        // moved the record's link onto a new key in between, and writing our first link back would
+        // leave it naming a key that run then took away. So a record already naming our path is ours,
+        // whatever key it carries, and is left exactly as it is — the guard ingestHuddle's re-run has.
         // `let h` so the hook can read the path THIS upload generated — it carries a random suffix,
         // so the fixture cannot name it in advance.
+        const rotated = 'https://example.invalid/after-replace?alt=media&token=rotated';
         /** @type {any} */ let h;
         h = harness({
             setDocFails: (/** @type {number} */ n) => (n === 1 ? 'unavailable' : null),
             liveAfterFailure: null,
             onTxRead: (/** @type {any} */ store) =>
-                store.set('huddles/2026-09-01', { storagePath: h.uploaded[0], fileType: 'pdf' }),
+                store.set('huddles/2026-09-01', { storagePath: h.uploaded[0], fileType: 'pdf', storageUrl: rotated }),
         });
         await h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller');
         const ourPath = h.uploaded[0];
         assert.equal(h.store.get('huddles/2026-09-01').storagePath, ourPath);
+        assert.equal(h.store.get('huddles/2026-09-01').storageUrl, rotated, 'the retry wrote its first link back over a newer one');
         assert.deepEqual(h.deleted, [], 'nothing rolled back — it committed');
     });
 

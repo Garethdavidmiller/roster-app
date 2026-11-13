@@ -15,14 +15,14 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath, waitForPendingWrites } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (handed to the shared
 // upload engine in documents-client.js, which is where the huddle/circular/newsletter sequence
 // lives since v21.90) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
-import { runWithClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite } from './claim-retry.js';
+import { runWithClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent } from './claim-retry.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -356,6 +356,8 @@ export async function withClaimRetry(fn) {
 /** withClaimRetry for WRITES, through `runGatedWrite` (claim-retry.js, v24.39): after an unconfirmed
  *  write no new one starts until reload. @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
 export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
+/** Whether this device's queued writes reach the server within `ms` — a checked write asks first (claim-retry.js → ownWritesSent). @param {number} [ms] */
+export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrites(db), ms);
 
 /** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1) — for the admin reads below, which
  *  Operations painted as current offline ("✓ No outstanding requests", "0/51"). analytics-client.js keeps the

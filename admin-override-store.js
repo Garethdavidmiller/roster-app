@@ -33,7 +33,7 @@
  * `e2e/admin.spec.js` (which query actually runs).
  */
 
-import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, writeBatch, COLLECTIONS } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, writeBatch, whenOwnWritesSent, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { shouldReplaceOverride } from './override-utils.js';
@@ -439,6 +439,14 @@ export function asShown(ids) {
  * now: the fixed id of a day whose row showed no record there, where a colleague's save of the same
  * day lands — and a read since can have put it in the cache, which would then expect it. A row given
  * for the same id still wins. `line` may be a function of the DATES that changed, to name them.
+ *
+ * THIS DEVICE'S OWN UNSENT SAVES GO FIRST (v25.95; a KNOWN_LIMITATIONS entry at v25.94). A save made
+ * offline waits in the device's queue and shows as saved, but the transaction reads the SERVER. Just
+ * after the signal returned, a delete of such a record found nothing, said "Deleted", and the queued
+ * save then put the record back. So the transaction starts only once the queue has drained
+ * (`whenOwnWritesSent`, claim-retry.js → `ownWritesSent`); one that has not drained in time ends as a
+ * transaction that never reached the server does, `unavailable` — `commitChecked` then holds a save
+ * that only writes BEHIND the queue, and a removal is refused, writing nothing.
  * @param {Iterable<string|{id: string}>} items
  * @param {(tx: any, latest: Map<string, any>) => void} write  adds the writes to `tx`; `latest` is each
  *        id's server data (or null) as this attempt read it — called again on every re-run
@@ -462,6 +470,9 @@ export async function commitIfUnchanged(items, write, { mustExist = [], mustBeAb
     let done = false;
     /** @type {Map<string, any>} */
     let latest = new Map();
+    if (!(await whenOwnWritesSent())) {
+        throw Object.assign(new Error('this device still has saves it has not sent'), { code: 'unavailable', unsent: true });
+    }
     await runTransaction(db, async (/** @type {any} */ tx) => {
         const ids = [...expected.keys()];
         const snaps = await Promise.all(ids.map(id => tx.get(doc(db, COLLECTIONS.overrides, id))));
@@ -513,7 +524,9 @@ export async function deleteIfUnchanged(items) {
 // and no data. So a transaction that ends without reaching the server — Firestore has tried five
 // times over about eight seconds by then — is taken as offline and the save is held instead. A last
 // attempt whose commit landed with its answer lost is then written again: the same records at the
-// same fixed ids, which changes nothing but their timestamp.
+// same fixed ids, which changes nothing but their timestamp. The same is true when this device's
+// earlier saves have not reached the server in time (v25.95, `commitIfUnchanged`): the held batch
+// joins the queue behind them, so they land in the order they were made.
 
 /** How a transaction ends when it never reached the server. */
 const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);

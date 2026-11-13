@@ -54,17 +54,19 @@ const SEEDED = '2026-01-01T00:00:00.000Z';
  * with 412, as the storage library's retry of a write whose answer was lost is refused; `lostCommit`
  * commits a transaction and then runs it again, as Firestore does when a commit's answer is lost; and
  * `onRecordsRead` runs as each collection is read, before it answers (`nth` counts that collection's
- * reads from 1), so a test can land an upload mid-run or fail one read.
+ * reads from 1), so a test can land an upload mid-run or fail one read. `listed` is what the listing
+ * reports as a file's `metadata`, as the storage library attaches it; unset, a listed file has none.
  * @param {{ files: Record<string, string[]|null>, records: Record<string, any>,
  *           created?: Record<string, string|null>,
  *           failSet?: (path: string, value: any) => boolean, failGet?: (path: string) => boolean,
  *           failTx?: (path: string) => boolean, onTxGet?: (path: string, store: Map<string, any>) => void,
  *           beforeSet?: (path: string, value: any) => void, failList?: boolean,
  *           onGet?: (path: string) => void, lostAnswer?: (path: string, value: any) => boolean,
- *           lostCommit?: (path: string) => boolean, onRecordsRead?: (name: string, nth: number) => void }} opts
+ *           lostCommit?: (path: string) => boolean, onRecordsRead?: (name: string, nth: number) => void,
+ *           listed?: (path: string) => any }} opts
  */
 function world({ files, records, created = {}, failSet, failGet, failTx, onTxGet, beforeSet, failList,
-    onGet, lostAnswer, lostCommit, onRecordsRead }) {
+    onGet, lostAnswer, lostCommit, onRecordsRead, listed }) {
     /** @type {Map<string, Record<string, string>>} path → custom metadata */
     const meta = new Map(Object.entries(files).map(([p, keys]) =>
         [p, keys ? { [TOKEN_KEY]: keys.join(','), other: 'kept' } : { other: 'kept' }]));
@@ -162,7 +164,8 @@ function world({ files, records, created = {}, failSet, failGet, failTx, onTxGet
         name: BUCKET,
         getFiles: async (/** @type {{ prefix: string }} */ { prefix }) => {
             if (failList) throw new Error('list failed');
-            return [[...meta.keys()].filter(p => p.startsWith(prefix)).map(file)];
+            return [[...meta.keys()].filter(p => p.startsWith(prefix))
+                .map(p => (listed ? Object.assign(file(p), { metadata: listed(p) }) : file(p)))];
         },
     };
     const snapOf = (/** @type {string} */ p) => ({
@@ -266,6 +269,7 @@ describe('a preview changes nothing — and counts what a run would touch', () =
         const w = world({
             files: {
                 'huddles/2026-11-12-a1.pdf': ['old-h'],
+                'huddles/2026-11-10-late.pdf': null,              // its record's key is no longer on it
                 'huddles/2026-08-01-old.pdf': ['old-x'],          // no record points at it, still has a key
                 'circulars/2026-11-13-new.pdf': ['new-k'],        // …and so does this, saved an hour ago
                 'circulars/2026-05-01-gone.pdf': null,            // no record, already without a key
@@ -274,6 +278,7 @@ describe('a preview changes nothing — and counts what a run would touch', () =
             created: { 'circulars/2026-11-13-new.pdf': new Date(NOW - 60 * 60 * 1000).toISOString() },
             records: {
                 'huddles/2026-11-12': { storageUrl: link('huddles/2026-11-12-a1.pdf', 'old-h') },
+                'huddles/2026-11-10': { storageUrl: link('huddles/2026-11-10-late.pdf', 'gone') },  // a dead link
                 'huddles/2026-11-11': { storageUrl: link('huddles/2026-11-11-zz.pdf', 'k') },   // its file is not there
                 'circulars/2026-11-06': { storageUrl: link('huddles/2026-11-12-a1.pdf', 'dead') },  // another kind's folder
                 'newsletters/2026-11-01': { storageUrl: 'https://example.com/n.pdf' },          // not a download link
@@ -284,9 +289,9 @@ describe('a preview changes nothing — and counts what a run would touch', () =
         const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, nowMs: NOW });
         assert.deepEqual(
             { files: r.files, linked: r.linked, unlinkedWithKey: r.unlinkedWithKey, unlinkedTooNew: r.unlinkedTooNew,
-              unlinkedWithoutKey: r.unlinkedWithoutKey, held: r.held,
+              unlinkedWithoutKey: r.unlinkedWithoutKey, held: r.held, recordsDeadLink: r.recordsDeadLink,
               recordsMissingFile: r.recordsMissingFile, recordsUnreadable: r.recordsUnreadable, recordsWithoutLink: r.recordsWithoutLink },
-            { files: 5, linked: 1, unlinkedWithKey: 1, unlinkedTooNew: 1, unlinkedWithoutKey: 1, held: 1,
+            { files: 6, linked: 2, unlinkedWithKey: 1, unlinkedTooNew: 1, unlinkedWithoutKey: 1, held: 1, recordsDeadLink: 1,
               recordsMissingFile: 1, recordsUnreadable: 3, recordsWithoutLink: 1 });
         assert.deepEqual(w.log, []);
     });
@@ -669,6 +674,63 @@ describe('a refusal that was this run’s own write, retried after its answer wa
         } });
         const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
         assert.deepEqual({ cleared: r.cleared, changedDuringRun: r.changedDuringRun }, { cleared: 0, changedDuringRun: 1 });
+    });
+});
+
+describe('a stored link that no longer opens its file is counted, and a run mends it', () => {
+    // A record can arrive holding a key its file no longer carries: one that came after a run had
+    // switched its file's key off, or a browser's write re-sent after its answer was lost, which puts
+    // the upload's first link back over the one a run gave it. Members still open the document through
+    // the 15-minute link signed from its path; only the fallback is broken — and a check that called
+    // such a record "in use" gave the admin no reason to press the one button that mends it.
+    const LATE = 'huddles/2026-11-10-late.pdf';
+    const LREC = 'huddles/2026-11-10';
+    const SHARED = 'circulars/2026-11-07-s.pdf';
+
+    test('a preview counts each record whose link names a key its file no longer carries — and no other', async () => {
+        const w = world({
+            files: { ...ORDINARY().files, [LATE]: null, [SHARED]: ['live'] },
+            records: { ...ORDINARY().records, [LREC]: { storageUrl: link(LATE, 'gone') },
+                'circulars/2026-11-07': { storageUrl: link(SHARED, 'live') },
+                'circulars/2026-11-08': { storageUrl: link(SHARED, 'stale') } },
+        });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        assert.deepEqual({ linked: r.linked, recordsDeadLink: r.recordsDeadLink }, { linked: 5, recordsDeadLink: 2 });
+        assert.deepEqual(w.log, []);
+    });
+
+    test('a run gives each such record a working link again, and the next check finds none', async () => {
+        const w = world({ files: { [LATE]: null, [SHARED]: ['live'] }, records: {
+            [LREC]: { storageUrl: link(LATE, 'gone') },
+            'circulars/2026-11-07': { storageUrl: link(SHARED, 'live') },
+            'circulars/2026-11-08': { storageUrl: link(SHARED, 'stale') },
+        } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ rotated: r.rotated, changedDuringRun: r.changedDuringRun, failed: r.failed },
+            { rotated: 2, changedDuringRun: 0, failed: [] });
+        for (const [rec, fp] of [[LREC, LATE], ['circulars/2026-11-07', SHARED], ['circulars/2026-11-08', SHARED]]) {
+            assert.deepEqual(w.keysNow(fp), [keyOfLink(w.store.get(rec).storageUrl)], `${rec} still holds a dead link`);
+        }
+        const after = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        assert.equal(after.recordsDeadLink, 0);
+    });
+
+    test('a dead link on a file a link it cannot read holds is not counted — a run leaves that file alone', async () => {
+        const w = world({ files: { [LATE]: ['held-k'] }, records: {
+            [LREC]: { storageUrl: link(LATE, 'gone') },
+            'newsletters/2026-11-01': { storageUrl: 'https://cdn.example.com/n.pdf?alt=media&token=held-k' },
+        } });
+        const preview = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        assert.deepEqual({ held: preview.held, linked: preview.linked, recordsDeadLink: preview.recordsDeadLink },
+            { held: 1, linked: 0, recordsDeadLink: 0 }, 'counted as something Replace mends, on a file Replace never touches');
+    });
+
+    test('the keys come from each file, not the listing: a listing without them breaks no link', async () => {
+        // A listing that arrived without the keys — a narrower field list, a library change — would
+        // otherwise report every stored link in the app as broken (the module header).
+        const w = world({ ...ORDINARY(), listed: (p) => ({ name: p, timeCreated: SEEDED }) });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        assert.deepEqual({ linked: r.linked, recordsDeadLink: r.recordsDeadLink }, { linked: 3, recordsDeadLink: 0 });
     });
 });
 
