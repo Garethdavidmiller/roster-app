@@ -755,6 +755,58 @@ Nothing to do here while Overtime is paused (`OVERTIME_AVAILABILITY.md` → Paus
 and absences remain an accurate record of what happened. Their `staffContact` work email also
 survives; removing it is a separate decision nobody is forced into by this procedure.
 
+## A member changes grade
+
+A promotion, or a move into management, changes two things, and the app treats them differently.
+The difference decides when the change can be released.
+
+**Their line has a date; their grade does not.** A move to another line is a `rosterChanges` entry
+with a `from` date (`.claude/rules/roster-data.md` → rosterChanges): the days before it keep the old
+line and the days from it show the new one, whenever the release lands. Their grade is `role`, which
+has no date: from the moment the release is live, the app treats them as the new grade on every
+date, past ones included. These follow the grade:
+
+- **The roster import.** `npm run generate:roster-members` builds the `cea`, `ces` and `dispatcher`
+  name lists from `role`, and the parser looks only for the names on the uploaded roster's list.
+- **Where they are listed**: the Calendar's member list, Team Week's grade tabs and the sign-in
+  screen's grade step, for past weeks as well as future ones.
+- **Their leave allowance**, in any year without a `proRatedAL` figure (CLAUDE.md → AL entitlement).
+  A year that has one keeps it.
+- **The Pay Calculator**, which offers them the new grade's rates once and switches only if they say
+  yes (`.claude/rules/paycalc.md`). They should say yes when their pay changes over.
+- **The New link page**, which is for everyone on a normal CEA contract.
+
+**So release it between two uploads**: after the last week under the old grade is uploaded, and
+before the first week under the new one. A week uploaded before the release is read with the old
+lists, so their row on the new grade's roster is skipped and the old grade's upload reports them
+missing. After the release, do not upload a week from before the change again: the same happens the
+other way round. Either way the week imports and looks complete, and a missing member reads exactly
+like an absence (step 1 of "Removing a staff member", above).
+
+**Into management.** Give the row `role: 'Management'`, `hidden: true` and `managerOnly: true`, move
+it into the Management block, add the name to `CONFIG.MANAGER_NAMES`, and run
+`npm run generate:roster-members` in the same commit. Keep the row's base `rosterType` and
+`currentWeek`: a `managerOnly` row is never drawn, and its line is what a test compares the
+successor's against. Then, in order:
+
+1. **From the release** they leave the staff lists, so their own shifts and leave are no longer shown
+   anywhere in the app. The records stay, as a leaver's do. Staff Login Accounts lists them with
+   *wrong permissions*, which is expected until step 2.
+2. **Their manager access starts when Operations → Staff Login Accounts → Set up accounts is next
+   pressed**, which gives them the `manager` claim. Any press does it, whatever it was pressed for, so
+   leave the button alone until the day access should start. They then sign out and back in, so
+   their phone picks the claim up.
+
+Their login keeps working throughout: a manager stays in the server's active list
+(`getMembersForGrade('Management')`), so the leaver sweep never touches them.
+
+**The worked example: 22 November 2026.** K. Jedlinski, a CEA on the main link, became a CES on the
+line W. Cummings left; W. Cummings became a manager; and M. Campbell moved from the bilingual link to
+the main line K. Jedlinski left. The week of 15 November had been uploaded, the week of 22 November
+was due on Thursday 19 November, and manager access was to start on 22 November. The rows are in
+`roster-member-data.js`, and the "22 Nov 2026" tests in `roster-data.test.mjs` check each move day by
+day against the line it takes over.
+
 ## Changing a member's roster name
 
 There is no rename procedure today, and one consequence is easy to miss. A member's Pay Calculator
