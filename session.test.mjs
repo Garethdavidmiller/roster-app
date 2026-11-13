@@ -926,7 +926,8 @@ describe('the no-surname-default memory (v21.62)', () => {
 // ── silent-sign-in.js — the same rules, as plain values (extracted from session.js, Nov 2026) ─────
 // The describe above drives them through the real sign-in; this pins each rule on its own, so a change
 // to one says which rule moved rather than which sign-in now behaves differently.
-const { noDefaultKey, RESET_RECHECK_MS, planSilentAttempt, afterRecheck, remembersRefusal } = await import('./silent-sign-in.js');
+const silentRules = await import('./silent-sign-in.js');
+const { noDefaultKey, RESET_RECHECK_MS, planSilentAttempt, afterRecheck, remembersRefusal } = silentRules;
 describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
     const NOW = 1_800_000_000_000;
     const plan = (/** @type {string|null} */ stored, unansweredThisAttempt = false, surname = 'miller') =>
@@ -963,6 +964,19 @@ describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
         assert.deepEqual(afterRecheck('throttled'), { note: true, stop: false, unanswered: false });
         assert.deepEqual(afterRecheck(null), { note: false, stop: false, unanswered: true });
         assert.deepEqual(afterRecheck(NOW), { note: false, stop: false, unanswered: false });
+    });
+
+    test('a session starts at the server\'s record of the sign-in — within three days of the device, on the member\'s own account', () => {
+        const { sessionStartMs, SIGN_IN_CLOCK_SKEW_MS } = silentRules;
+        const me = 'g.miller@myb-roster.local';
+        const user = (/** @type {number} */ at, email = me) => ({ email, metadata: { lastSignInTime: new Date(at).toUTCString() } });
+        assert.equal(sessionStartMs(user(NOW - SIGN_IN_CLOCK_SKEW_MS), me, NOW), NOW - SIGN_IN_CLOCK_SKEW_MS, 'three days away is still this sign-in');
+        assert.equal(sessionStartMs(user(NOW + SIGN_IN_CLOCK_SKEW_MS), me, NOW), NOW + SIGN_IN_CLOCK_SKEW_MS);
+        assert.equal(sessionStartMs(user(NOW - SIGN_IN_CLOCK_SKEW_MS - 1000), me, NOW), NOW, 'further is not');
+        assert.equal(sessionStartMs(user(NOW - 1000, 's.silva@myb-roster.local'), me, NOW), NOW, 'another account says nothing about this session');
+        for (const odd of [null, undefined, {}, { email: me }, { email: me, metadata: { lastSignInTime: 'not a date' } }]) {
+            assert.equal(sessionStartMs(odd, me, NOW), NOW, JSON.stringify(odd));
+        }
     });
 
     test('only a definitive refusal of an account that EXISTS is remembered', () => {
@@ -1966,6 +1980,55 @@ describe('a silent re-sign-in after an admin reset', () => {
         const s = JSON.parse(store.get(AUTH_KEY));
         assert.ok(Math.abs(s.createdAt - Date.now()) < 5000);
         assert.equal(s.expiry - s.createdAt, SESSION_MS);
+    });
+
+    // ── THE START IS THE SERVER'S, NOT A WRONG DEVICE CLOCK (audit A2) ──────────────────────────────
+    // A phone a day ahead at sign-in stamped its start a day late, so a reset made later that day looked
+    // OLDER than the session, and the surname signed the phone the reset was aimed at straight back in.
+    const signedInAt = (/** @type {number} */ ms, email = nameToEmail('G. Miller')) => {
+        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email, metadata: { lastSignInTime: new Date(ms).toUTCString() } };
+    };
+    const saved = () => JSON.parse(store.get(AUTH_KEY));
+    const toSecond = (/** @type {number} */ ms) => Math.floor(ms / 1000) * 1000;   // all a UTC string keeps
+
+    test('a device clock a day AHEAD: the session starts when the server says the member signed in', () => {
+        const server = toSecond(Date.now() - 86_400_000);
+        signedInAt(server);
+        saveSession('G. Miller');
+        assert.equal(saved().createdAt, server, 'the session was dated by a device clock a day ahead');
+        assert.equal(saved().expiry, server + SESSION_MS, 'and its 60 days are counted from the same start');
+    });
+
+    test('…and a day BEHIND, the same', () => {
+        const server = toSecond(Date.now() + 86_400_000);
+        signedInAt(server);
+        saveSession('G. Miller');
+        assert.equal(saved().createdAt, server);
+    });
+
+    test('no record of the sign-in, another member\'s account, a record days away, or nobody: the device clock, as before', () => {
+        for (const [why, set] of /** @type {const} */ ([
+            ['no metadata', () => { mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: nameToEmail('G. Miller') }; }],
+            ['another account', () => signedInAt(Date.now() - 86_400_000, nameToEmail('S. Silva'))],
+            ['four days away', () => signedInAt(Date.now() - 4 * 86_400_000)],
+            ['nobody signed in', () => { mockAuth.currentUser = null; }],
+        ])) {
+            set();
+            const before = Date.now();
+            saveSession('G. Miller');
+            assert.ok(saved().createdAt >= before && saved().createdAt <= Date.now(), `${why}: not dated by the device clock`);
+        }
+    });
+
+    test('THE CASE ITSELF: signed in on a clock a day ahead, reset that afternoon — the surname does not sign it back in', async () => {
+        const signedIn = toSecond(Date.now() - 86_400_000);   // the server's clock; the device's said "now"
+        signedInAt(signedIn);
+        saveSession('G. Miller');
+        mockAuth.currentUser = null;                          // the reset revoked the account's tokens
+        _resetAtMs = signedIn + 2 * 3_600_000;                // made two hours after the sign-in
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_signInCalls, 0, 'the surname signed the phone the reset was aimed at straight back in');
+        assert.equal(store.has(AUTH_KEY), false, 'and its session was left standing');
     });
 });
 

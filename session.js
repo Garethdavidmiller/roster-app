@@ -23,7 +23,7 @@ import * as firebaseClient from './firebase-client.js';
 import { isViewerUser, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { noteStaffPinEnded } from './staff-pin-ended.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
-import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal } from './silent-sign-in.js';
+import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal, sessionStartMs } from './silent-sign-in.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
@@ -705,12 +705,13 @@ function _sessionCreatedMs() {
  *   reload loop where Firebase is signed in but getSession() forever returns null.
  */
 export function saveSession(name) {
-    const now = Date.now();
+    const now = sessionStartMs(auth.currentUser, nameToEmail(name), Date.now());
     const payload = JSON.stringify({
         name,
         ver:    SESSION_VER,
         expiry: now + SESSION_MS,
-        // When this device's session began — compared with the server's `resetAt` before any silent
+        // When the session began — the server's record of this sign-in where it can be had, never a wrong
+        // device clock (`sessionStartMs`, audit A2) — compared with the server's `resetAt` before any silent
         // re-sign-in (`sessionPredatesReset`). Older sessions derive it from `expiry`.
         createdAt: now,
     });

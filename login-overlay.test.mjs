@@ -28,6 +28,8 @@ const realIdentity = await import('./auth-identity.js');
 const fakeAuth = { currentUser: /** @type {any} */ (null) };
 let signInCode  = 'ok';
 let signOutCode = 'ok';
+/** The server's record of the sign-in the fake hands back (`metadata.lastSignInTime`), or none. @type {string|undefined} */
+let serverSignInTime;
 mock.module('./firebase-client.js', { namedExports: {
     auth:                       fakeAuth,
     authReady:                  Promise.resolve('indexeddb'),
@@ -36,7 +38,8 @@ mock.module('./firebase-client.js', { namedExports: {
     normaliseSurname:           realIdentity.normaliseSurname,
     signInWithEmailAndPassword: async (/** @type {any} */ _auth, /** @type {string} */ email) => {
         if (signInCode !== 'ok') throw Object.assign(new Error(signInCode), { code: signInCode });
-        fakeAuth.currentUser = { uid: 'u-member', isAnonymous: false, email, getIdToken: async () => 't' };
+        fakeAuth.currentUser = { uid: 'u-member', isAnonymous: false, email, getIdToken: async () => 't',
+            ...(serverSignInTime ? { metadata: { lastSignInTime: serverSignInTime } } : {}) };
     },
     signOut: async () => {
         if (signOutCode !== 'ok') throw Object.assign(new Error(signOutCode), { code: signOutCode });
@@ -307,6 +310,18 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         const r = await attempt();
         assert.deepEqual(r, { ok: true });
         assert.equal(JSON.parse(store.get('myb_admin_session')).name, 'G. Miller');
+    });
+
+    // The session the card saves begins when the SERVER says this sign-in happened (audit A2): a phone
+    // a day ahead stamped a start a day late, and a reset later that day then looked older than it.
+    test('…and dates it by the server\'s record of this sign-in, not by a device clock a day ahead', async () => {
+        const server = Math.floor((Date.now() - 86_400_000) / 1000) * 1000;
+        serverSignInTime = new Date(server).toUTCString();
+        try {
+            assert.deepEqual(await attempt(), { ok: true });
+        } finally { serverSignInTime = undefined; }
+        const saved = JSON.parse(store.get('myb_admin_session') ?? 'null');
+        assert.equal(saved.createdAt, server, 'the session was dated by the device clock');
     });
 });
 

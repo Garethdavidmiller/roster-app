@@ -1,8 +1,9 @@
 // @ts-check
 /**
  * silent-sign-in.js — the RULES of the sign-in nobody typed: what a page load may try for a member
- * whose 60-day local session has no Firebase identity behind it, and when a device that has seen the
- * surname refused still asks whether an admin reset ended its session (AUTH_AND_SESSIONS 23).
+ * whose 60-day local session has no Firebase identity behind it, when a device that has seen the
+ * surname refused still asks whether an admin reset ended its session (AUTH_AND_SESSIONS 23), and when
+ * the session it re-establishes BEGAN — the start that reset is compared with (`sessionStartMs`).
  *
  * Pure: no storage, no Firebase, no clock of its own. session.js (`ensureFirebaseSession`) reads and
  * writes the memory below and hands the time in, so every rule here runs in a Node test with plain
@@ -85,4 +86,30 @@ export function afterRecheck(resetAt) {
  */
 export function remembersRefusal(code) {
     return isCredentialRejection(code) && code !== 'auth/user-not-found';
+}
+
+// ── WHEN A SESSION BEGAN IS THE SERVER'S ANSWER, WHERE IT CAN BE HAD (sign-in audit A2, Nov 2026) ──
+//
+// Before a silent sign-in, the session's start is compared with the server's `resetAt`
+// (`sessionPredatesReset`, AUTH_AND_SESSIONS 23). It was stamped from the DEVICE clock, so a phone a
+// day ahead at sign-in made a reset later that same day look OLDER than the session, and the surname
+// signed it straight back in — the lost phone the reset was aimed at. Firebase records every sign-in
+// on its own clock (`metadata.lastSignInTime`), so that is the start, with two conditions: the account
+// must be THIS member's (another account's record says nothing about this session), and the record must
+// be within `SIGN_IN_CLOCK_SKEW_MS` of the device clock (anything further is not this sign-in's record).
+// Otherwise the device clock, as before. The expiry is counted from the same start.
+
+/** How far the server's record of a sign-in may stand from the device clock and still date the session. */
+export const SIGN_IN_CLOCK_SKEW_MS = 3 * 86_400_000;
+
+/**
+ * When a session saved NOW began (see the block above).
+ * @param {{ email?: string|null, metadata?: { lastSignInTime?: string|null } }|null|undefined} user  `auth.currentUser`
+ * @param {string} email  the member's own account (`nameToEmail`)
+ * @param {number} now    the device clock
+ * @returns {number}
+ */
+export function sessionStartMs(user, email, now) {
+    const at = user && user.email === email ? Date.parse(user.metadata?.lastSignInTime ?? '') : NaN;
+    return Number.isFinite(at) && Math.abs(now - at) <= SIGN_IN_CLOCK_SKEW_MS ? at : now;
 }
