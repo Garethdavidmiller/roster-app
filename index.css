@@ -1024,29 +1024,49 @@
             .swipe-hint   { display: none !important; }
         }
 
-        /* SHORT DESKTOP WINDOWS: THE MONTH ON ONE SCREEN. A row is as tall as its tallest cell's
-           CONTENT, so the row floor that was here never applied. The badge and the time share a line
-           where they fit (from ~1260px wide) and wrap back to the stacked cell where not; the card's
-           spacing tightens; the type and the page chrome do not change. 820px: laptop windows run
-           ~650–790px tall, a 1920×1080 one ~950. Measured: e2e "the whole month fits a laptop window". */
+        /* SHORT DESKTOP WINDOWS: THE DESKTOP'S CELL, TIGHTER, SO THE MONTH FITS A LAPTOP WINDOW. A row is
+           as tall as its tallest cell's CONTENT, and every row is `1fr`, so the TALLEST CELL IN THE MONTH
+           sets the height of all of them: the row floor here never applies. 820px: a laptop window runs
+           ~590–790px tall (Edge, Windows at 125–150%, the taskbar showing); a 1920×1080 desktop's ~950.
+           ⚠️ THE CELL KEEPS THE DESKTOP'S SHAPE — the date, the badge beneath it, the time beneath that
+           (owner, 13 Nov 2026: "it looks fine on a desktop PC but on this laptop the calendar looks
+           weird"). Until v26.02 the badge and the time shared one line here. It fitted only from ~1366px
+           wide; at 1280 (a 1920-pixel laptop at 150%, a usual Windows setting) an Early badge or
+           today's cell stacked again, so ONE month drew two kinds of cell, and the one that stacked made
+           every row 75px and pushed the last week off the screen anyway. Only the spacing tightens now:
+           the type does not change, and every line has a stated `line-height`, so the cell's height
+           does not rest on the font's own line spacing (62px, measured in Chromium; the same tests run
+           under WebKit in CI). Measured: e2e "the whole month fits a laptop window". */
         @media screen and (min-width: 1024px) and (max-height: 820px) {
-            .calendar-container { padding-top: 10px; padding-bottom: 12px; }
-            .calendar-header { margin-bottom: 8px; padding-bottom: 6px; }
-            .day-header { padding-top: 6px; padding-bottom: 6px; }
-            .calendar-grid { gap: 6px; grid-auto-rows: minmax(48px, 1fr); }
-            .calendar-day {
-                flex-flow: row wrap;
-                justify-content: center;   /* the horizontal axis now */
-                align-content: flex-start;
-                column-gap: 4px;
-                row-gap: 2px;
-                padding: 4px 3px;
+            .controls { padding-top: 6px; padding-bottom: 6px; }
+            .calendar-container { padding-top: 8px; padding-bottom: 10px; }
+            .calendar-header { margin-bottom: 6px; padding-bottom: 4px; }
+            .day-header { padding-top: 4px; padding-bottom: 4px; }
+            .calendar-grid { gap: 5px; grid-auto-rows: minmax(48px, 1fr); }
+            .calendar-day { padding: 3px 6px; }
+            /* Today's 3px border is 4px of height the other cells do not have — and the tallest cell sets
+               every row, so it cost the whole month 20–24px. Its padding gives the 4px back. */
+            .calendar-day.today { padding: 1px 4px; }
+            .day-number { margin-bottom: 1px; line-height: 1.15; }
+            .shift-badge { margin-bottom: 1px; padding: 2px 10px; line-height: 1.2; }
+            .shift-time { line-height: 1.25; }
+            /* The corner marks sit beside the date, above a badge line that starts ~22px down; at the
+               desktop's size and height a wide badge ran under the ⭐ in the corner. */
+            .calendar-day.bank-holiday::before,
+            .calendar-day.easter-day::before {
+                font-size: var(--type-medium) !important;
+                top: 1px !important;
+                right: 4px !important;
+                line-height: 1;
             }
-            .day-number { flex: 0 0 100%; margin-bottom: 0; }
-            /* Tighter sides buy the shared line: with the desktop padding it had 0.5px to spare at 1366px. */
-            .shift-badge { min-width: 0; margin-bottom: 0; padding: 3px 5px; gap: 3px; letter-spacing: 0.3px; }
-            .shift-time { width: auto; line-height: 1.3; letter-spacing: 0; }
-            /* A compact cell's foot is its badge line, so the tree moves up beside the date. */
+            .calendar-day.payday::before,
+            .calendar-day.cutoff::before {
+                font-size: var(--type-body) !important;
+                top: 2px !important;
+                left: 4px !important;
+                line-height: 1;
+            }
+            /* The time is a short cell's foot, so the tree moves up beside the date. */
             .calendar-day.christmas-day::after {
                 top: 5px !important;
                 bottom: auto !important;
@@ -3497,7 +3517,7 @@
         }
         /* …and the short-window grid's (the compact block beside `.calendar-grid`). */
         @media screen and (min-width: 1024px) and (max-height: 820px) {
-            .cal-boot-days, .cal-boot-grid { gap: 6px; }
+            .cal-boot-days, .cal-boot-grid { gap: 5px; }
             .cal-boot-grid { grid-auto-rows: minmax(48px, 1fr); }
         }
         /* …and a phone's: there the real cells and day heads have 6px corners (the ≤480px block). */

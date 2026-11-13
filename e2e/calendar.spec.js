@@ -5102,30 +5102,87 @@ test('desktop: a keyboard-focused day has a navy ring outside it, against the ca
 
 // CAL5 — a 1366×768 laptop's browser window is about 1366×650, and the last week of a five-row month
 // sat wholly below its fold (the row floor meant to help could never apply: a row is as tall as its
-// tallest cell's content). On a short window the badge and the time now share a line.
-// Measured on the shared line at 1366×650: July (five rows) ends at 572px with the legend at 634;
-// August (six rows) at 623, its legend 35px below. A window under ~1260px wide is too narrow to
-// share the line, and there the stacked cell needs 663px for five rows.
-for (const [month, when, rows] of /** @type {const} */ ([['July 2026', '2026-07-15T09:00:00Z', 5], ['August 2026', '2026-08-18T09:00:00Z', 6]])) {
-    test(`desktop: the whole month fits a laptop window, 1366×650 — ${month}, ${rows} rows`, async ({ page }, info) => {
-        test.skip(isTouchProject(info), 'a laptop window');
-        await page.clock.setFixedTime(new Date(when));
-        await page.setViewportSize({ width: 1366, height: 650 });
-        await seedMemberSession(page, 'G. Miller');
-        await page.goto('/');
-        await expect(page.locator('.calendar-day.today')).toBeVisible();
-        const g = await page.evaluate(() => {
-            const cells = [...document.querySelectorAll('.calendar-day')];
-            return { cells: cells.length, scrolled: window.scrollY, vh: innerHeight,
-                last: cells[cells.length - 1].getBoundingClientRect().bottom,
-                legend: /** @type {Element} */ (document.querySelector('.legend')).getBoundingClientRect().bottom };
+// tallest cell's content, and every row as tall as the tallest). A short window keeps the desktop's
+// cell and tightens only its spacing (v26.02). 1280×672 is a 1920×1200 laptop at Windows' 150%:
+// until v26.02 the badge and the time shared a line there that an Early badge or today's cell could
+// not fit, and the cell that stacked made every row 75px, so August's last week ended 72px below this
+// window. Measured at v26.02, the same at both sizes: July ends at 574px with its legend at 634, August
+// at 641. Today's cell is the reason for 20–24px of that: see `.calendar-day.today` in the block.
+for (const [width, height] of /** @type {const} */ ([[1366, 650], [1280, 672]])) {
+    for (const [month, when, rows] of /** @type {const} */ ([['July 2026', '2026-07-15T09:00:00Z', 5], ['August 2026', '2026-08-18T09:00:00Z', 6]])) {
+        test(`desktop: the whole month fits a laptop window, ${width}×${height} — ${month}, ${rows} rows`, async ({ page }, info) => {
+            test.skip(isTouchProject(info), 'a laptop window');
+            await page.clock.setFixedTime(new Date(when));
+            await page.setViewportSize({ width, height });
+            await seedMemberSession(page, 'G. Miller');
+            await page.goto('/');
+            await expect(page.locator('.calendar-day.today')).toBeVisible();
+            const g = await page.evaluate(() => {
+                const cells = [...document.querySelectorAll('.calendar-day')];
+                return { cells: cells.length, scrolled: window.scrollY, vh: innerHeight,
+                    last: cells[cells.length - 1].getBoundingClientRect().bottom,
+                    legend: /** @type {Element} */ (document.querySelector('.legend')).getBoundingClientRect().bottom };
+            });
+            expect(g.cells, `${month} draws ${rows} weeks`).toBe(rows * 7);
+            expect(g.scrolled).toBe(0);
+            expect(g.last, `the last week ends ${Math.round(g.last - g.vh)}px below the window`).toBeLessThanOrEqual(g.vh);
+            if (rows === 5) expect(g.legend, 'with five rows the legend is on screen too').toBeLessThanOrEqual(g.vh);
         });
-        expect(g.cells, `${month} draws ${rows} weeks`).toBe(rows * 7);
-        expect(g.scrolled).toBe(0);
-        expect(g.last, `the last week ends ${Math.round(g.last - g.vh)}px below the window`).toBeLessThanOrEqual(g.vh);
-        if (rows === 5) expect(g.legend, 'with five rows the legend is on screen too').toBeLessThanOrEqual(g.vh);
+    }
+}
+
+// The owner, from a laptop (13 Nov 2026): "it looks fine on a desktop PC but on this laptop the
+// calendar looks weird". A short window put the badge and the time side by side — and stacked them
+// again wherever a cell was too narrow for that, so at 1280px one month drew two kinds of day. Every
+// day now has the desktop's order at every short size: the date, the badge beneath it, the time
+// beneath that. Today is an Early with a time on purpose: its 3px border made it the first to stack.
+for (const [width, height] of /** @type {const} */ ([[1024, 600], [1280, 672], [1366, 650]])) {
+    test(`desktop: a short window draws every day as the desktop does, date over badge over time, at ${width}×${height}`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a laptop window');
+        await page.clock.setFixedTime(new Date('2026-11-13T09:00:00Z'));
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+            w.__E2E.docs = [12, 13].map(d => ({ id: 'early' + d, memberName: 'G. Miller', date: `2026-11-${d}`,
+                type: 'shift', value: '06:20-14:20', note: '' }));
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day.today .shift-time')).toHaveText('06:20-14:20');
+        const days = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+            .filter(c => c.querySelector('.shift-time'))
+            .map(c => {
+                const box = (/** @type {string} */ s) => /** @type {Element} */ (c.querySelector(s)).getBoundingClientRect();
+                const date = box('.day-number'), badge = box('.shift-badge'), time = box('.shift-time');
+                return { day: c.querySelector('.day-number')?.textContent,
+                    stacked: badge.top >= date.bottom - 1 && time.top >= badge.bottom - 1 };
+            }));
+        expect(days.length, 'premise: the month has days that show a time').toBeGreaterThan(10);
+        expect(days.filter(d => !d.stacked).map(d => d.day), 'days whose badge and time share a line').toEqual([]);
     });
 }
+
+// A short cell's badge line starts ~22px down, under the corner marks: at the desktop's size and
+// height a bank holiday's ⭐ ran onto the right end of a badge as wide as the desktop's (v26.02).
+test('desktop: on a short window the corner marks clear the badge beneath them', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a laptop window');
+    await page.clock.setFixedTime(new Date('2026-12-16T09:00:00Z'));
+    await page.setViewportSize({ width: 1024, height: 600 });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day.bank-holiday').first()).toBeVisible();
+    const marks = await page.evaluate(() => [...document.querySelectorAll('.calendar-day.bank-holiday, .calendar-day.payday, .calendar-day.cutoff')]
+        .filter(c => c.querySelector('.shift-badge'))
+        .map(c => {
+            const mark = getComputedStyle(c, '::before'), size = parseFloat(mark.fontSize);
+            const line = mark.lineHeight === 'normal' ? size * 1.2 : parseFloat(mark.lineHeight);
+            const bottom = c.getBoundingClientRect().top + parseFloat(getComputedStyle(c).borderTopWidth) + parseFloat(mark.top) + line;
+            return { day: c.querySelector('.day-number')?.textContent,
+                gap: /** @type {Element} */ (c.querySelector('.shift-badge')).getBoundingClientRect().top - bottom };
+        }));
+    expect(marks.length, 'premise: December has bank holidays, a payday and a cut-off with a badge').toBeGreaterThanOrEqual(4);
+    expect(marks.filter(m => m.gap < 0), 'a corner mark reaches into the badge beneath it').toEqual([]);
+});
 
 // CAL6 + CAL10 — a desktop cell held a phone's 10px badge word and 11px time, and the Team view a
 // phone's 11px everywhere, with the name column's 88px phone cap cutting two names short at 1024px.
