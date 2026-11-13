@@ -1838,7 +1838,7 @@ What a pay award owes, period by period — PURE, no DOM. A module of its own so
 
 ### `paycalc-format.js`
 Pure formatters and field helpers shared by the paycalc modules; its only import is `date-format.js`, so it loads in Node. Tested by `paycalc-format.test.mjs`.
-- `fd(d)` → "18 Sep 26" · `fdShort(d)` → "18 Sep" · `fdLong(d)` → "18 Sep 2026" — the app's own vocabulary, read off the device's local calendar (period dates are local values, not instants). `fdList(dates, cap = 4)` — a run of dates as prose, truncated past `cap`. `fmt(n)` → "£1,234.56".
+- `fd(d)` → "18 Sep 26" · `fdShort(d)` → "18 Sep" · `fdLong(d)` → "18 Sep 2026" — the app's own vocabulary, read off the device's local calendar (period dates are local values, not instants). `fdList(dates, cap = 4)` — a run of dates as prose, truncated past `cap`. `fmt(n)` → "£1,234.56". `fmtRate(r)` — an hourly rate: `fmt`'s "£21.49" for whole pence (every grade's rate), up to four places otherwise ("£22.3225", a payslip across a change of grade), so the basic-pay row's own multiplication makes its figure.
 - `clampMinute(n)` — into [0, 59]. `minutesFieldText(m)` — what a minutes box SHOWS for a value the app writes ("05"), display only. `decimalToHM(val)` → `{ h, m }`, carrying 60 minutes into the hour (7.999 → 8h 00m); null for a negative or non-finite value.
 - `HM_PAIRS` · `isDataEmpty(d)` — the hrs/mins field pairs and the "nothing entered" test, homed here so `paycalc-fill-year.js` can reach them; re-exported by `paycalc-roster-hint.js`, `paycalc-hpp.js` and `paycalc-form-data.js`.
 

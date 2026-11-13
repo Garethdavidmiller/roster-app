@@ -6,13 +6,13 @@
  * unit-testable here, independent of the DOM/calc phases. Each builder takes a plain params object
  * (field names match the caller's locals, so the call site is a shorthand object literal) and
  * returns an HTML string; the coordinator assigns the result to the relevant element. Pure: no DOM,
- * no Firebase. The ONLY dependency is `fmt` (the shared GBP formatter).
+ * no Firebase. The ONLY dependencies are `fmt` and `fmtRate` (the shared £ formatters).
  *
  * The template bodies are byte-for-byte the same markup calculate() produced — do not restyle here;
  * this was a mechanical extraction to gain testability, not a redesign of the breakdown.
  */
 
-import { fmt, decimalToHM } from './paycalc-format.js';
+import { fmt, fmtRate, decimalToHM } from './paycalc-format.js';
 
 /** A tax code fit to quote on the page — letters and digits, which every real PAYE code is — or null.
  *  Anything else is described, never written in, so nothing typed into the box becomes markup.
@@ -198,7 +198,9 @@ export function buildBreakdownRows(d) {
     } = d;
     const fh = fmtHrsMins;
     let bd = '';
-    bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Mon–Fri (${fh(nonBhNorm)} × ${fmt(rate)})</span><span class="b-val">${fmt(gBasicNorm)}</span></div>`;
+    // The rate to as many places as it has (fmtRate): a payslip across a change of grade is priced at a
+    // blend like £22.3225, and this row's own multiplication must make the figure beside it.
+    bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Mon–Fri (${fh(nonBhNorm)} × ${fmtRate(rate)})</span><span class="b-val">${fmt(gBasicNorm)}</span></div>`;
     if (satCapped > 0)
         bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Saturday (${fh(satCapped)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBasicSat)}</span></div>`;
     if (bhCapped > 0)

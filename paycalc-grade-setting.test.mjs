@@ -267,6 +267,19 @@ describe('saving the setting from the Grade box', () => {
         assert.equal(_ls.get(SK.gradeFrom), '55');
     });
 
+    test('a grade chosen while the payslip box holds nothing starts at the payslip on screen, never the first', (t) => {
+        // The box is built with the payslip on screen chosen, so this is the fallback for one that
+        // holds nothing. Stored with no payslip at all, the grade would read as chosen from the very
+        // first one — and re-price every payslip the member has had, which is what dated grades stop.
+        load(STEADY_CES, { grade: 'roster' }, t, NOV_13);
+        page.gradeSelect.value = 'cea';
+        page.gradeFrom.value = '999';              // no option carries it: the select shows nothing
+        assert.equal(page.gradeFrom.selectedIndex, -1, 'premise: nothing chosen');
+        G.saveGradeSetting(58);
+        assert.equal(_ls.get(SK.gradeFrom), '58');
+        assert.deepEqual(G.getGradeSetting(), { grade: 'cea', from: 58 });
+    });
+
     test('a save may hide the grade prompt, never raise it', (t) => {
         load(STEADY_CES, { grade: 'roster' }, t, NOV_13);
         assert.equal(page.gradePrompt.hidden, true);

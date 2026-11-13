@@ -167,7 +167,8 @@ function dayKey(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 +
  */
 export function gradeSplitLine({ parts, rateOf, start, today }) {
   const counted = parts.filter(x => x.days > 0);
-  if (counted.length < 2 || counted.some(x => !x.grade)) return '';
+  if (counted.length < 2) return '';
+  // byDays refuses a part with no grade or no rate, so this is also the "unpriced day" case.
   const blended = byDays(counted, rateOf);
   if (blended == null) return '';
   const each = counted.map(({ grade, days }, i) => {

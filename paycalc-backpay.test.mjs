@@ -683,6 +683,23 @@ describe('a grade change never prices one grade\'s figure in another\'s box', ()
         } finally { setGrade('cea'); }
     });
 
+    test('a CES member\'s card opens filled from CES\'s record, so the box CES has none for opens blank', () => {
+        // The card as the page opens it: prefillBackPay fills the boxes, then calcBackPay re-checks
+        // them against the record of the grade the award's months were worked under (awardGrade).
+        // Opened from CEA's record, the old rate CES has none for showed CEA's £20.06, unlocked, and
+        // priced a rise from it as the member's own. (The prefill's own grade is only a first fill:
+        // broken alone, calcBackPay's re-check still blanks that box — paycalc-2-9.)
+        try {
+            openCard({ viewed: VIEW_25 });
+            setGrade('ces');
+            for (const id of ['oldRate', 'newRateInput', 'oldLondon', 'newLondon', 'bpRisePct']) els[id].value = '';
+            assert.equal(awardRatesFor('ces', '2025/26')?.pre, null, 'precondition: CES has no old rate on record');
+            prefillBackPay();
+            assert.equal(els.oldRate.value, '', 'the old-rate box opened on another grade\'s record');
+            assert.equal(Number(els.newRateInput.value), awardRatesFor('ces', '2025/26')?.rate, 'the new rate is CES\'s own');
+        } finally { setGrade('cea'); }
+    });
+
     test('a CES member\'s own typed old rate survives a reload', () => {
         try {
             openCard({ viewed: VIEW_25 });

@@ -65,16 +65,28 @@ mock.module('./roster-data.js', {
 mock.module('./paycalc-roster-suggestions.js', {
     namedExports: { bhsForYear: () => [], getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
 });
-// awardGrade's last resort reads the payslip selector; with none on screen it falls to today's.
-/** @type {any} */ (globalThis).document ??= { getElementById: (/** @type {string} */ id) => (id === 'periodSelect' ? { value: '' } : null) };
+// awardGrade's last resort reads the payslip selector; with none on screen it falls to today's. The
+// premium estimate reads it too, for the tax year on screen, and writes its figures into the card —
+// so a case may put a payslip on screen and give the card the boxes it reads; each puts them back.
+const _periodSelect = { value: '' };
+/** @type {Record<string, any>} */
+const _els = {};
+/** @type {any} */ (globalThis).document ??= {
+    getElementById: (/** @type {string} */ id) => (id === 'periodSelect' ? _periodSelect : (_els[id] ?? null)),
+    querySelector: () => null,
+};
 
-const { SK } = await import('./paycalc-migrations.js');
-const { periodRate, getContr, settledRateFor, awardGrade, gradeDaysFor, getEffectiveContr } = await import('./paycalc-settings.js');
-const { GRADES, AWARD_RATES, TAX_YEARS, awardRatesFor, awardFromForYear, getRateForPeriod, isPreAwardPeriod, taxYearForPeriod } = await import('./paycalc-calc.js');
+const { SK, periodKey, hppEstKey, ytdSrcKey } = await import('./paycalc-migrations.js');
+const { periodRate, getContr, settledRate, settledRateFor, awardGrade, gradeDaysFor, getEffectiveContr } = await import('./paycalc-settings.js');
+const { GRADES, AWARD_RATES, TAX_YEARS, awardRatesFor, awardFromForYear, getRateForPeriod, isPreAwardPeriod, taxYearForPeriod,
+    computeGross, getLondonAllowanceForPeriod, HPP_FRACTION } = await import('./paycalc-calc.js');
 const { getPeriods } = await import('./paycalc-periods.js');
 const { gradeDays, windowGrade, FROM_ROSTER } = await import('./paycalc-grade.js');
 const { teamMembers } = await import('./roster-member-data.js');
 _members.push(...teamMembers);
+// The two surfaces that price a WHOLE YEAR at once, loaded for real.
+const { computeYearSoFar } = await import('./paycalc-year-summary.js');
+const { calcHPP, _varPayForPeriod, _decodeHours, savedPeriodPension } = await import('./paycalc-hpp.js');
 
 before(() => { _ls.set(SK.grade, FROM_ROSTER); });
 
@@ -128,6 +140,129 @@ describe('the three payslips around the promotion, priced through the settings m
     test('nobody signed in: CEA stands in, as it always has, until the page refuses', () => {
         _session = null;
         assert.deepEqual(gradeDaysFor(ACROSS), [{ grade: 'cea', days: 28 }]);
+    });
+});
+
+describe('the promoted member\'s whole year: every payslip at its own grade, through the real surfaces', () => {
+    // periodRate and settledRateFor are pinned above. These run the REAL surfaces that price a whole
+    // tax year at once — "This tax year so far", the Holiday Pay Premium estimate from the hours, and
+    // its rough Year to Date version — because the risk there is not the rule but the call: a loop
+    // that asks with the payslip on screen, or with the grade held today, prices every payslip at one
+    // grade, and every figure it shows still looks plausible.
+    const P = [paidOn(2026, 11, 20), paidOn(2026, 12, 18), paidOn(2027, 1, 15)];
+    // Paid, and settled, at these: all three are after the year's award, so the two are the same.
+    const RATES = [rate2627('cea'), (7 * rate2627('cea') + 21 * rate2627('ces')) / 28, rate2627('ces')];
+    const TY = taxYearForPeriod(P[1]);
+    const HOURS = { otH: 10, otM: 0, satH: 7, satM: 30 };   // premium hours: the premium is 7.69% of them
+    /** Put HOURS on the three payslips under the member signed in, run `fn`, and take them off again. */
+    const withHours = (/** @type {() => void} */ fn) => {
+        const keys = P.map(p => periodKey(p.num));
+        for (const k of keys) _ls.set(k, JSON.stringify(HOURS));
+        try { fn(); } finally { for (const k of keys) _ls.delete(k); }
+    };
+
+    test('This tax year so far adds each payslip at its own rate', () => {
+        _session = { name: PROMOTED };
+        withHours(() => {
+            const out = computeYearSoFar(TY, { taxCode: '1257L', plan: 'none', pgLoan: false, now: new Date(2027, 0, 16, 12) });
+            assert.equal(out.entered, 3, 'premise: the three payslips were read');
+            const priced = (/** @type {number[]} */ rates) => P.reduce((s, p, i) => {
+                const h = _decodeHours(p, HOURS);
+                const g = computeGross({
+                    rate: rates[i], effContr: getEffectiveContr(p),
+                    satHrs: h.satHrs, bhHrs: h.bhHrs, bhOtHrs: h.bhOtHrs,
+                    oHrs: h.otHrs, rHrs: h.rdwHrs, sHrs: h.sunHrs, bHrs: h.boxHrs,
+                    peerDays: 0, london: getLondonAllowanceForPeriod(p, TY), otherAdj: 0,
+                });
+                return s + Math.max(0, g.gross - savedPeriodPension(p, HOURS, 1));
+            }, 0);
+            const want = priced(RATES);
+            assert.ok(Math.abs(out.taxable - want) < 1e-6, `the year's pay ${out.taxable}, want ${want}`);
+            // What makes it a test: priced at one grade all year, the same hours come to another figure.
+            assert.ok(Math.abs(priced(RATES.map(() => rate2627('cea'))) - want) > 100, 'premise: the grades are far apart');
+            assert.ok(Math.abs(priced(RATES.map(() => rate2627('ces'))) - want) > 100, 'premise: the grades are far apart');
+        });
+    });
+
+    test('the Holiday Pay Premium from the hours prices each payslip at its own grade', () => {
+        _session = { name: PROMOTED };
+        _periodSelect.value = String(P[2].num);
+        try {
+            withHours(() => {
+                calcHPP();
+                const want = (P.reduce((s, p, i) => s + _varPayForPeriod(p, HOURS, RATES[i]), 0) * HPP_FRACTION).toFixed(2);
+                assert.equal(_ls.get(hppEstKey(TY)), want);
+                const oneGrade = (P.reduce((s, p) => s + _varPayForPeriod(p, HOURS, rate2627('ces')), 0) * HPP_FRACTION).toFixed(2);
+                assert.notEqual(oneGrade, want, 'premise: one grade all year is a different figure');
+            });
+        } finally {
+            _periodSelect.value = '';
+            _ls.delete(hppEstKey(TY));
+        }
+    });
+
+    test('the rough Year to Date premium takes off each payslip\'s basic pay at its own rate', () => {
+        // The same Taxable Pay figure, the same start date and the same everything else, for the
+        // promoted member and for a colleague who stayed a CEA: the only difference in what the two
+        // are expected to have been paid as basic is the CES days, so that is the only difference
+        // in the premium left over — 140 hours at the difference in rate on the payslip across the
+        // change (by its days) and on the one after it, at 7.69%.
+        const promoted = /** @type {any} */ (_members.find(m => m.name === PROMOTED));
+        _members.push({ ...promoted, name: 'Test Stayed CEA', role: 'CEA', roleHistory: undefined });
+        _periodSelect.value = String(P[2].num);
+        Object.assign(_els, { ytdPay: { value: '60000' }, hppModeYtdAmt: { textContent: '' } });
+        const shown = (/** @type {string} */ name) => {
+            _session = { name };
+            _ls.set(ytdSrcKey(TY), String(P[2].num));
+            try {
+                calcHPP();
+                const m = /^≈ £([\d,]+\.\d\d)$/.exec(_els.hppModeYtdAmt.textContent);
+                assert.ok(m, `the card shows a figure for ${name}: "${_els.hppModeYtdAmt.textContent}"`);
+                return Number(m[1].replace(/,/g, ''));
+            } finally {
+                _ls.delete(ytdSrcKey(TY));
+                _ls.delete(hppEstKey(TY));
+            }
+        };
+        try {
+            const stayed = shown('Test Stayed CEA');
+            const moved  = shown(PROMOTED);
+            const want = 140 * ((RATES[1] - rate2627('cea')) + (RATES[2] - rate2627('cea'))) * HPP_FRACTION;
+            assert.ok(Math.abs((stayed - moved) - want) <= 0.011,
+                `the premium is £${(stayed - moved).toFixed(2)} lower for the promoted member, want £${want.toFixed(2)}`);
+        } finally {
+            _members.pop();
+            _periodSelect.value = '';
+            delete _els.ytdPay; delete _els.hppModeYtdAmt;
+        }
+    });
+
+    test('last year\'s premium, shown beside this year\'s, prices each of last year\'s payslips at its own grade', () => {
+        // No grade on the roster changes inside a year the calculator shows as "last year" yet, so
+        // the case is the plainest one the line must still get right: a CES all along is priced at
+        // last year's CES rate, not at the CEA one a payslip asked about wrongly falls back to.
+        const ces = /** @type {any} */ (teamMembers.find(m => m.role === 'CES' && !m.roleHistory?.length && !m.startDate));
+        assert.ok(ces, 'premise: a CES who has been here since before last year');
+        const prior = /** @type {any} */ (TAX_YEARS.find(t => t.label === '2025/26'));
+        const lastYears = getPeriods().find((/** @type {any} */ p) => taxYearForPeriod(p) === prior && p.num === 48);
+        assert.ok(lastYears, 'premise: payslip 48 is last year\'s');
+        assert.notEqual(settledRate('ces', prior), settledRate('cea', prior), 'premise: the two grades are priced apart');
+        _session = { name: ces.name };
+        _periodSelect.value = String(P[2].num);
+        _els.priorHppSection = { classList: { add() {}, remove() {}, toggle() {} } };
+        const key = periodKey(lastYears.num);
+        _ls.set(key, JSON.stringify(HOURS));
+        try {
+            calcHPP();
+            const want = (_varPayForPeriod(lastYears, HOURS, settledRate('ces', prior)) * HPP_FRACTION).toFixed(2);
+            assert.equal(_ls.get(hppEstKey(prior)), want);
+        } finally {
+            _ls.delete(key);
+            _ls.delete(hppEstKey(prior));
+            _ls.delete(hppEstKey(TY));
+            _periodSelect.value = '';
+            delete _els.priorHppSection;
+        }
     });
 });
 

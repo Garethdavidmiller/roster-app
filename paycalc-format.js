@@ -43,6 +43,19 @@ export const fmt = n => {
 };
 
 /**
+ * An hourly rate: "£21.49" — or, for a rate that is not a whole number of pence, as many places as it
+ * has, up to four: "£22.3225". Every grade's rate is whole pence, so this reads exactly as `fmt` for
+ * every payslip but one kind — a payslip across a change of grade, priced at the two rates weighted
+ * by their days (paycalc-grade.js). Rounded to pence there, "140h × £22.32" would sit beside
+ * £3,125.15, a sum the line's own arithmetic does not make.
+ * @param {number} r
+ */
+export const fmtRate = r => {
+    if (Math.abs(r * 100 - Math.round(r * 100)) < 1e-6) return fmt(r);
+    return '£' + r.toFixed(4).replace(/0+$/, '');
+};
+
+/**
  * A capped, comma-joined list of payday dates for "these payslips are missing" copy
  * (v18.42 — review item 2): "5 Jun, 3 Jul, 31 Jul, 28 Aug and 3 more". Capping keeps the line
  * readable on mobile when many payslips are empty; the overflow count still says HOW MANY, so
