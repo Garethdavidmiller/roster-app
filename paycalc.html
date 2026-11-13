@@ -112,6 +112,8 @@
   <link rel="modulepreload" href="./paycalc-roster-hint.js">
   <link rel="modulepreload" href="./paycalc-roster-suggestions.js">
   <link rel="modulepreload" href="./paycalc-settings.js">
+  <link rel="modulepreload" href="./paycalc-grade.js">
+  <link rel="modulepreload" href="./paycalc-grade-setting.js">
   <link rel="modulepreload" href="./paycalc-year-summary.js">
   <link rel="modulepreload" href="./perf-reporter.js">
   <link rel="modulepreload" href="./perf-stats.js">
@@ -175,6 +177,18 @@
     <p id="gradePromptDone" tabindex="-1" hidden></p>
   </div>
 
+  <!-- THE ROSTER CHANGES THIS MEMBER'S GRADE (v26.00). Each payslip is priced at the grade held on its
+       days (paycalc-grade.js), so there is nothing to ask — this says so, once per change, on this
+       device. Words and the answer: paycalc-settings.js → renderGradeNote. The grade prompt's panel,
+       and hidden in print with it. -->
+  <div class="setup-banner grade-prompt" id="gradeNote" hidden>
+    <p id="gradeNoteText"></p>
+    <div class="grade-prompt-actions" id="gradeNoteActions">
+      <button type="button" class="btn-action btn-primary" id="gradeNoteOk">OK</button>
+    </div>
+    <p id="gradeNoteDone" tabindex="-1" hidden></p>
+  </div>
+
   <!-- ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────
        Every consumer of the grade falls back to CEA when no grade is stored, so a Dispatcher
        or a manager could open this page and be handed a polished, plausible, wrong
@@ -236,12 +250,24 @@
       <div class="field">
         <label for="gradeSelect">Grade</label>
         <select id="gradeSelect">
+          <option value="roster">From the roster</option>
           <option value="cea">CEA</option>
           <option value="ces">CES</option>
         </select>
+        <!-- What the roster says, with its dates — written by paycalc-settings.js →
+             renderGradeRosterLine. Empty, and hidden, with nobody signed in. -->
+        <div class="field-hint" id="gradeRosterLine" hidden></div>
         <!-- Static copy that names the two grades; nothing writes it. The rate itself is the read-only
-             field below, derived from the grade (paycalc-settings.js → updateRateForPeriod). -->
-        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. Your grade sets the hourly rate below.</div>
+             field below, derived from the grade on each payslip's days (paycalc-settings.js →
+             updateRateForPeriod; paycalc-grade.js). -->
+        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. <strong>From the roster</strong> uses the grade you held on each payslip's days, so a promotion changes your rate from the right payslip.</div>
+        <!-- A grade chosen by hand covers WHOLE payslips from the one named here (v26.00). The roster
+             needs no date of its own, so this shows only while CEA or CES is chosen. -->
+        <div class="field hidden" id="gradeFromField">
+          <label for="gradeFrom">Use this grade from which payslip?</label>
+          <select id="gradeFrom"></select>
+          <div class="field-hint">Earlier payslips follow the roster. To go back to the roster for every payslip, choose <strong>From the roster</strong> above.</div>
+        </div>
       </div>
 
       <div class="field">

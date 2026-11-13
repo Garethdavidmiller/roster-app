@@ -1755,7 +1755,7 @@ test('S. Boyle: main wk10 until 27 Jun, then the placeholder pattern 4 (28 Jun+)
     assert.equal(after.currentWeek, 4);
     assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');  // Mon 29 Jun — the placeholder line
     assert.equal(getBaseShift(m, new Date(2026, 6, 4)),  'RD');           // Sat 4 Jul — its weekend
-    // Until v26.00 she was on pattern 2, the same hours on a line that WORKS bank holidays (owner, 13 Nov 2026).
+    // Until v26.01 she was on pattern 2, the same hours on a line that WORKS bank holidays (owner, 13 Nov 2026).
     assert.equal(getBaseShift(m, new Date(2026, 7, 31)), 'RD', 'Mon 31 Aug 2026, the summer bank holiday: not worked on her line');
     assert.equal(getBaseShift(m, new Date(2026, 8, 1)), '09:00-16:00', 'Tue 1 Sep 2026, the next day');
     assert.equal(isChristmasLeaveDay(m, new Date(2026, 11, 25)), false,

@@ -22,7 +22,7 @@ import {
 import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
 import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
 export { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
-import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
+import { awardGrade, getEffectiveContr, getProRateFactor, settledRate } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
@@ -196,7 +196,8 @@ export function prefillBackPay() {
   // the prior year's rate — held per grade/year in AWARD_RATES (payslip-confirmed), so it never
   // depends on the mutable GRADES default. null = not on record (e.g. CES 2025/26) → the old-rate box
   // stays blank for manual entry.
-  const award = awardRatesFor(getGrade(), ty.label);
+  const _grade = awardGrade(ty);
+  const award = awardRatesFor(_grade, ty.label);
   if (!oldRateEl.value && award && award.pre != null) oldRateEl.value = award.pre.toFixed(2);
 
   if (ty.rateUnconfirmed) {
@@ -204,7 +205,7 @@ export function prefillBackPay() {
     // is the prior year's rate (prefilled above from AWARD_RATES, or the stored rate as a fallback
     // for a grade with no recorded pre), and the NEW rate is not yet known — so leave NEW blank for
     // the "Pay rise %" helper (defaulted below) or manual entry.
-    if (!oldRateEl.value)   oldRateEl.value   = getStoredRateForYear(ty).toFixed(2);
+    if (!oldRateEl.value)   oldRateEl.value   = settledRate(_grade, ty).toFixed(2);
     if (!oldLondonEl.value) oldLondonEl.value = ty.londonAllow.toFixed(2);
     // Default the "Pay rise %" to THIS year's offered award, when one is on record, so the card opens
     // with an estimate. The coordinator's _applyBpRisePct() then derives the New rate/London from it.
@@ -239,7 +240,7 @@ export function prefillBackPay() {
       : todaysPeriodNum();
     _setSelectPeriod(paidSel, _target);
   }
-  _bpGrade = getGrade();
+  _bpGrade = _grade;
   return calcBackPay();
 }
 
@@ -296,7 +297,7 @@ function _saveBpState() {
     // here — save, clear and restore each used to carry their own hand-written copy of that list,
     // which is how a field could be saved and restored but never cleared (see the module header).
     lsSet(bpKey(awardTy), JSON.stringify({
-      year: awardTy.label, grade: getGrade(), mode: _bpMode(),
+      year: awardTy.label, grade: awardGrade(awardTy), mode: _bpMode(),
       ...readBpFields(v),
       paidIn: v('backPayPeriod'),
       inc:  /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked ? '1' : '',
@@ -349,7 +350,7 @@ export function restoreBpState() {
   // A blob saved under another grade: its figure in a box this grade has NO record for is that other
   // grade's, so it comes back blank rather than priced (paycalc-2-9). Recorded boxes need nothing —
   // calcBackPay writes the record into them.
-  const _grade = getGrade();
+  const _grade = awardGrade(awardTy);
   const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(_grade, awardTy.label));
   if (!blobFitsGrade(s, _grade, _auth)) {
     for (const [id, v] of Object.entries(_auth)) {
@@ -503,7 +504,7 @@ export function calcBackPay() {
   // CONTENTS (review F1 — an earlier version locked on non-empty, so a recompute mid-typing froze
   // the fragment), and a locked box is WRITTEN with the recorded figure (review F2 — otherwise a
   // stale restored value sits behind a padlock and reads as confirmed).
-  const _grade = getGrade();
+  const _grade = awardGrade(awardTy);
   const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(_grade, awardTy?.label ?? ''));
   // The GRADE changed since these boxes were filled: a box the new grade has no record for still
   // holds the old grade's figure (often the record it was locked to a moment ago). Blank it — the

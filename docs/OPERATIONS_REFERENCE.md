@@ -814,11 +814,17 @@ on every date, past ones included:
 **The old grade is recorded with its last day**, as `roleHistory: [{ role: 'CEA', until: new Date(2026,
 10, 21) }]` — the day BEFORE the change, midnight local, inclusive — and `role` becomes the new grade.
 `roleOn(member, date)` (`roster-roles.js`) reads the two together, for the one surface that needs the
-grade on a DAY: the **Pay Calculator**, which offers the new grade's rates once and switches only if
-the member says yes (`.claude/rules/paycalc.md`). It does not ask while either grade held over the
-payslip on screen is the one already saved, so the question waits for the first payslip worked wholly
-under the new grade. Like a `rosterChanges` entry, a `roleHistory` entry is never deleted: without it
-the member reads as the new grade on every date they have worked.
+grade on a DAY: the **Pay Calculator**, which prices each payslip at the grade held on its days
+(`.claude/rules/paycalc.md` invariant 17) — the payslip across the change by its days, with a line
+under its rate saying so — and tells the member once that there is nothing to change. **Nothing needs
+doing in it.** Like a `rosterChanges` entry, a `roleHistory` entry is never deleted: without it the
+member reads as the new grade on every date they have worked, and the calculator re-prices every
+payslip they have had.
+
+**One date the tests refuse:** a change of grade inside a pay award's backdated months — from April to
+the payslip the award is paid on. The back-pay card prices one grade's old and new rates, so
+`paycalc-grade-wiring.test.mjs` fails whichever commit brings the two together (the promotion, or the
+award's date in `TAX_YEARS`). Decide how that lump splits, with the payslip in hand, before dating it.
 
 **So release it between two uploads**: after the last week under the old grade is uploaded, and
 before the first week under the new one. A week uploaded before the release is read with the old

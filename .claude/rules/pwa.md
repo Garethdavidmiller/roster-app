@@ -43,7 +43,7 @@ deep-link allowlist are `notifications.md`.
   figure is deliberately NOT written here, because it understated the cost every time it was, and
   `doc-parity.test.mjs` derives it), which was the "app updates with a lot of lag" complaint, and
   activate's would queue every fetch of the freshly-reloaded page behind the warm-up.
-- **An update's reload waits for a write no page started** (v26.00): while the forced password
+- **An update's reload waits for a write no page started** (v26.01): while the forced password
   change's write, or the record after a password change, is on its way (`backgroundWritesInFlight`,
   `claim-retry.js`), every reload path in `sw-register.js` holds until the page is next hidden with
   nothing on its way, and a notification tap finds the page busy. The reasoning is that module's header.

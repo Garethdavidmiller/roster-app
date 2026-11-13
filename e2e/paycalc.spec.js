@@ -886,7 +886,10 @@ test('paycalc: the HPP card calls your own figure yours, and an estimate an esti
     await seedSession(page);
     await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
     await page.goto('/paycalc.html');
-    await page.waitForSelector('#netDisplay');
+    // A figure, not the element: the static page already has "£–", a ticked Hours and "Estimated",
+    // so every check below passes before the page has started. Its start-up then restores the
+    // card's saved choice, which un-ticks a choice clicked too early (seen once under load).
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
     await page.locator('#hppCardToggle').click();
     const label = page.locator('#hppLabel');
 
@@ -2473,9 +2476,11 @@ for (const [name, role, grade, otherGrade] of [
         await expect(page.locator('#netDisplay')).toContainText('£');
         await expect(page.locator('#netDisplay')).not.toHaveText('£–');
 
-        // The auto-detected grade, straight off `loadSettings` → `gradeForRole(member.role)`.
-        await expect(page.locator('#gradeSelect')).toHaveValue(grade);
-        // …so the roster and the page agree, and there is nothing to ask (owner, 10 Nov 2026).
+        // A first visit follows the roster (v26.00): the Grade box says so, and the rate below — the
+        // grade's own award row — is what proves which grade the roster gave.
+        await expect(page.locator('#gradeSelect')).toHaveValue('roster');
+        await expect(page.locator('#gradeRosterLine')).toHaveText(`The roster lists you as ${role}.`);
+        // …and with the roster deciding, there is nothing to ask (owner, 10 Nov 2026).
         await expect(page.locator('#gradePrompt')).toBeHidden();
 
         // And the money that follows from it. `#hourlyRate` is written by `updateRateForPeriod`
@@ -2522,7 +2527,7 @@ test('paycalc: a member the roster moved to CES is asked, and "Use CES rates" re
     expect(rateSetFor('cea').has(await page.locator('#hourlyRate').inputValue()), 'premise: priced as a CEA').toBe(true);
 
     await prompt.getByRole('button', { name: 'Use CES rates' }).click();
-    await expect(page.locator('#gradeSelect')).toHaveValue('ces');
+    await expect(page.locator('#gradeSelect'), '"Use" hands pricing back to the roster').toHaveValue('roster');
     // The page's own grade-change path ran: the rate the take-home is built from is a CES rate now.
     await expect.poll(async () => rateSetFor('ces').has(await page.locator('#hourlyRate').inputValue()),
         'the grade box changed but the page was not re-priced').toBe(true);
@@ -2533,7 +2538,7 @@ test('paycalc: a member the roster moved to CES is asked, and "Use CES rates" re
 
     await page.reload();
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
-    await expect(page.locator('#gradeSelect')).toHaveValue('ces');
+    await expect(page.locator('#gradeSelect')).toHaveValue('roster');
     await expect(prompt, 'answered — the roster and the page agree now').toBeHidden();
     expect(errors).toHaveLength(0);
 });
@@ -2554,58 +2559,132 @@ test('paycalc: "Keep CEA" keeps the member\'s own grade, and is not asked again'
     expect(errors).toHaveLength(0);
 });
 
-// ── A PROMOTION RELEASED BEFORE IT STARTS (owner, 13 Nov 2026) ───────────────────────────────────
-// The roster dates a grade (`roleHistory`, read by roster-roles.js): this row is a CEA up to Sat 21 Nov
-// 2026 and a CES from Sun 22 Nov, and the release that says so lands days before. The question is
-// asked against the grades held over the period being earned, so it waits for the first period worked
-// wholly as a CES; and a first visit takes the grade held that day, not the one now on record.
+// ── A PROMOTION PRICES EACH PAYSLIP AT THE GRADE HELD ON ITS DAYS (owner, 13 Nov 2026) ──────────
+// The roster dates a grade (`roleHistory`, roster-roles.js): this row is a CEA up to Sat 21 Nov 2026
+// and a CES from the Sunday. Each payslip is priced at the grade held on its days (paycalc-grade.js):
+// paid 20 Nov, all CEA; paid 18 Dec, 7 days as a CEA and 21 as a CES — £22.3225 an hour, explained in
+// a line under the rate; paid 15 Jan 2027, all CES. Nothing is asked, because the roster decides.
 const PROMOTED = 'K. Jedlinski';
-/** Open the calculator on `today` as the promoted row, with `saved` as the device's grade (or none). */
-async function openAsPromoted(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ today, /** @type {string|null} */ saved) {
+/**
+ * Open the calculator on `today` as the promoted row, with `stored` (SK names → values) already on
+ * this device — `grade` is what a device saved before grades had dates. `path` names a payslip.
+ */
+async function openAsPromoted(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ today,
+    /** @type {Record<string, string>} */ stored = {}, /** @type {string} */ path = '/paycalc.html') {
     await page.clock.setFixedTime(new Date(today));
     await seedSession(page, PROMOTED);
-    await page.addInitScript((g) => {
+    await page.addInitScript((kv) => {
         localStorage.setItem('myb_pc_ns_migrated', '1');
         localStorage.setItem('myb_pc_kjedlinski_setup', '1');
-        if (g && !sessionStorage.getItem('seeded')) {
-            localStorage.setItem('myb_pc_kjedlinski_grade', g);
+        if (!sessionStorage.getItem('seeded')) {
+            for (const [k, v] of Object.entries(kv)) localStorage.setItem(`myb_pc_kjedlinski_${k}`, v);
             sessionStorage.setItem('seeded', '1');
         }
-    }, saved);
-    await page.goto('/paycalc.html');
+    }, stored);
+    await page.goto(path);
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
 }
+const SPLIT_LINE = 'Your grade changed on Sun 22 Nov 2026, part-way through this payslip: 7 days at the CEA rate '
+    + '(£21.49/hr) and 21 at the CES rate (£22.60/hr), so its hours are priced at £22.32/hr — the two rates weighted by their days.';
 
-for (const [today, asked, why] of /** @type {const} */ ([
-    ['2026-11-13T09:00:00Z', false, 'the period being earned (paid 20 Nov) is all CEA'],
-    ['2026-11-25T09:00:00Z', false, 'the period being earned (paid 18 Dec) is 7 days CEA and 21 CES, and CEA is one of them'],
-    ['2026-12-20T09:00:00Z', true,  'the period being earned (paid 15 Jan 2027) is all CES'],
-])) {
-    test(`paycalc: a promotion dated 22 Nov 2026, CEA saved — on ${today.slice(0, 10)} the grade question is ${asked ? 'asked' : 'not asked'}`, async ({ page }) => {
-        const errors = collectFatalErrors(page);
-        await openAsPromoted(page, today, 'cea');
-        await expect(page.locator('#gradeSelect'), 'the saved grade stands until the member answers').toHaveValue('cea');
-        const prompt = page.locator('#gradePrompt');
-        if (asked) {
-            await expect(prompt, why).toBeVisible();
-            await expect(prompt).toContainText('The roster lists you as CES (Customer Experience Supervisor), but this calculator is using CEA rates.');
-        } else {
-            await expect(prompt, why).toBeHidden();
-        }
-        expect(errors).toHaveLength(0);
-    });
-}
+test('paycalc: a promotion dated 22 Nov 2026 — each payslip at the grade held on its days, nothing asked', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // A device that saved CEA before grades had dates: CEA is one of the roster's grades, so the roster
+    // takes over, dates and all — the conversion runs once, on this load.
+    await openAsPromoted(page, '2026-11-25T09:00:00Z', { grade: 'cea' });
+    await expect(page.locator('#gradeSelect')).toHaveValue('roster');
+    await expect(page.locator('#gradePrompt'), 'with the roster deciding there is nothing to ask').toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_kjedlinski_grade'))).toBe('roster');
 
-for (const [today, grade] of /** @type {const} */ ([['2026-11-13T09:00:00Z', 'cea'], ['2026-11-25T09:00:00Z', 'ces']])) {
-    test(`paycalc: a promotion dated 22 Nov 2026 — a first visit on ${today.slice(0, 10)} starts on ${grade.toUpperCase()} rates, the grade held that day`, async ({ page }) => {
+    for (const [payday, rate, line] of /** @type {const} */ ([
+        ['2026-11-20', '21.49', null],
+        ['2026-12-18', '22.32', SPLIT_LINE],
+        ['2027-01-15', '22.60', null],
+    ])) {
+        await page.goto(`/paycalc.html?payday=${payday}`);
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await expect(page.locator('#hourlyRate'), `paid ${payday}`).toHaveValue(rate);
+        if (line) await expect(page.locator('#rateStepNote')).toHaveText(line);
+        else await expect(page.locator('#rateStepNote'), `paid ${payday} is on one grade`).toBeHidden();
+    }
+    // The money, not just the label: the payslip across the change prices its hours at the UNROUNDED
+    // blend, and the basic row's own multiplication makes the figure beside it. The hours are read off
+    // the row — the roster fills the weekend ones, so the weekday share follows the roster's data.
+    await page.goto('/paycalc.html?payday=2026-12-18');
+    const row = page.locator('#bdRows .bd-row', { hasText: 'Basic pay — Mon–Fri' });
+    await expect(row).toContainText('× £22.3225)');
+    // textContent, never innerText: the breakdown is folded (max-height 0, overflow hidden) until it is
+    // opened, and WebKit's innerText leaves out text whose box is clipped to nothing — it read "" on the
+    // iPhone engine (CI, 13 Nov 2026) while Chromium's read the row.
+    const m = String(await row.locator('.b-lbl').textContent()).match(/\((\d+)h(?: (\d+)m)? × £22\.3225\)/);
+    expect(m, 'the basic row reads "(hours × £22.3225)"').not.toBeNull();
+    const amount = String(await row.locator('.b-val').textContent()).match(/^£([\d,]+\.\d\d)$/);
+    expect(amount, 'the figure beside it reads "£amount"').not.toBeNull();
+    const hours = Number(m?.[1]) + Number(m?.[2] ?? 0) / 60;
+    const at = (/** @type {number} */ r) => (Math.round(hours * r * 100) / 100).toFixed(2);
+    expect(at(22.32), 'premise: the rounded rate gives a different figure, so this can tell them apart').not.toBe(at(22.3225));
+    expect(String(amount?.[1]).replace(/,/g, ''), `${hours}h at the blend`).toBe(at((7 * 21.49 + 21 * 22.60) / 28));
+    expect(errors).toHaveLength(0);
+});
+
+for (const [today, rate] of /** @type {const} */ ([['2026-11-13T09:00:00Z', '21.49'], ['2026-11-25T09:00:00Z', '22.32']])) {
+    test(`paycalc: a promotion dated 22 Nov 2026 — a first visit on ${today.slice(0, 10)} follows the roster`, async ({ page }) => {
         const errors = collectFatalErrors(page);
-        await openAsPromoted(page, today, null);
-        await expect(page.locator('#gradeSelect')).toHaveValue(grade);
-        expect(rateSetFor(grade).has(await page.locator('#hourlyRate').inputValue()), `priced as a ${grade.toUpperCase()}`).toBe(true);
+        await openAsPromoted(page, today);
+        await expect(page.locator('#gradeSelect')).toHaveValue('roster');
+        await expect(page.locator('#hourlyRate'), 'the payslip being earned, at the grade held on its days').toHaveValue(rate);
         await expect(page.locator('#gradePrompt'), 'a grade the roster gave cannot contradict the roster').toBeHidden();
         expect(errors).toHaveLength(0);
     });
 }
+
+test('paycalc: the change of grade is said once — before the day, then never again on this device', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await openAsPromoted(page, '2026-11-13T09:00:00Z', { grade: 'roster' });
+    const note = page.locator('#gradeNote');
+    await expect(note).toBeVisible();
+    await expect(page.locator('#gradeNoteText')).toHaveText('Your grade on the roster changes from CEA to CES on '
+        + 'Sun 22 Nov 2026. Each payslip is priced at the grade you held while you worked it, so there is nothing for you to change.');
+    await note.getByRole('button', { name: 'OK' }).click();
+    const done = page.locator('#gradeNoteDone');
+    await expect(done).toHaveText("✓ Your grade's dates are in Your Settings, under Grade.");
+    await expect(done, 'the button pressed is gone, so focus goes to what happened').toBeFocused();
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_kjedlinski_grade_note'))).toBe('2026-11-22');
+
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(note, 'said once: this device has been told').toBeHidden();
+    // The dates stay where the note said they would be.
+    await page.locator('#settingsToggle .card-toggle-arrow').click();
+    await expect(page.locator('#gradeRosterLine')).toHaveText('The roster lists you as CEA until 21 Nov 2026, then CES from 22 Nov 2026.');
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: a grade chosen by hand covers whole payslips from the one named; earlier ones follow the roster', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // Kept at CEA from the 15 Jan 2027 payslip (period 60) — acting down, say, or a roster row the
+    // member knows is wrong. The 18 Dec payslip is before it, so the roster's dates still split it.
+    await openAsPromoted(page, '2026-12-20T09:00:00Z', { grade: 'cea', grade_from: '60' }, '/paycalc.html?payday=2026-12-18');
+    await expect(page.locator('#hourlyRate')).toHaveValue('22.32');
+    await expect(page.locator('#rateStepNote')).toHaveText(SPLIT_LINE);
+    await page.goto('/paycalc.html?payday=2027-01-15');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('#hourlyRate'), 'the chosen grade, whole').toHaveValue('21.49');
+    await expect(page.locator('#rateStepNote')).toBeHidden();
+    // The roster gives CES for that payslip and the member chose CEA, so the page asks — once.
+    await expect(page.locator('#gradePrompt')).toBeVisible();
+    await expect(page.locator('#gradeNote'), 'a chosen grade is the question\'s business, not the note\'s').toBeHidden();
+
+    // And choosing it is done in Settings: CES from the payslip on screen.
+    await page.locator('#settingsToggle .card-toggle-arrow').click();
+    await expect(page.locator('#gradeFromField')).toBeVisible();
+    await expect(page.locator('#gradeFrom')).toHaveValue('60');
+    await page.locator('#gradeSelect').selectOption('roster');
+    await expect(page.locator('#gradeFromField'), 'the roster needs no date of its own').toBeHidden();
+    await expect(page.locator('#hourlyRate')).toHaveValue('22.60');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_kjedlinski_grade_from'))).toBeNull();
+    expect(errors).toHaveLength(0);
+});
 
 // Before the 24 Oct 2025 award a CES was paid at a rate that is not on record (AWARD_RATES
 // `pre: null`), so the estimate prices those periods at the later one — and must SAY so, never call

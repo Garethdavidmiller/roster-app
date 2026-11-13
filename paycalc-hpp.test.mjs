@@ -15,7 +15,7 @@
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { RATE_125, RATE_150, RATE_300, awardRatesFor } from './paycalc-calc.js';
+import { RATE_125, RATE_150, RATE_300, awardRatesFor, getRateForPeriod as _rateForPeriod, isPreAwardPeriod as _preAward, taxYearForPeriod as _tyOf } from './paycalc-calc.js';
 
 // ── Mock-controllable state ───────────────────────────────────────────────────
 
@@ -49,7 +49,13 @@ mock.module('./paycalc-periods.js', {
 
 mock.module('./paycalc-settings.js', {
     namedExports: {
-        getGrade:          () => _grade,
+        // One grade for every payslip here (a member who never changed grade); the dated-grade
+        // pricing itself is pinned by paycalc-grade.test.mjs and paycalc-settings.test.mjs. These
+        // three answer exactly what the real ones answer for such a member.
+        awardGrade:        () => _grade,
+        periodRate:        (/** @type {any} */ ty, /** @type {any} */ p) => ({
+            rate: _rateForPeriod(p, _grade, ty.label, _settledRate(ty)), preAward: _preAward(p, _grade, ty.label) }),
+        settledRateFor:    (/** @type {any} */ p, /** @type {any} */ ty) => _settledRate(ty ?? _tyOf(p)),
         getLoggedMember:   () => null,
         getEffectiveContr: () => 140,
         // CONTROLLABLE (test audit, 7 Nov 2026). It was a constant 1, so multiplying any premium in
@@ -57,7 +63,6 @@ mock.module('./paycalc-settings.js', {
         // pro-rated for a joiner) had nothing behind it. The module still imports it for other work.
         getProRateFactor:  () => _proRate,
         getPensionDefault: () => 147.36,
-        getStoredRateForYear: (/** @type {any} */ ty) => _settledRate(ty),
         isPensionOptedOut: () => false,
     },
 });

@@ -42,12 +42,17 @@ mock.module('./paycalc-periods.js', {
 
 mock.module('./paycalc-settings.js', {
     namedExports: {
-        getGrade:             () => 'cea',
+        // A CEA all year (one grade, no change): calculate()'s rate source answers the settled £21.49
+        // through the real mid-year step, exactly as it does for such a member.
+        periodRate:           (/** @type {any} */ ty, /** @type {any} */ p) => ({
+            rate: _calc.getRateForPeriod(p, 'cea', ty.label, 21.49), preAward: false }),
+        // Read by the real paycalc-hpp.js this suite loads: the same one-grade answers.
+        awardGrade:           () => 'cea',
+        settledRateFor:       () => 21.49,
         getLoggedMember:      () => null,
         getEffectiveContr:    () => 140,
         getProRateFactor:     /** @param {any} p */ p => _proRate(p),
         getPensionDefault:    /** @param {any} p */ p => (_optedOut(p) ? 0 : 147.36),
-        getStoredRateForYear: () => 21.49,
         isPensionOptedOut:    /** @param {any} p */ p => _optedOut(p),
     },
 });
@@ -80,6 +85,7 @@ mock.module('./roster-data.js', {
     },
 });
 
+const _calc = await import('./paycalc-calc.js');
 const { computeYearSoFar } = await import('./paycalc-year-summary.js');
 const { computeGross, computeTax, computeNI, computeSL, getThresholds } = await import('./paycalc-calc.js');
 

@@ -1,24 +1,27 @@
 // @ts-check
 /**
- * paycalc-settings.js — Grade/contracted-hours helpers and Settings save/load.
+ * paycalc-settings.js — each payslip's rate, contracted hours, the pension controls and Settings save/load.
  *
- * Owns: grade cache, getContr/getLoggedMember/getEffectiveContr/getProRateFactor/
- *   getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey,
- *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings, and wireSettingsCard — the
- *   card's place in the desktop Tab order and the setup banner's link to it. Also the grade prompt
- *   (gradeToOffer/renderGradePrompt): a roster grade that differs from the saved one is ASKED about.
- * Does NOT own: period arithmetic (paycalc-periods.js), pay maths (paycalc-calc.js),
- *   roster hints (paycalc-roster-hint.js).
- * Edit here for: grade helpers, settings persistence, rate/YTD field updates.
+ * Owns: getEffectiveContr/getProRateFactor/getPensionDefault, the rates (settledRate, settledRateFor,
+ *   awardGrade, periodRate), updateRateForPeriod, updateYtdForTaxYear, settingsKey, saveSettings,
+ *   confirmSettings, setSettingsCardOpen, loadSettings, and wireSettingsCard — the card's place in the
+ *   desktop Tab order and the setup banner's link to it.
+ * Does NOT own: the grade setting and its controls (paycalc-grade-setting.js — re-exported below for
+ *   the callers that read it here), the grade rules (paycalc-grade.js), period arithmetic
+ *   (paycalc-periods.js), pay maths (paycalc-calc.js), roster hints (paycalc-roster-hint.js).
+ * Edit here for: rates, settings persistence, rate/YTD field updates.
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
 
-import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions } from './paycalc-periods.js';
+import { GRADES, taxYearForPeriod, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
+import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions, offerRecordedPayslip } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
-import { getSession } from './session.js';
-import { teamMembers, gradeForRole } from './roster-data.js';
-import { roleOn, rolesInRange } from './roster-roles.js';
+import { gradeForRole } from './roster-data.js';
+import { byDays, gradeSplitLine, windowGrade } from './paycalc-grade.js';
+import {
+  getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt,
+  saveGradeSetting, loadGradeSetting,
+} from './paycalc-grade-setting.js';
 import { lsGet, lsSet } from './ls.js';
 import { fdShort } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
@@ -28,150 +31,13 @@ import {
   withOptOutStartAt, withRejoinAt, optOutStartsAt, migrateLegacyOptOut,
 } from './paycalc-pension.js';
 
-// ── GRADE CACHE ───────────────────────────────────────────────────────────────
-// lsGet is called in calculate() / calcHPP() on every keystroke; the grade only
-// changes when the user picks a different one in Settings.
-/** @type {any} */
-let _gradeCache = null;
-/** Return the stored grade key (e.g. 'cea'). */
-export function getGrade() {
-  if (_gradeCache !== null) return _gradeCache;
-  _gradeCache = lsGet(SK.grade) || '';
-  return _gradeCache;
-}
-function invalidateGrade() { _gradeCache = null; }
-
-/** Return contracted hours for the currently selected grade. */
-export function getContr() {
-  const g = getGrade();
-  return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
-}
-
 // `gradeForRole` — which pay grade a member's ROLE is, or null when this app has no confirmed
 // rates for it (v21.78). It lives in roster-data.js since v24.86, where the Calendar's Year to Date
 // notice can ask the same question without loading this module; re-exported so nothing here moves.
 export { gradeForRole };
-
-/** Return the teamMembers entry for the logged-in session user, or null. */
-export function getLoggedMember() {
-  const sess = getSession();
-  if (!sess?.name) return null;
-  return teamMembers.find(m => m.name === sess.name) || null;
-}
-
-// ── A ROSTER GRADE THAT DIFFERS FROM THE SAVED ONE IS ASKED ABOUT, NEVER APPLIED ──────────────────
-// (owner, 10 Nov 2026). Grade is an editable setting, and a SAVED grade outranks the roster role
-// (loadSettings), so a member moved from CEA to CES kept CEA rates with nothing on the page saying so.
-// Applying the roster's grade silently would be the opposite mistake: somebody acting up, or a
-// roster row not yet corrected, would have a deliberate setting overwritten. So the page ASKS, once,
-// in one line at the top — and remembers a "Keep" against the grade it declined, so the question
-// comes back only if the roster later names a different grade.
-const GRADE_NAMES = /** @type {Record<string, string>} */ ({
-  cea: 'Customer Experience Ambassador',
-  ces: 'Customer Experience Supervisor',
-});
-
-/**
- * The roster's grade to offer, or null when there is nothing to ask. PURE.
- * Nothing is asked when no grade is saved (loadSettings adopts the role's grade itself), when the
- * role has no confirmed rates (the page refuses instead), when the two agree, or when the member
- * already chose to keep their own grade over THIS roster grade.
- *
- * `role` may be the LIST of roster grades over the payslip on screen (`rolesInRange`), because a
- * grade has a date (`roleHistory`, read by roster-roles.js): a member promoted part-way through a payslip
- * holds both grades in it, and a saved grade that is EITHER of them is not contradicted — a promotion
- * released days early must not ask "switch?" about payslips worked before it. A payslip spanning two
- * grades offers neither, since one grade cannot price it.
- * @param {string|null|undefined} stored - the grade saved on this device
- * @param {string|null|undefined|Array<string|null|undefined>} role - the member's roster role ('CEA',
- *   'CES', …), or the roles the roster gives over the payslip on screen
- * @param {string|null|undefined} kept - the roster grade the member last declined, if any
- * @returns {string|null}
- */
-export function gradeToOffer(stored, role, kept) {
-  if (!stored || !GRADES[stored]) return null;
-  const grades = [...new Set((Array.isArray(role) ? role : [role]).map(r => gradeForRole(r)))];
-  if (grades.includes(/** @type {any} */ (stored))) return null;
-  if (grades.length !== 1) return null;
-  const rosterGrade = grades[0];
-  if (!rosterGrade || !GRADES[rosterGrade]) return null;
-  if (kept === rosterGrade) return null;
-  return rosterGrade;
-}
-
-/**
- * The roster grades the question compares against: the member's grades over the payslip on screen
- * (or, before the payslip selector is built — loadSettings runs first — the payslip being earned
- * today), from the dated `roleHistory`. Without a member there is nothing to compare.
- * @returns {Array<string|undefined>|undefined}
- */
-function rosterRolesOnScreen() {
-  const m = getLoggedMember();
-  if (!m) return undefined;
-  const num = currentPeriodNum() || todaysPeriodNum();
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === num);
-  return p ? rolesInRange(m, p.start, p.cutoff).map(r => r.role) : [roleOn(m, new Date())];
-}
-
-/**
- * Paint the grade prompt (#gradePrompt). `mayShow` is true only on load: a member who changes the
- * Grade box during a visit has just answered the question themselves, so a save may HIDE the prompt
- * (the two now agree) but never raise it. An answered prompt keeps its confirmation until reload.
- * @param {boolean} [mayShow]
- */
-export function renderGradePrompt(mayShow = false) {
-  const box = document.getElementById('gradePrompt');
-  if (!box?.dataset || box.dataset.answered) return;
-  const offer = gradeToOffer(getGrade(), rosterRolesOnScreen(), lsGet(SK.gradeKept));
-  if (!offer) { box.hidden = true; return; }
-  if (!mayShow && box.hidden) return;
-  const current = getGrade();
-  const text = document.getElementById('gradePromptText');
-  const use = document.getElementById('gradePromptUse');
-  const keep = document.getElementById('gradePromptKeep');
-  if (!text || !use || !keep) return;
-  text.textContent = `The roster lists you as ${offer.toUpperCase()} (${GRADE_NAMES[offer]}), `
-    + `but this calculator is using ${current.toUpperCase()} rates.`;
-  use.textContent = `Use ${offer.toUpperCase()} rates`;
-  keep.textContent = `Keep ${current.toUpperCase()}`;
-  if (!box.dataset.wired) {
-    box.dataset.wired = '1';
-    use.addEventListener('click', () => answerGradePrompt(box, 'use'));
-    keep.addEventListener('click', () => answerGradePrompt(box, 'keep'));
-  }
-  box.hidden = false;
-}
-
-/**
- * The member's answer. "Use" sets the Grade box and ANNOUNCES the change, so the page's own change
- * handler re-prices everything a grade touches (rate, pension default, back pay) — the same path a
- * hand-picked grade takes. "Keep" remembers the roster grade it declined. Either way the question
- * gives way to one line saying what happened, which takes focus: the button just pressed is gone.
- * @param {HTMLElement} box @param {'use'|'keep'} answer
- */
-function answerGradePrompt(box, answer) {
-  const offer = gradeToOffer(getGrade(), rosterRolesOnScreen(), lsGet(SK.gradeKept));
-  const done = document.getElementById('gradePromptDone');
-  if (!offer || !done) { box.hidden = true; return; }
-  box.dataset.answered = '1';
-  if (answer === 'use') {
-    const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('gradeSelect'));
-    if (sel) {
-      sel.value = offer;
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    setStatus(done, `✓ Now using ${offer.toUpperCase()} rates.`);
-  } else {
-    lsSet(SK.gradeKept, offer);
-    setStatus(done, `✓ Keeping ${getGrade().toUpperCase()} rates. You can change your grade in Your Settings.`);
-  }
-  for (const id of ['gradePromptText', 'gradePromptActions']) {
-    const el = document.getElementById(id);
-    if (el) el.hidden = true;
-  }
-  done.hidden = false;
-  done.focus();
-}
+// The grade setting lives in paycalc-grade-setting.js; these are re-exported so its readers here — the
+// page, back pay, the HPP and year cards, the hint bar, the tests — did not move with it.
+export { getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt };
 
 /**
  * Return effective contracted hours for the given period, pro-rated if the
@@ -180,7 +46,7 @@ function answerGradePrompt(box, answer) {
  * @returns {number} Contracted hours (full or pro-rated).
  */
 export function getEffectiveContr(p) {
-  const base   = getContr();
+  const base   = getContr(p);
   if (!p) return base;
   if (getLoggedMember()?.noProRate) return base;
   const factor = calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
@@ -245,39 +111,6 @@ export function applyPensionOptOutUI(pObj) {
     if (out) amt.value = '0.00';
   }
   document.getElementById('pensionAmt')?.closest('.pfx')?.classList.toggle('is-disabled', out);
-}
-
-/**
- * Make a "from which payslip?" select able to SHOW the payslip already on record (paycalc-3-8).
- *
- * The pension opt-out start and the student-loan stop each list the payslips the member can see
- * (`visiblePeriods()`), and setting a select to a value no option carries selects nothing. So a
- * recorded payslip the list no longer reaches — a start date added after the choice was made, or a
- * tax year dropped from the grid at a rollover — came up blank, `calculate()` read the blank loan
- * stop as "still deducted", and the next settings save wrote the blank back: erasing the loan stop
- * and MOVING the opt-out start to the payslip on screen. Nothing said so.
- *
- * So the recorded payslip is offered ahead of the rest, in its own tax-year group and worded as every
- * payslip list words one (`appendPayslipOptions`) — or, when the grid no longer generates it at all,
- * as a plain "An earlier payslip", which is all that is still known about it. The record is then
- * what the control shows, what `calculate()` reads and what a save writes back.
- * @param {HTMLSelectElement} sel
- * @param {number|null} num  the recorded payslip (internal `p.num`); nothing is added for none
- */
-function offerRecordedPayslip(sel, num) {
-  if (!num || Array.from(sel.options).some(o => Number(o.value) === num)) return;
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === num);
-  /** @type {Node} */ let node;
-  if (p) {
-    node = document.createDocumentFragment();
-    appendPayslipOptions(node, [p]);
-  } else {
-    const o = document.createElement('option');
-    o.value = String(num);
-    o.textContent = 'An earlier payslip, before this list starts';
-    node = o;
-  }
-  sel.insertBefore(node, sel.querySelector('optgroup'));
 }
 
 /**
@@ -439,7 +272,8 @@ function keepSavedPension(pNum, pension) {
 /** @param {any} [pObj] */
 export function getPensionDefault(pObj) {
   if (isPensionOptedOut(pObj)) return 0;
-  const g = getGrade();
+  // Both grades share PENSION_STEPS, so any grade the payslip was worked under gives the same figure.
+  const g = pObj ? gradeDaysFor(pObj).find(x => x.grade)?.grade : getGradeSetting().grade;
   const grade = g && GRADES[g] ? g : 'cea';
   if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
   return GRADES[grade]?.pension ?? '';
@@ -449,51 +283,100 @@ export function getPensionDefault(pObj) {
 // Derived, never stored (invariant 8): the year's settled award rate, else the grade default. A
 // legacy `rate`/`rates` key left on a device is never read.
 /**
- * The hourly rate for a tax year (pure — no DOM). Since v17.87 the rate is FIXED BY GRADE and no
- * longer user-stored, so this derives it purely from AWARD_RATES (the year's confirmed settled rate)
- * with the grade default as a fallback. Use it wherever a SPECIFIC tax year's rate is needed (e.g. the
- * prior-year HPP estimate); the mid-year pre/post-rise step is applied per period by getRateForPeriod.
+ * The settled (post-award) hourly rate a GRADE is paid in a tax year (pure — no DOM): AWARD_RATES'
+ * figure for the year, else the grade default. Since v17.87 the rate is FIXED BY GRADE and never
+ * stored, which removes the whole stale-saved-rate failure class. The mid-year pre/post-rise step is
+ * applied per period by getRateForPeriod.
+ * @param {string} grade - 'cea' | 'ces'
  * @param {any} ty
  * @returns {number}
  */
-export function getStoredRateForYear(ty) {
-  // The hourly rate is FIXED BY GRADE + the confirmed award (v17.87) — it is no longer user-editable
-  // or stored, so it derives purely from AWARD_RATES (the year's settled rate) with the grade default
-  // as a fallback. This removes the whole stale-saved-rate failure class (a device could otherwise
-  // hold last year's rate). The mid-year pre/post-rise step is applied per period by getRateForPeriod.
-  const g = getGrade();
-  const award = awardRatesFor(g, ty.label);
+export function settledRate(grade, ty) {
+  const award = awardRatesFor(grade, ty.label);
   return (award && award.rate != null ? award.rate : 0)
-      || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
+      || (GRADES[grade] ? GRADES[grade].rate : GRADES.cea.rate);
+}
+
+/**
+ * A PAYSLIP's settled rate: each grade it was worked under at its settled rate for the year,
+ * weighted by its days (paycalc-grade.js → byDays). Use it wherever every period of a year is priced
+ * at the settled rate — the Holiday Pay Premium estimate, which does that on purpose (paycalc.md).
+ * @param {any} p
+ * @param {any} [ty] - p's tax year (derived when omitted)
+ * @returns {number}
+ */
+export function settledRateFor(p, ty = taxYearForPeriod(p)) {
+  return byDays(gradeDaysFor(p), g => settledRate(g, ty)) ?? settledRate('cea', ty);
+}
+
+/**
+ * The grade an award's backdated months were worked under (paycalc-grade.js → windowGrade). The card
+ * prices ONE grade's old and new rates, and it must be the grade of the months the award covers, not
+ * the grade of the payslip on screen: a member promoted after an award was paid is owed that award at
+ * the grade they held while they earned it. The window is the payslips calcBackPay accrues — the
+ * award year's, from its April one, before the payslip that carried the award, up to today. With no
+ * such payslip yet, the payslip on screen decides; with nobody to ask, CEA, as the calculator always
+ * has before it refuses (paycalc-settings.js → gradeDaysFor).
+ *
+ * A window that SPANS a change of grade is priced at the grade held at its end, and logged: no
+ * member's dates produce one today, and paycalc-grade-wiring.test.mjs fails the commit that would.
+ * @param {any} awardTy
+ * @returns {string} 'cea' | 'ces'
+ */
+export function awardGrade(awardTy) {
+  if (awardTy) {
+    const awardFrom = awardFromForYear(awardTy.label);
+    const cap = todaysPeriodNum();
+    const parts = getPeriods()
+      .filter(/** @param {any} p */ p => p.num >= 48 + awardTy.first && p.num <= cap
+        && getTaxYearForOffset(p.num - 48) === awardTy && !(awardFrom && p.payday >= awardFrom))
+      .flatMap(/** @param {any} p */ p => gradeDaysFor(p));
+    const { grade, mixed } = windowGrade(parts);
+    if (mixed) console.warn('[PayCalc] back pay: the ' + awardTy.label + ' award window spans a change of grade — priced at the later one');
+    if (grade) return grade;
+  }
+  const onScreen = getPeriods().find(/** @param {any} x */ x => x.num === (currentPeriodNum() || todaysPeriodNum()));
+  return gradeDaysFor(onScreen).find(x => x.grade)?.grade ?? 'cea';
 }
 
 /**
  * The hourly rate a payslip was PAID at, and whether that is the rate before its tax year's pay
  * award: a payslip paid before the award's mid-year date was paid the earlier rate (2025/26 payslips
  * before 24 Oct 2025 at £20.06, not the settled £20.74), every other one the year's settled rate.
- * ONE answer for the rate field and the Settings card's collapsed summary, which used to work it out
- * separately — and a summary quoting the new rate over a payslip priced at the old one is the
- * contradiction a member reported ("why does July 3rd show the new rate at the top?").
+ * ONE answer for the rate field, the Settings card's collapsed summary and calculate(), which used to
+ * work it out separately — and a summary quoting the new rate over a payslip priced at the old one is
+ * the contradiction a member reported ("why does July 3rd show the new rate at the top?").
+ *
+ * A payslip worked under two grades is each grade's rate weighted by its days, UNROUNDED: 7 days
+ * as a CEA and 21 as a CES in 2026/27 is £22.3225, so 140 contracted hours come to the £3,125.15
+ * that 35 hours at £21.49 and 105 at £22.60 do (paycalc-grade.js). The field shows it to the penny; calculate() uses
+ * this figure, never the field's rounding.
  * @param {any} ty - the period's tax year
- * @param {any} [p] - the period (omitted → the settled rate)
+ * @param {any} [p] - the period (omitted → the settled rate of a chosen grade, else CEA's)
  * @returns {{ rate: number, preAward: boolean }}
  */
 export function periodRate(ty, p) {
-  const grade    = getGrade();
-  const settled  = getStoredRateForYear(ty);
-  const preAward = !!p && isPreAwardPeriod(p, grade, ty.label);
-  return { rate: preAward ? getRateForPeriod(p, grade, ty.label, settled) : settled, preAward };
+  if (!p) {
+    const g = getGradeSetting().grade;
+    return { rate: settledRate(GRADES[g] ? g : 'cea', ty), preAward: false };
+  }
+  const parts = gradeDaysFor(p);
+  const rate  = byDays(parts, g => getRateForPeriod(p, g, ty.label, settledRate(g, ty)))
+             ?? getRateForPeriod(p, 'cea', ty.label, settledRate('cea', ty));
+  const preAward = parts.some(x => !!x.grade && isPreAwardPeriod(p, x.grade, ty.label));
+  return { rate, preAward };
 }
 
 /**
- * Load the rate for the given period into the hourly rate field — `periodRate`'s answer, so the
- * calculator matches the real payslip for historic periods. calculate() reads this field.
+ * Load the rate for the given period into the hourly rate field — `periodRate`'s answer, to the
+ * penny, with its label and the plain-English line under it. The field is display: calculate() asks
+ * `periodRate` itself, so a payslip spanning a change of grade is priced at the unrounded blend.
  * @param {any} ty  - the period's tax year
  * @param {any} [p] - the period (enables the mid-year step; omitted → settled rate only)
  */
 export function updateRateForPeriod(ty, p) {
-  const grade    = getGrade();
   const { rate, preAward } = periodRate(ty, p);
+  const parts    = p ? gradeDaysFor(p) : [];
   const field    = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
   field.value = rate.toFixed(2);
   // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise
@@ -503,17 +386,23 @@ export function updateRateForPeriod(ty, p) {
   // 2025/26). It is priced at the later rate — the only figure there is — and must never be labelled
   // "current rate" as though that were what it paid (whole-app review, Oct 2026; invariant 1).
   const from      = awardFromForYear(ty.label);
-  const preUnknown = !preAward && !!p && !!from && p.payday < from && awardRatesFor(grade, ty.label)?.pre == null;
+  const preUnknown = !preAward && !!p && !!from && p.payday < from
+    && parts.some(x => !!x.grade && awardRatesFor(x.grade, ty.label)?.pre == null);
   const lbl = document.getElementById('rateYearLabel');
   if (lbl) lbl.textContent = `${ty.label} · ${preAward ? 'pre-rise rate' : preUnknown ? 'post-rise rate' : 'current rate'}`;
-  // Spell out the pre/post-rise position plainly under the field (owner: make pre vs post clear).
+  // Spell out the pre/post-rise position plainly under the field (owner: make pre vs post clear),
+  // and, on a payslip that spans a change of grade, the two rates and the days behind the blend.
   const note = document.getElementById('rateStepNote');
   if (note) {
-    note.textContent = preAward && from
+    const step = preAward && from
       ? `This payslip predates the ${fdShort(from)} pay rise — later payslips switch to the new rate automatically.`
       : preUnknown && from
         ? `This payslip predates the ${fdShort(from)} pay rise, and the rate before it isn't on record for your grade — so this estimate uses the later rate, and your payslip will show less basic pay.`
         : '';
+    const split = p
+      ? gradeSplitLine({ parts, rateOf: g => getRateForPeriod(p, g, ty.label, settledRate(g, ty)), start: p.start, today: new Date() })
+      : '';
+    note.textContent = [step, split].filter(Boolean).join(' ');
     note.style.display = note.textContent ? '' : 'none';
   }
 }
@@ -541,15 +430,11 @@ export function saveSettings() {
   const pNum    = currentPeriodNum();
   const curP    = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const curTy   = taxYearForPeriod(curP);
-  const _savedGrade   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
-  // Save grade and invalidate the cache FIRST — every getGrade()-backed helper below
-  // (getStoredRateForYear, getPensionDefault) must read the NEW grade. (v17.40 review fix.)
-  lsSet(SK.grade, _savedGrade);
-  invalidateGrade();
-  // A grade picked by hand answers the grade prompt's question: hide it if the two now agree.
-  renderGradePrompt();
+  // Save the grade setting FIRST — every helper below that prices a payslip (periodRate,
+  // getPensionDefault) must read the NEW setting (v17.40 review fix). paycalc-grade-setting.js.
+  saveGradeSetting(pNum);
   // NB: the hourly rate is NO LONGER persisted (v17.87) — it is fixed by grade and derived by
-  // getStoredRateForYear/getRateForPeriod, so there is nothing to save and no stale rate can form.
+  // settledRate/getRateForPeriod, so there is nothing to save and no stale rate can form.
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
@@ -648,11 +533,13 @@ export function confirmSettings(calculate) {
   // Update header hint. Period-aware like the coordinator's hint writer (review parity fix): on a
   // pre-award payslip the field shows the pre-rise rate, so the hint must carry the same qualifier —
   // otherwise a Save briefly implied the pre-rise figure was the year's settled rate.
-  const _cfGrade = getGrade();
-  const rate = (parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value)
-    || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+  // periodRate is the one answer for this payslip's rate and its pre-rise position — the rate field,
+  // calculate() and this hint all read it, so the three cannot disagree (a payslip that spans a
+  // change of grade is the blend, to the penny).
+  const { rate: _cfRate, preAward: _cfPre } = periodRate(curTy, curP);
+  const rate = (_cfRate || parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value)
+    || GRADES.cea.rate).toFixed(2);
   const hintEl = document.getElementById('settingsHint');
-  const _cfPre = !!curP && isPreAwardPeriod(curP, _cfGrade, curTy.label);
   // No tax code here — matches the coordinator's summary writer (one line at 390px; v17.95).
   if (hintEl) setStatus(hintEl, `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise' : ''}`);
   // Brief "saved" confirmation then collapse — UNLESS one consequence of the save could not be
@@ -765,24 +652,10 @@ export function loadSettings() {
     offerRecordedPayslip(_slPaidOffEl, parseInt(_slPaidOff, 10));
     _slPaidOffEl.value = _slPaidOff;
   }
-  let grade = lsGet(SK.grade);
-  if (!grade || !GRADES[grade]) {
-    // Auto-detect from the logged-in member's role. Via gradeForRole (v21.78) rather than an
-    // inline CES check, so "this role has no grade" is an answer the app can act on instead of
-    // silently becoming CEA further down.
-    // The grade the roster gives TODAY (`roleOn`), not the grade now on record: a promotion released
-    // days early must not start a first visit on the new grade's rates before it begins.
-    const _member = getLoggedMember();
-    grade = gradeForRole(_member ? roleOn(_member, new Date()) : undefined) ?? grade;
-  }
-  if (grade && GRADES[grade]) {
-    /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value = grade;
-    lsSet(SK.grade, grade);
-    invalidateGrade();
-  }
-  // A saved grade outranks the roster role above, so a member whose role has changed since is
-  // ASKED here (owner, 10 Nov 2026) — the only moment the prompt may appear.
-  renderGradePrompt(true);
+  // ── THE GRADE SETTING: converted once if it was saved before grades had dates, then painted — the
+  // Grade box, its "from which payslip?", the roster's line, the grade prompt and the one-time note
+  // (paycalc-grade-setting.js → loadGradeSetting).
+  loadGradeSetting();
   // ── PENSION STATUS: migrate the retired boolean, then paint the controls ──────────────────────
   //
   // The v21.64 flag carried no date, so no migration can recover the real one. It becomes a change

@@ -718,6 +718,32 @@ that touches what they cover; run `npm run test:payslip-local` before any pay ch
 document opens by its short-lived signed address, as the bearer-URL entry in KNOWN_LIMITATIONS.md
 describes.
 
+## A grade has a date: each payslip is priced at the grade held on its days (owner, 13 Nov 2026)
+
+The Pay Calculator held one grade per member, so a promotion re-priced every payslip they had ever
+had, and the payslip that spanned it was right for neither side. The roster now dates a grade
+(`roleHistory`, v25.99) and the calculator now prices each payslip by its days
+(`.claude/rules/paycalc.md` invariant 17). The owner took four decisions ("Do all", 13 Nov 2026):
+
+1. **The changeover payslip is priced by days**, not wholly at the new grade from the first payslip
+   after the change. For the contracted hours it is exactly each day at its own grade; premium hours
+   are an estimate on the same weighting. VAL-PAY-005 holds the check against the real payslip.
+2. **The dated grade went into v25.99**, the release that moved the members: without it, that release
+   would have treated the promoted member as the new grade on every date they had worked.
+3. **The grade history is published in the staff file**, which is world-readable: "a CEA until
+   21 Nov 2026" can already be worked out from the line moves, and a private store would be a second
+   copy of the roster to keep in step.
+4. **A member who moves into management keeps the refusal card.** The page prices nobody whose role
+   NOW has no confirmed rates; the payslips worked under the old grade are not offered.
+
+**Considered and not done.** Asking "switch?" on each promotion — the v25.99 behaviour, which applies
+one answer to the whole history. Pricing by shifts — hours are stored per payslip, so nothing records
+which side of the change a Saturday fell on, and inventing a split would look more precise and be less
+true. Splitting a back-pay lump across a change of grade — no member's dates need it, and a data test
+fails the commit that would. Teaching Team Week and the roster import the same dates — a ROADMAP entry.
+
+**What would reopen it:** the real payslip pricing the change some other way (VAL-PAY-005).
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

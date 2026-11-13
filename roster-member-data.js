@@ -56,7 +56,7 @@ export const teamMembers = [
     // 28 Jun, M. Campbell's from 22 Nov 2026). AL stays the standard CEA 32 (her contract decides it,
     // not the line). To END the move, ADD a `rosterChanges` entry dated from the day it ends, onto
     // whichever line she takes. Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
-    // Until v26.00 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
+    // Until v26.01 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
     // holidays. Pointing it at 4 redrew only the bank holidays since 28 Jun, as the rest days they were.
     // NOTE `fixedRoster[4]` is shared with S. Faure and A. Atkins (below): change its hours and you change all three.
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA',

@@ -2750,7 +2750,7 @@ the run takes it back.
 
 ## Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)
 
-### An update could still land mid-way through the forced change — CLOSED v26.00
+### An update could still land mid-way through the forced change — CLOSED v26.01
 
 Recorded by the sign-in audit and closed the same day, once, in `sw-register.js` rather than page by
 page, so no page's service-worker start-up changed. Every reload an update causes now waits while a
@@ -2771,7 +2771,7 @@ each path's check was deleted in turn and its test failed. The entry as it stood
 > self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
 > every page means changing the service worker's start-up on all of them, which was not worth the risk.
 
-### A revoked phone could save its push record again for up to an hour — CLOSED v26.00
+### A revoked phone could save its push record again for up to an hour — CLOSED v26.01
 
 Recorded at v25.98 as the second of two gaps under "A lost-phone reset still leaves two narrow gaps";
 closed in the release after it by the fix the entry named. The `pushSubscriptions` create and update rule
@@ -2867,7 +2867,7 @@ entries were pointed at 4 rather than given new ones, so the bank holidays since
 redrawn too, as the rest days they were. Pattern 2 is untouched: others sit on it, and nobody has said
 they rest on bank holidays.
 
-**v26.00 moved a third placeholder line onto pattern 4.** A CEA off the main link since 28 Jun 2026 sat on
+**v26.01 moved a third placeholder line onto pattern 4.** A CEA off the main link since 28 Jun 2026 sat on
 pattern 2 as well and does not work bank holidays either (owner, 13 Nov 2026). That entry now points at 4 in
 the same way, which redrew Mon 31 Aug 2026 as the rest day it was. A CEA's leave is set by the contract,
 not the line, so nothing else moved (`roster-data.test.mjs` pins both).

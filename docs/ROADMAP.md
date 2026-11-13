@@ -486,6 +486,15 @@ subscription.
 > handling, override deletion, calendar-client compatibility, privacy and tests are the work — the
 > feed generation is the easy part.
 
+### Team Week and the roster import read the dated grade
+**Status:** Conditional · **Trigger:** a promotion that cannot be released between two roster uploads
+
+A grade has a date since v25.99 (`roleHistory`, `roster-roles.js`), but only the Pay Calculator reads
+it. The roster import's name lists and Team Week's grade tabs read `role`, the grade NOW, which is why
+a promotion is released between the last upload under the old grade and the first under the new one
+(OPERATIONS_REFERENCE.md → "A member changes grade"). Reading the grade on each week's own dates would
+lift that rule. **Success:** a promotion released on any day imports the weeks either side of it.
+
 ### Daily operations view
 **Status:** Conditional · **Trigger:** supervisors say the week view is insufficient
 
