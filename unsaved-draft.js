@@ -50,7 +50,7 @@
  *      13 Nov 2026). So `offer` takes `unsaved`: the draft's data with what has since landed taken
  *      out, or null when that is all of it. Null deletes the draft without a question; anything else
  *      is what is asked about and put back. Admin judges it from what the save was SENDING when the
- *      page went (`sendingDays`, admin-overrides.js) against what each day holds now
+ *      page went (`sendingDays`, admin-week-editor.js) against what each day holds now
  *      (`unsavedWeekDraft`, admin-week-row-state.js) — the outcome, never a guess about which queue
  *      the save was in.
  *
