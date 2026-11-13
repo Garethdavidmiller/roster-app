@@ -53,7 +53,9 @@ const CAPS = {
     // 3950 → 3850 (Nov 2026, at 3,781): comments that had become a changelog went back to the reason they
     // left, stale claims were corrected, and the drawer pills' nine colour pairs and the sheet's four ✕
     // colours became one block each.
-    'shared.css':     3850,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3850 → 3849 (13 Nov 2026, at 3,849): the dialog's option row (`confirmWithOption`) came in at its cap, and two
+    // of the dialog's own comments that had become a changelog made the room — the ceiling follows the sheet down.
+    'shared.css':     3849,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).
     'admin.css':      2650,

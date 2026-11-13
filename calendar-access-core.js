@@ -179,8 +179,12 @@ export function decideAccess({ session, firebaseUser }) {
     if (named && u && !u.isAnonymous && !isViewerUser(u)
         && (!u.email || u.email === nameToEmail(String(session?.name).trim()))) return 'named';
 
-    // Rule 2: the shared viewer capability, restored from this browser SESSION (never longer).
-    if (isViewerUser(u)) return 'viewer';
+    // Rule 2: the shared viewer capability, restored from this browser SESSION (never longer) — but
+    // never over a member's held session (sign-in audit F1, Nov 2026). A member whose identity did not
+    // restore, in a tab that ALSO holds a PIN session, was granted the PIN: they read the station's
+    // Calendar instead of their own, and a later loss of access showed them the PIN card. `none` gives
+    // them their own card, which is CALENDAR_DATA.md 11; the late-restore path already refused it.
+    if (isViewerUser(u)) return named ? 'none' : 'viewer';
 
     // Rule 3: everything else — including an anonymous identity, which used to be the Calendar's
     // whole auth model and now grants nothing.

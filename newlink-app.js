@@ -26,9 +26,18 @@
  * `newlink`, nav-panel.js `newlinkAudienceOnly`, both read through `canOpenNewlink`). The sign-in is the
  * app's ordinary front door rather than a protection — the proposals are public files — and the station PIN never reads
  * this page (owner: "No, signed-in only"), so it signs out on arrival like every page that does not ask for it.
+ *
+ * ── AND WHO IT IS NOT FOR IS TOLD, NOT SENT AWAY (sign-in audit B1, 13 Nov 2026) ────────────────────────────────
+ *
+ * A link to this page travels in group chats, so colleagues it is not for open it: a bilingual contract, which keeps its
+ * own links (owner, 8 Nov 2026), a CES, a Dispatcher. The sign-in card said nothing about the page, and a sign-in that
+ * landed was answered with "Signed in — opening New link…" and a silent jump to the Calendar, every time. So the card
+ * says what the page is and who it is for (`ABOUT`, as Admin, Pay and Trains do), and a signed-in colleague outside the
+ * audience gets the page's chrome — header, drawer, sign-out — round one card saying the same, with the way back
+ * (`showNotForYou`). Those are the only words on the page that are not newlink-render.js's: they belong to the gate.
  */
 
-import { CONFIG, formatISO } from './roster-data.js';
+import { CONFIG, formatISO, escapeHtml } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -40,7 +49,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { initPdfViewer } from './pdf-viewer.js';
 import { isPlainClick } from './pdf-viewer-core.js';
 import { PROPOSALS } from './links-proposals.js';
@@ -51,6 +60,21 @@ import { renderStatus, statusPhase, statusHint, renderList, renderCommon, render
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
 const CARDS = ['nlChanges', 'nlCommon', 'nlDiffer', 'nlMeans', 'nlWeeks', 'nlSay', 'nlPack', 'nlHow'];
+
+/**
+ * What the page is and who it is for — on the sign-in card (login-overlay.js → `about`) and on the card a colleague outside
+ * the audience is shown, the same words in both, so the page's two answers to "not for you" read as one door (the Pay
+ * Calculator's arrangement). The audience is auth-policy.js `newlinkAudience`; the bilingual contract's own links are the
+ * owner's of 8 Nov 2026 (newlink-config.js → AUDIENCE). It names nobody as deciding anything (newlink-config.js → WHO IS
+ * IN CHARGE).
+ */
+const ABOUT = Object.freeze({
+    lines: Object.freeze([
+        'The three shortlisted proposals for the new CEA link, to read and compare.',
+        'They are for colleagues on a normal CEA contract, and the managers.',
+        'Colleagues on a bilingual contract, CESs and Dispatchers keep their own links.',
+    ]),
+});
 
 /** Coordinator body, invoked by newlink-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -67,25 +91,26 @@ export function init() {
     if (access.decision === 'login') {
         // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.
         initLoginOverlay({
-            pageLabel: 'New link',
+            pageLabel: 'New link', about: ABOUT,
             onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
         });
         return;
     }
-    if (access.decision === 'forbidden') {
-        // Signed in, not in the audience: back to the roster, quietly. The pill is not offered to them either.
-        window.location.replace('./');
-        return;
-    }
-    start(/** @type {string} */ (currentUser));
+    // Signed in, and either in the audience or not: a colleague it is not for gets the page's chrome round a card saying
+    // so, never a silent jump to the roster — the pill is not offered to them, but a shared link still brings them here.
+    start(/** @type {string} */ (currentUser), access.decision !== 'forbidden');
 }
 
-/** The page, for a signed-in member the policy admits. @param {string} member */
-function start(member) {
+/**
+ * The page, for a signed-in member: the proposals if the policy admits them, and otherwise who the page is for.
+ * @param {string} member @param {boolean} admitted
+ */
+function start(member, admitted) {
     dismissLoginOverlay();
     const established = ensureNamedSession(member);
     resolveSession(established);
-    guardNamedSession({ page: 'newlink', pageLabel: 'New link', member, established });
+    guardNamedSession({ page: 'newlink', pageLabel: 'New link', member, established,
+        signIn: () => initLoginOverlay({ pageLabel: 'New link', about: ABOUT, onSuccess: () => window.location.reload() }) });
 
     /** @type {(() => void)|null} */
     let openAboutLightbox = null;
@@ -103,6 +128,17 @@ function start(member) {
     // Trains — made the drawer's logo throw instead of opening About (found 2 Nov 2026).
     openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — New link', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
+    if (!admitted) {
+        showNotForYou();
+        markPageReady();
+        // No proposals follow, so nothing will read the sign-in timer: drop it, or the next page opened within two minutes
+        // would count this visit as its sign-in time (as Pay's and Overtime's refusals do).
+        clearLoginStart();
+        // A real view by a real member, counted as the Pay Calculator counts its refusal; not timed, as nothing loads.
+        sessionReady.then(() => { initErrorReporter(); recordUsage('newlink', member); });
+        sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+        return;
+    }
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
 
     renderStatic();
@@ -119,6 +155,23 @@ function start(member) {
         recordPageLatency('newlink', member);
     });
     sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+}
+
+/**
+ * The page for a signed-in colleague it is not for (sign-in audit B1): one card in place of the proposals — what the page
+ * is and who it is for, in the sign-in card's own box and words (`ABOUT`), and the way back to their roster. The header,
+ * the drawer and Sign out are wired as on any page, by `start`.
+ */
+function showNotForYou() {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'nlNotForYou';
+    card.innerHTML = `<div class="card-header card-header--row"><div><h2><span aria-hidden="true">🔁</span> The new link doesn’t apply to your contract</h2></div></div>
+        <div class="card-body">
+            <div class="login-about">${ABOUT.lines.map(line => `<p class="login-about-line">${escapeHtml(line)}</p>`).join('')}</div>
+            <a href="./" class="btn-action btn-primary">Back to your roster</a>
+        </div>`;
+    el('newlinkMain')?.replaceChildren(card);
 }
 
 /**

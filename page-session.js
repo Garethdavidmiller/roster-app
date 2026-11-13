@@ -51,8 +51,9 @@
  * `guardNamedSession({ page, member, established, signIn })` — the follow-up every named page runs
  * once its Firebase session settles: an own session that cannot be confirmed is asked to sign in
  * again at once, and one that goes LATER gets the same sign-in rather than a dead page. Both paths
- * clear the session and tear down the drawer first, because the drawer was wired with the old
- * member's name and pills, and on a shared device that must not stay reachable behind the sign-in.
+ * release this device's push record, clear the session and tear down the drawer first, because the
+ * drawer was wired with the old member's name and pills, and on a shared device neither that nor the
+ * member's targeted notices may stay behind the sign-in.
  * A session that could not be DECIDED — Firebase's start-up stalled, so the policy says `pending` —
  * is the one case that clears nothing (v24.61): the sign-in is shown over a kept session, and a
  * late-landing identity reloads the page into itself.
@@ -70,7 +71,7 @@
 
 import { auth, onAuthStateChanged } from './firebase-client.js';
 import { nameToEmail } from './auth-identity.js';
-import { getSession, clearSession, AUTH_KEY } from './session.js';
+import { getSession, clearSession, releasePushForEndingHold, AUTH_KEY } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { watchIdentityLoss } from './claim-retry.js';
@@ -312,7 +313,11 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
         .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, onSuccess: () => window.location.reload() }))
         .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }));
     // The sign-in waits for the reset's history step to land (v25.06): it pushes an entry of its own.
-    const relogin = () => { clearSession(); resetNavPanel(); whenHistorySettled(showSignIn); };
+    // This device's push record goes FIRST, as at every other end of a member's hold (audit A1) — never
+    // awaited, so the sign-in does not wait on it. The identity has usually gone already (that is why
+    // the sign-in is back), so the release drops the browser subscription and the next send's 410
+    // deletes the record — as on the Calendar after a reset refusal.
+    const relogin = () => { releasePushForEndingHold(); clearSession(); resetNavPanel(); whenHistorySettled(showSignIn); };
     // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means
     // Firebase's start-up stalled past its bound (`terminalAuthEvent`, session.js): the member has not
     // been refused, the network has not answered. Keep the local session and the drawer, show the

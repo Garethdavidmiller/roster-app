@@ -76,7 +76,8 @@ out of the reducer is what delivers the authentication/authorisation separation.
 `requirePageAuth(snapshot, policy) → { decision, reason }`, driven by a **declarative policy map**
 (`PAGE_POLICIES`) — the single home for the per-page rules and the hard/soft matrix. Decisions:
 `allow / soft-allow / login / forbidden / pending` (`pending` covers the resolving/degraded "not yet"
-states, which `subscribeAuth` fires on).
+states). A page reads the store's snapshot (`getAuthSnapshot()`) when its own session settles;
+`subscribeAuth` exists, but nothing in production subscribes (`auth-state.js`).
 
 | Page | Local session | Firebase (read) | Firebase (write) | Role | Anonymous |
 |------|---------------|-----------------|------------------|------|-----------|
@@ -121,7 +122,12 @@ policy), NOT page/card/form UI, Pay Calculator data, roster data, or nav state.
 
 `degraded` must never become a privilege loophole. Forbidden anti-pattern: *"Firebase is degraded, so
 carry on because the local session says admin."* **Rule: degraded never grants authority; it may only
-preserve local/cached read-only UX. Any privileged write under `degraded` collapses to `signedOut`.**
+preserve local/cached read-only UX.** What happens instead (since v24.61): a sign-in that never
+reached an answer is TRANSIENT, so the store stays `degraded`; the page policy answers `pending`; and
+the page keeps the 60-day local session and shows the sign-in over it (`guardNamedSession`,
+`page-session.js`), reloading into the identity if it lands late. Nothing can be written meanwhile:
+every write needs an identity whose claim the rules accept (AUTH_AND_SESSIONS 9). The store no longer collapses to
+`signedOut` here — that would have cleared the session of a member whose network merely stalled.
 
 | Page / action | Degraded behaviour |
 |---------------|--------------------|

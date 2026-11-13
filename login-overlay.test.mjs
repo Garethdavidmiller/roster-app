@@ -28,6 +28,8 @@ const realIdentity = await import('./auth-identity.js');
 const fakeAuth = { currentUser: /** @type {any} */ (null) };
 let signInCode  = 'ok';
 let signOutCode = 'ok';
+/** The server's record of the sign-in the fake hands back (`metadata.lastSignInTime`), or none. @type {string|undefined} */
+let serverSignInTime;
 mock.module('./firebase-client.js', { namedExports: {
     auth:                       fakeAuth,
     authReady:                  Promise.resolve('indexeddb'),
@@ -36,7 +38,8 @@ mock.module('./firebase-client.js', { namedExports: {
     normaliseSurname:           realIdentity.normaliseSurname,
     signInWithEmailAndPassword: async (/** @type {any} */ _auth, /** @type {string} */ email) => {
         if (signInCode !== 'ok') throw Object.assign(new Error(signInCode), { code: signInCode });
-        fakeAuth.currentUser = { uid: 'u-member', isAnonymous: false, email, getIdToken: async () => 't' };
+        fakeAuth.currentUser = { uid: 'u-member', isAnonymous: false, email, getIdToken: async () => 't',
+            ...(serverSignInTime ? { metadata: { lastSignInTime: serverSignInTime } } : {}) };
     },
     signOut: async () => {
         if (signOutCode !== 'ok') throw Object.assign(new Error(signOutCode), { code: signOutCode });
@@ -49,7 +52,9 @@ mock.module('./firebase-client.js', { namedExports: {
     changeOwnPassword:          async () => ({ stamp: Promise.resolve(true) }),
     reauthenticateWithPassword: async () => {},
 } });
-mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => {} } });
+// A RECORDER: a failure that clears ANOTHER member's session releases this device's push record (audit A1).
+let releases = 0;
+mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => { releases++; } } });
 const store = new Map();
 mock.module('./ls.js', { namedExports: {
     lsGet: (/** @type {string} */ k) => store.get(k) ?? null,
@@ -66,8 +71,11 @@ mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBo
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {} } });
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
-const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay } = await import('./login-overlay.js');
+const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay, resetRequestFailureLine } = await import('./login-overlay.js');
 const { CALENDAR_VIEWER_UID } = await import('./calendar-access-core.js');
+// The REAL teardown and the same staff-pin-ended.js instance the card listens to (audit B2/C2, below).
+const { reconcileExpiredIdentity } = await import('./session.js');
+const { onStaffPinEnded } = await import('./staff-pin-ended.js');
 
 /** Build a deps object with call-recording session helpers and sensible defaults. */
 function makeDeps(over = {}) {
@@ -264,10 +272,78 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         assert.equal((await attempt()).kind, 'transient');
     });
 
+    // AUTH_AND_SESSIONS 1, second half, through the wiring the card uses (audit F2): only the browser
+    // suite caught `keepsLocalSession` reduced to `() => false`, which signs a returning member out of
+    // their own device on one mistyped password or one timeout on weak signal.
+    const holdSession = (/** @type {string} */ name) => store.set('myb_admin_session', JSON.stringify({ name, ver: 2, expiry: Date.now() + 86_400_000 }));
+    test('a failed sign-in by the member whose session this device holds leaves that session alone', async () => {
+        holdSession('G. Miller');
+        signInCode = 'auth/invalid-credential';
+        assert.equal((await attempt()).kind, 'credential', 'premise: the sign-in failed');
+        assert.equal(JSON.parse(store.get('myb_admin_session') ?? 'null')?.name, 'G. Miller', 'their own session was cleared by a typo');
+    });
+
+    // …and that member's push record goes with it (audit A1 — an end of a hold that released nothing).
+    // The release is fire-and-forget behind a dynamic import (session.js), so each test here waits for
+    // it — or long enough to know none came — rather than let it land in the next test's count.
+    const releaseSettles = async (/** @type {number} */ want) => { for (let i = 0; i < 50 && releases < want; i++) await new Promise(r => setTimeout(r, 2)); };
+    test('…but a failed sign-in by ANOTHER member clears the session this device held, and releases its push record', async () => {
+        releases = 0;
+        holdSession('S. Silva');
+        signInCode = 'auth/invalid-credential';
+        assert.equal((await attempt()).kind, 'credential', 'premise: the sign-in failed');
+        assert.equal(store.has('myb_admin_session'), false, 'somebody else\'s session survived a failed sign-in on their device');
+        await releaseSettles(1);
+        assert.equal(releases, 1, 'their targeted notices would go on arriving on a device they no longer hold');
+    });
+
+    test('…and releases nothing for the member\'s OWN session kept, nor where no session was held', async () => {
+        for (const held of ['G. Miller', null]) {
+            releases = 0;
+            store.clear();
+            if (held) holdSession(held);
+            signInCode = 'auth/invalid-credential';
+            await attempt();
+            await releaseSettles(1);
+            assert.equal(releases, 0, held ? 'the member\'s own hold did not end, so nothing is released' : 'nobody\'s hold ended');
+        }
+    });
+
     test('and a sign-in that works saves the session for the member named', async () => {
         const r = await attempt();
         assert.deepEqual(r, { ok: true });
         assert.equal(JSON.parse(store.get('myb_admin_session')).name, 'G. Miller');
+    });
+
+    // THE PIN'S END IS STICKY FOR THE PAGE — UNTIL A MEMBER SIGNS IN THERE (audit B2/C2). Kept for
+    // good, the card a member met after signing in here in place and later losing their identity said
+    // again that the PIN had ended, and pointed a member at the shared code.
+    test('a sign-in that works makes the PIN\'s end old news: a LATER card on this page is not told', async () => {
+        fakeAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
+        await reconcileExpiredIdentity();                      // this page ends the PIN, the real way
+        assert.equal(fakeAuth.currentUser, null, 'premise: the teardown signed the PIN out');
+        let first = 0;
+        const stopFirst = onStaffPinEnded(() => { first++; });
+        await Promise.resolve();
+        assert.equal(first, 1, 'premise: the card up now is told');
+        stopFirst();
+        assert.deepEqual(await attempt(), { ok: true });      // a member signs in on that card, in place
+        let later = 0;
+        onStaffPinEnded(() => { later++; });                  // …and is later shown a card again
+        await Promise.resolve(); await Promise.resolve();
+        assert.equal(later, 0, 'a later card on the same page told a signed-in member the PIN had ended');
+    });
+
+    // The session the card saves begins when the SERVER says this sign-in happened (audit A2): a phone
+    // a day ahead stamped a start a day late, and a reset later that day then looked older than it.
+    test('…and dates it by the server\'s record of this sign-in, not by a device clock a day ahead', async () => {
+        const server = Math.floor((Date.now() - 86_400_000) / 1000) * 1000;
+        serverSignInTime = new Date(server).toUTCString();
+        try {
+            assert.deepEqual(await attempt(), { ok: true });
+        } finally { serverSignInTime = undefined; }
+        const saved = JSON.parse(store.get('myb_admin_session') ?? 'null');
+        assert.equal(saved.createdAt, server, 'the session was dated by the device clock');
     });
 });
 
@@ -326,6 +402,44 @@ describe('isAboutLinkAllowed — the sign-in card links only within the app', ()
         for (const href of ['https://example.com/', '//example.com/x', 'javascript:alert(1)', 'data:text/html,x',
             '/paycalc-guide.html', 'paycalc-guide.html', './x.html"onmouseover="y', ' ./x.html', '', null, undefined, 42]) {
             assert.equal(isAboutLinkAllowed(href), false, String(href));
+        }
+    });
+});
+
+// A REFUSED reset request is an ANSWER, not a lost connection (audit C12): the server's staff list
+// lacks the name (404), or requests are switched off (503). Read as "check your connection", the
+// member retried something no retry could change. The errors are built exactly as
+// `requestPasswordReset` builds them; firebase-client.test.mjs pins that shape from its side.
+describe('resetRequestFailureLine — what a failed reset request says', () => {
+    const refused = (/** @type {number} */ status, /** @type {string} */ body) => new Error(`Server responded ${status}: ${body}`);
+
+    test('404: the name is not on the server\'s list yet — contact the admin, not "check your connection"', () => {
+        const line = resetRequestFailureLine(refused(404, '{"error":"Unknown member"}'), false);
+        assert.equal(line, 'Your name isn’t on the app’s list for reset requests yet — contact the admin directly.');
+    });
+
+    test('503: requests are switched off — contact the admin', () => {
+        const line = resetRequestFailureLine(refused(503, '{"error":"Reset requests are temporarily unavailable"}'), false);
+        assert.equal(line, 'Reset requests aren’t available at the moment — contact the admin directly.');
+    });
+
+    test('a timeout may have arrived, whatever the error says — the wording that stops a repeat stays', () => {
+        for (const err of [new Error('Timed out waiting for the server'), refused(404, '')]) {
+            assert.match(resetRequestFailureLine(err, true), /^Couldn’t confirm the request reached the admin — it may have gone through\./);
+        }
+    });
+
+    test('anything else keeps the connection line — a status only counts at the START of the message', () => {
+        for (const err of [new TypeError('Failed to fetch'), refused(500, 'Server roster config invalid'), refused(429, ''),
+            new Error('proxy said: Server responded 404: x'), null, undefined]) {
+            assert.equal(resetRequestFailureLine(err, false), 'Couldn’t send the request — check your connection, or contact the admin directly.', String(err));
+        }
+    });
+
+    test('no line names the PIN or tells the member to wait and retry for a refusal', () => {
+        for (const line of [resetRequestFailureLine(refused(404, ''), false), resetRequestFailureLine(refused(503, ''), false)]) {
+            assert.match(line, /contact the admin directly\.$/);
+            assert.doesNotMatch(line, /connection|try again|PIN|!/i);
         }
     });
 });

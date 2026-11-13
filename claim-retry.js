@@ -136,10 +136,13 @@ export function _resetUnconfirmedWrites() { _unconfirmedWrites = 0; }
 // ── WRITES NO PAGE STARTED, COUNTED WHERE THEY START (review, 11 Nov 2026) ──────────────────────────
 // The "you have set your own password" record is written by `changeOwnPassword` in the background, after
 // the password itself has changed — from Settings' card or from the forced change, which can open on
-// any page. Only Settings held a release's reload for it, so a reload landing in the moment after the
-// forced change could lose it, and the member was made to choose a password again at the next sign-in.
-// Counted here, every page's busy check (`writesInFlight`, slow-save.js) waits for it, with no notice
-// on screen: the member did not ask for this write and has nothing to wait for.
+// any page — and the forced change's password write is counted the same way (sign-in audit E5, Nov 2026).
+// Only Settings held a release's reload for them, so a reload landing in that moment could lose one, and
+// the member was made to choose a password again at the next sign-in. Counted here, every busy check that
+// reads `writesInFlight` (slow-save.js) — Admin, Settings and Operations — waits for them, with no notice
+// on screen: the member did not ask for these writes and has nothing to wait for. The Calendar holds an
+// update while it is on screen anyway; the other pages reload at once, and the worst that costs is the
+// question asked again (KNOWN_LIMITATIONS → "An update can still land mid-way through the forced change").
 let _background = 0;
 
 /**

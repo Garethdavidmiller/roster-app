@@ -40,7 +40,14 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 13 Nov 2026 (v25.90, the checked save): no rule changed. The `overrides` read must
+// Last swept 13 Nov 2026 (v25.98, the sign-in audit): no rule changed. Five comments still described
+// a member as "a `name` claim"; they now say what the rules ask — `isMember()` / `memberName()`, a
+// password sign-in at the address the name derives to, carrying the server-set `member` claim
+// (AUTH_AND_SESSIONS 19). A bare `name` proves nothing (any account may set its display name), so a
+// rule copied from the old wording would reopen that hole. And a static gate now reads this file and
+// storage.rules: every rule, and every function, that tests for a session must also ask a claim on
+// every path (rules-claim-gate.test.mjs, AUTH_AND_SESSIONS 9) — a bare `request.auth != null` fails it.
+// Prior sweep 13 Nov 2026 (v25.90, the checked save): no rule changed. The `overrides` read must
 // never consult `resource` — every online save now reads each day it writes inside one
 // transaction, and a day's first save reads a document that is not there (pinned by a rules test).
 // Comments brought up to date: the Calendar's read gate is `hasOverrideAccess`, the password stamp
@@ -81,7 +88,7 @@ rules_version = '2';
 // label a change with its version and the check can see it.)
 //
 // Write policy: PER-MEMBER ISOLATION is now STRICT (B3, see SECURITY_RELEASE_PLAN.md).
-// `overrides` create/update/delete require the member's own `name` claim, OR an `admin`/`manager`
+// `overrides` create/update/delete require the member's own bound name (`memberName()`), OR an `admin`/`manager`
 // claim (both write on behalf). The B2 permissive `!('name' in token)` legacy/anonymous escape has
 // been REMOVED (B3 strict cutover) after the CLAIM_EPOCH=2 forced re-auth sweep + a re-provision.
 // A stale token that has not refreshed since the sweep is self-healed on its first write by the
@@ -236,7 +243,8 @@ service cloud.firestore {
       // control — it is the absence of one.
       //
       // TWO identities qualify, and the second is the reason this could finally be closed:
-      //   · a real MYB member — a `name` claim, set by setupRosterAuth after a password sign-in;
+      //   · a real MYB member — `isMember()`: a password sign-in at the member's own address, with the
+      //     `member` claim setupRosterAuth stamps (AUTH_AND_SESSIONS 19);
       //   · the shared staff Calendar viewer — `calendarViewer`, minted by the unlockCalendarViewer
       //     Cloud Function in exchange for the staff PIN. Staff open the roster on shared office
       //     PCs for a thirty-second look, and requiring a full member sign-in for that would have
@@ -460,7 +468,7 @@ service cloud.firestore {
     match /huddles/{date} {
       // ── READ REQUIRES ACCESS (v23.18 — was `allow read;` from v10.76; owner decision 7 Sep 2026:
       // the Huddle, the Circular and the Newsletter are not visible without the staff PIN or a
-      // password). The same three doors as `overrides`: a member's `name` claim, `admin`, or the
+      // password). The same three doors as `overrides`: a bound member (`isMember()`), `admin`, or the
       // shared `calendarViewer` capability the PIN mints. The reason it was open — a notification
       // tap on a fresh visit carried no session — is answered on the client since v23.17: the tap
       // is HELD behind the PIN card and finished by the PIN (calendar-doc-access.js). The client
@@ -539,8 +547,8 @@ service cloud.firestore {
       // Deliberately NOT narrowed to the linksDesigner claim: that is exactly the lockout the open
       // read existed to prevent — a designer whose token predates the claim must still be able to
       // LOAD the workspace, so that their first write can permission-deny and self-heal through
-      // writeWithClaimRetry. Requiring `name` keeps that escape hatch (every provisioned member has
-      // it) while excluding the anonymous sessions that were never meant to be included.
+      // writeWithClaimRetry. Requiring a bound member (`isMember()`) keeps that escape hatch (every
+      // provisioned member is one) while excluding the anonymous sessions that were never meant to be included.
       allow read: if request.auth != null &&
         (isMember() || request.auth.token.admin == true);
       // Writes require the linksDesigner claim (or admin, who outranks). setupRosterAuth
@@ -656,7 +664,7 @@ service cloud.firestore {
           request.resource.data.updatedBy.size() <= 100 &&
           request.resource.data.updatedAt is timestamp;
       }
-      // CREATE pins `createdBy` to the writer's own `name` claim — ownership cannot be forged at
+      // CREATE pins `createdBy` to the writer's own bound name (`memberName()`) — ownership cannot be forged at
       // birth. The admin is held to the same pin: an admin-created set is owned by the admin's own
       // name, not by whoever they might type, because a forged owner is a set someone ELSE can now
       // never protect (they did not create it, yet it wears their name).

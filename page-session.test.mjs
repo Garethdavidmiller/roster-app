@@ -30,6 +30,8 @@ mock.module('./session.js', { namedExports: {
     AUTH_KEY: 'myb_admin_session',
     getSession: () => session,
     clearSession: () => { log.push('clearSession'); session = null; },
+    // Recorded into the same log, so its ORDER against the clear is what is asserted (audit A1).
+    releasePushForEndingHold: async () => { log.push('releasePush'); },
 } });
 mock.module('./auth-policy.js', { namedExports: { requirePage: (/** @type {any} */ _s, /** @type {string} */ page) => { log.push(`requirePage:${page}`); return { decision }; } } });
 mock.module('./auth-state.js', { namedExports: { getAuthSnapshot: () => ({}) } });
@@ -89,7 +91,8 @@ describe('guardNamedSession', () => {
         decision = 'login';
         await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: Promise.resolve() });
         await settle();   // the default sign-in is loaded on demand
-        assert.deepEqual(log, ['requirePage:links', 'clearSession', 'resetNavPanel', 'login:Links']);
+        assert.deepEqual(log, ['requirePage:links', 'releasePush', 'clearSession', 'resetNavPanel', 'login:Links'],
+            'this device\'s push record goes first, as at every other end of a hold (audit A1)');
     });
 
     test('a confirmed session is watched, and its LATER loss runs the same sign-in', async () => {
@@ -104,7 +107,8 @@ describe('guardNamedSession', () => {
         log = [];
         watchArgs.onLost();
         await settle();
-        assert.deepEqual(log, ['clearSession', 'resetNavPanel', 'login:Overtime']);
+        assert.deepEqual(log, ['releasePush', 'clearSession', 'resetNavPanel', 'login:Overtime'],
+            'an identity lost mid-visit releases this device\'s push record too (audit A1)');
     });
 
     test('a session that could not be DECIDED (a stalled start-up) is kept: the sign-in shows over it, nothing is cleared', async () => {
@@ -152,7 +156,7 @@ describe('guardNamedSession', () => {
         decision = 'login';
         await ps.guardNamedSession({ page: 'admin', pageLabel: 'Admin', member: 'A. Member', established: null,
             signIn: () => log.push('adminLogin') });
-        assert.deepEqual(log, ['requirePage:admin', 'clearSession', 'resetNavPanel', 'adminLogin']);
+        assert.deepEqual(log, ['requirePage:admin', 'releasePush', 'clearSession', 'resetNavPanel', 'adminLogin']);
     });
 
     test('it waits for the session to settle before deciding', async () => {

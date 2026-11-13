@@ -72,25 +72,46 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
     // response — an empty account list means the audit could not see the roster, not that the
     // roster is clean, and rendering it as a tick would be a false all-clear on the one surface
     // written to prevent one.
+    //
+    // TWO OF THE FOUR REASONS ARE MENDED BY A RESET, AND THE ADMIN IS TOLD BEFORE PRESSING (sign-in audit E6, Nov 2026).
+    // Set up accounts takes back an account with NO permissions at all — registered from outside the app — and
+    // re-enables a DISABLED one, each on the surname default with every device signed out (functions/auth-endpoints.js,
+    // `mustReclaim` and the re-enable). Both read "Press Set up accounts below." and nothing more, so the admin learned
+    // from the result that two colleagues had been put back on their surname. A wrong tier ('claims') only has its
+    // permissions corrected. 'unstamped' is the server's word for no permissions at all; an older server sent 'claims'
+    // for it, so during a deploy that one still reads as wrong permissions.
     const WHY_TEXT = /** @type {Record<string, string>} */ ({
         'no-account': 'no account',
-        'disabled':   'account disabled',
         'claims':     'wrong permissions',
+        'unstamped':  'no permissions',
+        'disabled':   'account disabled',
     });
+    /** The reasons Set up accounts answers by resetting the account to the surname default and signing it out. */
+    const RESET_BY_SETUP = new Set(['unstamped', 'disabled']);
 
-    /** One line: a count, the names behind it, and the button that fixes them. `cls` is the whole
-     *  class list — a modifier only where operations.css styles one (the leaver line's red). */
+    /** "A", "A and B", "A, B and C". @param {string[]} names */
+    const listed = (names) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
+
+    /** What pressing Set up accounts will do to the members it resets, by name. @param {string[]} names */
+    const resetWarning = (names) => (names.length === 1
+        ? `It will reset ${names[0]}’s password to their surname and sign them out — tell them afterwards.`
+        : `It will reset the passwords of ${listed(names)} to their surnames and sign them out — tell them afterwards.`);
+
+    /** One line: a count, the names behind it, and the button that fixes them — each remedy on a line of its own.
+     *  `cls` is the whole class list — a modifier only where operations.css styles one (the leaver line's red). */
     function gapLine(/** @type {string} */ cls, /** @type {string} */ lead,
-                     /** @type {string[]} */ names, /** @type {string} */ fix) {
+                     /** @type {string[]} */ names, /** @type {string[]} */ fixes) {
         const p = document.createElement('p');
         p.className = cls;
         const strong = document.createElement('strong');
         strong.textContent = String(names.length);
         p.append(strong, ` ${lead} — ${names.join(', ')}`);
-        const fixEl = document.createElement('span');
-        fixEl.className = 'auth-gap-fix';
-        fixEl.textContent = fix;
-        p.append(fixEl);
+        for (const fix of fixes) {
+            const fixEl = document.createElement('span');
+            fixEl.className = 'auth-gap-fix';
+            fixEl.textContent = fix;
+            p.append(fixEl);
+        }
         return p;
     }
 
@@ -139,16 +160,17 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             gapsEl.append(ok);
         } else {
             if (setUp.length) {
+                const resets = setUp.filter(/** @param {any} g */ g => RESET_BY_SETUP.has(g.why)).map(/** @param {any} g */ g => g.name);
                 gapsEl.append(gapLine('auth-gap-line',
                     setUp.length === 1 ? 'member is not set up' : 'members are not set up',
                     setUp.map(/** @param {any} g */ g => `${g.name} (${WHY_TEXT[g.why] || g.why})`),
-                    'Press Set up accounts below.'));
+                    ['Press Set up accounts below.', ...(resets.length ? [resetWarning(resets)] : [])]));
             }
             if (leavers.length) {
                 gapsEl.append(gapLine('auth-gap-line auth-gap-line--leaver',
                     leavers.length === 1 ? 'leaver can still sign in' : 'leavers can still sign in',
                     leavers,
-                    'Tick the leavers box below, then press Set up accounts.'));
+                    ['Tick the leavers box below, then press Set up accounts.']));
             }
         }
         gapsEl.hidden = false;
@@ -255,8 +277,9 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
              * @param {any} data @param {boolean} [afterConfirm]
              */
             const renderResult = (data, afterConfirm = false) => {
-                const { created = [], skipped = [], reclaimed = [], disabled = [], failed = [],
-                        orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [] } = data;
+                const { created = [], skipped = [], reclaimed = [], disabled = [], failed = [], demoted = [],
+                        orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [],
+                        disabledLeaverPushRemoved = 0 } = data;
                 const lines = [];
                 if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
                 if (skipped.length && !afterConfirm) lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
@@ -267,7 +290,13 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                 // back" (functions-core, 10 Nov 2026). The admin is the only person who can tell the
                 // member, so the names are the point of the line.
                 if (reclaimed.length) lines.push(`🔁 Reset to the default password and signed out (${reclaimed.length}): ${reclaimed.join(', ')} — tell them their password is their surname`);
+                // A tier taken away (off the admin, manager or Links designer list) is signed out of every device at once,
+                // so its old access stops now rather than when the sign-in renews (sign-in audit D3). Their password is
+                // untouched, so they sign back in as usual — said, because a member signed out unasked will ask why.
+                if (demoted.length)  lines.push(`🔒 Access reduced and signed out of every device (${demoted.length}): ${demoted.join(', ')} — they sign back in with the password they already use`);
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
+                // Leavers disabled on an earlier run whose phones had saved their notification records again (D2).
+                if (disabledLeaverPushRemoved > 0) lines.push(`🔕 Notifications switched off on ${disabledLeaverPushRemoved} device${disabledLeaverPushRemoved !== 1 ? 's' : ''} of leavers disabled earlier`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
                 // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).
                 if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were not disabled. Run Set up accounts again.');

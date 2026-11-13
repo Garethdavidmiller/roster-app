@@ -235,6 +235,60 @@ describe('changing your own password, with the stamp left to finish on its own',
     });
 });
 
+// own-password.js is a factory firebase-client.js builds ONCE, at module load — so the one thing the
+// re-export could get wrong is WHOSE password: a user captured at build would be nobody, for good.
+describe('own-password.js — the factory behind the two re-exports', () => {
+    test('it reads the signed-in user at CALL time, never one captured when it was built', async () => {
+        const { buildPasswordClient } = await import('./own-password.js');
+        const auth = { currentUser: /** @type {any} */ (null) };
+        /** @type {any[]} */ const updates = [];
+        const client = buildPasswordClient({ auth, reauthenticateWithCredential: async () => {},
+            EmailAuthProvider: { credential: (/** @type {string} */ e, /** @type {string} */ p) => ({ e, p }) },
+            updatePassword: async (/** @type {any} */ u, /** @type {string} */ pw) => { updates.push([u.uid, pw]); },
+            savePasswordSetAt: async () => {}, trackBackgroundWrite: (/** @type {any} */ p) => p });
+        await assert.rejects(client.changeOwnPassword(MEMBER, 'a-new-passphrase'), /Not signed in/);
+        auth.currentUser = { uid: 'uid_later', email: 'l.springer@myb-roster.local' };
+        await client.changeOwnPassword(MEMBER, 'a-new-passphrase');
+        assert.deepEqual(updates, [['uid_later', 'a-new-passphrase']]);
+    });
+});
+
+// Another tab on a shared browser can change `auth.currentUser`, while the page's member comes from its
+// local session; the forced change calls changeOwnPassword with no re-authentication. Without the check,
+// a colleague's password could be set to what this member typed — and stamped as this member's.
+describe('the password calls act on the page member\'s OWN account, or send nothing (audit A3/B4)', () => {
+    const coded = (/** @type {any} */ e) => e?.code === 'myb/account-mismatch';
+    for (const [who, user] of /** @type {const} */ ([
+        ['a colleague signed in from another tab', { uid: 'uid_colleague', email: 'g.miller@myb-roster.local' }],
+        ['an account with no email (the staff PIN)', { uid: 'calendar-viewer', email: null }],
+    ])) {
+        test(`${who}: both refuse, coded, before anything is sent`, async () => {
+            signIn(/** @type {any} */ (user));
+            await assert.rejects(fc.changeOwnPassword(MEMBER, 'a-new-passphrase'), coded);
+            await assert.rejects(fc.reauthenticateWithPassword(MEMBER, 'SPRINGER'), coded);
+            assert.deepEqual(state.authOps.filter((o) => o.op === 'updatePassword' || o.op === 'reauthenticate'), [],
+                'a credential call went to an account that is not the page member\'s');
+            assert.deepEqual(writes('passwordStatus/'), [], 'a stamp was started for a password that was not changed');
+        });
+    }
+
+    test('no member named is nobody\'s account either — refused the same way, not a TypeError', async () => {
+        signIn();
+        await assert.rejects(fc.changeOwnPassword(/** @type {any} */ (undefined), 'a-new-passphrase'), coded);
+        assert.deepEqual(state.authOps.filter((o) => o.op === 'updatePassword'), []);
+    });
+
+    test('…and both pages word the refusal through their shared ladder — never as a wrong password', async () => {
+        // A credential rejection reads "Current password incorrect … ask the admin to reset it", which
+        // would send a member whose password is fine to an admin reset.
+        const { passwordChangeFailure, isCredentialRejection } = await import('./auth-identity.js');
+        assert.equal(isCredentialRejection('myb/account-mismatch'), false);
+        for (const reauthed of [false, true]) {
+            assert.doesNotMatch(passwordChangeFailure('myb/account-mismatch', reauthed).message, /incorrect/i);
+        }
+    });
+});
+
 describe('re-authentication before a password change', () => {
     test('a wrong-password on the typed text falls through to the surname candidate', async () => {
         signIn();
@@ -318,6 +372,17 @@ describe('the public reset request sends NO token', () => {
         assert.deepEqual(JSON.parse(fetches[0].init.body), { member: MEMBER });
         assert.equal(state.authOps.filter((o) => /^getIdToken/.test(o.op)).length, 0);
     });
+
+    // The sign-in card words a refusal by its STATUS (login-overlay.js → `resetRequestFailureLine`, audit
+    // C12), and the status reaches it only in the message's first words. This pins that shape from this
+    // side, so a rewording of the error here fails beside the card's parser rather than quietly turning
+    // a 404 or a 503 back into "check your connection".
+    for (const status of [404, 503]) {
+        test(`a ${status} rejects with "Server responded ${status}" at the START of its message`, async () => {
+            fetchReply = () => new Response(JSON.stringify({ error: 'refused' }), { status });
+            await assert.rejects(fc.requestPasswordReset(MEMBER), (e) => new RegExp(`^Server responded ${status}\\b`).test(e?.message));
+        });
+    }
 });
 
 describe('the short-lived document URL', () => {

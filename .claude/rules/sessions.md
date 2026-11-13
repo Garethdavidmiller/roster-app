@@ -11,6 +11,8 @@ paths:
   - "claim-retry.js"
   - "claim-retry.test.mjs"
   - "password-force.js"
+  - "silent-sign-in.js"
+  - "own-password.js"
   - "firebase-client.js"
   - "firestore.rules"
   - "surname-parity.test.mjs"
@@ -43,10 +45,16 @@ localStorage session skips the login screen, so without the page-load sign-in, `
 stays null and all Firestore writes fail. `ensureNamedSession(name)` in `session.js` handles this (every
 page calls it; the sign-in inside it is `ensureFirebaseSession`, which nothing calls directly): it
 waits for `onAuthStateChanged` (to detect any IndexedDB-persisted session; at most
-`AUTH_READY_TIMEOUT_MS`), then signs in if none exists. No account self-heal and no anonymous
+`AUTH_RESTORE_TIMEOUT_MS` — `AUTH_READY_TIMEOUT_MS` is the separate, longer bound on Firebase Auth
+starting at all), then signs in if none exists. No account self-heal and no anonymous
 fallback: a refused sign-in leaves no named identity (`'none'`) and a sign-in prompt, while one that
 never reached an answer is `TRANSIENT` and keeps the 60-day session (AUTH_AND_SESSIONS.md 23).
-**Do not remove this call.**
+**Do not remove this call.** The silent attempt's own rules — the no-surname memory, the six-hourly
+re-check, the hold while a re-check is unanswered, and the refusal after a reset — are the pure
+`silent-sign-in.js`; `session.js` only wires them. A session's start, which that refusal compares with
+the server's `resetAt`, is the server's record of the sign-in (`lastSignInTime`) when it is this
+member's and within three days of the device clock (`sessionStartMs`), so a phone whose clock runs
+ahead cannot make a reset look older than the session it should end.
 
 ## Per-member write isolation (STRICT)
 
@@ -73,8 +81,13 @@ has `name` but not `manager`.
 Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for
 the Firebase *password* is applied separately by the password builders in `session.js` / `functions`,
 **not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is
-**re-exported by `firebase-client.js`**. A deliberate
-duplicate lives in `functions/roster-parse-helpers.js`, inside `nameToPassword()` and `nameToEmail` —
-Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build
-step. If the rule ever changes, update both locations (`surname-parity.test.mjs` enforces it), and
-read AUTH_AND_SESSIONS.md 12 first: `firestore.rules` carries a third copy of the email derivation.
+**re-exported by `firebase-client.js`**. The member's own password calls (`reauthenticateWithPassword`,
+`changeOwnPassword`) are built in `own-password.js` and refuse — before anything is sent — unless the
+signed-in account is the page member's own (`myb/account-mismatch`; another tab can change it). The letters-only rule is spelled ONCE on each side
+(sign-in audit, Nov 2026): `lettersOnly` in `auth-identity.js`, which `normaliseSurname`,
+`credentialCandidatesFor` and `validateNewPassword` all go through, and `surnameCore` in
+`functions/roster-parse-helpers.js`, which `nameToEmail` and `nameToPassword()` share — Cloud
+Functions are CommonJS and cannot import browser ES modules, so unification requires a build step.
+If the rule ever changes, update both cores (`surname-parity.test.mjs` compares them across the whole
+roster and checks each side spells the rule once), and read AUTH_AND_SESSIONS.md 12 first:
+`firestore.rules` carries a third copy of the email derivation.

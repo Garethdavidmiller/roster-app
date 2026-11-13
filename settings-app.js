@@ -477,8 +477,8 @@ export function init() {
             reportSetting('work-email', 'error', 'Couldn’t check');
         });
 
-        emailInput.addEventListener('keydown', e => {
-            if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+        emailInput.addEventListener('keydown', e => {   // not the Enter that accepts an input method's suggestion, which saved half-typed text
+            if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveBtn.click(); }
         });
 
         saveBtn.addEventListener('click', async () => {
@@ -597,10 +597,10 @@ export function init() {
         const userEl = /** @type {HTMLInputElement|null} */ (document.getElementById('pwUsername'));
         if (userEl) userEl.value = member ?? '';
         form?.addEventListener('submit', e => e.preventDefault());
-        // The return key does what the keyboard labels it: Next moves on, Done (Confirm's) saves.
+        // The return key does what the keyboard labels it: Next moves on, Done (Confirm's) saves — never the Enter that accepts an input method's suggestion (password-force.js's rule).
         form?.addEventListener('keydown', e => {
             const next = e.target === curEl ? newEl : e.target === newEl ? confEl : null;
-            if (e.key !== 'Enter' || saveBtn.disabled || (!next && e.target !== confEl)) return;
+            if (e.key !== 'Enter' || e.isComposing || saveBtn.disabled || (!next && e.target !== confEl)) return;
             e.preventDefault();
             if (next) next.focus(); else saveBtn.click();
         });

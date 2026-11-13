@@ -89,6 +89,10 @@ to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov
 - **`password-reset` goes to the member whose password was reset, on their own devices.** Otherwise
   the one person the reset concerns is the only one not told: their credential became the surname
   default and their other devices were signed out, and they would find out by failing to sign in.
+  **Except for a lost or stolen phone** (sign-in audit, Nov 2026): the admin ticks a box on Reset
+  (`lostDevice: true`), because the notice would land on THAT phone's lock screen and its record would
+  go on receiving the member's targeted notices. So none is sent, every record the account owns is
+  deleted (`releasePushForOwner`), and Operations tells the admin to tell the member themselves.
 - **Both Overtime notices** go to member uids resolved from the account email — the asked notice to
   whoever a window newly asked (one per member per scheduler run, naming their soonest deadline), the
   reminder only to participants who have submitted NOTHING on the deadline's morning. A broadcast
@@ -116,9 +120,19 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 - **A hold that ends without a sign-out.** `reconcileExpiredIdentity` releases the record before
   signing out an expired session's lingering identity, and a session the last password reset refuses
   releases it too — on a station PC left on the staff PIN, no next member ever comes to take it over.
+  So does a write page whose identity is lost mid-visit and offers its sign-in (`relogin`,
+  `page-session.js`), and a failed typed sign-in that clears ANOTHER member's held session
+  (`login-overlay.js`) — both through `releasePushForEndingHold` (`session.js`), bounded and never
+  throwing, before the session is cleared (sign-in audit, Nov 2026). **Never for the staff PIN**: the
+  viewer owns no record, and releasing as it dropped the browser's own subscription, so a member who
+  had used the PIN on their own phone found notifications off.
 - **A leaver.** `fanOutPush` consults no owner, so a leaver who never signed out would go on
   receiving every broadcast. The confirmed leaver sweep in `setupRosterAuth` deletes the records the
-  disabled account owns (`releasePushForOwner`, `functions/push.js`).
+  disabled account owns (`releasePushForOwner`, `functions/push.js`). **And every confirmed sweep does
+  it again for the leavers disabled on EARLIER runs** (`disabledLeaverUids`,
+  `functions/account-lifecycle.js`): a phone whose ID token was still valid after the sweep — up to an
+  hour — can save its record again, because the rule cannot see `disabled`, and the sweep's own filter
+  skips an account already disabled, so nothing else would ever look.
 - **A session that simply ENDED.** The rules let the SAME browser take its record over — same
   endpoint AND same keys, which exist only in that browser and in a record no client can read — and
   `notif.js` re-saves at once, without waiting for its 24-hour re-save throttle, when the signed-in
@@ -137,8 +151,11 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 `resetMemberPassword` reports the send as `notified`, a third independently-reported stage beside
 `revoked` and `stamped`: the credential has already changed by that line, so a push failure must
 never report the reset as failed. A member with no subscription is a legitimate `false`, and
-Operations turns exactly that case — signed out AND not told — into the admin's cue to tell them
-another way.
+Operations turns every reset nobody was told about into the admin's cue to tell them another way —
+whether or not the sign-out worked (`resetOutcome`, `operations-reset.js`). A lost-phone reset reports
+`lostDevice` and a fourth stage of its own, `pushReleased` or `pushReleaseFailed`, and is never
+`notified`; an answer without `lostDevice` after the box was ticked came from a server that does not
+know the step yet, and Operations says to reset again with the box ticked.
 
 **Why the queue depth is in the reset-request title.** One stable tag per feature means a second
 request *replaces* the first on the lock screen. So the headline states the current total

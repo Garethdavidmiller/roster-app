@@ -2,16 +2,17 @@
  * Parity tests for the surname-derivation rule that is DELIBERATELY duplicated
  * across the ESM/CommonJS boundary:
  *   - browser:  normaliseSurname()  in auth-identity.js  (re-exported by firebase-client.js; behind every account email and surname default)
- *   - functions: nameToPassword()   in functions/roster-parse-helpers.js
+ *   - functions: surnameCore()      in functions/roster-parse-helpers.js (behind nameToEmail AND nameToPassword)
  *
  * Cloud Functions are CommonJS and cannot import the browser ES module, so the
  * logic is copied. CLAUDE.md warns "If the rule ever changes, update both
  * locations." These tests fail loudly if the two ever drift — on EITHER side:
- *   1. Behavioural — exercise the real (importable) functions nameToPassword().
- *   2. Source-equivalence — assert both source files literally contain the one
- *      canonical derivation expression, so editing the regex in one file alone
- *      (the most likely drift) breaks the build even though that file is not
- *      directly importable here (firebase-client.js pulls the Firebase CDN).
+ *   1. Behavioural — the two cores, and the password builders, compared over the whole roster.
+ *   2. Source — ONE copy per side (audit F11, Nov 2026). The browser's letters-only normaliser was
+ *      written out three times (the surname, the typed-surname gate, the surname block) and the
+ *      functions' surname twice (the email, the password), so editing the regex in one place left
+ *      a gate and the thing it gates disagreeing with every test green. Each side now has one, and
+ *      the source checks below fail on a second.
  *
  * Pure — no Firebase, no network. Run: node scripts/run-tests.mjs surname-parity.test.mjs
  */
@@ -29,10 +30,13 @@ const { nameToPassword } = require('./functions/roster-parse-helpers.js');
 // member is locked out (client signs in with a different password than setupRosterAuth provisioned).
 const { surnamePassword } = await import('./auth-identity.js');
 
-// The single canonical derivation. BOTH source files must contain this exact
-// expression; if you change it, change it in all three places (here + both files)
-// and reset every staff member's password (see the warning in auth-identity.js's header).
-const CANON = ".split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '')";
+// The single canonical derivation, in its two halves: the SURNAME words, then LETTERS only. The
+// functions side writes it as one expression (CANON); the browser side splits it, so that the
+// letters half can serve the gate and the surname block too. If you change either half, change it
+// on both sides and here, and reset every staff member's password (auth-identity.js's header).
+const SPLIT   = ".split(' ').slice(1).join('')";
+const LETTERS = ".toLowerCase().replace(/[^a-z]/g, '')";
+const CANON   = SPLIT + LETTERS;
 
 /** Reference implementation of the shared core derivation (unpadded surname). */
 const core = (/** @type {string} */ name) =>
@@ -86,14 +90,69 @@ describe('surname derivation — browser ↔ functions parity', () => {
         assert.throws(() => nameToPassword('Madonna'), /no usable surname/);
     });
 
-    test('both source files contain the identical canonical derivation expression', () => {
+    test('the two CORES agree on every real name and the awkward ones', async () => {
+        // The cores themselves, not only what is built from them: the functions core feeds both the
+        // address and the password, so a drift here moves the account AND its default at once.
+        const { normaliseSurname } = await import('./auth-identity.js');
+        const { surnameCore } = require('./functions/roster-parse-helpers.js');
+        const { teamMembers } = await import('./roster-data.js');
+        const names = [...teamMembers.map((/** @type {any} */ m) => m.name), ...NAMES,
+            'X. Ünal', 'A. İnce', 'Z. Åberg', 'B. de la Cruz', '  L.  Spaced  Out  ', 'Madonna', ''];
+        assert.ok(names.length > 50, `expected the whole roster, got ${names.length}`);
+        for (const n of names) {
+            assert.equal(surnameCore(n), normaliseSurname(n), `the two surname cores disagree on "${n}"`);
+            assert.equal(surnameCore(n), core(n), `surnameCore("${n}") drifted from the canonical rule`);
+        }
+    });
+
+    test('ONE copy per side, by source — every other use goes through it', () => {
         // The browser copy moved to auth-identity.js (v16.50); firebase-client.js re-exports it.
         const browserSrc   = readFileSync(new URL('./auth-identity.js', import.meta.url), 'utf8');
         const functionsSrc = readFileSync(new URL('./functions/roster-parse-helpers.js', import.meta.url), 'utf8');
-        assert.ok(browserSrc.includes(CANON),
-            'auth-identity.js normaliseSurname no longer matches the canonical derivation');
-        assert.ok(functionsSrc.includes(CANON),
-            'functions/roster-parse-helpers.js nameToPassword no longer matches the canonical derivation');
+        const count = (/** @type {string} */ src, /** @type {string} */ s) => src.split(s).length - 1;
+        /** The body of a top-level function, from its declaration to the next top-level closing brace. */
+        const body = (/** @type {string} */ src, /** @type {string} */ name) => {
+            const at = src.search(new RegExp(`^(?:export )?function ${name}\\(`, 'm'));
+            assert.ok(at >= 0, `${name} was not found — this check reads nothing`);
+            return src.slice(at, src.indexOf('\n}', at) + 2);
+        };
+        // The functions side: the whole canonical expression, exactly once — inside surnameCore — and
+        // both builders reach it through surnameCore rather than a copy of their own.
+        assert.equal(count(functionsSrc, CANON), 1, 'functions/roster-parse-helpers.js must spell the surname rule exactly once');
+        assert.match(functionsSrc, new RegExp(`function surnameCore\\(fullName\\) \\{ return fullName${CANON.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}; \\}`),
+            'the one functions copy is surnameCore');
+        assert.equal(count(functionsSrc, "replace(/[^a-z]/g, '')"), 1, 'a second letters-only copy crept into the functions side');
+        for (const fn of ['nameToEmail', 'nameToPassword']) {
+            assert.match(body(functionsSrc, fn), /surnameCore\(fullName\)/, `${fn} must take its surname from surnameCore`);
+        }
+        // The browser side: the LETTERS half exactly once — inside lettersOnly — and the surname, the
+        // typed-surname gate and the surname block all reach it through lettersOnly.
+        assert.equal(count(browserSrc, LETTERS), 1, 'auth-identity.js must spell the letters-only rule exactly once');
+        assert.equal(count(browserSrc, "replace(/[^a-z]/g, '')"), 1, 'a second letters-only copy crept into auth-identity.js');
+        assert.match(body(browserSrc, 'lettersOnly'), new RegExp(`return s${LETTERS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`),
+            'the one browser copy is lettersOnly');
+        assert.ok(body(browserSrc, 'normaliseSurname').includes(`lettersOnly(fullName${SPLIT})`),
+            'normaliseSurname must be lettersOnly over the words after the first');
+        for (const fn of ['credentialCandidatesFor', 'validateNewPassword']) {
+            assert.match(body(browserSrc, fn), /lettersOnly\(/, `${fn} must compare through lettersOnly`);
+        }
+    });
+
+    test('the gate and the surname block read a surname exactly as normaliseSurname does', async () => {
+        // The behaviour the source check above protects: whatever the typed value's caps and
+        // punctuation, the fallback is offered, and the surname refused, on the SAME reading.
+        const { normaliseSurname, credentialCandidatesFor, validateNewPassword } = await import('./auth-identity.js');
+        const { teamMembers } = await import('./roster-data.js');
+        for (const { name } of teamMembers) {
+            const s = normaliseSurname(name);
+            if (!s) continue;
+            const typed = `${s.toUpperCase()}!`;
+            assert.ok(credentialCandidatesFor(name, typed).includes(surnamePassword(name)),
+                `"${typed}" is ${name}'s surname, and the fallback was not offered`);
+            const chosen = `${s.toUpperCase()}-${'1'.repeat(8)}`;
+            assert.equal(validateNewPassword(name, chosen, chosen), 'Choose something other than your surname.',
+                `"${chosen}" is ${name}'s surname, and it was accepted as a new password`);
+        }
     });
 });
 

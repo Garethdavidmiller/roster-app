@@ -590,7 +590,8 @@ let _dialogSeq = 0;
  * @param {string} [o.defaultValue]        - initial input value (prompt)
  * @param {string} [o.placeholder]         - input placeholder (prompt)
  * @param {number} [o.maxLength]           - input maxlength (prompt)
- * @param {(input: HTMLInputElement|null) => any} o.resultOnConfirm - value to resolve on confirm
+ * @param {{ label: string, hint?: string }} [o.option] - one unticked box under the message (`confirmWithOption`)
+ * @param {(input: HTMLInputElement|null, box: HTMLInputElement|null) => any} o.resultOnConfirm - value to resolve on confirm
  * @param {any}     o.resultOnCancel       - value to resolve on the Cancel button
  * @param {any}     o.resultOnDismiss      - value to resolve on a dismissal: the backdrop, Escape, Android Back
  * @returns {Promise<any>}
@@ -637,6 +638,37 @@ function _openDialog(o) {
             if (o.maxLength)   input.maxLength = o.maxLength;
             input.setAttribute('aria-label', o.title || o.message);
             content.appendChild(input);
+        }
+
+        // The option: the app-drawn box (shared.css), inside a <label> so the whole row ticks it and is its touch target.
+        // Named by its label alone and DESCRIBED by its hint — the row's text is both, and a name that read the hint out
+        // too would be a sentence long. It starts unticked: the variant has to be chosen, never inherited.
+        /** @type {HTMLInputElement|null} */
+        let box = null;
+        if (o.option) {
+            const row = document.createElement('label');
+            row.className = 'dialog-option';
+            box = document.createElement('input');
+            box.type = 'checkbox';
+            box.checked = false;                 // said, not assumed: the rule above, where a test can hold it
+            const name = document.createElement('span');
+            name.id = `mybDlgOpt${seq}`;
+            name.textContent = o.option.label;   // textContent — as the message
+            box.setAttribute('aria-labelledby', name.id);
+            const text = document.createElement('span');
+            text.className = 'dialog-option-text';
+            text.appendChild(name);
+            if (o.option.hint) {
+                const hint = document.createElement('span');
+                hint.className = 'dialog-option-hint';
+                hint.id = `mybDlgOptHint${seq}`;
+                hint.textContent = o.option.hint;
+                text.appendChild(hint);
+                box.setAttribute('aria-describedby', hint.id);
+            }
+            row.appendChild(box);
+            row.appendChild(text);
+            content.appendChild(row);
         }
 
         const actions = document.createElement('div');
@@ -691,7 +723,9 @@ function _openDialog(o) {
             content,
             // No `closeBtn`: Cancel is wired below, because it is an ANSWER, and createLightbox's close
             // control would resolve it as a dismissal. The backdrop, Escape and Back stay its own.
-            initialFocus: () => input ?? confirmBtn,
+            // The prompt's field; else the option, the one choice the dialog asks for — so Space ticks it, and Tab
+            // reaches Cancel and the confirm button; else the confirm button, as a plain confirm always has.
+            initialFocus: () => input ?? box ?? confirmBtn,
             // Resolve when the close has LANDED, not as it starts. Callers chain dialogs
             // (`if (!await confirmDialog(…)) return; await promptDialog(…)`), and a resolve here in
             // onClose let the next dialog push its Back entry while this close's history.back() was
@@ -708,7 +742,7 @@ function _openDialog(o) {
             },
         });
 
-        const confirmAndClose = () => answer(() => o.resultOnConfirm(input));
+        const confirmAndClose = () => answer(() => o.resultOnConfirm(input, box));
         confirmBtn.addEventListener('click', confirmAndClose);
         cancelBtn.addEventListener('click', () => answer(() => o.resultOnCancel));
         // Enter in the prompt input submits (mirrors native prompt()).
@@ -755,6 +789,35 @@ export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel
         resultOnConfirm: () => { onConfirm?.(); return true; },
         resultOnCancel: false,
         resultOnDismiss: dismissResult === undefined ? false : dismissResult,
+    });
+}
+
+/**
+ * `confirmDialog` with ONE option: an unticked box under the message, for a question with a variant the asker must
+ * choose on purpose — Operations → Reset's "Their phone is lost or stolen" (sign-in audit D1, Nov 2026). A SEPARATE
+ * function, so every existing `confirmDialog` caller still gets the boolean it has always had.
+ *
+ * Resolves `{ confirmed, option }`. `option` is the box as it stood when the confirm button was pressed, and FALSE on
+ * Cancel or a dismissal (the backdrop, Escape, Android Back) whatever the box showed — a caller can never act on a
+ * choice nobody confirmed. Focus opens on the box; Enter there does nothing, as on any checkbox — confirming is the
+ * button's job. The box is shared.css's drawn one, and the row's styles are `.dialog-option` beside the dialog's.
+ * @param {object} opts
+ * @param {string}  opts.message
+ * @param {string} [opts.title]
+ * @param {string} [opts.confirmLabel='OK']
+ * @param {string} [opts.cancelLabel='Cancel']
+ * @param {boolean} [opts.danger=false]
+ * @param {{ label: string, hint?: string }} opts.option - the box's label, and one line on what ticking it changes
+ * @returns {Promise<{ confirmed: boolean, option: boolean }>}
+ */
+export function confirmWithOption({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, option }) {
+    const declined = { confirmed: false, option: false };
+    return _openDialog({
+        message, title, confirmLabel, cancelLabel, danger, option,
+        withInput: false,
+        resultOnConfirm: (_input, box) => ({ confirmed: true, option: !!box?.checked }),
+        resultOnCancel: declined,
+        resultOnDismiss: declined,
     });
 }
 

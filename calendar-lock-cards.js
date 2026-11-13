@@ -54,6 +54,7 @@
  */
 
 import { clearSession } from './session.js';
+import { takeStaffPinEndedMark } from './staff-pin-ended.js';
 import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH, PIN_FIRST_HASH } from './calendar-access-core.js';
 import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';
@@ -95,6 +96,24 @@ let _consecutiveFailures = 0;
 
 /** The gate calls this on every grant — a fresh unlock must not inherit the last one's backoff. */
 export function resetUnlockFailures() { _consecutiveFailures = 0; }
+
+/**
+ * Was the PIN card asked for FIRST — `#staff-pin` in the address (a "Use the staff PIN instead"
+ * sign-out, a Lock, a station PC's bookmark), or a page in this tab that ended the PIN (its one-tab
+ * mark, staff-pin-ended.js — the phone's Back carries no hash, audit B3)? The Calendar's boot asks
+ * ONCE, and both are removed whatever the decision: a member with a session who opened a station PC's
+ * bookmark must not carry it into their own Calendar (v23.19's locked-path-only consumption let them).
+ * Which card that puts up is still the gate's decision — a held session gets the member's own card.
+ * @returns {boolean}
+ */
+export function takePinFirst() {
+    const marked = takeStaffPinEndedMark();   // read FIRST, so it is removed whatever the hash says
+    const asked = window.location.hash === PIN_FIRST_HASH;
+    if (asked) {
+        try { history.replaceState(history.state, '', window.location.pathname + window.location.search); } catch { /* noop */ }
+    }
+    return asked || marked;
+}
 
 /** The submit label, declared ONCE. It is written in two places — the initial markup and the
  *  restore after a failed attempt — and the second copy had already lost the arrow, so a member who

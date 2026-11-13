@@ -8,7 +8,7 @@
  * are pinned in Node (newlink-render.test.mjs, newlink-data.test.mjs); this drives the real page through them.
  */
 import { test, expect, withLinksDesigners } from './fixtures.js';
-import { collectFatalErrors, scaleText, seedSession } from './helpers.js';
+import { collectFatalErrors, scaleText, seedSession, signInThroughOverlay } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
@@ -605,21 +605,73 @@ test.describe('new link', () => {
     // bilingual contract who will still have their own links"), nor a CES or a Dispatcher, who have links of their own. The
     // bilingual contract is ALSO made a Links designer, on a designer list of its own (the real one is the admin alone),
     // because being a designer must not be a way in either: the gate is the contract, not the Links role.
+    //
+    // TOLD, NOT SENT AWAY (sign-in audit B1, 13 Nov 2026): a link to this page travels in group chats, and a colleague it is
+    // not for was sent to the Calendar with no word of why. They stay on newlink.html, with its header, drawer and sign-out,
+    // round one card saying what the page is, who it is for and the way back — and no proposal.
+    /** The card a colleague outside the audience is shown, read as they would read it. @param {import('@playwright/test').Page} page */
+    async function expectNotForYou(page) {
+        await expect(page).toHaveURL(/newlink\.html$/);
+        const card = page.locator('#nlNotForYou');
+        await expect(card.locator('h2')).toHaveText('🔁 The new link doesn’t apply to your contract');
+        await expect(card).toContainText('The three shortlisted proposals for the new CEA link');
+        await expect(card).toContainText('They are for colleagues on a normal CEA contract, and the managers.');
+        await expect(card).toContainText('Colleagues on a bilingual contract, CESs and Dispatchers keep their own links.');
+        await expect(card.getByRole('link', { name: 'Back to your roster' })).toHaveAttribute('href', './');
+        await expect(page.locator('.nl-name-title, #nlStatusCard, #nlWeeksCard'), 'no proposal is drawn for them').toHaveCount(0);
+        await expect(page.locator('#newlinkMain'), 'nothing names the admin, or managers, as deciding').not.toContainText(/admin|managers decide/i);
+        await expect(page.locator('#newlinkBadge')).toBeVisible();
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--newlink')).toHaveCount(0);
+        await expect(page.locator('#navSignOutBtn')).toBeVisible();
+    }
     for (const [who, fits, designer] of /** @type {const} */ ([
         ['a CEA bilingual contract', (/** @type {any} */ m) => m.role === 'CEA' && m.bilingualContract, true],
         ['a CES', (/** @type {any} */ m) => m.role === 'CES', false],
         ['a Dispatcher', (/** @type {any} */ m) => m.role === 'Dispatcher', false],
     ])) {
-        test(`${who} is sent back to the roster, and never sees the pill`, async ({ page }) => {
+        test(`${who} signed in is told who the page is for, and never sees the pill`, async ({ page }) => {
+            const errors = collectFatalErrors(page);
             const member = someone(who, fits);
             if (designer) await withLinksDesigners(page, ['G. Miller', member]);
             await seedSession(page, member);
             await page.goto('/newlink.html');
-            await expect(page).toHaveURL(/\/$|\/index\.html$/);
-            await page.locator('#navMenuBtn').click();
-            await expect(page.locator('.nav-panel-pill--newlink')).toHaveCount(0);
+            await expectNotForYou(page);
+            expect(errors).toEqual([]);
         });
     }
+
+    // The sign-in card says what the page is and who it is for BEFORE anybody signs in, and a CES or a Dispatcher who signs
+    // in on it — "Signed in — opening New link…" — lands on the card above, not on the Calendar.
+    for (const [who, fits] of /** @type {const} */ ([
+        ['a CES', (/** @type {any} */ m) => m.role === 'CES'],
+        ['a Dispatcher', (/** @type {any} */ m) => m.role === 'Dispatcher'],
+    ])) {
+        test(`${who} who signs in on the card is told who the page is for, not sent to the Calendar`, async ({ page }) => {
+            const errors = collectFatalErrors(page);
+            await page.goto('/newlink.html');
+            const about = page.locator('#loginAbout');
+            await expect(about).toContainText('The three shortlisted proposals for the new CEA link, to read and compare.');
+            await expect(about).toContainText('They are for colleagues on a normal CEA contract, and the managers.');
+            await expect(page.locator('#loginOverlay')).toHaveAttribute('aria-describedby', 'loginAbout');
+            await signInThroughOverlay(page, someone(who, fits));
+            await expectNotForYou(page);
+            await expect(page.locator('#loginOverlay')).toHaveCount(0);
+            // No proposals followed the sign-in, so nothing here timed it: the timer is dropped, or the roster they go
+            // back to would count this visit as its sign-in time.
+            expect(await page.evaluate(() => sessionStorage.getItem('myb_perf_login_t0'))).toBeNull();
+            expect(errors).toEqual([]);
+        });
+    }
+
+    test('a colleague on a normal CEA contract who signs in on the card reaches the proposals', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.goto('/newlink.html');
+        await signInThroughOverlay(page, someone('normal CEA contract', m => m.role === 'CEA' && !m.bilingualContract));
+        await expect(page.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
+        await expect(page.locator('#nlNotForYou')).toHaveCount(0);
+        expect(errors).toEqual([]);
+    });
 
     // WHO IT IS FOR, since v25.60 (owner, 9 Nov 2026: "send the new links section live for everyone with a cea contract and
     // the managers"): a colleague on a normal CEA contract, in no list of the page's own, and a manager, each from the drawer.

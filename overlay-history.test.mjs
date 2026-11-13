@@ -523,4 +523,85 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
         layers = [layer({ z: '8000', lbOverlay: true, modal: true }), layer({ z: '7800', modal: true })];   // About, over the drawer
         assert.equal((await open({})).overlay.style.zIndex, undefined, 'a question over the lightbox base gained a style it does not need');
     });
+
+    // ── A QUESTION WITH ONE OPTION (sign-in audit D1, 13 Nov 2026) ───────────────────────────────────────────────
+    // Operations → Reset asks whether the member's phone is lost or stolen. `confirmWithOption` is a separate function so
+    // every `confirmDialog` caller keeps its boolean; it resolves `{ confirmed, option }`, and the option is reported
+    // ONLY when the confirm button was pressed — a ticked box under a Cancel or a dismissal is no choice at all.
+    /** The first descendant `pick` accepts. @param {any} root @param {(e: any) => boolean} pick @returns {any} */
+    const findBy = (root, pick) => {
+        for (const c of root.children) { if (pick(c)) return c; const d = findBy(c, pick); if (d) return d; }
+        return null;
+    };
+    const OPTION = { label: 'Their phone is lost or stolen', hint: 'No reset notice is sent.' };
+    /** Open the real dialog with its option, closing at once (reduced motion). @param {any} [opts] */
+    async function openWithOption(opts = {}) {
+        const { confirmWithOption } = await freshOverlay();
+        /** @type {any} */ (global.window).matchMedia = () => ({ matches: true });
+        let value = /** @type {any} */ ('pending');
+        confirmWithOption({ message: 'Reset this password?', confirmLabel: 'Reset', danger: true, option: OPTION, ...opts })
+            .then((/** @type {any} */ v) => { value = v; });
+        const overlay = /** @type {any} */ (global.document.body).children.at(-1);
+        return {
+            overlay, confirm: find(overlay, 'dialog-btn-confirm'), cancel: find(overlay, 'dialog-btn-cancel'),
+            box: findBy(overlay, (e) => e.tagName === 'INPUT' && e.type === 'checkbox'),
+            row: find(overlay, 'dialog-option'),
+            escape: () => keydown.slice().forEach(fn => fn({ key: 'Escape', preventDefault() {} })),
+            result: async () => { await microtasks(); return value; },
+        };
+    }
+
+    test('it resolves { confirmed, option } — the box as it stood when the confirm button was pressed', async () => {
+        const plain = await openWithOption();
+        assert.equal(plain.box.checked, false, 'the variant must be chosen, never inherited — the box starts unticked');
+        plain.confirm.fire('click');
+        assert.deepEqual(await plain.result(), { confirmed: true, option: false });
+        const lost = await openWithOption();
+        lost.box.checked = true;
+        lost.confirm.fire('click');
+        assert.deepEqual(await lost.result(), { confirmed: true, option: true });
+    });
+
+    for (const [how, decline] of /** @type {Array<[string, (d: any) => void]>} */ ([
+        ['Cancel', (d) => d.cancel.fire('click')],
+        ['a tap on the backdrop', (d) => d.overlay.fire('click')],
+        ['Escape', (d) => d.escape()],
+        ['Android Back', () => pressBack()],
+    ])) {
+        test(`${how} reports no option, whatever the box showed`, async () => {
+            const asked = await openWithOption();
+            asked.box.checked = true;
+            decline(asked);
+            assert.deepEqual(await asked.result(), { confirmed: false, option: false },
+                `${how} handed back a ticked box nobody confirmed`);
+        });
+    }
+
+    test('the box is named by its label, described by its hint, ticked by its whole row, and takes the first focus', async () => {
+        const d = await openWithOption();
+        assert.equal(d.row.tagName, 'LABEL', 'a row that is not the box\'s <label> is not its touch target');
+        assert.ok(d.row.children.includes(d.box), 'the box sits inside its label row');
+        const named = findBy(d.overlay, (e) => e.id === d.box.getAttribute('aria-labelledby'));
+        const described = findBy(d.overlay, (e) => e.id === d.box.getAttribute('aria-describedby'));
+        assert.equal(named?.textContent, OPTION.label, 'the name is the label alone, not a sentence with the hint in it');
+        assert.equal(described?.textContent, OPTION.hint);
+        assert.equal(/** @type {any} */ (global.document).activeElement, d.box,
+            'focus opens on the one choice the dialog asks for, so Space ticks it and Tab reaches the buttons');
+        const children = d.overlay.children[0].children;
+        assert.ok(children.indexOf(d.row) < children.indexOf(find(d.overlay, 'dialog-actions')), 'the option reads before the buttons');
+    });
+
+    test('with no hint the box is described by nothing, rather than by an empty line', async () => {
+        const d = await openWithOption({ option: { label: OPTION.label } });
+        assert.equal(d.box.getAttribute('aria-describedby'), null);
+        assert.equal(find(d.overlay, 'dialog-option-hint'), null);
+    });
+
+    test('confirmDialog is unchanged by it: no box, focus on the confirm button, and a boolean', async () => {
+        const d = await open({});
+        assert.equal(findBy(d.overlay, (e) => e.tagName === 'INPUT'), null, 'a plain confirm grew a box');
+        assert.equal(/** @type {any} */ (global.document).activeElement, d.confirm);
+        d.confirm.fire('click');
+        assert.equal(await d.result(), true);
+    });
 });

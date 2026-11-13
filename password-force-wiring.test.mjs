@@ -150,6 +150,24 @@ test('…but a caret the member has moved while the save was out stays where the
     assert.equal(doc.activeElement, ids.pwfToggle, 'the caret was pulled from where the member had put it');
 });
 
+// THE ACCOUNT SIGNED IN IS NOT THIS PAGE'S MEMBER (audit A3/B4): `changeOwnPassword` refuses, coded, and
+// the overlay words it through the ladder Settings reads too — never as a wrong password, and never by
+// asking for the current password, which cannot get past it.
+test('a refusal because the signed-in account is somebody else\'s is worded by the shared ladder', async () => {
+    const { passwordChangeFailure } = await import('./auth-identity.js');
+    setImpl = async () => { throw Object.assign(new Error('not this member'), { code: 'myb/account-mismatch' }); };
+    await openOverlay();
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    await flush();
+    assert.equal(setCalls, 1, 'premise: the save was tried');
+    assert.equal(ids.pwfError.textContent, passwordChangeFailure('myb/account-mismatch', true).message,
+        'the overlay did not word the refusal through the shared ladder');
+    assert.doesNotMatch(ids.pwfError.textContent, /incorrect/i, 'a member whose password is fine was told it is wrong');
+    assert.equal(ids.pwfCurrentWrap.hidden, true, 'it asked for the current password, which cannot get past it');
+    ids.pwfEscape.hidden = false; ids.pwfEscape.click();        // leave, so the overlay is not open for later tests
+});
+
 test('the Enter that confirms an input method\'s composition is left to it (review, 11 Nov 2026)', async () => {
     await openOverlay();
     let prevented = false;
@@ -177,6 +195,44 @@ test('after "Continue for now", a password change that lands late still tells th
     land();
     await flush();
     assert.deepEqual(dispatched, ['myb:password-set']);
+});
+
+// THE WRITE IS COUNTED FOR AS LONG AS IT RUNS (audit E5). A release's reload waits for `writesInFlight`
+// (slow-save.js) on the pages that ask, and the forced change can open on any page; its write was counted
+// by none, so an update could reload the page mid-write. Past the overlay's own deadline too: that ends
+// the WAIT, never the write.
+test('the password write is counted until it settles — past the overlay\'s own wait', async (t) => {
+    const { backgroundWritesInFlight } = await import('./claim-retry.js');
+    /** @type {() => void} */ let land = () => {};
+    setImpl = () => new Promise(r => { land = () => r({ stamp: Promise.resolve(true) }); });
+    await openOverlay();
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const before = backgroundWritesInFlight();
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    await flush();
+    assert.equal(backgroundWritesInFlight(), before + 1, 'the write is not counted, so a release could reload over it');
+    t.mock.timers.tick(8000);                                   // SAVE_TIMEOUT_MS passes, the change still out
+    await flush();
+    assert.equal(ids.pwfEscape.hidden, false, 'premise: the overlay has stopped waiting');
+    assert.equal(backgroundWritesInFlight(), before + 1, 'the count ended with the overlay\'s wait, not the write');
+    land();
+    await flush();
+    assert.equal(backgroundWritesInFlight(), before, 'a write that landed is still counted — every later reload is held');
+    ids.pwfEscape.click();                                      // leave, so the overlay is not open for later tests
+});
+
+test('…and a write that is REFUSED stops being counted, so no reload is held for ever', async () => {
+    const { backgroundWritesInFlight } = await import('./claim-retry.js');
+    setImpl = async () => { throw Object.assign(new Error('offline'), { code: 'auth/network-request-failed' }); };
+    await openOverlay();
+    const before = backgroundWritesInFlight();
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    await flush();
+    assert.equal(setCalls, 1, 'premise: the save was tried');
+    assert.equal(backgroundWritesInFlight(), before, 'a refused write is still counted');
+    ids.pwfEscape.click();
 });
 
 test('Enter in the revealed current-password field re-authenticates and saves', async () => {
