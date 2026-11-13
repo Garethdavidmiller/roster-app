@@ -2750,7 +2750,7 @@ the run takes it back.
 
 ## Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)
 
-### An update could still land mid-way through the forced change — CLOSED 13 Nov 2026
+### An update could still land mid-way through the forced change — CLOSED v25.99
 
 Recorded by the sign-in audit and closed the same day, once, in `sw-register.js` rather than page by
 page, so no page's service-worker start-up changed. Every reload an update causes now waits while a
@@ -2771,7 +2771,7 @@ each path's check was deleted in turn and its test failed. The entry as it stood
 > self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
 > every page means changing the service worker's start-up on all of them, which was not worth the risk.
 
-### A revoked phone could save its push record again for up to an hour — CLOSED 13 Nov 2026
+### A revoked phone could save its push record again for up to an hour — CLOSED v25.99
 
 Recorded at v25.98 as the second of two gaps under "A lost-phone reset still leaves two narrow gaps";
 closed in the release after it by the fix the entry named. The `pushSubscriptions` create and update rule
