@@ -33,7 +33,7 @@ export const CHANGES = deepFreeze([
     "The shortlist is new: Balanced\u00a0V6, Level\u00a0Crossing and Middle\u00a0Ground. Short\u00a0Run is no longer on it.",
     "All three keep closing weeks apart: a week of closing shifts is never followed by another, not counting cover weeks. On Short\u00a0Run three closing weeks fall together.",
     "All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. On Short\u00a0Run four weeks off take 15 days’ leave, and 14 days buy 28 at most.",
-    "Level\u00a0Crossing and Middle\u00a0Ground keep the same shift every weekday in 18 of their 21 weeks of set shifts, as Short\u00a0Run does. Balanced\u00a0V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.",
+    "Level\u00a0Crossing and Middle\u00a0Ground keep the same shift every weekday, with no mix of earlies and lates, in 18 of their 21 weeks of set shifts, as Short\u00a0Run does. Balanced\u00a0V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.",
     "All three keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has none.",
     "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10."
 ]);
@@ -70,17 +70,17 @@ export const DIFFERS = deepFreeze([
             "Five people on duty when the station opens on a Saturday, where the other two have four."
         ],
         "worse": [
-            "The fewest weeks with the same shift every weekday: 14\u00a0a\u00a0year. The only one with weeks that mix earlies and lates.",
+            "The fewest weeks with the same shift every weekday and no mix of earlies and lates: 14\u00a0a\u00a0year, and the only one with weeks that mix the two.",
             "The biggest change of start time from one week to the next: 4h\u00a008m on average.",
             "The most single rest days (a day off on its own): 22\u00a0a\u00a0year (today\u00a010).",
             "The fewest full weekends off: 12\u00a0a\u00a0year.",
-            "If a cover week falls badly, the most fatigue warnings (4) and the most days at work in a row (10)."
+            "If a cover week falls badly, the most avoidable fatigue warnings (4) and the most days at work in a row (10)."
         ]
     },
     {
         "design": "Level Crossing",
         "better": [
-            "However a cover week falls: no fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (6 at most).",
+            "However a cover week falls: no avoidable fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (6 at most).",
             "The smallest change of start time from one week to the next: 1h\u00a034m on average.",
             "The fewest single rest days (a day off on its own): 10\u00a0a\u00a0year, as today.",
             "The most 06:20 starts, when the station opens: 58\u00a0a\u00a0year, for those who like them."
@@ -358,7 +358,7 @@ export const NOTES = deepFreeze([
     "Pounds are before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
     "A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
     "Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.",
-    "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail."
+    "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail. Two that every link has are left out: starts before 07:00 and a weekly rotation."
 ]);
 
 /** @type {ReadonlyArray<PackFile>} The pack's colleague files. */

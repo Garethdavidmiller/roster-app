@@ -84,8 +84,10 @@ const CHANGES = [
   'All three keep closing weeks apart: a week of closing shifts is never followed by another, not counting cover weeks. On Short Run three closing weeks fall together.',
   'All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. On Short Run four weeks off take 15 days’ leave, and 14 days buy 28 at most.',
   // "ON ONE SHIFT TIME" SAID AS WHAT IT COUNTS (owner, 12 Nov 2026: "for dummies"): report-data.mjs feel()'s oneTurn is a week
-  // whose Monday-to-Friday shifts are all the same one, so the line says that
-  'Level Crossing and Middle Ground keep the same shift every weekday in 18 of their 21 weeks of set shifts, as Short Run does. Balanced V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.',
+  // whose Monday-to-Friday shifts are all the same one AND whose shifts, the weekend included, are all earlies or all lates, so the
+  // line says both halves. It said only the first until the 13 Nov review: Balanced V6 has an eighth week with the same shift every
+  // weekday that mixes earlies and lates, so "does in 7" read as a week short of what the words described
+  'Level Crossing and Middle Ground keep the same shift every weekday, with no mix of earlies and lates, in 18 of their 21 weeks of set shifts, as Short Run does. Balanced V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.',
   // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 12 or 20 a year
   'All three keep a shift finishing at 13:45 on every weekday of the rota. Short Run has none.',
   'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10.',
@@ -188,16 +190,16 @@ const DIFFER_WORDS = {
       [['fiveAtSatOpen'], () => 'Five people on duty when the station opens on a Saturday, where the other two have four.'],
     ],
     worse: [
-      [['fewestOneTime'], c => `The fewest weeks with the same shift every weekday: ${c.oneYear} a year. The only one with weeks that mix earlies and lates.`],
+      [['fewestOneTime'], c => `The fewest weeks with the same shift every weekday and no mix of earlies and lates: ${c.oneYear} a year, and the only one with weeks that mix the two.`],
       [['biggestStep'], c => `The biggest change of start time from one week to the next: ${hm(H(c.f.step))} on average.`],
       [['mostSingles'], c => `The most single rest days (a day off on its own): ${c.singles} a year (today ${TC.singles}).`],
       [['fewestWeekends'], c => `The fewest full weekends off: ${c.f.weekendsYear} a year.`],
-      [['mostIfCoverBad'], c => `If a cover week falls badly, the most fatigue warnings (${worstOf(c.f.ff)}) and the most days at work in a row (${worstOf(c.f.run)}).`],
+      [['mostIfCoverBad'], c => `If a cover week falls badly, the most avoidable fatigue warnings (${worstOf(c.f.ff)}) and the most days at work in a row (${worstOf(c.f.run)}).`],
     ] },
   'Level Crossing': {
     better: [
       // "NO WEEK OVER 55 HOURS" WAS SHORTHAND: the figure is the worst SEVEN DAYS IN A ROW, whatever week they straddle (edge-cost.mjs)
-      [['noFatigueOr55', 'fewestDaysInRow'], c => `However a cover week falls: no fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (${worstOf(c.f.run)} at most).`],
+      [['noFatigueOr55', 'fewestDaysInRow'], c => `However a cover week falls: no avoidable fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (${worstOf(c.f.run)} at most).`],
       [['gentlestStep'], c => `The smallest change of start time from one week to the next: ${hm(H(c.f.step))} on average.`],
       [['fewestSingles'], c => `The fewest single rest days (a day off on its own): ${c.singles} a year, as today.`],
       [['most0620'], c => `The most 06:20 starts, when the station opens: ${c.f.open0620} a year, for those who like them.`],
@@ -243,8 +245,12 @@ const NOTES = [
   // 8h 07m is marked — so "clear" promised a margin the marks do not keep. The sheet's key says the same since v25.61. AND THE
   // SUNDAY ROWS SAY WHY THEY ARE UNMARKED (owner: "Fix"), with the sheet's own sentence: what-it-means-data.mjs asserts it
   'Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.',
-  '“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail.',
+  // "AVOIDABLE" SAID ONCE, IN FULL (the 13 Nov review): every figure on the page counts the avoidable warnings, as the pack's
+  // sheet does, and the page called them plain "fatigue warnings" twice; the sheet's own sentence says which two are left out
+  '“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail. Two that every link has are left out: starts before 07:00 and a weekly rotation.',
 ].map(t);
+const standing = (/** @type {any} */ c) => c.assessed.fatigue.results.filter((/** @type {any} */ r) => r.status === 'standing').map((/** @type {any} */ r) => r.code).sort().join();
+claim('the two warnings the notes leave out, early starts (FF2) and a weekly rotation (FF18), are on today and all three, and no others', [TC, ...C].every(c => standing(c) === 'FF18,FF2'));
 claim('the swap rows are left unranked, as the notes say', GROUPS[2].rows.every(r => !r.better));
 claim('the no-overtime rows are left unranked, as the notes say', GROUPS.find(g => /no overtime at all/.test(g.who)).rows.every(r => !r.better));
 claim('the Sunday rows are left unranked, as the notes say', GROUPS.find(g => /share of Sundays/.test(g.who)).rows.every(r => !r.better));
