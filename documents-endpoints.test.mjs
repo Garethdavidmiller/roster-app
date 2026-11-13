@@ -208,9 +208,11 @@ function makeStorage(existingObjects = [], keys = {}) {
                 meta.set(path, cur);
                 g.metageneration++;
                 metaWrites.push({ path, metadata: opts && opts.metadata, guarded });
-                return [{ name: path, ...g, metadata: { ...cur } }];
+                return [{ name: path, ...g, timeCreated: created.get(path), metadata: { ...cur } }];
             },
-            getMetadata: async () => [{ name: path, ...genOf(path), metadata: { ...(meta.get(path) || {}) } }],
+            // The whole object resource, as GCS answers it — `timeCreated` included, which the link
+            // rotation reads to keep an upload still writing its record from losing its key.
+            getMetadata: async () => [{ name: path, ...genOf(path), timeCreated: created.get(path), metadata: { ...(meta.get(path) || {}) } }],
             delete: async () => { deleted.push(path); objects.delete(path); },
             // RECORDS rather than discards: "refused" and "signed and then refused" are the same
             // status line, and only the recording tells them apart (this file's own lesson).
@@ -1413,6 +1415,25 @@ describe('rotateDocumentLinks — asked to rotate, every old link stops and the 
         // Through the real handler too: every key write named the object it read, so an upload landing
         // mid-run is refused (412) rather than overwritten.
         assert.ok(w.metaWrites.length > 0 && w.metaWrites.every(m => m.guarded), JSON.stringify(w.metaWrites));
+    });
+
+    test('an upload whose file lands mid-run, its record still to come, keeps its key — on the handler’s own clock', async () => {
+        // The uploaders' real shape: a NEW path, the file and its key first, the record after. The
+        // handler passes no clock, so this is the production age check, against the time now.
+        const NEW = 'huddles/2026-11-13-ab12.pdf';
+        const w = build(ROTATABLE());
+        w.setClaims({ admin: true });
+        w.beforeList(() => {
+            w.objects.add(NEW);
+            w.created.set(NEW, new Date().toISOString());
+            w.meta.set(NEW, { firebaseStorageDownloadTokens: 'fresh' });
+        });
+        const out = await askToRotate(w.eps, { rotate: true });
+        w.store.set('huddles/2026-11-13', { date: '2026-11-13', storagePath: NEW, fileType: 'pdf', storageUrl: dlink(NEW, 'fresh') });
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        assert.equal(w.meta.get(NEW)?.firebaseStorageDownloadTokens, 'fresh', 'the new record holds a dead link');
+        assert.deepEqual({ rotated: out.body.rotated, cleared: out.body.cleared, unlinkedTooNew: out.body.unlinkedTooNew },
+            { rotated: 2, cleared: 1, unlinkedTooNew: 1 }, 'the year-old unused file still loses its key');
     });
 
     test('the body may arrive unparsed — rotate: true in raw bytes is still a run', async () => {

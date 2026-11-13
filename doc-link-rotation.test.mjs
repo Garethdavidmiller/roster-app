@@ -20,13 +20,18 @@
  * Storage does where it matters: every file has a generation (a new upload) and a metageneration (a
  * metadata write), a write that names the wrong one is refused with 412, and a write that names
  * NEITHER is refused too — so a run that forgot its compare-and-set fails here, not on the live files.
+ * It also reports each file's `timeCreated`, and models an upload the way BOTH uploaders write one —
+ * a NEW path, the file and its key first, the record after. Modelling uploads only as a new version at
+ * the same path hid the case where a run switched off a brand-new file's only key (review, 13 Nov
+ * 2026). And it models the two retries of a write whose answer was lost: the storage library's,
+ * refused with 412, and Firestore's, which runs the whole transaction again.
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { rotateDocumentLinks, downloadUrl, pathOfDownloadUrl, keysOf, TOKEN_KEY } =
+const { rotateDocumentLinks, downloadUrl, pathOfDownloadUrl, keysOf, TOKEN_KEY, UNLINKED_MIN_AGE_MS } =
     require('./functions/doc-link-rotation.js');
 
 const BUCKET = 'myb-roster.appspot.com';
@@ -34,23 +39,42 @@ const BUCKET = 'myb-roster.appspot.com';
 const link = (path, key) => downloadUrl(BUCKET, path, key);
 /** The key a stored link carries. @param {string} url */
 const keyOfLink = (url) => new URL(url).searchParams.get('token');
+/** The moment the tests that care about age run at. */
+const NOW = Date.parse('2026-11-13T12:00:00.000Z');
+/** When a seeded file was created, as GCS reports it: long before any run, so old enough to clear. */
+const SEEDED = '2026-01-01T00:00:00.000Z';
 
 /**
  * A world: files with their keys, records with their stored links, and one ordered log of writes.
  * After EVERY write it checks the invariant the three steps exist for — every record whose file
  * exists can still open it — and keeps any breach, so a test can assert there was none at any moment.
+ * Each file has the `timeCreated` GCS reports (SEEDED unless `created` says otherwise; `null` reports
+ * none), because an unused file's age decides whether it may lose its key.
+ * The hooks that model what the real libraries do: `lostAnswer` lands a key write and then refuses it
+ * with 412, as the storage library's retry of a write whose answer was lost is refused; `lostCommit`
+ * commits a transaction and then runs it again, as Firestore does when a commit's answer is lost; and
+ * `onRecordsRead` runs as each collection is read, before it answers (`nth` counts that collection's
+ * reads from 1), so a test can land an upload mid-run or fail one read.
  * @param {{ files: Record<string, string[]|null>, records: Record<string, any>,
+ *           created?: Record<string, string|null>,
  *           failSet?: (path: string, value: any) => boolean, failGet?: (path: string) => boolean,
  *           failTx?: (path: string) => boolean, onTxGet?: (path: string, store: Map<string, any>) => void,
- *           beforeSet?: (path: string, value: any) => void, failList?: boolean }} opts
+ *           beforeSet?: (path: string, value: any) => void, failList?: boolean,
+ *           onGet?: (path: string) => void, lostAnswer?: (path: string, value: any) => boolean,
+ *           lostCommit?: (path: string) => boolean, onRecordsRead?: (name: string, nth: number) => void }} opts
  */
-function world({ files, records, failSet, failGet, failTx, onTxGet, beforeSet, failList }) {
+function world({ files, records, created = {}, failSet, failGet, failTx, onTxGet, beforeSet, failList,
+    onGet, lostAnswer, lostCommit, onRecordsRead }) {
     /** @type {Map<string, Record<string, string>>} path → custom metadata */
     const meta = new Map(Object.entries(files).map(([p, keys]) =>
         [p, keys ? { [TOKEN_KEY]: keys.join(','), other: 'kept' } : { other: 'kept' }]));
     /** @type {Map<string, { generation: number, metageneration: number }>} */
     const gen = new Map([...meta.keys()].map((p, i) => [p, { generation: 1000 + i, metageneration: 1 }]));
+    /** @type {Map<string, string|null>} path → timeCreated, or null for a file whose age is not reported */
+    const born = new Map([...meta.keys()].map(p => [p, created[p] === undefined ? SEEDED : created[p]]));
     const store = new Map(Object.entries(records));
+    /** @type {Map<string, number>} */
+    const reads = new Map();
     /** @type {{ kind: 'set'|'update', path: string, value: any }[]} */
     const log = [];
     /** @type {string[]} */
@@ -69,20 +93,46 @@ function world({ files, records, failSet, failGet, failTx, onTxGet, beforeSet, f
         }
     };
 
-    const resource = (/** @type {string} */ path) => ({ name: path, ...gen.get(path), metadata: { ...(meta.get(path) || {}) } });
+    const resource = (/** @type {string} */ path) => {
+        const t = born.get(path);
+        return { name: path, ...gen.get(path), ...(t ? { timeCreated: t } : {}), metadata: { ...(meta.get(path) || {}) } };
+    };
     /**
      * A new upload at `path`, object and record together, as the uploaders do: a new generation, its
-     * own key, and the record moved onto it.
-     * @param {string} path @param {string} key @param {string} [recordPath]
+     * own key, and the record moved onto it. A null key is a copy made outside the app, which carries none.
+     * @param {string} path @param {string|null} key @param {string} [recordPath]
      */
     const reupload = (path, key, recordPath) => {
-        meta.set(path, { [TOKEN_KEY]: key, other: 'kept' });
+        meta.set(path, key ? { [TOKEN_KEY]: key, other: 'kept' } : { other: 'kept' });
         gen.set(path, { generation: (gen.get(path)?.generation ?? 0) + 7, metageneration: 1 });
-        if (recordPath) store.set(recordPath, { ...store.get(recordPath), storageUrl: link(path, key) });
+        born.set(path, new Date(NOW).toISOString());
+        if (recordPath && key) store.set(recordPath, { ...store.get(recordPath), storageUrl: link(path, key) });
+    };
+    /**
+     * Somebody else's key write on the SAME object — a second run's, say: a new metageneration, the
+     * generation unchanged. @param {string} path @param {string[]} keys
+     */
+    const otherWrite = (path, keys) => {
+        const g = /** @type {{ generation: number, metageneration: number }} */ (gen.get(path));
+        meta.set(path, { ...(meta.get(path) || {}), [TOKEN_KEY]: keys.join(',') });
+        gen.set(path, { ...g, metageneration: g.metageneration + 1 });
+    };
+    /**
+     * A new upload as BOTH uploaders really write one: a NEW path, and the file with its key saved
+     * first — ingestHuddle saves it and sets its key, the Operations card's upload is given one — with
+     * the record still to come. The record is the test's to write, when the uploader would.
+     * @param {string} path @param {string} key @param {number} [at]  when the file was saved (default NOW)
+     */
+    const upload = (path, key, at = NOW) => {
+        assert.ok(!meta.has(path), `an upload never reuses a path: ${path}`);
+        meta.set(path, { [TOKEN_KEY]: key, other: 'kept' });
+        gen.set(path, { generation: 5000 + gen.size, metageneration: 1 });
+        born.set(path, new Date(at).toISOString());
     };
     const file = (/** @type {string} */ path) => ({
         name: path,
         getMetadata: async () => {
+            onGet?.(path);
             if (failGet?.(path)) throw new Error('read failed');
             return [resource(path)];
         },
@@ -102,6 +152,9 @@ function world({ files, records, failSet, failGet, failTx, onTxGet, beforeSet, f
             gen.set(path, { ...g, metageneration: g.metageneration + 1 });
             log.push({ kind: 'set', path, value: metadata[TOKEN_KEY] });
             checkInvariant(`set ${path}`);
+            // The write landed; its answer did not, and the library's retry — still naming the
+            // metageneration this write moved past — is refused.
+            if (lostAnswer?.(path, metadata[TOKEN_KEY])) throw Object.assign(new Error('Precondition Failed'), { code: 412 });
             return [resource(path)];
         },
     });
@@ -116,32 +169,43 @@ function world({ files, records, failSet, failGet, failTx, onTxGet, beforeSet, f
         exists: store.has(p), id: p.split('/')[1], ref: { path: p },
         data: () => (store.has(p) ? { ...store.get(p) } : undefined),
     });
+    /** One attempt at a transaction: run it, then commit what it staged. @param {(tx: any) => Promise<any>} fn */
+    const attempt = async (fn) => {
+        /** @type {[string, any][]} */
+        const staged = [];
+        const result = await fn({
+            get: async (/** @type {{ path: string }} */ ref) => {
+                if (failTx?.(ref.path)) throw new Error('transaction failed');
+                onTxGet?.(ref.path, store);
+                return snapOf(ref.path);
+            },
+            update: (/** @type {{ path: string }} */ ref, /** @type {any} */ data) => { staged.push([ref.path, data]); },
+        });
+        for (const [p, d] of staged) {
+            store.set(p, { ...store.get(p), ...d });
+            log.push({ kind: 'update', path: p, value: d.storageUrl });
+            checkInvariant(`update ${p}`);
+        }
+        return { result, staged };
+    };
     const db = {
         collection: (/** @type {string} */ name) => ({
-            get: async () => ({ docs: [...store.keys()].filter(p => p.startsWith(`${name}/`)).map(snapOf) }),
+            get: async () => {
+                reads.set(name, (reads.get(name) ?? 0) + 1);
+                onRecordsRead?.(name, /** @type {number} */ (reads.get(name)));
+                return { docs: [...store.keys()].filter(p => p.startsWith(`${name}/`)).map(snapOf) };
+            },
         }),
         runTransaction: async (/** @type {(tx: any) => Promise<any>} */ fn) => {
-            /** @type {[string, any][]} */
-            const staged = [];
-            const result = await fn({
-                get: async (/** @type {{ path: string }} */ ref) => {
-                    if (failTx?.(ref.path)) throw new Error('transaction failed');
-                    onTxGet?.(ref.path, store);
-                    return snapOf(ref.path);
-                },
-                update: (/** @type {{ path: string }} */ ref, /** @type {any} */ data) => { staged.push([ref.path, data]); },
-            });
-            for (const [p, d] of staged) {
-                store.set(p, { ...store.get(p), ...d });
-                log.push({ kind: 'update', path: p, value: d.storageUrl });
-                checkInvariant(`update ${p}`);
-            }
-            return result;
+            const first = await attempt(fn);
+            // The commit landed and its answer was lost: Firestore runs the whole transaction again.
+            if (first.staged.some(([p]) => lostCommit?.(p))) return (await attempt(fn)).result;
+            return first.result;
         },
     };
     let n = 0;
     const newKey = () => `key-${++n}`;
-    return { bucket, db, newKey, meta, store, log, breaches, keysNow, reupload };
+    return { bucket, db, newKey, meta, store, log, breaches, keysNow, reupload, upload, otherWrite };
 }
 
 /** The ordinary world: one of each kind, each record opening its own file with its own old key. */
@@ -203,9 +267,11 @@ describe('a preview changes nothing — and counts what a run would touch', () =
             files: {
                 'huddles/2026-11-12-a1.pdf': ['old-h'],
                 'huddles/2026-08-01-old.pdf': ['old-x'],          // no record points at it, still has a key
+                'circulars/2026-11-13-new.pdf': ['new-k'],        // …and so does this, saved an hour ago
                 'circulars/2026-05-01-gone.pdf': null,            // no record, already without a key
                 'newsletters/2026-09-01-odd.pdf': ['odd-k'],      // only a link this cannot read opens it
             },
+            created: { 'circulars/2026-11-13-new.pdf': new Date(NOW - 60 * 60 * 1000).toISOString() },
             records: {
                 'huddles/2026-11-12': { storageUrl: link('huddles/2026-11-12-a1.pdf', 'old-h') },
                 'huddles/2026-11-11': { storageUrl: link('huddles/2026-11-11-zz.pdf', 'k') },   // its file is not there
@@ -215,11 +281,12 @@ describe('a preview changes nothing — and counts what a run would touch', () =
                 'newsletters/2026-10-01': { storagePath: 'newsletters/2026-10-01.pdf' },       // no stored link at all
             },
         });
-        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, nowMs: NOW });
         assert.deepEqual(
-            { files: r.files, linked: r.linked, unlinkedWithKey: r.unlinkedWithKey, unlinkedWithoutKey: r.unlinkedWithoutKey, held: r.held,
+            { files: r.files, linked: r.linked, unlinkedWithKey: r.unlinkedWithKey, unlinkedTooNew: r.unlinkedTooNew,
+              unlinkedWithoutKey: r.unlinkedWithoutKey, held: r.held,
               recordsMissingFile: r.recordsMissingFile, recordsUnreadable: r.recordsUnreadable, recordsWithoutLink: r.recordsWithoutLink },
-            { files: 4, linked: 1, unlinkedWithKey: 1, unlinkedWithoutKey: 1, held: 1,
+            { files: 5, linked: 1, unlinkedWithKey: 1, unlinkedTooNew: 1, unlinkedWithoutKey: 1, held: 1,
               recordsMissingFile: 1, recordsUnreadable: 3, recordsWithoutLink: 1 });
         assert.deepEqual(w.log, []);
     });
@@ -443,6 +510,165 @@ describe('every write is a compare-and-set: an upload landing mid-run is never o
         assert.equal(r.cleared, 0);
         assert.equal(r.changedDuringRun, 1);
         assert.deepEqual(w.keysNow(ORPHAN), ['fresh']);
+    });
+});
+
+describe('an upload in flight is not an unused file: a NEW path, its file and key first, its record after', () => {
+    // Both uploaders write this shape — ingestHuddle saves the file and sets its key, converts a Word
+    // Huddle, then writes the record; the Operations card's file is given its key on upload and the
+    // record is saved after — so until the record lands, a new file looks exactly like an abandoned
+    // one. The tests above model an upload as a new version at the SAME path, which a run already
+    // refused to overwrite; this is the shape they could not see.
+    const NEW = 'huddles/2026-11-13-ab12.pdf';
+    const REC = 'huddles/2026-11-13';
+
+    test('a file that lands after the records are read keeps its key, so its record — written after — opens it', async () => {
+        /** @type {ReturnType<typeof world>} */
+        let w;
+        w = world({ ...ORDINARY(), onRecordsRead: (name, nth) => { if (name === 'huddles' && nth === 1) w.upload(NEW, 'fresh'); } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true, nowMs: NOW + 5000 });
+        // The uploader's record, as both write it: unconditionally, with the key the file was given.
+        w.store.set(REC, { date: '2026-11-13', storagePath: NEW, storageUrl: link(NEW, 'fresh') });
+        assert.deepEqual(w.keysNow(NEW), ['fresh'], 'the new record holds a dead link');
+        assert.equal(r.cleared, 0);
+        assert.equal(r.unlinkedTooNew, 1, 'a file left with its key is said, not hidden behind a clean report');
+        assert.equal(r.rotated, 3, 'the files in use rotate as ever');
+        assert.deepEqual(r.failed, []);
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('an unused file loses its key once it is a day old — not a moment sooner, and not when its age is unknown', async () => {
+        const DAY = 'huddles/2026-11-12-day.pdf';
+        const ALMOST = 'huddles/2026-11-12-almost.pdf';
+        const UNKNOWN = 'huddles/2026-11-12-unknown.pdf';
+        const w = world({ files: { [DAY]: ['d'], [ALMOST]: ['a'], [UNKNOWN]: ['u'] }, records: {}, created: {
+            [DAY]: new Date(NOW - UNLINKED_MIN_AGE_MS).toISOString(),
+            [ALMOST]: new Date(NOW - UNLINKED_MIN_AGE_MS + 1).toISOString(),
+            [UNKNOWN]: null,
+        } });
+        const preview = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, nowMs: NOW });
+        assert.deepEqual({ unlinkedWithKey: preview.unlinkedWithKey, unlinkedTooNew: preview.unlinkedTooNew },
+            { unlinkedWithKey: 1, unlinkedTooNew: 2 }, 'the preview offers to switch off only what a run would');
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true, nowMs: NOW });
+        assert.deepEqual(w.keysNow(DAY), []);
+        assert.deepEqual(w.keysNow(ALMOST), ['a']);
+        assert.deepEqual(w.keysNow(UNKNOWN), ['u']);
+        assert.deepEqual({ cleared: r.cleared, unlinkedTooNew: r.unlinkedTooNew }, { cleared: 1, unlinkedTooNew: 2 });
+        assert.ok(UNLINKED_MIN_AGE_MS >= 24 * 60 * 60 * 1000, 'shorter than a day no longer outlasts a record held by a lost connection');
+    });
+
+    test('a record that arrives late, for a file already old, stops that file losing its key — and the next run rotates it', async () => {
+        // A phone that lost its signal between saving a file and saving its record sends the record when
+        // it next connects, perhaps days later. The file is old by then, so only the second look at the
+        // records can see the record: here it lands while the run is reading the files' keys.
+        const LATE = 'huddles/2026-11-10-late.pdf';
+        const LREC = 'huddles/2026-11-10';
+        /** @type {ReturnType<typeof world>} */
+        let w;
+        w = world({ files: { [LATE]: ['late-k'] }, records: {},
+            onGet: (p) => { if (p === LATE) w.store.set(LREC, { storagePath: LATE, storageUrl: link(LATE, 'late-k') }); } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual(w.keysNow(LATE), ['late-k'], 'the late record holds a dead link');
+        assert.deepEqual({ cleared: r.cleared, changedDuringRun: r.changedDuringRun }, { cleared: 0, changedDuringRun: 1 },
+            'left, and said, for the next check');
+        assert.deepEqual(w.log, []);
+        const again = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(again.rotated, 1);
+        assert.deepEqual(w.keysNow(LATE), [keyOfLink(w.store.get(LREC).storageUrl)]);
+    });
+
+    test('the second look keeps the first read’s rule: a link it cannot read, written mid-run, holds the file', async () => {
+        const OLD = 'huddles/2026-08-01-old.pdf';
+        /** @type {ReturnType<typeof world>} */
+        let w;
+        w = world({ files: { [OLD]: ['old-x'] }, records: {}, onGet: (p) => {
+            if (p === OLD) w.store.set('newsletters/2026-11-13', { storageUrl: 'https://cdn.example.com/n.pdf?alt=media&token=old-x' });
+        } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual(w.keysNow(OLD), ['old-x'], 'a link this cannot read lost the key it may open the file with');
+        assert.deepEqual({ cleared: r.cleared, changedDuringRun: r.changedDuringRun }, { cleared: 0, changedDuringRun: 1 });
+    });
+
+    test('the second look failing throws before any write, so "could not read" still means "nothing changed"', async () => {
+        const w = world({ files: { ...ORDINARY().files, 'huddles/2026-08-01-old.pdf': ['old-x'] }, records: ORDINARY().records,
+            onRecordsRead: (_name, nth) => { if (nth === 2) throw new Error('read failed'); } });
+        await assert.rejects(rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true }));
+        assert.deepEqual(w.log, []);
+    });
+});
+
+describe('a refusal that was this run’s own write, retried after its answer was lost, is not a change', () => {
+    // The storage library retries a guarded write whose answer was lost, and the retry is refused (412):
+    // the first attempt moved the metageneration on. Firestore re-runs a transaction whose commit answer
+    // was lost. Read as somebody else's write, a file that WAS rotated was reported as left alone — and a
+    // record that DID move left its file's old key alive.
+    const FP = 'huddles/2026-11-12-a1.pdf';
+    const REC = 'huddles/2026-11-12';
+
+    test('the last step landed, and its retry was refused: the file is counted as rotated', async () => {
+        const w = world({ ...ORDINARY(), lostAnswer: (p, v) => p === FP && !!v && !String(v).includes(',') });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ rotated: r.rotated, changedDuringRun: r.changedDuringRun, failed: r.failed },
+            { rotated: 3, changedDuringRun: 0, failed: [] });
+        assert.deepEqual(w.keysNow(FP), [keyOfLink(w.store.get(REC).storageUrl)]);
+    });
+
+    test('the first step landed, and its retry was refused: the run carries on, and the old link dies', async () => {
+        const w = world({ ...ORDINARY(), lostAnswer: (p, v) => p === FP && String(v).includes(',') });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ rotated: r.rotated, changedDuringRun: r.changedDuringRun }, { rotated: 3, changedDuringRun: 0 });
+        const stored = keyOfLink(w.store.get(REC).storageUrl);
+        assert.notEqual(stored, 'old-h');
+        assert.deepEqual(w.keysNow(FP), [stored]);
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('the record moved, and Firestore ran the transaction again: the old key still goes', async () => {
+        const w = world({ ...ORDINARY(), lostCommit: (p) => p === REC });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ rotated: r.rotated, changedDuringRun: r.changedDuringRun }, { rotated: 3, changedDuringRun: 0 });
+        assert.ok(!w.keysNow(FP).includes('old-h'), 'the old link still opens the file');
+        assert.deepEqual(w.keysNow(FP), [keyOfLink(w.store.get(REC).storageUrl)]);
+    });
+
+    test('an unused file’s key went, and the retry was refused: counted as switched off', async () => {
+        const OLD = 'huddles/2026-08-01-old.pdf';
+        const w = world({ files: { [OLD]: ['old-x'] }, records: {}, lostAnswer: (p, v) => p === OLD && v === null });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ cleared: r.cleared, changedDuringRun: r.changedDuringRun }, { cleared: 1, changedDuringRun: 0 });
+        assert.deepEqual(w.keysNow(OLD), []);
+    });
+
+    test('the same object carrying keys this run did not write is still somebody else’s change', async () => {
+        // A second run's first step lands between this run's first and last: same object, its keys.
+        /** @type {ReturnType<typeof world>} */
+        let w;
+        let fired = false;
+        w = world({ ...ORDINARY(), beforeSet: (p, v) => {
+            if (fired || p !== FP || !v || String(v).includes(',')) return;
+            fired = true;
+            w.otherWrite(FP, [...w.keysNow(FP), 'other-run']);
+        } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ rotated: r.rotated, changedDuringRun: r.changedDuringRun }, { rotated: 2, changedDuringRun: 1 });
+        assert.ok(w.keysNow(FP).includes('other-run'), 'the other run’s key was taken away');
+        assert.deepEqual(w.breaches, []);
+    });
+
+    test('a NEW object at the path, carrying no key, is not taken for this run’s clear', async () => {
+        // A copy made outside the app — from the command line, say — replaces the file between the
+        // keys being read and switched off. The path has no key either way, but this run did not do it.
+        const OLD = 'huddles/2026-08-01-old.pdf';
+        /** @type {ReturnType<typeof world>} */
+        let w;
+        let fired = false;
+        w = world({ files: { [OLD]: ['old-x'] }, records: {}, beforeSet: (p, v) => {
+            if (fired || p !== OLD || v !== null) return;
+            fired = true;
+            w.reupload(OLD, null);
+        } });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.deepEqual({ cleared: r.cleared, changedDuringRun: r.changedDuringRun }, { cleared: 0, changedDuringRun: 1 });
     });
 });
 

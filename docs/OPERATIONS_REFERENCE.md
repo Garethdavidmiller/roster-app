@@ -465,7 +465,9 @@ ever wanted (AUTH_PLAN.md §5).
 **How:**
 1. Operations → **Document links** → **Check the links**. This only counts, and says what a run would
    touch: files in use; older files no record uses (their link is switched off, the file is never
-   deleted); documents whose file is gone; and stored links this cannot read.
+   deleted); documents whose file is gone; and stored links this cannot read. An unused file from the
+   last day keeps its link: an upload saves its file before the document that names it, so a file
+   that new may be one still being saved. A check the next day offers it.
 2. **Replace the links**, then confirm.
 
 | The card says | It means | Do |
@@ -473,14 +475,19 @@ ever wanted (AUTH_PLAN.md §5).
 | Done. N files have new links | every old copy of those links is dead | nothing |
 | N files couldn't be changed, and their old links still work | a write failed; each such file stopped at the step it reached, its stored link still working | press Replace again — safe |
 | N files changed while this ran | an upload, or a run in another tab, landed mid-run; those files were left alone | Check again, and Replace if it is offered |
+| N files from the last day aren't used by the app, so their links were left working | an upload may still be saving the document that names them; a run takes the key only from an unused file at least a day old | Check again tomorrow, and Replace if it is offered |
 | N files are left as they are, old links and all | a stored link this cannot read may open them, and touching them could break it | the unreadable links need looking at in a session; the card cannot fix them |
+| N files couldn't be checked, so it isn't known yet whether there is anything to replace | the check could not read those files' keys; nothing changes on a check | Check again in a minute |
 | It isn't known whether it finished | the answer was lost — a timeout, or the platform's own error | press Replace again — safe |
 | Couldn't read the documents, so nothing was changed | the records or the file listing could not be read | try again in a minute |
+| Couldn't replace the links: the request was never sent | the page could not get the admin's sign-in token, so nothing left it | check the connection, then press Replace again |
 | Couldn't check the links: the server answered 404 | `rotateDocumentLinks` is not deployed | check the latest "Deploy Firebase Functions" run, then Check again |
 
 **Why pressing it twice is safe:** a run only ever issues fresh keys and moves each record onto its
 file's newest one. Every key write is a compare-and-set against the file as it was read, and a record
 moves only while its link is exactly the one read, so a run cannot overwrite an upload or another run.
+A refused write is read back before it is called a change, so a write that landed but whose answer
+was lost — the storage library retries it, and the retry is refused — is counted as done.
 The rules: `functions/doc-link-rotation.js`. **Logs:** one line per run in the `rotateDocumentLinks`
 function log — counts only.
 

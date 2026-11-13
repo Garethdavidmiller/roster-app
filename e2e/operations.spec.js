@@ -4012,6 +4012,14 @@ test('operations document links: a run that left a file, or whose answer is lost
     await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
     await expect(result).toHaveText('Couldn’t read the documents, so nothing was changed. Try again in a minute.');
     expect(sent).toEqual([{ rotate: false }, { rotate: true }, { rotate: true }, { rotate: true }]);
+
+    // No sign-in token, so no request: nothing was sent, which is known — never "isn’t known".
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.authUser = false; });
+    await replace.click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(result).toHaveText('Couldn’t replace the links: the request was never sent, so nothing was changed. Check your connection and try again.');
+    await expect(result).toHaveClass(/huddle-feedback--err/);
+    expect(sent, 'nothing left the page').toEqual([{ rotate: false }, { rotate: true }, { rotate: true }, { rotate: true }]);
 });
 
 // v25.92: AN UPDATE WAITS FOR THE ANSWER. A run can take minutes, and its report is the only record of

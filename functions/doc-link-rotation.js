@@ -35,6 +35,27 @@
  * given none. It is not deleted: deleting is retention's decision, and a run that only ever takes
  * keys away cannot lose a document.
  *
+ * ── OR A NEW UPLOAD THAT NO RECORD NAMES YET (review, 13 Nov 2026) ───────────
+ * Both uploaders write the file, with its key, to a path no record has named, and write the record
+ * after — ingestHuddle converts a Word Huddle in between; the Operations cards save the record once
+ * the file is up (documents-client.js). For those seconds a new file looks exactly like an abandoned
+ * one. This used to read the records, then list the files, and take such a file for unused: its only
+ * key was switched off, its record arrived holding a dead link, the run reported success, and the
+ * next check saw nothing wrong. So, as `sweepHuddleOrphans` (./huddle-retention.js) does before it
+ * deletes one, two checks stand between an unused file and losing its key:
+ *   · AGE. A file younger than UNLINKED_MIN_AGE_MS (a day; why that long: the constant) keeps its
+ *     key, and so does one whose age cannot be read; it is counted in `unlinkedTooNew`, for a run the
+ *     next day.
+ *   · A SECOND LOOK. Once the plan is made, and before the first write, the records are read again,
+ *     and an unused file one of them names by then is left alone (`changedDuringRun`). That is for
+ *     the record the age cannot see: one that arrives after its file has grown old — a phone that
+ *     lost its signal between saving the file and saving the record sends the record when it next
+ *     connects, which may be days later.
+ * The unused files are written first, straight after that look, so the window it leaves is as short as
+ * it can be. A record later still — after the key has gone — is the one case neither check reaches.
+ * Its file is a day old by then, and the member still opens it, because the 15-minute link is signed
+ * from the path; Replace gives that record a working link again, as it gives any record a new one.
+ *
  * ── EVERY WRITE IS A COMPARE-AND-SET ─────────────────────────────────────────
  * A key is written only if the file is still the object it was when its keys were read
  * (`ifGenerationMatch` + `ifMetagenerationMatch`): a new upload at the same path, or a second run in
@@ -43,11 +64,22 @@
  * of collision is counted in `changedDuringRun` and left for the next check — never a failure, and
  * never a guess.
  *
+ * **But a refusal is not always somebody else's write.** The storage library retries a guarded write
+ * whose answer was lost, and the retry — still naming the metageneration the first attempt moved past
+ * — is refused with 412; Firestore re-runs a transaction whose commit answer was lost in the same way.
+ * Read as a collision, a key that DID change was reported as left alone, and a record that DID move
+ * kept its file's old key alive. So a refused key write reads the file back (`writeKeys`), and counts
+ * it as this run's own when it is the same object carrying exactly the keys this run wrote: nobody
+ * else knows a key this run made up, and a file with no key is cleared, whoever cleared it. A record
+ * already holding the link this run is writing moved in this run's own earlier attempt, for the same
+ * reason. Anything else is still a change.
+ *
  * ── A PREVIEW UNLESS ASKED ───────────────────────────────────────────────────
  * Without `rotate: true` this reads and counts and writes nothing, so the admin sees what a run
- * would touch before anything changes. The READ phase is the only place this throws, and it comes
- * before the first write: "could not read" always means "nothing changed". Every write is caught
- * per file and reported in `failed`.
+ * would touch before anything changes. The READS — the records, the listing, and the second look at
+ * the records before a run switches an unused file's key off — are the only place this throws, and all
+ * of them come before the first write: "could not read" always means "nothing changed". Every write is
+ * caught per file and reported in `failed`.
  *
  * ── WHAT IT LEAVES ALONE ─────────────────────────────────────────────────────
  * A record whose stored link this cannot read as a download link into its own folder of this
@@ -68,6 +100,18 @@ const TOKEN_KEY = 'firebaseStorageDownloadTokens';
 const DOWNLOAD_HOST = 'firebasestorage.googleapis.com';
 /** Files handled at once. Enough to finish a few hundred files well inside the endpoint's limit. */
 const DEFAULT_LIMIT = 4;
+
+/**
+ * How old an unused file must be before it loses its key (the header: a new upload is named by
+ * nothing until its record lands). It must outlast the slowest upload between its file and its
+ * record. The slowest designed path is the ingest converting a Word Huddle, which the function's
+ * 60-second limit bounds; the Operations card saves its record seconds after the file — unless the
+ * connection drops in between, when Firestore keeps the write and sends it on reconnecting, and the
+ * persistent cache keeps it even across a closed app. A DAY covers all of that by a wide margin: the
+ * same day, for the same reason, as HUDDLE_ORPHAN_MIN_AGE_MS (./huddle-retention.js). It costs little:
+ * an unused file younger than a day keeps its key until a run the next day, and the report says so.
+ */
+const UNLINKED_MIN_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The permanent link for `path` under `key` — the shape ingestHuddle writes and the browser's
@@ -141,6 +185,72 @@ function changedUnderUs(err) {
 }
 
 /**
+ * Make `keys` a file's only keys — none at all for an empty list — on the object `before` was read
+ * from and nothing else. When that is refused as stale, read the file back: the same object carrying
+ * exactly these keys means the write landed — the storage library RETRIED it after its answer was
+ * lost, and nobody else knows a key this run made up — or, for no keys, that somebody else's clear
+ * left the file just as this one would have (the header). The one place a key is written.
+ * @param {any} file
+ * @param {any} before  the object resource the write is guarded on
+ * @param {string[]} keys
+ * @returns {Promise<any>} the object resource after the write
+ * @throws the refusal itself when the write did not land, or any other failure
+ */
+async function writeKeys(file, before, keys) {
+    try {
+        // null REMOVES the key.
+        const [after] = await file.setMetadata({ metadata: { [TOKEN_KEY]: keys.length ? keys.join(',') : null } },
+            sameObject(before));
+        return after;
+    } catch (err) {
+        if (!changedUnderUs(err)) throw err;
+        /** @type {any} */
+        let now = null;
+        try { [now] = await file.getMetadata(); } catch (_) { /* gone, or unreadable: the refusal stands */ }
+        if (now && String(now.generation) === String(before.generation) && keysOf(now).join(',') === keys.join(',')) {
+            return now;
+        }
+        throw err;
+    }
+}
+
+/**
+ * Read every record's stored link: which file each one opens, and the keys of the links this cannot
+ * read. Read once before the files are listed, and again before a run clears anything (the header).
+ * @param {any} db
+ * @param {string[]} collections
+ * @param {string} bucketName
+ */
+async function readRecords(db, collections, bucketName) {
+    /** @type {Map<string, { ref: any, url: string }[]>} file path → the records whose stored link opens it, and that link as read */
+    const linkedBy = new Map();
+    /** Keys named by stored links this cannot read: a file carrying one is never touched. */
+    const heldKeys = new Set();
+    let withoutLink = 0;
+    let unreadable = 0;
+    for (const name of collections) {
+        const snap = await db.collection(name).get();
+        for (const doc of snap.docs) {
+            const url = (doc.data() || {}).storageUrl;
+            if (typeof url !== 'string' || !url) { withoutLink++; continue; }
+            const path = pathOfDownloadUrl(url, bucketName);
+            // Into its OWN kind's folder or not at all: a circulars record opening a huddles file is
+            // a defect to report, never a link to rewrite (the same binding as isSignablePathForKind).
+            if (!path || !path.startsWith(`${name}/`)) {
+                unreadable++;
+                const held = tokenOfAnyLink(url);
+                if (held) heldKeys.add(held);
+                continue;
+            }
+            const refs = linkedBy.get(path) || [];
+            refs.push({ ref: doc.ref, url });
+            linkedBy.set(path, refs);
+        }
+    }
+    return { linkedBy, heldKeys, withoutLink, unreadable };
+}
+
+/**
  * Run `fn` over `items`, at most `limit` at a time.
  * @template T
  * @param {T[]} items
@@ -160,7 +270,10 @@ async function eachLimited(items, limit, fn) {
  * @property {boolean} rotate               false: a preview, and nothing was changed
  * @property {number}  files                files found in the three document folders
  * @property {number}  linked               of those, files a record's stored link opens
- * @property {number}  unlinkedWithKey      files no record points at that still carry a key
+ * @property {number}  unlinkedWithKey      files no record points at that still carry a key — old enough to lose it
+ * @property {number}  unlinkedTooNew       files no record points at that still carry a key, but younger than
+ *                                          UNLINKED_MIN_AGE_MS or of unknown age: an upload may still be writing
+ *                                          their record, so they keep it, for a run the next day
  * @property {number}  unlinkedWithoutKey   files no record points at, already without a key
  * @property {number}  held                 files a link this cannot read may open: never touched
  * @property {number}  recordsMissingFile   records whose stored link opens a file that is not there
@@ -180,37 +293,15 @@ async function eachLimited(items, limit, fn) {
  * @param {boolean} [deps.rotate]     true to change anything; anything else is a preview
  * @param {() => string} deps.newKey  a fresh, unguessable key (`crypto.randomUUID`)
  * @param {number} [deps.limit]       files handled at once
+ * @param {number} [deps.nowMs]      the moment an unused file's age is measured from (default: now)
  * @returns {Promise<RotationReport>}
  */
-async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit = DEFAULT_LIMIT }) {
+async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit = DEFAULT_LIMIT, nowMs = Date.now() }) {
     const collections = Object.values(DOC_KINDS).map(k => k.collection);
 
     // ── READ: which file each record's stored link opens ──────────────────────
-    /** @type {Map<string, { ref: any, url: string }[]>} file path → the records whose stored link opens it, and that link as read */
-    const linkedBy = new Map();
-    /** Keys named by stored links this cannot read: a file carrying one is never touched. */
-    const heldKeys = new Set();
-    let recordsWithoutLink = 0;
-    let recordsUnreadable = 0;
-    for (const name of collections) {
-        const snap = await db.collection(name).get();
-        for (const doc of snap.docs) {
-            const url = (doc.data() || {}).storageUrl;
-            if (typeof url !== 'string' || !url) { recordsWithoutLink++; continue; }
-            const path = pathOfDownloadUrl(url, bucket.name);
-            // Into its OWN kind's folder or not at all: a circulars record opening a huddles file is
-            // a defect to report, never a link to rewrite (the same binding as isSignablePathForKind).
-            if (!path || !path.startsWith(`${name}/`)) {
-                recordsUnreadable++;
-                const held = tokenOfAnyLink(url);
-                if (held) heldKeys.add(held);
-                continue;
-            }
-            const refs = linkedBy.get(path) || [];
-            refs.push({ ref: doc.ref, url });
-            linkedBy.set(path, refs);
-        }
-    }
+    const { linkedBy, heldKeys, withoutLink: recordsWithoutLink, unreadable: recordsUnreadable } =
+        await readRecords(db, collections, bucket.name);
     /** @type {any[]} */
     const files = [];
     for (const name of collections) {
@@ -224,18 +315,19 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
     /** @type {RotationReport} */
     const report = {
         rotate: rotate === true,
-        files: files.length, linked: 0, unlinkedWithKey: 0, unlinkedWithoutKey: 0, held: 0,
+        files: files.length, linked: 0, unlinkedWithKey: 0, unlinkedTooNew: 0, unlinkedWithoutKey: 0, held: 0,
         recordsMissingFile, recordsUnreadable, recordsWithoutLink,
         rotated: 0, cleared: 0, changedDuringRun: 0, failed: [],
     };
 
-    /** @type {{ file: any, refs: { ref: any, url: string }[]|null, meta?: any }[]} */
+    /** @type {{ file: any, refs: { ref: any, url: string }[]|null, meta?: any, namedSince?: boolean }[]} */
     const plan = [];
     await eachLimited(files, limit, async (file) => {
         const refs = linkedBy.get(file.name);
         // A file's keys are read FRESH, not trusted from the listing, wherever they decide anything:
         // an unlinked file's decide whether a run touches it at all, and any file's decide whether a
-        // link this cannot read may open it.
+        // link this cannot read may open it. Its age is read from the same answer, so it is the age
+        // of the very object a clear is guarded on.
         let meta = null;
         if (!refs || heldKeys.size) {
             try { [meta] = await file.getMetadata(); }
@@ -243,24 +335,40 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
             if (keysOf(meta).some(k => heldKeys.has(k))) { report.held++; return; }
         }
         if (refs) { report.linked++; plan.push({ file, refs }); return; }
-        if (keysOf(meta).length) { report.unlinkedWithKey++; plan.push({ file, refs: null, meta }); }
-        else report.unlinkedWithoutKey++;
+        if (!keysOf(meta).length) { report.unlinkedWithoutKey++; return; }
+        // Too new to be sure nothing will name it: an upload may still be writing its record (the
+        // header). An age that cannot be read is not old enough — a stray key costs one more run, a
+        // switched-off one is a record holding a dead link.
+        const created = Date.parse((meta && meta.timeCreated) || '');
+        if (!Number.isFinite(created) || nowMs - created < UNLINKED_MIN_AGE_MS) { report.unlinkedTooNew++; return; }
+        report.unlinkedWithKey++;
+        plan.push({ file, refs: null, meta });
     });
     if (!report.rotate) return report;
 
-    // ── WRITE: one file at a time per worker; nothing below may throw ─────────
-    await eachLimited(plan, limit, async ({ file, refs, meta }) => {
-        if (!refs) {
-            try {
-                // null REMOVES the key — and only from the object whose keys were counted.
-                await file.setMetadata({ metadata: { [TOKEN_KEY]: null } }, sameObject(meta));
-                report.cleared++;
-            } catch (err) {
-                if (changedUnderUs(err)) report.changedDuringRun++;
-                else report.failed.push({ path: file.name, step: 'clear' });
-            }
-            return;
+    // ── A SECOND LOOK at the records — before the first write, so it may still throw ──
+    // A record written since the first read can name a file that read found unused (the header).
+    const clears = plan.filter(p => !p.refs);
+    if (clears.length) {
+        const again = await readRecords(db, collections, bucket.name);
+        for (const p of clears) {
+            p.namedSince = again.linkedBy.has(p.file.name) || keysOf(p.meta).some(k => again.heldKeys.has(k));
         }
+    }
+
+    // ── WRITE: the unused files first, straight after that look; nothing below may throw ──
+    await eachLimited(clears, limit, async ({ file, meta, namedSince }) => {
+        if (namedSince) { report.changedDuringRun++; return; }
+        try {
+            // Only from the object whose keys were counted.
+            await writeKeys(file, meta, []);
+            report.cleared++;
+        } catch (err) {
+            if (changedUnderUs(err)) report.changedDuringRun++;
+            else report.failed.push({ path: file.name, step: 'clear' });
+        }
+    });
+    await eachLimited(plan.filter(p => p.refs), limit, async ({ file, refs }) => {
         // 1 · EXPAND — the old keys stay, so the stored link keeps opening the file.
         let key;
         /** @type {any} */
@@ -271,7 +379,7 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
             const [now] = await file.getMetadata();
             const kept = keysOf(now).filter(k => k !== key);
             if (kept.some(k => heldKeys.has(k))) { report.held++; return; }
-            [expanded] = await file.setMetadata({ metadata: { [TOKEN_KEY]: [...kept, key].join(',') } }, sameObject(now));
+            expanded = await writeKeys(file, now, [...kept, key]);
         } catch (err) {
             if (changedUnderUs(err)) report.changedDuringRun++;
             else report.failed.push({ path: file.name, step: 'expand' });
@@ -285,6 +393,9 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
                 const changed = await db.runTransaction(async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
                     const now = snap.exists ? (snap.data() || {}) : null;
+                    // Already this run's new link: an earlier attempt of THIS transaction committed and
+                    // its answer was lost, so Firestore ran it again (the header). Nobody else knows `key`.
+                    if (now && now.storageUrl === url) return true;
                     // Only a record nobody has written since it was read: an upload that moved it, or
                     // replaced the file at the same path, has given it a link of its own.
                     if (!now || now.storageUrl !== was) return false;
@@ -300,7 +411,7 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
         if (moved === refs.length) { report.changedDuringRun++; return; }
         // 3 · CONTRACT — only now does any old link stop working, and only on the object expanded.
         try {
-            await file.setMetadata({ metadata: { [TOKEN_KEY]: key } }, sameObject(expanded));
+            await writeKeys(file, expanded, [key]);
             report.rotated++;
         } catch (err) {
             if (changedUnderUs(err)) report.changedDuringRun++;
@@ -310,4 +421,4 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
     return report;
 }
 
-module.exports = { rotateDocumentLinks, downloadUrl, pathOfDownloadUrl, keysOf, TOKEN_KEY };
+module.exports = { rotateDocumentLinks, downloadUrl, pathOfDownloadUrl, keysOf, TOKEN_KEY, UNLINKED_MIN_AGE_MS };
