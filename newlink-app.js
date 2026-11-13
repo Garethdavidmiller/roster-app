@@ -49,7 +49,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { initPdfViewer } from './pdf-viewer.js';
 import { isPlainClick } from './pdf-viewer-core.js';
 import { PROPOSALS } from './links-proposals.js';
@@ -131,6 +131,9 @@ function start(member, admitted) {
     if (!admitted) {
         showNotForYou();
         markPageReady();
+        // No proposals follow, so nothing will read the sign-in timer: drop it, or the next page opened within two minutes
+        // would count this visit as its sign-in time (as Pay's and Overtime's refusals do).
+        clearLoginStart();
         // A real view by a real member, counted as the Pay Calculator counts its refusal; not timed, as nothing loads.
         sessionReady.then(() => { initErrorReporter(); recordUsage('newlink', member); });
         sessionReady.then(() => initPasswordForce(member)).catch(() => {});

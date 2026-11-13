@@ -657,6 +657,9 @@ test.describe('new link', () => {
             await signInThroughOverlay(page, someone(who, fits));
             await expectNotForYou(page);
             await expect(page.locator('#loginOverlay')).toHaveCount(0);
+            // No proposals followed the sign-in, so nothing here timed it: the timer is dropped, or the roster they go
+            // back to would count this visit as its sign-in time.
+            expect(await page.evaluate(() => sessionStorage.getItem('myb_perf_login_t0'))).toBeNull();
             expect(errors).toEqual([]);
         });
     }
