@@ -1091,6 +1091,108 @@ describe('a queued write does not wait for a server that is not there', () => {
     });
 });
 
+// ── RULE 6 — A QUEUED SAVE SAYS HOW IT ENDED (v26.03) ────────────────────────────────────────────
+//
+// "Queued" is not "saved". In a SECOND tab Firestore's cache is memory only, so a write queued there dies
+// with the page — which had already said "Saved in this browser", and kept no copy. The page can only
+// keep the work until the server has it if it HEARS when that is: `settled`, which says `'acked'`,
+// `'held'` (signed out with it queued) or `'failed'`, after the save itself has been answered.
+describe('rule 6 — a queued save says how it ENDED', () => {
+    const deferred = () => {
+        /** @type {(v?: any) => void} */ let resolve = () => {};
+        /** @type {(e: any) => void} */ let reject = () => {};
+        const promise = new Promise((r, j) => { resolve = r; reject = j; });
+        return { promise, resolve, reject };
+    };
+    /** The promise's answer if it has one yet, or 'pending'. @param {Promise<any>|undefined} p */
+    const now = (p) => Promise.race([p, new Promise(r => setImmediate(() => r('pending')))]);
+    const offlineSave = () => {
+        const db = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
+            failTx: { code: 'unavailable', message: 'client is offline' } });
+        db.api.isOnline = () => false;
+        const server = deferred();
+        db.api.setDoc = () => server.promise;
+        return { ...db, server, save: () => createDesignStore(db.api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+            baseline: 1000, loadedRevision: 2, baselineUnknown: false, currentUser: ME }) };
+    };
+
+    test('the save is answered QUEUED first, and its ending comes after — acked when the server takes it', async () => {
+        const { server, save } = offlineSave();
+        const res = await save();
+        assert.equal(res.status, 'queued');
+        assert.ok(res.settled, 'a queued save carries how it will end');
+        assert.equal(await now(res.settled), 'pending', 'nothing is known yet: the page must go on keeping the work');
+        server.resolve();
+        assert.equal(await res.settled, 'acked');
+    });
+
+    test('failed when the server refuses it — and `settled` resolves, never rejects', async () => {
+        const { server, save } = offlineSave();
+        const res = await save();
+        server.reject(Object.assign(new Error('refused'), { code: 'permission-denied' }));
+        assert.equal(await res.settled, 'failed');
+    });
+
+    test('held when the designer signed out with it queued — the SDK keeps it for that account', async () => {
+        const { server, save } = offlineSave();
+        const res = await save();
+        server.reject(Object.assign(new Error('signed out'), { code: SIGNED_OUT_CODE }));
+        assert.equal(await res.settled, 'held');
+    });
+
+    test('a FORCED save queued offline says how it ended too', async () => {
+        const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 3 },
+            failTx: { code: 'unavailable', message: 'client is offline' } });
+        api.isOnline = () => false;
+        const server = deferred();
+        api.setDoc = () => server.promise;
+        const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }), baseline: 1000,
+            loadedRevision: 2, baselineUnknown: false, currentUser: ME, forcing: true, forceAgainstRev: 3, forceAgainstRevision: 2000 });
+        assert.equal(res.status, 'queued');
+        assert.equal(await now(res.settled), 'pending');
+        server.resolve();
+        assert.equal(await res.settled, 'acked');
+    });
+
+    test('a create queued offline says how it ended', async () => {
+        const { api } = makeDb();
+        api.isOnline = () => false;
+        const server = deferred();
+        api.setDoc = () => server.promise;
+        const res = await createDesignStore(api).create({ name: 'New' });
+        assert.equal(res.queued, true);
+        assert.equal(await now(res.settled), 'pending');
+        server.resolve();
+        assert.equal(await res.settled, 'acked');
+    });
+
+    test('an ONLINE create the server answers only after the bound: queued at the bound, acked when it lands', async () => {
+        const { api } = makeDb();
+        api.isOnline = () => true;
+        const server = deferred();
+        api.setDoc = () => server.promise;
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            const pending = createDesignStore(api).create({ name: 'New' });
+            mock.timers.tick(SLOW_SAVE_MS);
+            const res = /** @type {any} */ (await pending);
+            assert.equal(res.queued, true);
+            assert.equal(await now(res.settled), 'pending');
+            server.resolve();
+            assert.equal(await res.settled, 'acked', 'the late answer still reaches the page');
+        } finally { mock.timers.reset(); }
+    });
+
+    test('a write the server confirmed before the answer is not queued, and carries no ending to wait for', async () => {
+        const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 } });
+        const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+            baseline: 1000, loadedRevision: 2, baselineUnknown: false, currentUser: ME });
+        assert.equal(res.status, 'saved');
+        assert.equal(res.settled, undefined);
+        assert.equal((await createDesignStore(api).create({ name: 'New' })).settled, undefined);
+    });
+});
+
 describe('offline: our own queued rename is not a colleague\'s save, and Replace still works', () => {
     // Whole-app review, Oct 2026. Offline, a save consults the CACHE — and the cache showed our own
     // queued rename on top of the last saver's name, so the save after an offline rename read as

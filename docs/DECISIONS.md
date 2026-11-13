@@ -102,6 +102,15 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **No "sign out everywhere, keep the password" action** (owner, 13 Nov 2026) · **Trigger to
+  revisit: a lost phone whose finder signs in with the surname before the member has chosen a new
+  password.** A lost-phone Reset (Operations → Reset,
+  "Their phone is lost or stolen") is the only tool that signs every device out, and it puts the
+  password back to the surname default, so until the member chooses a new one the surname opens the
+  account. The action declined would sign every device out without touching the password: a new
+  endpoint. What stands instead is the Reset's own outcome, which asks the admin to have the member
+  sign in on another device and choose a new password. The gap as it stands: KNOWN_LIMITATIONS.md →
+  "A lost-phone reset still leaves one narrow gap".
 - **A short laptop window keeps the desktop's day cell** (owner, 13 Nov 2026: "it looks fine on a
   desktop PC but on this laptop the calendar looks weird") · **Trigger to revisit: a laptop staff
   actually use where a five-row month's last week falls below the window.** From v25.51 a desktop

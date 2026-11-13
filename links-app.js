@@ -63,6 +63,7 @@ import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
+import { createQueuedSaves, stillUnsaved } from './links-queued-saves.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
@@ -560,6 +561,9 @@ export function init() {
      *  browser" for the open one, where "Saved" read as everybody having it. A save the server confirms
      *  takes a design off it again; a reload starts from what the server holds. @type {Set<string>} */
     const queuedIds = new Set();
+    /** The SAVES only this browser's queue holds until the server answers, whose copies are kept meanwhile — a second
+     *  tab's queue dies with the page (v26.03). The rules are links-queued-saves.js's. */
+    const queuedSaves = createQueuedSaves();
     const _headerState = () => ({
         designs, activeId: activeDesignId, design, dirty, currentUser, saving: savingHere(),
         proposals: PROPOSAL_ENTRIES, proposalId: activeProposalId,
@@ -694,6 +698,51 @@ export function init() {
      *  in the device's own queue, not on the server, so it never says "✓ Saved" (iPhone audit, Nov 2026:
      *  "when you're back online" promised an upload a closed page cannot make). */
     const QUEUED_SAVE = 'Saved in this browser — it uploads the next time Links is open here with a connection';
+    /** What an open design says when the server REFUSED the save queued in this browser (store rule 6). The work is
+     *  on screen and kept, and saving again is the way on; a refusal that repeats is the admin's to look at. */
+    const REFUSED_SAVE = 'Not saved — the server refused the save made in this browser. Your changes are still here; if saving fails again, contact the admin.';
+
+    /** What the kept draft holds while nothing on the page is unsaved: the newest unconfirmed save, or nothing. A clean
+     *  hide calls it, and an ANSWERED leave or sign-out — a discard of unsaved edits, and a save is not one. */
+    function _keepUnconfirmedOrForget() {
+        const newest = queuedSaves.newest();
+        if (!newest) { draftSlot.forget(); return; }
+        const { written, baseline } = newest.save;
+        draftSlot.keep({ design: newest.id }, { patterns: written.patterns, window: written.window ?? null, baseline });
+    }
+
+    /**
+     * Hear how a write QUEUED in this browser ENDED (store rule 6). `'acked'`: the line says "✓ Saved", the pill drops
+     * "in this browser" and the kept copy goes. `'failed'`: the design is unsaved again, on its baseline from before
+     * the save, and says so (again on reopening — `_activateDesign`). `'held'` (signed out with it queued): the page is
+     * going, and the copy stays. A new design, a copy or an import (no `seq`) is heard for the pill alone.
+     * @param {string} id @param {Promise<string>|undefined} settled @param {number} [seq]
+     */
+    function _whenQueuedEnds(id, settled, seq) {
+        settled?.then((how) => {
+            if (!queuedSaves.counts(id, seq) || how === 'held') return;   // a later save of this design answers for it
+            queuedIds.delete(id);
+            const open = activeDesignId === id;
+            const status = document.getElementById('linksSaveStatus');
+            const u = how === 'acked' ? null : queuedSaves.refused(id);
+            if (how === 'acked') {
+                queuedSaves.acked(id);
+                if (open && status?.textContent === QUEUED_SAVE) { setStatus(status, '✓ Saved'); status.className = 'links-save-status ok'; }
+                if (!dirty) _keepUnconfirmedOrForget();
+            } else if (u) {
+                if (open) {
+                    ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = u.baseline);
+                    dirty = true;
+                    updateSaveBtn();
+                    if (status) { setStatus(status, REFUSED_SAVE); status.className = 'links-save-status err'; }
+                } else {
+                    const name = designs.find(x => x.id === id)?.name;
+                    _designActionStatus(`${name ? `“${name}”` : 'A design'} was not saved — the server refused the save made in this browser. Open it to save it again.`);
+                }
+            }
+            header?.render(_headerState());
+        }).catch((err) => console.error('[Links] How a queued write ended could not be shown:', err));
+    }
 
     /** The open design's CONTENT, as one comparable string — so a write that lands late can tell whether
      *  anything was edited while it was in flight (links-app-3). The name is left out: a rename is saved
@@ -712,10 +761,10 @@ export function init() {
      * `dirty` over it, unasked — on a phone whose signal was up but not answering, that was every edit
      * between the press and the reply.
      * @param {any} d the entry, already in `designs`
-     * @param {{ act: number, before: string, queued: boolean, made: string }} o  `made` names it in a sentence
+     * @param {{ act: number, before: string, queued: boolean, made: string, settled?: Promise<string> }} o  `made` names it in a sentence
      */
-    function _openMade(d, { act, before, queued, made }) {
-        if (queued) queuedIds.add(d.id);
+    function _openMade(d, { act, before, queued, made, settled }) {
+        if (queued) { queuedIds.add(d.id); _whenQueuedEnds(d.id, settled); }
         if (activation === act && _contentKey() === before) {
             _activateDesign(d);
             if (queued) _designActionStatus(QUEUED_SAVE, '');
@@ -759,13 +808,13 @@ export function init() {
             // store arms the baseline from the server, so the FIRST content-save is guarded;
             // without that a new design carried updatedAt:null, the guard read it as "nothing to
             // compare", and a concurrent edit was clobbered silently.
-            const { id: newId, updatedAt: createdTs, baseline: newBase, queued } = await store.create(
+            const { id: newId, updatedAt: createdTs, baseline: newBase, queued, settled } = await store.create(
                 docPayload({ name, patterns: {}, window: null },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
             const d = restoredEntryFrom({ id: newId, name, patterns: {}, window: null }, { updatedAt: createdTs, updatedBy: currentUser, revision: newBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
-            _openMade(d, { act, before, queued: !!queued, made: `“${name}”` });
+            _openMade(d, { act, before, queued: !!queued, made: `“${name}”`, settled });
         } catch (err) {
             console.error('[Links] Create design failed:', err);
             _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t create the design — check your connection and try again.');
@@ -808,14 +857,14 @@ export function init() {
             const window = normaliseWindow(design.window);
             _designActionStatus(`Saving a copy as “${name}”…`, '');
             const act = activation, before = _contentKey();
-            const { id: dupId, updatedAt: dupTs, baseline: dupBase, queued } = await store.create(
+            const { id: dupId, updatedAt: dupTs, baseline: dupBase, queued, settled } = await store.create(
                 docPayload({ name, patterns, window },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
             const d = restoredEntryFrom({ id: dupId, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser, revision: dupBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
             // The copy holds the design as it was at the press; opening it over later edits would drop them.
-            _openMade(d, { act, before, queued: !!queued, made: `The copy “${name}”` });
+            _openMade(d, { act, before, queued: !!queued, made: `The copy “${name}”`, settled });
         } catch (err) {
             console.error('[Links] Duplicate design failed:', err);
             _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t duplicate the design — check your connection and try again.');
@@ -1064,6 +1113,15 @@ export function init() {
         updateSaveBtn();
         updateLastSaved(d.updatedBy, lastSaveTime(d));
         refreshGenTargetsForDesign();   // targets are per design (v19.38)
+        // ITS LAST SAVE WAS REFUSED (store rule 6, v26.03): the entry holds what that save wrote, which the server does
+        // not have, so it opens unsaved, on the baseline from before the save, and says so.
+        const refused = queuedSaves.get(activeDesignId);
+        if (refused?.failed) {
+            ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = refused.baseline);
+            dirty = true;
+            updateSaveBtn();
+            if (_switchStatus) { setStatus(_switchStatus, REFUSED_SAVE); _switchStatus.className = 'links-save-status err'; }
+        }
     }
 
     /** A kept draft back as the UNSAVED working copy (unsaved-draft.js), on its own design with the baseline it was edited
@@ -1080,6 +1138,10 @@ export function init() {
         } else _openAsNew(patterns, window);
         renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); renderCoverageCard(); compare.renderCompare(); updateSaveBtn();
     }
+
+    /** A kept draft its design now holds exactly is not unsaved work — a queued save that landed (links-queued-saves.js
+     *  rule 6). @param {any} kept */
+    const _draftStillUnsaved = (kept) => stillUnsaved(kept, [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === kept.scope.design));
 
     /**
      * Make the working copy a NEW, unsaved design holding `patterns` and `window` — no id, and no name
@@ -2094,25 +2156,33 @@ export function init() {
         // (a transaction may run it twice), so it is always the payload that actually went.
         const dsn = design, savingId = activeDesignId, act = activation;
         const here = () => act === activation;
+        // Which save this is, and the baseline its edits were made against — what a kept copy of it is restored onto
+        // if the server never hears of it (store rule 6, v26.03).
+        const seq = queuedSaves.next(), before = { loadedRevision, loadedUpdatedAt, baselineUnknown };
         /** @type {any} */ let written = null;
         const buildDoc = () => {
             written = { patterns: deepCopyPatterns(dsn.patterns), window: normaliseWindow(dsn.window) };
             return docPayload({ ...dsn, ...written }, { updatedBy: currentUser, updatedAt: serverTimestamp() });
         };
         /** A write landed: record it, and clear `dirty` only if nothing was edited since it was built. */
-        // `queued`: offline, the write sits in this device's persistent Firestore queue and uploads on
-        // reconnect — so `dirty` clears (a re-save would queue a duplicate, and a leave-page warning
-        // would lie), but the words must not claim the server has it.
-        const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt, queued = false) => {
+        // `queued`: offline, the write sits in this device's Firestore queue and uploads on reconnect — so
+        // `dirty` clears (a re-save would queue a duplicate, and a leave-page warning would lie), but the
+        // words must not claim the server has it, and its copy is KEPT until the server answers (`settled`,
+        // store rule 6): in a second tab that queue is memory only, and the page can go before the signal comes.
+        const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt, queued = false, /** @type {Promise<string>|undefined} */ settled = undefined) => {
             const entry = designs.find(x => x.id === id);
             recordSave(entry, written, currentUser, updatedAt, base.loadedRevision);
-            if (queued) queuedIds.add(id); else queuedIds.delete(id);   // what the masthead's pill says (links-app-4)
+            if (queued) {
+                queuedIds.add(id);   // what the masthead's pill says (links-app-4)
+                queuedSaves.queued(id, seq, written, before);
+                _whenQueuedEnds(id, settled, seq);
+            } else { queuedIds.delete(id); queuedSaves.confirmed(id); }
             if (!here()) return;
             ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = base);
             const same = JSON.stringify([design?.patterns, normaliseWindow(design?.window)])
                 === JSON.stringify([written.patterns, written.window]);
             dirty = !same;
-            if (same) draftSlot.forget();   // saved — or queued in Firestore's own persistent queue: no copy to keep
+            if (same) _keepUnconfirmedOrForget();   // saved: no unsaved copy — but one only queued is kept until it lands
             updateSaveBtn();
             // Queued is IN THIS BROWSER (iPhone audit, Nov 2026): "when you're back online" promised what a closed page cannot do.
             const [said, lead] = queued ? [QUEUED_SAVE, 'Saved in this browser'] : ['✓ Saved', '✓ Saved'];
@@ -2144,7 +2214,7 @@ export function init() {
                     lsSet(ACTIVE_KEY, created.id);
                     targets.adoptUnsaved();   // the targets tuned while it had no id come with it
                 }
-                landed(created.id, created.baseline, created.updatedAt, !!created.queued);
+                landed(created.id, created.baseline, created.updatedAt, !!created.queued, created.settled);
                 renderDesignPicker();
                 return;
             }
@@ -2272,11 +2342,11 @@ export function init() {
                         pending = forced.conflict;
                         continue;
                     }
-                    landed(savingId, forced.baseline, forced.updatedAt, forced.status === 'queued');
+                    landed(savingId, forced.baseline, forced.updatedAt, forced.status === 'queued', forced.settled);
                     break;
                 }
             } else {
-                landed(savingId, res.baseline, res.updatedAt, res.status === 'queued');
+                landed(savingId, res.baseline, res.updatedAt, res.status === 'queued', res.settled);
             }
         } catch (err) {
             console.error('[Links] Save failed:', err);
@@ -2313,7 +2383,7 @@ export function init() {
         // Which SAVED design is open (links-design-10): Keep only the shortlist replaces the working copy
         // only when that design is one of those moving, so it warns about unsaved work only then.
         activeId: () => activeDesignId,
-        markQueued: (id) => queuedIds.add(id),   // an import queued in this browser: the pill says so (links-app-4)
+        markQueued: (id, settled) => { queuedIds.add(id); _whenQueuedEnds(id, settled); },   // an import queued in this browser: the pill says so until it lands (links-app-4)
         hasOpenDesign: () => !!design,
         renderPicker: renderDesignPicker,
         refreshLists: _refreshLists,
@@ -2514,10 +2584,13 @@ export function init() {
     warnOnUnload(() => dirty);
     // …and for the exits nothing asks about, iOS discarding a hidden page or a swipe back (iPhone audit, Nov 2026): the
     // working copy and its baseline are kept while the page is hidden, and offered on the next load (BOOT, below).
+    // A save only this browser's queue holds is kept too, until the server confirms it (store rule 6, v26.03): with
+    // edits on top of it, on the baseline from BEFORE it, because the server may never get it; with none, its own copy.
+    // ONE slot: unsaved edits to one design win it over another design's unconfirmed save (links-design.md).
     keepDraftWhenHidden(() => dirty && !!design, {
         keep: () => draftSlot.keep({ design: activeDesignId ?? activeProposalId }, { patterns: design?.patterns, window: design?.window ?? null,
-            baseline: { loadedRevision, loadedUpdatedAt, baselineUnknown } }),
-        forget: () => draftSlot.forget(),
+            baseline: queuedSaves.get(activeDesignId)?.baseline ?? { loadedRevision, loadedUpdatedAt, baselineUnknown } }),
+        forget: _keepUnconfirmedOrForget,
     });
 
     // A drawer link or the About panel's Operations link asks first — the shared question every page with
@@ -2643,7 +2716,7 @@ export function init() {
     // BOOT
     // ============================================
     // A kept draft is offered once the list is in, never over a FAILED load: its design is not there to restore onto.
-    const openDesigns = () => loadDesigns().then(() => { if (!loadFailed) return draftSlot.offer({ ask: confirmDialog, apply: restoreDraft }); })
+    const openDesigns = () => loadDesigns().then(() => { if (!loadFailed) return draftSlot.offer({ ask: confirmDialog, apply: restoreDraft, unsaved: _draftStillUnsaved }); })
         .catch((err) => console.error('[Links] The unsaved-changes offer failed:', err));
     // A failed load's "Try again" (links-app-5): back to the loading state, then the same read. Nothing
     // is open to lose — a failed load opens nothing — and the button is hidden until it settles.

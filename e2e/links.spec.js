@@ -4,7 +4,7 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect, withLinksDesigners } from './fixtures.js';
+import { test, expect, withLinksDesigners, routeAppPage } from './fixtures.js';
 import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject, waitForReadsToLand } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the length as a literal — and `links: the
@@ -4607,6 +4607,8 @@ test('links: a copy made offline says it is saved in this browser, not "Saved"',
     await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
     await expect(page.locator('#designStatusShort')).toHaveText('Saved here');
     await context.setOffline(false);
+    // The signal back, the server has the copy, and the pill stops saying it is only here (store rule 6, v26.03).
+    await expect(page.locator('#designStatus')).not.toHaveClass(/dm-status--queued/);
 });
 
 // AN IMPORT MADE OFFLINE is only in this browser's queue too. Its line said so (links-design-8), and the
@@ -4626,6 +4628,7 @@ test('links: an import made offline says it is saved in this browser, in the pil
     await expect(page.locator('#designStatusShort')).toHaveText('Saved here');
     await expect(page.locator('#designStatus')).toHaveClass(/dm-status--queued/);
     await context.setOffline(false);
+    await expect(page.locator('#designStatus'), 'confirmed by the server: no longer only here').not.toHaveClass(/dm-status--queued/);
 });
 
 // A row stays tappable through its sheet's fade, and each tap closes the sheet and runs the row after
@@ -4828,6 +4831,213 @@ test('links: another designer signing in on the same phone is offered nothing', 
     await expect(page.locator('.dialog-overlay'), 'never across members').toHaveCount(0);
     await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
     expect(await page.evaluate((k) => localStorage.getItem(k), LINKS_DRAFT), 'G. Miller\'s copy is left for G. Miller').not.toBeNull();
+});
+
+// ── A SAVE ONLY THIS BROWSER HOLDS IS KEPT UNTIL THE SERVER HAS IT (v26.03) ──────────────────────
+// Offline, a save is queued and the page says "Saved in this browser". In a SECOND tab that queue lives
+// in memory (Firestore's IndexedDB lease is the first tab's), so closing the tab before the signal came
+// back lost the save — and the page, clean after it, kept no copy. The copy the save wrote is now kept
+// until the server answers (links-design-store.js rule 6). These tests take only the PAGE offline, as a
+// phone losing its signal does, so it can still be reloaded or closed before the signal returns; the
+// stub then answers the held write on 'online' (e2e/fixtures.js), or never, if the page has gone.
+/** @param {import('@playwright/test').Page} page @param {boolean} online */
+async function pageSignal(page, online) {
+    await page.evaluate((on) => {
+        Object.defineProperty(navigator, 'onLine', { value: on, configurable: true });
+        window.dispatchEvent(new Event(on ? 'online' : 'offline'));
+    }, online);
+}
+/** Save a moved Mon–Sat finish on "Morning heavy" with no server, so it is queued in this browser.
+ *  @param {import('@playwright/test').Page} page */
+async function queueSaveOffline(page) {
+    await page.evaluate(() => {   // no server, and no cached copy to consult — so the store queues
+        const w = /** @type {any} */ (window);
+        w.__E2E.txErrorCode = 'unavailable';
+        w.__E2E.failGetDoc = true;
+    });
+    await pageSignal(page, false);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(page.locator('#linksSaveBtn'), 'the page is clean: the save is queued').toBeDisabled();
+}
+/** @param {import('@playwright/test').Page} page */
+const keptDraft = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), LINKS_DRAFT);
+
+test('links: a save queued in this browser is kept until the server has it — and offered back when the page went first', async ({ page }) => {
+    await openWindowDesign(page);
+    await queueSaveOffline(page);
+    const kept = await keptDraft(page);
+    expect(kept?.scope, 'kept the moment it is queued, not only on a hide').toEqual({ design: 'd1' });
+    expect(kept?.data?.window?.monSat?.end).toBe('14:20');
+    expect(kept?.data?.baseline, '…on the version it was edited against: the server may never get this save')
+        .toEqual({ loadedRevision: null, loadedUpdatedAt: 1750000000000, baselineUnknown: false });
+    await setVisibility(page, 'hidden');   // clean, so a hide used to forget it
+    expect((await keptDraft(page))?.data?.window?.monSat?.end, 'a clean hide keeps a save the server has not confirmed').toBe('14:20');
+    // The page goes before the signal comes back — the queued write goes with it, as a second tab's does.
+    await reloadPastLeaveSite(page);
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText('Restore your unsaved changes');
+    await expect(page.locator('#winMonSatEnd'), 'the server never got it').toHaveValue('23:55');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('14:20');
+    await expect(page.locator('#linksSaveBtn'), 'back as UNSAVED work, to save again').toBeEnabled();
+});
+
+test('links: edits on top of a queued save, and a second queued save, are kept on the version from before the first', async ({ page }) => {
+    await openWindowDesign(page);
+    await queueSaveOffline(page);
+    const BEFORE = { loadedRevision: null, loadedUpdatedAt: 1750000000000, baselineUnknown: false };
+    await page.locator('#winMonSatEnd').fill('14:40');   // more work, unsaved, on top of the queued save
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await setVisibility(page, 'hidden');
+    let kept = await keptDraft(page);
+    expect(kept?.data?.window?.monSat?.end, 'the unsaved edits are what is kept').toBe('14:40');
+    expect(kept?.data?.baseline, '…on the version from before the queued save, which the server may never get').toEqual(BEFORE);
+    await setVisibility(page, 'visible');
+    await page.locator('#linksSaveBtn').click();   // queued again, behind the first
+    await expect(page.locator('#linksSaveStatus'), 'landed: read the copy only once the second save has')
+        .toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    kept = await keptDraft(page);
+    expect(kept?.data?.window?.monSat?.end).toBe('14:40');
+    expect(kept?.data?.baseline, 'the EARLIEST unconfirmed baseline: neither save is known to the server').toEqual(BEFORE);
+});
+
+test('links: a queued save the server confirms says "✓ Saved", and leaves nothing kept', async ({ page }) => {
+    await openWindowDesign(page);
+    await queueSaveOffline(page);
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
+    await pageSignal(page, true);   // the signal comes back while the page is still open: the write goes
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await expect(page.locator('#linksSaveStatus')).toHaveClass(/\bok\b/);
+    await expect(page.locator('#designStatus'), 'the pill no longer says "in this browser"').not.toHaveClass(/dm-status--queued/);
+    expect(await keptDraft(page), 'confirmed: nothing to keep').toBeNull();
+    await setVisibility(page, 'hidden');
+    expect(await keptDraft(page)).toBeNull();
+});
+
+/** Let the page finish handling what it has just been told — one turn of its event loop, not a guessed wait.
+ *  @param {import('@playwright/test').Page} page */
+const settleTurn = (page) => page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+
+test('links: the first of two queued saves landing keeps the second\'s copy until that one lands too', async ({ page }) => {
+    await openWindowDesign(page);
+    await queueSaveOffline(page);                              // 14:20
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();               // queued behind it
+    await expect(page.locator('#linksSaveStatus')).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.holdSetsWhenOnline = true; });
+    await pageSignal(page, true);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.deliverQueuedSet());   // the FIRST lands
+    await settleTurn(page);
+    await expect(page.locator('#designStatus'), 'the second has not landed: still only in this browser').toHaveClass(/dm-status--queued/);
+    expect((await keptDraft(page))?.data?.window?.monSat?.end, 'the first save\'s answer does not drop the second\'s copy').toBe('14:40');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.deliverQueuedSet());   // and the second
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    expect(await keptDraft(page)).toBeNull();
+});
+
+test('links: a save the server confirms online answers for a queued one before it — no stale copy is kept', async ({ page }) => {
+    await openWindowDesign(page);
+    await queueSaveOffline(page);                              // 14:20, still on its way below
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.holdSetsWhenOnline = true;
+        w.__E2E.txErrorCode = undefined;
+        w.__E2E.failGetDoc = false;
+        // The server has the queued save by now; only its answer has not come back.
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => (d.id === 'd1' ? { ...d, updatedBy: 'G. Miller' } : d));
+    });
+    await pageSignal(page, true);
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();               // online: a transaction the server confirms
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await setVisibility(page, 'hidden');
+    expect(await keptDraft(page), 'the confirmed save holds everything: the earlier queued copy is not kept').toBeNull();
+});
+
+test('links: a kept copy the design already holds is not offered — the first tab\'s queue sent it', async ({ page }) => {
+    await openWindowDesign(page);
+    await queueSaveOffline(page);
+    const written = (await keptDraft(page))?.data?.window;
+    expect(written?.monSat?.end).toBe('14:20');
+    await setVisibility(page, 'hidden');
+    // Meanwhile the save reached the server another way — the FIRST tab's queue, which outlives a page.
+    await page.addInitScript((win) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = w.__E2E.docs.map((/** @type {any} */ d) => (d.id === 'd1' ? { ...d, window: win, revision: 9, updatedBy: 'G. Miller' } : d));
+    }, written);
+    await reloadPastLeaveSite(page);
+    await linksOpened(page);
+    await waitForReadsToLand(page);
+    await expect(page.locator('#winMonSatEnd'), 'the design as the server now holds it').toHaveValue('14:20');
+    await expect(page.locator('.dialog-overlay'), 'nothing unsaved, so nothing asked').toHaveCount(0);
+    expect(await keptDraft(page), 'and the copy is gone').toBeNull();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+});
+
+test('links: a queued save the server REFUSES is unsaved again, says so, and is kept', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await queueSaveOffline(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = 'invalid-argument'; });
+    await pageSignal(page, true);
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Not saved — the server refused the save made in this browser. Your changes are still here; if saving fails again, contact the admin.');
+    await expect(status).toHaveClass(/\berr\b/);
+    await expect(page.locator('#linksSaveBtn'), 'unsaved: Save is offered again').toBeEnabled();
+    await expect(page.locator('#designStatus')).not.toHaveClass(/dm-status--queued/);
+    await setVisibility(page, 'hidden');
+    const kept = await keptDraft(page);
+    expect(kept?.data?.window?.monSat?.end).toBe('14:20');
+    expect(kept?.data?.baseline, 'on the baseline from BEFORE the refused save').toEqual({ loadedRevision: null, loadedUpdatedAt: 1750000000000, baselineUnknown: false });
+    await setVisibility(page, 'visible');
+    // Saving it again is checked against the version from BEFORE the refused save: one saved since — on another
+    // device of the designer's own, so no other name gives it away — is asked about, not overwritten.
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txErrorCode = undefined;
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => (d.id === 'd1' ? { ...d, updatedAt: 1760000000000, updatedBy: 'G. Miller', revision: 7 } : d));
+    });
+    const dialog = page.locator('.dialog-overlay.visible');
+    const askedAboutTheOtherVersion = async () => {
+        await page.locator('#linksSaveBtn').click();
+        await expect(dialog).toContainText('This design changed');
+        await dialog.locator('.dialog-btn-cancel').click();            // not Replace…
+        await expect(dialog).toContainText('Keep your version too?');
+        await dialog.locator('.dialog-btn-cancel').click();            // …and not a copy either
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    };
+    await askedAboutTheOtherVersion();
+    // Reopened, it is still unsaved — the list holds what the refused save wrote, which the server does not have —
+    // and still checked against that earlier version.
+    await switchToDesign(page, 'Other');
+    await dialog.locator('.dialog-btn-confirm').click();   // leave the unsaved work
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await switchToDesign(page, 'Morning heavy');
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('14:20');
+    await expect(status).toHaveText(/^Not saved — the server refused/);
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+    await askedAboutTheOtherVersion();
+});
+
+test('links: a clean first tab does not throw away the copy a second tab kept of its queued save', async ({ page, context }) => {
+    await openWindowDesign(page);                  // the first tab
+    const second = await context.newPage();
+    await routeAppPage(second);                    // the stubbed SDK, as the test's own page has it
+    await openWindowDesign(second);                // the second — its Firestore queue is memory only
+    await queueSaveOffline(second);
+    expect((await keptDraft(page))?.data?.window?.monSat?.end, 'one storage, both tabs').toBe('14:20');
+    await setVisibility(page, 'hidden');           // the first tab, clean, goes into the background
+    expect((await keptDraft(page))?.data?.window?.monSat?.end, 'the first tab\'s clean hide deleted the second tab\'s copy').toBe('14:20');
+    await second.close();                          // and the second closes before the signal comes back
+    await reloadPastLeaveSite(page);
+    const offer = page.locator('.dialog-overlay.visible');
+    await expect(offer).toContainText('Restore your unsaved changes');
+    await offer.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('14:20');
 });
 
 test('links memory: a stamped SEED is a designer\'s choice and survives a release', async ({ page }) => {
