@@ -36,7 +36,7 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
+import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, releasePushForEndingHold } from './session.js';
 import { isCredentialRejection } from './auth-identity.js';
 // Already loaded wherever this card is: session.js imports both.
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
@@ -86,12 +86,14 @@ const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span>
  *   the shared `isCredentialRejection` (auth-identity.js) the sign-in ladder itself stops on
  * @param {() => boolean} [deps.keepsLocalSession]  true when this device already holds a session for
  *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
+ * @param {() => void} [deps.releaseEndedHold]  runs just before a failure clears the session, and
+ *   releases this device's push record when the session is ANOTHER member's (audit A1) — not awaited
  * @param {number} [deps.timeoutMs]
  * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage' }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
@@ -104,8 +106,8 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // live 60-day session whose Firebase identity has gone; one mistyped password or a
         // timeout on weak signal wiped it, and with it the silent re-sign-in that would have
         // worked once back online. A failure tells us nothing about whether THEIR session is
-        // still theirs. Somebody else's session on this device still goes.
-        if (!keepsLocalSession()) clearSession();
+        // still theirs. Somebody else's session on this device still goes — with their push record.
+        if (!keepsLocalSession()) { releaseEndedHold(); clearSession(); }
         // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
         // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_DESIGN.md §3.5 +
         // the house wording rule (an account matter → "the admin").
@@ -160,6 +162,8 @@ export function signInDeps(name, typedPw) {
         isTransient:        isTransientAuthError,
         isCredential:       isCredentialRejection,
         keepsLocalSession:  () => getSession()?.name === name,
+        // A session this failure clears is ANOTHER member's: their targeted notices stop here too.
+        releaseEndedHold:   () => { if (getSession()) releasePushForEndingHold(); },
     };
 }
 

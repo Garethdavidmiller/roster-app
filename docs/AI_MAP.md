@@ -1092,6 +1092,7 @@ The shared session and sign-in module: the local session, the Firebase Auth sign
 - `holdsStaffPin(budgetMs?, onLateViewer?)` — does this browser hold the station PIN, and keep it? For a page other than the Calendar whose policy admits the PIN (`admitsStaffPin`); a local member session answers `false`. Its budget, `ACCESS_DECISION_BUDGET_MS`, is shared with calendar-access.js's `resolveAccess`. `onLateViewer` runs once for a PIN session that restores after a `false` — never once a sign-in or sign-out has begun since.
 - `authGeneration()` — the sign-in/sign-out generation every attempt bumps: a watcher armed at one value stands down once it moves (the Calendar's late PIN grant, `holdsStaffPin`'s).
 - `signOutStaffPin()` — the drawer's Lock on such a page; throws if the viewer is still current, and never touches a member.
+- `releasePushForEndingHold()` — releases this device's push record when a member's hold ends without a sign-out (never the staff PIN's: it owns none); `page-session.js` and `login-overlay.js` call it too. Bounded, never throws.
 - Imported by every protected coordinator and many feature modules; grep for the import rather than trusting a list. Tested by `session.test.mjs`.
 
 ### `staff-pin-ended.js`

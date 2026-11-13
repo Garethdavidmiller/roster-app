@@ -877,10 +877,11 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
  * left on the staff PIN the departed member's targeted notices — a reset request naming a colleague,
  * for the admin — went on arriving there indefinitely; the documented remedy, the NEXT member's
  * takeover, never comes on a device nobody signs in to. Loaded on demand, so the session module does
- * not carry the Web Push code; `releaseDevicePush` bounds its own wait and never throws.
+ * not carry the Web Push code; `releaseDevicePush` bounds its own wait and never throws. Exported for the
+ * two other ends of a hold (audit A1), page-session.js's and login-overlay.js's, which do not await it.
  * @returns {Promise<void>}
  */
-async function releasePushForEndingHold() {
+export async function releasePushForEndingHold() {
     try {
         const { releaseDevicePush } = await import('./notif.js');
         await releaseDevicePush();

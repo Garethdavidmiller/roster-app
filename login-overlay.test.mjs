@@ -49,7 +49,9 @@ mock.module('./firebase-client.js', { namedExports: {
     changeOwnPassword:          async () => ({ stamp: Promise.resolve(true) }),
     reauthenticateWithPassword: async () => {},
 } });
-mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => {} } });
+// A RECORDER: a failure that clears ANOTHER member's session releases this device's push record (audit A1).
+let releases = 0;
+mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => { releases++; } } });
 const store = new Map();
 mock.module('./ls.js', { namedExports: {
     lsGet: (/** @type {string} */ k) => store.get(k) ?? null,
@@ -275,11 +277,30 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         assert.equal(JSON.parse(store.get('myb_admin_session') ?? 'null')?.name, 'G. Miller', 'their own session was cleared by a typo');
     });
 
-    test('…but a failed sign-in by ANOTHER member clears the session this device held', async () => {
+    // …and that member's push record goes with it (audit A1 — an end of a hold that released nothing).
+    // The release is fire-and-forget behind a dynamic import (session.js), so each test here waits for
+    // it — or long enough to know none came — rather than let it land in the next test's count.
+    const releaseSettles = async (/** @type {number} */ want) => { for (let i = 0; i < 50 && releases < want; i++) await new Promise(r => setTimeout(r, 2)); };
+    test('…but a failed sign-in by ANOTHER member clears the session this device held, and releases its push record', async () => {
+        releases = 0;
         holdSession('S. Silva');
         signInCode = 'auth/invalid-credential';
         assert.equal((await attempt()).kind, 'credential', 'premise: the sign-in failed');
         assert.equal(store.has('myb_admin_session'), false, 'somebody else\'s session survived a failed sign-in on their device');
+        await releaseSettles(1);
+        assert.equal(releases, 1, 'their targeted notices would go on arriving on a device they no longer hold');
+    });
+
+    test('…and releases nothing for the member\'s OWN session kept, nor where no session was held', async () => {
+        for (const held of ['G. Miller', null]) {
+            releases = 0;
+            store.clear();
+            if (held) holdSession(held);
+            signInCode = 'auth/invalid-credential';
+            await attempt();
+            await releaseSettles(1);
+            assert.equal(releases, 0, held ? 'the member\'s own hold did not end, so nothing is released' : 'nobody\'s hold ended');
+        }
     });
 
     test('and a sign-in that works saves the session for the member named', async () => {
