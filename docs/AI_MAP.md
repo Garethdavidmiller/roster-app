@@ -347,6 +347,8 @@ things an edit can silently break.
   `dismissSignInForm()` (on a grant: the come-back card's full-screen form, which is not in the slot —
   never the inline card, nor a form whose own sign-in is in flight) ·
   `resetUnlockFailures()` (on a grant) · `PIN_FIRST_HASH` (re-exported from `calendar-access-core.js`).
+- `takePinFirst()` — was the PIN card asked for first (`#staff-pin`)? The boot asks once; the hash is
+  removed whatever the decision, so a member never carries a station's bookmark into their Calendar.
 - Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
 
 ### `calendar-lock-slot.js`

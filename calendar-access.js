@@ -77,7 +77,7 @@ import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.
 import { initLockCards, resetUnlockFailures, hideLockPanel, showLockPanel, showSignInPanel,
-         showMemberPanel, dismissSignInForm, PIN_FIRST_HASH } from './calendar-lock-cards.js';
+         showMemberPanel, dismissSignInForm, takePinFirst, PIN_FIRST_HASH } from './calendar-lock-cards.js';
 import { hasCalendarAccess, setCalendarAccess } from './calendar-access-state.js';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
@@ -651,13 +651,8 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     setWorkspaceHidden(true);
     document.body.classList.add('calendar-locked');
 
-    // `#staff-pin` is read ONCE and removed whatever the decision: a member with a session who opened
-    // a station PC's bookmark must not carry it into their own Calendar (v23.19's locked-path-only
-    // consumption let them).
-    const pinFirst = window.location.hash === PIN_FIRST_HASH;
-    if (pinFirst) {
-        try { history.replaceState(history.state, '', window.location.pathname + window.location.search); } catch { /* noop */ }
-    }
+    // Was the PIN card asked for first? Read ONCE and removed whatever the decision (`takePinFirst`).
+    const pinFirst = takePinFirst();
 
     // Say something if the decision is slow (v20.80). Scheduled BEFORE the await, cleared by every
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.

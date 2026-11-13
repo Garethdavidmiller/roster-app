@@ -522,7 +522,10 @@ const CAPS = {
     // order and the claim verification are still here — and the ceiling comes down with the code.
     // 850 → 750 on 26 Sep 2026: the provisional paint the v22.97 raise was for was RETIRED (owner
     // decision), taking ~100 lines of wiring with it (measured 667 after).
-    'calendar-access.js':      750,
+    // 750 → 746 in Nov 2026 (sign-in audit, track C), at 750 of 750: WHETHER the PIN card was asked for
+    // first — read once, removed whatever the decision — left for calendar-lock-cards.js (`takePinFirst`),
+    // which owns which card follows which, 750 lines down to 745. The one above is the next fix's.
+    'calendar-access.js':      746,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;
