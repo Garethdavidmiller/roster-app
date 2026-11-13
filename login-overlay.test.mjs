@@ -73,6 +73,9 @@ mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, cl
 
 const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay } = await import('./login-overlay.js');
 const { CALENDAR_VIEWER_UID } = await import('./calendar-access-core.js');
+// The REAL teardown and the same staff-pin-ended.js instance the card listens to (audit B2/C2, below).
+const { reconcileExpiredIdentity } = await import('./session.js');
+const { onStaffPinEnded } = await import('./staff-pin-ended.js');
 
 /** Build a deps object with call-recording session helpers and sensible defaults. */
 function makeDeps(over = {}) {
@@ -310,6 +313,25 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         const r = await attempt();
         assert.deepEqual(r, { ok: true });
         assert.equal(JSON.parse(store.get('myb_admin_session')).name, 'G. Miller');
+    });
+
+    // THE PIN'S END IS STICKY FOR THE PAGE — UNTIL A MEMBER SIGNS IN THERE (audit B2/C2). Kept for
+    // good, the card a member met after signing in here in place and later losing their identity said
+    // again that the PIN had ended, and pointed a member at the shared code.
+    test('a sign-in that works makes the PIN\'s end old news: a LATER card on this page is not told', async () => {
+        fakeAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
+        await reconcileExpiredIdentity();                      // this page ends the PIN, the real way
+        assert.equal(fakeAuth.currentUser, null, 'premise: the teardown signed the PIN out');
+        let first = 0;
+        const stopFirst = onStaffPinEnded(() => { first++; });
+        await Promise.resolve();
+        assert.equal(first, 1, 'premise: the card up now is told');
+        stopFirst();
+        assert.deepEqual(await attempt(), { ok: true });      // a member signs in on that card, in place
+        let later = 0;
+        onStaffPinEnded(() => { later++; });                  // …and is later shown a card again
+        await Promise.resolve(); await Promise.resolve();
+        assert.equal(later, 0, 'a later card on the same page told a signed-in member the PIN had ended');
     });
 
     // The session the card saves begins when the SERVER says this sign-in happened (audit A2): a phone

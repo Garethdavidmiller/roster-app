@@ -19,12 +19,16 @@
  * failed (the roster is still open behind them, so "locked again" would be untrue). Each is pinned
  * by session.test.mjs, through the real teardown rather than by calling this module directly.
  *
- * ── STICKY FOR THE PAGE'S LIFE ────────────────────────────────────────────────────────────────────
+ * ── STICKY FOR THE PAGE'S LIFE — UNTIL A MEMBER SIGNS IN THERE ───────────────────────────────────
  *
  * The card can be up before the teardown lands (the usual order) or be mounted after it. So the
  * fact is kept, and a late listener is told on a microtask — never inside the call that subscribed,
  * so the caller finishes wiring first. Unsubscribing cancels a call already queued: a card rebuilt or
  * signed in before then is not told. One listener throwing does not stop the others being told.
+ *
+ * A member signing in on the page makes it old news (`forgetStaffPinEnded`, from the sign-in core,
+ * audit B2/C2). Kept for good, a LATER card on the same page — the member signed in in place, then
+ * lost their identity — said again that the PIN had ended, and pointed a member at the shared code.
  *
  * Why a module of its own: session.js was at its size cap (coordinator-ratchet.test.mjs) when this
  * landed, and this is one subject a Node test can hold without a DOM — the ratchet's EXTRACT.
@@ -45,6 +49,14 @@ export function noteStaffPinEnded() {
     for (const fn of now) {
         try { fn(); } catch (err) { console.warn('[Auth] a staff-PIN listener failed:', /** @type {any} */ (err)?.message); }
     }
+}
+
+/**
+ * A member has signed in on this page: the PIN's end is no longer its news (see the header). Called
+ * by the sign-in core (`runNamedSignIn`, login-overlay.js) once a sign-in has succeeded.
+ */
+export function forgetStaffPinEnded() {
+    ended = false;
 }
 
 /**

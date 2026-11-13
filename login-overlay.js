@@ -40,7 +40,7 @@ import { saveSession, clearSession, getSession, ensureNamedSession, isTransientA
 import { isCredentialRejection } from './auth-identity.js';
 // Already loaded wherever this card is: session.js imports both.
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
-import { onStaffPinEnded } from './staff-pin-ended.js';
+import { onStaffPinEnded, forgetStaffPinEnded } from './staff-pin-ended.js';
 // The one deadline helper (sessions-6 — this card kept a copy that differed only in the error's code).
 // Every page that loads this module statically already loads password-force.js statically, and the
 // Calendar loads this one on demand, so the import adds nothing to any page's start-up.
@@ -88,12 +88,13 @@ const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span>
  *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
  * @param {() => void} [deps.releaseEndedHold]  runs just before a failure clears the session, and
  *   releases this device's push record when the session is ANOTHER member's (audit A1) — not awaited
+ * @param {() => void} [deps.forgetStaffPinEnded]  on success: the PIN's end is no longer this page's news
  * @param {number} [deps.timeoutMs]
  * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage' }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
@@ -143,6 +144,8 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         clearSession();
         return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
     }
+    // A member is signed in here now: a later card on this page must not say the PIN ended (audit B2/C2).
+    forgetStaffPinEnded();
     return { ok: true };
 }
 
@@ -164,6 +167,7 @@ export function signInDeps(name, typedPw) {
         keepsLocalSession:  () => getSession()?.name === name,
         // A session this failure clears is ANOTHER member's: their targeted notices stop here too.
         releaseEndedHold:   () => { if (getSession()) releasePushForEndingHold(); },
+        forgetStaffPinEnded,
     };
 }
 

@@ -1098,7 +1098,8 @@ The shared session and sign-in module: the local session, the Firebase Auth sign
 ### `staff-pin-ended.js`
 Whether arriving on THIS page ended the shared staff PIN, and who is waiting to hear it — so the page's sign-in card can say why the roster is locked again (AUTH_AND_SESSIONS 24). A module of its own because session.js was at its size cap (coordinator-ratchet.test.mjs), and this is one subject a Node test can hold.
 - `noteStaffPinEnded()` — records it and tells each listener already waiting, once; one that throws does not stop the rest. ONE caller: `reconcileExpiredIdentity` (session.js), and only once its sign-out of the viewer has landed — never a Lock, a member's expired identity, or a sign-out that failed.
-- `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once: when the teardown lands, or on a microtask if it already has (sticky for the page's life). Unsubscribing cancels a call already queued. Its one reader is the sign-in card (`login-overlay.js`).
+- `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once: when the teardown lands, or on a microtask if it already has (sticky for the page's life, until `forgetStaffPinEnded`). Unsubscribing cancels a call already queued. Its one reader is the sign-in card (`login-overlay.js`).
+- `forgetStaffPinEnded()` — a member signed in on this page (the sign-in core, `runNamedSignIn`), so a LATER card there is not told the PIN ended.
 - Imports nothing. Tested through the real teardown by `session.test.mjs`.
 
 ### `silent-sign-in.js`
