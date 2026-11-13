@@ -543,7 +543,7 @@ test('the week\'s own save holds the grid and the bulk bar still until it lands;
 // the round trip: a control the save reads that the draft drops, a row put back over a record that
 // changed since, or a row the draft cannot take left half-changed — a phantom staged edit.
 
-const { isStagedRow, readRowDraft, applyRowDraft, readWeekDraft, applyWeekDraft } = await import('./admin-week-row-state.js');
+const { isStagedRow, readRowDraft, applyRowDraft, readWeekDraft, applyWeekDraft, unsavedWeekDraft } = await import('./admin-week-row-state.js');
 const { PILL_TYPES } = await import('./admin-shift-types.js');
 
 /** A row carrying every control the save collector reads (admin-app.js), found by selector. */
@@ -685,6 +685,67 @@ describe('a week of staged rows, kept and put back', () => {
             draftRow({ date: '2026-12-10', type: 'sick', existingId: 'ov10', prefilled: true })];
         assert.deepEqual(applyWeekDraft(gridOf(after.map(x => x.r)), kept, () => ''), { put: 3, left: [] });
         assert.deepEqual(readWeekDraft(gridOf(after.map(x => x.r)), () => ''), kept);
+    });
+
+    // RULE 6 (unsaved-draft.js, v25.97): a draft kept mid-save carries what that save was SENDING. Found
+    // on the real SDK: the save landed, and the next load still asked "Restore your unsaved changes?"
+    // about it — then named the day as changed since, about the member's own save.
+    describe('what is still unsaved once the save that was in flight has had its outcome', () => {
+        const sending = [
+            { member: 'G. Miller', date: '2026-12-08', type: 'sick', value: 'SICK' },
+            { member: 'G. Miller', date: '2026-12-09', type: 'annual_leave', value: 'AL' },
+            { member: 'G. Miller', date: '2026-12-10', removeId: 'ov10' },
+        ];
+        const rows = [
+            { date: '2026-12-08', type: 'sick', was: '' },
+            { date: '2026-12-09', type: 'annual_leave', was: '' },
+            { date: '2026-12-10', remove: true, was: 'ov10|shift|06:00-14:00' },
+            { date: '2026-12-11', type: 'shift', start: '06:00', end: '14:00', was: '' },   // not part of that save
+        ];
+        const dates = (/** @type {any} */ d) => d?.rows.map((/** @type {any} */ r) => r.date) ?? null;
+
+        test('a day that holds what the save sent, or whose deleted record is gone, has landed; the rest is still unsaved', () => {
+            const onDay = { '2026-12-08': { type: 'sick', value: 'SICK' } };   // 12-09's save never landed
+            const left = unsavedWeekDraft({ rows, sending }, (/** @type {string} */ d) => onDay[d], () => false);
+            assert.deepEqual(dates(left), ['2026-12-09', '2026-12-11']);
+        });
+
+        test('all of it landed: nothing is left to ask about', () => {
+            const onDay = { '2026-12-08': { type: 'sick', value: 'SICK' }, '2026-12-09': { type: 'annual_leave', value: 'AL' } };
+            assert.equal(unsavedWeekDraft({ rows: rows.slice(0, 3), sending }, (/** @type {string} */ d) => onDay[d], () => false), null);
+        });
+
+        test('a day holding something ELSE now is still unsaved — Restore is what names a colleague\'s change', () => {
+            const onDay = { '2026-12-08': { type: 'shift', value: '06:00-14:00' } };
+            assert.deepEqual(dates(unsavedWeekDraft({ rows: rows.slice(0, 1), sending }, (/** @type {string} */ d) => onDay[d], () => false)), ['2026-12-08']);
+            // …and so is the same KIND of day at other hours: a colleague's 07:00 shift is not this 06:00 one.
+            const shiftSent = [{ member: 'G. Miller', date: '2026-12-11', type: 'shift', value: '06:00-14:00' }];
+            assert.deepEqual(dates(unsavedWeekDraft({ rows: [rows[3]], sending: shiftSent }, () => ({ type: 'shift', value: '07:00-15:00' }), () => false)), ['2026-12-11']);
+            assert.equal(unsavedWeekDraft({ rows: [rows[3]], sending: shiftSent }, () => ({ type: 'shift', value: '06:00-14:00' }), () => false), null);
+        });
+
+        test('a record the save was deleting that is still there was not deleted: still unsaved', () => {
+            assert.deepEqual(dates(unsavedWeekDraft({ rows: [rows[2]], sending }, () => undefined, () => true)), ['2026-12-10']);
+        });
+
+        test('a draft kept with no save in flight is all still unsaved, exactly as it was', () => {
+            const kept = { rows: rows.slice(0, 2) };
+            assert.deepEqual(unsavedWeekDraft(kept, () => ({ type: 'sick', value: 'SICK' }), () => false), kept);
+        });
+
+        test('a row and a sent day that describe different changes are never matched', () => {
+            // A removal is not answered by a write that landed on its day, nor a write by a deletion.
+            const wrote = [{ member: 'G. Miller', date: '2026-12-10', type: 'sick', value: 'SICK' }];
+            assert.deepEqual(dates(unsavedWeekDraft({ rows: [rows[2]], sending: wrote }, () => ({ type: 'sick', value: 'SICK' }), () => false)), ['2026-12-10']);
+            const deleted = [{ member: 'G. Miller', date: '2026-12-08', removeId: 'ov8' }];
+            assert.deepEqual(dates(unsavedWeekDraft({ rows: rows.slice(0, 1), sending: deleted }, () => undefined, () => false)), ['2026-12-08']);
+        });
+
+        test('read back from storage, nothing it cannot read counts as landed', () => {
+            assert.deepEqual(dates(unsavedWeekDraft({ rows: rows.slice(0, 1), sending: 'nonsense' }, () => ({ type: 'sick', value: 'SICK' }), () => false)), ['2026-12-08']);
+            assert.deepEqual(dates(unsavedWeekDraft({ rows: rows.slice(0, 1), sending: [null, { date: 7 }] }, () => ({ type: 'sick', value: 'SICK' }), () => false)), ['2026-12-08']);
+            assert.equal(unsavedWeekDraft({ rows: 'nonsense' }, () => undefined, () => false), null);
+        });
     });
 });
 

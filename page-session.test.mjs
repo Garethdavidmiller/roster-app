@@ -647,6 +647,38 @@ describe('unsaved-draft.js', () => {
             assert.ok(ls.has(KEY));
         });
 
+        // WORK A SAVE HAS SINCE LANDED IS NOT UNSAVED (rule 6, v25.97). A page hidden while its save was
+        // still waiting kept that save's rows; once the save landed, the next load asked about them anyway,
+        // and Restore then named each day as changed since — about the member's own save.
+        test('all of it landed since: deleted with no question (rule 6)', async () => {
+            ls.set(KEY, stored());
+            /** @type {any[]} */ const applied = [];
+            assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: (d) => applied.push(d), unsaved: () => null }), 'saved');
+            assert.deepEqual(asked, [], 'asked "Restore your unsaved changes?" about changes that were saved');
+            assert.deepEqual(applied, []);
+            assert.equal(ls.has(KEY), false, 'and nothing is left to ask about next time');
+        });
+
+        test('part of it landed since: only what is still unsaved is asked about and put back (rule 6)', async () => {
+            ls.set(KEY, stored({ data: { rows: [{ date: '2026-12-08', type: 'sick' }, { date: '2026-12-09', type: 'annual_leave' }] } }));
+            /** @type {any[]} */ const applied = [];
+            const unsaved = (/** @type {any} */ d) => ({ ...d.data, rows: d.data.rows.filter((/** @type {any} */ r) => r.date !== '2026-12-08') });
+            assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: (d) => applied.push(d), unsaved }), 'restored');
+            assert.equal(asked.length, 1);
+            assert.deepEqual(applied.map(d => d.data.rows.map((/** @type {any} */ r) => r.date)), [['2026-12-09']], 'the landed day was put back as unsaved');
+        });
+
+        test('a hook that cannot answer is no answer: the whole draft is asked about (rule 6)', async () => {
+            ls.set(KEY, stored());
+            /** @type {any[]} */ const applied = [];
+            const realError = console.error;
+            console.error = () => {};
+            try {
+                assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: (d) => applied.push(d), unsaved: () => { throw new Error('records not read'); } }), 'restored');
+            } finally { console.error = realError; }
+            assert.deepEqual(applied.map(d => d.data.rows.length), [1], 'work a broken check could not account for was dropped');
+        });
+
         test('nothing kept, nothing asked — and a draft past its day is deleted when it is read (rule 4)', async () => {
             assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: () => {} }), 'none');
             assert.deepEqual(asked, []);

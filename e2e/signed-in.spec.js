@@ -27,7 +27,9 @@
  *                         this device's queue waits for it, then deletes the member's own record
  *                         and it stays deleted. The SDK's write stream is held to keep that
  *                         second open; this is the race v25.95 closed, and the false "someone else
- *                         has changed this" v25.96 closed, neither of which a stub can order.
+ *                         has changed this" v25.96 closed, neither of which a stub can order. The
+ *                         same reload proves the draft kept mid-save is not offered back once its
+ *                         save is in the queue (v25.97).
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -309,15 +311,22 @@ test('back online: a delete waits for the save this device has not sent yet, and
     let holding = true;
     await page.route((url) => url.host === EMULATOR.firestore && url.pathname.endsWith('/Write/channel'),
         (route) => { if (holding) held.push(route); else route.continue().catch(() => { /* the page has moved on */ }); });
-    // The staged day is a draft when the page goes; it is the save that matters here, not the offer.
-    await page.addInitScript(() => {
-        for (const k of Object.keys(localStorage)) if (k.startsWith('myb_draft_')) localStorage.removeItem(k);
-    });
+    // The page goes with its save still waiting, so it keeps the staged day as a draft — with what the
+    // save was sending (unsaved-draft.js, rule 6). Read as the next load starts, before the app does.
+    const draft = `myb_draft_admin_${encodeURIComponent(MEMBER)}`;
+    await page.addInitScript((k) => { /** @type {any} */ (window).__keptDraft = localStorage.getItem(k); }, draft);
     page.on('dialog', (d) => d.accept());   // "Leave the page?" — the save is queued, not lost
     await context.setOffline(false);
     await page.reload();
     await openAdminWeek(page, day);
     await expect.poll(() => held.length, { message: 'the SDK never tried to send the save it had queued' }).toBeGreaterThan(0);
+    const kept = JSON.parse(await page.evaluate(() => /** @type {any} */ (window).__keptDraft) || 'null');
+    expect(kept?.data?.sending, 'the draft kept what its save was sending').toEqual([expect.objectContaining({ date: day, type: 'annual_leave', value: 'AL' })]);
+    // That save is in this device's queue, which counts: the day holds it, so it is not offered back as
+    // unsaved. It used to be — "Restore your unsaved changes?", then "changed since" about this very save.
+    await expect.poll(() => page.evaluate((k) => localStorage.getItem(k), draft),
+        { message: 'the queued save was still kept as unsaved work' }).toBeNull();
+    await expect(page.locator('.dialog-overlay.visible'), 'asked to restore a change that is saved').toHaveCount(0);
 
     await page.locator('#overridesToggleHeader').click();
     const del = page.locator(`#overrideTableBody .btn-delete[data-id="${id}"]`);

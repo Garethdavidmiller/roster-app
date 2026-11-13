@@ -22,8 +22,8 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
-import { readWeekDraft, applyWeekDraft } from './admin-week-row-state.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays } from './admin-overrides.js';
+import { readWeekDraft, applyWeekDraft, unsavedWeekDraft } from './admin-week-row-state.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
@@ -1628,7 +1628,12 @@ export function init() {
         /** The saved record on each day NOW, for one member — what a kept row's `was` is checked against. @param {string} m */
         const _savedOn = (m) => { const map = buildMemberDateMap(m); return (/** @type {string} */ d) => savedSignature(map.get(d)); };
         keepDraftWhenHidden(hasUnsavedChanges, {
-            keep: () => _draft.keep({ member: fieldMember.value, date: fieldDate.value }, { rows: readWeekDraft(weekGrid, _savedOn(fieldMember.value)) }),
+            // …with what a save still in flight is SENDING for this member, so the next load can tell the
+            // rows it has since landed from the work still unsaved (unsaved-draft.js, rule 6; v25.97).
+            keep: () => {
+                const member = fieldMember.value, sending = (sendingDays() ?? []).filter(s => s.member === member);
+                _draft.keep({ member, date: fieldDate.value }, { rows: readWeekDraft(weekGrid, _savedOn(member)), ...(sending.length ? { sending } : {}) });
+            },
             forget: () => _draft.forget(),
         });
         /** Offered once the member it is for has loaded, to somebody who may still edit them; Restore shows that member
@@ -1639,7 +1644,12 @@ export function init() {
                 || !(currentIsAdmin || currentIsManager || member === currentUser)) return;
             await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft offer: the member did not load:', e));
             if (!hasOverrideAuthorityFor(member)) return;   // kept, for a load that can read what it was edited over
-            await _draft.offer({ ask: confirmDialog, apply: async (kept) => {
+            // Rows whose save has since LANDED are not asked about (rule 6): the day holds what it sent.
+            const unsaved = (/** @type {any} */ kept) => {
+                const onDay = buildMemberDateMap(member);
+                return unsavedWeekDraft(kept.data, (d) => onDay.get(d), (id) => getAllOverrides().some(o => o.id === id));
+            };
+            await _draft.offer({ ask: confirmDialog, unsaved, apply: async (kept) => {
                 showInChangeAShift(member, date);
                 await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft restore: the member did not load:', e));
                 // ONLY ON ITS OWN MEMBER AND WEEK (whole-app check, Nov 2026). With changes staged here the jump stops at

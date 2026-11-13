@@ -2779,6 +2779,17 @@ this device's own unsent write is now held as the page's own copy (`overrideFrom
 list reads and the roster import's week read. The journey now passes, and fails with either fix
 taken out.
 
+**v25.97: the draft kept mid-save no longer offers back a save that landed.** The same real-SDK
+journey found it: Admin closed while a save waited for signal keeps the staged rows as a draft (rightly
+— in a second tab the save is held only in memory, and is lost with the page), and the next load asked
+"Restore your unsaved changes?" about a save that had since landed; Restore then said the day had
+"changed since", about the member's own save. The draft now carries what the save was sending
+(`sendingDays`, `admin-overrides.js`), and the next load offers back only rows whose day does not hold
+it (`unsavedWeekDraft`; `unsaved-draft.js` rule 6). Nothing else changed: the browser's own "Leave
+site?" while a save waits stays, because in that second-tab case it is true. Proven by the journey,
+which now reloads with its draft and fails if it is offered back, two Admin browser tests (landed: not
+offered; never landed: offered and restored) and the unit tests of the rule.
+
 **v25.96: the Links workspace had the same race, and has the same wait.** Its design store queues
 a save, a rename and a bin offline (rule 4), and every online one of those, a restore, a purge and
 the automatic bin is a transaction. So just after the signal returned, a save wrote over the

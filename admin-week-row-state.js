@@ -404,6 +404,35 @@ export function readWeekDraft(grid, was) {
 }
 
 /**
+ * What is still UNSAVED in a kept week (unsaved-draft.js, rule 6), or null when nothing is. A draft
+ * kept while a save was in flight carries what that save was sending (`sending`, from `sendingDays`).
+ * A row whose day now holds exactly what the save was writing — or whose deleted record is gone — is
+ * the member's own save, landed: not unsaved work, and offering it back drew "Restore your unsaved
+ * changes?" and then "changed since" about it. Every other row is still unsaved, whatever became of
+ * the save: one held only in memory, or a transaction the page abandoned, landed nowhere.
+ * @param {any} data  the draft's data, as read back from storage: `{ rows, sending? }`
+ * @param {(date: string) => any} recordOn  the record each day holds now (`buildMemberDateMap`)
+ * @param {(id: string) => boolean} stillHeld  whether a record with that id is still there
+ * @returns {Record<string, any>|null}
+ */
+export function unsavedWeekDraft(data, recordOn, stillHeld) {
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    /** @type {Map<string, any>} */
+    const sent = new Map((Array.isArray(data?.sending) ? data.sending : [])
+        .filter((/** @type {any} */ s) => s && typeof s.date === 'string')
+        .map((/** @type {any} */ s) => [s.date, s]));
+    const landed = (/** @type {any} */ r) => {
+        const s = sent.get(r?.date);
+        if (!s) return false;
+        if (s.removeId) return !!r.remove && !stillHeld(String(s.removeId));
+        const now = recordOn(r.date);
+        return !r.remove && !!now && now.type === s.type && now.value === s.value;
+    };
+    const left = rows.filter((/** @type {any} */ r) => !landed(r));
+    return left.length ? { ...data, rows: left } : null;
+}
+
+/**
  * Put a kept week back on the grid on screen. A row is restored only while its saved record is still
  * the one it was edited over: a colleague's change since, or a booking made from another card, is
  * never overwritten by a draft nobody has looked at again. Those days come back in `left`, with any
