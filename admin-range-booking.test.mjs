@@ -164,7 +164,7 @@ let _otherSaveInFlight = false;
  *  store itself pulls the gstatic SDK, so its one answer this module asks is stood in for. */
 let _authority = true;
 let _loadFailed = false;
-mock.module('./admin-override-store.js', { namedExports: { loadFailedFor: () => _loadFailed } });
+mock.module('./admin-override-store.js', { namedExports: { loadFailedFor: () => _loadFailed, DELETE_REFUSED: 'overrides/delete-refused' } });
 
 // The RULE that decides which dates are written stays real; only the widget is stubbed.
 const { getDateRange: realGetDateRange } = await import('./admin-rangepicker.js?real');
@@ -478,6 +478,23 @@ describe('what the admin is told', () => {
         assert.match(fb.textContent, /may already be saved/i);
         assert.doesNotMatch(fb.textContent, /couldn't save/i);
         assert.equal(fb.className, 'feedback error');
+    });
+
+    // A COLLEAGUE'S CHANGE, NOT THE CONNECTION (v25.90). Each part of a long range is checked against the
+    // server; a later part refused because somebody changed one of its days, after earlier parts landed,
+    // is said as exactly that — "the connection dropped" would send the admin looking at their signal.
+    test('a later part REFUSED over a colleague\'s change says so — some days saved, nothing about the connection', async () => {
+        const fb = await failWith(Object.assign(new Error('changed'), { partialCommit: true, code: 'overrides/delete-refused', line: 'x' }));
+        assert.match(fb.textContent, /Someone else has changed a day in this range/);
+        assert.match(fb.textContent, /some days are saved/);
+        assert.doesNotMatch(fb.textContent, /connection/i);
+        assert.equal(fb.className, 'feedback error');
+    });
+
+    test('a FIRST part refused writes nothing, and its own line — naming the day — is what is shown', async () => {
+        const line = 'Someone else has changed Mon 5 Oct since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.';
+        const fb = await failWith(Object.assign(new Error(line), { code: 'overrides/delete-refused', line }));
+        assert.equal(fb.textContent, '⚠ ' + line);
     });
 
     test('a cache that never loaded says RELOAD, not retry', async () => {

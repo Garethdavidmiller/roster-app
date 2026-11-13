@@ -30,7 +30,7 @@
 import { teamMembers } from './roster-data.js';
 import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate, isSaveInFlight, setSaveInFlight,
          hasOverrideAuthorityFor } from './admin-overrides.js';
-import { loadFailedFor } from './admin-override-store.js';
+import { loadFailedFor, DELETE_REFUSED } from './admin-override-store.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { rangeSundayCorrections } from './admin-al-projection.js';
@@ -423,8 +423,11 @@ export function createRangeBookingSection(cfg) {
                 : (/** @type {any} */ (err)).partialCommit
                 // A long range failed mid-way after earlier chunks committed. recordRangeOverrides
                 // has already resynced the Saved-changes list from Firestore, so the admin can see
-                // exactly what did land before retrying (v16.25).
-                ? '⚠ The connection dropped part-way — some days may already be saved. The saved changes list has been refreshed; check it before trying again.'
+                // exactly what did land before retrying (v16.25). A later part REFUSED because a
+                // colleague had changed one of its days is said as that, not as the connection (v25.90).
+                ? ((/** @type {any} */ (err)).code === DELETE_REFUSED
+                    ? '⚠ Someone else has changed a day in this range, so it stopped part-way — some days are saved. The saved changes list has been refreshed; check it before trying again.'
+                    : '⚠ The connection dropped part-way — some days may already be saved. The saved changes list has been refreshed; check it before trying again.')
                 : (/** @type {any} */ (err)).message === 'cache/load-failed'
                     // The initial saved-changes read never succeeded, so recordRangeOverrides refused to
                     // write against an empty cache (would duplicate overrides / erase a worked Sunday).

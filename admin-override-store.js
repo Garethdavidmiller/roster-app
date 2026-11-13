@@ -33,7 +33,7 @@
  * `e2e/admin.spec.js` (which query actually runs).
  */
 
-import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, COLLECTIONS } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, writeBatch, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { shouldReplaceOverride } from './override-utils.js';
@@ -434,22 +434,30 @@ export function asShown(ids) {
  * a REWRITE meets a record that is no longer the one the page showed, and would say "nothing was
  * saved" about a save that was made. `alreadyDone(latest)` answers that: when it holds, the server
  * already says what this commit would, so nothing is written and nothing refused — `done` says so.
+ *
+ * An id in `mustBeAbsent` (v25.90) must hold NOTHING on the server, whatever the cache holds under it
+ * now: the fixed id of a day whose row showed no record there, where a colleague's save of the same
+ * day lands — and a read since can have put it in the cache, which would then expect it. A row given
+ * for the same id still wins. `line` may be a function of the DATES that changed, to name them.
  * @param {Iterable<string|{id: string}>} items
  * @param {(tx: any, latest: Map<string, any>) => void} write  adds the writes to `tx`; `latest` is each
  *        id's server data (or null) as this attempt read it — called again on every re-run
- * @param {{ mustExist?: Iterable<string>, line?: string, alreadyDone?: ((latest: Map<string, any>) => boolean)|null }} [opts]
+ * @param {{ mustExist?: Iterable<string>, mustBeAbsent?: Iterable<string>, line?: string|((dates: string[]) => string),
+ *           alreadyDone?: ((latest: Map<string, any>) => boolean)|null }} [opts]
  * @returns {Promise<{ done: boolean, latest: Map<string, any> }>} `done`: nothing written, as nothing
  *          needed to be; `latest`: the server's copies as the attempt that finished read them
  */
-export async function commitIfUnchanged(items, write, { mustExist = [], line = CHANGED_ELSEWHERE_LINE, alreadyDone = null } = {}) {
+export async function commitIfUnchanged(items, write, { mustExist = [], mustBeAbsent = [], line = CHANGED_ELSEWHERE_LINE, alreadyDone = null } = {}) {
     const byId = new Map(_allOverrides.map(o => [o.id, o]));
     /** @type {Map<string, any>} the record shown for each id, or null for "nothing shown here" */
     const expected = new Map();
+    const fromRow = new Set();
     for (const x of items) {
         const id = typeof x === 'string' ? x : x.id;
-        if (typeof x !== 'string') expected.set(id, x);                      // a row as shown always wins
+        if (typeof x !== 'string') { expected.set(id, x); fromRow.add(id); }   // a row as shown always wins
         else if (!expected.has(id)) expected.set(id, byId.get(id) ?? null);
     }
+    for (const id of mustBeAbsent) if (!fromRow.has(id)) expected.set(id, null);
     const required = new Set(mustExist);
     let done = false;
     /** @type {Map<string, any>} */
@@ -459,13 +467,15 @@ export async function commitIfUnchanged(items, write, { mustExist = [], line = C
         const snaps = await Promise.all(ids.map(id => tx.get(doc(db, COLLECTIONS.overrides, id))));
         latest = new Map(ids.map((id, i) => [id, snaps[i].exists() ? snaps[i].data() : null]));
         done = false;
-        const changed = ids.some(id => {
+        const changed = ids.filter(id => {
             const now = latest.get(id), was = expected.get(id);
             return was === null ? now !== null : now === null ? required.has(id) : !sameOverrideRecord(was, now);
         });
-        if (changed) {
+        if (changed.length) {
             if (alreadyDone?.(latest)) { done = true; return; }
-            throw Object.assign(new Error(line), { code: DELETE_REFUSED, line });
+            const dates = [...new Set(changed.map(id => expected.get(id)?.date ?? latest.get(id)?.date).filter(Boolean))].sort();
+            const text = typeof line === 'function' ? line(dates) : line;
+            throw Object.assign(new Error(text), { code: DELETE_REFUSED, line: text, dates });
         }
         write(tx, latest);
     });
@@ -484,6 +494,77 @@ export async function deleteIfUnchanged(items) {
     await commitIfUnchanged(list, (tx) => {
         for (const x of list) tx.delete(doc(db, COLLECTIONS.overrides, typeof x === 'string' ? x : x.id));
     });
+}
+
+// ── AN ORDINARY SAVE IS CHECKED TOO, WHENEVER THE SERVER CAN BE ASKED (v25.90) ────────────────────
+// Until v25.90 only a save that DELETED was checked, so when two managers saved one day the later
+// save stood and nobody told its author the day had changed under them ("Two editors on one day",
+// KNOWN_LIMITATIONS.md). Now every Admin save of a day — the week grid's and a leave or absence
+// range's — commits through `commitChecked`: ONLINE, in one transaction that refuses, writing
+// nothing, unless each day it writes still holds what this page showed; OFFLINE, as a batch held on
+// the device and sent when the signal returns, unchecked, as every save was before. Offline-first is
+// the older promise, and a device that cannot reach the server cannot ask it anything.
+//
+// What a day must still hold is what its caller SHOWED (`shownFor`): the record the day was drawn
+// from, still there and unchanged — and nothing at the day's fixed id (override-id.js), where a
+// colleague's save of the same day lands, unless that record is the one shown.
+//
+// "Online" is a guess until the server answers: `navigator.onLine` is true on a phone with full bars
+// and no data. So a transaction that ends without reaching the server — Firestore has tried five
+// times over about eight seconds by then — is taken as offline and the save is held instead. A last
+// attempt whose commit landed with its answer lost is then written again: the same records at the
+// same fixed ids, which changes nothing but their timestamp.
+
+/** How a transaction ends when it never reached the server. */
+const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
+
+/**
+ * Commit an ordinary save of days (v25.90): checked in ONE transaction when the server can be
+ * reached, held on the device as a batch when it cannot. `write` adds the save to either — every
+ * `set` a day's record at its fixed id, every `delete` a copy it replaces or a day it removes — and
+ * is first run against a recorder, so the check knows each document the save touches from the save
+ * itself, and recognises the save's own records after a lost answer (`commitIfUnchanged`).
+ * @param {(w: any) => void} write
+ * @param {{ shownFor: (memberName: string, date: string) => any, removed?: Iterable<string|{id: string}>,
+ *           line: string|((dates: string[]) => string), holdOffline?: boolean }} opts  `shownFor`: the record
+ *        the page showed for a day this save writes, or null; `removed`: the days it removes, as
+ *        `commitIfUnchanged` takes them; `holdOffline: false` for a save that removes any — a removal
+ *        waits for the server, as it has since v25.89, so it is never held unchecked
+ * @returns {Promise<{ checked: boolean, done: boolean }>} `checked` false: held unchecked, offline;
+ *          `done`: the server already held exactly this save, so nothing was written
+ */
+export async function commitChecked(write, { shownFor, removed = [], line, holdOffline = true }) {
+    if (!holdOffline || globalThis.navigator?.onLine !== false) {
+        /** @type {Map<string, any>} */ const sets = new Map();
+        /** @type {Set<string>} */ const deletes = new Set();
+        write({ set: (/** @type {any} */ ref, /** @type {any} */ data) => sets.set(ref.id, data),
+            delete: (/** @type {any} */ ref) => deletes.add(ref.id) });
+        /** @type {Array<string|any>} */ const items = [...removed, ...deletes];
+        /** @type {string[]} */ const mustExist = [];
+        /** @type {string[]} */ const mustBeAbsent = [];
+        for (const [id, data] of sets) {
+            const shown = shownFor(data.memberName, data.date) ?? null;
+            if (shown?.id) { items.push(shown); mustExist.push(shown.id); }
+            if (shown?.id !== id) { items.push(id); mustBeAbsent.push(id); }
+        }
+        // The server already holds this save: every record as written (bar its stamp, which only the
+        // server knows) and every deleted copy gone. Never true of an empty save — an empty `every`
+        // would call a refusal done.
+        const stamp = new Date();
+        const alreadyDone = (/** @type {Map<string, any>} */ latest) => sets.size > 0
+            && [...sets].every(([id, data]) => sameOverrideRecord({ ...data, createdAt: stamp }, latest.get(id)))
+            && [...deletes].every(id => latest.get(id) == null);
+        try {
+            const { done } = await commitIfUnchanged(items, write, { mustExist, mustBeAbsent, line, alreadyDone });
+            return { checked: true, done };
+        } catch (err) {
+            if (!holdOffline || !NO_SERVER.has(/** @type {any} */ (err)?.code)) throw err;
+        }
+    }
+    const batch = writeBatch(db);
+    write(batch);
+    await batch.commit();
+    return { checked: false, done: false };
 }
 
 // ── MOVING A DAY BETWEEN ALLOWANCES REWRITES IT AS LEAVE, SO IT CHECKS FIRST (v25.18) ────────────

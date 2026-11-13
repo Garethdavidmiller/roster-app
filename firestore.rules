@@ -40,7 +40,13 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 10 Nov 2026 (the whole-app fix, on v25.64): a pushSubscriptions delete needs
+// Last swept 13 Nov 2026 (v25.90, the checked save): no rule changed. The `overrides` read must
+// never consult `resource` — every online save now reads each day it writes inside one
+// transaction, and a day's first save reads a document that is not there (pinned by a rules test).
+// Comments brought up to date: the Calendar's read gate is `hasOverrideAccess`, the password stamp
+// `savePasswordSetAt`, the viewer's push refusal lives in calendar-notif-prompt.js, and nothing in
+// the client has signed in anonymously since v24.34.
+// Prior sweep v25.64 (10 Nov 2026, the whole-app fix): a pushSubscriptions delete needs
 // `isKnownIdentity()` like its create/update, and may find the record already gone; `pv_`/`perf_`
 // months must be the present one or one either side; the `pv_` id list judges what a write adds or
 // changes, so retiring an id is safe; the three documents' `uploadedAt` is the server's clock;
@@ -245,7 +251,7 @@ service cloud.firestore {
       // ⚠️ THE RULE IS NOT THE WHOLE GATE. Firestore evaluates rules on the SERVER, so a LOCAL
       // IndexedDB cache hit never reaches this line — a browser that unlocked yesterday still holds
       // every override it saw. calendar-overrides.js refuses those reads separately
-      // (`setOverrideAccess`). Tightening this rule without that gate would look secure and leak.
+      // (`hasOverrideAccess`). Tightening this rule without that gate would look secure and leak.
       //
       // MEASURED, not inherited (Aug 2026): experiments/firestore-offline-proof/ demonstrates it
       // against a real browser cache — cached overrides read back in full while the server read on
@@ -269,6 +275,12 @@ service cloud.firestore {
       // FROM HERE, `CALENDAR_PIN_ACCESS: false` WAS NO LONGER A ROLLBACK, and the switch was
       // retired v24.34. The server denies these reads whatever the client asks for, so the
       // rollback is reverting this change and redeploying rules.
+      //
+      // ⚠️ DO NOT CONSULT `resource` HERE (v25.90). Every online save reads each day it is about to
+      // write, inside one transaction (`commitChecked`, admin-override-store.js), and on a day's
+      // first save that document does not exist — `resource` is null. An owner check here would
+      // refuse that read, and with it every first save of a day, by every identity, reported as a
+      // permission failure. firestore.rules.test.mjs runs that exact read for each saving identity.
       allow read: if request.auth != null && (
         isMember() ||
         request.auth.token.admin == true ||
@@ -434,7 +446,9 @@ service cloud.firestore {
       // A MEMBER MAY DELETE A DOCUMENT THAT IS ALREADY GONE (v25.07, whole-app review) — a no-op. A
       // member's replace deletes ids from their CACHED overrides, and a manager may have deleted one
       // a moment earlier: `resource` is then null, `resource.data` errored, and the WHOLE batch —
-      // the member's own save included — was refused. Admin and manager already passed.
+      // the member's own save included — was refused. Admin and manager already passed. The
+      // checked save (v25.90, a transaction) still needs this: a day already gone is no difference
+      // to its check, so it goes on to delete a document that is not there.
       allow delete: if request.auth != null && (
         (resource == null && memberName() != null) ||
         memberName() == resource.data.memberName ||
@@ -515,13 +529,13 @@ service cloud.firestore {
     match /linkDesigns/{document=**} {
       // Read requires a NAMED identity — a session that has actually signed in as a member —
       // not merely `request.auth != null` (v19.39). The old rule was described as "any
-      // authenticated session", which read as "any signed-in member", but calendar-app.js calls
-      // signInAnonymously() unconditionally on every visit: an anonymous session satisfied it, so
-      // anyone who could open the app URL could read every design straight from the API. The
-      // sensitivity judgement itself still holds — staff names were removed from designs at v12.39,
-      // leaving line numbers and shift times — but "non-sensitive to a colleague" is a different
-      // claim from "non-sensitive to anyone who finds the URL", and only the first was ever
-      // intended.
+      // authenticated session", which read as "any signed-in member", but calendar-app.js then
+      // called signInAnonymously() on every visit (nothing has since v24.34): an anonymous
+      // session satisfied it, so anyone who could open the app URL could read every design
+      // straight from the API. The sensitivity judgement itself still holds — staff names were
+      // removed from designs at v12.39, leaving line numbers and shift times — but "non-sensitive
+      // to a colleague" is a different claim from "non-sensitive to anyone who finds the URL", and
+      // only the first was ever intended.
       // Deliberately NOT narrowed to the linksDesigner claim: that is exactly the lockout the open
       // read existed to prevent — a designer whose token predates the claim must still be able to
       // LOAD the workspace, so that their first write can permission-deny and self-heal through
@@ -697,7 +711,7 @@ service cloud.firestore {
     // rules cannot attest that a Firebase Auth password was actually changed (an Auth-side fact), so a
     // member could self-stamp `passwordSetAt` without changing their password and appear "migrated" in
     // the admin table. This only misleads the admin about that member's OWN posture (no privilege is
-    // gained), the app only ever writes it via setOwnPassword (after a real updatePassword), and the
+    // gained), the app only ever writes it via savePasswordSetAt (after a real updatePassword), and the
     // real control is the surname-default retirement gate (C5), not this flag. Do not treat the
     // account-status table as a security assertion — it is a migration-progress aid.
     match /passwordStatus/{memberName} {
@@ -875,7 +889,7 @@ service cloud.firestore {
         // identity fifty people share — any of them could then delete any other's, and the
         // subscription itself would sit on a shared machine pushing one person's Huddle to the mess
         // room with nobody able to turn it off. The client already declines to offer this in viewer
-        // mode (calendar-app.js); this is the half that does not depend on the client being right.
+        // mode (calendar-notif-prompt.js); this is the half that does not depend on the client being right.
         // It reads the BARE claim, not `isCalendarViewer()`: any token carrying it is refused here,
         // however it signed in — the stricter of the two readings (see `isCalendarViewer` above).
         // The `in` guard is NOT optional. Reading an ABSENT custom claim is an evaluation ERROR in

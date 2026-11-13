@@ -70,7 +70,9 @@ export const doc = (...a) => {
     const id = 'e2e-added-' + e2e.addDocSeq;
     return { __stub: 'doc', path: a[0].path + '/' + id, id, autoId: true };
   }
-  return { __stub: 'doc', path: a.slice(1).map(String).join('/') };
+  // …and every reference carries its ID, as a real one does (v25.90): Admin's checked save learns which
+  // documents a save touches from the references it is handed, and an id-less reference answered "none".
+  return { __stub: 'doc', path: a.slice(1).map(String).join('/'), id: String(a[a.length - 1]) };
 };
 export const serverTimestamp = () => marker('ts');
 // writeBatch RECORDS its set() payloads (v19.35) rather than swallowing them. A test that can only
@@ -140,13 +142,18 @@ export const runTransaction = (_db, fn) => {
     },
     // merge is RECORDED, not assumed (v24.47): a transactional merge reported as a replace makes a
     // test of "the bin move never overwrites patterns" unable to tell the two apart.
+    // A transaction's writes are ALSO recorded where a batch's are (v25.90): an Admin save is a
+    // transaction online and a batch offline, and what a spec asks is what was saved, not which
+    // commit carried it — so batchWrites and batchDeletes hold both.
     set: (/** @type {any} */ ref, /** @type {any} */ data, /** @type {any} */ opts) => {
       e2e.setWrites = e2e.setWrites || [];
       e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
+      (e2e.batchWrites = e2e.batchWrites || []).push(data);
     },
     delete: (/** @type {any} */ ref) => {
       e2e.deletedPaths = e2e.deletedPaths || [];
       if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
+      (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || ''));
       const parts = ref && ref.path ? String(ref.path).split('/') : [];
       const id = parts.length ? parts[parts.length - 1] : null;
       const col = parts.length > 1 ? parts[parts.length - 2] : null;
@@ -168,6 +175,14 @@ export const runTransaction = (_db, fn) => {
   // window.__E2E.txErrorCode makes every transaction REJECT with that Firestore code — with the
   // browser set offline, 'unavailable' is how a real offline transaction fails.
   if (e2e.txErrorCode) return Promise.reject(Object.assign(new Error('client is offline'), { code: e2e.txErrorCode }));
+  // window.__E2E.holdCommits holds a transaction too, on the batch's queue, until releaseCommits()
+  // (v25.90): a slow server keeps either kind of commit waiting, and an Admin save is now either.
+  if (e2e.holdCommits) {
+    return new Promise(resolve => {
+      (e2e._held = e2e._held || []).push(resolve);
+      e2e.releaseCommits = () => { const h = e2e._held || []; e2e._held = []; h.forEach(r => r()); };
+    }).then(() => fn(tx));
+  }
   return Promise.resolve(fn(tx));
 };
 // Collection reads resolve EMPTY unless a test seeds rows via window.__E2E.docs (an array of

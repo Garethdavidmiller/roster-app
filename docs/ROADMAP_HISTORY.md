@@ -1506,6 +1506,13 @@ every Admin save to run as a TRANSACTION that re-reads each day first; that woul
 offline save FAIL rather than queue, and it rewrites the write path most of the e2e suite observes.
 A decision, not an oversight — revisit if a lost edit is ever reported.
 
+**Then revisited, without the cost (v25.90, owner, 12 Nov 2026).** Every Admin save of a day now
+runs as one transaction that reads each day first and refuses, naming the days, when one no longer
+holds what the page showed (`commitChecked`, `admin-override-store.js`). The offline cost was
+avoided rather than paid: a save made offline — or whose check could not reach the server — is still
+held on the device as a batch and sent unchecked, as before, so only a device that can ask the
+server is warned. KNOWN_LIMITATIONS.md → "Two editors on one day" has what remains.
+
 **Duplicates already in Firestore** from before v24.48 are cleared only when that day is next saved
 or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete (the
 row ✕ and Delete selected joined at v24.49, after an external review found they removed only the

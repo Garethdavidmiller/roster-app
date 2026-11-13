@@ -418,7 +418,8 @@ jobs:
     # count of TESTS, not of files. Priced from that night's per-test times with Playwright's own
     # split: the longest shard is 6.1 minutes of tests on desktop Chrome and 6.2 on the Pixel,
     # against 15.7 and 15.1 as one job each. Two shards would leave 8.5; four, 5.2, where the
-    # per-job setup starts to cost more than it saves.
+    # per-job setup starts to cost more than it saves. The first CI run (12 Nov 2026) came in at
+    # 4.2 to 7.5 minutes of tests a shard, 5.3 to 8.2 minutes a job with its setup.
     #
     # The list must name every project in playwright.config.mjs and every shard of each: a project or
     # a shard missing here would silently stop running in CI. workflow-hygiene.test.mjs holds the list

@@ -4,7 +4,8 @@
  *
  * Owns: the four pure answers the Recorded-dates lists are built from — step a date (`addDays`),
  *   decide whether a day between two bookings breaks the run (`isRestGap`), and put a date
- *   (`fmtPeriodDate`) or a range (`fmtPeriodRange`) into the words a manager reads.
+ *   (`fmtPeriodDate`) or a range (`fmtPeriodRange`) into the words a manager reads — and, since
+ *   v25.90, name the days a refused save found changed (`namedDays`), in the same words.
  * Does NOT own: the list, its year selector, the merge, or any DOM. Those are
  *   `admin-booked-periods.js`, which already takes all four as injected handles.
  * Edit here for: what counts as a gap, or how a period is worded.
@@ -82,4 +83,17 @@ export function formatDisplay(str) {
     if (!str) return '—';
     const [y, m, d] = str.split('-');
     return `${parseInt(d, 10)} ${MONTH_ABB[parseInt(m, 10) - 1]} ${y}`;
+}
+
+/**
+ * The days a refused save names (v25.90): "Tue 3 Nov", "Tue 3 Nov and Wed 4 Nov", "Tue 3 Nov, Wed 4 Nov
+ * and Thu 5 Nov" — past three, the first two and a count, so a long range cannot fill the line. "a day
+ * in this save" when there is none to name.
+ * @param {string[]} dates YYYY-MM-DD, in the order to name them
+ */
+export function namedDays(dates) {
+    const named = dates.map(fmtPeriodDate);
+    if (!named.length) return 'a day in this save';
+    if (named.length > 3) return `${named[0]}, ${named[1]} and ${named.length - 2} other days`;
+    return named.length === 1 ? named[0] : `${named.slice(0, -1).join(', ')} and ${named[named.length - 1]}`;
 }

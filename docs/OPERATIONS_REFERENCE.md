@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v25.80 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.90 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -630,8 +630,9 @@ of CLAUDE.md).
 
 **What it means for a release.** The mirror updates after a Hosting deploy finishes, not a minute
 after the push. A deploy lasts as long as its slowest gate job plus about a minute: the browser
-tests, 16 to 18 minutes each in November 2026, since they became parallel jobs on 10 November (in
-one job they had reached 38). The mirror's own publish then takes under a minute (40 and 55 seconds
+tests, 16 to 18 minutes each when they became parallel jobs on 10 November 2026 (in one job they had
+reached 38), and 5 to 8 minutes a job since each screen size was cut into three shards on 12
+November. The mirror's own publish then takes under a minute (40 and 55 seconds
 on 10 November 2026; the first, v25.65, took about nine). A push that changes only docs or tests republishes neither
 origin, exactly as Hosting already behaves. A failed gate leaves BOTH origins on the previous release,
 and the issue says so.

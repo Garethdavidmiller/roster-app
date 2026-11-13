@@ -1325,8 +1325,11 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     // signal" on every save. The offline wording is the next test.
     await expect(notice).toContainText('Still sending');
     await expect(notice).not.toContainText(/signal/i);
-    await expect(notice).toContainText('held on this device');
-    await expect(notice, 'a held write can still be refused — it must never be called saved').not.toContainText(/saved/i);
+    // …and since v25.90 an online save is a CHECKED transaction, which no device holds: it asks the reader
+    // to keep the page open, and never says the change is held and will send by itself.
+    await expect(notice).toContainText('Keep this page open');
+    await expect(notice).not.toContainText('held on this device');
+    await expect(notice, 'an unconfirmed write must never be called saved').not.toContainText(/saved/i);
     await expect(notice).toHaveAttribute('role', 'status');
     // The button stays disabled while the write is unconfirmed: freeing it would invite a second
     // save of the same days, and every save mints new document ids.
@@ -1375,6 +1378,9 @@ test('admin: a slow save says "Waiting for signal" only when the browser reports
     const notice = page.locator('#slowSaveNotice');
     await expect(notice).toBeVisible({ timeout: 5000 });
     await expect(notice).toContainText('Waiting for signal');
+    // OFFLINE, the save is still the batch the device holds (v25.90): the check needs the server, so here
+    // it is skipped and the change sends by itself when the signal returns, as every save did before.
+    await expect(notice).toContainText('held on this device');
     await context.setOffline(false);
     // A save that was slow because the phone was OFFLINE is the expected case — it is not recorded.
     await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
@@ -1560,10 +1566,10 @@ test('admin: after a save left unconfirmed by a sign-out, the next save is refus
     await expect(page.locator('#formFeedback')).toContainText('signed out before this change was confirmed', { timeout: 5000 });
     // Signed straight back in (another tab): the account is here again, so nothing else stops a retry.
     await page.evaluate(() => /** @type {any} */ (window).__E2E.restoreAuth());
-    const before = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.length);
+    const before = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length);
     await page.locator('#saveBtn').click();
     await expect(page.locator('#formFeedback')).toContainText('Reload the page before making another', { timeout: 5000 });
-    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.length), 'no second copy was written').toBe(before);
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'no second copy was written').toBe(before);
 });
 
 // ── …AND A COLLEAGUE SIGNING IN FROM ANOTHER TAB IS NOT THAT (v24.38) ────────────────────────────
@@ -2790,6 +2796,79 @@ test('admin: clearing a day a colleague has since changed is refused, even after
     await page.locator('#saveBtn').click();
     await expect(page.locator('#formFeedback')).toContainText('so nothing was saved', { timeout: 10000 });
     expect(await page.evaluate(() => (window.__E2E?.deletedPaths || []).length), "the colleague's RDW was deleted").toBe(0);
+});
+
+// THE SECOND EDITOR OF A DAY IS TOLD (v25.90). A plain save was a batch, so of two managers saving one day
+// the later simply won and nobody said so. It now reads each day it writes in the same transaction as the
+// write: here the day showed nothing, a colleague has saved it since, and the save is refused — the day
+// named, nothing written — instead of overwriting their change.
+test('admin: saving a day a colleague has saved since the page loaded is refused, and names the day', async ({ page }) => {
+    await openAdminOnDecember(page);
+    const row = page.locator('.week-panel .day-row[data-date="2026-12-08"]');
+    await row.locator('.day-cb').click();
+    await row.locator('.type-pill-btn[data-type="annual_leave"]').click();
+    // A colleague saves the same day meanwhile: the server holds it now, and this page never loaded it.
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__E2E.txDocs = [{ id: 'm_2026-12-08_G.%20Miller', memberName: 'G. Miller', date: '2026-12-08',
+            type: 'rdw', value: '14:00-22:00', note: '', source: 'manual', changedBy: 'S. Manager' }];
+    });
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText(
+        'Someone else has changed Tue 8 Dec since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.',
+        { timeout: 10000 });
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), "the colleague's day was overwritten").toBe(0);
+    await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'the staged change stays, to re-apply after a reload').toHaveAttribute('aria-pressed', 'true');
+});
+
+// …COMPARED WITH THE ROW AS IT WAS DRAWN (v25.90), as a removal has been since v25.89: a read landing under
+// staged edits refreshes the cache and leaves the grid alone, so the cache can hold a colleague's newer
+// record for a day whose row still shows the old one. Compared with the cache, it would match the server.
+test('admin: re-typing a day a colleague has changed is refused, even after a read brought the change into the page', async ({ page }) => {
+    const id = 'm_2026-12-09_G.%20Miller';
+    await page.addInitScript((docId) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: docId, memberName: 'G. Miller', date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '', source: 'manual' }] };
+    }, id);
+    await openAdminOnDecember(page);
+    const row = page.locator('.week-panel .day-row[data-date="2026-12-09"]');
+    await expect(row.locator('.overwrite-badge')).toContainText('Saved');
+    await row.locator('.type-pill-btn[data-type="sick"]').click();   // re-type the AL as an absence
+    await page.evaluate((docId) => {
+        const theirs = { id: docId, memberName: 'G. Miller', date: '2026-12-09', type: 'rdw', value: '14:00-22:00', note: '', source: 'manual', changedBy: 'S. Manager' };
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = [theirs];
+        w.__E2E.txDocs = [theirs];
+    }, id);
+    await page.locator('#overridesToggleHeader').click();
+    await page.locator('#showAllOverridesBtn').click();
+    await waitForReadsToLand(page, 'the All staff read never landed');
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('Someone else has changed Wed 9 Dec since the page loaded, so nothing was saved.', { timeout: 10000 });
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), "the colleague's RDW was overwritten").toBe(0);
+});
+
+// …AND SO IS A LEAVE OR ABSENCE RANGE (v25.90): each day of the booking is read in the same transaction
+// as the write, so an absence recorded over a day a colleague has since booked leave on is refused.
+test('admin: an absence over a day a colleague has changed since is refused, names the day, and writes nothing', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#sickToggleHeader').click();
+    await page.locator('#sickRpNext').click();
+    const day = page.locator('#sickRpGrid .rp-day[data-iso="2026-09-08"]');   // Tue 8 Sep, a working day on his line
+    await day.click();
+    await day.click();
+    await expect(page.locator('#sickSaveBtn')).toBeEnabled();
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__E2E.txDocs = [{ id: 'm_2026-09-08_G.%20Miller', memberName: 'G. Miller', date: '2026-09-08',
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Manager' }];
+    });
+    await clickInView(page.locator('#sickSaveBtn'));
+    await expect(page.locator('#sickFeedback')).toContainText(
+        'Someone else has changed Tue 8 Sep since the page loaded, so nothing was saved.', { timeout: 10000 });
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), "the colleague's leave was overwritten").toBe(0);
 });
 
 test('admin: a booked period a colleague has since changed is not deleted, and the admin is told', async ({ page }) => {

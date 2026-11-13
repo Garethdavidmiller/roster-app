@@ -321,7 +321,10 @@ shown that yet.
   exactly the config's projects, the failure reporter needs every job (a gate job that runs out of
   time leaves the deploy skipped, which nothing else would report), and only the deploy job can sign
   in to Google. When a half outgrows its 40 minutes, shard within the project, as `e2e.yml`'s webkit
-  job does. The account is the comment at the top of `deploy-hosting.yml`'s `jobs:`.
+  job does. The account is the comment at the top of `deploy-hosting.yml`'s `jobs:`. **Sharded two
+  days later, before either half outgrew it** (owner, 12 Nov 2026), because the wait itself was the
+  cost: three shards per project, the same list in both workflows, 5 to 8 minutes a job on the first
+  run against 16 to 18. `fullyParallel` came with it, so a shard is a count of tests, not of files.
 
 - **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
   `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
@@ -698,7 +701,8 @@ deploys keep their own suites (`test:rules`, `test:functions`) and do not run it
   change (PASSWORD_DESIGN.md), the document files behind a bearer address with the stored one as the
   fallback (KNOWN_LIMITATIONS.md → "The document FILES are protected by a bearer URL, not by auth"),
   and the second of two editors on one day not being warned (KNOWN_LIMITATIONS.md → "Two editors on
-  one day"). The review listed them as still standing, not as new regressions.
+  one day"). The review listed them as still standing, not as new regressions. The third was closed
+  in v25.90 wherever the device can reach the server; offline, the later save still wins.
 
 **What only the owner can do:** run the Android and iPhone checklists on real phones before a release
 that touches what they cover; run `npm run test:payslip-local` before any pay change; and confirm a

@@ -19,7 +19,9 @@
  *
  * Roster IMPORTS keep random ids: a manual record and an import for the same day coexist by design
  * (the manual one wins, `shouldReplaceOverride` in override-utils.js), so they must never share one.
- * And the second editor is not WARNED — see KNOWN_LIMITATIONS.md → "Two editors on one day".
+ * Nor does it WARN the second editor: that is the save's own check, which since v25.90 reads each day
+ * it writes in the same transaction (`commitChecked`, admin-override-store.js) — KNOWN_LIMITATIONS.md
+ * → "Two editors on one day" for what it still leaves offline.
  *
  * Its own module, and not override-utils.js, because that file sits at the 900-line line past which
  * a module must be argued into the size ratchet; one pure function is not that argument.
