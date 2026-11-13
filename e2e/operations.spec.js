@@ -1734,7 +1734,8 @@ for (const [label, answer, title, says, never] of /** @type {Array<[string, any,
     ['a lost-phone reset says what it did, and that nobody told them',
         { ...LANDED, notified: false, lostDevice: true, pushReleased: 2 }, 'Password reset — tell them yourself',
         ['WAS reset to their surname', 'signed out on every device, the lost phone included', 'notifications are now off on every device',
-            'No reset notice was sent. Tell'], /has no notifications on this app|COULDN’T/],
+            'No reset notice was sent. Tell', 'their surname signs in to their account — on the lost phone too'],
+        /has no notifications on this app|COULDN’T/],
     ['a lost-phone reset whose notifications could not be switched off says so, and to reset again with the box ticked',
         { ...LANDED, notified: false, lostDevice: true, pushReleaseFailed: true }, 'Password reset — notifications still on',
         ['COULDN’T be switched off', 'Reset again with the box ticked', 'No reset notice was sent'], /notifications are now off/],
@@ -3861,6 +3862,45 @@ test('operations: confirming the leaver disable keeps the first run\'s report', 
     await expect(result, 'the names only the admin can act on must survive the confirm').toContainText('S. Silva — tell them their password is their surname');
     await expect(result.locator('text=Already existed'), 'the re-run lists the whole roster again; it is not appended').toHaveCount(1);
     await expect(page.locator('#authConfirmOrphans')).toHaveCount(0);
+});
+
+// A TIER TAKEN AWAY, AND A DISABLED LEAVER'S NOTIFICATIONS, ARE REPORTED (sign-in audit D3 and D2, 13 Nov 2026). The
+// server signs a member out of every device when a run takes admin, manager or Links designer from them (`demoted`),
+// and a confirmed sweep switches off the notifications of leavers disabled on an earlier run
+// (`disabledLeaverPushRemoved`). A member signed out unasked will ask the admin why, so both reach the result box;
+// a count of nought says nothing.
+test('operations: Set up accounts names who lost access, and counts a disabled leaver\'s notifications switched off', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: ['B. Khalil'] }),
+    }));
+    let calls = 0;
+    await page.route('**/setupRosterAuth', route => {
+        calls++;
+        const body = calls === 1
+            ? { skipped: ['G. Miller'], demoted: ['S. Silva'], orphanDryRun: true, orphansToDisable: ['B. Khalil'] }
+            : calls === 2 ? { skipped: ['G. Miller', 'S. Silva'], disabled: ['B. Khalil'], disabledLeaverPushRemoved: 2 }
+            : { skipped: ['G. Miller', 'S. Silva'], disabled: [], disabledLeaverPushRemoved: 0 };
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
+    });
+    await page.goto('/operations.html');
+    await page.locator('#authSetupToggleHeader').click();
+    await page.locator('#authSetupOrphans').check();
+    await page.locator('#authSetupBtn').click();
+    const result = page.locator('#authSetupResult');
+    await expect(result).toContainText('Access reduced and signed out of every device (1): S. Silva — they sign back in with the password they already use');
+    await expect(result, 'nothing was switched off yet: the dry run releases nothing').not.toContainText('Notifications switched off');
+    await page.locator('#authConfirmOrphans').click();
+    await expect(result).toContainText('Notifications switched off on 2 devices of leavers disabled earlier');
+    await expect(result, 'the first run\'s names survive the confirm').toContainText('S. Silva — they sign back in');
+
+    // An answer that switched nothing off does not say it did (the run replaces the box, so the line above is gone).
+    await page.locator('#authSetupOrphans').check();
+    await page.locator('#authSetupBtn').click();
+    await expect(result).toContainText('Already existed');
+    await expect(result).not.toContainText('Notifications switched off');
 });
 
 // ── A ROSTER READ CUT OFF IN TRANSIT SAYS SO (7 Nov 2026, iPhone audit) ─────────────────────────

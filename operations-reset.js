@@ -145,6 +145,9 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
             ? 'Their notifications COULDN’T be switched off, so the lost phone may still show them. Reset again with the box ticked to switch them off.'
             : 'Their notifications are now off on every device, so the lost phone shows nothing more from this app.');
         parts.push(`No reset notice was sent. Tell ${name} yourself: their password is now their surname${signedOut ? ', they are signed out,' : ''} and the app asks for a new one when they sign in.`);
+        // A reset puts the account on the surname, which the sign-in card's hint names, so until the member chooses a new
+        // password whoever holds the phone can type it there too. Said, so the admin asks them to sign in promptly.
+        parts.push(`Until ${name} chooses a new password, their surname signs in to their account — on the lost phone too — so ask them to sign in on another device and choose one as soon as they can.`);
     }
     if (lostSkipped) {
         parts.push(r.notified === true

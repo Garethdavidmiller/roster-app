@@ -277,8 +277,9 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
              * @param {any} data @param {boolean} [afterConfirm]
              */
             const renderResult = (data, afterConfirm = false) => {
-                const { created = [], skipped = [], reclaimed = [], disabled = [], failed = [],
-                        orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [] } = data;
+                const { created = [], skipped = [], reclaimed = [], disabled = [], failed = [], demoted = [],
+                        orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [],
+                        disabledLeaverPushRemoved = 0 } = data;
                 const lines = [];
                 if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
                 if (skipped.length && !afterConfirm) lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
@@ -289,7 +290,13 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                 // back" (functions-core, 10 Nov 2026). The admin is the only person who can tell the
                 // member, so the names are the point of the line.
                 if (reclaimed.length) lines.push(`🔁 Reset to the default password and signed out (${reclaimed.length}): ${reclaimed.join(', ')} — tell them their password is their surname`);
+                // A tier taken away (off the admin, manager or Links designer list) is signed out of every device at once,
+                // so its old access stops now rather than when the sign-in renews (sign-in audit D3). Their password is
+                // untouched, so they sign back in as usual — said, because a member signed out unasked will ask why.
+                if (demoted.length)  lines.push(`🔒 Access reduced and signed out of every device (${demoted.length}): ${demoted.join(', ')} — they sign back in with the password they already use`);
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
+                // Leavers disabled on an earlier run whose phones had saved their notification records again (D2).
+                if (disabledLeaverPushRemoved > 0) lines.push(`🔕 Notifications switched off on ${disabledLeaverPushRemoved} device${disabledLeaverPushRemoved !== 1 ? 's' : ''} of leavers disabled earlier`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
                 // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).
                 if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were not disabled. Run Set up accounts again.');
