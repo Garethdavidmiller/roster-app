@@ -1699,6 +1699,64 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
     });
 });
 
+// ── A LEAVER ALREADY DISABLED (sign-in audit D2, Nov 2026) ──────────────────────────────────────
+// The sweep releases a leaver's push records as it disables the account. But a phone still holding a
+// valid ID token can save its record again in the hour after — the push-record rule cannot see
+// `disabled` — and every broadcast reached it again, because the sweep's filter skips a disabled
+// account and no later run looked. Every confirmed run now releases those records too.
+describe('setupRosterAuth releases the push records of leavers already disabled', () => {
+    const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
+    const gone = { uid: 'uid_gone', email: 'x.gone@myb-roster.local', displayName: 'X. Gone', disabled: true,
+        customClaims: { name: 'X. Gone', member: 'X. Gone' } };
+    const confirmed = () => asAdmin({ removeOrphans: true, confirmOrphanRemoval: true });
+
+    test('a confirmed run releases them, touches nothing else on the account, and lists nobody as newly disabled', async () => {
+        const { eps, released, authOps } = build({ existingUsers: [gone] });
+        const out = await call(eps.setupRosterAuth, confirmed());
+        assert.deepEqual(released, [gone.uid]);
+        assert.deepEqual(out.body.disabled, [], 'an account disabled long ago is not news');
+        assert.deepEqual(authOps.filter((o) => o.uid === gone.uid), [], 'the disabled account itself was changed');
+        assert.equal(out.body.disabledLeaverPushRemoved, 1, 'counted in the answer');
+    });
+
+    test('EVERY confirmed run looks again — idempotent, so a record saved since goes too', async () => {
+        const { eps, released } = build({ existingUsers: [gone] });
+        await call(eps.setupRosterAuth, confirmed());
+        await call(eps.setupRosterAuth, confirmed());
+        assert.deepEqual(released, [gone.uid, gone.uid]);
+    });
+
+    test('never the shared Calendar PIN account, by uid or by claim — and never a current member', async () => {
+        const viewer = { uid: CALENDAR_VIEWER_UID, email: 'nobody.here@myb-roster.local', disabled: true };
+        const viewerByClaim = { uid: 'some-uid', email: 'nobody.else@myb-roster.local', disabled: true, customClaims: { calendarViewer: true } };
+        const member = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: MEMBER, disabled: true,
+            customClaims: { name: MEMBER, member: MEMBER } };
+        const { eps, released } = build({ existingUsers: [viewer, viewerByClaim, member] });
+        await call(eps.setupRosterAuth, confirmed());
+        assert.ok(!released.includes(viewer.uid) && !released.includes(viewerByClaim.uid),
+            'the PIN account\'s records went — every PIN device on the station stops being told');
+        assert.deepEqual(released, [uidFor(MEMBER)],
+            'fixture check: the member\'s own release is the re-enable\'s, not the sweep\'s');
+    });
+
+    test('the dry run releases nothing, and says no count', async () => {
+        const { eps, released } = build({ existingUsers: [gone] });
+        const out = await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true }));
+        assert.deepEqual(released, []);
+        assert.ok(!('disabledLeaverPushRemoved' in out.body));
+    });
+
+    test('a release that fails costs nothing else — the sweep goes on and reports as usual', async () => {
+        const leaver = { uid: 'uid_leaver', email: 'y.gone@myb-roster.local', disabled: false };
+        const { eps } = build({ existingUsers: [gone, leaver], releaseFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, confirmed());
+        assert.equal(out.code, 200);
+        assert.ok(!out.body.orphanSweepFailed, JSON.stringify(out.body));
+        assert.ok(out.body.disabled.some((l) => l.includes('y.gone')), 'the enabled leaver was still disabled');
+        assert.equal(out.body.disabledLeaverPushRemoved, 0);
+    });
+});
+
 // ── THE TWO SERVER-CONFIG REFUSALS: THE LOCKOUT THAT HAS NO REPAIR PATH ────────────────────────
 //
 // `roster-members.json` is GENERATED (`npm run generate:roster-members`), which is precisely why it

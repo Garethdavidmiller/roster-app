@@ -2,7 +2,7 @@
  * account-lifecycle.test.mjs — the pure rules at the edges of an account's life
  * (functions/account-lifecycle.js, sign-in audit Nov 2026).
  * Run: node scripts/run-tests.mjs account-lifecycle.test.mjs   (part of `npm run test:functions`;
- * it needs nothing installed, since the module requires nothing).
+ * it needs nothing installed, since the module requires only the pure roster-parse-helpers.js).
  *
  * Organised by what a wrong answer COSTS. auth-endpoints.test.mjs drives the handlers that ask these
  * rules for real; this pins the rules at their edges, which the handler tests do not reach.
@@ -12,7 +12,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS } = require('./functions/account-lifecycle.js');
+const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids } =
+    require('./functions/account-lifecycle.js');
+const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
+const { computeOrphanLabels } = require('./functions/roster-parse-helpers.js');
 
 // ── A PASSWORD WRITE THAT THROWS (audit E1) ─────────────────────────────────────────────────────
 //
@@ -121,5 +124,51 @@ describe('elevatedClaimsLost — what a re-stamp takes away', () => {
         assert.deepEqual(elevatedClaimsLost(tier({ admin: 'true', manager: 1, linksDesigner: false }), tier()), []);
         assert.deepEqual(elevatedClaimsLost(tier({ manager: true }), tier({ manager: 'true' })), ['manager'],
             'a stamp the rules would not believe is not the tier kept');
+    });
+});
+
+// ── LEAVERS ALREADY DISABLED (audit D2) ─────────────────────────────────────────────────────────
+//
+// Too narrow, and a leaver's phone goes on receiving every broadcast. Too wide is worse: a current
+// member's records deleted silences their phone, and the shared PIN account's silences the station.
+describe('disabledLeaverUids — the leavers the sweep has already disabled', () => {
+    const active = new Set(['a.member@myb-roster.local']);
+
+    test('a disabled roster-domain account off the roster', () => {
+        assert.deepEqual(disabledLeaverUids([{ uid: 'u1', email: 'x.gone@myb-roster.local', disabled: true }], active), ['u1']);
+    });
+
+    test('never an ENABLED one — that is the sweep\'s own to disable, and it is listed there', () => {
+        const users = [{ uid: 'u1', email: 'x.gone@myb-roster.local', disabled: false }, { uid: 'u2', email: 'y.gone@myb-roster.local' }];
+        assert.deepEqual(disabledLeaverUids(users, active), []);
+    });
+
+    test('never a current member, another domain, an account with no email, or the shared PIN account', () => {
+        const users = [
+            { uid: 'm', email: 'a.member@myb-roster.local', disabled: true },
+            { uid: 'g', email: 'someone@gmail.com', disabled: true },
+            { uid: 'n', disabled: true },
+            { uid: CALENDAR_VIEWER_UID, email: 'linked@myb-roster.local', disabled: true },
+            { uid: 'v', email: 'linked2@myb-roster.local', disabled: true, customClaims: { calendarViewer: true } },
+            { email: 'no.uid@myb-roster.local', disabled: true },
+        ];
+        assert.deepEqual(disabledLeaverUids(users, active), []);
+    });
+
+    test('exactly the accounts the sweep would take, were they enabled — one filter, not two', () => {
+        const users = [
+            { uid: 'a', email: 'x.gone@myb-roster.local', disabled: true },
+            { uid: 'b', email: 'a.member@myb-roster.local', disabled: true },
+            { uid: CALENDAR_VIEWER_UID, email: 'z@myb-roster.local', disabled: true },
+            { uid: 'c', email: 'q@example.com', disabled: true },
+        ];
+        const sweepWouldTake = computeOrphanLabels(users.map((u) => ({ ...u, disabled: false })), active).map((o) => o.uid);
+        assert.deepEqual(disabledLeaverUids(users, active), sweepWouldTake);
+    });
+
+    test('an empty or missing list is nothing', () => {
+        assert.deepEqual(disabledLeaverUids([], active), []);
+        assert.deepEqual(disabledLeaverUids(undefined, active), []);
+        assert.deepEqual(disabledLeaverUids([null, undefined], active), []);
     });
 });

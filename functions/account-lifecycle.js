@@ -2,9 +2,9 @@
 
 /**
  * functions/account-lifecycle.js — the pure rules Set up accounts and the admin reset apply at the
- * edges of an account's life (sign-in audit, Nov 2026). Requires nothing: no Firebase, no HTTP, so
- * every rule is tested on its own (account-lifecycle.test.mjs) and through the real handlers
- * (auth-endpoints.test.mjs). auth-endpoints.js is the orchestration around them.
+ * edges of an account's life (sign-in audit, Nov 2026). No Firebase, no HTTP — it requires only the
+ * pure roster-parse-helpers.js — so every rule is tested on its own (account-lifecycle.test.mjs) and
+ * through the real handlers (auth-endpoints.test.mjs). auth-endpoints.js is the orchestration.
  *
  * ── A PASSWORD WRITE THAT THROWS IS EITHER REFUSED OR UNKNOWN (audit E1) ─────────────────────────
  *
@@ -31,7 +31,18 @@
  * tokens: `requireAdmin` verifies with `checkRevoked`, so the Cloud Functions refuse the old tier at
  * once (the Firestore rules read the token itself, and catch up when it renews). Never for the same
  * tier or a higher one: a revocation signs the member out of every device.
+ *
+ * ── A LEAVER ALREADY DISABLED CAN STILL BE SENT EVERY BROADCAST (audit D2) ─────────────────────
+ *
+ * The confirmed leaver sweep disables an account and deletes the push records it owns. But a phone
+ * still holding a valid ID token — up to an hour after the sweep — can save its record again, because
+ * the push-record rule cannot see `disabled`; `fanOutPush` consults no owner, so that phone went on
+ * receiving every Huddle and document. And no later run looked again, because the sweep's filter skips
+ * a disabled account. So every confirmed run also releases the records of the leavers already
+ * disabled — the same accounts the sweep would take, judged by its own filter (`computeOrphanLabels`),
+ * which keeps the shared Calendar PIN account and every current member out of it.
  */
+const { computeOrphanLabels } = require('./roster-parse-helpers');
 
 /** Auth codes that PROVE a password write changed nothing — the header says why the list is short. */
 const PASSWORD_WRITE_REFUSALS = new Set([
@@ -95,4 +106,18 @@ function elevatedClaimsLost(before, after) {
     return ELEVATED_CLAIMS.filter((k) => has(before, k) && !has(after, k) && !(k === 'manager' && has(after, 'admin')));
 }
 
-module.exports = { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS };
+/**
+ * The uids of the leaver accounts that are ALREADY disabled (the header, D2): exactly the accounts the
+ * sweep would take if they were still enabled — asked of `computeOrphanLabels` itself rather than a
+ * restated filter, so the two can never disagree about who is a leaver, a member or the PIN account.
+ * @param {Array<{ uid?: string, email?: string, disabled?: boolean, customClaims?: any }>|undefined} users
+ * @param {Set<string>} activeEmails  the current roster's account emails, as the sweep holds them
+ * @returns {string[]}
+ */
+function disabledLeaverUids(users, activeEmails) {
+    const disabled = (Array.isArray(users) ? users : []).filter((u) => u && u.disabled === true);
+    return computeOrphanLabels(disabled.map((u) => ({ ...u, disabled: false })), activeEmails)
+        .map((o) => o.uid).filter((uid) => typeof uid === 'string' && uid !== '');
+}
+
+module.exports = { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids };

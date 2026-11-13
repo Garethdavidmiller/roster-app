@@ -43,7 +43,7 @@ const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push'
 const { requireAdmin, readJsonBody } = require('./request-helpers');
 const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('./member-identity');
 const { buildResetRequestEndpoint } = require('./reset-request');
-const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost } = require('./account-lifecycle');
+const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids } = require('./account-lifecycle');
 
 /**
  * Stamp `passwordStatus/{member}.resetAt`, the marker a device's SILENT sign-in is refused against
@@ -344,7 +344,7 @@ const setupRosterAuth = onRequest(
         // `confirmOrphanRemoval` disables + REVOKES, so an open session stops being accepted within the
         // hour. Wrapped so a listUsers failure cannot 500 the request AFTER the loop above ran, and
         // throw away the report of what WAS provisioned (v16.23): a partial report + orphanSweepFailed.
-        let orphanSweepFailed = false;
+        let orphanSweepFailed = false, disabledLeaverPushRemoved = 0;
         const orphansToDisable = [];  // dry-run preview: labels that WOULD be disabled
         if (removeOrphans) {
             try {
@@ -380,12 +380,21 @@ const setupRosterAuth = onRequest(
                             console.error(`[setupRosterAuth] Failed to disable ${label}: ${err.message}`);
                         }
                     }
+                    // And the leavers ALREADY disabled (sign-in audit D2): a phone with a token still valid
+                    // after the sweep can save its push record again. Every confirmed run releases them —
+                    // idempotent, never listed as newly disabled, and never the PIN account (account-lifecycle.js).
+                    if (confirmOrphanRemoval) for (const uid of disabledLeaverUids(page.users, activeEmails)) {
+                        try { disabledLeaverPushRemoved += await releasePushForOwner(uid); } catch (pushErr) {
+                            console.warn(`[setupRosterAuth] Could not remove push records of a disabled leaver: ${pushErr.message}`);
+                        }
+                    }
                     pageToken = page.pageToken;
                 } while (pageToken);
             } catch (err) {
                 orphanSweepFailed = true;
                 console.error(`[setupRosterAuth] Leaver sweep failed (accounts above were still processed): ${err.message}`);
             }
+            if (confirmOrphanRemoval) console.log(`[setupRosterAuth] Removed ${disabledLeaverPushRemoved} push record(s) of leavers already disabled`);
         }
 
         res.json({
@@ -394,6 +403,7 @@ const setupRosterAuth = onRequest(
             // Present only for a removeOrphans request WITHOUT confirm — the admin previews these,
             // then re-submits with confirmOrphanRemoval:true to actually disable them.
             ...(removeOrphans && !confirmOrphanRemoval ? { orphanDryRun: true, orphansToDisable } : {}),
+            ...(removeOrphans && confirmOrphanRemoval ? { disabledLeaverPushRemoved } : {}),
         });
     }
 );
