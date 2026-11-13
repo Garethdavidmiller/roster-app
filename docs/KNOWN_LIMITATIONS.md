@@ -283,41 +283,6 @@ Firestore's own range moves past 1.9.
 Each of the update bot's major versions is a decision of its own; `.github/dependabot.yml` says which
 dependencies it leaves alone, and why.
 
-## The Cloud Functions' production-dependency advisories
-
-**This tree is served, unlike the one above, so it is tracked on its own** (external review,
-12 Nov 2026). `npm audit --omit=dev --prefix functions` reported six moderate findings that day,
-none high or critical, from TWO advisories: `glob` (GHSA-3g3m-2fjr-6pw4 — a search told to stop can
-go on reading the disk) and `minimatch` (GHSA-g3hv-75wg-m249 — some patterns cost so much to match
-that they can tie up the process). The six are one chain counted package by package:
-`firebase-admin` → `@google-cloud/firestore` 9.4.0 → `@google-cloud/firestore-api` 0.2.0 →
-`google-gax` 5 and `gaxios` 7.1, both of which list `rimraf` 5 as a RUNTIME dependency → `glob` 10 →
-`minimatch` 9.
-
-**Not reachable — checked 12 Nov 2026, not assumed.** No file that `google-gax` or `gaxios` ships
-loads `rimraf`: it is a build tool both list by mistake. Nothing else in the production tree loads
-`glob`, `minimatch` or `rimraf`; the one other match is a tool NAMED "glob" in the Anthropic SDK's
-agent toolset, and `functions/index.js` loads only the SDK's main entry. The vulnerable code is
-installed and never called, and no request any endpoint accepts is a file pattern. Re-check that if
-a new Functions dependency arrives before the fix below.
-
-**The fix exists, and waits until 24 Nov 2026 on purpose.** `@google-cloud/firestore` 9.4.1
-(released 10 Nov 2026) moves to `firestore-api` 0.7, on `google-gax` 6, and the whole chain drops
-out. It is inside `firebase-admin`'s own range, so `functions/package.json` does not change:
-`npm update @google-cloud/firestore --prefix functions` rewrites the lockfile only — two packages move,
-39 leave, none arrive — and the audit then reports nothing. Tried on 12 Nov 2026 in a scratch copy:
-the Functions tests, the rules tests and the signed-in journeys all passed on it, the last being the
-lane that runs the REAL Functions and so the new client itself. It is held because this repo adopts
-no release in its first two weeks (the update bot's cooldown in `.github/dependabot.yml` — a release
-that is withdrawn usually goes within days), and unreachable moderate findings do not justify the
-exception. `npm audit fix` still changes nothing: it does not take a parent's update, which is the
-only route. **To do it:** `MAINTENANCE_CALENDAR.md` → 24 Nov 2026. Then delete this section.
-
-**Not forced with `overrides`.** `glob` 10 and `minimatch` 9 have no fixed release at all, so an
-override would mean new MAJOR versions under Google's client, which it does not declare, for findings
-it cannot reach. The weekly `functions-audit.yml` fails only on a high or critical finding, so
-moderate drift here is caught only by looking (`SECURITY_RELEASE_PLAN.md` → A1).
-
 ## The test matrix and the phones staff carry
 
 Both WebKit lanes run at the iPhone Pro geometry staff carry (`IPHONE_PRO_VIEWPORT` in
