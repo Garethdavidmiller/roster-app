@@ -343,14 +343,31 @@ const ingestHuddle = onRequest(
             // re-issued outside any transaction, and an equally idempotent `set` then overwrote a
             // competing upload's file reference. Same operation, no transaction, real data loss.
             // Do not cite this comment when reasoning about a write that is not in one.
+            //
+            // A RE-RUN THAT FINDS ITS OWN RECORD WRITES NOTHING (13 Nov 2026). Firestore also runs the
+            // transaction again after a commit whose ANSWER was lost, and that attempt reads the record
+            // the first one wrote. Setting it again was not harmless: Operations → Document links may
+            // have moved the record's link onto a new key in between, and writing the first link back
+            // left it naming a key that run then took away — a dead stored link (doc-link-rotation.js).
+            // Nobody else writes this path, whose uploadId is this request's, so a record naming it is
+            // this ingest's own, whatever key it carries: it is left exactly as it is. The answer is what
+            // the attempt that wrote it saw, so a first upload is still announced — before, the re-run
+            // read its own record as a re-send and stayed silent.
             /** @type {{ existed: boolean, replacedBy: any }} */
             let written = { existed: false, replacedBy: null };
+            /** What the last attempt that WROTE saw before writing: a re-run's answer (above). @type {{ existed: boolean, replacedBy: any }|null} */
+            let seenByWrite = null;
             const huddleRef = getFirestore().collection('huddles').doc(date);
             try {
                 written = await getFirestore().runTransaction(async tx => {
                     const snap = await tx.get(huddleRef);
+                    const cur = snap.exists ? (snap.data() || {}) : null;
                     // WHO wrote what this replaces is what separates a re-send from a new arrival.
-                    const before = { existed: snap.exists, replacedBy: snap.exists ? (snap.data() || {}).uploadedBy : null };
+                    const before = { existed: snap.exists, replacedBy: cur ? cur.uploadedBy : null };
+                    // This ingest's own earlier attempt, committed: the same path, any key (above).
+                    // (`?? before` cannot apply: only an attempt that wrote can have put this path here.)
+                    if (cur && cur.storagePath === storagePath) return seenByWrite ?? before;
+                    seenByWrite = before;
                     tx.set(huddleRef, firestoreDoc);
                     return before;
                 });
@@ -848,7 +865,7 @@ const sendTimetableReminder = onSchedule(
             // Counts only: the admin who pressed it is the only possible caller, and the paths of any
             // failures travel back in the answer, where the admin can act on them.
             console.log(`[rotateDocumentLinks] ${rotate ? 'rotated' : 'previewed'}: ${report.files} files, `
-                + `${report.linked} linked, ${report.unlinkedWithKey} unlinked with a key, `
+                + `${report.linked} linked (${report.recordsDeadLink} dead stored links), ${report.unlinkedWithKey} unlinked with a key, `
                 + `${report.unlinkedTooNew} too new to clear, ${report.held} held; `
                 + `rotated ${report.rotated}, cleared ${report.cleared}, changed ${report.changedDuringRun}, `
                 + `failed ${report.failed.length}`);

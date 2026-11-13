@@ -383,6 +383,14 @@ way (DECISIONS.md). The grant is very probably in place: `unlockCalendarViewer` 
 account and depends on the same grant (RECOVERY_RUNBOOK.md → 5b). Confirm by opening a document and
 looking for `storage.googleapis.com` rather than `firebasestorage` in the opened address.
 
+**That fallback can go dead, and Check says so.** A document's stored link can come to name a key its
+file no longer carries: a browser's upload write re-sent after its acknowledgement was lost puts the
+upload's first link back over one Operations → Document links had replaced (`documents-client.js` says
+why that write is not guarded), and a document saved more than a day after its file can miss the key a
+run took away. Members still open the document through the 15-minute link; only the fallback above is
+broken. Document links → Check counts such documents and says so, and Replace gives each one a working
+link (`functions/doc-link-rotation.js`).
+
 **Tightening the Firestore read rules does not put these documents behind authentication.** It
 changes who can *discover* a URL; anyone who has ever held a permanent one — a forwarded link,
 browser history, a synced bookmark — keeps access until the object is deleted or rotated, and

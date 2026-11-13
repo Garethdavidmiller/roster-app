@@ -10,8 +10,9 @@
  *    request never left — never on a 503 the platform sent when an instance died halfway through
  *    the writes, and never on a timeout.
  *  - CLAIMING IT IS DONE WHEN IT IS NOT. A run that changed nothing and failed on a file must not
- *    lead with "Done.", and neither an answer this card cannot read nor a preview that could not
- *    check its files is shown as "nothing to replace".
+ *    lead with "Done.", neither an answer this card cannot read nor a preview that could not check
+ *    its files is shown as "nothing to replace", and a document whose stored link no longer opens
+ *    its file is named as such — never left among the files simply "in use".
  *  - ASKING FOR A RUN BY ACCIDENT. The body says `rotate: true` only when the caller passed `true`
  *    itself; anything else is a preview, as it is on the server.
  * The wiring — the confirm, the buttons, the request leaving the real page — is e2e/operations.spec.js.
@@ -25,6 +26,24 @@ import {
 import { FETCH_TIMEOUT_CODE } from './fetch-timeout.js';
 
 const { rotateDocumentLinks, downloadUrl } = createRequire(import.meta.url)('./functions/doc-link-rotation.js');
+
+const BUCKET = 'myb-roster.appspot.com';
+const FILES = ['huddles/2026-11-12-a1.pdf', 'circulars/2026-11-06-b2.docx'];
+const DEAD_ONE = '1 document’s link no longer opens its file. Staff still open the document — the app opens it with a fresh link of its own, and uses this one only if that fails. Replacing the links fixes it.';
+
+/**
+ * The REAL server's preview over minimal fakes, read by this card: the contract between the two, which
+ * hand-built reports cannot see.
+ * @param {Record<string, () => Promise<any>>} files  path → what its getMetadata does
+ * @param {Record<string, any[]>} records  collection → its records' data
+ */
+async function serverPreview(files, records) {
+    const bucket = { name: BUCKET, getFiles: async (/** @type {{ prefix: string }} */ { prefix }) =>
+        [Object.keys(files).filter(p => p.startsWith(prefix)).map(name => ({ name, getMetadata: files[name] }))] };
+    const db = { collection: (/** @type {string} */ name) => ({ get: async () => ({
+        docs: (records[name] || []).map((d, i) => ({ ref: { path: `${name}/${i}` }, data: () => d })) }) }) };
+    return describePreview(await rotateDocumentLinks({ bucket, db, newKey: () => 'k' }));
+}
 
 /** A report as the server sends one; `over` replaces fields. @param {Record<string, any>} [over] */
 const report = (over = {}) => ({
@@ -164,36 +183,45 @@ describe('describePreview — what a run would touch, and only from an answer it
         assert.ok(mixed?.lines.includes('2 files from the last day aren’t used by the app, so their links are left working, in case uploads are still saving the documents that use them. Check again tomorrow to finish them.'));
     });
 
-    test('an older server’s report, without the newest count, still reads — a malformed one does not', () => {
+    test('an older server’s report, without the newer counts, still reads — a malformed one does not', () => {
         // Functions and Hosting deploy in parallel, so this card can meet a server that predates the count.
         const older = report({ files: 2, linked: 1, unlinkedWithKey: 1 });
-        assert.ok(!('unlinkedTooNew' in older));
+        assert.ok(!('unlinkedTooNew' in older) && !('recordsDeadLink' in older));
         assert.equal(describePreview(older)?.canReplace, true);
         assert.equal(describeResult({ ...older, rotate: true, rotated: 1, cleared: 1 })?.ok, true);
-        for (const bad of [-1, 1.5, '1', null]) {
-            assert.equal(describePreview(report({ files: 1, unlinkedTooNew: bad })), null, JSON.stringify(bad));
-            assert.equal(describeResult(report({ rotate: true, unlinkedTooNew: bad })), null, JSON.stringify(bad));
+        for (const field of ['unlinkedTooNew', 'recordsDeadLink']) {
+            for (const bad of [-1, 1.5, '1', null]) {
+                assert.equal(describePreview(report({ files: 1, [field]: bad })), null, `${field}: ${JSON.stringify(bad)}`);
+                assert.equal(describeResult(report({ rotate: true, [field]: bad })), null, `${field}: ${JSON.stringify(bad)}`);
+            }
         }
     });
 
     test('the server’s own preview, when no file’s keys could be read, is read as "couldn’t check" (the real module)', async () => {
-        // Through the real rotation: a stored link it cannot read, carrying a key, makes it read every
-        // file's keys — and every read fails.
-        const B = 'myb-roster.appspot.com';
-        const files = ['huddles/2026-11-12-a1.pdf', 'circulars/2026-11-06-b2.docx'];
-        const bucket = { name: B, getFiles: async (/** @type {{ prefix: string }} */ { prefix }) => [files.filter(p => p.startsWith(prefix))
-            .map(name => ({ name, getMetadata: async () => { throw new Error('read failed'); } }))] };
-        /** @type {Record<string, any[]>} */
-        const records = {
-            huddles: [{ storageUrl: downloadUrl(B, files[0], 'old-h') }],
-            circulars: [{ storageUrl: downloadUrl(B, files[1], 'old-c') }],
-            newsletters: [{ storageUrl: 'https://example.com/n.pdf?token=zzz' }],
-        };
-        const db = { collection: (/** @type {string} */ name) => ({ get: async () => ({
-            docs: (records[name] || []).map((d, i) => ({ ref: { path: `${name}/${i}` }, data: () => d })) }) }) };
-        const said = describePreview(await rotateDocumentLinks({ bucket, db, newKey: () => 'k' }));
+        const fails = async () => { throw new Error('read failed'); };
+        const said = await serverPreview({ [FILES[0]]: fails, [FILES[1]]: fails }, {
+            huddles: [{ storageUrl: downloadUrl(BUCKET, FILES[0], 'old-h') }],
+            circulars: [{ storageUrl: downloadUrl(BUCKET, FILES[1], 'old-c') }],
+        });
         assert.equal(said?.canReplace, false);
         assert.match(said?.lines[0] ?? '', /^2 files couldn’t be checked, so it isn’t known yet/);
+    });
+
+    test('a document whose link no longer opens its file says what that means for staff, and that Replace fixes it', () => {
+        const one = describePreview(report({ files: 2, linked: 2, recordsDeadLink: 1 }));
+        assert.ok(one);
+        assert.equal(one.canReplace, true);
+        assert.equal(one.lines[1], DEAD_ONE, 'said beside the files in use it belongs to');
+        assert.ok(describePreview(report({ files: 3, linked: 2, recordsDeadLink: 2 }))?.lines.includes(
+            '2 documents’ links no longer open their files. Staff still open the documents — the app opens them with fresh links of its own, and uses these only if that fails. Replacing the links fixes them.'));
+        assert.ok(!describePreview(report({ files: 2, linked: 2 }))?.lines.some(l => /no longer opens? (its|their) file/.test(l)));
+    });
+
+    test('the server’s own preview of a dead stored link names it, and offers Replace for it (the real module)', async () => {
+        const noKey = async () => [{ name: FILES[0], generation: 1, metageneration: 1, metadata: {} }];
+        const said = await serverPreview({ [FILES[0]]: noKey }, { huddles: [{ storageUrl: downloadUrl(BUCKET, FILES[0], 'gone') }] });
+        assert.equal(said?.canReplace, true, 'Replace is what mends it, so it must be offered');
+        assert.ok(said?.lines.includes(DEAD_ONE), said?.lines.join(' / '));
     });
 });
 

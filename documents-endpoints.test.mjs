@@ -85,6 +85,10 @@ function makeDb(seed = {}) {
     /** Runs ONCE, right after the stale-date query has answered — a write landing between the query
      *  and the delete it decided on (v25.89). @type {(() => void)|null} */
     let afterStaleQuery = null;
+    /** The next transaction's commit LANDS but its answer is lost: this runs, and then Firestore runs
+     *  the whole transaction again, as the Admin SDK does after a lost commit answer. Fires once.
+     *  @type {(() => Promise<void>|void)|null} */
+    let lostCommitAnswer = null;
     // A snapshot holds the data AS READ, like Firestore's: a lazy `() => store.get(path)` would show a
     // transaction the write it made after reading, which the real SDK never does.
     const snapFor = (/** @type {string} */ path) => {
@@ -135,7 +139,7 @@ function makeDb(seed = {}) {
         }),
         runTransaction: async (/** @type {(tx: any) => any} */ fn) => {
             if (txError) throw txError;
-            return fn({
+            const tx = {
                 get: async (/** @type {any} */ ref) => snapFor(ref.path),
                 set: (/** @type {any} */ ref, /** @type {any} */ data) => { store.set(ref.path, data); },
                 delete: (/** @type {any} */ ref) => { store.delete(ref.path); deletes.push(ref.path); },
@@ -143,12 +147,18 @@ function makeDb(seed = {}) {
                 update: (/** @type {any} */ ref, /** @type {any} */ data) => {
                     store.set(ref.path, { ...(store.get(ref.path) || {}), ...data });
                 },
-            });
+            };
+            const first = await fn(tx);
+            const lost = lostCommitAnswer; lostCommitAnswer = null;
+            if (!lost) return first;
+            await lost();
+            return fn(tx);
         },
     };
     return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; },
         failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; },
-        afterStaleQuery: (/** @type {() => void} */ fn) => { afterStaleQuery = fn; } };
+        afterStaleQuery: (/** @type {() => void} */ fn) => { afterStaleQuery = fn; },
+        loseCommitAnswerOnce: (/** @type {() => Promise<void>|void} */ fn) => { lostCommitAnswer = fn; } };
 }
 
 /**
@@ -482,6 +492,34 @@ describe('ingestHuddle — the happy path, executed to its side effects', () => 
 // near 350 MB, before the Storage and Firestore clients — and the HTML that comes out of anything
 // that size is millions of characters, far over the cap, and thrown away. A killed instance writes
 // nothing, notifies nobody, and staff keep reading yesterday's Huddle.
+// Firestore runs the record transaction again after a commit whose ANSWER was lost, and that attempt
+// reads the record the first one wrote. If Operations → Document links ran in between, the record's link
+// had been moved onto a new key and the first key taken away; setting the record again put the first
+// link back, naming a key its file no longer carries. Driven here through BOTH real handlers.
+describe('ingestHuddle — a re-run of its record transaction never undoes a link Replace gave the record', () => {
+    test('Replace landing between the commit and the re-run keeps its link: the re-run writes nothing over it', async () => {
+        const b = build();
+        b.setClaims({ admin: true });   // the Replace run's door; the ingest's is its bearer secret
+        b.loseCommitAnswerOnce(async () => {
+            const run = await askToRotate(b.eps, { rotate: true });
+            assert.equal(run.body.rotated, 1, JSON.stringify(run.body));
+        });
+        assert.equal((await ingest(b.eps, {})).code, 200);
+        const doc = b.store.get('huddles/2026-08-30');
+        assert.equal(doc.storagePath, b.saved[0].path);
+        const keys = String(b.meta.get(doc.storagePath)?.firebaseStorageDownloadTokens ?? '').split(',');
+        assert.ok(keys.includes(String(new URL(doc.storageUrl).searchParams.get('token'))),
+            `the re-run wrote its first link back: the record holds a key its file no longer has (${keys})`);
+    });
+
+    test('a first upload whose commit answer was lost is still announced, once', async () => {
+        const b = build();
+        b.loseCommitAnswerOnce(() => {});
+        assert.equal((await ingest(b.eps, {})).code, 200);
+        assert.equal(b.sends.length, 1, 'the re-run read its own record as a re-send, and a new Huddle went unannounced');
+    });
+});
+
 describe('a large .docx Huddle is stored without a conversion whose HTML could never be kept', () => {
     const mammothPath = require.resolve('mammoth', { paths: [fnDir] });
     /** A file that passes the .docx signature check, of exactly `bytes` bytes. */

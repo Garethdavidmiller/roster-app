@@ -52,9 +52,33 @@
  *     lost its signal between saving the file and saving the record sends the record when it next
  *     connects, which may be days later.
  * The unused files are written first, straight after that look, so the window it leaves is as short as
- * it can be. A record later still — after the key has gone — is the one case neither check reaches.
- * Its file is a day old by then, and the member still opens it, because the 15-minute link is signed
- * from the path; Replace gives that record a working link again, as it gives any record a new one.
+ * it can be. A record later still — after the key has gone — is the one case neither check reaches: it
+ * arrives holding a link that no longer opens its file. The next check counts it, and Replace mends it
+ * (below).
+ *
+ * ── A STORED LINK THAT NO LONGER OPENS ITS FILE (13 Nov 2026) ────────────────
+ * A record can hold a link whose key its file no longer carries. Three ways: the late record above;
+ * a browser's record write re-sent after its acknowledgement was lost, which puts the upload's first
+ * link back over the one a run had given it (documents-client.js says why that write is not guarded);
+ * and, until it was guarded, ingestHuddle's record transaction run again after a lost commit answer
+ * (./documents.js). Members still open the document, because the 15-minute link is signed from the
+ * PATH — only the fallback is broken, the link a member is handed when that cannot be had. Such a
+ * record is counted in `recordsDeadLink`, and only on a file a run will rotate, because a run is what
+ * mends it: MIGRATE moves a dead link onto the new key exactly as it moves a working one, so the record
+ * ends the run opening its file. A dead link on a HELD file is not counted: a run leaves that file
+ * alone, so Replace could not mend it.
+ *
+ * ── EVERY FILE'S KEYS ARE READ FRESH, NEVER FROM THE LISTING ────────────────
+ * The keys are read from the file itself wherever they decide anything: whether a run touches an
+ * unused file at all, whether a link this cannot read may open a file, and whether each record of a
+ * file in use still opens it (`recordsDeadLink`). The last decides no write — a run moves a dead link
+ * exactly as it moves a working one — and the listing already carries the keys, for nothing. It is
+ * read fresh all the same, for two reasons. It is the only way the admin learns that a stored link is
+ * broken, and Replace is pressed on its word. And the listing carries the keys only incidentally: one
+ * that arrived without them — a narrower field list, a library change — would report every stored
+ * link in the app as broken, where a fresh read that fails is counted as a file it could not check.
+ * The cost is one read per file per check, a few hundred at most; a run's first step still reads the
+ * keys again immediately before it writes.
  *
  * ── EVERY WRITE IS A COMPARE-AND-SET ─────────────────────────────────────────
  * A key is written only if the file is still the object it was when its keys were read
@@ -276,6 +300,8 @@ async function eachLimited(items, limit, fn) {
  *                                          their record, so they keep it, for a run the next day
  * @property {number}  unlinkedWithoutKey   files no record points at, already without a key
  * @property {number}  held                 files a link this cannot read may open: never touched
+ * @property {number}  recordsDeadLink      records of files in use whose stored link names a key the file no
+ *                                          longer carries: dead until a run moves them onto the new key
  * @property {number}  recordsMissingFile   records whose stored link opens a file that is not there
  * @property {number}  recordsUnreadable    records whose stored link this cannot read (left alone)
  * @property {number}  recordsWithoutLink   records with no stored link at all
@@ -316,7 +342,7 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
     const report = {
         rotate: rotate === true,
         files: files.length, linked: 0, unlinkedWithKey: 0, unlinkedTooNew: 0, unlinkedWithoutKey: 0, held: 0,
-        recordsMissingFile, recordsUnreadable, recordsWithoutLink,
+        recordsDeadLink: 0, recordsMissingFile, recordsUnreadable, recordsWithoutLink,
         rotated: 0, cleared: 0, changedDuringRun: 0, failed: [],
     };
 
@@ -324,18 +350,22 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
     const plan = [];
     await eachLimited(files, limit, async (file) => {
         const refs = linkedBy.get(file.name);
-        // A file's keys are read FRESH, not trusted from the listing, wherever they decide anything:
-        // an unlinked file's decide whether a run touches it at all, and any file's decide whether a
-        // link this cannot read may open it. Its age is read from the same answer, so it is the age
-        // of the very object a clear is guarded on.
-        let meta = null;
-        if (!refs || heldKeys.size) {
-            try { [meta] = await file.getMetadata(); }
-            catch (_) { report.failed.push({ path: file.name, step: 'read' }); return; }
-            if (keysOf(meta).some(k => heldKeys.has(k))) { report.held++; return; }
+        // EVERY file's keys are read FRESH, never trusted from the listing (the header says why). An
+        // unused file's age is read from the same answer, so it is the age of the very object a clear
+        // is guarded on.
+        let meta;
+        try { [meta] = await file.getMetadata(); }
+        catch (_) { report.failed.push({ path: file.name, step: 'read' }); return; }
+        const keys = keysOf(meta);
+        if (keys.some(k => heldKeys.has(k))) { report.held++; return; }
+        if (refs) {
+            report.linked++;
+            // A stored link naming a key this file no longer carries: dead, and mended by a run (the header).
+            report.recordsDeadLink += refs.filter(({ url }) => !keys.includes(tokenOfAnyLink(url) ?? '')).length;
+            plan.push({ file, refs });
+            return;
         }
-        if (refs) { report.linked++; plan.push({ file, refs }); return; }
-        if (!keysOf(meta).length) { report.unlinkedWithoutKey++; return; }
+        if (!keys.length) { report.unlinkedWithoutKey++; return; }
         // Too new to be sure nothing will name it: an upload may still be writing its record (the
         // header). An age that cannot be read is not old enough — a stray key costs one more run, a
         // switched-off one is a record holding a dead link.

@@ -464,7 +464,8 @@ ever wanted (AUTH_PLAN.md §5).
 
 **How:**
 1. Operations → **Document links** → **Check the links**. This only counts, and says what a run would
-   touch: files in use; older files no record uses (their link is switched off, the file is never
+   touch: files in use; documents whose stored link no longer opens their file (a run gives each a
+   working one); older files no record uses (their link is switched off, the file is never
    deleted); documents whose file is gone; and stored links this cannot read. An unused file from the
    last day keeps its link: an upload saves its file before the document that names it, so a file
    that new may be one still being saved. A check the next day offers it.
@@ -475,6 +476,7 @@ ever wanted (AUTH_PLAN.md §5).
 | Done. N files have new links | every old copy of those links is dead | nothing |
 | N files couldn't be changed, and their old links still work | a write failed; each such file stopped at the step it reached, its stored link still working | press Replace again — safe |
 | N files changed while this ran | an upload, or a run in another tab, landed mid-run; those files were left alone | Check again, and Replace if it is offered |
+| N documents' links no longer open their files | each stored link names a key its file no longer carries — a document saved after a run had taken its file's key away, or a browser's upload write re-sent after its answer was lost. Staff still open the document through the app's 15-minute link; only the fallback is broken | press Replace — a run gives each one a working link |
 | N files from the last day aren't used by the app, so their links were left working | an upload may still be saving the document that names them; a run takes the key only from an unused file at least a day old | Check again tomorrow, and Replace if it is offered |
 | N files are left as they are, old links and all | a stored link this cannot read may open them, and touching them could break it | the unreadable links need looking at in a session; the card cannot fix them |
 | N files couldn't be checked, so it isn't known yet whether there is anything to replace | the check could not read those files' keys; nothing changes on a check | Check again in a minute |
