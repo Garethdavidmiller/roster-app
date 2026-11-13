@@ -2907,6 +2907,21 @@ window is narrow, from reconnecting until the queue is sent, normally about a se
 is to wait for the device's pending writes (`waitForPendingWrites`) before any checked delete. Revisit
 if a deleted day that came back is ever reported.
 
+### `withTimeout`, kept as two copies on purpose — CLOSED v25.68
+
+The first of "Two twins kept apart on purpose", under "Left open by the full check of 3 November
+2026". The whole-app check of 10 Nov 2026 (v25.68) made it one copy: `login-overlay.js` imports
+`withTimeout` from `password-force.js` (its comment there: the card's copy "differed only in the
+error's code", and every page that loads the card statically already loads `password-force.js`), so
+the sign-in card's deadline rejects with `myb/timeout` too. The entry went on saying otherwise until the
+v26.00 review. The other twin, `fip-guide.js`'s chip-bar blocks, stays in KNOWN_LIMITATIONS.md. The
+half that closed, as it stood:
+
+> - **Two twins kept apart on purpose.** `withTimeout` (`login-overlay.js`, `password-force.js`):
+>   login's copy ignores the error and the other's callers read its `myb/timeout` code, and sharing
+>   one would pull the Firebase module graph into the sign-in overlay's unit tests or need a new
+>   module, for six lines.
+
 ## Moved out of ROADMAP.md (7 Nov 2026)
 
 Finished work and closed indexes, moved **verbatim** by line range from `ROADMAP.md` as it stood at
