@@ -43,6 +43,7 @@ const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push'
 const { requireAdmin, readJsonBody } = require('./request-helpers');
 const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('./member-identity');
 const { buildResetRequestEndpoint } = require('./reset-request');
+const { passwordWriteRefused, unwrittenResetAnswer } = require('./account-lifecycle');
 
 /**
  * Stamp `passwordStatus/{member}.resetAt`, the marker a device's SILENT sign-in is refused against
@@ -50,12 +51,27 @@ const { buildResetRequestEndpoint } = require('./reset-request');
  * FIRST and stops if it throws (functions-core-2): the default is what a forgotten device signs itself
  * back in with, so a stamp failing after the reset let the very phone it was meant to sign out return.
  * A stamp for a reset that then fails costs one typed sign-in, which the admin asked for anyway.
+ * `remember` (the admin reset) first reads the stamp being replaced, so a REFUSED password write can
+ * put it back (`restoreResetAt`, sign-in audit E1); the write's time pins that restore to this stamp.
  * @param {string} member
- * @returns {Promise<void>}
+ * @param {{ remember?: boolean }} [opts]
+ * @returns {Promise<{ previous: any, writeTime: any }>}  `previous` undefined when there was none or not asked
  */
-async function stampResetAt(member) {
-    await getFirestore().collection('passwordStatus').doc(member).set(
-        { resetAt: FieldValue.serverTimestamp() }, { merge: true });
+async function stampResetAt(member, { remember = false } = {}) {
+    const ref = getFirestore().collection('passwordStatus').doc(member);
+    const previous = remember ? (await ref.get()).get('resetAt') : undefined;
+    const { writeTime } = await ref.set({ resetAt: FieldValue.serverTimestamp() }, { merge: true });
+    return { previous, writeTime };
+}
+/**
+ * Put back the `resetAt` a REFUSED password write was stamped over — or remove the field, where there was
+ * none — but only while the document is exactly as that stamp left it (`lastUpdateTime`): a second reset,
+ * or a password set since, keeps the newer state, a stale stamp being the safe direction.
+ * @param {string} member  @param {{ previous: any, writeTime: any }} stamp  stampResetAt's answer
+ */
+async function restoreResetAt(member, { previous, writeTime }) {
+    await getFirestore().collection('passwordStatus').doc(member).update(
+        { resetAt: previous === undefined ? FieldValue.delete() : previous }, { lastUpdateTime: writeTime });
 }
 const { isViewerAccount } = require('./calendar-viewer-auth');
 const rosterMembers = require('./roster-members.json');
@@ -418,16 +434,29 @@ const resetMemberPassword = onRequest(
             // THE STAMP FIRST, AND IT MUST LAND (functions-core-2). resetAt is what keeps the other
             // devices out once the password is the surname default (AUTH_AND_SESSIONS.md 23); stamped
             // after, a failed write let the lost phone straight back in. No stamp, nothing changes.
+            let stamp;
             try {
-                await stampResetAt(member);
+                stamp = await stampResetAt(member, { remember: true });
             } catch (stampErr) {
                 console.error('[resetMemberPassword] resetAt stamp failed — nothing was changed for', member,
                               stampErr && stampErr.code, stampErr);
                 return res.status(503).json({ error: 'Could not record the reset, so nothing was changed — try again' });
             }
-            await getAuth().updateUser(user.uid, takeBack
-                ? { password, displayName: member, disabled: false, ...unlinkOtherProviders(user) }
-                : { password });
+            // A PASSWORD WRITE THAT THROWS (sign-in audit E1) was either REFUSED — nothing changed, so the
+            // stamp goes back — or its outcome is UNKNOWN, and the stamp stays: account-lifecycle.js.
+            try {
+                await getAuth().updateUser(user.uid, takeBack
+                    ? { password, displayName: member, disabled: false, ...unlinkOtherProviders(user) }
+                    : { password });
+            } catch (writeErr) {
+                let restored = false;
+                if (passwordWriteRefused(writeErr)) try { await restoreResetAt(member, stamp); restored = true; } catch (restoreErr) {
+                    console.error('[resetMemberPassword] the refused reset stays stamped for', member, restoreErr && restoreErr.code, restoreErr);
+                }
+                console.error('[resetMemberPassword] password write failed for', member, writeErr && writeErr.code, { restored }, writeErr);
+                const { status, error } = unwrittenResetAnswer(member, writeErr, { restored });
+                return res.status(status).json({ error });
+            }
             // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
             // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,
             // so a failure there took the whole call to the generic 500. The admin was told the

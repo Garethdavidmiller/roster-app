@@ -152,19 +152,29 @@ function makeDb(seed = {}) {
     // A snapshot holds what was there WHEN it was read; a write replaces the stored object, never edits it.
     const snapOf = (name, id) => {
         const d = col(name).get(id);
-        return { id, exists: d !== undefined, data: () => d || {} };
+        return { id, exists: d !== undefined, data: () => d || {}, get: (field) => (d || {})[field] };
     };
     const querySnap = (name) => ({ size: col(name).size, docs: [...col(name).keys()].map((id) => snapOf(name, id)) });
     const notFound = () => { const e = new Error('NOT_FOUND'); e.code = 5; return e; };
+    // A write answers with its time, as Firestore's WriteResult does: the document's version after it.
+    const writeTimeOf = (name, id) => ({ _v: version(`${name}/${id}`) });
     const db = {
         collection(name) {
             return {
-                doc: (id) => ({ id, _col: name, set: async (data) => merge(name, id, data),
+                doc: (id) => ({ id, _col: name,
+                    get: async () => snapOf(name, id),
+                    set: async (data) => { merge(name, id, data); return { writeTime: writeTimeOf(name, id) }; },
                     // Firestore's update() refuses a document that is not there (NOT_FOUND) — the
-                    // property a late write relies on to not re-create a row somebody cleared.
-                    update: async (data) => {
+                    // property a late write relies on to not re-create a row somebody cleared — and,
+                    // given a `lastUpdateTime`, one written since that time (FAILED_PRECONDITION, 9).
+                    update: async (data, precondition) => {
                         if (!col(name).has(id)) throw notFound();
+                        if (precondition && precondition.lastUpdateTime
+                            && precondition.lastUpdateTime._v !== version(`${name}/${id}`)) {
+                            throw Object.assign(new Error('FAILED_PRECONDITION'), { code: 9 });
+                        }
                         merge(name, id, data);
+                        return { writeTime: writeTimeOf(name, id) };
                     } }),
                 select: () => ({ _query: name, get: async () => querySnap(name) }),
             };
@@ -196,6 +206,8 @@ function makeDb(seed = {}) {
             throw Object.assign(new Error('ABORTED'), { code: 10 });
         },
         _dump: (name) => Object.fromEntries(col(name)),
+        /** A write from somewhere else — a member's own device, say — that no wrapper records. */
+        _write: (name, id, data) => merge(name, id, data),
         /** Another request's write landing on a collection somebody has read: its version moves. */
         _bump: (name) => versions.set(name, version(name) + 1),
         /** What the admin's Operations card does when a reset is done: the row goes. */
@@ -257,6 +269,11 @@ function build({
     usersPerPage = Infinity,
     releaseFail = null,
     stampFail = null,
+    // A refused reset's stamp cannot be put back (sign-in audit E1).
+    restoreFail = null,
+    // Runs as the password is written, before any injected failure: another device's write landing
+    // between the stamp and its restore. Given the db.
+    onPasswordWrite = null,
     // The reset request's answer floor (functions-core-4). 0 keeps this suite fast; `null` builds the
     // endpoint exactly as index.js does, with production's floor.
     answerFloorMs = 0,
@@ -295,6 +312,8 @@ function build({
     // when it was attempted. That is what puts the stamp and the credential change on ONE timeline,
     // so a test can ask which came first (functions-core-2). `stampFail` makes the write refuse.
     const stamps = [];
+    /** Every passwordStatus update — only a refused reset putting its stamp back makes one. */
+    const restores = [];
     const plainCollection = db.collection.bind(db);
     db.collection = (name) => {
         const c = plainCollection(name);
@@ -305,6 +324,10 @@ function build({
                 stamps.push({ member: id, at: authOps.length });
                 if (stampFail) throw new Error(stampFail);
                 return d.set(data, opts);
+            }, update: async (data, precondition) => {
+                restores.push({ member: id, data, precondition });
+                if (restoreFail) throw new Error(restoreFail);
+                return d.update(data, precondition);
             } };
         } };
     };
@@ -348,7 +371,9 @@ function build({
         },
         updateUser: async (uid, patch) => {
             authOps.push({ op: 'updateUser', uid, patch });
-            if (authFail.updateUser) throw new Error(authFail.updateUser);
+            if (onPasswordWrite && patch && 'password' in patch) await onPasswordWrite(db);
+            // `updateUserCode` gives the failure an Auth code, as the SDK's errors carry one.
+            if (authFail.updateUser) throw Object.assign(new Error(authFail.updateUser), authFail.updateUserCode ? { code: authFail.updateUserCode } : {});
             return { uid, ...patch };
         },
         revokeRefreshTokens: async (uid) => {
@@ -424,7 +449,7 @@ function build({
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
         ...(answerFloorMs === null ? {} : { resetRequestAnswerFloorMs: answerFloorMs }),
     });
-    return { eps, sends, db, authOps, users, released, releasedAt, stamps,
+    return { eps, sends, db, authOps, users, released, releasedAt, stamps, restores,
         /** Every held send answers, each accepted by `n` subscriptions. */
         acceptPush: (n) => { for (const resolve of held.splice(0)) resolve(n); } };
 }
@@ -2117,5 +2142,82 @@ describe('resetMemberPassword for a lost or stolen phone', () => {
         assert.deepEqual(sends.map((s) => s.uids), [[memberUid]]);
         assert.deepEqual(released, []);
         assert.deepEqual(out.body, { ok: true, member: MEMBER, revoked: true, stamped: true, notified: true });
+    });
+});
+
+// ── A PASSWORD WRITE THAT THROWS (sign-in audit E1, Nov 2026) ───────────────────────────────────
+//
+// resetAt is stamped FIRST (AUTH_AND_SESSIONS 23). When the password write then threw, the generic 500
+// left the stamp, so the member was shown back on their surname — Account status "Default", Settings,
+// the forced overlay — while their own password still worked. Now a REFUSAL (which proves nothing
+// changed) puts the stamp back, and an UNKNOWN outcome keeps it: the safe direction, because a missing
+// stamp would let an old device sign itself back in with the surname. account-lifecycle.js has the
+// rules; these drive the handler.
+describe('resetMemberPassword when the password write throws', () => {
+    const OLD = { toMillis: () => NOW - 30 * 24 * 3600 * 1000 };
+    const withOldStamp = { passwordStatus: { [MEMBER]: { resetAt: OLD, passwordSetAt: { toMillis: () => NOW - 3600_000 } } } };
+    const refused = (code) => ({ authFail: { updateUser: 'refused', updateUserCode: code } });
+    const after = (authOps, op) => authOps.filter((o) => o.op === op);
+
+    test('a REFUSED write puts the previous stamp back, and says nothing was changed', async () => {
+        const { eps, db, authOps, sends, released } = build({ seed: withOldStamp, ...refused('auth/invalid-password') });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, lostDevice: true }));
+        assert.equal(out.code, 409, JSON.stringify(out.body));
+        assert.match(out.body.error, /refused the new password[\s\S]*Nothing was changed\./);
+        assert.equal(db._dump('passwordStatus')[MEMBER].resetAt, OLD, 'the member would be shown back on their surname');
+        assert.ok(db._dump('passwordStatus')[MEMBER].passwordSetAt, 'and nothing else on the record moved');
+        assert.deepEqual(after(authOps, 'revokeRefreshTokens'), [], 'nobody is signed out of a reset that did not happen');
+        assert.deepEqual(sends, [], 'nor told of one');
+        assert.deepEqual(released, [], 'nor are their push records taken');
+    });
+
+    test('a refused write with NO earlier stamp removes the field, rather than leaving one', async () => {
+        const { eps, db } = build(refused('auth/invalid-password'));
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 409);
+        assert.ok(!('resetAt' in (db._dump('passwordStatus')[MEMBER] || {})), JSON.stringify(db._dump('passwordStatus')));
+    });
+
+    test('an account gone by the time of the write is a 404 — the stamp goes back there too', async () => {
+        const { eps, db } = build({ seed: withOldStamp, ...refused('auth/user-not-found') });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 404);
+        assert.match(out.body.error, /No Firebase account[\s\S]*Nothing was changed\./);
+        assert.equal(db._dump('passwordStatus')[MEMBER].resetAt, OLD);
+    });
+
+    for (const [what, code] of [['no code at all', undefined], ['a network error', 'app/network-error'],
+        ['an unknown service error', 'auth/internal-error'], ['a refusal of the read that follows the write', 'auth/quota-exceeded']]) {
+        test(`an UNKNOWN outcome (${what}) KEEPS the stamp, and says resetting again is safe`, async () => {
+            const { eps, db, authOps, restores } = build({ seed: withOldStamp, authFail: { updateUser: 'lost', updateUserCode: code } });
+            const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+            assert.equal(out.code, 500);
+            assert.match(out.body.error, /isn't known whether[\s\S]*Resetting again is safe\./);
+            assert.notEqual(db._dump('passwordStatus')[MEMBER].resetAt, OLD, 'the stamp was taken back from a password that may have changed');
+            assert.deepEqual(restores, [], 'and nothing tried to');
+            assert.deepEqual(after(authOps, 'revokeRefreshTokens'), []);
+        });
+    }
+
+    test('a refusal whose stamp cannot be put back says so — never "nothing was changed"', async () => {
+        const { eps, db } = build({ seed: withOldStamp, restoreFail: 'firestore down', ...refused('auth/invalid-password') });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 409);
+        assert.doesNotMatch(out.body.error, /Nothing was changed/);
+        assert.match(out.body.error, /password did not change, but the reset could not be taken off their record/);
+        assert.notEqual(db._dump('passwordStatus')[MEMBER].resetAt, OLD);
+    });
+
+    test('a write landing between the stamp and its restore wins — the restore is pinned to its own stamp', async () => {
+        // The member sets their own password on another device in that moment: putting the old stamp
+        // back over THAT would rewrite a record somebody else had just changed. The precondition refuses
+        // it, and the answer says what is true.
+        const { eps, db, restores } = build({ seed: withOldStamp, ...refused('auth/invalid-password'),
+            onPasswordWrite: (d) => d._write('passwordStatus', MEMBER, { passwordSetAt: { toMillis: () => Date.now() } }) });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(restores.length, 1, 'fixture check: the restore was tried');
+        assert.ok(restores[0].precondition && restores[0].precondition.lastUpdateTime, 'the restore names the stamp it may undo');
+        assert.notEqual(db._dump('passwordStatus')[MEMBER].resetAt, OLD, 'the old stamp went back over a newer write');
+        assert.doesNotMatch(out.body.error, /Nothing was changed/);
     });
 });
