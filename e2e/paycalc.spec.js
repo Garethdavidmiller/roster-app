@@ -2613,12 +2613,17 @@ test('paycalc: a promotion dated 22 Nov 2026 — each payslip at the grade held 
     await page.goto('/paycalc.html?payday=2026-12-18');
     const row = page.locator('#bdRows .bd-row', { hasText: 'Basic pay — Mon–Fri' });
     await expect(row).toContainText('× £22.3225)');
-    const m = (await row.innerText()).match(/\((\d+)h(?: (\d+)m)? × £22\.3225\)\s*£([\d,]+\.\d\d)/);
-    expect(m, 'the basic row reads "(hours × £22.3225) £amount"').not.toBeNull();
+    // textContent, never innerText: the breakdown is folded (max-height 0, overflow hidden) until it is
+    // opened, and WebKit's innerText leaves out text whose box is clipped to nothing — it read "" on the
+    // iPhone engine (CI, 13 Nov 2026) while Chromium's read the row.
+    const m = String(await row.locator('.b-lbl').textContent()).match(/\((\d+)h(?: (\d+)m)? × £22\.3225\)/);
+    expect(m, 'the basic row reads "(hours × £22.3225)"').not.toBeNull();
+    const amount = String(await row.locator('.b-val').textContent()).match(/^£([\d,]+\.\d\d)$/);
+    expect(amount, 'the figure beside it reads "£amount"').not.toBeNull();
     const hours = Number(m?.[1]) + Number(m?.[2] ?? 0) / 60;
     const at = (/** @type {number} */ r) => (Math.round(hours * r * 100) / 100).toFixed(2);
     expect(at(22.32), 'premise: the rounded rate gives a different figure, so this can tell them apart').not.toBe(at(22.3225));
-    expect(String(m?.[3]).replace(/,/g, ''), `${hours}h at the blend`).toBe(at((7 * 21.49 + 21 * 22.60) / 28));
+    expect(String(amount?.[1]).replace(/,/g, ''), `${hours}h at the blend`).toBe(at((7 * 21.49 + 21 * 22.60) / 28));
     expect(errors).toHaveLength(0);
 });
 
