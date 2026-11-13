@@ -199,9 +199,10 @@ export function passwordChangeFailure(code, reauthed) {
  *
  * Single source shared by the sign-in candidate ladder (session.js) AND the Settings reauth
  * (firebase-client.js `reauthenticateWithPassword`) so the two can't drift (PASSWORD_DESIGN.md §3.2).
+ * Module-private: both ask through `isCredentialRejection`, and nothing ever imported the set itself.
  * @type {Set<string>}
  */
-export const CREDENTIAL_REJECTION_CODES = new Set([
+const CREDENTIAL_REJECTION_CODES = new Set([
     'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found',
 ]);
 
