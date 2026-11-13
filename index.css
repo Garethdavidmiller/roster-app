@@ -1031,7 +1031,7 @@
            ⚠️ THE CELL KEEPS THE DESKTOP'S SHAPE — the date, the badge beneath it, the time beneath that
            (owner, 13 Nov 2026: "it looks fine on a desktop PC but on this laptop the calendar looks
            weird"). Until v26.02 the badge and the time shared one line here. It fitted only from ~1366px
-           wide; at 1280 (a 1920-pixel laptop at 150%, the commonest Windows setting) an Early badge or
+           wide; at 1280 (a 1920-pixel laptop at 150%, a usual Windows setting) an Early badge or
            today's cell stacked again, so ONE month drew two kinds of cell, and the one that stacked made
            every row 75px and pushed the last week off the screen anyway. Only the spacing tightens now:
            the type does not change, and every line has a stated `line-height`, so the cell is the same
