@@ -1066,7 +1066,9 @@ blocking is safe.
 - `withTimeout(promise, ms)` — only for calls that change NOTHING (a read, the idempotent re-auth), since
   it reports a timeout as a rejection. `settleOrTimeout(promise, ms)` → `ok`, `failed` or `pending` — for
   STATE-CHANGING calls, because a race stops waiting but does not cancel; Save stays disabled while
-  `pending`. Both are shared with the Settings Password card.
+  `pending`. Both are shared with the Settings Password card. The password write is counted
+  (`trackBackgroundWrite`) until it SETTLES, past that wait, so a busy check reading `writesInFlight` holds
+  a release's reload for it (audit E5).
 - **Fails open twice:** before showing (a failed status read, a non-named identity, no marker), and after
   — a rate limit, a network failure or a timeout at once, or `ESCAPE_AFTER_FAILURES` failures of any kind,
   reveal "Continue for now", which stamps nothing.
