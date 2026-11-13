@@ -23,6 +23,11 @@
  *                         says so.
  *   7. signing out      — Back loads the page again with nobody signed in: not in the app, and not
  *                         in the SDK's own stored sign-in, which a stub does not have.
+ *   8. back online      — a delete made while a save from before the signal returned is still in
+ *                         this device's queue waits for it, then deletes the member's own record
+ *                         and it stays deleted. The SDK's write stream is held to keep that
+ *                         second open; this is the race v25.95 closed, and the false "someone else
+ *                         has changed this" v25.96 closed, neither of which a stub can order.
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -35,7 +40,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect, expectNothingLeftForGoogle, wireToEmulators } from './signed-in-fixtures.js';
-import { resetDatabase, readCollection, seedDocument } from './signed-in-env.mjs';
+import { resetDatabase, readCollection, seedDocument, EMULATOR } from './signed-in-env.mjs';
 import { resetPasswords } from './signed-in-setup.mjs';
 import { signInThroughOverlay, enterPin } from './helpers.js';
 import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data.js';
@@ -281,6 +286,59 @@ test('no signal: a change saved offline says it is waiting, then reaches the dat
     await expect(page.locator('#formFeedback')).toContainText(`1 change saved for ${MEMBER}`, { timeout: 60_000 });
     await expect(page.locator('#slowSaveNotice')).toBeHidden();
     expect(await overridesFor(MEMBER, day)).toHaveLength(1);
+    expectNothingLeftForGoogle(page);
+});
+
+test('back online: a delete waits for the save this device has not sent yet, and the day stays deleted', async ({ page, context }) => {
+    const day = workingDay(MEMBER);
+    const id = manualOverrideId(MEMBER, day);
+    await page.goto('/admin.html');
+    await signInFirstTime(page, MEMBER);
+    await openAdminWeek(page, day);
+    await context.setOffline(true);
+    await stageDay(page, day, 'annual_leave');
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#slowSaveNotice')).toContainText('Waiting for signal');
+
+    // The member leaves Admin with the save still waiting and opens it again once the signal is back.
+    // The save is in this device's queue, which the SDK sends as it starts, on its Write stream; that
+    // stream is HELD here, so the second in which the race lived stays open. A transaction's reads and
+    // commit are separate requests, and pass.
+    /** @type {import('@playwright/test').Route[]} */
+    const held = [];
+    let holding = true;
+    await page.route((url) => url.host === EMULATOR.firestore && url.pathname.endsWith('/Write/channel'),
+        (route) => { if (holding) held.push(route); else route.continue().catch(() => { /* the page has moved on */ }); });
+    // The staged day is a draft when the page goes; it is the save that matters here, not the offer.
+    await page.addInitScript(() => {
+        for (const k of Object.keys(localStorage)) if (k.startsWith('myb_draft_')) localStorage.removeItem(k);
+    });
+    page.on('dialog', (d) => d.accept());   // "Leave the page?" — the save is queued, not lost
+    await context.setOffline(false);
+    await page.reload();
+    await openAdminWeek(page, day);
+    await expect.poll(() => held.length, { message: 'the SDK never tried to send the save it had queued' }).toBeGreaterThan(0);
+
+    await page.locator('#overridesToggleHeader').click();
+    const del = page.locator(`#overrideTableBody .btn-delete[data-id="${id}"]`);
+    await del.click();
+    await expect(del).toHaveText('Delete?');
+    await del.click();
+
+    // While the save is held the delete must not go ahead: the server does not hold the day yet, so a
+    // delete that read it now would call it already gone — and the save would then land on top.
+    const early = await page.locator('#listFeedback', { hasText: 'Deleted' }).waitFor({ timeout: 2_000 }).then(() => true, () => false);
+    expect(early, 'the delete went ahead before this device\'s own save had reached the database').toBe(false);
+    expect(await overridesFor(MEMBER, day), 'the save is still held on this device').toHaveLength(0);
+
+    holding = false;
+    for (const route of held.splice(0)) await route.continue().catch(() => { /* the SDK gave up on it */ });
+    await expect(page.locator('#listFeedback')).toContainText(`Deleted: ${MEMBER}`, { timeout: 30_000 });
+    // Nothing of this device's is left to land on top of the delete…
+    expect(await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(20_000))),
+        'this device still had saves waiting').toBe(true);
+    // …and the day is gone from the database, not put back by the save queued before it.
+    expect(await overridesFor(MEMBER, day), 'the save queued offline landed after the delete and put the day back').toHaveLength(0);
     expectNothingLeftForGoogle(page);
 });
 

@@ -12,6 +12,7 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { parseOtherValue } from './override-utils.js';
+import { overrideFromSnapshot } from './override-compare.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { entryControlHtml, paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
@@ -159,7 +160,8 @@ export async function fetchOverridesForWeek(dates) {
         // know nothing about this week. Treated as complete, every prior import and manual change
         // went unseen. The same refusal admin-override-store.js applies to its own reads.
         if (/** @type {any} */ (snap).metadata?.fromCache) throw Object.assign(new Error('served from the offline cache'), { code: 'cached-read' });
-        return snap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
+        // A record this device saved but has not sent yet is its own copy (override-compare.js, v25.96).
+        return snap.docs.map(/** @param {any} d */ d => overrideFromSnapshot(d));
     } catch (err) {
         console.error('[RosterUpload] Could not fetch existing overrides:', err);
         const e = new Error('CONFLICT_READ_FAILED');

@@ -69,8 +69,13 @@ let _reads = [];
 /** @type {(q: any) => Promise<any[]>} */
 let _handler = async () => [];
 
+/** A row may carry `_pending: { estimate }`: a save this device has not sent yet, which the SDK reads
+ *  with no stamp and flags `hasPendingWrites` (block 8b). */
 function snapOf(rows) {
-    return { size: rows.length, forEach: (/** @type {any} */ fn) => rows.forEach(r => fn({ id: r.id, data: () => r })) };
+    return { size: rows.length, forEach: (/** @type {any} */ fn) => rows.forEach(({ _pending, ...r }) => fn({
+        id: r.id, metadata: { hasPendingWrites: !!_pending },
+        data: (/** @type {any} */ o) => (_pending && o?.serverTimestamps === 'estimate' ? { ...r, createdAt: { toDate: () => _pending.estimate } } : r),
+    })) };
 }
 
 mock.module('./firebase-client.js', {
@@ -1027,5 +1032,46 @@ describe('8 · a checked write waits for the saves this device has not sent yet 
         assert.equal(_queueAsks, 1);
         assert.equal(_txRuns, 1);
         assert.equal(_server.has(ID), false);
+    });
+});
+
+// ── 8b · A RECORD THIS DEVICE HAS NOT SENT YET IS READ AS THE PAGE'S OWN COPY (v25.96) ──────────────
+// Found by the signed-in lane on the real SDK, the moment block 8's wait was run against a real queue:
+// a list read just after the signal returned held a save still in this device's queue, with no stamp.
+// Once the wait let the save land, the delete compared that stampless copy with the server's, called
+// the stamps different, and refused the member's OWN record as "someone else has changed this". Both
+// reads keep it as the page's own copy (`overrideFromSnapshot`, override-compare.js).
+describe('8b · a record this device has not sent yet is read as the page\'s own copy (v25.96)', () => {
+    const ID = 'm_2026-06-16_G.%20Miller';
+    const fields = { memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', note: '',
+        source: 'manual', changedBy: 'G. Miller' };
+    const written = new Date('2026-06-01T09:30:00Z');
+    const queued = { id: ID, ...fields, createdAt: null, _pending: { estimate: written } };
+    beforeEach(() => {
+        _server.clear(); _versions.clear(); _serverCached = false; _serverFails = false;
+        _betweenReadAndCommit = null; _txRuns = 0; _txDeleted.length = 0; _txFails = null; _landsUnanswered = 0;
+    });
+
+    for (const everyone of [false, true]) {
+        test(`${everyone ? 'the everyone read' : 'a member\'s read'}: stamped as its own, and deleted once the save has landed`, async () => {
+            const { store } = await freshStore();
+            _handler = async () => [queued];
+            await store.loadOverrides(everyone ? { everyone: true } : { member: 'G. Miller' });
+            const held = store.getAllOverrides().find((/** @type {any} */ o) => o.id === ID);
+            assert.ok(held?.createdAt instanceof Date, 'held as read, with no stamp');
+            assert.equal(held.createdAt.getTime(), written.getTime());
+            serverWrite(ID, { ...fields, createdAt: { toMillis: () => 9_000 } });   // the save lands, stamped by the server
+            await store.deleteIfUnchanged(store.asShown([ID]));
+            assert.deepEqual(_txDeleted, [ID], 'the member\'s own record was refused as somebody else\'s change');
+        });
+    }
+
+    test('a colleague who changed the day once the save had landed is still refused', async () => {
+        const { store } = await freshStore();
+        _handler = async () => [queued];
+        await store.loadOverrides({ member: 'G. Miller' });
+        serverWrite(ID, { ...fields, type: 'rdw', value: '09:00-17:00', changedBy: 'S. Manager', createdAt: { toMillis: () => 9_000 } });
+        await assert.rejects(store.deleteIfUnchanged(store.asShown([ID])), (/** @type {any} */ e) => e.code === store.DELETE_REFUSED);
+        assert.deepEqual(_txDeleted, []);
     });
 });

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PILL_TYPES, TYPES } from './admin-shift-types.js';
 import { manualOverrideId } from './override-id.js';
-import { sameOverrideRecord } from './override-compare.js';
+import { sameOverrideRecord, overrideFromSnapshot } from './override-compare.js';
 import { isClockTime } from './clock-input.js';
 import { isSunday, TIME_RE, teamMembers } from './roster-data.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
@@ -1675,5 +1675,53 @@ describe('sameOverrideRecord', () => {
     it('nothing to compare is never "the same"', () => {
         assert.equal(sameOverrideRecord(null, server()), false);
         assert.equal(sameOverrideRecord(shown, null), false);
+    });
+});
+
+// ── overrideFromSnapshot — a record this device has not sent yet is the page's own copy (v25.96) ────
+// Found by the signed-in lane on the real SDK: a list read just after the signal returned held a save
+// still in this device's queue, which the SDK reads with no stamp. Once the save landed, the delete
+// compared that stampless copy with the server's and refused the member's own record as somebody
+// else's change.
+describe('overrideFromSnapshot', () => {
+    const fields = { memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', note: '',
+        source: 'manual', changedBy: 'G. Miller' };
+    const landed = { ...fields, createdAt: { toMillis: () => 9_000 } };   // the save, with the server's stamp
+    const written = new Date('2026-06-01T09:30:00Z');
+    /** A document as the SDK hands it over. @param {any} data @param {any} [metadata] @param {any} [estimate] */
+    const docOf = (data, metadata, estimate) => ({ id: 'm1', metadata,
+        data: (/** @type {any} */ o) => (o?.serverTimestamps === 'estimate' && estimate !== undefined ? { ...data, createdAt: estimate } : data) });
+
+    it('a settled document is returned as it was read', () => {
+        assert.deepEqual(overrideFromSnapshot(docOf(landed, { hasPendingWrites: false })), { id: 'm1', ...landed });
+    });
+
+    it('one read without metadata (a stub, a test double) is returned as it was read', () => {
+        assert.deepEqual(overrideFromSnapshot(docOf(landed)), { id: 'm1', ...landed });
+    });
+
+    it('this device\'s unsent save is stamped as the page\'s own copy, and matches the save once it lands', () => {
+        const r = overrideFromSnapshot(docOf({ ...fields, createdAt: null }, { hasPendingWrites: true }, { toDate: () => written }));
+        assert.ok(r.createdAt instanceof Date, 'still stampless: the server\'s copy can never match it');
+        assert.equal(r.createdAt.getTime(), written.getTime(), 'the SDK\'s own estimate of when it was written');
+        assert.equal(sameOverrideRecord(r, landed), true, 'the member\'s own record was refused as somebody else\'s change');
+        assert.equal(sameOverrideRecord({ id: 'm1', ...fields, createdAt: null }, landed), false,
+            'as the SDK hands it over, the record never matches — which is why it is mapped');
+    });
+
+    it('with no estimate to hand it is still the page\'s own copy', () => {
+        const r = overrideFromSnapshot(docOf({ ...fields, createdAt: null }, { hasPendingWrites: true }));
+        assert.ok(r.createdAt instanceof Date);
+        assert.equal(sameOverrideRecord(r, landed), true);
+    });
+
+    it('a pending document whose stamp is already the server\'s keeps that stamp', () => {
+        const stamp = { toMillis: () => 7_000 };
+        assert.equal(overrideFromSnapshot(docOf({ ...fields, createdAt: stamp }, { hasPendingWrites: true })).createdAt, stamp);
+    });
+
+    it('its own copy still tells a different record apart: a colleague\'s change is refused', () => {
+        const r = overrideFromSnapshot(docOf({ ...fields, createdAt: null }, { hasPendingWrites: true }, { toDate: () => written }));
+        assert.equal(sameOverrideRecord(r, { ...landed, type: 'sick', value: 'SICK', changedBy: 'S. Manager' }), false);
     });
 });
