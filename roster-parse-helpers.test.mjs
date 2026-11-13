@@ -2677,6 +2677,35 @@ describe('summariseAccountGaps', () => {
                 [{ name: 'B. Toth', why: 'claims' }]);
         });
 
+        test('an account with NO claim at all is `unstamped`, not `claims` — Set up accounts takes it BACK', () => {
+            // Registered from outside at a roster address, or created and never stamped. The press that
+            // fixes `claims` re-stamps the account; for this one it resets the password to the surname,
+            // ends every session and removes any other way in (`mustReclaim`), and the admin is the
+            // person who has to tell the member — so the audit names it apart (sign-in audit).
+            for (const customClaims of [undefined, null, {}]) {
+                const users = allGood().map(u => u.displayName === 'B. Toth' ? { ...u, customClaims } : u);
+                assert.deepEqual(summariseAccountGaps(users, CFG).setUp, [{ name: 'B. Toth', why: 'unstamped' }],
+                    `customClaims ${JSON.stringify(customClaims)}`);
+            }
+        });
+
+        test('a DISABLED account with no claim is `unstamped` too: the take-back comes first, as it does in Set up accounts', () => {
+            const users = allGood().map(u => u.displayName === 'B. Toth' ? { ...u, disabled: true, customClaims: {} } : u);
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp, [{ name: 'B. Toth', why: 'unstamped' }]);
+        });
+
+        test('`unstamped` is exactly mustReclaim\'s test — the audit names what the button will take back', () => {
+            // Two copies of one predicate, because member-identity.js requires this file and a require
+            // back would be a cycle. Pinned to each other instead.
+            const { mustReclaim } = require('./functions/member-identity.js');
+            for (const customClaims of [undefined, null, {}, { name: 'B. Toth' }, { admin: true }, { stamped: true },
+                { name: 'B. Toth', member: 'B. Toth' }]) {
+                const users = allGood().map(u => u.displayName === 'B. Toth' ? { ...u, customClaims } : u);
+                const why = summariseAccountGaps(users, CFG).setUp.find(g => g.name === 'B. Toth')?.why;
+                assert.equal(why === 'unstamped', mustReclaim({ customClaims }), `${JSON.stringify(customClaims)} read as ${why}`);
+            }
+        });
+
         test('a `member` claim that names somebody else is not the right claim', () => {
             const users = allGood().map(u =>
                 u.displayName === 'B. Toth' ? { ...u, customClaims: { name: 'B. Toth', member: 'G. Miller' } } : u);

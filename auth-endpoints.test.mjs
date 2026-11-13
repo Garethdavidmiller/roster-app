@@ -1730,6 +1730,18 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
         assert.deepEqual(out.body.setUp, [{ name: victim, why: 'no-account' }]);
     });
 
+    test('an account with no claim at all comes back as `unstamped`, apart from a wrong tier', async () => {
+        // Set up accounts TAKES such an account back (password reset, signed out), so the admin must be
+        // able to tell it from a claim fix before pressing the button (sign-in audit).
+        const [unstamped, wrongTier] = rosterCfg.processMembers.filter((n) => !SETS.adminSet.has(n));
+        const { eps } = build({ existingUsers: fullyProvisioned().map((u) =>
+            u.displayName === unstamped ? { ...u, customClaims: undefined }
+                : u.displayName === wrongTier ? { ...u, customClaims: { name: wrongTier } } : u) });
+        const out = await call(eps.getAccountSetupGaps, getReq());
+        assert.deepEqual(new Set(out.body.setUp.map((g) => JSON.stringify(g))),
+            new Set([{ name: unstamped, why: 'unstamped' }, { name: wrongTier, why: 'claims' }].map((g) => JSON.stringify(g))));
+    });
+
     test('a leaver still enabled comes back too, in the OTHER group', async () => {
         const { eps } = build({ existingUsers: [...fullyProvisioned(), {
             uid: 'uid_gone', email: 'z.gone@myb-roster.local', displayName: 'Z. Gone',

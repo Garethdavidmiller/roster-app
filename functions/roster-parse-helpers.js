@@ -1122,10 +1122,10 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  * else's behalf permission-denies. And a leaver whose disable step was skipped simply keeps a
  * working login. None of the three fails anything; all three are found by somebody complaining.
  *
- * GROUPED BY REMEDY, NOT BY CAUSE. The three "can't work properly" states have three different
- * causes and exactly ONE fix — press Set up accounts — so they are one group. A leaver still
- * enabled needs a different, confirmed action, so it is its own. An index that splits by cause
- * makes the reader do the mapping; splitting by the button they must press does not.
+ * GROUPED BY REMEDY, NOT BY CAUSE: every "can't work properly" state has ONE fix — press Set up
+ * accounts — so they are one group, and a leaver still enabled, needing a confirmed action, is its
+ * own. Within it `unstamped` (NO claim at all) is told apart from `claims`, because that press TAKES
+ * such an account BACK (`mustReclaim`: surname default, signed out, other ways in removed) — not a fix.
  *
  * IT REFUSES RATHER THAN CRIES WOLF. If not one `@myb-roster.local` account is visible, the
  * account list did not arrive — an empty page from a transient failure, a wrong project — and
@@ -1146,7 +1146,7 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  *        every Firebase Auth user (all pages of listUsers)
  * @param {{ processMembers: string[], adminSet: Set<string>, managerSet: Set<string>, designerSet: Set<string> }} cfg
  *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
- * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'claims' }>, leavers: string[] }}
+ * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'unstamped'|'claims' }>, leavers: string[] }}
  */
 function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
     const list = Array.isArray(users) ? users : [];
@@ -1161,7 +1161,7 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
     // "we cannot see the roster's accounts" situation and must not report all 51 as missing either.
     if (byEmail.size === 0) return { refused: 'no-accounts-visible', setUp: [], leavers: [] };
 
-    /** @type {Array<{name: string, why: 'no-account'|'disabled'|'claims'}>} */
+    /** @type {Array<{name: string, why: 'no-account'|'disabled'|'unstamped'|'claims'}>} */
     const setUp = [];
     /** @type {Set<string>} */
     const activeEmails = new Set();
@@ -1170,9 +1170,10 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
         activeEmails.add(email);
         const user = byEmail.get(email);
         if (!user)         { setUp.push({ name, why: 'no-account' }); continue; }
+        const actual = user.customClaims || {};   // no claim at all is `mustReclaim`'s test, asked in the button's order
+        if (!Object.keys(actual).length) { setUp.push({ name, why: 'unstamped' }); continue; }
         if (user.disabled) { setUp.push({ name, why: 'disabled' });   continue; }
         const expected = claimsForTier(name, { adminSet, managerSet, designerSet });
-        const actual   = user.customClaims || {};
         for (const key of MANAGED_CLAIMS) {
             // `undefined` vs absent must compare equal — setCustomUserClaims stores neither.
             if ((expected[key] ?? null) !== (actual[key] ?? null)) {
