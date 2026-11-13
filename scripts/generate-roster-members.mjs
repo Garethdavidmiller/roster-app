@@ -31,7 +31,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export function buildRosterMembers() {
     // activeMembers mirrors admin-auth.js's ACTIVE_MEMBERS EXACTLY — the same four getMembersForGrade
     // calls in the same order. Do NOT re-derive it with a plain `!m.hidden` filter: managers carry
-    // `hidden: true` by convention and are selected by managerOnly, so a naive filter would drop all six
+    // `hidden: true` by convention and are selected by managerOnly, so a naive filter would drop every one
     // (and orphan-removal would then disable them). Using getMembersForGrade guarantees parity (B4).
     const activeMembers = [
         ...getMembersForGrade('CEA'),

@@ -1158,7 +1158,7 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
         byEmail.set(email, u);
     }
     // The refusal. Not `list.length === 0` — a project holding only non-roster accounts is the same
-    // "we cannot see the roster's accounts" situation and must not report all 51 as missing either.
+    // "we cannot see the roster's accounts" situation and must not report the whole roster as missing either.
     if (byEmail.size === 0) return { refused: 'no-accounts-visible', setUp: [], leavers: [] };
 
     /** @type {Array<{name: string, why: 'no-account'|'disabled'|'unstamped'|'claims'}>} */

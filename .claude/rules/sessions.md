@@ -79,7 +79,7 @@ has `name` but not `manager`.
 ## `normaliseSurname()` in `auth-identity.js`
 
 Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for
-the Firebase *password* is applied separately by the password builders in `session.js` / `functions`,
+the Firebase *password* is applied separately by the password builders, `surnamePassword` here and `nameToPassword` in `functions`,
 **not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is
 **re-exported by `firebase-client.js`**. The member's own password calls (`reauthenticateWithPassword`,
 `changeOwnPassword`) are built in `own-password.js` and refuse — before anything is sent — unless the

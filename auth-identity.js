@@ -36,7 +36,7 @@ function lettersOnly(s) {
 /**
  * Normalise a display name's surname for Firebase Auth: everything after the first space,
  * lowercased, non-alpha stripped. The ≥6-char password padding is applied SEPARATELY by the
- * password builders (session.js / functions), NOT here.
+ * password builders (`surnamePassword` below; `nameToPassword` in functions/), NOT here.
  *   "G. Miller"            → "miller"
  *   "C. Francisco-Charles" → "franciscocharles"
  * @param {string} fullName

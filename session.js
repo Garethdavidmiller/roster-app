@@ -99,7 +99,7 @@ export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 // (which signs Firebase out too), a disabled or deleted account, revoked credentials, the claim
 // sweeps. Two things READ this number: the forced password migration completes within it, and
 // Operations → Usage's "signed in within 30 days" no longer means every active person (the note
-// beside `_appendSignInSection`, operations-reports.js). The idle clock only ever signed out the
+// beside `_appendSignInSection`, operations-usage.js). The idle clock only ever signed out the
 // members who use the app least. The Calendar VIEWER is untouched: it holds no `name` and its
 // persistence is session-only, which is the PIN's design, not a tunable (calendar-access.js). Removed
 // rather than lengthened: a dormant policy gets "restored" by someone who assumes it was load-bearing.
