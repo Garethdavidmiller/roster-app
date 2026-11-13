@@ -22,7 +22,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 
 | Track | Current stage | Next stage | Blocking decision | Exit condition |
 |---|---|---|---|---|
-| **A — infra** | ✅ Complete (A1 · A2 · A3) | — | — | WIF live, no standing deploy key; `npm audit --omit=dev` clean of high and critical (moderate: KNOWN_LIMITATIONS.md → The Cloud Functions' production-dependency advisories) |
+| **A — infra** | ✅ Complete (A1 · A2 · A3) | — | — | WIF live, no standing deploy key; `npm audit --omit=dev` clean (13 Nov 2026, v25.93) |
 | **B — write isolation** | ✅ Complete (B0–B4, H2; strict since v16.29) | — | — | Strict `overrides` rules live, no lockout, self-heal proven |
 | **Member-claim binding** | ✅ Complete — v24.23 believes a `name` only on a password sign-in at the name's derived email; v24.24 stamps the server-only `member` claim (Set up accounts); v24.27 requires it (`isMember()` in `firestore.rules`, `memberNameFromClaims` on the server) | — | — | Every member rule and endpoint reads identity through `isMember()` / `memberName()`; never roll rules back past v24.23 |
 | **A5 — push subscriptions** | ✅ Complete (v17.76, extended v18.74) | — | — | Per-owner create/update/delete enforced |
@@ -59,9 +59,10 @@ rule text and gate cases:
   (`npm audit --omit=dev`). The Functions deploy refuses to ship on a high or critical advisory, and the
   weekly `functions-audit.yml` fails on the same (`scripts/audit-functions-deps.sh`), so **low and
   moderate drift does NOT fail CI** — it is caught only by looking. Re-check when reading this doc.
-  On 12 Nov 2026 it was not clean: six moderate findings, unreachable, with a tested fix held to
-  24 Nov 2026 by the two-week rule (KNOWN_LIMITATIONS.md → The Cloud Functions' production-dependency
-  advisories).
+  On 12 Nov 2026 it was not clean: six moderate findings from two advisories (`glob`, `minimatch`),
+  installed under Google's Firestore client and never loaded. `@google-cloud/firestore` 9.4.1 cleared
+  them on 13 Nov 2026 (v25.93), a lockfile-only change taken before its two-week mark on the owner's
+  word; the Functions, rules and signed-in lanes passed on it first.
   firebase-admin is on `^14` (the exact range is `functions/package.json`); the namespaced `admin.*`
   API v14 removed was migrated to the modular entry points before the move, so the version change
   itself changed no code — ROADMAP_HISTORY.md → "firebase-admin upgrade to v14" names the two things

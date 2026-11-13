@@ -200,13 +200,6 @@ random ones, answering the credential question without touching the read one
 A hard external deadline, not a feature. It is in the maintenance calendar with a deliberate
 two-month warning, because "must be done by April" reliably becomes "started in April".
 
-### `ytd_2627` lapses about 26 Nov 2026 — decide rather than re-date
-**Status:** Blocked on an owner decision, due when the notice lapses · **Where:** the `new-notice` skill
-(`.claude/skills/new-notice/SKILL.md`) — its current-notices table and its Lessons
-
-The Pay Calculator's Year to Date notice is on its second run, on a new key. When it lapses, decide
-what it is for now rather than giving it another date.
-
 ---
 
 ### Trains page — what comes after the preview
@@ -645,7 +638,7 @@ both would need the governance gate answered before that changed.
 | Watch | Because | Where |
 |---|---|---|
 | Override document count | An archive strategy must land before ~5,000 docs | `MAINTENANCE_CALENDAR.md` |
-| `npm audit --omit=dev` in `functions/` | The weekly `functions-audit.yml` fails only on a high or critical finding (`scripts/audit-functions-deps.sh`), and its root-tree job is report-only, so moderate drift does **not** fail CI — it is caught only by looking | `KNOWN_LIMITATIONS.md` → The Cloud Functions' production-dependency advisories · `SECURITY_RELEASE_PLAN.md` → A1 |
+| `npm audit --omit=dev` in `functions/` | The weekly `functions-audit.yml` fails only on a high or critical finding (`scripts/audit-functions-deps.sh`), and its root-tree job is report-only, so moderate drift does **not** fail CI — it is caught only by looking | `SECURITY_RELEASE_PLAN.md` → A1 |
 | App Speed card — the **Usable** milestone | The first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
 | App Speed card, calendar tail | Load time on staff phones — an input to the build-step question, deliberately not a trigger (`DECISIONS.md` → "No build step"); `LATENCY.md` → Phase 3 holds the reading that would justify acting | This file → Build tooling |
 | App Speed card — **Own roster** (`rosterSnapshot`) | Whether a returning member's open now SHOWS a roster well inside a second. The own-roster copy (`CALENDAR_DATA.md` 17) is the identity round trip's answer, and this milestone measures it directly; the decision record is `ROADMAP_HISTORY.md` and `DECISIONS.md` → "The own-roster copy" | Operations → App Speed |

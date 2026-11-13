@@ -288,7 +288,7 @@ and points here for the rest.
 
 | ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
 |----|------|-------|-------|--------|--------|--------|-------------------|
-| `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | **RE-POSTED 28 Aug 2026** (first run 6 Apr) | 90 days | ✅ live until ~26 Nov 2026 — run 2, on a NEW key (`myb_pc_ytd_notice_2_shown`); it opens LAST on the page. **When it lapses, decide rather than re-date** (Lessons, below) | One-time; `NOTICE_YTD_KEY` set on close |
+| `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | **RE-POSTED 28 Aug 2026** (first run 6 Apr) | 90 days | ✅ live until ~26 Nov 2026 — run 2, on a NEW key (`myb_pc_ytd_notice_2_shown`); it opens LAST on the page. **Then it simply expires (owner, 13 Nov 2026)** — no re-post, no replacement (Lessons, below) | One-time; `NOTICE_YTD_KEY` set on close |
 | `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **none — removed at v22.59** | ✅ permanent ORIENTATION, reopened from the About panel (`#linksHowBtn`). **Not a candidate for the 180-day removal** — it is no longer a notice (Lessons, below) | One-time on first visit; `myb_links_welcome_seen` set on close. The button ignores the flag |
 | `timetable-2026` | `index.html` | A new timetable starts on 13 December | 🚆 Trains | 21 Oct 2026 | **ended 31 Oct 2026** (`OCTOBER_LAST_DAY`) | ⛔ **ended 31 Oct — inert**. Was `'members'`; a one-off, no snooze key. The first `notice-badge--trains` | One-time; `myb_notice_timetable_2026_done` set on any dismissal, the link included |
 | `ytd-figures-2026` | `index.html` | Make your pay estimates more accurate | 💷 Pay | 22 Oct 2026 | ended 31 Oct 2026, with the timetable notice | ⛔ **ended 31 Oct — inert**. Was `'members'`, only where the Pay Calculator prices (`gradeForRole`); came the load AFTER the timetable notice (`FOLLOWS`); its link counted as `ytd_2627` seen | One-time; `myb_notice_ytd_figures_2026_done` set on any dismissal, the link included |
@@ -328,6 +328,9 @@ two rows were live when **neither had shown to anyone for weeks**. That hid a re
 accurate tax estimates need those figures. Decide that rather than inherit it. **When run 2 lapses
 (~26 Nov 2026), decide rather than re-date**: a seasonal prompt wants to key off whether the member
 has entered Year to Date figures for the current tax year, which is not the one-time notice pattern.
+**Decided 13 Nov 2026 (owner): it expires.** That seasonal prompt now exists — the Year to Date line
+under the take-home figure (v25.47) comes back on each new payslip until that month's figures are
+entered — so the notice has no job left.
 
 ### Orientation is not an announcement
 
