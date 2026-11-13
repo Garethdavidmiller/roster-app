@@ -201,13 +201,15 @@ export function christmasLeaveByYear({ member, overrides, thisYear }) {
 /**
  * The words for a member's Christmas leave days, or null when there are none — one phrasing for every
  * surface that lists them. "Not counted" rather than "free": the reader's question is whether it came
- * off their allowance, and that is the answer to it.
+ * off their allowance, and that is the answer to it. Each day's name is held together by a no-break
+ * space (laptop polish, 13 Nov 2026): the leave panel balances this line over two, and it broke
+ * "Boxing / Day" across them.
  * @param {string[]} dates from `christmasLeaveDates`
  * @returns {string|null}
  */
 export function christmasLeaveLine(dates) {
     const names = (dates || [])
-        .map(d => d.endsWith('-12-25') ? 'Christmas Day' : d.endsWith('-12-26') ? 'Boxing Day' : null)
+        .map(d => d.endsWith('-12-25') ? 'Christmas\u00a0Day' : d.endsWith('-12-26') ? 'Boxing\u00a0Day' : null)
         .filter(Boolean);
     if (!names.length) return null;
     return `${names.join(' and ')}: annual leave, not counted`;
