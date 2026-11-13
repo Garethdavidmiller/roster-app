@@ -1020,6 +1020,29 @@ for (const [code, line, staysOff] of [
     });
 }
 
+// The Enter that accepts an input method's suggestion is left to it (sign-in audit E4, 13 Nov 2026): the inline form
+// saved half-typed text on it. Sent as the browser sends it — `isComposing` — and a plain Enter afterwards still saves.
+test('operations account status: the Enter that accepts an input method\'s suggestion does not save the email', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').first();
+    await row.locator('.email-set-btn').first().click();
+    const input = row.locator('.email-set-form input');
+    await input.fill('test.per');
+    const took = await input.evaluate(el =>
+        !el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })));
+    expect(took, 'the form took a composition\'s Enter').toBe(false);
+    await expect(row.locator('.email-set-save')).toHaveText('Save');
+    await expect(row.locator('.email-set-form')).toHaveCount(1);
+    await input.press('Enter');                                         // a plain Enter still saves
+    await expect(row.locator('.email-set-form'), 'the save landed and the list was redrawn').toHaveCount(0);
+});
+
 test('operations account status: a work-email Remove of unknown outcome says so, and stays off', async ({ page }) => {
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window);

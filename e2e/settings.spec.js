@@ -578,6 +578,37 @@ test('forced password overlay: a CONFIRMED save is submitted once, and only then
     expect(new URL(page.url()).pathname, 'the form never goes anywhere').toBe('/settings.html');
 });
 
+// ── THE ENTER THAT ACCEPTS AN INPUT METHOD'S SUGGESTION IS LEFT TO IT (sign-in audit E4, 13 Nov 2026) ───────────
+// Somebody typing through an input method — a predictive keyboard, a Japanese or Chinese one — presses Enter to accept
+// what it offers, and the browser marks that keydown `isComposing`. The password form moved on, or SAVED, on it, and
+// the work email saved half-typed text. The forced overlay has left it alone since 11 Nov 2026 (password-force.js).
+// Sent as the browser sends it, since no keyboard Playwright drives composes: whether the page TOOK the key is
+// whether it cancelled it, and a plain Enter afterwards proves the guard is the only difference.
+test('settings: the Enter that accepts an input method\'s suggestion neither moves on nor saves', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });     // un-migrated: the password form is open
+    const composingEnter = (/** @type {string} */ sel) => page.locator(sel).evaluate(el =>
+        !el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })));
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwCurrent').focus();
+    expect(await composingEnter('#pwCurrent'), 'Current took a composition\'s Enter').toBe(false);
+    await expect(page.locator('#pwCurrent')).toBeFocused();
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    expect(await composingEnter('#pwConfirm'), 'Confirm saved on a composition\'s Enter').toBe(false);
+    await expect(page.locator('#pwFeedback')).toBeEmpty();
+    await page.locator('#pwCurrent').press('Enter');                    // a plain Enter still moves on
+    await expect(page.locator('#pwNew')).toBeFocused();
+
+    await expect(page.locator('#contactFeedback'), 'premise: the saved-email check has answered').not.toContainText('Checking');
+    await expect(page.locator('#workEmailInput'), 'premise: with no email saved, the card opens itself').toBeVisible();
+    await page.locator('#workEmailInput').fill('g.mil');
+    expect(await composingEnter('#workEmailInput'), 'the email took a composition\'s Enter').toBe(false);
+    await expect(page.locator('#workEmailSaveBtn')).toHaveText('Save email');
+    await expect(page.locator('#contactFeedback')).toBeEmpty();
+    await page.locator('#workEmailInput').press('Enter');               // a plain Enter still saves
+    await expect(page.locator('#contactFeedback')).toContainText('Saved');
+});
+
 test('settings: Show passwords reveals all THREE fields, not two', async ({ page }) => {
     // The old control sat beside New and silently also governed Confirm. Current — where a
     // mistyped password most often comes from — was never covered.

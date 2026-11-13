@@ -501,8 +501,8 @@ export function init() {
                 }
             });
 
-            input.addEventListener('keydown', e => {
-                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+            input.addEventListener('keydown', e => {   // not the Enter that accepts an input method's suggestion, which saved half-typed text
+                if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveBtn.click(); }
                 // Focus back to the button that opened the form, not to the page (Nov 2026 review).
                 if (e.key === 'Escape') { form.remove(); sayEmail(setBtn, m.name); setBtn.focus(); }
             });
