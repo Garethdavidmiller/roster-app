@@ -89,6 +89,13 @@ function makeDb(seed = {}) {
      *  the whole transaction again, as the Admin SDK does after a lost commit answer. Fires once.
      *  @type {(() => Promise<void>|void)|null} */
     let lostCommitAnswer = null;
+    /** The next transaction's FIRST attempt runs, and then Firestore cannot be reached: every attempt
+     *  after it fails, so runTransaction rejects with `err`, as the Admin SDK does once its retries run
+     *  out. `landed`: that attempt's commit reached the server before the answers stopped. `readsFail`:
+     *  a plain read fails from then on too. Fires once.
+     *  @type {{ err: Error, landed: boolean, readsFail: boolean }|null} */
+    let unreachable = null;
+    /** @type {Error|null} */ let docReadError = null;
     // A snapshot holds the data AS READ, like Firestore's: a lazy `() => store.get(path)` would show a
     // transaction the write it made after reading, which the real SDK never does.
     const snapFor = (/** @type {string} */ path) => {
@@ -97,7 +104,7 @@ function makeDb(seed = {}) {
     };
     const refFor = (/** @type {string} */ path) => ({
         path,
-        get: async () => snapFor(path),
+        get: async () => { if (docReadError) throw docReadError; return snapFor(path); },
         set: async (/** @type {any} */ data) => { store.set(path, data); },
         delete: async () => { store.delete(path); deletes.push(path); },
     });
@@ -148,7 +155,15 @@ function makeDb(seed = {}) {
                     store.set(ref.path, { ...(store.get(ref.path) || {}), ...data });
                 },
             };
+            const cut = unreachable; unreachable = null;
+            // What the store held before the attempt: a commit that never landed leaves it so.
+            const before = cut && !cut.landed ? new Map(store) : null;
             const first = await fn(tx);
+            if (cut) {
+                if (before) { store.clear(); for (const [p, d] of before) store.set(p, d); }
+                if (cut.readsFail) docReadError = cut.err;
+                throw cut.err;
+            }
             const lost = lostCommitAnswer; lostCommitAnswer = null;
             if (!lost) return first;
             await lost();
@@ -158,7 +173,11 @@ function makeDb(seed = {}) {
     return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; },
         failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; },
         afterStaleQuery: (/** @type {() => void} */ fn) => { afterStaleQuery = fn; },
-        loseCommitAnswerOnce: (/** @type {() => Promise<void>|void} */ fn) => { lostCommitAnswer = fn; } };
+        loseCommitAnswerOnce: (/** @type {() => Promise<void>|void} */ fn) => { lostCommitAnswer = fn; },
+        unreachableAfterFirstAttempt: (/** @type {Error} */ err,
+            /** @type {{ landed: boolean, readsFail?: boolean }} */ { landed, readsFail = false }) => {
+            unreachable = { err, landed, readsFail };
+        } };
 }
 
 /**
@@ -517,6 +536,69 @@ describe('ingestHuddle — a re-run of its record transaction never undoes a lin
         b.loseCommitAnswerOnce(() => {});
         assert.equal((await ingest(b.eps, {})).code, 200);
         assert.equal(b.sends.length, 1, 'the re-run read its own record as a re-send, and a new Huddle went unannounced');
+    });
+});
+
+// When the commit lands, its answer is lost and every retry after it fails too, the transaction ends in
+// a retriable error with the Huddle already live. The ingest answered 500 and told nobody, and Power
+// Automate's retry — a new request — found the flow's own record and stayed silent as a re-send. Now it
+// reads the record back: its own path there means the commit landed, and it finishes as usual. No
+// record, another path or a failed read keeps the 500, the object left: uncertainty is not permission
+// to delete.
+describe('ingestHuddle — a commit that landed is finished, even when every answer after it was lost', () => {
+    const lostEverything = () => Object.assign(new Error('unavailable'), { code: 14, _retriable: true });
+    const doc = (/** @type {string} */ id, /** @type {string} */ by) => ({ 'huddles/2026-08-30':
+        { date: '2026-08-30', storagePath: `huddles/2026-08-30-${id}.pdf`, fileType: 'pdf', uploadedBy: by } });
+
+    test('the record names this upload: 200, announced once, and the version it replaced is cleaned up', async () => {
+        const b = build({ seed: doc('man1', 'G. Miller'), objects: ['huddles/2026-08-30-man1.pdf'] });
+        b.unreachableAfterFirstAttempt(lostEverything(), { landed: true });
+        const out = await ingest(b.eps, {});
+        assert.equal(out.code, 200, JSON.stringify(out.body));
+        const live = b.store.get('huddles/2026-08-30');
+        assert.equal(live.storagePath, b.saved[0].path);
+        assert.equal(out.body.storageUrl, live.storageUrl);
+        assert.equal(b.sends.length, 1, 'the Huddle is live and nobody was told');
+        assert.deepEqual(b.deleted, ['huddles/2026-08-30-man1.pdf'], 'the version it replaced was left behind');
+        assert.ok(b.objects.has(b.saved[0].path));
+    });
+
+    test('what the committing attempt saw decides the notice: a first upload is announced, the flow’s own re-send is not', async () => {
+        for (const [seed, objects, told] of /** @type {[any, string[], number][]} */ ([
+            [{}, [], 1],
+            [doc('pa1', 'power-automate'), ['huddles/2026-08-30-pa1.pdf'], 0],
+        ])) {
+            const b = build({ seed, objects });
+            b.unreachableAfterFirstAttempt(lostEverything(), { landed: true });
+            assert.equal((await ingest(b.eps, {})).code, 200);
+            assert.equal(b.sends.length, told, `seeded ${JSON.stringify(seed)}`);
+            assert.deepEqual(b.deleted, objects, 'the version it replaced');
+        }
+    });
+
+    test('the commit never landed: 500 as before — the object left, the record untouched, nobody told', async () => {
+        // No record, and a record naming another upload: neither is this one's own.
+        for (const [seed, objects] of /** @type {[any, string[]][]} */ ([[{}, []], [doc('man1', 'G. Miller'), ['huddles/2026-08-30-man1.pdf']]])) {
+            const b = build({ seed, objects });
+            b.unreachableAfterFirstAttempt(lostEverything(), { landed: false });
+            const out = await ingest(b.eps, {});
+            assert.equal(out.code, 500, `seeded ${JSON.stringify(seed)}`);
+            assert.deepEqual(b.store.get('huddles/2026-08-30'), seed['huddles/2026-08-30']);
+            assert.deepEqual(b.deleted, [], 'uncertainty is not permission to delete — this upload or the one before it');
+            assert.ok(b.objects.has(b.saved[0].path));
+            assert.equal(b.sends.length, 0);
+        }
+    });
+
+    test('the read after the failure fails too: 500 as before — the object left, nobody told', async () => {
+        const b = build();
+        b.unreachableAfterFirstAttempt(lostEverything(), { landed: true, readsFail: true });
+        const out = await ingest(b.eps, {});
+        assert.equal(out.code, 500);
+        assert.equal(b.store.get('huddles/2026-08-30')?.storagePath, b.saved[0].path, 'the commit did land');
+        assert.deepEqual(b.deleted, []);
+        assert.ok(b.objects.has(b.saved[0].path));
+        assert.equal(b.sends.length, 0, 'a read that failed was taken for an answer');
     });
 });
 

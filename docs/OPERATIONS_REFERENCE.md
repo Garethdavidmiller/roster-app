@@ -68,6 +68,12 @@ Body:
 
 **Body reading:** The function reads `req.rawBody` first; falls back to streaming. Never use an Express body-parser — it consumes the stream.
 
+**A 500 does not always mean nothing was stored.** A record write can land and its answer be lost.
+The function then reads the record back, and finding its own upload there it finishes as usual:
+stored, announced, 200. Only if Firestore stays unreachable through the write's retries and that read
+too does it answer 500 with the Huddle possibly in the app — and nobody told, because Power Automate's
+retry finds the flow's own record and stays silent as a re-send (`functions/documents.js`).
+
 **File type detection:** Based on `X-Huddle-Filename` extension — never rely on `Content-Type` (Power Automate sends `text/plain` for both).
 
 ### Secret setup (one-time, requires firebase-tools)
