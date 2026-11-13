@@ -137,8 +137,9 @@ behind them.
   engines. Every other browser lane stubs the SDK and the rules suite tests the rules on their own, so
   this is the one place the app, the SDK, the rules and the server meet before production: a first
   sign-in and the forced password change, a day of leave saved, reloaded and drawn on the Calendar, a
-  colleague's day refused, a manager recording on behalf, a save with no signal, the staff PIN's real
-  exchange, and Back after signing out (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
+  colleague's day refused, a manager recording on behalf, a save with no signal, a delete made just
+  after the signal returns while that save is still queued, the staff PIN's real exchange, and Back
+  after signing out (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
   throwaway Firebase project folder in the temp directory — the emulator settings from `firebase.json`,
   a random four-digit PIN, never the real one — and writes nothing into the checkout. Each page keeps
   its own CSP, widened only by the emulators' addresses. **What it cannot see** is what only

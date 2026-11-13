@@ -49,3 +49,25 @@ export function sameOverrideRecord(was, now) {
     if ('changedBy' in was && was.changedBy !== now.changedBy) return false;
     return true;
 }
+
+/**
+ * One override as this page HOLDS it, from a document read outside a transaction — Admin's lists
+ * (`loadOverrides`) and the roster import's week (`fetchOverridesForWeek`).
+ *
+ * A document this device has written but not yet sent (`metadata.hasPendingWrites`) has no server
+ * stamp yet: the SDK reads a pending `serverTimestamp()` as null. Read like that, it could never
+ * match the server's copy once the save landed, so the page's OWN record was refused as "someone else
+ * has changed this" — found by the signed-in lane on the real SDK (v25.96), where a list read just
+ * after the signal returned held a save still in this device's queue. It IS this page's own copy, so
+ * it is stamped like one (`buildOverrideCacheRecord`): a `Date`, the SDK's estimate of when it was
+ * written, which `sameOverrideRecord` matches on its fields alone and `tsToMillis` ranks as the newest.
+ * A settled document, or one whose stamp is already the server's, is returned as it was read.
+ * @param {{ id: string, data: (options?: any) => any, metadata?: { hasPendingWrites?: boolean } }} d
+ * @returns {any}
+ */
+export function overrideFromSnapshot(d) {
+    const data = d.data();
+    if (!d.metadata?.hasPendingWrites || data?.createdAt != null) return { id: d.id, ...data };
+    const estimate = d.data({ serverTimestamps: 'estimate' })?.createdAt;
+    return { id: d.id, ...data, createdAt: typeof estimate?.toDate === 'function' ? estimate.toDate() : new Date() };
+}

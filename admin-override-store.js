@@ -37,7 +37,7 @@ import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, run
 import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { shouldReplaceOverride } from './override-utils.js';
-import { sameOverrideRecord } from './override-compare.js';
+import { sameOverrideRecord, overrideFromSnapshot } from './override-compare.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
 
 /** @type {any[]} The cache itself. */
@@ -616,7 +616,7 @@ async function _loadOverridesInner(opts) {
             const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(OVERRIDES_QUERY_CAP + 1)));
             refuseCachedRead(snap);
             /** @type {any[]} */ const rows = [];
-            snap.forEach(/** @param {any} d */ d => rows.push({ id: d.id, ...d.data() }));
+            snap.forEach(/** @param {any} d */ d => rows.push(overrideFromSnapshot(d)));   // this device's unsent save is its own copy
             // More than CAP means the OLDEST overrides beyond it aren't shown — surface that rather than
             // silently showing a partial list (no-silent-caps). Trim the probe row so the list is exactly the
             // CAP newest; editing recent dates is unaffected, only very old bookings are omitted. (Finding #8)
@@ -639,7 +639,7 @@ async function _loadOverridesInner(opts) {
             const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), where('memberName', '==', member)));
             refuseCachedRead(snap);
             /** @type {any[]} */ const fresh = [];
-            snap.forEach(/** @param {any} d */ d => fresh.push({ id: d.id, ...d.data() }));
+            snap.forEach(/** @param {any} d */ d => fresh.push(overrideFromSnapshot(d)));
             // A replace, not a merge — the read is authoritative for this member, so a document it
             // does not contain has been deleted and must not survive in the cache.
             _allOverrides = replaceMemberSlice(_allOverrides, member, fresh);

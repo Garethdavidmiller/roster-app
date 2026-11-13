@@ -952,6 +952,30 @@ test('links: deleting a design writes a SOFT delete and leaves the document in p
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
 });
 
+// STORE RULE 5 (v25.96): every transaction waits for this device's own queued saves first. The store's
+// own tests prove the rule; this proves the PAGE hands the store the real wait (links-app.js →
+// `ownWritesSent: whenOwnWritesSent`) — a stand-in that answered at once would let the delete read a
+// server that does not yet hold this device's queued save, and the queued save then brought the
+// design back without its `deletedAt`. The queue is the stub's (fixtures.js → waitForPendingWrites).
+test('links: a delete waits for the saves this device has not sent yet, then goes ahead', async ({ page }) => {
+    await page.addInitScript(() => {   // before the designs' seed, which keeps what is already here
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), queuedWrites: true };
+    });
+    await openLinksWithDesigns(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.queueWaits || 0),
+        { message: 'the delete never waited for this device\'s queue' }).toBeGreaterThan(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites),
+        'written before this device\'s own saves had reached the server').toEqual([]);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.sendQueuedWrites());   // the signal returns
+    await expect(designOptions(page)).toHaveCount(1);
+    const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
+    expect(writes.find((/** @type {any} */ w) => w.data && w.data.deletedAt), 'the delete, once the queue had gone').toBeTruthy();
+});
+
 // A RENAME OR A DELETE THAT FINDS THE DESIGN ALREADY GONE (links-design-5, and the delete's twin). The
 // store now asks, inside its transaction, whether the design is still live; the page says what it found.
 // A rename used to say "check your connection and try again", which no retry could answer; a delete

@@ -56,7 +56,8 @@ reset to their defaults, a second Save wrote rows the admin had unticked. **Do n
 records' ids inside the transaction** — a re-run would write a second copy of every row — and do
 not turn a deleting part back into a batch. A deleting part waits for this device's own unsent saves
 before its transaction (v25.95, `whenOwnWritesSent`), and one that gives up has sent nothing, so it
-is not `partialCommit`.
+is not `partialCommit`. The review's week read holds a record this device saved but has not yet
+sent as its own copy (`overrideFromSnapshot`, v25.96), or the check would refuse it once it landed.
 
 ## The review
 

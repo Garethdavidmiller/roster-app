@@ -15,7 +15,7 @@
 
 import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
-import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry, whenOwnWritesSent } from './firebase-client.js';
 import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -2302,6 +2302,7 @@ export function init() {
         // The offline consult's own read (links-design-12): offline, plain getDoc rejects for a design
         // this device KNOWS was removed for good, so a save queued over it and brought it back on sync.
         getDocFromCache,
+        ownWritesSent: whenOwnWritesSent,   // its own queued saves before any transaction (store rule 5)
     });
     library = createDesignLibrary({
         store, currentUser,

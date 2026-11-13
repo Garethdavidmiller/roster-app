@@ -2764,6 +2764,33 @@ Proven by `admin-override-store.test.mjs` block 8, the import's tests in
 has still not been run against a real Firestore with the network cut mid-flow: the browser suite
 models the queue rather than running it.
 
+**v25.96: run against a real Firestore, and a second fault found.** The signed-in lane's "back
+online" journey (`e2e/signed-in.spec.js`) saves a day of leave offline, reopens Admin once the
+signal is back with the SDK's write stream held, deletes the day from Saved Changes, then lets the
+save go. With the wait removed it reproduced the entry below exactly: "Deleted" while the save was
+held, then the save landed and the day was back in the database. With the wait in place it showed
+what the stubbed suite could not: the list had read the day while its save was still queued, and
+the SDK hands such a record over with no stamp (a pending `serverTimestamp()` reads as null). So
+once the wait let the save land, the delete compared a stampless copy with the server's, found the
+stamps different and refused the member's OWN record: "Someone else has changed this since your
+list loaded". Nothing was lost, but the message was false and the day stayed. A record read with
+this device's own unsent write is now held as the page's own copy (`overrideFromSnapshot`,
+`override-compare.js`), matched on its fields as a just-saved record already was — in Admin's two
+list reads and the roster import's week read. The journey now passes, and fails with either fix
+taken out.
+
+**v25.96: the Links workspace had the same race, and has the same wait.** Its design store queues
+a save, a rename and a bin offline (rule 4), and every online one of those, a restore, a purge and
+the automatic bin is a transaction. So just after the signal returned, a save wrote over the
+server's older copy and the save queued offline then landed on top, older work over newer; a rename
+was undone; and a design binned online came back, because a queued save carries no `deletedAt`.
+Every transaction in the store now opens through `runTx`, which waits for the queue first (store
+rule 5, `links-design-store.js`); one that has not drained in time fails as it would offline, so a
+save, a rename or a bin queues behind the earlier writes and a restore, a purge or the automatic bin
+is refused. Proven by `links-design-store.test.mjs` ("rule 5"), a source guard in
+`links-concurrency.test.mjs` that no transaction opens outside `runTx`, and a Links browser test that
+holds the queue (`e2e/links.spec.js`, "a delete waits for the saves this device has not sent yet").
+
 The entry as it stood at v25.94, verbatim:
 
 Every Admin delete — a Saved Changes ✕, Delete selected, a Recorded dates ✕, and the removals in a

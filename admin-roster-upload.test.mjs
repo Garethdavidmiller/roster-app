@@ -594,6 +594,19 @@ describe('fetchOverridesForWeek — fail-closed conflict read (v16.25 regression
         assert.deepEqual(rows[0], { id: 'o1', memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual' });
         assert.equal(rows[1].id, 'o2');
     });
+
+    // The import's Save compares every record it deletes with this read (v25.92). Read with no stamp, a
+    // record this device saved but had not yet sent could never match the server's copy once it landed,
+    // so the Save refused the device's own record as a colleague's change (override-compare.js, v25.96).
+    test('a record this device saved but has not sent yet comes back as its own copy (v25.96)', async () => {
+        const written = new Date('2026-06-01T09:30:00Z');
+        const fields = { memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual', createdAt: null };
+        _getDocsImpl = async () => ({ docs: [{ id: 'o1', metadata: { hasPendingWrites: true },
+            data: (/** @type {any} */ o) => (o?.serverTimestamps === 'estimate' ? { ...fields, createdAt: { toDate: () => written } } : fields) }] });
+        const [row] = await fetchOverridesForWeek(['2026-06-15']);
+        assert.ok(row.createdAt instanceof Date, 'read with no stamp, it can never match the save once it lands');
+        assert.equal(row.createdAt.getTime(), written.getTime());
+    });
 });
 
 // ── computeCellStates — the review state machine (hoisted to module scope + exported v16.37) ──
