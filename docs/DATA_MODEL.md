@@ -192,7 +192,9 @@ Written by `savePushSubscription`, deleted by `deletePushSubscription` in `fireb
 Each document ID is a SHA-256 hash of the endpoint URL (first 20 hex chars). One doc per subscribed browser/device.
 Read by the push senders in `functions/push.js` (Admin SDK) — `fanOutPush` for the broadcasts, `sendTargetedPush` for a notice addressed to named members (one person, the Overtime participants, or the pay reminder's CEA and CES members); a send that meets a 410/404 deletes that record server-side.
 Client read: denied (`allow read: if false`) — no client may enumerate endpoints/keys. Create/update:
-a signed-in member or the admin (never an anonymous token or the staff-PIN viewer), shape-validated
+a signed-in member or the admin (never an anonymous token or the staff-PIN viewer), never from a
+member's sign-in older than their last `resetAt` (`signedInSinceLastReset`: a reset's revocation reaches
+a token only when it renews, up to an hour later), shape-validated
 (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt`, and the optional `owner`). When `owner` is
 present the rules require it to equal `request.auth.uid`, and an update to a doc that already carries
 an `owner` must come from that same uid — or from the SAME BROWSER, proved by an unchanged `endpoint`

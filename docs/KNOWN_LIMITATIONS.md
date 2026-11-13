@@ -817,10 +817,13 @@ Three things it depends on are therefore assumed, not known:
   shut" (above), not a way past the PIN. Reading one real request's headers in the function's logs
   would settle it.
 
-### A lost-phone reset still leaves two narrow gaps (sign-in audit, 13 Nov 2026)
+### A lost-phone reset still leaves one narrow gap: the surname (sign-in audit, 13 Nov 2026)
 
 Operations → Reset asks "Their phone is lost or stolen". Ticked, no reset notice is sent — it would
-land on that phone's lock screen — and every push record the account owns is deleted. Two gaps remain:
+land on that phone's lock screen — and every push record the account owns is deleted. The phone cannot
+save its record again in the hour its token outlives the reset: the rules refuse a push record from a
+sign-in older than the member's last `resetAt` (`signedInSinceLastReset`; ROADMAP_HISTORY.md has the
+gap as it was). One gap remains:
 
 - **The surname opens the account until the member chooses a new password.** A reset is the only
   tool that signs every device out, and it puts the password back to the surname default, which the
@@ -829,11 +832,6 @@ land on that phone's lock screen — and every push record the account owns is d
   and chooses a new one, and the outcome asks the admin to arrange exactly that. Closing it fully
   needs an action that signs every device out WITHOUT touching the password — a new endpoint, and an
   owner decision. Not built.
-- **A revoked phone can save its push record again for up to an hour.** A revocation takes effect
-  when the ID token next renews, and the push-record rule cannot see it, so a phone opened in that
-  hour can save its record again once its daily re-save is due. Nothing re-checks it later, as the
-  leaver sweep now does for leavers (`disabledLeaverUids`). A rule comparing the token's `auth_time`
-  with `resetAt` would close it. Not built.
 
 ### Firebase App Check — declined as an immediate action, RETAINED as Track D
 

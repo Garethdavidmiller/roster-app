@@ -92,7 +92,10 @@ to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov
   **Except for a lost or stolen phone** (sign-in audit, Nov 2026): the admin ticks a box on Reset
   (`lostDevice: true`), because the notice would land on THAT phone's lock screen and its record would
   go on receiving the member's targeted notices. So none is sent, every record the account owns is
-  deleted (`releasePushForOwner`), and Operations tells the admin to tell the member themselves.
+  deleted (`releasePushForOwner`), and Operations tells the admin to tell the member themselves. The
+  phone cannot save its record again in the hour its token outlives the reset (13 Nov 2026): the rules
+  refuse a push record from a sign-in older than the member's last `resetAt` (`signedInSinceLastReset`,
+  `firestore.rules`), and the member's own devices save theirs at their next sign-in.
 - **Both Overtime notices** go to member uids resolved from the account email — the asked notice to
   whoever a window newly asked (one per member per scheduler run, naming their soonest deadline), the
   reminder only to participants who have submitted NOTHING on the deadline's morning. A broadcast
@@ -132,7 +135,9 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
   it again for the leavers disabled on EARLIER runs** (`disabledLeaverUids`,
   `functions/account-lifecycle.js`): a phone whose ID token was still valid after the sweep — up to an
   hour — can save its record again, because the rule cannot see `disabled`, and the sweep's own filter
-  skips an account already disabled, so nothing else would ever look.
+  skips an account already disabled, so nothing else would ever look. The rule that stops a phone after
+  a RESET does not reach a leaver: the sweep stamps no `resetAt`, so this re-release is still what
+  covers that hour.
 - **A session that simply ENDED.** The rules let the SAME browser take its record over — same
   endpoint AND same keys, which exist only in that browser and in a record no client can read — and
   `notif.js` re-saves at once, without waiting for its 24-hour re-save throttle, when the signed-in

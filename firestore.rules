@@ -49,7 +49,9 @@ rules_version = '2';
 // every path (rules-claim-gate.test.mjs, AUTH_AND_SESSIONS 9) — a bare `request.auth != null` fails it.
 // Changed after v25.98 with no re-sweep (13 Nov 2026): a browser may not change a document record's
 // `storageUrl` while keeping its `storagePath` (`linkChangesOnlyWithFile` — huddles, circulars,
-// newsletters).
+// newsletters); and a push record may not be saved from a sign-in older than the member's last reset
+// (`signedInSinceLastReset` — pushSubscriptions create/update, the first rule here to read another
+// document).
 // Prior sweep 13 Nov 2026 (v25.90, the checked save): no rule changed. The `overrides` read must
 // never consult `resource` — every online save now reads each day it writes inside one
 // transaction, and a day's first save reads a document that is not there (pinned by a rules test).
@@ -917,6 +919,37 @@ service cloud.firestore {
     }
 
     match /pushSubscriptions/{docId} {
+      // ── A SIGN-IN FROM BEFORE THE MEMBER'S LAST RESET SAVES NO RECORD (13 Nov 2026) ─────────────
+      // A reset revokes the account's sessions, but a revocation takes effect only when an ID token next
+      // renews — up to an hour — and a token inside that hour passed every clause below. So a lost phone
+      // opened in that hour saved its record again, after a lost-phone reset had deleted it
+      // (`releasePushForOwner`), and went on receiving the member's targeted notices. Every reset, new
+      // account, take-back and re-enable stamps `passwordStatus/{member}.resetAt` on the server's clock
+      // BEFORE the password changes, so a token whose sign-in is older than that stamp is one the reset
+      // meant to end. `auth_time` is that sign-in — the one the token descends from, kept across renewals.
+      // Allowed as before when there is nothing to compare: not a bound member (`memberName()` null — an
+      // admin-only token, or the PIN viewer the clause below refuses anyway), no passwordStatus record, or
+      // no `resetAt` in it. Each is guarded (`exists`, `.get(…, null)`, `.get('auth_time', 0)`): reading
+      // an absent value bare is an ERROR, which denies the whole chain (the viewer clause below says why).
+      // WITHIN THE SAME SECOND: `auth_time` counts whole seconds and `resetAt` is finer, so a sign-in made
+      // in the reset's own second reads as made before it and is refused — the safe direction. A sign-in
+      // a second or more after the reset is always allowed, and one before it never is. It could only be
+      // the member's own sign-in with the reset password if they signed in within that second of the
+      // admin's Reset (the stamp lands before the password changes); that device saves at its next
+      // sign-in. A stamp left by a reset that did not sign a device out (a failed revocation, a password
+      // write whose outcome is unknown) holds that device's re-save until it signs in again — the same
+      // safe direction as the silent sign-in (AUTH_AND_SESSIONS 23). A LEAVER is not reached: the sweep
+      // stamps nothing and a rule cannot see `disabled`, so the sweep's own re-release still covers that
+      // hour (`disabledLeaverUids`, functions/account-lifecycle.js). One passwordStatus read, on a write.
+      function signedInSinceLastReset() {
+        return memberName() == null || signedInSinceResetOf(memberName());
+      }
+      function signedInSinceResetOf(name) {
+        let status = /databases/$(database)/documents/passwordStatus/$(name);
+        let resetAt = exists(status) ? get(status).data.get('resetAt', null) : null;
+        return resetAt == null || request.auth.token.get('auth_time', 0) * 1000 >= resetAt.toMillis();
+      }
+
       // No client read — Cloud Functions fan-out via Admin SDK and bypass these rules.
       // Removing client read prevents any authenticated/anonymous session from enumerating
       // push endpoints and encryption keys.
@@ -939,6 +972,8 @@ service cloud.firestore {
         // which is why the bare `token.admin == true` reads in this file can use the shorter form,
         // and this NEGATED one cannot. Caught by the emulator suite, invisible to static checks.
         (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
+        // Not from a sign-in older than the member's last reset (`signedInSinceLastReset`, above).
+        signedInSinceLastReset() &&
         // hasOnly prevents injecting extra fields (e.g. memberName, metadata). `owner` is
         // permitted (see below) but not required — older cached clients omit it.
         request.resource.data.keys().hasOnly(['endpoint', 'keys', 'subscribedAt', 'owner']) &&

@@ -2771,6 +2771,27 @@ each path's check was deleted in turn and its test failed. The entry as it stood
 > self-correcting: the member is asked to choose a new password again at the next sign-in. Asking on
 > every page means changing the service worker's start-up on all of them, which was not worth the risk.
 
+### A revoked phone could save its push record again for up to an hour — CLOSED 13 Nov 2026
+
+Recorded at v25.98 as the second of two gaps under "A lost-phone reset still leaves two narrow gaps";
+closed in the release after it by the fix the entry named. The `pushSubscriptions` create and update rule
+now refuses a token whose sign-in (`auth_time`, kept across renewals) is older than the member's
+`passwordStatus.resetAt` (`signedInSinceLastReset`, `firestore.rules`), which every reset, new account,
+take-back and re-enable stamps before the password changes. `auth_time` counts whole seconds, so a
+sign-in in the reset's own second is refused, the safe direction; the rule's comment says why that costs
+nothing in practice. No client change: `notif.js` already treats a refused re-save as one to try again
+on the next load. A LEAVER is not covered by it — the sweep stamps no `resetAt`, and a rule cannot see
+`disabled` — so the sweep's own re-release (`disabledLeaverUids`) still covers that hour. Proven by eight
+emulator cases in `firestore.rules.test.mjs`; deleting or loosening any part of the rule fails at least
+one of them. The first gap, the surname, stays in KNOWN_LIMITATIONS.md: closing it is an owner decision.
+The entry as it stood:
+
+> - **A revoked phone can save its push record again for up to an hour.** A revocation takes effect
+>   when the ID token next renews, and the push-record rule cannot see it, so a phone opened in that
+>   hour can save its record again once its daily re-save is due. Nothing re-checks it later, as the
+>   leaver sweep now does for leavers (`disabledLeaverUids`). A rule comparing the token's `auth_time`
+>   with `resetAt` would close it. Not built.
+
 ### A PIN session in the same tab outranked a member's at start-up — CLOSED v25.98
 
 Recorded at v25.77 under "A signed-in session lasts 60 days regardless of use"; closed by the
