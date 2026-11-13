@@ -253,6 +253,42 @@ describe('own-password.js — the factory behind the two re-exports', () => {
     });
 });
 
+// Another tab on a shared browser can change `auth.currentUser`, while the page's member comes from its
+// local session; the forced change calls changeOwnPassword with no re-authentication. Without the check,
+// a colleague's password could be set to what this member typed — and stamped as this member's.
+describe('the password calls act on the page member\'s OWN account, or send nothing (audit A3/B4)', () => {
+    const coded = (/** @type {any} */ e) => e?.code === 'myb/account-mismatch';
+    for (const [who, user] of /** @type {const} */ ([
+        ['a colleague signed in from another tab', { uid: 'uid_colleague', email: 'g.miller@myb-roster.local' }],
+        ['an account with no email (the staff PIN)', { uid: 'calendar-viewer', email: null }],
+    ])) {
+        test(`${who}: both refuse, coded, before anything is sent`, async () => {
+            signIn(/** @type {any} */ (user));
+            await assert.rejects(fc.changeOwnPassword(MEMBER, 'a-new-passphrase'), coded);
+            await assert.rejects(fc.reauthenticateWithPassword(MEMBER, 'SPRINGER'), coded);
+            assert.deepEqual(state.authOps.filter((o) => o.op === 'updatePassword' || o.op === 'reauthenticate'), [],
+                'a credential call went to an account that is not the page member\'s');
+            assert.deepEqual(writes('passwordStatus/'), [], 'a stamp was started for a password that was not changed');
+        });
+    }
+
+    test('no member named is nobody\'s account either — refused the same way, not a TypeError', async () => {
+        signIn();
+        await assert.rejects(fc.changeOwnPassword(/** @type {any} */ (undefined), 'a-new-passphrase'), coded);
+        assert.deepEqual(state.authOps.filter((o) => o.op === 'updatePassword'), []);
+    });
+
+    test('…and both pages word the refusal through their shared ladder — never as a wrong password', async () => {
+        // A credential rejection reads "Current password incorrect … ask the admin to reset it", which
+        // would send a member whose password is fine to an admin reset.
+        const { passwordChangeFailure, isCredentialRejection } = await import('./auth-identity.js');
+        assert.equal(isCredentialRejection('myb/account-mismatch'), false);
+        for (const reauthed of [false, true]) {
+            assert.doesNotMatch(passwordChangeFailure('myb/account-mismatch', reauthed).message, /incorrect/i);
+        }
+    });
+});
+
 describe('re-authentication before a password change', () => {
     test('a wrong-password on the typed text falls through to the surname candidate', async () => {
         signIn();

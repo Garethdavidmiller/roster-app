@@ -2227,7 +2227,7 @@ The Firestore I/O behind the admin's two read-outs of the app itself — the cli
 
 ### `own-password.js`
 Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both functions under their old names. The two properties an edit can break are its header.
-- `buildPasswordClient({ auth, reauthenticateWithCredential, EmailAuthProvider, updatePassword, savePasswordSetAt, trackBackgroundWrite })` → the two functions below. `auth.currentUser` is read at call time.
+- `buildPasswordClient({ auth, reauthenticateWithCredential, EmailAuthProvider, updatePassword, savePasswordSetAt, trackBackgroundWrite })` → the two functions below. `auth.currentUser` is read at call time, and BOTH refuse — coded `myb/account-mismatch`, before anything is sent — unless it is `memberName`'s own account (`nameToEmail`; audit A3/B4): another tab can change it. Settings and the forced change word that through `passwordChangeFailure`; it is never a credential rejection.
 - `reauthenticateWithPassword(memberName, typed)` — the sign-in's gated candidate ladder (`credentialCandidatesFor`): the next candidate only on a DEFINITIVE rejection, never behind a transient failure.
 - `changeOwnPassword(memberName, newPassword)` → `{ stamp }` — resolves once the password HAS changed (the half to time); the `passwordSetAt` stamp settles `false` rather than rejecting, and is counted until it lands (`trackBackgroundWrite`).
 - Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.

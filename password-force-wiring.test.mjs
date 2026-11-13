@@ -150,6 +150,24 @@ test('…but a caret the member has moved while the save was out stays where the
     assert.equal(doc.activeElement, ids.pwfToggle, 'the caret was pulled from where the member had put it');
 });
 
+// THE ACCOUNT SIGNED IN IS NOT THIS PAGE'S MEMBER (audit A3/B4): `changeOwnPassword` refuses, coded, and
+// the overlay words it through the ladder Settings reads too — never as a wrong password, and never by
+// asking for the current password, which cannot get past it.
+test('a refusal because the signed-in account is somebody else\'s is worded by the shared ladder', async () => {
+    const { passwordChangeFailure } = await import('./auth-identity.js');
+    setImpl = async () => { throw Object.assign(new Error('not this member'), { code: 'myb/account-mismatch' }); };
+    await openOverlay();
+    ids.pwfNew.value = ids.pwfConfirm.value = 'a-real-password-9';
+    enter(ids.pwfConfirm);
+    await flush();
+    assert.equal(setCalls, 1, 'premise: the save was tried');
+    assert.equal(ids.pwfError.textContent, passwordChangeFailure('myb/account-mismatch', true).message,
+        'the overlay did not word the refusal through the shared ladder');
+    assert.doesNotMatch(ids.pwfError.textContent, /incorrect/i, 'a member whose password is fine was told it is wrong');
+    assert.equal(ids.pwfCurrentWrap.hidden, true, 'it asked for the current password, which cannot get past it');
+    ids.pwfEscape.hidden = false; ids.pwfEscape.click();        // leave, so the overlay is not open for later tests
+});
+
 test('the Enter that confirms an input method\'s composition is left to it (review, 11 Nov 2026)', async () => {
     await openOverlay();
     let prevented = false;

@@ -446,8 +446,8 @@ test('forced password overlay: rejects a short or mismatched password and stays 
 //
 // The hermetic stub makes this easy to drive: `getAuth()` returns `{ currentUser: null }` by default,
 // so changeOwnPassword rejects with 'Not signed in' every time. The HAPPY path needs the opt-in signed-in
-// user (window.__E2E.authUser, plus authUserEmail where re-authentication runs) — e2e/settings.spec.js
-// drives it on both password surfaces. The password RULES are unit-tested (auth-identity.test.mjs) and
+// user (window.__E2E.authUser) AND its authUserEmail, the page member's own account: both password calls
+// refuse any other (own-password.js, audit A3/B4) — e2e/settings.spec.js drives it on both surfaces. The password RULES are unit-tested (auth-identity.test.mjs) and
 // the write path is the same changeOwnPassword the shipped Settings card uses.
 test('forced password overlay: offers a way out after repeated save failures', async ({ page }) => {
     await forcePasswordSet(page);
@@ -1031,7 +1031,7 @@ test('on a short laptop window the sign-in button is on screen, and so is the fr
 test('forced overlay: a write that outlives its deadline is reported as UNCONFIRMED, not failed', async ({ page }) => {
     test.setTimeout(45_000);
     await forcePasswordSet(page);
-    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, hangPasswordWrite: true }; });
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, authUserEmail: 'g.miller@myb-roster.local', hangPasswordWrite: true }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await page.locator('#pwForceOverlay.visible').waitFor({ timeout: 8000 });
@@ -1058,7 +1058,7 @@ test('forced overlay: a write that outlives its deadline is reported as UNCONFIR
 test('forced overlay: a LATE SUCCESS finishes the flow instead of stranding the member', async ({ page }) => {
     test.setTimeout(45_000);
     await forcePasswordSet(page);
-    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, hangPasswordWrite: true }; });
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, authUserEmail: 'g.miller@myb-roster.local', hangPasswordWrite: true }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await page.locator('#pwForceOverlay.visible').waitFor({ timeout: 8000 });
@@ -1077,7 +1077,7 @@ test('forced overlay: a LATE SUCCESS finishes the flow instead of stranding the 
 test('forced overlay: a LATE FAILURE re-enables retry with the real error', async ({ page }) => {
     test.setTimeout(45_000);
     await forcePasswordSet(page);
-    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, hangPasswordWrite: true }; });
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, authUserEmail: 'g.miller@myb-roster.local', hangPasswordWrite: true }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await page.locator('#pwForceOverlay.visible').waitFor({ timeout: 8000 });
