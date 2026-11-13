@@ -20,7 +20,7 @@ import { printedStamp, formatClock } from './date-format.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod, takeHomePay,
+  computeGross, computeTax, computeNI, computeSL, takeHomePay,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
@@ -40,7 +40,7 @@ import {
   appendPayslipOptions,
 } from './paycalc-periods.js';
 import {
-  getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
+  getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
   applyPensionOptOutUI, wirePensionControls, gradeForRole, periodDefaultPension,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
   saveSettings, confirmSettings, loadSettings, periodRate, wireSettingsCard,
@@ -366,7 +366,7 @@ export function init() {
         // The rate THIS payslip was paid at, as the rate field shows it (periodRate), with the field's
         // "pre-rise" qualifier — never the year's settled rate over a payslip priced at the old one.
         const { rate: _hintRate, preAward: _hintPreAward } = periodRate(ty, p);
-        const rate = (_hintRate || numVal('hourlyRate') || (GRADES[getGrade()]?.rate ?? GRADES.cea.rate)).toFixed(2);
+        const rate = (_hintRate || numVal('hourlyRate') || GRADES.cea.rate).toFixed(2);
         // No tax code here: beside the period chip it wrapped onto a second line at 390px, and the
         // year, the rate and its pre-rise position are the at-a-glance facts. The code is in the card.
         setStatus(_hintEl, `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise' : ''}`);
@@ -667,11 +667,11 @@ export function init() {
       const _proRateFactor = getProRateFactor(_curP);
       const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
 
-      const _calcGrade = getGrade();
-      const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
-      // The field is read-only and grade-derived, so the floor and the grade default only matter if
-      // its value is ever missing.
-      const rate = Math.max(0, numVal('hourlyRate')) || _calcDefaultRate;
+      // The payslip's rate from the one source the rate field and the Settings hint also read
+      // (periodRate): its grades' rates weighted by their days, UNROUNDED. The field shows it to the
+      // penny, and pricing a payslip that spans a promotion at the field's rounding would leave the
+      // contracted pay pennies short of 35 hours at one rate plus 105 at the other (paycalc-grade.js).
+      const rate = Math.max(0, periodRate(_ty, _curP).rate) || GRADES.cea.rate;
       updateBadges(rate);
       const r125 = rate * RATE_125;
       const r150 = rate * RATE_150;
@@ -1302,20 +1302,19 @@ export function init() {
     }, true);
 
     // Settings inputs
-    /** @type {HTMLElement} */ (document.getElementById('gradeSelect')).addEventListener('change', () => {
-      // Preserve a hand-entered pension: replace it only while it still holds the PREVIOUS grade's
-      // default, so tapping the grade just to check it never wipes a figure copied off a payslip.
-      // lsGet(SK.grade) still holds the previous grade until saveSettings() runs.
-      const _oldGrade = lsGet(SK.grade);
+    // The Grade box and the payslip a chosen grade starts from are ONE setting, so they share one
+    // handler (paycalc-grade.js).
+    const _onGradeChange = () => {
+      // Preserve a hand-entered pension: replace it only while it still holds the default it held
+      // BEFORE the change, so tapping the grade just to check it never wipes a figure copied off a
+      // payslip. Read before saveSettings(), which is what moves the setting.
       const _gP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
 
       const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
-      const _oldPenDefault = (_oldGrade && GRADES[_oldGrade] && _gP)
-        ? (getPensionForPeriod(_oldGrade, _gP.payday) * getProRateFactor(_gP)).toFixed(2)
-        : '';
+      const _oldPenDefault = _gP ? periodDefaultPension(_gP).toFixed(2) : '';
       const penUntouched = !_pa || _pa.value.trim() === '' || _pa.value === _oldPenDefault;
 
-      saveSettings(); // calls invalidateGrade() so getGrade() returns the new grade below
+      saveSettings(); // calls invalidateGrade(), so everything below prices with the new setting
       // The hourly rate is fixed by grade and read-only: reload the new grade's rate for this payslip.
       if (_gP) updateRateForPeriod(taxYearForPeriod(_gP), _gP);
       if (_pa && penUntouched) _pa.value = periodDefaultPension(_gP).toFixed(2);
@@ -1325,7 +1324,9 @@ export function init() {
       // only if the lump changed, so the calculate() below stays for the pension and rate.
       _runCalcBackPay();
       calculate();
-    });
+    };
+    /** @type {HTMLElement} */ (document.getElementById('gradeSelect')).addEventListener('change', _onGradeChange);
+    document.getElementById('gradeFrom')?.addEventListener('change', _onGradeChange);
     // No #hourlyRate listener — the rate is read-only and grade-derived.
     /** @type {HTMLElement} */ (document.getElementById('taxCode')).addEventListener('input',     () => { saveSettings(); calculate(); });
     document.getElementById('taxCode')?.addEventListener('blur', calculate);   // its warning waits for the box to be left
@@ -1530,6 +1531,7 @@ export function init() {
     initSelectSheets([
         { id: 'periodSelect',      title: 'Which pay period?', searchLabel: 'Search pay periods' },
         { id: 'gradeSelect',       title: 'Your grade' },
+        { id: 'gradeFrom',         title: 'Use this grade from which payslip?', searchLabel: 'Search pay periods' },
         { id: 'studentLoan',       title: 'Student loan plan' },
         { id: 'pensionOptOutFrom', title: 'Not in the scheme from which payslip?', searchLabel: 'Search pay periods' },
         { id: 'slPaidOffFrom',     title: 'Student loan stopped being deducted?', searchLabel: 'Search pay periods' },

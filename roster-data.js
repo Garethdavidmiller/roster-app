@@ -284,8 +284,8 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
  * The pay grade this app has CONFIRMED rates and contract terms for, given a member's role — or
  * null when it has none (v21.78).
  *
- * Written because the absence of a grade was indistinguishable from CEA. `getGrade()` returns ''
- * for anybody the app never stored one for, and every consumer then falls back to `GRADES.cea`, so
+ * Written because the absence of a grade was indistinguishable from CEA. The calculator's grade was
+ * '' for anybody the app never stored one for, and every consumer then fell back to `GRADES.cea`, so
  * a Dispatcher or a manager opening the calculator received a complete, plausible CEA estimate.
  * That is worse than an unsupported state: an unverified figure at least looks unverified, whereas
  * this one was somebody else's pay presented as theirs.

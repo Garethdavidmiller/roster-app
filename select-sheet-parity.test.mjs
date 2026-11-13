@@ -628,6 +628,16 @@ const SAFE_BY_DECISION = {
         holds: () => orderedIn('paycalc-app.js', /\bloadSettings\s*\(\s*\)/, /\binitSelectSheets\s*\(/),
         lapsed: 'paycalc-app.js no longer runs loadSettings() before initSelectSheets()',
     },
+    // The Grade box's load moved out of loadSettings() with the dated grade (v26.00) and is still
+    // CALLED by it, so it is still a write before the enhancement — and only while it stays that.
+    'paycalc-grade-setting.js': {
+        why: 'loadGradeSetting() is called by loadSettings(), which runs BEFORE initSelectSheets enhances '
+            + "the Grade box, so the trigger's first paint reads the loaded grade",
+        holds: () => orderedIn('paycalc-app.js', /\bloadSettings\s*\(\s*\)/, /\binitSelectSheets\s*\(/)
+            && /export function loadSettings\b[\s\S]*?\bloadGradeSetting\s*\(\s*\)/.test(strip(read('paycalc-settings.js'))),
+        lapsed: 'loadGradeSetting() is no longer called by loadSettings(), or paycalc-app.js no longer runs '
+            + 'loadSettings() before initSelectSheets()',
+    },
     'admin-app.js': {
         why: 'the month filter is written and then renderTable() rebuilds its whole option list, '
             + 'restoring the value it just read — a childList mutation the observer watches',

@@ -729,7 +729,7 @@ describe('a member who started after the award\'s window is told so, not "your p
 const { calcHPP, _varPayForPeriod } = await import('./paycalc-hpp.js');
 const { HPP_FRACTION } = await import('./paycalc-calc.js');
 const { hppEstKey } = await import('./paycalc-migrations.js');
-const { getStoredRateForYear } = await import('./paycalc-settings.js');
+const { settledRateFor } = await import('./paycalc-settings.js');
 
 describe('back pay never reaches the holiday premium (invariant 5)', () => {
     test('a computed, ticked and saved lump leaves the premium estimate exactly where the hours put it', () => {
@@ -737,7 +737,7 @@ describe('back pay never reaches the holiday premium (invariant 5)', () => {
         const hours = { otH: 10, otM: 0 };                    // premium hours, so the lump has a premium share
         for (const p of WINDOW) _ls.set(periodKey(p.num), JSON.stringify(hours));
         const expected = (WINDOW.reduce((/** @type {number} */ s, /** @type {any} */ p) =>
-            s + _varPayForPeriod(p, hours, getStoredRateForYear(TY)), 0) * HPP_FRACTION).toFixed(2);
+            s + _varPayForPeriod(p, hours, settledRateFor(p, TY)), 0) * HPP_FRACTION).toFixed(2);
 
         calcHPP();
         assert.equal(_ls.get(hppEstKey(TY)), expected, 'precondition: with no back pay, the estimate is the hours\' own');

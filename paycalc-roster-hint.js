@@ -406,7 +406,7 @@ export function updateJoinerNotice(p) {
   // opening Sunday) — so there is nothing to explain; it read "140 of 140 … 28 of 28 days" (paycalc-3-12).
   if (daysEmployed >= totalDays) { el.style.display = 'none'; return; }
   const proRated     = getEffectiveContr(p);
-  const base         = getContr();
+  const base         = getContr(p);
   const startFmt     = fdLong(member.startDate);
   el.textContent = `📅 You joined on ${startFmt}. For this period: contracted hours ${proRated} of ${base}, London Allowance and pension contribution scaled to ${daysEmployed} of ${totalDays} days.`;
   el.style.display = '';

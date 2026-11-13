@@ -1,7 +1,8 @@
 /**
  * Unit tests for the money-critical grade lookups in paycalc-settings.js:
  *   gradeForRole (which pay grade a member's ROLE is — see its own block at the foot of this file),
- *   getStoredRateForYear (the hourly rate for a tax year) and getPensionDefault (the period's
+ *   settledRate / settledRateFor (the hourly rate for a tax year, by grade and by a payslip's
+ *   grade days) and getPensionDefault (the period's
  *   default pension). These were previously ONLY ever mocked (paycalc-hpp/-year-summary tests
  *   mock the whole module), so a regression in the wrapper — e.g. delegating to the wrong grade,
  *   or losing the award/period lookup — would ship green. The underlying maths (AWARD_RATES,
@@ -77,7 +78,7 @@ mock.module('./paycalc-roster-suggestions.js', {
 
 const { SK, periodKey } = await import('./paycalc-migrations.js');
 const {
-    getStoredRateForYear, getPensionDefault, isPensionOptedOut, gradeForRole,
+    settledRate, settledRateFor, getPensionDefault, isPensionOptedOut, gradeForRole,
     periodDefaultPension, getProRateFactor, getEffectiveContr, periodRate, gradeToOffer,
 } = await import('./paycalc-settings.js');
 const { awardRatesFor, getPensionForPeriod, GRADES, computeGross, getRateForPeriod, getLondonAllowanceForPeriod } = await import('./paycalc-calc.js');
@@ -92,17 +93,27 @@ const { computeYearSoFar } = await import('./paycalc-year-summary.js');
 // The role→grade contract is derived from it rather than from a list kept here.
 const { teamMembers } = await import('./roster-member-data.js');
 
-// getGrade() reads SK.grade from (mocked) localStorage and CACHES on first call — so pin the grade
-// before any settings function runs. One grade per module load is enough to prove the wiring.
+// getGradeSetting() reads SK.grade from (mocked) localStorage and CACHES on first call — so pin the
+// grade before any settings function runs. One grade per module load is enough to prove the wiring:
+// a grade saved before grades had dates reads as covering every payslip.
 before(() => { _ls.set(SK.grade, 'cea'); });
 
-describe('getStoredRateForYear — delegates to awardRatesFor, with the grade default as fallback', () => {
-    test('a year on record returns its settled award rate', () => {
-        assert.equal(getStoredRateForYear({ label: '2025/26' }), awardRatesFor('cea', '2025/26').rate);
-        assert.equal(getStoredRateForYear({ label: '2026/27' }), awardRatesFor('cea', '2026/27').rate);
+describe('settledRate / settledRateFor — delegate to awardRatesFor, with the grade default as fallback', () => {
+    const P = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
+    test('a year on record returns its settled award rate, for each grade', () => {
+        for (const g of ['cea', 'ces']) {
+            assert.equal(settledRate(g, { label: '2025/26' }), awardRatesFor(g, '2025/26').rate);
+            assert.equal(settledRate(g, { label: '2026/27' }), awardRatesFor(g, '2026/27').rate);
+        }
     });
     test('a year NOT on record falls back to the grade default rate (no throw)', () => {
-        assert.equal(getStoredRateForYear({ label: '2099/00' }), GRADES.cea.rate);
+        assert.equal(settledRate('cea', { label: '2099/00' }), GRADES.cea.rate);
+        assert.equal(settledRate('ces', { label: '2099/00' }), GRADES.ces.rate);
+    });
+    test('a payslip\'s settled rate is its grade\'s, read off the saved setting', () => {
+        // The saved CEA (pinned in `before`) covers every payslip; the period's year decides the figure.
+        assert.equal(settledRateFor(P(50)), awardRatesFor('cea', '2026/27').rate);
+        assert.equal(settledRateFor(P(40)), awardRatesFor('cea', '2025/26').rate);
     });
 
     test('a stale rate left in storage is never read (invariant 8; contracts-b-6)', () => {
@@ -112,9 +123,10 @@ describe('getStoredRateForYear — delegates to awardRatesFor, with the grade de
         _ls.set(SK.rate, '19.99');
         _ls.set(SK.rates, JSON.stringify({ '2025/26': 19.99, '2026/27': 19.99 }));
         try {
-            assert.equal(getStoredRateForYear({ label: '2026/27' }), awardRatesFor('cea', '2026/27').rate);
-            assert.equal(getStoredRateForYear({ label: '2025/26' }), awardRatesFor('cea', '2025/26').rate);
-            assert.equal(getStoredRateForYear({ label: '2099/00' }), GRADES.cea.rate);
+            assert.equal(settledRate('cea', { label: '2026/27' }), awardRatesFor('cea', '2026/27').rate);
+            assert.equal(settledRate('cea', { label: '2025/26' }), awardRatesFor('cea', '2025/26').rate);
+            assert.equal(settledRate('cea', { label: '2099/00' }), GRADES.cea.rate);
+            assert.equal(settledRateFor(P(50)), awardRatesFor('cea', '2026/27').rate);
         } finally {
             _ls.delete(SK.rate);
             _ls.delete(SK.rates);
@@ -162,7 +174,7 @@ describe('periodRate — the rate a payslip was PAID at', () => {
         assert.deepEqual(periodRate(TY('2026/27'), P(55)), { rate: awardRatesFor('cea', '2026/27').rate, preAward: false });
     });
     test('no payslip named → the settled rate', () => {
-        assert.deepEqual(periodRate(TY('2026/27')), { rate: getStoredRateForYear(TY('2026/27')), preAward: false });
+        assert.deepEqual(periodRate(TY('2026/27')), { rate: settledRate('cea', TY('2026/27')), preAward: false });
     });
 });
 
@@ -340,9 +352,9 @@ describe('gradeForRole — the role → pay-grade map every figure hangs off', (
     });
 
     test('a role with no confirmed rates gets NULL, never a fallback grade', () => {
-        // invariant 13. `getGrade()` returns '' for anybody with nothing stored and every consumer
-        // then falls back to `GRADES.cea`, so returning a grade here for an unmodelled role is not
-        // a smaller error than a wrong one — it is the same error, arriving quietly.
+        // invariant 13. A role with no rates gives a payslip no grade, and every consumer then falls
+        // back to `GRADES.cea` until the page refuses, so returning a grade here for an unmodelled
+        // role is not a smaller error than a wrong one — it is the same error, arriving quietly.
         for (const role of ['Dispatcher', 'Management', 'Supervisor', 'CEA ', 'cea', '', null, undefined]) {
             assert.equal(gradeForRole(/** @type {any} */ (role)), null,
                 `"${String(role)}" was handed a pay grade the app has no rates for`);
@@ -501,7 +513,7 @@ describe('the pay field and the year card agree about a joiner’s pension', () 
         // Rebuild the gross the engine priced, from the same REAL settings module it read. Nothing
         // here is a restatement of the engine's own line — every input comes from the shipped code.
         const g = computeGross({
-            rate:     getRateForPeriod(p, 'cea', ty.label, getStoredRateForYear(ty)),
+            rate:     getRateForPeriod(p, 'cea', ty.label, settledRate('cea', ty)),
             effContr: getEffectiveContr(p),
             satHrs: 0, bhHrs: 0, bhOtHrs: 0,
             oHrs: 4, rHrs: 0, sHrs: 0, bHrs: 0, peerDays: 0,
@@ -688,6 +700,7 @@ async function settingsCard(/** @type {number} */ viewing) {
     card.taxCode = fakeInput(); card.taxCode.value = '1257L';
     card.studentLoan = fakeInput(); card.studentLoan.value = 'plan2';
     card.pensionOptOutFrom = fakeSelect();
+    card.gradeFrom = fakeSelect();   // the page's "use this grade from which payslip?" control (v26.00)
     card.slPaidOffFrom = fakeSelect();
     card.slPaidOffFrom.appendChild(fakeOption('', 'No — still deducted'));
     appendPayslipOptions(card.slPaidOffFrom, visiblePeriods());

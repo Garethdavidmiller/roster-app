@@ -74,7 +74,7 @@ export const KEY_KINDS = [
     { id: 'pension',  label: 'pension', structured: t => t === 'pension_timeline',
                                                                            test: t => /^pension(_optout|_timeline)?$/.test(t) },
     { id: 'actuals',  label: 'payslip comparison',       structured: true, test: t => t === 'actuals' },
-    { id: 'settings', label: 'your settings',                              test: t => /^(rate|rates|grade|grade_kept|code|sl|pg_loan|sl_paid_off|setup|setup_years_migrated)$/.test(t) },
+    { id: 'settings', label: 'your settings',                              test: t => /^(rate|rates|grade|grade_from|grade_kept|grade_note|code|sl|pg_loan|sl_paid_off|setup|setup_years_migrated)$/.test(t) },
 ];
 
 /** Resolve a kind's `structured` flag, which may be a predicate on the tail. */

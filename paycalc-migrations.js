@@ -105,9 +105,9 @@ export function pcPrefix() { return `myb_pc_${_nsSeg}`; }
 
 /** Per-member storage keys. Rebuilt in place (object mutated, binding kept) whenever
  *  the namespace changes, so every module that imported SK sees the new key names. */
-/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, pensionOptOut:string, pensionTimeline:string, setup:string, ytdPay:string, ytdTax:string, grade:string, gradeKept:string }} */
+/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, slPaidOff:string, pension:string, pensionOptOut:string, pensionTimeline:string, setup:string, ytdPay:string, ytdTax:string, grade:string, gradeFrom:string, gradeKept:string, gradeNote:string }} */
 export const SK = {
-    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', pensionOptOut: '', pensionTimeline: '', setup: '', ytdPay: '', ytdTax: '', grade: '', gradeKept: '',
+    rate: '', rates: '', code: '', sl: '', pgLoan: '', slPaidOff: '', pension: '', pensionOptOut: '', pensionTimeline: '', setup: '', ytdPay: '', ytdTax: '', grade: '', gradeFrom: '', gradeKept: '', gradeNote: '',
 };
 
 /** Recompute the SK key strings from the active namespace. */
@@ -146,10 +146,18 @@ function _rebuildSK() {
     SK.setup   = `${p}setup`;
     SK.ytdPay  = `${p}ytd_pay`;
     SK.ytdTax  = `${p}ytd_tax`;
+    // 'roster' (price each payslip by the roster's dated grades — the default) or a grade the member
+    // chose ('cea'|'ces'). A chosen grade covers whole payslips from `gradeFrom` on — see
+    // paycalc-grade.js. A device's grade saved before grades had dates has no `gradeFrom`, and
+    // loadSettings converts it once (settingFromLegacy).
     SK.grade   = `${p}grade`;
+    SK.gradeFrom = `${p}grade_from`;   // p.num of the first payslip a CHOSEN grade covers ('' / absent with 'roster')
     // The roster grade the member chose NOT to switch to when the grade prompt asked ('cea'|'ces',
     // absent = never declined) — paycalc-settings.js → gradeToOffer. Member-level, like the grade.
     SK.gradeKept = `${p}grade_kept`;
+    // The roster change of grade this device has shown its one-time note for — the change's first day,
+    // YYYY-MM-DD (paycalc-grade.js → gradeChangeNote). A later change is a different day, so it shows.
+    SK.gradeNote = `${p}grade_note`;
 }
 _rebuildSK(); // initialise to the unnamespaced (legacy) key names at module load
 
