@@ -179,6 +179,11 @@ line at the top offering the roster grade's rates (`gradeToOffer` / `renderGrade
 asked again only if the roster later names a different grade. "Use" goes through the Grade box's own
 change handler, so the rate, the pension default and back pay re-price exactly as a hand-picked grade does
 (and back pay's no-record box is blanked by `blobFitsGrade`, `paycalc-backpay-state.js`).
+- **The roster grade is read for the payslip on screen, not for today** (v25.99): `rosterRolesOnScreen`
+  asks `rolesInRange` (`roster-roles.js`) for the grades held over that payslip's days, and
+  `gradeToOffer` stays quiet while the saved grade is any of them. A promotion is released days before
+  it starts, so asking by today's `role` would offer the new rates against payslips still worked
+  wholly or partly under the old grade. A first visit takes the grade held TODAY (`roleOn`).
 
 **The card's words are written for its reader** (`paycalc-role-card.js`, owner, 7 Nov 2026): a
 Dispatcher is told their pay is not covered *yet* and will be added once Dispatcher rates are

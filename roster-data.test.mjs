@@ -60,6 +60,8 @@ import {
     getMembersForGrade,
     parseSmartFloatOrNull,
 } from './roster-data.js';
+// The grade on a day lives beside the data it reads, in a module of its own (roster-data.js is at its size cap).
+import { roleOn, rolesInRange } from './roster-roles.js';
 import { isChristmasLeaveDay } from './christmas-leave.js';
 
 describe('isChilternWorkEmail', () => {
@@ -1725,7 +1727,7 @@ test('no two rows hold one rotating line, except a leaver\'s line taken after th
 // edit can't silently shift them. getBaseShift / resolveMemberRoster take Date objects
 // (month 0-based). fixedRoster[2] = 09:00–16:00 Mon–Fri, RD weekends.
 
-test('K. Jedlinski: pre-start RD, fixed pattern 2 (3–27 Jun), then main wk10 (28 Jun+)', () => {
+test('K. Jedlinski: pre-start RD, fixed pattern 2 (3–27 Jun), main wk10 (28 Jun–21 Nov), then the CES link (22 Nov+)', () => {
     const m = teamMembers.find(x => x.name === 'K. Jedlinski');
     assert.ok(m, 'K. Jedlinski not found');
     assert.equal(getBaseShift(m, new Date(2026, 5, 2)),  'RD');           // 2 Jun — before startDate (3 Jun)
@@ -1734,6 +1736,12 @@ test('K. Jedlinski: pre-start RD, fixed pattern 2 (3–27 Jun), then main wk10 (
     const r = resolveMemberRoster(m, new Date(2026, 5, 28));              // 28 Jun onward
     assert.equal(r.rosterType, 'main');
     assert.equal(r.currentWeek, 10);
+    const last = resolveMemberRoster(m, new Date(2026, 10, 21));          // Sat 21 Nov — the last day on the main link
+    assert.equal(last.rosterType, 'main');
+    assert.equal(last.currentWeek, 10);
+    const ces = resolveMemberRoster(m, new Date(2026, 10, 22));           // Sun 22 Nov — a CES (owner, 13 Nov 2026)
+    assert.equal(ces.rosterType, 'ces');
+    assert.equal(ces.currentWeek, 9);
 });
 
 test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
@@ -1756,7 +1764,7 @@ test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
 // flavour) with no shift times from her start date Monday to Friday until Friday 6th of November").
 // The whole span is walked, not its two ends: a pattern that slipped by a day would pass both.
 // Her start is Sun 20 Sep, the clerks' workbook date (owner, 8 Nov 2026), so training begins Mon 21 Sep.
-test('M. Campbell: pre-start RD, Training with no times Mon–Fri 21 Sep–6 Nov, then bilingual from 8 Nov', () => {
+test('M. Campbell: pre-start RD, Training with no times Mon–Fri 21 Sep–6 Nov, bilingual 8–21 Nov, then the main link from 22 Nov', () => {
     const m = teamMembers.find(x => x.name === 'M. Campbell');
     assert.ok(m, 'M. Campbell not found');
     // Asserted by value: a weekend start shows nothing on the grid, so the walk cannot tell the
@@ -1773,6 +1781,11 @@ test('M. Campbell: pre-start RD, Training with no times Mon–Fri 21 Sep–6 Nov
     for (let day = 8; day <= 14; day++) {                                   // and no training on it
         assert.notEqual(getBaseShift(m, new Date(2026, 10, day)), 'TRG', `${day} Nov`);
     }
+    const lastBilingual = resolveMemberRoster(m, new Date(2026, 10, 21));  // Sat 21 Nov — the last day on it
+    assert.equal(lastBilingual.rosterType, 'bilingual');
+    const main = resolveMemberRoster(m, new Date(2026, 10, 22));           // Sun 22 Nov — the main link (owner, 13 Nov 2026)
+    assert.equal(main.rosterType, 'main');
+    assert.equal(main.currentWeek, 10);
 });
 
 // J. Bangi: the M. Campbell pattern for a Dispatcher (owner, 8 Nov 2026) — training with no times
@@ -1854,6 +1867,139 @@ test('A. Atkins: his Dispatcher line until Sat 14 Nov 2026, then the placeholder
     }
     assert.equal(getBaseShift(m, new Date(2026, 11, 28)), 'RD', 'Mon 28 Dec 2026 is a bank holiday: a rest day on his line');
     assert.equal(getBaseShift(m, new Date(2026, 11, 29)), '09:00-16:00', 'Tue 29 Dec 2026 is an ordinary weekday');
+});
+
+// ── SUN 22 NOV 2026: A PROMOTION, A MOVE INTO MANAGEMENT AND A LINE CHANGE (owner, 13 Nov 2026) ──────────────
+// K. Jedlinski goes from CEA to CES on W. Cummings's CES line; W. Cummings becomes a manager; M. Campbell leaves the
+// bilingual link for the main CEA line K. Jedlinski leaves. "Takes the line" is asserted as the same TURNS, day by
+// day across two whole cycles — what the row that held it would have drawn — and as the same neighbours: a
+// reference-anchored value written as the line somebody is on that week would still look plausible. The test that
+// no two rows hold one line runs daily above; these check each line taken is the RIGHT one.
+const byName = (/** @type {string} */ n) => /** @type {any} */ (teamMembers.find(x => x.name === n));
+
+test('22 Nov 2026: K. Jedlinski takes W. Cummings\'s CES line, between M. Bowler and S. Horsman', () => {
+    const k = byName('K. Jedlinski');
+    const w = byName('W. Cummings');
+    assert.ok(k && w, 'both rows are on the roster');
+    // W. Cummings's base fields ARE that line: the row keeps them so the weeks worked on it still read right.
+    assert.deepEqual([w.rosterType, w.currentWeek], ['ces', 9]);
+    const cummingsLine = { name: 'W. Cummings', role: 'CES', rosterType: w.rosterType, currentWeek: w.currentWeek };
+    const len = CONFIG.CES_ROSTER_WEEKS;
+    for (let i = 0; i < 7 * len * 2; i++) {
+        const d = new Date(2026, 10, 22 + i);
+        assert.equal(getBaseShift(k, d), getBaseShift(cummingsLine, d), `W. Cummings's turn, ${d.toDateString()}`);
+    }
+    for (const when of [new Date(2026, 10, 22), new Date(2026, 10, 22 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(k), wk(byName('M. Bowler')) % len + 1, `one row after M. Bowler, ${when.toDateString()}`);
+        assert.equal(wk(byName('S. Horsman')), wk(k) % len + 1, `one row before S. Horsman, ${when.toDateString()}`);
+    }
+});
+
+test('22 Nov 2026: M. Campbell takes the main CEA line K. Jedlinski leaves, between O. Mylla and L. Atrakimaviciene', () => {
+    const m = byName('M. Campbell');
+    const k = byName('K. Jedlinski');
+    // The line K. Jedlinski held from 28 Jun, as it would have run on without the promotion.
+    const jedlinskiLine = { ...k, role: 'CEA', rosterChanges: k.rosterChanges.filter((/** @type {any} */ c) => c.rosterType === 'main') };
+    assert.equal(jedlinskiLine.rosterChanges.length, 1, 'one move onto the main link, on 28 Jun');
+    const len = CONFIG.MAIN_ROSTER_WEEKS;
+    for (let i = 0; i < 7 * len * 2; i++) {
+        const d = new Date(2026, 10, 22 + i);
+        assert.equal(getBaseShift(m, d), getBaseShift(jedlinskiLine, d), `K. Jedlinski's turn, ${d.toDateString()}`);
+    }
+    for (const when of [new Date(2026, 10, 22), new Date(2026, 10, 22 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(m), wk(byName('O. Mylla')) % len + 1, `one row after O. Mylla, ${when.toDateString()}`);
+        assert.equal(wk(byName('L. Atrakimaviciene')), wk(m) % len + 1, `one row before L. Atrakimaviciene, ${when.toDateString()}`);
+    }
+});
+
+// A GRADE HAS NO DATE, so these hold from the release on: every list reads the grade as of today. The server's
+// copy (functions/roster-members.json) is what the roster import reads its names from and what Set up accounts
+// trusts; sw-asset-check.test.mjs holds it to the generator, and this says what it must contain.
+test('22 Nov 2026: each list holds the right three — the CES and CEA imports, the managers, and the active accounts', () => {
+    const w = byName('W. Cummings');
+    assert.equal(w.role, 'Management');
+    assert.equal(w.managerOnly, true, 'off every staff list, like every other manager');
+    assert.equal(w.hidden, true, 'and hidden, which keeps the row off the Calendar\'s member list');
+    assert.ok(CONFIG.MANAGER_NAMES.includes('W. Cummings'), 'manager access — granted when Set up accounts is next run');
+    const grade = (/** @type {string} */ g) => getMembersForGrade(g).map(x => x.name);
+    assert.ok(grade('CES').includes('K. Jedlinski') && !grade('CES').includes('W. Cummings'));
+    assert.ok(!grade('CEA').includes('K. Jedlinski') && grade('CEA').includes('M. Campbell'));
+    assert.ok(grade('Management').includes('W. Cummings'));
+    const server = JSON.parse(readFileSync(new URL('./functions/roster-members.json', import.meta.url), 'utf8'));
+    assert.ok(server.ces.includes('K. Jedlinski') && !server.ces.includes('W. Cummings'),
+        'the CES import reads K. Jedlinski\'s row, and does not report W. Cummings missing');
+    assert.ok(!server.cea.includes('K. Jedlinski') && server.cea.includes('M. Campbell'), 'the CEA import reads M. Campbell');
+    assert.ok(server.roles.manager.includes('W. Cummings'));
+    // Left out of activeMembers, Set up accounts would treat the login as an orphan and disable it.
+    assert.ok(server.activeMembers.includes('W. Cummings'), 'W. Cummings keeps a working login');
+});
+
+test('22 Nov 2026: the leave each one keeps — the joining-year figures stand, and the grade sets the years after', () => {
+    assert.equal(getALEntitlement(byName('K. Jedlinski'), 2026), 18, 'the clerks\' 2026 figure, through the promotion');
+    assert.equal(getALEntitlement(byName('K. Jedlinski'), 2027), 34, 'a CES from 2027 (it would have been 32 as a CEA)');
+    assert.equal(getALEntitlement(byName('M. Campbell'), 2026), 9);
+    assert.equal(getALEntitlement(byName('M. Campbell'), 2027), 32, 'a CEA contract, not a bilingual one, on whichever line');
+});
+
+// ── A GRADE ON A DAY: roleHistory ────────────────────────────────────────────────────────────────
+// `role` is the grade NOW; `roleHistory` dates the grades before it, each with its LAST day. The Pay
+// Calculator prices each payslip by `roleOn`, so a wrong `until` reprices real payslips at the wrong
+// grade — the reason these pin the day either side of every change, not just one date inside each.
+test('roleHistory: every entry is a known grade with a midnight last day, oldest first, and each one is a real change', () => {
+    const GRADES = ['CEA', 'CES', 'Dispatcher', 'Management'];
+    for (const m of teamMembers) {
+        if (m.roleHistory === undefined) continue;
+        assert.ok(Array.isArray(m.roleHistory) && m.roleHistory.length > 0, `${m.name}: roleHistory is a non-empty list`);
+        m.roleHistory.forEach((/** @type {any} */ h, /** @type {number} */ i) => {
+            assert.deepEqual(Object.keys(h).sort(), ['role', 'until'], `${m.name}[${i}]: only role and until`);
+            assert.ok(GRADES.includes(h.role), `${m.name}[${i}]: ${h.role} is not a grade`);
+            assert.ok(h.until instanceof Date && h.until.getHours() === 0 && h.until.getMinutes() === 0,
+                `${m.name}[${i}]: until is a midnight-local Date — new Date(y, m-1, d)`);
+            const next = m.roleHistory[i + 1];
+            if (next) assert.ok(next.until > h.until, `${m.name}[${i}]: entries run oldest first`);
+            assert.notEqual(h.role, next ? next.role : m.role, `${m.name}[${i}]: a grade followed by the same grade is no change`);
+            if (m.startDate) assert.ok(h.until >= m.startDate, `${m.name}[${i}]: a grade that ended before the member started`);
+        });
+    }
+});
+
+test('roleOn: K. Jedlinski is a CEA up to and including Sat 21 Nov 2026, a CES from Sun 22 Nov; W. Cummings a CES, then a manager', () => {
+    const k = byName('K. Jedlinski');
+    const w = byName('W. Cummings');
+    assert.equal(roleOn(k, new Date(2026, 5, 3)), 'CEA', 'the day K. Jedlinski started');
+    assert.equal(roleOn(k, new Date(2026, 10, 21)), 'CEA', 'the last CEA day');
+    assert.equal(roleOn(k, new Date(2026, 10, 21, 23, 30)), 'CEA', 'late on the last CEA day is still that day');
+    assert.equal(roleOn(k, new Date(2026, 10, 22)), 'CES', 'the first CES day');
+    assert.equal(roleOn(k, new Date(2027, 0, 1)), 'CES');
+    assert.equal(roleOn(w, new Date(2026, 10, 21)), 'CES');
+    assert.equal(roleOn(w, new Date(2026, 10, 22)), 'Management');
+    assert.equal(roleOn(byName('M. Campbell'), new Date(2026, 10, 22)), 'CEA', 'no history: the grade now, on every day');
+    assert.equal(roleOn(null, new Date(2026, 10, 22)), undefined);
+});
+
+test('roleOn reads the history in any order: the earliest last-day on or after the date wins', () => {
+    const shuffled = { name: 'X', role: 'Management', roleHistory: [
+        { role: 'CES', until: new Date(2027, 2, 31) },
+        { role: 'CEA', until: new Date(2026, 10, 21) },
+    ] };
+    assert.equal(roleOn(shuffled, new Date(2026, 10, 21)), 'CEA');
+    assert.equal(roleOn(shuffled, new Date(2026, 10, 22)), 'CES');
+    assert.equal(roleOn(shuffled, new Date(2027, 2, 31)), 'CES');
+    assert.equal(roleOn(shuffled, new Date(2027, 3, 1)), 'Management');
+});
+
+test('rolesInRange: the 22 Nov 2026 promotion across the three 28-day periods around it — all CEA, then 7 days CEA and 21 CES, then all CES', () => {
+    const k = byName('K. Jedlinski');
+    // A period's shifts run from the day after the previous cut-off to its own cut-off, 28 days (paycalc-periods.js):
+    // paid 20 Nov 2026, 18 Dec 2026 and 15 Jan 2027.
+    assert.deepEqual(rolesInRange(k, new Date(2026, 9, 18), new Date(2026, 10, 14)), [{ role: 'CEA', days: 28 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 15), new Date(2026, 11, 12)), [{ role: 'CEA', days: 7 }, { role: 'CES', days: 21 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 11, 13), new Date(2027, 0, 9)), [{ role: 'CES', days: 28 }]);
+    assert.deepEqual(rolesInRange(byName('M. Campbell'), new Date(2026, 10, 15), new Date(2026, 11, 12)), [{ role: 'CEA', days: 28 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 22), new Date(2026, 10, 21)), [], 'an end before the start');
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 21), new Date(2026, 10, 22)), [{ role: 'CEA', days: 1 }, { role: 'CES', days: 1 }]);
 });
 
 test('S. Faure: her Dispatcher line until Sun 28 Jun 2026, then the placeholder pattern 4 from Mon 29 Jun — whose bank holidays are rest days', () => {

@@ -183,6 +183,7 @@ roster-app/
 ├── roster-data.js          ← shared: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
 ├── roster-member-data.js ← the roster's PEOPLE: `teamMembers`, one entry each, no logic, no imports; re-exported by roster-data.js. Its own file because its length tracks headcount. **World-readable**: the field-by-field argument is on `teamMembers`
+├── roster-roles.js        ← a member's GRADE ON A DAY: `roleOn` and `rolesInRange`, from `role` (the grade now) and `roleHistory` (the grades before it, each with its last day). Pure, no imports; read by the Pay Calculator. Its own file because roster-data.js is at its size cap
 ├── firebase-client.js      ← shared: Firebase init, db, all Firestore helpers
 ├── auth-identity.js        ← pure account-identity helpers (no Firebase import): `normaliseSurname`, `nameToEmail` (the account email), and the default-password and new-password validation. Re-exported by firebase-client.js; surname-parity.test.mjs holds the functions copy to THIS file
 ├── storage-utils.js        ← pure Storage helpers (no Firebase import): `isSafeStorageUrl` (the download-URL allowlist — a security control), `isDocxUpload`, `officeViewerUrl` (Word documents open in Microsoft's viewer), `sixMonthCutoffISO`, and the signed-URL and document-path helpers. Re-exported by firebase-client.js

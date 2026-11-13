@@ -2292,6 +2292,18 @@ The roster's PEOPLE and nothing else — `teamMembers`, one entry per member, no
 - **It is world-readable**: both origins serve it with no session, PIN or token, so a field added here is published the moment it ships. The classification argument is on `teamMembers` in CLAUDE.md, and `public-data-classification.test.mjs` fails on an unclassified field; anything a stranger should not read belongs in Firestore behind a claim.
 - The field reference is `.claude/rules/roster-data.md` (CLAUDE.md → "teamMembers fields" keeps what every area needs); the comment at the top of the file covers the core fields and `rosterChanges`.
 
+### `roster-roles.js`
+A member's GRADE ON A DAY. `role` is the grade NOW, and every list reads it as of the release;
+`roleHistory` dates the grades held before it, each with its last day (OPERATIONS_REFERENCE.md → "A
+member changes grade"). Pure, no imports. Its own file because `roster-data.js` is at its size cap.
+- `roleOn(member, date)` → the role held that day (undefined without a member) · `rolesInRange(member,
+  start, end)` → `[{ role, days }]`, consecutive days merged, both ends inclusive, `[]` when the end is
+  before the start.
+- Read by the Pay Calculator (`paycalc-settings.js`), which asks for the grades over the payslip on
+  screen. A grade is not carried on `rosterChanges`: most line moves change no grade, and a member
+  promoted on a fixed pattern changes grade without moving line. Tested against the real rows in
+  `roster-data.test.mjs` ("A GRADE ON A DAY").
+
 ### `functions/index.js`
 The COMPOSITION ROOT of the Cloud Functions. **Its exports are the deploy surface** — Firebase discovers functions from them — and `functions-surface.test.mjs` pins every deployed name, failing on a drop or an unreviewed addition. It defines the shared infrastructure: the four `defineSecret` params, `VAPID_PUBLIC_KEY` (guarded by `sw-asset-check.test.mjs`; it must match `notif.js`), `STAFF_SITE_URL`, `ADMIN_FUNCTION_ORIGINS`, `readRawBody`, `nowInLondon`, the size caps and the commit-ambiguous code set. It keeps two endpoints and spreads in the rest from `buildDocumentEndpoints`, `buildAuthEndpoints` and `buildOvertimeEndpoints`, passing them that infrastructure so no domain owns a second copy of a guarded literal.
 - `parseRosterPDF` — the admin's roster upload → the parsed week for review; it writes nothing. It stays here because `roster-prompt-parity.test.mjs` reads the PDF prompt from this file. The PDF-grid read (`roster-geometry.js`) is started and awaited, bounded, BEFORE the model call; a usable cell table picks the cell prompt (`roster-prompt.js`); a sheet whose printed week is not the week chosen is answered 409 (`roster-week-heading.js`); the request settings are `MODEL_REQUEST`; and the geometry witness is applied LAST, after every model-side repair. The model call carries one deadline, `PARSE_MODEL_DEADLINE_MS` from the request's arrival. A 4xx refusal other than 408/409/429 is reported as a refusal, not an outage. The response carries `parsed`, `choices`, `missingMembers`, `duplicateMembers`, `geometry` and `geometryRefused`. The pipeline's contract is `.claude/rules/roster-import.md`.

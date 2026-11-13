@@ -61,6 +61,9 @@ const PUBLIC_MEMBER_FIELDS = /** @type {const} */ ({
     noProRate:     'A pay flag for a secondment return. Carries no figure.',
     proRatedAL:    'A joining year’s leave entitlement in days. A number of days off, not pay.',
     rosterChanges: 'Scheduled moves between patterns — dates and pattern names, nothing personal.',
+    roleHistory:   'The grades held before the current `role`, each with its last day — `role`, dated '
+        + '(owner, 13 Nov 2026). It adds nothing a stranger could not already read: a change of grade '
+        + 'comes with a move onto that grade’s roster, which `rosterChanges` already dates.',
     permanentShift:'Forces an early/late badge. A display hint.',
     bilingualContract: 'Whether this CEA holds a bilingual contract, which carries 34 days\u2019 '
         + 'leave rather than 32. A contractual grade, not a language skill and not a health or '
@@ -88,6 +91,13 @@ const PUBLIC_NESTED_SHAPES = /** @type {const} */ ({
         },
     },
     proRatedAL: { kind: 'by-year' },
+    roleHistory: {
+        kind: 'entries',
+        fields: {
+            role:  'A grade held before the current one. Public, as `role` is.',
+            until: 'The last day it applied — the day before the move to the next grade.',
+        },
+    },
 });
 
 describe('roster-data.js is world-readable, so what it carries is a decision', () => {
