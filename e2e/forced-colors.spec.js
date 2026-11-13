@@ -270,6 +270,29 @@ test.describe('Windows High Contrast — a chosen control shows its choice', () 
         await expectRings(page, pairs);
     });
 
+    // A GUIDE'S CHOSEN SECTION (bug and regression check, 13 Nov 2026). The guides load none of shared.css, so
+    // the app's ring never reached their one chosen control: the chip a tap, a link or the scroll lights gold,
+    // and the theme repaints gold as Canvas. guide-shell.css states the ring for them. Every guide wears the
+    // shell's chip, so one guide stands for five. The unchosen chip is the one after the chosen one, so on a
+    // phone, where the bar scrolls and centres the chosen chip, both are in the bar's view.
+    // The theme is on BEFORE the page loads, as it is for a reader who uses one. Switched on mid-jump it reflows the
+    // page (the FIP guide is 42px taller under it), and a reflow that moves the section lets go of the jump's chip
+    // by design (guides.spec.js → "after a jump, a resize that moves the section hands the bar back") — so the bar
+    // lit Ferries, and the chip under test had no ring because it was no longer chosen. Reduced motion as well, so
+    // the jump is instant (the page reads it at load): a picture taken while the page scrolled under the sticky bar
+    // came back blank, the same blank with the ring and without it.
+    test('a guide: the chosen section chip', async ({ page }) => {
+        await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+        await page.goto('/fip-guide.html');
+        const chosen = page.locator('.chip-bar .chip[data-target="sec-mistakes"]');
+        await chosen.click();
+        await page.waitForFunction(() => new Promise(resolve => { const y = scrollY; setTimeout(() => resolve(y > 0 && scrollY === y), 250); }));
+        await expect(chosen).toHaveAttribute('aria-current', 'true');
+        await expectRings(page, [
+            ['a section chip', chosen, page.locator('.chip-bar .chip[data-target="sec-apply"]')],
+        ]);
+    });
+
     // A CHOSEN CONTROL STILL SHOWS WHERE THE KEYBOARD IS (whole-app review, Nov 2026). The chosen ring out-ranked
     // the app's focus fallback, and the theme removes every box-shadow, so on a chosen control the only change
     // focus made was the browser's own: it repaints a focused button's border in Highlight — beside a ring

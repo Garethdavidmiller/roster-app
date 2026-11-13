@@ -43,7 +43,10 @@
     --gold:      #f5c800;   /* = --accent-gold       */
     --white:     #fff;      /* the chip fill — the shell draws .chip, so the shell must own it */
     --scroll-thumb: #cfd4dc; /* the thin scrollbar thumb (v23.50) — the guides load no app tokens */
-    --placeholder:  #6b7280; /* placeholder text (v23.51) — 4.83:1 on white (measured, above the 4.5:1 floor); the job --text-light does in the app */
+    --placeholder:  #5f6672; /* placeholder text (v23.51) — the job --text-light does in the app. Measured on the FIELD, not on white:
+                                5.20:1 on the FIP finder's #f0f3f7 fill and 5.78:1 on white (floor 4.5:1). #6b7280 measured 4.83:1 on
+                                white and 4.34:1 on the fill the finder took in v25.84 — and axe does not measure a placeholder, so
+                                guide-colour-parity.test.mjs does, against every guide field fill (bug and regression check, 13 Nov 2026) */
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
     --rule:      #d6dce5;   /* the section headings' hairline (v25.84) — it shows on both guide grounds */
 }
@@ -316,14 +319,19 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
    one row: Railcard and Rangers never wrap, and FIP's eight chips fit everywhere but the narrow end, where
    they sit a few pixels either side of fitting, depending on the engine's text widths. Only where there
    is HEIGHT to spare: two rows and the header take about 155px, a quarter of a 600px window, and a
-   phone held sideways (390px tall, but 800+ wide) would give the stack 40% of its screen. Rows sit 8px
+   phone held sideways (390px tall, but 800+ wide) would give the stack 40% of its screen. FROM 1024px IT
+   WRAPS AT ANY HEIGHT (bug and regression check, 13 Nov 2026): a laptop's 1366×768 screen less the
+   browser's bars and the taskbar, or a page zoomed to 110%, is a window under 600px tall, and there a
+   mouse could not reach the Staff Guide's last four chips. The widest phone held sideways is under
+   960px, so 1024 keeps the phone's one row; width, not the pointer, because some Android phones report
+   a fine one (CLAUDE.md → "Do not gate layout on (hover: hover) and (pointer: fine) alone"). Rows sit 8px
    apart; with a touch pointer, 15px, so the taller hit areas below (7px up, 8px down) never overlap
    from one row to the next. The page scripts watch the bar's own size, so a row gained or lost moves
    the scroll margins with it. */
-@media (min-width: 641px) and (min-height: 600px) {
+@media (min-width: 641px) and (min-height: 600px), (min-width: 1024px) {
     .chip-bar { flex-wrap: wrap; row-gap: 8px; }
 }
-@media (min-width: 641px) and (min-height: 600px) and (pointer: coarse) {
+@media (min-width: 641px) and (min-height: 600px) and (pointer: coarse), (min-width: 1024px) and (pointer: coarse) {
     .chip-bar { row-gap: 15px; }
 }
 .chip {
@@ -361,6 +369,17 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
    every section title. One colour for one family; navy on gold reads at about 11:1. Set by the page's script
    (guide-chips.js, or fip-guide.js) on a tap, a link or the scroll; e2e/guides.spec.js reads it off all five. */
 .chip[aria-current] { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+/* …AND UNDER WINDOWS HIGH CONTRAST, A RING (bug and regression check, 13 Nov 2026). A forced-colours theme
+   repaints every fill as Canvas, so the gold went and the chosen chip painted exactly like the ones beside it.
+   The app's rule for this is in shared.css (A CHOSEN CONTROL IN A FORCED-COLOURS THEME), and the guides load
+   none of shared.css, so the shell states the same two lines for the one chosen control a guide has: a 2px
+   Highlight outline inside the chip, and, focused, a 6px double one — the chosen ring inside, a focus ring
+   outside. System colours only, never a var(): a brand colour here is the failure this exists to prevent
+   (native-surface-parity.test.mjs contract 14). e2e/forced-colors.spec.js reads the pixels. */
+@media (forced-colors: active) {
+    .chip[aria-current] { outline: 2px solid Highlight; outline-offset: -2px; }
+    .chip[aria-current]:focus-visible { outline: 6px double Highlight; outline-offset: -2px; }
+}
 
 /* ── Touch targets without a taller chrome (v24.30 polish pass) ─────────────────────────────────
    Measured: the ⤓ PDF button is 54×29 and every section chip 27px tall — under the 44px touch

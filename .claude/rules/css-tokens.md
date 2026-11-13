@@ -494,7 +494,9 @@ outline is no element's layout, so it cannot fight a page's borders. Focused, th
 `native-surface-parity.test.mjs` contract 14 refuses one and refuses a brand token in any
 forced-colours block, and `e2e/forced-colors.spec.js` proves the painting on real controls by taking the
 outline away and counting what changed (the emulated `Highlight` is the engine's own colour, so
-matching one colour would test the palette, not the page).
+matching one colour would test the palette, not the page). **The guides are the one second home**: they load
+none of `shared.css`, so `guide-shell.css` rings their chosen section chip the same way (13 Nov 2026), and
+contract 14 holds it to the ring and the focus pair rather than refusing it.
 
 ## Desktop layout — content width + reading measure
 

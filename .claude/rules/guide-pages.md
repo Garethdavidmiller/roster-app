@@ -131,7 +131,11 @@ not redefine them.
   page, but three of the five guides belong to no page, so the guides wear their own accent — the gold
   of the header's rule and the section dashes — as one family. A press is gold too, so a tap shows one
   colour. `e2e/guides.spec.js` → "the chosen section chip is gold with navy words" reads it off every
-  guide. Giving one guide its app page's colour is a fresh decision, not a tidy-up.
+  guide. Giving one guide its app page's colour is a fresh decision, not a tidy-up. **Under Windows High
+  Contrast it is RINGED** (13 Nov 2026): the theme repaints the gold as `Canvas`, and the app's ring for a
+  chosen control is in `shared.css`, which no guide loads, so `guide-shell.css` states the same two lines
+  for the chip (2px `Highlight` inside; `6px double` when focused). Pinned by `native-surface-parity.test.mjs`
+  contract 14 and `e2e/forced-colors.spec.js` → "a guide: the chosen section chip".
 - **One section heading on all five guides** (v25.84, the owner's "must be consistent with the rest of
   the app"). There were three: the document guides' gold dash (with a hairline that was the page's own
   colour, so it never showed), the Railcard and FIP guides' hairline with a gold bar under it, and the
@@ -151,7 +155,7 @@ not redefine them.
   share a line and no scroll position says which is being read, so there a chip is lit only by a jump
   or a link to it, until the reader moves ON — what the jump or link put in place moving, not the
   scroll position, so a resize that reflows the page lets go too; on a phone's one column the bar
-  follows the reader, as every guide's does. From 641px, in a window at least 600px tall, a bar too long for its window WRAPS
+  follows the reader, as every guide's does. From 641px in a window at least 600px tall, and from 1024px at any height, a bar too long for its window WRAPS
   (theirs take two rows; Railcard's and Rangers' fit one, and FIP's fits everywhere but the narrow end,
   where the engine's text widths decide): a desktop bar hides its scrollbar, so a chip past the edge
   would never be found, and a window snapped to half a laptop screen is 683–768px wide. The page scripts watch the bar's own size as well as the header's, because
