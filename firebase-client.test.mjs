@@ -235,6 +235,24 @@ describe('changing your own password, with the stamp left to finish on its own',
     });
 });
 
+// own-password.js is a factory firebase-client.js builds ONCE, at module load — so the one thing the
+// re-export could get wrong is WHOSE password: a user captured at build would be nobody, for good.
+describe('own-password.js — the factory behind the two re-exports', () => {
+    test('it reads the signed-in user at CALL time, never one captured when it was built', async () => {
+        const { buildPasswordClient } = await import('./own-password.js');
+        const auth = { currentUser: /** @type {any} */ (null) };
+        /** @type {any[]} */ const updates = [];
+        const client = buildPasswordClient({ auth, reauthenticateWithCredential: async () => {},
+            EmailAuthProvider: { credential: (/** @type {string} */ e, /** @type {string} */ p) => ({ e, p }) },
+            updatePassword: async (/** @type {any} */ u, /** @type {string} */ pw) => { updates.push([u.uid, pw]); },
+            savePasswordSetAt: async () => {}, trackBackgroundWrite: (/** @type {any} */ p) => p });
+        await assert.rejects(client.changeOwnPassword(MEMBER, 'a-new-passphrase'), /Not signed in/);
+        auth.currentUser = { uid: 'uid_later', email: 'l.springer@myb-roster.local' };
+        await client.changeOwnPassword(MEMBER, 'a-new-passphrase');
+        assert.deepEqual(updates, [['uid_later', 'a-new-passphrase']]);
+    });
+});
+
 describe('re-authentication before a password change', () => {
     test('a wrong-password on the typed text falls through to the surname candidate', async () => {
         signIn();

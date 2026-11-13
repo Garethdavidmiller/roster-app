@@ -393,7 +393,8 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 // pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
 // unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
 // source-equivalence check now read auth-identity.js.
-import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled } from './auth-identity.js';
+import { buildPasswordClient } from './own-password.js';
 import { resolveUploadCommit } from './upload-commit.js';
 import { pruneOldDocs } from './doc-retention.js';
 import { buildDocumentClient } from './documents-client.js';
@@ -650,61 +651,12 @@ export async function getAllPasswordStatus() {
     return snap.docs.map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }));
 }
 
-/**
- * Re-authenticate the currently signed-in member with their typed CURRENT password — required by
- * Firebase before `updatePassword`. Uses the same GATED candidate list as sign-in (auth-identity), so
- * an un-migrated member typing their surname (any case / short-surname padding) reauths correctly.
- * @param {string} memberName
- * @param {string} typed
- * @returns {Promise<void>} resolves on success; rejects with the last Firebase error otherwise
- */
-export async function reauthenticateWithPassword(memberName, typed) {
-    const user = auth.currentUser;
-    if (!user || !user.email) throw new Error('Not signed in');
-    const candidates = credentialCandidatesFor(memberName, typed);
-    if (!candidates.length) throw Object.assign(new Error('empty password'), { code: 'auth/missing-password' });
-    let lastErr;
-    for (const pw of candidates) {
-        try {
-            await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, pw));
-            return;
-        } catch (e) {
-            lastErr = e;
-            // Only fall through to the NEXT candidate on a DEFINITIVE credential rejection (mirrors the
-            // sign-in ladder, session.js). A transient failure — network / rate-limit / provider outage /
-            // requires-recent-login — must stop immediately: retrying the surname candidate would
-            // duplicate traffic, worsen rate-limiting, and return a misleading final error
-            // (PASSWORD_DESIGN.md §3.2). The one shared classifier keeps the two ladders in step.
-            if (!isCredentialRejection(/** @type {any} */ (e)?.code)) break;
-        }
-    }
-    throw lastErr;
-}
-
-/**
- * Set the signed-in member's OWN password (after a fresh reauth) — the server never sees it — and
- * START the `passwordSetAt` stamp without waiting. Resolves once the password HAS changed, the half a
- * deadline belongs on (settings-ops-2): timed together, a slow commit read as "we couldn't confirm".
- *
- * Ordering matters: the stamp is a SEPARATE Firestore write that can fail on its own (transient /
- * `unavailable`, a `permission-denied` surviving the claim retry, an offline queue rejection). Had
- * that failed the change, the member would be told to retry with a password that NO LONGER EXISTS,
- * and a Firestore error would read as "current password incorrect". So `stamp` settles false and
- * never rejects: the password changed either way, and only the migration record (a monitoring
- * signal, not a security control) is missing until the next successful set.
- * @param {string} memberName @param {string} newPassword
- * @returns {Promise<{ stamp: Promise<boolean> }>} rejects only if the password itself was not changed
- */
-export async function changeOwnPassword(memberName, newPassword) {
-    const user = auth.currentUser;
-    if (!user) throw new Error('Not signed in');
-    await updatePassword(user, newPassword);   // (A) the password is now genuinely changed
-    // (B) record migration — best-effort, must not undo (A), and never awaited here. Counted until it lands,
-    // so no page's update reload can drop it (trackBackgroundWrite, claim-retry.js).
-    const stamp = trackBackgroundWrite(savePasswordSetAt(memberName)).then(() => true,
-        (e) => { console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e); return false; });
-    return { stamp };
-}
+// ---- The member's OWN password (own-password.js) ----
+// Re-authentication and the change itself — Settings' card's and the forced change's — built once with
+// every handle injected, so the rules run in Node; the two names are re-exported here, unchanged.
+const _ownPassword = buildPasswordClient({ auth, reauthenticateWithCredential, EmailAuthProvider, updatePassword, savePasswordSetAt, trackBackgroundWrite });
+export const reauthenticateWithPassword = _ownPassword.reauthenticateWithPassword;
+export const changeOwnPassword          = _ownPassword.changeOwnPassword;
 
 /** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
  *  and stamps `passwordStatus.resetAt` (server-side). Mirrors admin-auth.js's setupRosterAuth caller:

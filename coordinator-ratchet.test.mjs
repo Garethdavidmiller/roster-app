@@ -253,7 +253,10 @@ const CAPS = {
     // speed counters left for analytics-client.js — 1,099 measured lines down to ~855 — the one block
     // here with no tie to authentication, and the same injected-handles shape documents-client.js
     // took at v21.90, so it now runs in Node against a fake Firestore.
-    'firebase-client.js':       900,
+    // 900 → 851 in Nov 2026 (sign-in audit, track C), an EXTRACT at 899 of 900: re-authentication and the
+    // password change — the member's OWN credential, with the rule that a password change acts only on the
+    // page member's account coming next — left for own-password.js, the same injected-handles shape.
+    'firebase-client.js':       851,
     // NEW at v24.84, a decision rather than a discovery: the station PIN reads the Trains page, and
     // the two viewer transitions that took (`holdsStaffPin`, `signOutStaffPin`) carried session.js
     // from 874 lines to 925. They sit beside `reconcileExpiredIdentity` and `shedCalendarViewer` on
