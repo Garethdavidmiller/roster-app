@@ -539,14 +539,28 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
 // THE DEPLOY GATE TOO (10 Nov 2026). deploy-hosting.yml made the same split once its single job had
 // reached 38 of its 40 minutes, and there a project missing from the matrix would never gate a
 // release while every deploy went green. Both files are held to the one config.
+//
+// THEN EACH PROJECT IN SHARDS (12 Nov 2026), so the gate stopped being the longest wait in a release
+// (e2e.yml's smoke job has the measurements). The list became one entry per shard, as the webkit
+// job's is, and so did the two ways to lose tests without anything going red: a project missing, or
+// one shard of one. And the PR lane and the gate must run the SAME list the same way, or a PR goes
+// green on a suite cut differently from the one that decides the release.
+/** The smoke job's block in a workflow file, its matrix entries and its test command. */
+function smokeJob(/** @type {string} */ file) {
+    const src = readFileSync(join(WF_DIR, file), 'utf8');
+    const body = src.slice(src.search(/^jobs:/m));
+    const start = body.search(/^ {2}smoke:[ \t]*$/m);
+    const rest = body.slice(start + 1);
+    const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+    const block = next === -1 ? rest : rest.slice(0, next);
+    const entries = [...block.matchAll(/^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+) \}\s*$/gm)]
+        .map(m => ({ project: m[1], shard: Number(m[2]), shards: Number(m[3]) }));
+    const command = /^\s*run:\s*(npm run test:e2e\b.*)$/m.exec(block)?.[1]?.trim() ?? null;
+    return { start, block, entries, command };
+}
 for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
-    describe(`${file}: the Chromium suite runs one job per project, and no project is left out`, () => {
-        const src = readFileSync(join(WF_DIR, file), 'utf8');
-        const body = src.slice(src.search(/^jobs:/m));
-        const start = body.search(/^ {2}smoke:[ \t]*$/m);
-        const rest = body.slice(start + 1);
-        const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
-        const smoke = next === -1 ? rest : rest.slice(0, next);
+    describe(`${file}: the Chromium suite runs every project and every shard of each, and nothing is left out`, () => {
+        const { start, block: smoke, entries } = smokeJob(file);
 
         const cfg = readFileSync('playwright.config.mjs', 'utf8');
         const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
@@ -555,33 +569,64 @@ for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
 
         test('both lists actually parsed', () => {
             assert.ok(start !== -1, `no smoke job in ${file}`);
+            assert.ok(entries.length >= 2,
+                `expected the smoke job's "- { project: …, shard: …, shards: … }" entries, parsed ${entries.length}`);
             assert.ok(configProjects.length >= 2, `expected playwright.config.mjs's projects, parsed ${configProjects.length}`);
         });
 
-        test('the matrix names exactly the config\'s projects', () => {
-            const m = /^\s+project:\s*\[([^\]]*)\]/m.exec(smoke);
-            assert.ok(m, 'smoke has no project matrix: the whole suite is back in one job, against the limit it outgrew');
-            const matrix = m[1].split(',').map(s => s.trim()).filter(Boolean);
-            assert.deepEqual([...matrix].sort(), [...configProjects].sort(),
-                `${file} runs ${matrix.join(', ')}; playwright.config.mjs defines ${configProjects.join(', ')}. `
-                + 'A project in the config but not the matrix never runs here; one in the matrix but not the config fails its job.');
+        test('the list names exactly the config\'s projects', () => {
+            const listed = [...new Set(entries.map(e => e.project))].sort();
+            assert.deepEqual(listed, [...configProjects].sort(),
+                `${file} runs ${listed.join(', ')}; playwright.config.mjs defines ${configProjects.join(', ')}. `
+                + 'A project in the config but not the list never runs here; one in the list but not the config fails its job.');
         });
 
-        test('each job runs its own project, and a failure never cancels the other half', () => {
-            assert.match(smoke, /npm run test:e2e -- --project=\$\{\{ matrix\.project \}\}/,
-                'each job must pass its matrix project to Playwright, or both jobs run the whole suite');
+        test('each project runs shards 1 to N of N, once each', () => {
+            for (const project of configProjects) {
+                const mine = entries.filter(e => e.project === project);
+                const totals = [...new Set(mine.map(e => e.shards))];
+                assert.equal(totals.length, 1, `${project}: its entries disagree on how many shards there are (${totals.join(', ')})`);
+                const shards = mine.map(e => e.shard).sort((a, b) => a - b);
+                assert.deepEqual(shards, Array.from({ length: totals[0] }, (_, i) => i + 1),
+                    `${project} runs shards ${shards.join(', ')} of ${totals[0]}: a shard missing from the list never `
+                    + 'runs, and every job still goes green');
+            }
+        });
+
+        test('each job runs its own shard, and a failure never cancels another', () => {
+            assert.match(smoke, /npm run test:e2e -- --project=\$\{\{ matrix\.project \}\} --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ matrix\.shards \}\}/,
+                'each job must pass its project and its shard to Playwright, read from the entry, or jobs run the same tests twice');
             assert.match(smoke, /^\s+fail-fast:\s*false\s*$/m,
-                'with fail-fast on, a red half cancels the green one, and its report is lost');
+                'with fail-fast on, one red shard cancels the others, and their reports are lost');
         });
 
-        test('each half uploads its report under its own name', () => {
+        test('each shard uploads its report under its own name', () => {
             // Two jobs uploading one artifact name: whichever lands second fails its upload, so the report
-            // for the half that broke can be the one that is lost.
-            assert.match(smoke, /name: playwright-report-\$\{\{ matrix\.project \}\}/,
-                'the report artifact must carry the project, or the two halves collide');
+            // for the shard that broke can be the one that is lost.
+            assert.match(smoke, /name: playwright-report-\$\{\{ matrix\.project \}\}-shard\$\{\{ matrix\.shard \}\}/,
+                'the report artifact must carry the project and the shard, or two jobs collide');
         });
     });
 }
+
+describe('the PR lane runs the Chromium suite exactly as the Hosting deploy\'s gate does', () => {
+    const pr = smokeJob('e2e.yml'), gate = smokeJob('deploy-hosting.yml');
+
+    test('the same shards of the same projects, and the same command', () => {
+        const key = (/** @type {{ project: string, shard: number, shards: number }} */ e) => `${e.project} ${e.shard}/${e.shards}`;
+        assert.deepEqual(pr.entries.map(key).sort(), gate.entries.map(key).sort(),
+            'e2e.yml and deploy-hosting.yml cut the suite differently: a PR can pass a shard the release gate never runs');
+        assert.ok(pr.command, 'no npm run test:e2e command found in e2e.yml\'s smoke job');
+        assert.equal(pr.command, gate.command,
+            'the two smoke jobs run different commands: a PR green here is no evidence the gate will be');
+    });
+
+    test('and the shared config schedules each test on its own, which is what makes a shard a count of tests', () => {
+        // Off, Playwright shards whole FILES: one long file would hold a shard for its full serial time.
+        assert.match(readFileSync('playwright.config.mjs', 'utf8'), /^\s*fullyParallel:\s*true,/m,
+            'playwright.config.mjs no longer sets fullyParallel, so the smoke shards are cut by file and the longest stays long');
+    });
+});
 
 // ── THE HOSTING DEPLOY WAITS FOR ITS WHOLE GATE (10 Nov 2026) ──────────────────────────────────────
 //

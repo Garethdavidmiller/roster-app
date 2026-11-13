@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v25.80 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.90 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -107,29 +107,39 @@ An engine difference is deterministic and fails both attempts, so **a red `webki
 Compare the failing test NAMES between runs: different names ⇒ flake; the same test failing again ⇒
 investigate it, because the engine difference is what this job exists to catch.
 
-## Two editors on one day: one record, but the second is not WARNED
+## Two editors on one day: warned whenever the server can be asked
 
 Every manual record has one fixed id per member and date (`manualOverrideId` in `override-id.js`), so
 two editors saving one day leave one record, and a read served from the offline cache is refused as
 incomplete (`admin-override-store.js`) rather than shown as "no saved changes".
 
-**What remains, deliberately:** the second editor is not told the day changed underneath them —
-**last SAVE wins**, exactly as when two people save one after the other. A DELETE does not: it
-compares what it is about to remove with what the page showed — every field and the record's
-revision — and deletes in the SAME transaction, refusing, saying so, when anything has changed
-(`commitIfUnchanged` in `admin-override-store.js`, v25.89). Until v25.89 the check was a separate
-re-read before a separate batch, so an edit landing between the two was deleted anyway, and it
-compared three fields, so a January day moved to the other allowance passed (external review,
-Nov 2026). A transaction needs the server, so deletes need the network. The week-grid save that
-includes a delete, and the leave-year move, run the same way; "what the page showed" is the record a
-row DREW, not whatever a later read put in the cache under staged edits (v25.89, a second review). A
-bulk delete longer than one chunk (200) is checked whole first and then chunk by chunk, never parting
-a day from the older copies it hides, so only an edit racing the chunks themselves can stop it part
-done, and it then says how far it got. A commit whose answer is lost is re-run by Firestore; the
-leave-year move recognises its own write then, rather than calling it a colleague's. Warning the second editor of a plain SAVE
-would need every Admin save to run as a transaction, which would make an offline save FAIL rather
-than queue — the week grid's plain saves stay batches for exactly that reason. A decision, not an
-oversight — revisit if a lost edit is ever reported.
+**Since v25.90 the second editor is told.** Every Admin save of a day — the week grid's, and a leave
+or absence range's — reads each day it writes in the same transaction as the write (`commitChecked`
+in `admin-override-store.js`) and refuses the whole save, writing nothing, unless the day still holds
+what the page showed: the record its row was drawn from, unchanged, and nothing at the day's fixed id
+unless that record is the one shown. The refusal names the days — "Someone else has changed Tue 16
+Jun since the page loaded, so nothing was saved. Reload the page to see the latest, then try again."
+A delete has been checked the same way since v25.89, comparing every field and the record's
+revision (`sameOverrideRecord`, `override-compare.js`); before that the check was a separate re-read
+before a separate batch, and an edit landing between the two was deleted anyway (external review,
+Nov 2026). A commit whose answer is lost is re-run by Firestore and recognised as the save's own
+records, never called a colleague's.
+
+**What remains, deliberately — offline, the later save still wins.** A transaction needs the server.
+A save made while the device says it is offline, or whose check could not reach the server at all
+(Firestore has tried five times over about eight seconds by then), is held on the device as a batch
+and sent unchecked when the signal returns — exactly as every save was before v25.90. Offline-first
+is the older promise, and a device that cannot reach the server cannot ask it anything. A save that
+REMOVES a day is never held that way: it waits for the server, as it has since v25.89.
+
+**Also deliberate.** A colleague who made exactly the same change is still a colleague — their name
+is on the record — so the save is refused rather than counted as done. A range booking long enough
+to need more than one commit (only a long absence: a commit holds about 450 writes) checks each part
+as it goes; a later part refused after earlier ones landed stops there, says some days are saved,
+and refreshes the saved list. And what a range booking compares with is what the page had loaded
+when the booking started, so a read landing between the card's preview and its save is the one
+window in which it compares with newer data than the reader saw. Revisit if a lost edit is ever
+reported from either.
 
 **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
 saved or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete.
@@ -297,11 +307,15 @@ moderate drift here is caught only by looking (`SECURITY_RELEASE_PLAN.md` → A1
 
 Both WebKit lanes run at the iPhone Pro geometry staff carry (`IPHONE_PRO_VIEWPORT` in
 `playwright.webkit.mjs`, shared by `playwright.visual-webkit.mjs` and by the visual tests that grow
-the viewport for a tall surface), under the iPhone 13 descriptor. Two things are left out on purpose:
+the viewport for a tall surface), under the iPhone 13 descriptor. Three things are left out on purpose:
 
 - **The 17 Pro descriptor is not used.** A descriptor is a viewport, a density and a user-agent
   string; swapping would change only the user agent's iOS number, which the app never reads
   (`playwright.webkit.mjs` says why).
+- **The iPhone's Links specs draw at 2x, not the phone's 3x** (12 Nov 2026). Most of them open a
+  desktop-size window, which WebKit drew at 6.5–11 frames a second at 3x, and every click waits on
+  frames; nothing in the Links code or specs reads the density, so 2x changes what is drawn, not what
+  is tested (`LINKS_IPHONE_DPR` in `playwright.webkit.mjs`). Every other iPhone spec stays at 3x.
 - **Landscape (874×402, 956×440) is NOT in the matrix.** Playwright's Linux WebKit reports every
   safe-area inset as zero, so a landscape baseline would prove nothing about the Dynamic Island
   insets, and the smoke suite's layout assertions are written for portrait. A real iPhone in

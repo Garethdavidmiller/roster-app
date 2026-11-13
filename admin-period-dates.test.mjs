@@ -25,7 +25,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
+import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange, namedDays } from './admin-period-dates.js';
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
@@ -120,5 +120,23 @@ describe('the wording a manager reads', () => {
         // consecutive dates — but the branch is one comparison away from being wrong, and this
         // pins which side of it the code is on.
         assert.equal(fmtPeriodRange('2026-12-30', '2027-01-02'), 'Wed 30 Dec – Sat 2 Jan');
+    });
+});
+
+// What a refused save says it found changed (v25.90): the days by name, in the words the lists use.
+describe('the days a refused save names', () => {
+    test('one, two and three days are each named', () => {
+        assert.equal(namedDays(['2026-06-16']), 'Tue 16 Jun');
+        assert.equal(namedDays(['2026-06-16', '2026-06-17']), 'Tue 16 Jun and Wed 17 Jun');
+        assert.equal(namedDays(['2026-06-16', '2026-06-17', '2026-06-18']), 'Tue 16 Jun, Wed 17 Jun and Thu 18 Jun');
+    });
+
+    test('past three, the first two and a count — a long absence cannot fill the line', () => {
+        assert.equal(namedDays(['2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-22']),
+            'Tue 16 Jun, Wed 17 Jun and 3 other days');
+    });
+
+    test('with none to name it still makes a sentence', () => {
+        assert.equal(namedDays([]), 'a day in this save');
     });
 });

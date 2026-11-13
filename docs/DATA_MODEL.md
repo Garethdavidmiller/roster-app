@@ -14,7 +14,9 @@ the client. When this document and the rules disagree, **the rules are right and
 ```
 (doc id)     MANUAL records: `m_<date>_<encodeURIComponent(memberName)>` — ONE document per member
              and date (`manualOverrideId` in override-id.js). Two editors saving the same day land
-             on the same document (last save wins) instead of leaving two records; a save also
+             on the same document instead of leaving two records — and since v25.90 the second
+             is refused, naming the day, whenever it can check the server (offline the later save
+             still wins: KNOWN_LIMITATIONS.md → "Two editors on one day"); a save also
              deletes any older manual record for that day, so earlier duplicates clear as days are
              re-saved. ROSTER IMPORTS keep random ids on purpose — an import and a manual record
              for one day coexist by design, the manual one winning (shouldReplaceOverride). Records

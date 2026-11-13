@@ -64,6 +64,23 @@ export function drawnRecords(grid) {
 }
 
 /**
+ * date → the saved record each row of `grid` was drawn from, or null for a row drawn from nothing
+ * (v25.90): what a day a save WRITES is compared with (`commitChecked`, admin-override-store.js). A
+ * date with no row is absent, so "this row showed nothing" and "not on screen" stay different answers.
+ * @param {HTMLElement|null} grid
+ * @returns {Map<string, any>}
+ */
+export function drawnDays(grid) {
+    /** @type {Map<string, any>} */
+    const out = new Map();
+    grid?.querySelectorAll('.day-row').forEach(r => {
+        const date = /** @type {HTMLElement} */ (r).dataset?.date;
+        if (date) out.set(date, _drawnFrom.get(r) ?? null);
+    });
+    return out;
+}
+
+/**
  * A base shift as a manager reads it in the week grid's warning: an Other-family day by its full word
  * ("Training", with its times if it has any), a spare day as "Spare", anything else — a time — as its
  * value. The warning printed the raw code, so a manager ticking RDW on one of a trainee's days read

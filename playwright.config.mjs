@@ -71,6 +71,14 @@ export default defineConfig({
     retries: process.env.CI ? 1 : 0,
     // A stray `test.only` must not quietly shrink this lane to one test on CI (runner-parity.test.mjs).
     forbidOnly: !!process.env.CI,
+    // EVERY TEST IS ITS OWN GROUP (12 Nov 2026), so CI can shard each project and the Hosting deploy's
+    // gate stops being the longest wait in a release. Playwright shards by test GROUP, and with this off
+    // a group is a whole FILE: links.spec.js or calendar.spec.js would hold one shard for its full
+    // serial time however many shards there were. playwright.webkit.mjs has run the same specs this
+    // way since v22.23, which is the evidence it is safe — no spec here uses `beforeAll`, `afterAll`,
+    // `describe.serial` or module-level mutable state. Set here, not as a CI flag, so a local run
+    // schedules tests the way the gate does; e2e.yml's smoke job has the shard measurements.
+    fullyParallel: true,
 
     // Explicit reporter prevents Playwright 1.50+ from auto-adding the GitHub Actions
     // reporter when GITHUB_ACTIONS=true — that auto-reporter has its own exit-code

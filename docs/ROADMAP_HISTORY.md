@@ -1506,6 +1506,13 @@ every Admin save to run as a TRANSACTION that re-reads each day first; that woul
 offline save FAIL rather than queue, and it rewrites the write path most of the e2e suite observes.
 A decision, not an oversight — revisit if a lost edit is ever reported.
 
+**Then revisited, without the cost (v25.90, owner, 12 Nov 2026).** Every Admin save of a day now
+runs as one transaction that reads each day first and refuses, naming the days, when one no longer
+holds what the page showed (`commitChecked`, `admin-override-store.js`). The offline cost was
+avoided rather than paid: a save made offline — or whose check could not reach the server — is still
+held on the device as a batch and sent unchecked, as before, so only a device that can ask the
+server is warned. KNOWN_LIMITATIONS.md → "Two editors on one day" has what remains.
+
 **Duplicates already in Firestore** from before v24.48 are cleared only when that day is next saved
 or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete (the
 row ✕ and Delete selected joined at v24.49, after an external review found they removed only the
@@ -1635,6 +1642,14 @@ moved:
   both: the rest is chosen by a pattern rather than by its own ignore list, because a project's
   `testIgnore` would REPLACE the shared one; and the touch gates read the project's NAME, so the
   iPhone twin is `mobile-…` and in the touch list.
+- **And the iPhone's Links project draws at 2x (12 Nov 2026, the same day).** A Links test took
+  10.6 s at the median on the iPhone against 1.3 on Chromium, and the cost was not the page: most
+  Links tests open a desktop-size window, which at the iPhone's 3x density WebKit drew at 6.5–11
+  frames a second, and every click waits on frames. At 2x it draws about 40. Nothing in the Links
+  code or specs reads the density, so the project now runs at 2x and everything else stays the
+  iPhone's: 4.4 minutes locally instead of 8.7, the same 165 passed and 8 skipped. The one
+  departure from "the density stays the descriptor's" is argued beside `LINKS_IPHONE_DPR` in
+  `playwright.webkit.mjs`.
 - **1.64.1 since 4 Nov 2026, ahead of the containers.** This upgrade stopped at 1.63.0 because that
   is what the dev container carries, so a local run there needs no browser workaround. The owner
   asked for the remaining upgrades the next morning, and the WebKit lane is the only place Safari

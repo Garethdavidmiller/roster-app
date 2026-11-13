@@ -14,7 +14,7 @@
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
-import { db, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { db, doc, serverTimestamp, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { saveFailureMessage } from './claim-retry.js';
 // The cache, what it knows, and the reads that fill it — see admin-override-store.js. Re-exported
 // below so admin-app.js and the tests keep one import site for the whole Change-a-Shift surface.
@@ -26,7 +26,7 @@ export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
-         loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates, commitIfUnchanged } from './admin-override-store.js';
+         loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates, commitChecked } from './admin-override-store.js';
 export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded };
@@ -37,8 +37,8 @@ import { rangeSundayCorrections } from './admin-al-projection.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
-import { drawnRecords } from './admin-week-row-state.js';
-import { formatDisplay } from './admin-period-dates.js';
+import { drawnRecords, drawnDays } from './admin-week-row-state.js';
+import { formatDisplay, namedDays } from './admin-period-dates.js';
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 let _currentUser      = '';
@@ -124,8 +124,8 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
 }
 
 // ── SAVE ──────────────────────────────────────────────────────────────────────
-/** A week save refused because a day it removes has changed: ONE commit, so nothing in it was saved. */
-const WEEK_REFUSED_LINE = 'Someone else has changed a day you are removing since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.';
+/** A save refused because a day it touches has changed, named (v25.90): ONE commit, so nothing in it was saved. */
+const refusedLine = (/** @type {string[]} */ dates) => `Someone else has changed ${namedDays(dates)} since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.`;
 /**
  * Writes a batch of override changes to Firestore and updates the in-memory cache.
  * Disables the Save button while running; re-enables in the finally block.
@@ -150,7 +150,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // deleted, and dropping it would take the day out of the receipt AND out of its count.
     // AS ITS ROW SHOWED IT (v25.89, review): a load landing under staged edits refreshes the cache but not
     // the grid, so the cache's copy can be a colleague's newer record — and comparing with that deleted it.
-    const drawn = drawnRecords(document.getElementById('weekGrid'));
+    const drawn = drawnRecords(document.getElementById('weekGrid')), shownDays = drawnDays(document.getElementById('weekGrid'));
     const removedRows = toDelete.map(id => drawn.get(id) ?? getAllOverrides().find(o => o.id === id) ?? null);
     // The per-kind counters went with the summary line they fed — the receipt names the DAYS, so
     // "2 added, 1 updated" had nobody left to tell (v21.38).
@@ -252,13 +252,14 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
                 w.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                 docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
             }); };
-            // A save that DELETES compares what it deletes with what this page showed and commits in ONE
-            // transaction (v25.89; a re-read then a separate batch let a colleague's edit land between).
-            // One that only writes stays a batch, held on the device offline; a transaction needs the server.
-            if (deleteIds.size) await commitIfUnchanged([...removedRows.map((r, i) => r ?? toDelete[i]), ...deleteIds], fill, { line: WEEK_REFUSED_LINE });
-            else { const batch = writeBatch(db); fill(batch); await batch.commit(); }
+            // EVERY DAY IT TOUCHES must still be what its row showed, checked in ONE transaction (a removal
+            // since v25.89, a day it writes since v25.90: commitChecked). Offline, a save that only writes is
+            // held on the device unchecked, as before; one that removes waits for the server.
+            // What a day showed is its row's record; a day with no row on screen, what the page has for it.
+            await commitChecked(fill, { shownFor: (m, d) => (m === memberName && shownDays.has(d) ? shownDays.get(d) : buildMemberDateMap(m).get(d)), line: refusedLine,
+                removed: [...removedRows.map((r, i) => r ?? toDelete[i]), ...deleteIds], holdOffline: !deleteIds.size });
             return { docs, dropped };
-        }), { held: !deleteIds.size });
+        }), { held: !deleteIds.size && globalThis.navigator?.onLine === false });
 
         // A RECEIPT, NOT A COUNT (v21.38). "2 added, 1 removed" cannot answer the question a manager
         // actually has — did I change the days I meant to? — and the commonest real mistake here
@@ -484,11 +485,11 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
         try {
             res = await withSlowSaveNotice(writeWithClaimRetry(async () => {
                 /** @type {any[]} */
-                const docs   = [];
-                const delIds = new Set();
-                const batch  = writeBatch(db);
+                let docs = [];
+                let delIds = new Set();
                 const stamp  = new Date();
-                slice.forEach(op => {
+                /** The chunk's writes, onto a batch or a transaction — which may run it again. @param {any} w */
+                const fill = (w) => { docs = []; delIds = new Set(); slice.forEach(op => {
                     const existing = ovByDate.get(op.date);
                     // Read BEFORE the delete, which destroys it: the only record that a swapped-in day
                     // was contracted work, and of which year a moved January leave day comes out of.
@@ -501,16 +502,16 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                         : nextReplacedType(existing, op.type);
                     const fixedId = manualOverrideId(memberName, op.date);   // one per member and date (v24.48)
                     for (const id of idsReplacedBy(memberName, op.date, existing?.id)) {
-                        if (!delIds.has(id)) { batch.delete(doc(db, COLLECTIONS.overrides, id)); delIds.add(id); }
+                        if (!delIds.has(id)) { w.delete(doc(db, COLLECTIONS.overrides, id)); delIds.add(id); }
                     }
-                    const newRef = doc(db, COLLECTIONS.overrides, fixedId);
                     const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy, replacedType, leaveYear: nextLeaveYear(existing, op.type, op.date) };
-                    batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
-                    docs.push(buildOverrideCacheRecord(newRef.id, fields, stamp));
-                });
-                await batch.commit();
+                    w.set(doc(db, COLLECTIONS.overrides, fixedId), buildOverrideWrite(fields, serverTimestamp()));
+                    docs.push(buildOverrideCacheRecord(fixedId, fields, stamp));
+                }); };
+                // Each day must still hold what this page had for it (v25.90) — checked online, held offline.
+                await commitChecked(fill, { shownFor: (_m, d) => ovByDate.get(d), line: refusedLine });
                 return { docs, delIds };
-            }), { batched: chunks.length > 1 });
+            }), { batched: chunks.length > 1, held: globalThis.navigator?.onLine === false });
         } catch (err) {
             // A chunk failed AFTER earlier chunks committed → Firestore holds partial data the
             // in-memory cache doesn't reflect (the cache update below never runs). Resync from

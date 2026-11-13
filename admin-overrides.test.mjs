@@ -79,6 +79,19 @@ let _txRuns = 0;
 /** Commits that LAND but whose answer is lost (`unavailable`): Firestore runs the function again
  *  (transaction_runner.ts), and the re-run reads the commit's own writes (v25.89, review). */
 let _landsUnanswered = 0;
+/** Transactions that end `unavailable` without reaching the server (v25.90). */
+let _txUnreachable = 0;
+/**
+ * Run `fn` on a device that says it is OFFLINE (`navigator.onLine === false`), then put navigator back.
+ * @template T @param {() => Promise<T>} fn @returns {Promise<T>}
+ */
+async function offline(fn) {
+    const was = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+    try { return await fn(); } finally {
+        if (was) Object.defineProperty(globalThis, 'navigator', was); else delete (/** @type {any} */ (globalThis)).navigator;
+    }
+}
 
 // Every id the mock `doc()` has handed out, newest last. A save's batch takes the most recent, so a
 // test can resolve a late read with the SAME document the write created — which is the whole point:
@@ -173,6 +186,9 @@ mock.module('./firebase-client.js', {
         // changed by the commit, the whole function runs again — which is what makes a delete's check and
         // the delete itself inseparable. Its sets are recorded in `_batchWrites` only when they commit.
         runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
+            // NO SERVER (v25.90): how a transaction ends when it never reached one — Firestore has
+            // already retried it five times by then, so the mock surfaces the last failure directly.
+            if (_txUnreachable > 0) { _txUnreachable--; throw Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' }); }
             for (let attempt = 0; attempt < 5; attempt++) {
                 _txRuns++;
                 /** @type {Map<string, number>} */ const readAt = new Map();
@@ -189,6 +205,13 @@ mock.module('./firebase-client.js', {
                 });
                 const between = _betweenReadAndCommit; _betweenReadAndCommit = null; between?.();
                 if ([...readAt].some(([id, v]) => (_versions.get(id) ?? 0) !== v)) continue;
+                // The refusals a batch's commit can meet, met here too (v25.90): an ordinary save is a
+                // transaction whenever the server can be reached, so the rules' refusal and Firestore's
+                // 500-write cap reach it the same way. Counted like a batch, for the same tests.
+                if (ops.length > 500) throw Object.assign(new Error('Maximum 500 writes allowed per request'), { code: 'invalid-argument' });
+                if (_commitsThatLand !== null && _commitsThatLand-- <= 0) throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' });
+                _commitSizes.push(ops.length);
+                if (_failNextCommits > 0) { _failNextCommits--; throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' }); }
                 for (const [kind, id, data] of ops) { if (kind === 'set') _batchWrites.push(data); _apply(kind, id, data); }
                 if (_landsUnanswered > 0) { _landsUnanswered--; continue; }   // landed, answer lost: run it again
                 return;
@@ -219,7 +242,7 @@ const {
     validateShiftRules,
     buildMemberDateMap,
     isWorkingDate,
-    setAllOverrides,
+    setAllOverrides: _setCacheOnly,
     getAllOverrides,
     recordRangeOverrides,
     executeSave,
@@ -228,6 +251,20 @@ const {
     _hasStagedEdits,
 } = await import('./admin-overrides.js');
 const { teamMembers } = await import('./roster-data.js');
+
+/**
+ * Seed the page's cache — and the SERVER with the same records wherever it holds no version of its own
+ * (v25.90). Every Admin save now compares each day it touches with the server, so a cache the server
+ * never held is a page that loaded records which do not exist, and every save would be refused. A
+ * test that puts a DIFFERENT version on the server first keeps it: that is a colleague's change.
+ * @param {any[]} rows
+ */
+function setAllOverrides(rows) {
+    _setCacheOnly(rows);
+    for (const r of rows ?? []) if (r?.id && !_server.has(r.id)) { const { id, ...data } = r; _server.set(id, { ...data }); }
+}
+// …and each test starts from an empty server, so nothing one test wrote is a "colleague's" record in the next.
+beforeEach(() => { _server.clear(); });
 // The leave-year save left admin-overrides.js for its own module (v25.18, the ratchet) — same mocks.
 const { setLeaveYear } = await import('./admin-leave-year-save.js');
 // What a week row was DRAWN from is remembered by the row-state module (v25.89) — the real one, so a test
@@ -706,6 +743,7 @@ describe('recordRangeOverrides sets as rest days exactly the Sundays the range c
                 const dates = [day(-1), sun, day(1)];
                 for (const kind of already) {
                     for (const type of ['annual_leave', 'sick']) {
+                        _server.clear();   // each pass is a fresh page over a server holding what it loaded (v25.90)
                         setAllOverrides(kind ? [{ id: `pre-${sun}`, memberName: m.name, date: sun, source: 'manual', createdAt: new Date(2026, 0, 1), ...kind }] : []);
                         const expected = rangeSundayCorrections({ dates, memberObj: m, ovByDate: buildMemberDateMap(m.name) });
                         _batchWrites.length = 0;
@@ -1231,23 +1269,48 @@ describe('two editors saving the same day', () => {
         mockAuth.currentUser = { uid: 'mgr', getIdToken: async () => {} };
     });
 
-    test('the week editor: both saves land on ONE document, and the later one is what it says', async () => {
+    // THE SECOND EDITOR IS TOLD (v25.90). Until then the later save simply won — one record, by the fixed
+    // id, but the editor who loaded first overwrote the other's day without a word. Now the day is read
+    // in the same transaction as the write, and a day that no longer holds what this page showed refuses
+    // the whole save and NAMES the day.
+    test('the week editor: the second editor, who loaded before the first saved, is refused — and told which day', async () => {
         setAllOverrides(LOADED());   // editor A
         await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]);
-        setAllOverrides(LOADED());   // editor B, who loaded before A saved
-        await executeSave([{ memberName: MEMBER, date: DAY, type: 'rdw', value: '14:00-22:00', note: '' }]);
+        _setCacheOnly(LOADED());     // editor B, who loaded before A saved: the server has moved on since
+        const errs = /** @type {any[]} */ ([]); const realError = console.error;
+        console.error = (/** @type {any[]} */ ...a) => { errs.push(a[1]); };
+        try {
+            await executeSave([{ memberName: MEMBER, date: DAY, type: 'rdw', value: '14:00-22:00', note: '' }]);
+        } finally { console.error = realError; }
         const day = docsForDay();
         assert.equal(day.length, 1, `one record for the day, not ${day.length}`);
         assert.equal(day[0][0], 'm_2026-06-16_G.%20Miller');
-        assert.equal(day[0][1].value, '14:00-22:00');
+        assert.equal(day[0][1].value, '07:00-15:00', "the first editor's save was overwritten");
+        assert.equal(errs.find(e => e?.line)?.line,
+            'Someone else has changed Tue 16 Jun since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.');
     });
 
-    test('the range writer: annual leave booked twice over one week leaves one record per day', async () => {
+    test('the range writer: a second booking over a day another editor booked since is refused', async () => {
         setAllOverrides(LOADED());
         await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: MEMBER, changedBy: 'S. Silva', dates: [DAY] });
-        setAllOverrides(LOADED());
-        await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: MEMBER, changedBy: 'M. Robson', dates: [DAY] });
+        _setCacheOnly(LOADED());     // the second editor loaded before the first booked
+        await assert.rejects(
+            recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: MEMBER, changedBy: 'M. Robson', dates: [DAY] }),
+            (/** @type {any} */ e) => /^Someone else has changed Tue 16 Jun since the page loaded/.test(e.line));
         assert.equal(docsForDay().length, 1);
+        assert.equal(docsForDay()[0][1].changedBy, 'S. Silva', "the first booking was overwritten");
+    });
+
+    // OFFLINE IS UNCHANGED: a save the device cannot check is held as a batch and lands as it always did —
+    // still on the day's one fixed id, so the later of two offline saves is the record, never a second one.
+    test('offline, both saves are held unchecked and land on ONE document, the later one winning', async () => {
+        setAllOverrides(LOADED());
+        await offline(() => executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]));
+        _setCacheOnly(LOADED());     // editor B, who loaded before A saved
+        await offline(() => executeSave([{ memberName: MEMBER, date: DAY, type: 'rdw', value: '14:00-22:00', note: '' }]));
+        const day = docsForDay();
+        assert.equal(day.length, 1, `one record for the day, not ${day.length}`);
+        assert.equal(day[0][1].value, '14:00-22:00');
     });
 
     test('re-saving a day clears a duplicate a concurrent save left before the fix', async () => {
@@ -1324,6 +1387,40 @@ describe('two editors saving the same day', () => {
         assert.equal(_server.get(fixed)?.value, '14:00-22:00', "a colleague's RDW was deleted under a row that showed AL");
     });
 
+    // …AND SO IS WRITING ONE (v25.90). The same scenario, saving instead of clearing: the row showed AL, a
+    // colleague has saved an RDW over it, and a load has put the RDW in the cache. Compared with the cache,
+    // the RDW matches the server and the shift overwrites it; compared with the ROW, the day has changed.
+    test('WRITING a day is compared with the row as it was drawn too — the colleague\'s newer record stands (v25.90)', async () => {
+        const fixed = 'm_2026-06-16_G.%20Miller';
+        const mine = { id: fixed, memberName: MEMBER, date: DAY, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(1) };
+        const drawnRow = () => {
+            const row = /** @type {any} */ ({ dataset: { date: DAY }, style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+                querySelector: () => null, querySelectorAll: () => [], setAttribute() {}, removeAttribute() {} });
+            prefillRow(row, mine);                                                // the grid draws the AL
+            return row;
+        };
+        const saveShift = async (/** @type {any} */ row) => {
+            const { getElementById } = global.document;
+            global.document.getElementById = (/** @type {string} */ id) => (id === 'weekGrid' ? { querySelectorAll: () => [row] }
+                : id === 'fieldMember' ? { value: MEMBER } : null);   // the grid is this member's week
+            const realError = console.error; console.error = () => {};
+            try { await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]); }
+            finally { global.document.getElementById = getElementById; console.error = realError; }
+        };
+        // CONTROL: nobody else touched the day — the save goes through, over the AL the row showed.
+        _server.clear(); _apply('set', fixed, { ...mine }); setAllOverrides([mine]);
+        await saveShift(drawnRow());
+        assert.equal(_server.get(fixed)?.value, '07:00-15:00', 'premise: an unchanged day saves');
+
+        _server.clear(); _apply('set', fixed, { ...mine }); setAllOverrides([mine]);
+        const row = drawnRow();
+        const theirs = { ...mine, type: 'rdw', value: '14:00-22:00', changedBy: 'S. Manager', createdAt: { toMillis: () => 2_000 } };
+        _apply('set', fixed, { ...theirs });                                      // a colleague saves an RDW…
+        setAllOverrides([{ ...theirs }]);                                         // …and a load brings it into the cache
+        await saveShift(row);
+        assert.equal(_server.get(fixed)?.value, '14:00-22:00', "a colleague's RDW was overwritten under a row that showed AL");
+    });
+
     test('a transaction that RE-RUNS writes the whole save again — nothing from the first run counts as done', async () => {
         // A colleague deletes the cleared day too, between the read and the commit. The read is stale, so it
         // runs again; the day is now already gone (no difference) and the save must go through WHOLE —
@@ -1346,12 +1443,45 @@ describe('two editors saving the same day', () => {
             'the saved day is in the page twice');
     });
 
-    test('a save with nothing to clear stays a BATCH — the one shape a phone can hold while offline', async () => {
-        const runs = _txRuns;
+    test('online, a save with nothing to clear is ONE transaction that checks the day first (v25.90)', async () => {
+        const runs = _txRuns, commits = _commitSizes.length;
         setAllOverrides(LOADED());
         await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]);
-        assert.equal(_txRuns, runs, 'a plain save ran a transaction, which never queues on the device');
+        assert.equal(_txRuns - runs, 1, 'an online save that writes was not checked');
+        assert.equal(_commitSizes.length - commits, 1);
         assert.equal(_server.get('m_2026-06-16_G.%20Miller')?.value, '07:00-15:00');
+    });
+
+    test('offline, the same save is a BATCH — the one shape a phone can hold — and checks nothing', async () => {
+        const runs = _txRuns;
+        setAllOverrides(LOADED());
+        await offline(() => executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]));
+        assert.equal(_txRuns, runs, 'an offline save ran a transaction, which never queues on the device');
+        assert.equal(_server.get('m_2026-06-16_G.%20Miller')?.value, '07:00-15:00');
+    });
+
+    test('"online" with no server — the phone with bars and no data — is held as a batch, not lost', async () => {
+        setAllOverrides(LOADED());
+        _txUnreachable = 1;
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]);
+        assert.equal(_txUnreachable, 0, 'premise: the check tried the server');
+        assert.equal(_server.get('m_2026-06-16_G.%20Miller')?.value, '07:00-15:00', 'the save was dropped instead of held');
+    });
+
+    test('a save that REMOVES a day is never held unchecked: with no server it is refused, writing nothing', async () => {
+        const fixed = 'm_2026-06-16_G.%20Miller';
+        const mine = { id: fixed, memberName: MEMBER, date: DAY, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(1) };
+        _server.clear();
+        setAllOverrides([mine]);
+        _txUnreachable = 1;
+        const errs = /** @type {any[]} */ ([]); const realError = console.error;
+        console.error = (/** @type {any[]} */ ...a) => { errs.push(a[1]); };
+        try {
+            await executeSave([{ memberName: MEMBER, date: '2026-06-17', type: 'shift', value: '07:00-15:00', note: '' }], [fixed]);
+        } finally { console.error = realError; _txUnreachable = 0; }
+        assert.equal(errs.find(Boolean)?.code, 'unavailable');
+        assert.equal(_server.get(fixed)?.value, 'AL', 'the removal was made without the server');
+        assert.equal(_server.has('m_2026-06-17_G.%20Miller'), false, 'half of it was held');
     });
 
     test('an import for the day is still replaced by a manual save, as before', async () => {

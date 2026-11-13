@@ -568,6 +568,33 @@ describe('overrides — the real builder, and provenance the writer cannot forge
         await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), build({ source: 'roster_import' })));
         await assertFails(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), build({ source: 'roster_import', changedBy: 'S. Stewart' })));
     });
+
+    // ── THE CHECK BEFORE A SAVE (v25.90) ─────────────────────────────────────────────────────
+    //
+    // Every online save now commits through ONE transaction that first READS each day it is about
+    // to write (`commitChecked`, admin-override-store.js), and on the first save of a day that
+    // document does not exist yet. So the read rule must let every identity that saves read a
+    // document that is NOT THERE. Today it can, because it never consults `resource`. A read rule
+    // that one day did — an owner check, say — would refuse that read for a missing document, and
+    // with it every first save of a day by every identity, reported as a permission failure rather
+    // than as a colleague's change. This runs the real shape for each identity that saves: read
+    // the empty day, then write it, inside one transaction.
+    test('every identity that saves may READ a day with no record yet, then write it, in one transaction (v25.90)', async () => {
+        const cases = [
+            { db: namedDb('G. Miller'), member: 'G. Miller', changedBy: 'G. Miller', who: 'a member, their own day' },
+            { db: managerDb('S. Stewart'), member: 'G. Miller', changedBy: 'S. Stewart', who: 'a manager, on behalf' },
+            { db: namedAdminDb(), member: 'S. Boyle', changedBy: 'G. Miller', who: 'the admin, on behalf' },
+        ];
+        for (const [i, c] of cases.entries()) {
+            const date = `2026-07-0${i + 1}`;
+            const ref = doc(c.db, 'overrides', manualOverrideId(c.member, date));
+            await assertSucceeds(runTransaction(c.db, async (tx) => {
+                const snap = await tx.get(ref);
+                assert.equal(snap.exists(), false, `${c.who}: the day starts empty — this is its first save`);
+                tx.set(ref, build({ memberName: c.member, date, changedBy: c.changedBy }));
+            }));
+        }
+    });
 });
 
 describe('overrides — per-member isolation (STRICT, B3)', () => {

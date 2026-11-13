@@ -409,13 +409,32 @@ jobs:
     # does not need yet. A failure now also names its screen size. When a half outgrows its box in
     # turn, shard within the project as the webkit job does.
     #
-    # The matrix must name every project in playwright.config.mjs: each job runs only its own, so a
-    # project missing here would silently stop running in CI. workflow-hygiene.test.mjs holds the two
-    # lists equal. `fail-fast: false` so a red half never cancels the green one and loses its report.
+    # ── THEN EACH PROJECT IN THREE SHARDS (12 Nov 2026) ──────────────────────────────────────────
+    #
+    # Not because a half had outgrown its box, but because the same suite is the Hosting deploy's
+    # gate, and at 15 to 17 minutes a half was the longest wait in every release (deploy-hosting.yml
+    # runs it exactly as this job does, and workflow-hygiene.test.mjs holds the two equal, so a PR
+    # green here is green there). playwright.config.mjs now sets `fullyParallel`, so a shard is a
+    # count of TESTS, not of files. Priced from that night's per-test times with Playwright's own
+    # split: the longest shard is 6.1 minutes of tests on desktop Chrome and 6.2 on the Pixel,
+    # against 15.7 and 15.1 as one job each. Two shards would leave 8.5; four, 5.2, where the
+    # per-job setup starts to cost more than it saves. The first CI run (12 Nov 2026) came in at
+    # 4.2 to 7.5 minutes of tests a shard, 5.3 to 8.2 minutes a job with its setup.
+    #
+    # The list must name every project in playwright.config.mjs and every shard of each: a project or
+    # a shard missing here would silently stop running in CI. workflow-hygiene.test.mjs holds the list
+    # to the config. `fail-fast: false` so a red shard never cancels the others and loses its report.
+    name: smoke (${{ matrix.project }}, ${{ matrix.shard }}/${{ matrix.shards }})
     strategy:
       fail-fast: false
       matrix:
-        project: [chromium, mobile-chrome]
+        include:
+          - { project: chromium, shard: 1, shards: 3 }
+          - { project: chromium, shard: 2, shards: 3 }
+          - { project: chromium, shard: 3, shards: 3 }
+          - { project: mobile-chrome, shard: 1, shards: 3 }
+          - { project: mobile-chrome, shard: 2, shards: 3 }
+          - { project: mobile-chrome, shard: 3, shards: 3 }
     # 15 → 20 (4 Sep 2026), when a 7-minute `npm ci` cancelled the suite mid-run. 20 → 30 (25 Oct
     # 2026): the suite took ~10 minutes when 20 was set and takes 16–19½ now — the six green runs
     # before v24.98 spent 16m15s–18m48s in the tests, and v24.98's first PR run passed all 1,601 in
@@ -425,6 +444,8 @@ jobs:
     # 35. Still bounded; the point is a bound with margin. Past ~25 minutes, shard it as webkit is.
     # → It reached 25.1 on 3 Nov 2026 and was split by project (above). Each job now carries half the
     #   suite, so the same 30 is about twice the margin.
+    # → Sharded three ways on 12 Nov 2026 (above): a shard is about 6 minutes of tests, so 30 is now a
+    #   stuck-job guard rather than a budget.
     timeout-minutes: 30
     permissions:
       contents: read
@@ -488,7 +509,7 @@ jobs:
           browser: chromium
 
       - name: Run smoke tests
-        run: npm run test:e2e -- --project=${{ matrix.project }}
+        run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
         env:
           CI: true
 
@@ -496,9 +517,9 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          # The project in the name: two jobs upload here, and a colliding artifact name fails the
-          # upload of whichever lands second — losing the report for the half that broke.
-          name: playwright-report-${{ matrix.project }}
+          # The project AND the shard in the name: six jobs upload here, and a colliding artifact name
+          # fails the upload of whichever lands second — losing the report for the shard that broke.
+          name: playwright-report-${{ matrix.project }}-shard${{ matrix.shard }}
           path: playwright-report/
           retention-days: 7
 
@@ -570,6 +591,12 @@ jobs:
   # came within 1.5 minutes of the real shards, under them): the rest in three, longest ~14.6
   # minutes on the iPhone and ~14.0 on the desktop; the Links in two on the iPhone (~8.7) and in one
   # on the desktop (~9.5). Longest ~15 instead of 25-plus, on the same slow runner.
+  #
+  # AND THE IPHONE'S LINKS PROJECT DRAWS AT 2x (12 Nov 2026, the same day). Most Links tests open a
+  # desktop-size window, which at the iPhone's 3x density WebKit draws at a few frames a second, and
+  # every click waits on frames; playwright.webkit.mjs has the measurements beside LINKS_IPHONE_DPR.
+  # The whole project ran in 4.4 minutes locally instead of 8.7, with the same 165 passed and 8
+  # skipped. Its two shards stay: the halving is headroom for the slow runner, not a reason to merge.
   #
   # THE COST, STATED: nine jobs pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here

@@ -100,8 +100,20 @@ mock.module('./firebase-client.js', {
         // function again, and the re-run meets the change. A fake that ran it once could only test the
         // comparison, never the race the comparison used to lose.
         runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => _runTx(fn),
+        // A BATCH (v25.90): what an ordinary save commits OFFLINE — no reads, no check, applied as it
+        // stands. Counted, so a test can say which kind of commit carried a save.
+        writeBatch: () => {
+            /** @type {Array<[string, string, any]>} */ const ops = [];
+            return {
+                set: (/** @type {any} */ ref, /** @type {any} */ data) => { ops.push(['set', ref.id, data]); },
+                delete: (/** @type {any} */ ref) => { ops.push(['delete', ref.id, null]); },
+                commit: async () => { _batchCommits++; for (const [kind, id, data] of ops) serverWrite(id, kind === 'set' ? data : null); },
+            };
+        },
     },
 });
+/** Batches committed — the offline path's only trace. */
+let _batchCommits = 0;
 /** @type {Map<string, any>} */ const _server = new Map();
 let _serverCached = false;
 let _serverFails = false;
@@ -768,3 +780,167 @@ describe('6 · a delete compares what it removes with what the page showed, in O
     });
 });
 
+
+// ── 7 · AN ORDINARY SAVE IS CHECKED TOO, WHENEVER THE SERVER CAN BE ASKED (v25.90) ──────────────────────
+// Until v25.90 only a save that deleted was checked, so of two managers saving one day the later simply
+// won. `commitChecked` reads each day a save writes in the same transaction as the write, and refuses
+// unless the day still holds what the page showed; offline it is a batch, held and unchecked, as before.
+describe('7 · an ordinary save is checked too, whenever the server can be asked (v25.90)', () => {
+    const FIXED = 'm_2026-06-16_G.%20Miller', DAY = '2026-06-16';
+    const rec = (/** @type {any} */ over = {}) => ({ memberName: 'G. Miller', date: DAY, type: 'shift', value: '07:00-15:00',
+        note: '', source: 'manual', changedBy: 'A. Manager', ...over });
+    /** A save of the day, shaped as the week grid's: `replaces` deleted, the record set at the fixed id. */
+    const saveDay = (/** @type {string[]} */ replaces = []) => (/** @type {any} */ w) => {
+        replaces.forEach(id => w.delete({ id }));
+        w.set({ id: FIXED }, { ...rec(), createdAt: null });
+    };
+    const seed = async (/** @type {any[]} */ rows) => { const { store } = await freshStore(); store.setAllOverrides(rows.map(r => ({ ...r }))); return store; };
+    /** @type {string[][]} */ let named = [];
+    const line = (/** @type {string[]} */ dates) => { named.push(dates); return `changed: ${dates.join(', ')}`; };
+    const refused = (/** @type {any} */ store) => (/** @type {any} */ e) => e.code === store.DELETE_REFUSED && /^changed: /.test(e.line);
+    /** Run `fn` on a device that says it is OFFLINE, then put navigator back. @template T @param {() => Promise<T>} fn */
+    async function offline(fn) {
+        const was = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+        Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+        try { return await fn(); } finally {
+            if (was) Object.defineProperty(globalThis, 'navigator', was); else delete (/** @type {any} */ (globalThis)).navigator;
+        }
+    }
+    beforeEach(() => {
+        _server.clear(); _versions.clear(); _serverCached = false; _serverFails = false;
+        _betweenReadAndCommit = null; _txRuns = 0; _txDeleted.length = 0; _txFails = null; _landsUnanswered = 0;
+        _batchCommits = 0; named = [];
+    });
+
+    test('a day that showed nothing and still holds nothing → written, in ONE transaction, never a batch', async () => {
+        const store = await seed([]);
+        const res = await store.commitChecked(saveDay(), { shownFor: () => null, line });
+        assert.deepEqual(res, { checked: true, done: false });
+        assert.equal(_txRuns, 1);
+        assert.equal(_batchCommits, 0, 'an online save went out unchecked');
+        assert.equal(_server.get(FIXED)?.value, '07:00-15:00');
+    });
+
+    test('a colleague saved the day since → refused, nothing written, and the refusal is handed the DAY', async () => {
+        const store = await seed([]);
+        serverWrite(FIXED, rec({ type: 'annual_leave', value: 'AL', changedBy: 'S. Silva' }));
+        await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => null, line }), refused(store));
+        assert.equal(_server.get(FIXED)?.type, 'annual_leave', "the colleague's leave was overwritten");
+        assert.deepEqual(named, [[DAY]]);
+    });
+
+    test('the record the day showed has CHANGED since → refused', async () => {
+        const shown = { id: FIXED, ...rec({ type: 'annual_leave', value: 'AL' }), createdAt: { toMillis: () => 1_000 } };
+        const store = await seed([shown]);
+        serverWrite(FIXED, { ...shown, type: 'sick', value: 'SICK', createdAt: { toMillis: () => 2_000 } });
+        await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => shown, line }), refused(store));
+        assert.equal(_server.get(FIXED)?.type, 'sick');
+    });
+
+    test('the record the day showed has GONE since → refused, not quietly put back as something else', async () => {
+        const shown = { id: FIXED, ...rec({ type: 'annual_leave', value: 'AL' }), createdAt: { toMillis: () => 1_000 } };
+        const store = await seed([shown]);   // and the server no longer holds it: a colleague cancelled the leave
+        await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => shown, line }), refused(store));
+        assert.equal(_server.has(FIXED), false);
+    });
+
+    test('a day that showed an IMPORT, unchanged → written, and the import it replaces deleted', async () => {
+        const imp = { id: 'import-1', memberName: 'G. Miller', date: DAY, type: 'shift', value: '06:20-14:20', note: '', source: 'roster_import', createdAt: { toMillis: () => 1 } };
+        const store = await seed([imp]);
+        serverWrite('import-1', { ...imp });
+        const res = await store.commitChecked(saveDay(['import-1']), { shownFor: () => imp, line });
+        assert.equal(res.checked, true);
+        assert.equal(_server.has('import-1'), false);
+        assert.equal(_server.get(FIXED)?.value, '07:00-15:00');
+    });
+
+    test('what the ROW showed decides — a colleague\'s record a later read put in the cache is still a change', async () => {
+        const theirs = { id: FIXED, ...rec({ type: 'rdw', value: '14:00-22:00', changedBy: 'S. Silva' }), createdAt: { toMillis: () => 2_000 } };
+        const store = await seed([theirs]);           // the cache holds it now…
+        serverWrite(FIXED, { ...theirs });
+        await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => null, line }), refused(store), '…but the row was drawn before it, showing nothing');
+        assert.equal(_server.get(FIXED)?.type, 'rdw');
+    });
+
+    test('a commit whose answer was lost is recognised as this save: done, not refused, not written twice', async () => {
+        const store = await seed([]);
+        _landsUnanswered = 1;
+        const res = await store.commitChecked(saveDay(), { shownFor: () => null, line });
+        assert.deepEqual(res, { checked: true, done: true });
+        assert.equal(_txRuns, 2, 'premise: the function ran again after the commit landed');
+        assert.deepEqual(named, [], 'a save that landed was reported as a colleague\'s change');
+    });
+
+    test('a colleague\'s IDENTICAL save is still a colleague\'s — refused, never taken for this one', async () => {
+        const store = await seed([]);
+        serverWrite(FIXED, { ...rec({ changedBy: 'S. Silva' }), createdAt: null });
+        await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => null, line }), refused(store));
+        assert.equal(_server.get(FIXED)?.changedBy, 'S. Silva');
+    });
+
+    test('a save that writes no day is never "done" — an empty comparison would call every refusal success', async () => {
+        const shown = { id: 'k1', ...rec({ date: '2026-06-17', type: 'annual_leave', value: 'AL' }), createdAt: { toMillis: () => 1_000 } };
+        const store = await seed([shown]);
+        serverWrite('k1', { ...shown, value: 'SICK', type: 'sick', createdAt: { toMillis: () => 2_000 } });
+        // Nothing set and nothing deleted, so every comparison `alreadyDone` could make is over an empty list.
+        await assert.rejects(store.commitChecked(() => {}, { shownFor: () => null, removed: [shown], line, holdOffline: false }), refused(store));
+        await assert.rejects(store.commitChecked((/** @type {any} */ w) => w.delete({ id: 'k1' }), { shownFor: () => null, removed: [shown], line, holdOffline: false }), refused(store));
+        assert.equal(_server.get('k1')?.type, 'sick', 'the colleague\'s change was deleted');
+    });
+
+    test('"already done" needs the copies it replaces GONE too — the same record beside a live import is a change', async () => {
+        // The record this save would write is on the server — but so is the import it was to replace, so it
+        // did not land as this save; something else wrote it. Refused, rather than reported done over a day
+        // still holding the copy the page meant to remove.
+        const imp = { id: 'import-1', memberName: 'G. Miller', date: DAY, type: 'shift', value: '06:20-14:20', note: '', source: 'roster_import', createdAt: { toMillis: () => 1 } };
+        const store = await seed([imp]);
+        serverWrite('import-1', { ...imp });
+        serverWrite(FIXED, { ...rec(), createdAt: null });
+        await assert.rejects(store.commitChecked(saveDay(['import-1']), { shownFor: () => imp, line }), refused(store));
+        assert.equal(_server.has('import-1'), true);
+    });
+
+    test('`mustBeAbsent` yields to a ROW given for the same id — the record the page showed is what is expected', async () => {
+        const shown = { id: FIXED, ...rec({ type: 'annual_leave', value: 'AL' }), createdAt: { toMillis: () => 1_000 } };
+        const store = await seed([shown]);
+        serverWrite(FIXED, { ...shown });
+        const res = await store.commitIfUnchanged([shown], (/** @type {any} */ tx) => tx.delete({ id: FIXED }), { mustBeAbsent: [FIXED] });
+        assert.equal(res.done, false);
+        assert.equal(_server.has(FIXED), false, 'an unchanged record the page showed was refused as a change');
+    });
+
+    test('OFFLINE → a batch, held on the device and unchecked, as every save was before', async () => {
+        const store = await seed([]);
+        serverWrite(FIXED, rec({ type: 'annual_leave', value: 'AL', changedBy: 'S. Silva' }));
+        const res = await offline(() => store.commitChecked(saveDay(), { shownFor: () => null, line }));
+        assert.deepEqual(res, { checked: false, done: false });
+        assert.equal(_txRuns, 0, 'a transaction never queues on the device');
+        assert.equal(_batchCommits, 1);
+        assert.equal(_server.get(FIXED)?.value, '07:00-15:00', 'the trade, stated: offline cannot ask, so the later save stands');
+    });
+
+    test('"online" with no server (unavailable) → held as a batch, not lost', async () => {
+        const store = await seed([]);
+        _txFails = Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });
+        const res = await store.commitChecked(saveDay(), { shownFor: () => null, line });
+        assert.deepEqual(res, { checked: false, done: false });
+        assert.equal(_batchCommits, 1);
+        assert.equal(_server.get(FIXED)?.value, '07:00-15:00');
+    });
+
+    test('`holdOffline: false` — a save that removes a day — is never a batch: offline it still asks the server, and no server is an error', async () => {
+        const store = await seed([]);
+        _txFails = Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });
+        await assert.rejects(offline(() => store.commitChecked(saveDay(), { shownFor: () => null, line, holdOffline: false })),
+            (/** @type {any} */ e) => e.code === 'unavailable');
+        assert.equal(_batchCommits, 0);
+        assert.equal(_server.has(FIXED), false);
+    });
+
+    test('any other failure is the caller\'s to report — never turned into an unchecked batch', async () => {
+        const store = await seed([]);
+        _txFails = Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' });
+        await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => null, line }), (/** @type {any} */ e) => e.code === 'permission-denied');
+        assert.equal(_batchCommits, 0);
+    });
+});
