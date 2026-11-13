@@ -61,9 +61,9 @@
  * Three things the reorder does NOT change, because they are the security model and this is only
  * the order of two cards: what each route GRANTS (`decideAccess` is untouched), that a member is
  * never sent to the PIN (`showMemberPanel` still answers a held session), and that nothing is on
- * screen before access is granted. ONE route asks for the PIN card first: `#staff-pin`, which a
- * "Use the staff PIN instead" sign-out reloads with and a station PC can bookmark — consumed at
- * boot, never stored.
+ * screen before access is granted. The PIN card comes first only when asked (`takePinFirst`, read
+ * once at boot): `#staff-pin`, which a "Use the staff PIN instead" sign-out reloads with and a
+ * station PC can bookmark, or the one-tab mark left by a page in this tab that ended the PIN.
  *
  * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
@@ -268,8 +268,9 @@ function watchForLateNamedIdentity() {
  *  late viewer granted meanwhile — the exchange's own sign-in, or a restored session it is part-way
  *  through signing out — would be granted twice. */
 let _unlocking = false;
-/** A member signed in while the PIN card was on screen — the unlock must reload, not sign them out. */
-const memberSignedIn = () => !!getSession()?.name && !!auth.currentUser && !isViewerUser(auth.currentUser);
+/** A member's session is held — signed in while the PIN card was up, or its identity did not restore: the
+ *  unlock reloads instead, so the boot offers them their own way in, never the PIN (audit F1). */
+const memberSessionHeld = () => !!getSession()?.name;
 
 /**
  * Grant a staff-PIN session that restored after the decision — see `watchForLateNamedIdentity`.
@@ -348,9 +349,9 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
     if (!isCompletePin(pin)) {
         return { ok: false, kind: 'rejected', message: `Enter the ${PIN_LENGTH}-digit staff PIN.` };
     }
-    // A member signed in WHILE this card was on screen ("Sign in instead", another tab): the ladder below
-    // would sign them out for a shared capability. Reload — the boot then answers `named`.
-    if (memberSignedIn()) { window.location.reload(); return { ok: true }; }
+    // A member's session is held (`memberSessionHeld`): the ladder below would sign them out for a shared
+    // capability, or grant it over their session. Reload — the boot answers `named`, or offers their card.
+    if (memberSessionHeld()) { window.location.reload(); return { ok: true }; }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         const f = classifyUnlockFailure({ offline: true });
         return { ok: false, kind: f.kind, message: f.message };
@@ -403,7 +404,7 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
     // Asked again after the waits, which can run to 45 s (review, 11 Nov 2026): if the card that asked has
     // gone, or a member signed in meanwhile, nothing here may sign anybody out or change persistence.
     if (!stillWanted()) return { ok: false, kind: 'superseded', message: '' };
-    if (memberSignedIn()) { window.location.reload(); return { ok: true }; }
+    if (memberSessionHeld()) { window.location.reload(); return { ok: true }; }
     _unlocking = true;   // this exchange grants for itself, after its claim check — see `grantLateViewer`
     try {
         // ── The persistence switch, in the one order that is safe ───────────────────────────────

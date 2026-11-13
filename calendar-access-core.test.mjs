@@ -64,15 +64,19 @@ describe('decideAccess', () => {
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
 
-    test('the IDENTITY decides, not the session — a member\'s session over the viewer\'s token is `viewer`', () => {
-        // Renamed at the test audit (7 Nov 2026): it was called "NAMED BEATS VIEWER" while asserting
-        // `viewer`. The session says who SHOULD be here; the token is who the reads actually run as
-        // (AUTH_AND_SESSIONS 17). Answering `named` over the viewer's token would label the page as
-        // that member while every read and on-behalf write went out under an identity with no `name`
-        // claim (invariant 7) — signed in to themselves, nobody to the rules.
-        assert.equal(decideAccess({ session, firebaseUser: viewer }), 'viewer',
-            'a stale member session over the shared viewer\'s token was treated as that member');
-        // ...and with the member's own identity restored, the same session is the member:
+    test('a member\'s held session over the viewer\'s token is `none` — their own card, never the PIN (audit F1)', () => {
+        // NOT `named`: the session says who SHOULD be here, the token is who the reads would run as
+        // (AUTH_AND_SESSIONS 17), and answering `named` would label the page as that member while every
+        // read went out under an identity with no `name` claim (invariant 7).
+        // NOT `viewer` either, which this asserted until the sign-in audit (Nov 2026): a member whose
+        // identity failed to restore, in a tab that also held a PIN session, was granted the PIN. They
+        // read the station's Calendar rather than their own, and a later loss of access showed them the
+        // PIN card — a member sent to the staff PIN (CALENDAR_DATA.md 11). `none` puts up their own card.
+        assert.equal(decideAccess({ session, firebaseUser: viewer }), 'none',
+            'a member\'s held session over the shared viewer\'s token granted the staff PIN');
+        // ...the viewer alone is still the viewer, and with the member's own identity restored, the
+        // same session is the member:
+        assert.equal(decideAccess({ session: null, firebaseUser: viewer }), 'viewer');
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
 

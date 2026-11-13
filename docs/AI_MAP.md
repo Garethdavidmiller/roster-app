@@ -307,7 +307,8 @@ viewer's session. The header carries the design; `CALENDAR_DATA.md` 3, 4, 11 and
   `unlockCalendarViewer`, signs out anyone current (and refuses if that fails), switches to session-only
   persistence, signs in with the custom token and checks the claim before granting. The PIN is never
   stored, logged or held in module state. `stillWanted` is the card asking whether it is still on screen:
-  asked after the waits, with a signed-in member, so an exchange left behind changes nothing (`superseded`).
+  asked after the waits, so an exchange left behind changes nothing (`superseded`). A member's HELD session
+  (before or after the waits) reloads instead — the boot offers them their own way in, never the PIN.
 - `lockCalendar()` — the drawer's Lock. Fails closed (throws if the viewer is still current) and reloads
   onto `#staff-pin`.
 - `handleAccessLost()` — re-lock after a read refused because the session went: a member gets their own
@@ -381,7 +382,8 @@ The pure rules of Calendar access — no DOM, no Firebase, no storage — tested
 - `CALENDAR_VIEWER_UID` · `CALENDAR_VIEWER_CLAIM` · `PIN_LENGTH` · `PIN_FIRST_HASH` (`'#staff-pin'`, here so
   the Trains page can use it without the Calendar's cards).
 - `decideAccess({ session, firebaseUser })` → `'named'|'viewer'|'none'`. Named needs a local session
-  AND a restored, non-anonymous Firebase user whose email, if it has one, is this member's.
+  AND a restored, non-anonymous Firebase user whose email, if it has one, is this member's. The viewer
+  is `viewer` only with NO session held: over a member's session it is `none`, their own card (F1).
 - `isViewerUser(user)` — uid match and non-anonymous; `session.js` uses it to decide which identity
   survives `reconcileExpiredIdentity`.
 - `normalisePin` / `isCompletePin` — shape only. `classifyUnlockFailure` — the words a member reads

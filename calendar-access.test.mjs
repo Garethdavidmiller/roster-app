@@ -1109,6 +1109,32 @@ describe('initCalendarAccess', () => {
         assert.equal(getAccessType(), 'none', 'a late PIN session was granted over a held member session');
     });
 
+    test('a PIN session restored AT START-UP under a member\'s held session gets the member their own way in (audit F1)', async () => {
+        // The start-up twin of the late case above, which the boot used to miss: a member's identity
+        // did not restore, the tab ALSO held a PIN session, and `decideAccess` ranked the PIN first —
+        // the member read the station's Calendar, and a later loss showed them the PIN card. Now the
+        // boot answers `none`, and the member's own silent sign-in runs before any card goes up.
+        const viewerUser = () => ({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
+        for (const succeeds of [false, true]) {
+            handleAccessLost(); await drainTurns();
+            ops = []; authSubs.clear(); loginMounts = [];
+            sessionValue = { name: 'G. Miller' };
+            currentUser = viewerUser();                   // restored at boot, inside the decision
+            silentReauthSucceeds = succeeds;
+            const type = await initCalendarAccess({ onGranted: () => {} });
+            await drainTurns();
+            assert.ok(ops.includes('ensureNamedSession:G. Miller'), 'the member\'s own silent sign-in never ran');
+            if (succeeds) {
+                assert.equal(type, 'named', 'the member\'s own sign-in did not win');
+            } else {
+                assert.equal(type, 'none', 'the staff PIN was granted over a member\'s held session');
+                assert.equal(getAccessType(), 'none');
+                assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was put in front of the staff PIN');
+                assert.ok(lastPanelHtml().includes('calLockPinInstead'), 'the member\'s own card did not follow');
+            }
+        }
+    });
+
     test('a late PIN session does not overtake a member\'s silent sign-in (sign-in check, 11 Nov 2026)', async () => {
         // The reproduced sequence: a member's session is held, their silent sign-in is still out, and
         // the browser's old PIN session restores meanwhile. Granting it ended, when the sign-in failed,
@@ -1473,21 +1499,50 @@ describe('the viewer↔member race', () => {
         assert.equal(ops.some(o => o.startsWith('signIn:')), false, 'a viewer token was still redeemed');
     });
 
-    test('a VIEWER holding a stale local session may still unlock', async () => {
-        // The guard is about a live MEMBER identity, not about a session record. A viewer whose
-        // browser still holds an expired-but-present session must not be locked out of re-unlocking.
+    test('a member\'s HELD session under the PIN card reloads too — the PIN is never granted over it (audit F1)', async () => {
+        // This asserted the opposite until the sign-in audit (Nov 2026): "a viewer holding a stale
+        // local session may still unlock". But a held session IS a member — one whose identity did not
+        // restore, with the viewer's token in the tab — and unlocking put the station's Calendar where
+        // their own belongs (CALENDAR_DATA.md 11). The reload asks the boot, which now answers `none`
+        // for exactly this and offers their own card, with the PIN one deliberate tap behind it.
+        let reloads = 0;
+        globalThis.window.location.reload = () => { reloads++; };
+        for (const who of [{ uid: 'calendar-viewer', isAnonymous: false }, null]) {
+            sessionValue = { name: 'G. Miller' };
+            currentUser = who;
+            ops = []; reloads = 0;
+            // `{ ok: true }` is also what an unlock returns, so the reload is counted and the exchange
+            // checked for: a station PC sent down the wrong one of the two is the failure either way.
+            assert.deepEqual(await unlockWithPin('1234'), { ok: true });
+            assert.equal(reloads, 1, `the PIN was not handed back to the boot (identity: ${who ? 'the viewer' : 'none'})`);
+            assert.equal(getAccessType(), 'none', 'the staff PIN was granted over a member\'s held session');
+            assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
+                'the exchange went ahead under a member\'s session');
+            // …nor is the PIN sent: an attempt the server counts against the station's limit, for an
+            // unlock that cannot be used.
+            assert.equal(lastFetchBody, null, 'the PIN was sent for an unlock that could not go ahead');
+        }
+    });
+
+    test('…and the member card\'s "Use the staff PIN instead" still UNLOCKS: it drops the session first', async () => {
+        // The hand-over is the deliberate way from a held session to the PIN. It clears the session
+        // before its reload (the test above it in "initCalendarAccess"), so the PIN card it lands on
+        // finds nothing held and the exchange goes ahead — a station PC is never stranded by the reload.
         let reloads = 0;
         globalThis.window.location.reload = () => { reloads++; };
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'calendar-viewer', isAnonymous: false };
+        await initCalendarAccess({ onGranted: () => {} });
+        await drainTurns();
+        const alt = document.getElementById('calLockPinInstead');
+        assert.ok(alt, 'the member card offers no route to the staff PIN');
+        await alt._listeners.get('click')();
+        assert.equal(reloads, 1, 'the hand-over did not reload');
+        assert.equal(sessionValue, null, 'the hand-over kept the session');
         ops = [];
         assert.deepEqual(await unlockWithPin('1234'), { ok: true });
-        // `{ ok: true }` is ALSO what the reload branch above returns, so on its own it could not
-        // tell an unlock from a reload (test audit, 7 Nov 2026: deleting the `!isViewerUser`
-        // exemption left this green). A station PC sent down the reload after a PIN rotation never
-        // gets back in, so assert the unlock really happened.
-        assert.equal(reloads, 0, 'a viewer was sent to the reload meant for a signed-in member');
+        assert.equal(reloads, 1, 'the PIN card the hand-over leads to reloaded instead of unlocking');
         assert.ok(ops.some(o => o.startsWith('signIn:')), 'the PIN was never exchanged for a viewer token');
+        assert.equal(getAccessType(), 'viewer');
     });
 });
 
