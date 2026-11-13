@@ -8,6 +8,7 @@ import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
+import { LOST_PHONE } from '../operations-reset.js';
 
 // ── OPERATIONS (operations.html) ──────────────────────────────────────────
 
@@ -1174,6 +1175,7 @@ test('operations account status: every row button\'s name holds its visible word
     await resetOn(1);
     await expect(page.locator('.acct-row').nth(1).locator('.btn-acct-reset')).toHaveText('Retry');
     expect(await nameMismatches(page), 'a reset that failed: Retry').toEqual([]);
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();   // the 500's own sentence, shown since sign-in audit E5
     await resetOn(2);
     await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveText('Reset ✓');
     await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveAttribute('aria-label', /done/);
@@ -1657,6 +1659,139 @@ test('operations: a fully successful reset leaves a receipt on the row', async (
     await page.locator('.dialog-btn-confirm').click();
     await expect(row.locator('.btn-acct-reset')).toHaveText('Reset ✓');
 });
+
+// ── A LOST OR STOLEN PHONE, AND WHAT EVERY RESET SAYS (sign-in audit D1/A1, E2, E5 — 13 Nov 2026) ───────────────
+// A reset's "🔑 Password reset" notice landed on the lock screen of the very phone that was lost, and the phone kept
+// getting the member's notices. The Reset dialog now asks, with an unticked box; ticked, the request asks for
+// `lostDevice: true` and the server sends no notice and deletes every push record the member owns. The words are
+// operations-reset.js's; these drive the real page — the body sent, and what each answer says.
+/** Operations with the reset endpoint answering `answer` (as JSON) or `body` (as a page), recording each body sent.
+ *  @param {import('@playwright/test').Page} page @param {{ status?: number, answer?: any, body?: string }} o */
+async function openForReset(page, { status = 200, answer = {}, body } = {}) {
+    /** @type {any[]} */ const sent = [];
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.route('**/resetMemberPassword', route => {
+        if (route.request().method() === 'POST') sent.push(route.request().postDataJSON());
+        return route.fulfill({ status, contentType: body ? 'text/html' : 'application/json',
+            headers: { 'access-control-allow-origin': '*' }, body: body ?? JSON.stringify(answer) });
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').first();
+    return { sent, row, name: String(await row.getAttribute('data-member')) };
+}
+/** Press the row's Reset, tick the lost-phone box if asked, and confirm. @param {import('@playwright/test').Page} page @param {any} row */
+async function pressReset(page, row, { lost = false } = {}) {
+    await row.locator('.btn-acct-reset').click();
+    const dialog = page.locator('.lb-overlay.open');
+    if (lost) await dialog.getByRole('checkbox', { name: LOST_PHONE.label }).check();
+    await dialog.locator('.dialog-btn-confirm').click();
+}
+const LANDED = { ok: true, revoked: true, stamped: true, notified: true };
+
+test('operations: Reset asks about a lost phone, unticked, and asks the server for it only when ticked', async ({ page }) => {
+    const { sent, row, name } = await openForReset(page, { answer: LANDED });
+    await row.locator('.btn-acct-reset').click();
+    const box = page.locator('.lb-overlay.open').getByRole('checkbox', { name: LOST_PHONE.label });
+    await expect(box).not.toBeChecked();
+    await expect(box).toHaveAccessibleDescription(LOST_PHONE.hint);
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(row.locator('.btn-acct-reset')).toHaveText('Reset ✓');
+    expect(sent, 'an unticked box sends exactly what a reset has always sent').toEqual([{ member: name }]);
+    await pressReset(page, row, { lost: true });
+    await expect.poll(() => sent.length).toBe(2);
+    expect(sent[1]).toEqual({ member: name, lostDevice: true });
+});
+
+test('operations: the lost-phone box is the dialog\'s first stop — Space ticks it, Enter does not confirm, Tab reaches the buttons', async ({ page }) => {
+    const { sent, row } = await openForReset(page, { answer: LANDED });
+    await row.locator('.btn-acct-reset').focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.locator('.lb-overlay.open');
+    const box = dialog.getByRole('checkbox', { name: LOST_PHONE.label });
+    await expect(box).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(box).toBeChecked();
+    await page.keyboard.press('Enter');
+    // The box itself, not "a dialog": a confirmed reset would put up its outcome, which is a dialog too.
+    await expect(box, 'Enter on the box confirmed the reset').toBeVisible();
+    await expect(box).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(dialog.locator('.dialog-btn-cancel')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(dialog.locator('.dialog-btn-confirm')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.lb-overlay.open')).toHaveCount(0);
+    await expect(row.locator('.btn-acct-reset'), 'a dismissed dialog reset nothing').toHaveText('Reset');
+    expect(sent).toEqual([]);
+});
+
+for (const [label, answer, title, says, never] of /** @type {Array<[string, any, string, string[], RegExp]>} */ ([
+    ['a lost-phone reset says what it did, and that nobody told them',
+        { ...LANDED, notified: false, lostDevice: true, pushReleased: 2 }, 'Password reset — tell them yourself',
+        ['WAS reset to their surname', 'signed out on every device, the lost phone included', 'notifications are now off on every device',
+            'No reset notice was sent. Tell'], /has no notifications on this app|COULDN’T/],
+    ['a lost-phone reset whose notifications could not be switched off says so, and to reset again with the box ticked',
+        { ...LANDED, notified: false, lostDevice: true, pushReleaseFailed: true }, 'Password reset — notifications still on',
+        ['COULDN’T be switched off', 'Reset again with the box ticked', 'No reset notice was sent'], /notifications are now off/],
+    ['a ticked box an older server ignored says the lost-phone step did not run',
+        LANDED, 'Password reset — the lost-phone step didn’t run',
+        ['WAS reset to their surname', 'The lost-phone step DIDN’T run', 'the usual reset notice went to their devices', 'Reset again with the box ticked'],
+        /No reset notice was sent/],
+])) {
+    test(`operations: ${label}`, async ({ page }) => {
+        const { row, name } = await openForReset(page, { answer });
+        await pressReset(page, row, { lost: true });
+        const dialog = page.locator('.lb-overlay.open');
+        await expect(dialog.locator('.dialog-title')).toHaveText(title);
+        for (const s of says) await expect(dialog).toContainText(s);
+        if (title.endsWith('yourself')) await expect(dialog).toContainText(`Tell ${name} yourself`);
+        await expect(dialog).not.toContainText(never);
+        await expect(row.locator('.btn-acct-reset')).toHaveText('Reset ✓');
+    });
+}
+
+// A SIGN-OUT THAT FAILED NO LONGER HIDES THAT NOBODY TOLD THEM (sign-in audit E2). "They have NOT been told" was shown
+// only when the sign-out had worked, so the admin of a member with no notifications heard nothing about telling them;
+// and the failed sign-out itself is not the open door it read as — the password change ends those sign-ins within the
+// hour, so the line says so and offers the reset that ends them now.
+test('operations: a reset whose sign-out failed still says nobody told them, and that those sign-ins end within the hour', async ({ page }) => {
+    const { row, name } = await openForReset(page, { answer: { ok: true, revoked: false, revokeFailed: true, stamped: true, notified: false } });
+    await pressReset(page, row);
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog.locator('.dialog-title')).toHaveText('Password reset — other devices not signed out yet');
+    await expect(dialog).toContainText('when they next renew, within the hour — reset again to sign them out now');
+    await expect(dialog).toContainText(`${name} has no notifications on this app, so they have NOT been told. Let them know their password is now their surname.`);
+    await expect(dialog, 'they are not signed out yet, so nothing may say they are').not.toContainText('and they are signed out');
+});
+
+// A 500 SAYS WHAT THE SERVER SAID (sign-in audit E5): the endpoint's 500 now carries a sentence — that it is not known
+// whether the password changed, or that nothing did — and it is shown as written, as the 503's has been, under a title
+// that claims neither. A page from in front of the function is still not a reason.
+for (const [what, o, shown] of /** @type {Array<[string, any, boolean]>} */ ([
+    ['its sentence', { status: 500, answer: { error: 'It isn’t known whether the password changed — resetting again is safe.' } }, true],
+    ['nothing, when the answer is a web page', { status: 500, body: '<!DOCTYPE html><title>Error 500</title><p>Server Error' }, false],
+    ['nothing, when its sentence is markup', { status: 500, answer: { error: '<p>Internal Server Error</p>' } }, false],
+])) {
+    test(`operations: a reset the server answered 500 shows ${what}, beside Retry`, async ({ page }) => {
+        const { row } = await openForReset(page, o);
+        await pressReset(page, row);
+        await expect(row.locator('.btn-acct-reset')).toHaveText('Retry');
+        if (shown) {
+            const dialog = page.locator('.lb-overlay.open');
+            await expect(dialog.locator('.dialog-title')).toHaveText('The reset ran into a problem');
+            await expect(dialog.locator('.dialog-message')).toHaveText(o.answer.error);
+        } else {
+            // "Retry" and a dialog are written in the same task, so once the one is seen the other would exist — any
+            // dialog but the question itself, which is still fading out.
+            await expect(page.locator('.dialog-overlay').filter({ hasNotText: 'Reset password?' })).toHaveCount(0);
+        }
+    });
+}
 
 // ── A reset that timed out did not necessarily fail (v23.36) ────────────────────────────────────
 // `fetch-timeout.js`'s header names `resetMemberPassword` when it says a timeout on a write must

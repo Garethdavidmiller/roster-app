@@ -714,10 +714,10 @@ const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/r
 /**
  * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
  * claim (enforced server-side). A reset always signs the member out of their other devices.
- * @param {string} memberName
+ * @param {string} memberName @param {{ lostDevice?: boolean }} [opts] a lost phone: no notice, every push record released — sent only for `true` itself
  * @returns {Promise<any>} the function's JSON response
  */
-export async function resetMemberPassword(memberName) {
+export async function resetMemberPassword(memberName, { lostDevice = false } = {}) {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
     const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
@@ -728,7 +728,7 @@ export async function resetMemberPassword(memberName) {
         r = await fetchWithTimeout(RESET_PASSWORD_URL, {
             method:  'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ member: memberName }),
+            body:    JSON.stringify(lostDevice === true ? { member: memberName, lostDevice: true } : { member: memberName }),
         }, 65_000);
         // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
         if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }

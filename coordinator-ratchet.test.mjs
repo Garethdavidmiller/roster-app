@@ -378,7 +378,10 @@ const CAPS = {
     // operations-tips.js as Links, Overtime and Trains had done (−152). The ceiling comes down with
     // them, to the usual headroom over 875, rather than banking the saving. The Account-status seam
     // above is still the next one.
-    'operations-app.js':        920,
+    // 920 → 837 on 13 Nov 2026, a LOWER, to the measured size: the sign-in audit's lost-phone Reset (D1)
+    // and its two outcome fixes (E2, E5) were RULES — what a reset may claim — so EXTRACT: every word the
+    // Reset asks and says left for operations-reset.js, and the doReset that stayed only asks and wires.
+    'operations-app.js':        837,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip
     // added ~14 lines of pure WIRING — the strip module owns every rule, the coordinator only
     // creates it and feeds it from the loads the cards already run. Capped as the ratchet asks

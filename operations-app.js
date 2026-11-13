@@ -6,7 +6,8 @@
  *   Auth re-establishment, the Account status and reset-request cards, and the page's wiring.
  * Does NOT own: Huddle upload logic (huddle.js), roster PDF pipeline
  *   (admin-roster-upload.js), staff auth setup (admin-auth.js), the three reporting cards
- *   (operations-errors.js, -usage.js, -speed.js) or the Needs-attention strip (operations-attention.js).
+ *   (operations-errors.js, -usage.js, -speed.js), the Needs-attention strip (operations-attention.js) or what
+ *   Account status's Reset asks and says (operations-reset.js).
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
@@ -30,13 +31,13 @@ import { initDocLinksCard, docLinksRequestInFlight } from './operations-doc-link
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
-import { isFetchTimeout, serverRefusal } from './fetch-timeout.js';
+import { resetQuestion, resetFailure, resetOutcome } from './operations-reset.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
-import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
+import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './operations-tips.js';
@@ -540,113 +541,29 @@ export function init() {
         }
 
         async function doReset(/** @type {string} */ name, /** @type {HTMLButtonElement} */ btn) {
-            const ok = await confirmDialog({
-                title: 'Reset password?',
-                // Tracks the FORCED overlay (v21.94): `password-force.js` shipped at v18.92 and
-                // `CONFIG.FORCE_PASSWORD_SET` is true, so a reset member is compelled to choose a
-                // new password at their next sign-in. This used to send them to Settings instead.
-                message: `Reset ${name}'s password back to their surname default and sign them out of their other devices? Tell them to sign in with their surname — the app will then ask them to choose a new one.`,
-                confirmLabel: 'Reset', danger: true,
-            });
-            if (!ok) return;
+            // Every word the admin reads about a reset — the question, its lost-phone box, each failure and
+            // each outcome — is operations-reset.js's, beside the reasoning for what each one may claim.
+            const { confirmed, option: lostDevice } = await confirmWithOption(resetQuestion(name));
+            if (!confirmed) return;
             btn.disabled = true; say(btn, 'Resetting…', `Resetting ${name}'s password`);
             /** @type {any} */ let result;
             try {
-                result = await resetMemberPassword(name);
+                result = await resetMemberPassword(name, { lostDevice });
             } catch (e) {
                 console.warn('[Operations] resetMemberPassword failed:', e);
-                // A TIMEOUT IS NOT A FAILURE, and `fetch-timeout.js`'s header names THIS endpoint
-                // when it says so: the abort stopped us waiting, it did not stop the server
-                // working. A reset that timed out may have landed a second later — the member's
-                // password may already BE their surname and their other devices already signed
-                // out. Reporting that as "Reset failed" is how an admin comes to tell a member
-                // their old password still works, on the app's only break-glass path.
-                //
-                // `firebase-client.js` already composes the honest sentence and hangs the tagged
-                // original off `cause`; this used to discard both into a console warning. The
-                // sibling break-glass path on this page (admin-auth.js's Set up accounts) renders
-                // `err.message`, so its equivalent message has always reached the admin — this one
-                // was the exception.
-                if (isFetchTimeout(/** @type {any} */ (e)?.cause)) {
-                    // NOT "Retry": the button must not describe an outcome nobody knows.
-                    btn.disabled = false; sayReset(btn, name);
-                    confirmDialog({
-                        title: 'Couldn’t confirm the reset',
-                        message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and their other devices already signed out.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
-                        confirmLabel: 'OK',
-                    }).catch(() => {});
-                    return;
-                }
-                // A REFUSAL (4xx) names its reason and offers no Retry — retrying cannot change the answer (whole-app review).
-                const refused = serverRefusal(e);
+                // A timeout or a refusal offers no Retry: one may have landed, the other cannot change.
+                const { retry, note } = resetFailure(name, e);
                 btn.disabled = false;
-                if (refused) sayReset(btn, name); else say(btn, 'Retry', `Retry resetting ${name}'s password`);
-                // The endpoint refuses in JSON sentences written for the admin, all before it changes
-                // anything. A body that is MARKUP is not a reason (an HTML error page from in front of the
-                // function), so it is not shown as one (Nov 2026 review).
-                const why = refused && (/<[a-z!/]/i.test(refused.reason)
-                    ? `The server answered ${refused.status} without a reason this page can show. Nothing was reset.` : refused.reason);
-                if (why) confirmDialog({ title: 'The reset was refused', message: why, confirmLabel: 'OK' }).catch(() => {});
-                // A 503 is the server saying, BEFORE it changed anything, that it could not record the
-                // reset — no stamp, no reset (functions-core-2, Nov 2026). Retry is the right answer, and
-                // its sentence says nothing changed, so it is shown beside the button rather than lost.
-                const unrecorded = !refused && /^Server responded 503: ([\s\S]*)$/.exec(String(/** @type {any} */ (e)?.message ?? ''));
-                if (unrecorded) {
-                    let line = unrecorded[1].trim();
-                    try { const parsed = JSON.parse(line); line = typeof parsed?.error === 'string' ? parsed.error : ''; } catch { line = ''; }
-                    if (line && !/<[a-z!/]/i.test(line)) confirmDialog({ title: 'The reset didn’t go through', message: line, confirmLabel: 'OK' }).catch(() => {});
-                }
+                if (retry) say(btn, 'Retry', `Retry resetting ${name}'s password`); else sayReset(btn, name);
+                if (note) confirmDialog({ ...note, confirmLabel: 'OK' }).catch(() => {});
                 return;
             }
-            // PARTIAL SUCCESS. The endpoint reports each stage separately (v21.86) because the
-            // password change is the irreversible one: once it lands, the account IS on the surname
-            // default whatever else failed, and telling the admin otherwise invites them either to
-            // reset again or to tell the member their old password still works.
-            //
-            // The message is BUILT from what happened rather than asserted. It used to say "and
-            // their other sessions were signed out" unconditionally — true on the only partial path
-            // that existed then, and a flat untruth on the one this release added.
-            const _revokeFailed = result && result.revokeFailed === true;
-            // v23.62: the member is now told on their OWN devices that their password was reset.
-            // This is the one notification state worth a receipt — they were signed OUT and could
-            // not be reached, so they are locked out with no explanation and the admin is the only
-            // one who can close that gap. Deliberately NOT shown when the reset left their sessions
-            // running: nobody is stranded, so there is nothing to act on.
-            // `notified` is what HAPPENED, so a member with no push subscription lands here — which
-            // is the point, since that is exactly who needs telling another way.
-            // v24.57: an account registered from OUTSIDE the app was taken back rather than reset.
-            // It holds no claim yet, so the member cannot use it until Set up accounts runs.
-            const _takenBack    = result && result.takenBack === true;
-            const _uninformed   = !_takenBack && !!(result && result.notified === false && result.revoked === true);
-            if (_revokeFailed || _uninformed || _takenBack) {
+            // Built from the stages the answer reports — null when the row's receipt below says it all.
+            const outcome = resetOutcome(name, result, { lostDevice });
+            if (outcome) {
                 console.warn('[Operations] resetMemberPassword partial for', name,
-                             { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified });
-                const parts = [`${name}'s password WAS reset to their surname.`];
-                // The security-relevant half leads, because it is the one with an action attached.
-                if (_revokeFailed) {
-                    parts.push('Their other devices could NOT be signed out, so an existing session there may still work. Reset again to retry that.');
-                } else {
-                    parts.push('Their other sessions were signed out.');
-                }
-                // No "couldn't be recorded" case here any more: since functions-core-2 (Nov 2026) the
-                // server stamps resetAt FIRST and refuses with a 503 when it cannot, so a reset that
-                // happened was always recorded — the 503 is handled above, beside Retry.
-                if (_takenBack) {
-                    parts.push(`This account had been registered outside the app, so it was taken back: anyone signed in on it was signed out. Run Set up accounts next — until then ${name} cannot use the app on it. Then let them know their password is their surname.`);
-                }
-                if (_uninformed) {
-                    parts.push(`${name} has no notifications on this app, so they have NOT been told. Let them know their password is now their surname and they are signed out.`);
-                }
-                parts.push('Resetting again is safe.');
-                confirmDialog({
-                    // Precedence, most actionable first: a live session somewhere is a security state; an
-                    // account taken back waits on Set up accounts; and an untold member is an errand.
-                    title: _revokeFailed ? 'Password reset — other devices not signed out'
-                         : _takenBack    ? 'Account taken back — run Set up accounts'
-                         :                 'Password reset — tell them yourself',
-                    message: parts.join('\n\n'),
-                    confirmLabel: 'OK',
-                }).catch(() => {});   // informational; the reset itself already succeeded
+                             { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified, lostDevice: result?.lostDevice });
+                confirmDialog({ ...outcome, confirmLabel: 'OK' }).catch(() => {});   // informational; the reset itself already succeeded
             }
             // Reset SUCCEEDED (member re-defaulted + signed out). The follow-up status re-read is
             // best-effort — if it fails, do NOT show "Retry"/"Reset failed" (that would prompt a

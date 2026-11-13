@@ -100,6 +100,7 @@ export const CARD_TIPS = {
                 // `buildRow` — v18.84), and the new password is compelled, not optional.
                 { icon: '↩️', html: '<strong>Reset</strong> is offered next to <strong>everyone</strong>. Use it if someone has forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out of their other devices. Resetting an account that is already on the default is harmless, and still signs their other devices out.' },
                 { icon: '🔒', html: 'They sign in with their surname again, and the app then <strong>asks them to choose a new password</strong> before they can carry on.' },
+                { icon: '📵', html: 'If their phone is <strong>lost or stolen</strong>, tick the box in the Reset dialog. No reset notice is sent — it would show on that phone — and their notifications stop on every device, so <strong>tell them yourself</strong>.' },
             ]},
         ],
     },
