@@ -576,7 +576,13 @@ two wide work columns (`grid-column: 1 / 3`, ~650px so forms wrap far less — t
 lever) and `.pc-side` is the **col-3 sidebar** stacking the **result card, the standalone year-so-far
 card and the occasional cards**. Putting ONLY the result in col 3 leaves the rest of that column a
 full-height navy void.
-- **`.pc-work`** wraps `[settingsCard, period-controls, hoursCard]`. With both wrappers sharing one
+- **`.pc-work`** wraps `[setupBanner, gradePrompt, gradeNote, privacyNoteTop, settingsCard,
+  period-controls, hoursCard]` — **the notes that head the page are its first children** (laptop
+  polish, 13 Nov 2026). As grid rows of their own above the workspace they spanned the work columns
+  only, so the take-home column started below them — a navy void at the top right on every visit
+  that showed the welcome banner, which is every visit until a year's settings are saved — and the
+  two grade notes, which had no row, were auto-placed into ONE 330px column. In the work column a
+  hidden note takes no gap and a shown one is as wide as the cards beneath it. With both wrappers sharing one
   grid row, **neither column's height can inflate the other's internal spacing** — the shorter column
   simply ends, and the residual gap falls to that column's bottom. (A sidebar that SPANS the left
   items' rows makes grid distribute its excess height across the spanned tracks, opening a navy void
@@ -586,7 +592,7 @@ full-height navy void.
   rules stay, agreeing with the DOM, for the paint before that script runs.
 - **`.pc-side`** (in `paycalc.html`) wraps `[result-card, ytdYearSoFar, payslipCard, hppCard,
   backPayCard, decimalConverterCard, payTransferCard]`. Both wrappers are `display: contents` by
-  DEFAULT, so on **mobile** they vanish and the cards stack in DOM order (Settings → period → Hours →
+  DEFAULT, so on **mobile** they vanish and the cards stack in DOM order (the notes → Settings → period → Hours →
   Result → year-so-far → Year to Date → the four occasional cards). At ≥1024px each becomes
   `display: flex; flex-direction: column; gap: 16px`.
 - **The result is NOT `position: sticky`.** It is a static flex child; the `#stickyTotal` fixed bottom
@@ -611,11 +617,15 @@ being typed in clear of the bar once per focus (`scrollToClearBar`). `body.stick
 padding. The bar is the **sole** keep-the-£-visible mechanism on every width.
 
 **Desktop card placement** — explicit grid-row placement (mobile DOM order is untouched — every rule
-lives inside `@media (min-width:1024px)`): rows 1–2 the banners and privacy note (cols 1–2 — the
-privacy note is FIRST-VISIT ONLY, and paycalc.css pulls whatever follows a hidden banner or note up by
-one gap per hidden row, because an empty grid row still takes its row-gap; the same line leads the `.disclaimer`
-note at the foot of the page on every visit) · row 3 `.pc-work` (cols 1–2) and `.pc-side` (col 3) ·
-`.guide-footer-link` row 4 · `.disclaimer` row 5. `align-self:start` on the work cards and the
+lives inside `@media (min-width:1024px)`): row 1 `.pc-work` (cols 1–2, the notes at its head — the
+privacy note is FIRST-VISIT ONLY; the same line leads the `.disclaimer` note at the foot of the page on
+every visit) and `.pc-side` (col 3), so the take-home is level with whatever heads the work column ·
+`.guide-footer-link` row 2 · `.disclaimer` row 3 · the refusal card alone in row 1 across all three
+columns, when everything else is hidden. **Never give a note a grid row of its own again**: an
+empty row still takes its row-gap, which is what the old `:has()` pull-ups were working round, and
+an unplaced one is auto-placed into a single column. `e2e/paycalc.spec.js` pins both halves — "a
+hidden setup banner or privacy note leaves no gap behind it" and "the grade note spans the work
+columns". `align-self:start` on the work cards and the
 sidebar, so an expanding accordion never stretches its neighbour. The occasional cards stack in the
 col-3 sidebar — never 2-up in the work columns, which re-creates voids whenever a tall expanded card
 sits beside a short one.

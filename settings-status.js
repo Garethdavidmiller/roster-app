@@ -85,7 +85,7 @@ const TODO_LABEL = {
 /** What a `blocked` card says instead — the member cannot do the thing the to-do would name.
  *  @type {Record<string, string>} */
 const BLOCKED_LABEL = {
-    'notifications': 'Notifications are blocked on this phone',
+    'notifications': 'Notifications are blocked on this device',
 };
 
 /**
