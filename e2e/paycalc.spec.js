@@ -2554,6 +2554,59 @@ test('paycalc: "Keep CEA" keeps the member\'s own grade, and is not asked again'
     expect(errors).toHaveLength(0);
 });
 
+// ── A PROMOTION RELEASED BEFORE IT STARTS (owner, 13 Nov 2026) ───────────────────────────────────
+// The roster dates a grade (`roleHistory`, read by roster-roles.js): this row is a CEA up to Sat 21 Nov
+// 2026 and a CES from Sun 22 Nov, and the release that says so lands days before. The question is
+// asked against the grades held over the period being earned, so it waits for the first period worked
+// wholly as a CES; and a first visit takes the grade held that day, not the one now on record.
+const PROMOTED = 'K. Jedlinski';
+/** Open the calculator on `today` as the promoted row, with `saved` as the device's grade (or none). */
+async function openAsPromoted(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ today, /** @type {string|null} */ saved) {
+    await page.clock.setFixedTime(new Date(today));
+    await seedSession(page, PROMOTED);
+    await page.addInitScript((g) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_kjedlinski_setup', '1');
+        if (g && !sessionStorage.getItem('seeded')) {
+            localStorage.setItem('myb_pc_kjedlinski_grade', g);
+            sessionStorage.setItem('seeded', '1');
+        }
+    }, saved);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+}
+
+for (const [today, asked, why] of /** @type {const} */ ([
+    ['2026-11-13T09:00:00Z', false, 'the period being earned (paid 20 Nov) is all CEA'],
+    ['2026-11-25T09:00:00Z', false, 'the period being earned (paid 18 Dec) is 7 days CEA and 21 CES, and CEA is one of them'],
+    ['2026-12-20T09:00:00Z', true,  'the period being earned (paid 15 Jan 2027) is all CES'],
+])) {
+    test(`paycalc: a promotion dated 22 Nov 2026, CEA saved — on ${today.slice(0, 10)} the grade question is ${asked ? 'asked' : 'not asked'}`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await openAsPromoted(page, today, 'cea');
+        await expect(page.locator('#gradeSelect'), 'the saved grade stands until the member answers').toHaveValue('cea');
+        const prompt = page.locator('#gradePrompt');
+        if (asked) {
+            await expect(prompt, why).toBeVisible();
+            await expect(prompt).toContainText('The roster lists you as CES (Customer Experience Supervisor), but this calculator is using CEA rates.');
+        } else {
+            await expect(prompt, why).toBeHidden();
+        }
+        expect(errors).toHaveLength(0);
+    });
+}
+
+for (const [today, grade] of /** @type {const} */ ([['2026-11-13T09:00:00Z', 'cea'], ['2026-11-25T09:00:00Z', 'ces']])) {
+    test(`paycalc: a promotion dated 22 Nov 2026 — a first visit on ${today.slice(0, 10)} starts on ${grade.toUpperCase()} rates, the grade held that day`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await openAsPromoted(page, today, null);
+        await expect(page.locator('#gradeSelect')).toHaveValue(grade);
+        expect(rateSetFor(grade).has(await page.locator('#hourlyRate').inputValue()), `priced as a ${grade.toUpperCase()}`).toBe(true);
+        await expect(page.locator('#gradePrompt'), 'a grade the roster gave cannot contradict the roster').toBeHidden();
+        expect(errors).toHaveLength(0);
+    });
+}
+
 // Before the 24 Oct 2025 award a CES was paid at a rate that is not on record (AWARD_RATES
 // `pre: null`), so the estimate prices those periods at the later one — and must SAY so, never call
 // it the "current rate" (whole-app review, Oct 2026; paycalc.md invariant 1).

@@ -221,11 +221,12 @@ export const teamMembers = [
     //   · from 22 Nov: the CES link. `currentWeek: 9` there is REFERENCE-ANCHORED — W. Cummings's own base
     //     value, the line at the 15 Feb 2026 CES reference Sunday — not the week that line shows on 22 Nov.
     // The row sits here, among the CES, because every list draws a grade in this file's order.
-    // ⚠️ `role` HAS NO DATE. A grade is one field, not a scheduled move, so 'CES' took effect the moment the
-    // release carrying it went live — the pickers, Team Week, the roster import's name lists and the Pay
-    // Calculator's grade prompt all read it as of today, past weeks included. That is why the release went
-    // out after the week of 15 Nov was uploaded and before the week of 22 Nov (OPERATIONS_REFERENCE.md →
-    // "A member changes grade").
+    // ⚠️ `role` is the grade NOW. The pickers, Team Week and the roster import's name lists read it as of
+    // the release, past weeks included, so 'CES' took effect for them the moment it went live. That is why
+    // the release went out after the week of 15 Nov was uploaded and before the week of 22 Nov
+    // (OPERATIONS_REFERENCE.md → "A member changes grade"). `roleHistory` dates the grade BEFORE it — CEA
+    // up to and including Sat 21 Nov — for anything that must know the grade on a day, the Pay Calculator
+    // among them, through `roleOn` (roster-roles.js).
     // `proRatedAL: 18` is TRANSCRIBED from the clerk's workbook, not derived; 34 a year from 2027 as a CES
     // (it would have been 32 as a CEA). 2026 stays 18 through the promotion unless the workbook changes it.
     // DO NOT recompute it from `startDate`. This comment used to state the old formula
@@ -237,6 +238,7 @@ export const teamMembers = [
     // `.claude/skills/new-starter/SKILL.md`, which is why the step now says ASK AND TRANSCRIBE.
     { name: 'K. Jedlinski',            currentWeek: 2,  rosterType: 'fixed',      role: 'CES',
       startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 18 },
+      roleHistory: [{ role: 'CEA', until: new Date(2026, 10, 21) }],
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'main', currentWeek: 10 },
                       { from: new Date(2026, 10, 22), rosterType: 'ces', currentWeek: 9 }] },
     { name: 'S. Horsman',              currentWeek: 10, rosterType: 'ces',        role: 'CES' },
@@ -253,9 +255,11 @@ export const teamMembers = [
     // takes the CES line that day. Unlike the rows above, the base fields are REAL: `ces`, anchor 9, is the line
     // W. Cummings worked, so anything that still reads one of their past days reads it against the right shifts,
     // and roster-data.test.mjs checks K. Jedlinski's days from 22 Nov against this line. Nothing draws the row:
-    // `managerOnly` takes it off every staff list, for every date, past ones included, because `role` has no
-    // date — it left the CES lists when the release went out (OPERATIONS_REFERENCE.md → "A member changes
-    // grade"). Manager access is `CONFIG.MANAGER_NAMES` (roster-data.js); it starts when Operations → Set up
-    // accounts is next pressed, which the owner does on 22 Nov, and W. Cummings then signs out and back in.
-    { name: 'W. Cummings', currentWeek: 9, rosterType: 'ces', role: 'Management', hidden: true, managerOnly: true },
+    // `managerOnly` takes it off every staff list, for every date, past ones included, because the lists read
+    // `role`, the grade NOW — it left the CES lists when the release went out (OPERATIONS_REFERENCE.md → "A
+    // member changes grade"). `roleHistory` keeps the CES grade, to Sat 21 Nov, for anything that asks the grade
+    // on a day (`roleOn`, roster-roles.js). Manager access is `CONFIG.MANAGER_NAMES` (roster-data.js); it starts when Operations →
+    // Set up accounts is next pressed, which the owner does on 22 Nov, and W. Cummings then signs out and back in.
+    { name: 'W. Cummings', currentWeek: 9, rosterType: 'ces', role: 'Management', hidden: true, managerOnly: true,
+      roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] },
 ];

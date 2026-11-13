@@ -60,6 +60,8 @@ import {
     getMembersForGrade,
     parseSmartFloatOrNull,
 } from './roster-data.js';
+// The grade on a day lives beside the data it reads, in a module of its own (roster-data.js is at its size cap).
+import { roleOn, rolesInRange } from './roster-roles.js';
 import { isChristmasLeaveDay } from './christmas-leave.js';
 
 describe('isChilternWorkEmail', () => {
@@ -1939,6 +1941,65 @@ test('22 Nov 2026: the leave each one keeps — the joining-year figures stand, 
     assert.equal(getALEntitlement(byName('K. Jedlinski'), 2027), 34, 'a CES from 2027 (it would have been 32 as a CEA)');
     assert.equal(getALEntitlement(byName('M. Campbell'), 2026), 9);
     assert.equal(getALEntitlement(byName('M. Campbell'), 2027), 32, 'a CEA contract, not a bilingual one, on whichever line');
+});
+
+// ── A GRADE ON A DAY: roleHistory ────────────────────────────────────────────────────────────────
+// `role` is the grade NOW; `roleHistory` dates the grades before it, each with its LAST day. The Pay
+// Calculator prices each payslip by `roleOn`, so a wrong `until` reprices real payslips at the wrong
+// grade — the reason these pin the day either side of every change, not just one date inside each.
+test('roleHistory: every entry is a known grade with a midnight last day, oldest first, and each one is a real change', () => {
+    const GRADES = ['CEA', 'CES', 'Dispatcher', 'Management'];
+    for (const m of teamMembers) {
+        if (m.roleHistory === undefined) continue;
+        assert.ok(Array.isArray(m.roleHistory) && m.roleHistory.length > 0, `${m.name}: roleHistory is a non-empty list`);
+        m.roleHistory.forEach((/** @type {any} */ h, /** @type {number} */ i) => {
+            assert.deepEqual(Object.keys(h).sort(), ['role', 'until'], `${m.name}[${i}]: only role and until`);
+            assert.ok(GRADES.includes(h.role), `${m.name}[${i}]: ${h.role} is not a grade`);
+            assert.ok(h.until instanceof Date && h.until.getHours() === 0 && h.until.getMinutes() === 0,
+                `${m.name}[${i}]: until is a midnight-local Date — new Date(y, m-1, d)`);
+            const next = m.roleHistory[i + 1];
+            if (next) assert.ok(next.until > h.until, `${m.name}[${i}]: entries run oldest first`);
+            assert.notEqual(h.role, next ? next.role : m.role, `${m.name}[${i}]: a grade followed by the same grade is no change`);
+            if (m.startDate) assert.ok(h.until >= m.startDate, `${m.name}[${i}]: a grade that ended before the member started`);
+        });
+    }
+});
+
+test('roleOn: K. Jedlinski is a CEA up to and including Sat 21 Nov 2026, a CES from Sun 22 Nov; W. Cummings a CES, then a manager', () => {
+    const k = byName('K. Jedlinski');
+    const w = byName('W. Cummings');
+    assert.equal(roleOn(k, new Date(2026, 5, 3)), 'CEA', 'the day K. Jedlinski started');
+    assert.equal(roleOn(k, new Date(2026, 10, 21)), 'CEA', 'the last CEA day');
+    assert.equal(roleOn(k, new Date(2026, 10, 21, 23, 30)), 'CEA', 'late on the last CEA day is still that day');
+    assert.equal(roleOn(k, new Date(2026, 10, 22)), 'CES', 'the first CES day');
+    assert.equal(roleOn(k, new Date(2027, 0, 1)), 'CES');
+    assert.equal(roleOn(w, new Date(2026, 10, 21)), 'CES');
+    assert.equal(roleOn(w, new Date(2026, 10, 22)), 'Management');
+    assert.equal(roleOn(byName('M. Campbell'), new Date(2026, 10, 22)), 'CEA', 'no history: the grade now, on every day');
+    assert.equal(roleOn(null, new Date(2026, 10, 22)), undefined);
+});
+
+test('roleOn reads the history in any order: the earliest last-day on or after the date wins', () => {
+    const shuffled = { name: 'X', role: 'Management', roleHistory: [
+        { role: 'CES', until: new Date(2027, 2, 31) },
+        { role: 'CEA', until: new Date(2026, 10, 21) },
+    ] };
+    assert.equal(roleOn(shuffled, new Date(2026, 10, 21)), 'CEA');
+    assert.equal(roleOn(shuffled, new Date(2026, 10, 22)), 'CES');
+    assert.equal(roleOn(shuffled, new Date(2027, 2, 31)), 'CES');
+    assert.equal(roleOn(shuffled, new Date(2027, 3, 1)), 'Management');
+});
+
+test('rolesInRange: the 22 Nov 2026 promotion across the three 28-day periods around it — all CEA, then 7 days CEA and 21 CES, then all CES', () => {
+    const k = byName('K. Jedlinski');
+    // A period's shifts run from the day after the previous cut-off to its own cut-off, 28 days (paycalc-periods.js):
+    // paid 20 Nov 2026, 18 Dec 2026 and 15 Jan 2027.
+    assert.deepEqual(rolesInRange(k, new Date(2026, 9, 18), new Date(2026, 10, 14)), [{ role: 'CEA', days: 28 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 15), new Date(2026, 11, 12)), [{ role: 'CEA', days: 7 }, { role: 'CES', days: 21 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 11, 13), new Date(2027, 0, 9)), [{ role: 'CES', days: 28 }]);
+    assert.deepEqual(rolesInRange(byName('M. Campbell'), new Date(2026, 10, 15), new Date(2026, 11, 12)), [{ role: 'CEA', days: 28 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 22), new Date(2026, 10, 21)), [], 'an end before the start');
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 21), new Date(2026, 10, 22)), [{ role: 'CEA', days: 1 }, { role: 'CES', days: 1 }]);
 });
 
 test('S. Faure: her Dispatcher line until Sun 28 Jun 2026, then the placeholder pattern 4 from Mon 29 Jun — whose bank holidays are rest days', () => {

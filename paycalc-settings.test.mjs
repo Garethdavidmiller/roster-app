@@ -299,6 +299,17 @@ describe('gradeToOffer — when the page asks whether to use the roster\'s grade
             assert.equal(gradeToOffer('cea', role, null), null, `${role} was offered a grade`);
         }
     });
+    // A grade has a DATE (roleHistory, owner 13 Nov 2026): the page compares against the grades the roster
+    // gives over the payslip on screen, so a promotion released days early asks nothing about the payslips
+    // worked before it, nor about the one it starts part-way through.
+    test('the roster\'s grades over the payslip on screen: a saved grade that is either of them is not contradicted', () => {
+        assert.equal(gradeToOffer('cea', ['CEA'], null), null, 'a payslip worked wholly as a CEA');
+        assert.equal(gradeToOffer('cea', ['CEA', 'CES'], null), null, 'the payslip the promotion starts in, saved CEA');
+        assert.equal(gradeToOffer('ces', ['CEA', 'CES'], null), null, 'the same payslip, saved CES');
+        assert.equal(gradeToOffer('cea', ['CES'], null), 'ces', 'the first payslip worked wholly as a CES asks');
+        assert.equal(gradeToOffer('ces', ['CES', 'Management'], null), null, 'a move into management: the saved grade is one of them');
+        assert.equal(gradeToOffer('cea', ['CES', 'Management'], null), null, 'two grades, neither saved: one grade cannot price it, so none is offered');
+    });
 });
 
 describe('gradeForRole — the role → pay-grade map every figure hangs off', () => {

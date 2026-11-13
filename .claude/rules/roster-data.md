@@ -3,6 +3,7 @@ paths:
   - "roster-data.js"
   - "roster-cycle-data.js"
   - "roster-member-data.js"
+  - "roster-roles.js"
 ---
 
 # roster-data.js — key invariants
@@ -39,7 +40,10 @@ all read. The field reference is here, beside the data.
   name: 'N. Surname',      // MUST match Firestore memberName exactly
   currentWeek: 3,
   rosterType: 'main',      // 'main' | 'bilingual' | 'fixed' | 'ces' | 'dispatcher'
-  role: 'CEA',             // 'CEA' | 'CES' | 'Dispatcher' | 'Management'
+  role: 'CEA',             // 'CEA' | 'CES' | 'Dispatcher' | 'Management' — the grade NOW
+  roleHistory: [{ role: 'CEA', until: new Date(2026, 10, 21) }], // Optional — earlier grades, each with
+                           // its LAST day (midnight local, inclusive), oldest first; read through
+                           // roleOn / rolesInRange (roster-roles.js). Never deleted (OPERATIONS_REFERENCE → A member changes grade)
   hidden: false,           // Optional — hides from dropdown
   managerOnly: false,      // Optional — login-only manager/clerk account (Management group); hidden from the calendar member selector, has no roster of its own
   permanentShift: 'early', // Optional — forces early/late badge on all worked days

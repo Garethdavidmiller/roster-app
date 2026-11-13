@@ -18,6 +18,7 @@ import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, 
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
 import { getSession } from './session.js';
 import { teamMembers, gradeForRole } from './roster-data.js';
+import { roleOn, rolesInRange } from './roster-roles.js';
 import { lsGet, lsSet } from './ls.js';
 import { fdShort } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
@@ -75,17 +76,41 @@ const GRADE_NAMES = /** @type {Record<string, string>} */ ({
  * Nothing is asked when no grade is saved (loadSettings adopts the role's grade itself), when the
  * role has no confirmed rates (the page refuses instead), when the two agree, or when the member
  * already chose to keep their own grade over THIS roster grade.
+ *
+ * `role` may be the LIST of roster grades over the payslip on screen (`rolesInRange`), because a
+ * grade has a date (`roleHistory`, read by roster-roles.js): a member promoted part-way through a payslip
+ * holds both grades in it, and a saved grade that is EITHER of them is not contradicted — a promotion
+ * released days early must not ask "switch?" about payslips worked before it. A payslip spanning two
+ * grades offers neither, since one grade cannot price it.
  * @param {string|null|undefined} stored - the grade saved on this device
- * @param {string|null|undefined} role - the member's roster role ('CEA', 'CES', …)
+ * @param {string|null|undefined|Array<string|null|undefined>} role - the member's roster role ('CEA',
+ *   'CES', …), or the roles the roster gives over the payslip on screen
  * @param {string|null|undefined} kept - the roster grade the member last declined, if any
  * @returns {string|null}
  */
 export function gradeToOffer(stored, role, kept) {
-  const rosterGrade = gradeForRole(role);
-  if (!rosterGrade || !GRADES[rosterGrade]) return null;
   if (!stored || !GRADES[stored]) return null;
-  if (stored === rosterGrade || kept === rosterGrade) return null;
+  const grades = [...new Set((Array.isArray(role) ? role : [role]).map(r => gradeForRole(r)))];
+  if (grades.includes(/** @type {any} */ (stored))) return null;
+  if (grades.length !== 1) return null;
+  const rosterGrade = grades[0];
+  if (!rosterGrade || !GRADES[rosterGrade]) return null;
+  if (kept === rosterGrade) return null;
   return rosterGrade;
+}
+
+/**
+ * The roster grades the question compares against: the member's grades over the payslip on screen
+ * (or, before the payslip selector is built — loadSettings runs first — the payslip being earned
+ * today), from the dated `roleHistory`. Without a member there is nothing to compare.
+ * @returns {Array<string|undefined>|undefined}
+ */
+function rosterRolesOnScreen() {
+  const m = getLoggedMember();
+  if (!m) return undefined;
+  const num = currentPeriodNum() || todaysPeriodNum();
+  const p = getPeriods().find(/** @param {any} x */ x => x.num === num);
+  return p ? rolesInRange(m, p.start, p.cutoff).map(r => r.role) : [roleOn(m, new Date())];
 }
 
 /**
@@ -97,7 +122,7 @@ export function gradeToOffer(stored, role, kept) {
 export function renderGradePrompt(mayShow = false) {
   const box = document.getElementById('gradePrompt');
   if (!box?.dataset || box.dataset.answered) return;
-  const offer = gradeToOffer(getGrade(), getLoggedMember()?.role, lsGet(SK.gradeKept));
+  const offer = gradeToOffer(getGrade(), rosterRolesOnScreen(), lsGet(SK.gradeKept));
   if (!offer) { box.hidden = true; return; }
   if (!mayShow && box.hidden) return;
   const current = getGrade();
@@ -125,7 +150,7 @@ export function renderGradePrompt(mayShow = false) {
  * @param {HTMLElement} box @param {'use'|'keep'} answer
  */
 function answerGradePrompt(box, answer) {
-  const offer = gradeToOffer(getGrade(), getLoggedMember()?.role, lsGet(SK.gradeKept));
+  const offer = gradeToOffer(getGrade(), rosterRolesOnScreen(), lsGet(SK.gradeKept));
   const done = document.getElementById('gradePromptDone');
   if (!offer || !done) { box.hidden = true; return; }
   box.dataset.answered = '1';
@@ -745,7 +770,10 @@ export function loadSettings() {
     // Auto-detect from the logged-in member's role. Via gradeForRole (v21.78) rather than an
     // inline CES check, so "this role has no grade" is an answer the app can act on instead of
     // silently becoming CEA further down.
-    grade = gradeForRole(getLoggedMember()?.role) ?? grade;
+    // The grade the roster gives TODAY (`roleOn`), not the grade now on record: a promotion released
+    // days early must not start a first visit on the new grade's rates before it begins.
+    const _member = getLoggedMember();
+    grade = gradeForRole(_member ? roleOn(_member, new Date()) : undefined) ?? grade;
   }
   if (grade && GRADES[grade]) {
     /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value = grade;

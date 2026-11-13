@@ -760,11 +760,11 @@ survives; removing it is a separate decision nobody is forced into by this proce
 A promotion, or a move into management, changes two things, and the app treats them differently.
 The difference decides when the change can be released.
 
-**Their line has a date; their grade does not.** A move to another line is a `rosterChanges` entry
-with a `from` date (`.claude/rules/roster-data.md` → rosterChanges): the days before it keep the old
-line and the days from it show the new one, whenever the release lands. Their grade is `role`, which
-has no date: from the moment the release is live, the app treats them as the new grade on every
-date, past ones included. These follow the grade:
+**Their line has a date; their grade, for most purposes, does not.** A move to another line is a
+`rosterChanges` entry with a `from` date (`.claude/rules/roster-data.md` → rosterChanges): the days
+before it keep the old line and the days from it show the new one, whenever the release lands. Their
+grade is `role`, the grade NOW: from the moment the release is live, these treat them as the new grade
+on every date, past ones included:
 
 - **The roster import.** `npm run generate:roster-members` builds the `cea`, `ces` and `dispatcher`
   name lists from `role`, and the parser looks only for the names on the uploaded roster's list.
@@ -772,9 +772,16 @@ date, past ones included. These follow the grade:
   screen's grade step, for past weeks as well as future ones.
 - **Their leave allowance**, in any year without a `proRatedAL` figure (CLAUDE.md → AL entitlement).
   A year that has one keeps it.
-- **The Pay Calculator**, which offers them the new grade's rates once and switches only if they say
-  yes (`.claude/rules/paycalc.md`). They should say yes when their pay changes over.
 - **The New link page**, which is for everyone on a normal CEA contract.
+
+**The old grade is recorded with its last day**, as `roleHistory: [{ role: 'CEA', until: new Date(2026,
+10, 21) }]` — the day BEFORE the change, midnight local, inclusive — and `role` becomes the new grade.
+`roleOn(member, date)` (`roster-roles.js`) reads the two together, for the one surface that needs the
+grade on a DAY: the **Pay Calculator**, which offers the new grade's rates once and switches only if
+the member says yes (`.claude/rules/paycalc.md`). It does not ask while either grade held over the
+payslip on screen is the one already saved, so the question waits for the first payslip worked wholly
+under the new grade. Like a `rosterChanges` entry, a `roleHistory` entry is never deleted: without it
+the member reads as the new grade on every date they have worked.
 
 **So release it between two uploads**: after the last week under the old grade is uploaded, and
 before the first week under the new one. A week uploaded before the release is read with the old
