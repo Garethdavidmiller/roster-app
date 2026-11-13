@@ -38,9 +38,10 @@
 import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, releasePushForEndingHold } from './session.js';
 import { isCredentialRejection } from './auth-identity.js';
-// Already loaded wherever this card is: session.js imports both.
-import { PIN_FIRST_HASH } from './calendar-access-core.js';
-import { onStaffPinEnded, forgetStaffPinEnded } from './staff-pin-ended.js';
+// Already loaded wherever this card is: session.js imports it. The words are its own, shared with a
+// page that has no card (paused Overtime, which imports `sayStaffPinEndedIn` from here).
+import { onStaffPinEnded, forgetStaffPinEnded, STAFF_PIN_ENDED_NOTICE, BACK_TO_PIN } from './staff-pin-ended.js';
+export { sayStaffPinEndedIn } from './staff-pin-ended.js';
 // The one deadline helper (sessions-6 — this card kept a copy that differed only in the error's code).
 // Every page that loads this module statically already loads password-force.js statically, and the
 // Calendar loads this one on demand, so the import adds nothing to any page's start-up.
@@ -197,14 +198,10 @@ export function dismissLoginOverlay() {
 // this card with nothing to say why, and "← Back to roster" found the roster locked again.
 //
 // So the card says what happened and what to do, and its way back — the link AND Escape — opens the
-// Calendar on the PIN box (`PIN_FIRST_HASH`), the box they were using a moment ago: what a Lock does
-// on the Calendar and Trains. Worded as what the PIN OPENS, never as a sign-in (AUTH_AND_SESSIONS 18).
-// The modal card only: the inline one is the Calendar's own front door, which never ends the PIN.
-/** The line the card shows when arriving on its page ended the staff PIN. */
-const STAFF_PIN_ENDED_NOTICE =
-    'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.';
-/** Where the card's way back goes once the PIN has ended: the Calendar, PIN box first. */
-const BACK_TO_PIN = './' + PIN_FIRST_HASH;
+// Calendar on the PIN box (`BACK_TO_PIN`), the box they were using a moment ago: what a Lock does on
+// the Calendar and Trains. The words are staff-pin-ended.js's (`STAFF_PIN_ENDED_NOTICE`), one sentence
+// wherever the PIN ends. The modal card only: the inline one is the Calendar's own front door, which
+// never ends the PIN.
 
 /**
  * Say on this card that arriving ended the staff PIN, and point its way back at the PIN box. The

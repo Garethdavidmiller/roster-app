@@ -41,11 +41,25 @@
  * browser session; forgotten with the fact. Every access is in a try — iOS private mode can throw.
  *
  * Why a module of its own: session.js was at its size cap (coordinator-ratchet.test.mjs) when this
- * landed, and this is one subject a Node test can hold without a DOM — the ratchet's EXTRACT.
+ * landed, and this is one subject a Node test can hold without a DOM — the ratchet's EXTRACT. (The one
+ * function that draws, `sayStaffPinEndedIn`, is handed the element it draws in.)
  */
+
+import { PIN_FIRST_HASH } from './calendar-access-core.js';
 
 /** sessionStorage: a page in THIS tab ended the PIN. One writer and one reader, both here. */
 const PIN_ENDED_MARK = 'myb_staff_pin_ended';
+
+// ── WHAT IS SAID, AND WHERE ITS WAY BACK GOES — ONE SENTENCE WHEREVER THE PIN ENDS (audit C1) ──────
+// The sign-in card says it (login-overlay.js → `sayStaffPinEnded`), and a page with no card says it in
+// its own body (`sayStaffPinEndedIn`): paused Overtime offers no sign-in, and until then signed the PIN
+// out in silence, against AUTH_AND_SESSIONS 24. Worded as what the PIN OPENS, never as a sign-in (18).
+
+/** The line said when arriving on a page ended the staff PIN. */
+export const STAFF_PIN_ENDED_NOTICE =
+    'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.';
+/** Where the way back goes once the PIN has ended: the Calendar, PIN box first. */
+export const BACK_TO_PIN = './' + PIN_FIRST_HASH;
 
 let ended = false;
 /** @type {Set<() => void>} */
@@ -85,6 +99,29 @@ export function takeStaffPinEndedMark() {
         sessionStorage.removeItem(PIN_ENDED_MARK);
         return marked;
     } catch { return false; }
+}
+
+/**
+ * Say it on a page with no sign-in card (see the block above). A status region goes into `host` NOW,
+ * empty — an empty div takes no room — so the words written when the teardown lands are a change a
+ * screen reader announces (text a live region is created with is read by nobody), with the way back.
+ * @param {Element|null} host
+ * @returns {() => void}  stop listening
+ */
+export function sayStaffPinEndedIn(host) {
+    if (!host) return () => {};
+    const region = document.createElement('div');
+    region.setAttribute('role', 'status');
+    host.appendChild(region);
+    return onStaffPinEnded(() => {
+        if (!region.isConnected) return;   // the page has moved on, or redrawn this part
+        const line = document.createElement('p');
+        const back = document.createElement('a');
+        back.href = BACK_TO_PIN;
+        back.textContent = '← Back to roster';
+        line.append(STAFF_PIN_ENDED_NOTICE + ' ', back);
+        region.appendChild(line);
+    });
 }
 
 /**

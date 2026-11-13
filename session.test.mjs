@@ -717,6 +717,36 @@ describe('reconcileExpiredIdentity', () => {
         } finally { delete /** @type {any} */ (globalThis).sessionStorage; }
     });
 
+    // A PAGE WITH NO SIGN-IN CARD SAYS IT TOO (audit C1): paused Overtime offers none, and only a card
+    // listened, so it signed the PIN out in silence. Its line: the card's own sentence and way back, in a
+    // status region that is in the page — empty — before the teardown lands, so the words are announced.
+    test('sayStaffPinEndedIn: the region is there at once and empty; the teardown fills it with the card\'s words and the PIN box', async () => {
+        const { sayStaffPinEndedIn, STAFF_PIN_ENDED_NOTICE, BACK_TO_PIN, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+        forgetStaffPinEnded();   // earlier tests here ended the PIN; this page has not, yet
+        const made = (/** @type {string} */ tag) => {
+            /** @type {any} */ const el = { tag, kids: /** @type {any[]} */ ([]), attrs: /** @type {Record<string,string>} */ ({}), isConnected: true,
+                setAttribute(/** @type {string} */ k, /** @type {string} */ v) { el.attrs[k] = v; },
+                appendChild(/** @type {any} */ c) { el.kids.push(c); return c; },
+                append(/** @type {any[]} */ ...xs) { el.kids.push(...xs); } };
+            return el;
+        };
+        /** @type {any} */ (globalThis).document = { createElement: made };
+        try {
+            const host = made('div');
+            sayStaffPinEndedIn(host);
+            const region = host.kids[0];
+            assert.equal(region?.attrs.role, 'status', 'no live region was put in the page before the teardown');
+            assert.deepEqual(region.kids, [], 'the region said something before the PIN had ended');
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();
+            const [line] = region.kids;
+            assert.equal(line?.kids[0], STAFF_PIN_ENDED_NOTICE + ' ', 'the page did not say the PIN ended');
+            assert.equal(line.kids[1].href, BACK_TO_PIN);
+            assert.equal(BACK_TO_PIN, './#staff-pin', 'the way back is not the Calendar\'s PIN box');
+            assert.equal(sayStaffPinEndedIn(null)(), undefined, 'a page with nowhere to say it draws nothing and throws nothing');
+        } finally { delete /** @type {any} */ (globalThis).document; }
+    });
+
     test('an explicit opts object with the flag ABSENT is still a teardown', async () => {
         // A caller that passes options for some other reason must not inherit preservation.
         auth.currentUser = /** @type {any} */ (viewerUser);

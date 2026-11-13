@@ -987,7 +987,8 @@ designer-only Links) stays with each coordinator, after sign-in.
 - **When arriving ended the staff PIN** (v25.78): the modal card carries an empty status line from the
   start, so a notice written later is announced. `onStaffPinEnded` (staff-pin-ended.js) has it say that the PIN
   only opens the Calendar and Trains, so the roster is locked again, and points the way back — the link
-  and Escape alike — at the Calendar's PIN box (`./#staff-pin`, `PIN_FIRST_HASH`). The inline card never
+  and Escape alike — at the Calendar's PIN box (`BACK_TO_PIN`). The words are staff-pin-ended.js's, and this
+  module re-exports its `sayStaffPinEndedIn` for paused Overtime, which has no card. The inline card never
   asks: the Calendar never ends the PIN. The words and the landing are checked in `e2e/calendar-pin.spec.js`.
 - `isAboutLinkAllowed(href)` — PURE: whether an `about` link may go on the card — a same-origin relative
   path (`./…`) only, never an absolute, protocol-relative or `javascript:` URL. `fillAbout` drops a refused
@@ -1100,8 +1101,10 @@ Whether arriving on THIS page ended the shared staff PIN, and who is waiting to 
 - `noteStaffPinEnded()` — records it and tells each listener already waiting, once; one that throws does not stop the rest. ONE caller: `reconcileExpiredIdentity` (session.js), and only once its sign-out of the viewer has landed — never a Lock, a member's expired identity, or a sign-out that failed.
 - `onStaffPinEnded(fn)` → unsubscribe — runs `fn` once: when the teardown lands, or on a microtask if it already has (sticky for the page's life, until `forgetStaffPinEnded`). Unsubscribing cancels a call already queued. Its one reader is the sign-in card (`login-overlay.js`).
 - `forgetStaffPinEnded()` — a member signed in on this page (the sign-in core, `runNamedSignIn`), so a LATER card there is not told the PIN ended.
+- `STAFF_PIN_ENDED_NOTICE` / `BACK_TO_PIN` — the one sentence said wherever the PIN ends, worded as what the PIN opens, never a sign-in (AUTH_AND_SESSIONS 18), and its way back, the Calendar's PIN box (`./#staff-pin`).
+- `sayStaffPinEndedIn(host)` → stop — for a page with no sign-in card (paused Overtime): an empty status region in `host` now, filled with the sentence and a link back when the teardown lands.
 - `takeStaffPinEndedMark()` — did a page in this TAB end the PIN? `noteStaffPinEnded` leaves a one-tab sessionStorage mark (`forgetStaffPinEnded` clears it) so the phone's Back, which carries no hash, still opens the Calendar on the PIN box; read and removed once, by `takePinFirst` (calendar-lock-cards.js).
-- Imports nothing. Tested through the real teardown by `session.test.mjs`.
+- Imports only `PIN_FIRST_HASH` (calendar-access-core.js). Tested through the real teardown by `session.test.mjs`, and on the pages by `e2e/calendar-pin.spec.js`.
 
 ### `silent-sign-in.js`
 The rules of the sign-in nobody typed — a page load re-establishing the identity behind a 60-day local session with the surname default — and when that session began. Pure: no storage, no Firebase, no clock of its own; `ensureFirebaseSession` (session.js) reads and writes the memory and hands the time in. The reasoning (the station NAT's shared rate limit, the six-hourly reset recheck) is its header.

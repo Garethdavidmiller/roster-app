@@ -930,6 +930,34 @@ test('a viewer who opens Pay and goes BACK lands on the PIN box, not the member 
     expect(errors, errors.join('\n')).toEqual([]);
 });
 
+// PAUSED OVERTIME SAYS IT TOO (audit C1; AUTH_AND_SESSIONS 24 — the sign-out is never silent). Paused, the
+// page signs the PIN out like every page that does not admit it, but offers no sign-in, and only a sign-in
+// card listened: the PIN ended in silence. The page now says the card's sentence itself, with the way back.
+// Its own `overtimeEnabled` seam holds it paused whichever way the committed switch sits.
+test('a viewer who opens paused Overtime is told the PIN has ended, and its link opens the PIN box', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: false }; });
+    await page.goto('/overtime.html');   // first, with no PIN held: the guard on the other side
+    await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+    await page.waitForTimeout(1000);     // the teardown that would fill it lands in well under that
+    await expect(page.locator('#otMineContent [role="status"]')).toBeEmpty();
+
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.goto('/overtime.html');
+    await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+    const said = page.locator('#otMineContent [role="status"]');
+    await expect(said).toContainText(
+        'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.');
+    await expect(said.locator('a')).toHaveAttribute('href', './#staff-pin');
+    await said.locator('a').click();
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#loginCard')).toHaveCount(0);
+    expect(errors, errors.join('\n')).toEqual([]);
+});
+
 test('a visitor who never held the PIN is told nothing about it, and the way back is the roster', async ({ page }) => {
     // The guard on the line above's other side: a card that always said it would pass every test there.
     await page.goto('/admin.html');

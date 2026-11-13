@@ -18,7 +18,7 @@
 
 import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
+import { initLoginOverlay, dismissLoginOverlay, sayStaffPinEndedIn } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, canOpenOvertime, canOpenNewlink, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
@@ -743,6 +743,7 @@ export function init() {
                     ${paused ? "Overtime availability is paused and isn't in use at the moment. If it comes back, your manager will let you know."
                         : "Overtime availability isn't open to everyone yet. Your manager will let you know when it is."}
                 </div>`;
+            if (paused) sayStaffPinEndedIn(mine.querySelector('.ot-state'));   // no card here, so it says the PIN ended itself (AUTH_AND_SESSIONS 24)
         }
     }
 
