@@ -18,7 +18,7 @@
  * ── THE DISTINCTION THIS TEST EXISTS TO HOLD ────────────────────────────────────────────────────
  *
  * **`MYB` is Marylebone's three-letter station code**, and in that sense it is correct, expected and
- * already in the guides — "Chiltern Railways · MYB Station", "Typical MYB — Network-area journeys".
+ * already in the guides — "Chiltern Railways · MYB Station", the Railcard guide's "MYB mornings".
  * Those must NOT be flagged. A blanket "no MYB in copy" test would fire on them, acquire an
  * exemption list, and stop guarding anything — the failure mode this repo has written down more
  * than once.

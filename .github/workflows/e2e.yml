@@ -392,9 +392,9 @@ jobs:
     # supported nothing newer than 24.04: `install-deps` printed "Cannot install dependencies for ubuntu26.04-x64" and
     # exited 0, so the libraries step passed and every WebKit test then failed at browser launch (408 of 409 in one
     # shard), while both visual lanes, whose baselines are drawn on 24.04, reported drift. Every job that starts a
-    # browser is pinned — this one, webkit, csp, visual, visual-webkit, and the deploy gate, live-health, offline and
-    # warm-browser-cache. Playwright 1.63.0 (3 Nov 2026) supports 26.04, so what holds them now is the baselines: they
-    # are CI's own render on 24.04. Move all nine together, with every baseline redrawn from CI's render on the new
+    # browser is pinned — this one, webkit, csp, signed-in, visual, visual-webkit, and the deploy gate, live-health,
+    # offline and warm-browser-cache. Playwright 1.63.0 (3 Nov 2026) supports 26.04, so what holds them now is the baselines: they
+    # are CI's own render on 24.04. Move all ten together, with every baseline redrawn from CI's render on the new
     # image, as a change of its own (KNOWN_LIMITATIONS.md).
     runs-on: ubuntu-24.04
     # ── ONE JOB PER SCREEN SIZE (3 Nov 2026) ─────────────────────────────────────────────────────
