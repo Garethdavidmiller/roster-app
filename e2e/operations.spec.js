@@ -3800,6 +3800,7 @@ test.describe('operations: the roster read, cut off', () => {
             const real = window.fetch;
             /** @type {any} */ (window).fetch = (/** @type {any} */ input, /** @type {any} */ init) => {
                 if (!String(input instanceof Request ? input.url : input).includes('parseRosterPDF')) return real(input, init);
+                /** @type {any} */ (window).__parseSent = true;
                 const json = () => new Promise((_, reject) => init?.signal?.addEventListener('abort',
                     () => reject(new DOMException('The operation was aborted.', 'AbortError'))));
                 return Promise.resolve({ ok: true, status: 200, json });
@@ -3809,6 +3810,11 @@ test.describe('operations: the roster read, cut off', () => {
         await choosePdf(page);
         await page.locator('#rosterParseBtn').click();
         await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
+        // The read's own bound starts as the request goes, after the file is read and a token fetched —
+        // not at "Reading…". Moved before then, the clock left the bound to run in real time, and on a
+        // busy machine the line never came (13 Nov 2026).
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__parseSent === true),
+            { message: 'the read was never sent' }).toBe(true);
         await page.clock.runFor(131_000);
         await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Parsing took longer than expected.");
         await expect(page.locator('#rosterParseBtn')).toHaveText('Read roster');

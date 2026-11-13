@@ -5419,7 +5419,9 @@ test('admin: each calendar is ONE Tab stop, and the arrow keys move the day — 
     await page.keyboard.press('Enter');
     await expect(page.locator('.dp-content')).toBeVisible();
     await expect(page.locator('#dpGrid .dp-day:not([tabindex="-1"])'), 'one stop in the picker\'s month').toHaveCount(1);
-    expect(await at(), 'it opens on the chosen day').toBe('2026-07-15');
+    // The picker takes focus in the frame AFTER it opens (createLightbox, overlay.js), so this waits for
+    // it: read once, on a busy machine it was still on the week label (13 Nov 2026).
+    await expect.poll(at, { message: 'it opens on the chosen day' }).toBe('2026-07-15');
     await page.keyboard.press('ArrowRight');
     expect(await at()).toBe('2026-07-16');
     await page.keyboard.press('ArrowUp');
