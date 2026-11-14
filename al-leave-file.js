@@ -91,7 +91,7 @@ const SEAL = /^sha256:[0-9a-f]{64}$/;
 /**
  * One JSON text for a value: object keys sorted (JavaScript's default string order), no whitespace,
  * arrays in their own order, every scalar exactly as `JSON.stringify` writes it. Both stages seal
- * and check through this one function, and leave-file.test.mjs pins it to a fixed vector, so a
+ * and check through this one function, and al-leave-file.test.mjs pins it to a fixed vector, so a
  * change here is a change of format, not a refactor.
  * @param {unknown} value
  * @returns {string}
@@ -246,7 +246,10 @@ export async function readLeaveFile(text) {
     /** @type {string} */ let seal;
     try { seal = await leaveFileDigest(file); } catch { return { ok: false, refusals: [{ code: 'cannot-check-seal' }] }; }
     if (seal !== file.digest) return { ok: false, refusals: [{ code: 'changed-since-made' }] };
-    const refusals = validateLeaveFile(file);
+    // A sealed file the validator did not foresee must still be REFUSED, never thrown: the error's
+    // message would reach the Error Log, and the file names people (header).
+    /** @type {Refusal[]} */ let refusals;
+    try { refusals = validateLeaveFile(file); } catch { return { ok: false, refusals: [{ code: 'bad-field' }] }; }
     return refusals.length ? { ok: false, refusals } : { ok: true, file };
 }
 
@@ -339,7 +342,8 @@ export function validateLeaveFile(file) {
         if (malformed.has(d.name)) continue;
         if (!isRealIsoDate(d.date)) { refuse({ code: 'bad-date', ...where }); continue; }
         if (!people.has(d.name)) { refuse({ code: 'unknown-person', name: d.name }); continue; }
-        const rule = FOUND_IN[d.foundIn];
+        // An own entry only: `FOUND_IN.constructor` is Object, and its missing `kinds` threw.
+        const rule = typeof d.foundIn === 'string' && Object.hasOwn(FOUND_IN, d.foundIn) ? FOUND_IN[d.foundIn] : undefined;
         if (!DAY_KINDS.includes(d.kind) || !rule || !rule.kinds.includes(d.kind) || d.countedBySheet !== rule.counted) {
             refuse({ code: 'bad-day', ...where }); continue;
         }
@@ -425,6 +429,6 @@ export function describeRefusal(r) {
     case 'cannot-check-seal': return 'This browser cannot check the file’s seal, so it is not used. Open Operations over https and try again.';
     case 'more': return `And ${r.field} more.`;
     case 'bad-field': return `Part of the file is not in the expected form${r.field ? ` (${r.field})` : ''}.`;
-    default: return SUM_WORDS[r.code] ? `${who}${SUM_WORDS[r.code]}.` : 'The file could not be read.';
+    default: return typeof r.code === 'string' && Object.hasOwn(SUM_WORDS, r.code) ? `${who}${SUM_WORDS[r.code]}.` : 'The file could not be read.';
     }
 }

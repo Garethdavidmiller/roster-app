@@ -149,6 +149,52 @@ describe('reading refuses by name, never by default', () => {
         /** @type {any} */ (f.people[0]).note = 'x';
         assert.deepEqual(codes(f), ['bad-field']);   // once — not again for each of their days
     });
+
+    test('a place named after something every object has is not a place: refused, never thrown', async () => {
+        // `FOUND_IN.constructor` is Object, whose missing `kinds` threw — and a re-sealed file with it
+        // made readLeaveFile throw, the one thing it must never do (header).
+        for (const foundIn of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+            const f = sample();
+            f.days.push({ name: 'A. Example', date: '2026-03-03', kind: 'leave', foundIn, countedBySheet: true });
+            assert.deepEqual(codes(f), ['bad-day'], foundIn);
+            const read = await readLeaveFile(await sealedText(f));
+            assert.deepEqual(read.ok ? [] : read.refusals, [{ code: 'bad-day', name: 'A. Example', date: '2026-03-03' }], foundIn);
+        }
+        // The refusal table is read the same way: a code it does not have gets the plain default.
+        for (const code of ['constructor', 'toString', '__proto__']) assert.equal(describeRefusal({ code }), 'The file could not be read.', code);
+    });
+
+    test('a sealed file the validator did not foresee is refused, never thrown — and nothing of the fault is kept', async () => {
+        const text = await sealedText(sample());
+        // An unforeseen fault inside the validator, made to order: reading a field that is not there
+        // throws, with a message that names somebody.
+        Object.defineProperty(Object.prototype, 'why', { get() { throw new Error('A. Example 2026-02-06'); }, configurable: true });
+        try {
+            const read = await readLeaveFile(text);
+            assert.deepEqual(read.ok ? [] : read.refusals, [{ code: 'bad-field' }]);
+            assert.ok(!JSON.stringify(read).includes('Example'));
+        } finally {
+            delete /** @type {any} */ (Object.prototype).why;
+        }
+    });
+});
+
+describe('the sheet’s own dates', () => {
+    /** @param {(f: any) => void} edit @returns {import('./al-leave-file.js').Refusal[]} */
+    const after = edit => { const f = sample(); edit(f); return validateLeaveFile(f); };
+
+    test('the first date is 1 January of the file’s year, and nothing else', () => {
+        assert.deepEqual(after(f => { f.source.firstDate = '2026-01-02'; }), [{ code: 'bad-field', field: 'source' }]);
+        assert.deepEqual(after(f => { f.source.firstDate = '2025-01-01'; }), [{ code: 'bad-field', field: 'source' }]);
+    });
+    test('the last date falls from 31 December to the end of the next January — the grid runs into it', () => {
+        assert.deepEqual(after(f => { f.source.lastDate = '2026-12-30'; }), [{ code: 'bad-field', field: 'source' }]);
+        assert.deepEqual(after(f => { f.source.lastDate = '2027-02-01'; }), [{ code: 'bad-field', field: 'source' }]);
+        assert.deepEqual(after(f => { f.source.lastDate = '2027-01-31'; }), []);
+    });
+    test('a day before the sheet’s first date is outside it, as one after its last is', () => {
+        assert.ok(after(f => { f.days[0].date = '2025-12-31'; }).some(r => r.code === 'outside-sheet' && r.date === '2025-12-31'));
+    });
 });
 
 describe('every day must be a day the app could hold, said honestly', () => {
@@ -208,6 +254,13 @@ describe('the sums: the file must agree with the sheet’s own printed figures',
     });
     test('an over-quota day dropped fails column E', () => {
         assert.deepEqual(after(f => { f.days.splice(3, 1); }), ['sum-column-e']);
+    });
+    test('the dated count must be the column-E days themselves, even where the parts still add up', () => {
+        // One day dated in column E, the parts 1 + 0 + 0 + 0 = the printed 1 — but the file says two.
+        assert.deepEqual(after(f => { f.people[0].columnE.datedDays = 2; }), ['sum-column-e']);
+    });
+    test('`because` must name exactly what changed the corrected figure — not a reason with no day behind it', () => {
+        assert.deepEqual(after(f => { f.people[0].corrected.because = ['sunday-counted']; }), ['sum-corrected']);
     });
     test('column E’s undated parts must make up the printed figure', () => {
         assert.deepEqual(after(f => { f.people[0].columnE.lump = 1; }), ['sum-column-e']);
