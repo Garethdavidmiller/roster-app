@@ -123,6 +123,15 @@ shown that yet.
   key, and a six-row month's last week, are below the window. **Putting the badge and the time back on
   one line to win those pixels is the thing not to do.** The reasoning is the short-window block in
   `index.css`.
+- **Admin's "Apply to multiple days at once" box stays open on a short laptop window** (owner, 14 Nov
+  2026) · **Trigger to revisit: a manager on a laptop who has to scroll to reach the days they are
+  editing.** v26.05 trimmed its spacing, so a 1280×593 window shows three days where it showed two.
+  Folding the box to one line until clicked would show five or six, but it would hide the two steps
+  that tell a manager the bulk route exists, and a member cannot look for what they never saw.
+- **The prose measures stay in `ch` as written** (owner, 14 Nov 2026) · **Trigger to revisit: a reader
+  finding the long notes hard to follow on a laptop.** A `ch` is about 1.3 characters in Inter, so the
+  64–72ch caps run to about 80–94 characters a line, not 75 (css-tokens.md → Reading measure).
+  Narrowing them to a literal 75 adds roughly a line to every capped paragraph on a short window.
 
 - **The month grid takes no pinch-zoom** (owner, 10 Nov 2026) · **Trigger to revisit: a member who
   needs to zoom the month and cannot.** The grid's `touch-action: pan-y` keeps a sideways swipe for

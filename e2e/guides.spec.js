@@ -1428,6 +1428,44 @@ test('railcard: on a desktop the quick-check type steps up to fill its cards, an
     await page.emulateMedia({ media: 'screen' });
 });
 
+// The Rangers quick answer, by the same rule (owner, 14 Nov 2026: larger text, not a narrower box). At
+// 14px its 64ch measure stopped at 564px of a 697px box, a fifth of it empty on the right; 17px takes
+// the measure to the edge (rangers-guide.css says why not 18). Pinned the same way: the widest line
+// reaches near the box's content edge on a desktop, and a phone and paper keep the size they had.
+test('rangers: on a desktop the quick answer\'s type steps up to fill its box, and a phone and paper do not', async ({ page }) => {
+    const measure = () => page.evaluate(() => {
+        const box = /** @type {HTMLElement} */ (document.querySelector('.quick'));
+        const cs = getComputedStyle(box), r = box.getBoundingClientRect();
+        const left = r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+        const right = r.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+        let textRight = left;
+        for (const p of box.querySelectorAll('p')) {
+            const range = document.createRange();
+            range.selectNodeContents(p);
+            for (const line of range.getClientRects()) textRight = Math.max(textRight, line.right);
+        }
+        return { size: parseFloat(getComputedStyle(/** @type {Element} */ (box.querySelector('p'))).fontSize),
+                 empty: (right - textRight) / (right - left) };
+    });
+    const open = async (/** @type {number} */ width) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/rangers-guide.html');
+        await page.evaluate(() => document.fonts.ready);
+    };
+    await open(390);
+    const phone = await measure();
+    for (const width of [1280, 1920]) {
+        await open(width);
+        const desk = await measure();
+        expect(desk.size / phone.size, `at ${width}px the quick answer's type steps up on a desktop`).toBeGreaterThan(1.15);
+        expect(desk.empty, `at ${width}px the widest line stops ${Math.round(desk.empty * 100)}% short of the box's edge`).toBeLessThan(0.15);
+    }
+    // Paper keeps the phone's size at any width: the step is `screen` only.
+    await page.emulateMedia({ media: 'print' });
+    expect((await measure()).size, 'printed, the quick answer keeps its size').toBe(phone.size);
+    await page.emulateMedia({ media: 'screen' });
+});
+
 // The Staff guide drew every Calendar button it describes in navy, while the real ones are gold 📍,
 // navy 👥 Team, teal 🏖️ AL, navy-with-gold 📝 Admin and green 💷 Pay (desktop audit, Nov 2026) — five
 // buttons a reader could not match to the screen by sight. Compared with the REAL buttons, read off
