@@ -943,6 +943,64 @@ not checked. That is the same footing as the leave booking's own over-allowance 
 workbook carries them forward as c/f into the later one. Next year's remaining agrees; last year's
 differs by exactly the moved days (AL_WORKBOOK.md §9).
 
+## Checking the clerks' leave sheet against the app
+
+Operations → **Annual leave sheet** (admin only) answers one question: where do the clerks'
+annual-leave workbook and the app disagree, person by person, and why? **It is a check only.
+Nothing is saved and nothing is changed**; to change a day, use Change a Shift on the Admin page.
+Plan of record: `docs/AL_UPLOADER_PLAN.md`.
+
+**Step 1, in a Claude session.** Upload the workbook and ask for a **leave file**. The session runs
+`scripts/make-leave-file.mjs`, which reads the workbook by the `AL_WORKBOOK.md` method:
+
+- It **asks** about anything it cannot settle mechanically, such as a name that does not match, a
+  duplicate row or a January date. It writes nothing until those are answered.
+- It refuses a workbook that is not shaped the way the method knows.
+- The name answers are carried inside the file, so the next copy does not ask them again. A
+  duplicate row or a January date is asked again on every copy, because rows move between copies.
+
+**The file names colleagues against their leave**, so it is kept outside the repository and never
+committed (`.gitignore` and `leave-file-privacy.test.mjs` stop it). It is **sealed**: the card
+refuses a file that has been edited by hand. A correction goes back through the session.
+
+**Step 2, on Operations.** Open the card and choose the file, or paste its text. The card reads
+every comparable member's records and shows three things:
+
+- **A summary:** how many people need a look, how many agree, and who was not compared and why.
+- **One fold per person:** its chips say what kind of difference each is, and each day says what
+  the SHEET has, then what the APP has.
+- **Leave only the app has:** days the app holds that the sheet does not.
+
+The kinds of difference. The card names each one as a fact about the two records, never as one side
+being wrong: the workbook is a quota grid and the app a leave record, and both can be right
+(AL_WORKBOOK.md §9).
+
+| Chip | What it means | What to check |
+|---|---|---|
+| not in the app | the sheet has leave on a day the pattern has them working, and the app has nothing | whether the leave was booked |
+| rest day to ask about | the sheet has leave on a rest day, and the app has nothing | whether it was a swapped working day, which only whoever booked it knows. Admin's booking asks the same question (`.claude/rules/admin.md`) |
+| costs nothing in the app | the app holds the leave on a rest day, with no swap recorded, so it costs nothing | the same question, from the other side |
+| other year | the app charges it to a different year's allowance | see "Which year's allowance", above |
+| differs | the app has a shift, an absence or a rest day there instead | which of the two is right |
+| work recorded | the app has RDW, an Other day or a Spare turn there | with care: recorded work is pay evidence |
+| only in the app | the app holds leave on a date the sheet does not have | with the clerks |
+| allowance differs | the sheet's allowance and the app's disagree | `proRatedAL` and the joiner rows (AL_WORKBOOK.md §5 and §9) |
+
+A day that agrees, a Sunday the clerks have tagged, and a day before a member's start date are
+listed in a fold of their own, and never count as a difference.
+
+**Age.** The card says when the clerks last saved the sheet. Past **14 days** it warns you to ask for
+a fresh copy, and still shows the comparison: a check that writes nothing cannot do harm. If a later
+phase ever saves, that is where the limit would stop it (AL_UPLOADER_PLAN.md §10, decision 4).
+
+**Offline, it stops.** A read answered from this device's copy could call leave missing that is
+not, so the card refuses to check until it can reach the server.
+
+**Who is left out, and why:** leavers, managers, anybody the app has no allowance on record for, and
+anybody the app does not hold. The summary names each one with the reason. A member in the app and
+not on the sheet is listed too. Leave the app holds on a Sunday, or before a member's start date, is
+not counted as "only in the app", because no screen shows it.
+
 ## Staff PIN access for the Calendar
 
 The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Every other

@@ -315,6 +315,12 @@ elsewhere. Read the comment before assuming the value means over-quota days.
 > joiner's row (73) does it the other way, with the pro-rated figure typed straight into D — so
 > **both conventions are live in the same sheet**, and neither is marked. Read the comment on every
 > joiner's row before quoting an allowance, and before the §9 check against `proRatedAL`.
+>
+> **The start date can sit on the ALLOWANCE cell too** [measured, 14 Nov 2026]. Row 76 carries it
+> twice: as the `STARTED` comment on E76, and as a second comment on **D76** giving the same date. It
+> is the only comment on the totals sheet outside column E. It is not leave, so the method does not
+> count it, but it is the start date a `/new-starter` needs. `scripts/make-leave-file.mjs` reports
+> any such comment for reading by hand rather than reading it itself.
 
 **The pattern holds TEN FOR TEN** [measured, 14 Sep 2026]. Every dated over-quota comment checked —
 ten dates across eight members, one of whom has three — falls on a date whose four CEA slots are
@@ -431,6 +437,20 @@ sheet day as one the app will not count, because it is a Sunday or a rest day on
 exactly with `alPosition`'s own uncounted days on the 6 Nov file (16 of 16). Each check confirms the
 other.
 
+**Or let the script do the whole method** [14 Nov 2026]. `node scripts/make-leave-file.mjs` reads the
+workbook the way this section and §7 describe, and writes the **leave file** that Operations → Annual
+leave sheet checks against the app (`docs/AL_UPLOADER_PLAN.md`; the usage line is in the script's
+header). Its rules, in short:
+
+- It **asks** about anything it cannot settle mechanically, such as a name, a duplicate row or a
+  January date, and writes nothing until it has the answers.
+- It **refuses** a workbook that is not shaped the way this file describes.
+- Its own count must equal the sheet's cached Used on **every** row.
+- It will not write its output inside the repository.
+
+On the 6 Nov copy it reproduced the hand reading of 14 Nov exactly. **The output names colleagues
+against their leave, so it stays outside the repository** (§12), like the workbook itself.
+
 ---
 
 ## 7 · Names — the workbook's form vs the app's
@@ -470,6 +490,19 @@ drops people.
 > **The slot column is the identifier, not the text.** That is the technique to use when a tag
 > cannot be read: a leave block holds ONE slot letter for its whole run, so the Sunday cell in that
 > same column belongs to whoever holds the days either side. It resolved all three here.
+>
+> **QUALIFIED: it is evidence, not proof** [measured on the 6 Nov copy, 14 Nov 2026]. Test it
+> against every Sunday tag whose text CAN be read:
+>
+> - When the **same person holds the slot on both sides**, they are the person the tag names
+>   **20 times in 21**.
+> - When somebody holds it on **one side only**, it is them only **51 times in 83**, not much better
+>   than a guess.
+>
+> So the slot column can support a reading, but it cannot make one alone. Why a one-sided slot
+> misleads so often is [unknown].
+> `scripts/make-leave-file.mjs` places a tag by its text or by an answer, and offers the slot column
+> as evidence in the question it asks. **Never file a tag under somebody on the slot column alone.**
 >
 > Two more spellings that break an exact match: the in-sheet double spelling above, and one cell
 > that reads **`N/A <I> <Surname> NA`** with the state repeated. **Match loosely, then confirm by
@@ -566,9 +599,11 @@ Every one of these is silent, and every one has been seen. [measured]
    the grid holds a day more than the allowance. Not investigated; it may be a genuine over-booking
    the clerks allowed, a name in one cell too many, or the Employee of the Month day (§9).
 3. **A person in the workbook who is not on the app roster**, with real 2026 bookings and a
-   matching name on the 2021 sheet. See §10 — a leaver (owner, 14 Nov 2026). [Re-measured 14 Nov 2026: five CES grid days in one
-   June week, a Sunday tag beside them, and **no 2026 totals row**, so the sheet counts them nowhere
-   either.]
+   matching name on the 2021 sheet. See §10 — a leaver (owner, 14 Nov 2026). [Re-measured 14 Nov
+   2026: five CES grid days in one June week, with a Sunday tag beside them. **Corrected the same
+   day:** this first said there was no 2026 totals row. There is one: **row 48, relabelled
+   `Vacancy`** in column B. Its COUNTIF still names the leaver, so the sheet counts all five days.
+   See defect 12.]
 4. **An off-by-one COUNTIF range.** Two rows count `G2:H367` where their neighbours count
    `G2:H368`. Harmless today — the excluded row is 2 Jan 2027 and is `Closed` — but it is the sort
    of thing that becomes wrong when the sheet is extended.
@@ -669,11 +704,22 @@ Every one of these is silent, and every one has been seen. [measured]
 11. **A column-E value its comment does not account for** [measured, 8 Nov 2026]. One Dispatcher
    row (67) has E = 5 and a comment naming a single date. Four of the five days are unexplained —
    §0 step 3 applies, and it is a question for the clerks, not a rounding error.
-12. **A leaver's grid days with no totals row** [measured, 14 Nov 2026]. One CEA has three grid days
-   in February (one block, its Sunday tagged) and no 2026 totals row at all; the app has the member
-   `hidden`. Nothing counts the days, which is harmless for anybody current, but a sweep for "grid
-   names with no row" finds it beside defect 10's live case. Tell the two apart by the app's
-   `hidden` before reporting either.
+12. **A leaver's totals row is relabelled `Vacancy`, and still counts them** [measured, 14 Nov 2026;
+   corrected the same day]. One CEA leaver (the app has them `hidden`) has three grid days in
+   February: one block, with its Sunday tagged. **Their totals row is row 16.** Column B reads
+   `Vacancy`, but its COUNTIF still names the leaver, so the sheet counts the three days (Used 3).
+   Defect 3's leaver is the same at row 48.
+
+   This entry first said "no 2026 totals row", because the first reading looked for the name in
+   column B. **Read the COUNTIF's criterion, never column B: the criterion is what the row counts.**
+   A sweep of column B also mistakes both leavers for defect 10's case, which is genuinely different:
+   that person has no row at all, so no criterion names them. That case is still true on the 6 Nov
+   copy (22 days).
+
+   **A third `Vacancy` row, row 25 (CEA), counts nothing.** Its criterion has been overtyped with
+   what reads as part of a formula, so it matches no cell. Used is 0, and the allowance (24) belongs
+   to nobody. Harmless today, but a row that counts nothing looks exactly like a person who has
+   booked nothing. The script leaves it out, with a note.
 
 
 ---
@@ -902,6 +948,19 @@ reconciliation that does not expect it reports ten discrepancies that are this o
 ---
 
 ## 11 · If this ever becomes an uploader
+
+**It is now planned, and the first two phases are built** (owner, 14 Nov 2026):
+**`docs/AL_UPLOADER_PLAN.md`**. Phase 1 is the Operations card **Annual leave sheet**, which checks
+a leave file made by `scripts/make-leave-file.mjs` against the app. It **writes nothing**: it shows
+each person's differences and why. The plan's answer to each condition below:
+
+- **The identity join:** the name map is carried in the leave file, and a name that does not match
+  is asked about, never guessed.
+- **Column E:** read by §5's method, and a row it cannot read is refused by name.
+- **What an import would do:** reconcile-and-report only, for now. Whether the app ever writes is
+  Phase 2's decision, taken after Phase 1 has been used.
+
+The conditions as first written, kept because the plan is measured against them:
 
 Not committed to, and deliberately not designed here. Three things would have to be true first, and
 none of them is true today:

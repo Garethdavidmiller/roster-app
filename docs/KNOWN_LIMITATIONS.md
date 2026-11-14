@@ -998,6 +998,24 @@ evidence in one step. Restoring it automatically is impossible anyway: the shift
 preserved, only its type. If a cancelled-leave-on-swapped-day case ever recurs without the
 re-record, that is the signal to store more than the type.
 
+### The Annual leave sheet card checks; it does not correct (Phase 1, owner, 14 Nov 2026)
+Operations → Annual leave sheet compares the clerks' workbook with the app and **writes nothing**.
+Every difference it finds is put right by hand, a day at a time, in Admin. Whether the app should
+ever write from the sheet is decided after this phase has been used (AL_UPLOADER_PLAN.md §10). What
+that leaves open:
+
+- **It cannot tell "cancelled since" from "never recorded".** Leave cancelled in the app after the
+  clerks' last save still shows as "not in the app", which is correct but reads like a gap. Telling
+  the two apart needs the upload log, planned before any Save and backend-first (plan §4.6).
+- **It knows only what the workbook says.** Column E's undated days (a joiner's reduction, a lump in
+  words, a value its comment does not explain) are reported as figures and cannot be placed on
+  dates. A column-E value with no comment has lost its dates for good (AL_WORKBOOK.md §8 defect 5).
+- **An old copy is warned about, not refused.** Past 14 days the card asks for a fresh copy and
+  still compares, because a check cannot do harm.
+- **The seal catches a hand edit, not a forgery.** The file's digest is worked out by public code, so
+  anyone who can run the script could seal an altered file. It needs the admin's own sign-in to
+  use, and writes nothing, so this costs nothing today. It matters only if a later phase writes.
+
 ### A device that missed the ended-month release in November may open on November once in December
 The Calendar keeps the month on screen between visits, but since the whole-app fix (November 2026) it
 never stores the CURRENT month (`persistViewedMonth`, `calendar-state.js`). So a month that has ended
