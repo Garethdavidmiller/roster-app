@@ -37,7 +37,7 @@ import { teamMembers, formatISO } from './roster-data.js';
 import { overrideFromSnapshot } from './override-compare.js';
 import { readLeaveFile, describeRefusal, leaveFileAgeDays, LEAVE_FILE_MAX_AGE_DAYS } from './al-leave-file.js';
 import { compareLeaveFile, leaveRecordability, NEEDS_A_LOOK } from './al-leave-compare.js';
-import { dayLabel, sheetWords, appWords, figuresLine, personNotes, chipsFor, totalsLines, ageWords, CARD_WORDS,
+import { dayLabel, sheetWords, appWords, figuresLine, personNotes, chipsFor, totalsEntries, ageWords, CARD_WORDS,
     checkedWords, overallWords, oldWords, unplacedWords, appOnlyWords, moreDaysWords, notComparedWords } from './al-leave-words.js';
 
 /** How many members' records are read at once: enough to be quick, few enough to be gentle. */
@@ -203,10 +203,10 @@ function render(root, file, c, todayStr) {
         summary.append(el('p', 'al-sheet-warn', CARD_WORDS.notByClerk));
     }
     summary.append(el('p', 'al-sheet-overall', overallWords(c.totals.needsALook, c.totals.people)));
-    const lines = totalsLines(c.totals, c.people.filter(p => p.allowanceDiffers).length);
+    const lines = totalsEntries(c.totals, c.people.filter(p => p.allowanceDiffers).length);
     if (lines.length) {
         const ul = el('ul', 'al-sheet-totals');
-        for (const l of lines) ul.append(el('li', '', l));
+        for (const l of lines) ul.append(el('li', `al-sheet-total--${l.key}`, l.text));
         summary.append(ul);
     }
     root.append(summary);
@@ -219,11 +219,17 @@ function render(root, file, c, todayStr) {
         for (const p of needing) list.append(personBlock(p, file.year));
         root.append(list);
     }
+    // The people who agree sit in ONE closed fold that says how many. They are the reassurance, not
+    // the work: open, forty folds of agreement pushed who was not compared and who is missing a
+    // screen-height below the people who need a look (polish, 14 Nov 2026).
     if (agreeing.length) {
-        root.append(el('h3', 'al-sheet-heading', CARD_WORDS.agree));
+        const group = el('details', 'al-sheet-group');
+        const head = el('summary', 'al-sheet-group-head');
+        head.append(el('h3', 'al-sheet-heading', CARD_WORDS.agree), el('span', 'al-sheet-count', String(agreeing.length)));
         const list = el('div', 'al-sheet-people');
         for (const p of agreeing) list.append(personBlock(p, file.year));
-        root.append(list);
+        group.append(head, list);
+        root.append(group);
     }
     const notChecked = [...c.notChecked, ...c.notInFile];
     if (notChecked.length) {

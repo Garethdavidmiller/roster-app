@@ -539,7 +539,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // every-card scan above reads only its controls. Its answer — coloured chips, folds within folds, day
     // rows with a coloured edge — exists only after a check, the reason the roster review went unscanned
     // for years (below), so it is driven here: a file checked, a person's days open, their agreeing days
-    // unfolded. The file and its people are al-sheet-fixture.js's.
+    // unfolded, and the fold of the people who agree opened too (its head is a heading inside a
+    // <summary>). The file and its people are al-sheet-fixture.js's.
     test('operations — the annual leave sheet, checked (admin, signed in)', async ({ page }) => {
         const fx = await alSheetFixture();
         await page.addInitScript((rows) => {
@@ -558,6 +559,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await first.locator('.al-sheet-person-head').click();
         await first.locator('.al-sheet-more > summary').click();
         await expect(first.locator('.al-sheet-day--match')).toBeVisible();
+        await page.locator('.al-sheet-group-head').click();
+        await expect(page.locator('.al-sheet-group .al-sheet-person').first()).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });

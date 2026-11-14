@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     dayLabel, sheetWords, patternWords, recordWords, appWords, figuresLine, personNotes,
-    chipsFor, totalsLines, reasonWords, ageWords, CARD_WORDS, checkedWords, overallWords, oldWords,
+    chipsFor, totalsLines, totalsEntries, reasonWords, ageWords, CARD_WORDS, checkedWords, overallWords, oldWords,
     unplacedWords, appOnlyWords, moreDaysWords, notComparedWords,
 } from './al-leave-words.js';
 import { FOUND_IN, NOT_IMPORTED_REASONS } from './al-leave-file.js';
@@ -139,6 +139,17 @@ test('the summary lines, singular and plural, for differences only', () => {
     assert.deepEqual(totalsLines({ 'app-only': 2 }, 4),
         ['4 people’s allowances differ between the sheet and the app', '2 days of leave are in the app and not on the sheet']);
     for (const state of [...NEEDS_A_LOOK, 'app-only']) assert.equal(totalsLines({ [state]: 2 }).length, 1, `${state} has no summary line`);
+});
+
+test('each summary line carries the kind its chips wear, so the card can colour it like them', () => {
+    // The card colours a line by its key through the same declarations as the chips (operations.css),
+    // so a key that is not a chip's key would leave its bullet grey with nothing failing.
+    const all = Object.fromEntries([...NEEDS_A_LOOK, 'app-only'].map(k => [k, 2]));
+    const entries = totalsEntries(all, 3);
+    assert.deepEqual(entries.map(e => e.key), chipsFor(all, true).map(c => c.key),
+        'the summary lists its kinds in the chips’ order, the allowance first');
+    assert.deepEqual(entries.map(e => e.text), totalsLines(all, 3), 'the words are totalsLines’ own');
+    assert.deepEqual(totalsEntries({ match: 9 }), []);
 });
 
 test('every reason somebody is not compared has words of its own', () => {

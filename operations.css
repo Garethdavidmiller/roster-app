@@ -1535,16 +1535,18 @@ body.auth-ready .container { display: grid; }
    first, then one fold per person whose closed row already says what needs a look. Each kind of
    difference has ONE colour, worn by its chip and by the edge of each day it names: not in the app,
    the AL card's warning red; an allowance, a rest day, costs nothing or another year, the page's
-   needs-a-decision tone; something else recorded, neutral; work, RDW; only in the app, leave. Every chip
-   ink measured on its wash at 4.6:1 or more (the red the tightest, 4.67:1), and every one carries words. */
+   needs-a-decision tone; something else recorded, the page's mid grey (near-black outweighed every other
+   edge); work, RDW; only in the app, leave. Every chip ink measured on its wash at 4.6:1 or more (the red
+   the tightest, 4.67:1; the grey 6.0:1), and every one carries words. */
 .al-sheet-paste-label { display: block; font-size: var(--type-small); color: var(--text-mid); margin-bottom: 6px; }
-/* The Pay Calculator's paste box (.pt-paste), as a second way in. */
+/* The Pay Calculator's paste box (.pt-paste), as a second way in — but capped at seven lines: a pasted
+   leave file is machine text nobody reads, and at a third of the screen it buried the card's answer. */
 .al-sheet-paste {
     display: block; width: 100%; box-sizing: border-box; margin-bottom: 12px; padding: 8px 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-small);
     background-color: var(--field-bg); color: var(--text-dark);
     border: var(--field-border); border-radius: var(--radius-field);
-    resize: none; field-sizing: content; min-height: 3lh; max-height: 30vh; overflow: auto;
+    resize: none; field-sizing: content; min-height: 3lh; max-height: min(30vh, 7lh); overflow: auto;
 }
 .al-sheet-paste:focus-visible {
     background-color: white; border-color: var(--primary-blue);
@@ -1562,32 +1564,48 @@ body.auth-ready .container { display: grid; }
     background-color: var(--surface-sunken); border-radius: var(--radius-sm);
 }
 .al-sheet-age { font-size: var(--type-label); color: var(--text-mid); }
-.al-sheet-warn { font-size: var(--type-label); font-weight: 600; color: var(--warning-amber); }
+/* A caveat wears the page's own warning panel (.auth-gap-line, .roster-crosscheck-note): bold amber
+   text on its own read louder than the headline it qualifies. */
+.al-sheet-warn {
+    font-size: var(--type-label); font-weight: 500; color: var(--warning-amber); padding: 8px 10px;
+    background-color: color-mix(in oklch, var(--warning-amber) 12%, white);
+    border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white); border-radius: var(--radius-sm);
+}
 .al-sheet-overall { font-size: var(--type-body); font-weight: 700; color: var(--text-dark); }
 .al-sheet-totals, .al-sheet-list {
     margin: 0; padding-left: 18px; font-size: var(--type-label); color: var(--text-dark);
     font-variant-numeric: tabular-nums;
 }
 .al-sheet-totals li + li, .al-sheet-list li + li { margin-top: 2px; }
+/* Each summary line's bullet is its kind's colour: the summary and the chips below it read as one key.
+   The words carry the meaning; the colour only joins them up. */
+.al-sheet-totals li::marker { color: var(--al-sheet-ink, var(--text-mid)); }
 .al-sheet-heading {
     margin: 6px 0 -4px; font-size: var(--type-small); font-weight: 700;
     letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-mid);
 }
 .al-sheet-people { display: flex; flex-direction: column; gap: 6px; }
+/* The people who agree, in one closed fold whose head is the group's heading and how many it holds. */
+.al-sheet-group-head { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-radius: var(--radius-xs); }
+.al-sheet-group-head .al-sheet-heading { margin: 0; }
+.al-sheet-group[open] > .al-sheet-group-head { margin-bottom: 6px; }
+@media (pointer: coarse) { .al-sheet-group-head { min-height: 44px; } }
 
 /* One person: a fold whose closed row is the summary. A <summary> laid out as a grid loses its ::marker
    in Chromium (links.css found it with flex), so the chevron is drawn in a column of its own, and the
    body starts at the text's edge: one left edge from the name to the last day. */
 .al-sheet-person { background-color: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius); }
-.al-sheet-person-head, .al-sheet-more > summary { list-style: none; cursor: pointer; -webkit-user-select: none; user-select: none; }
-.al-sheet-person-head::-webkit-details-marker, .al-sheet-more > summary::-webkit-details-marker { display: none; }
-.al-sheet-person-head::before, .al-sheet-more > summary::before {
+.al-sheet-person-head, .al-sheet-more > summary, .al-sheet-group-head { list-style: none; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.al-sheet-person-head::-webkit-details-marker, .al-sheet-more > summary::-webkit-details-marker,
+.al-sheet-group-head::-webkit-details-marker { display: none; }
+.al-sheet-person-head::before, .al-sheet-more > summary::before, .al-sheet-group-head::before {
     content: '▸'; color: var(--text-mid); line-height: 1; display: inline-block;
     transition: transform var(--dur-fast) var(--ease-standard);
 }
-.al-sheet-person[open] > .al-sheet-person-head::before, .al-sheet-more[open] > summary::before { transform: rotate(90deg); }
+.al-sheet-person[open] > .al-sheet-person-head::before, .al-sheet-more[open] > summary::before,
+.al-sheet-group[open] > .al-sheet-group-head::before { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
-    .al-sheet-person-head::before, .al-sheet-more > summary::before { transition: none; }
+    .al-sheet-person-head::before, .al-sheet-more > summary::before, .al-sheet-group-head::before { transition: none; }
 }
 .al-sheet-person-head {
     display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 3px 8px;
@@ -1595,11 +1613,13 @@ body.auth-ready .container { display: grid; }
 }
 .al-sheet-person-head::before { grid-column: 1; grid-row: 1; align-self: center; font-size: var(--type-small); }
 .al-sheet-person-head > * { grid-column: 2; min-width: 0; }
-.al-sheet-person-head:focus-visible, .al-sheet-more > summary:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
+.al-sheet-person-head:focus-visible, .al-sheet-more > summary:focus-visible,
+.al-sheet-group-head:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 .al-sheet-person-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
 .al-sheet-name { font-size: var(--type-body); font-weight: 700; color: var(--text-dark); }
-/* A data tag, not a pill: the squarer corner the page's other type tags wear (css-tokens.md → Chips). */
-.al-sheet-grade {
+/* A data tag, not a pill: the squarer corner the page's other type tags wear (css-tokens.md → Chips).
+   The agreeing group's count wears it too. */
+.al-sheet-grade, .al-sheet-count {
     font-size: var(--type-badge); font-weight: 600; color: var(--text-mid);
     padding: 1px 6px; border: 1px solid var(--border-mid); border-radius: var(--radius-xs);
 }
@@ -1610,29 +1630,29 @@ body.auth-ready .container { display: grid; }
     color: var(--al-sheet-ink); background-color: var(--al-sheet-wash); font-variant-numeric: tabular-nums;
 }
 /* The colour of each kind, declared once and read by the chip and the day's edge alike. */
-.al-sheet-chip--not-in-app, .al-sheet-day--not-in-app { --al-sheet-ink: var(--al-warning); --al-sheet-wash: var(--al-warning-bg); }
-.al-sheet-chip--allowance, .al-sheet-chip--rest-day, .al-sheet-day--rest-day, .al-sheet-chip--free-in-app,
-.al-sheet-day--free-in-app, .al-sheet-chip--other-year, .al-sheet-day--other-year {
+.al-sheet-chip--not-in-app, .al-sheet-day--not-in-app, .al-sheet-total--not-in-app { --al-sheet-ink: var(--al-warning); --al-sheet-wash: var(--al-warning-bg); }
+.al-sheet-chip--allowance, .al-sheet-total--allowance, .al-sheet-chip--rest-day, .al-sheet-day--rest-day,
+.al-sheet-total--rest-day, .al-sheet-chip--free-in-app, .al-sheet-day--free-in-app, .al-sheet-total--free-in-app,
+.al-sheet-chip--other-year, .al-sheet-day--other-year, .al-sheet-total--other-year {
     --al-sheet-ink: var(--conflict-strong); --al-sheet-wash: var(--al-confirm-bg);
 }
-.al-sheet-chip--differs, .al-sheet-day--differs { --al-sheet-ink: var(--absence-text); --al-sheet-wash: var(--absence-light); }
-.al-sheet-chip--worked, .al-sheet-day--worked { --al-sheet-ink: var(--rdw-text); --al-sheet-wash: var(--rdw-light); }
-.al-sheet-chip--app-only, .al-sheet-day--app-only { --al-sheet-ink: var(--al-deep); --al-sheet-wash: var(--al-light); }
+.al-sheet-chip--differs, .al-sheet-day--differs, .al-sheet-total--differs { --al-sheet-ink: var(--text-mid); --al-sheet-wash: var(--absence-light); }
+.al-sheet-chip--worked, .al-sheet-day--worked, .al-sheet-total--worked { --al-sheet-ink: var(--rdw-text); --al-sheet-wash: var(--rdw-light); }
+.al-sheet-chip--app-only, .al-sheet-day--app-only, .al-sheet-total--app-only { --al-sheet-ink: var(--al-deep); --al-sheet-wash: var(--al-light); }
 .al-sheet-day--match { --al-sheet-ink: var(--al); }
 
 .al-sheet-person-body { display: flex; flex-direction: column; gap: 10px; padding: 0 12px 12px 32px; }
 .al-sheet-explain, .al-sheet-names { font-size: var(--type-label); color: var(--text-dark); }
 .al-sheet-subhead { font-size: var(--type-small); font-weight: 700; color: var(--text-mid); }
 .al-sheet-days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-/* A day: its date, what the sheet says beside it while there is room, then what the app has. The edge
-   is the day's kind; agreement and the days the app cannot hold keep a quiet grey one. */
-.al-sheet-day {
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
-    padding-left: 8px; border-left: 3px solid var(--al-sheet-ink, var(--border-mid));
-}
-.al-sheet-date { flex: 0 0 auto; font-size: var(--type-label); font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
-.al-sheet-sheet { flex: 1 1 14em; min-width: 0; font-size: var(--type-small); color: var(--text-mid); }
-.al-sheet-app { flex: 1 1 100%; min-width: 0; font-size: var(--type-label); color: var(--text-dark); }
+/* A day: its date with what the sheet says after it, as ONE run of text, then what the app has. Inline,
+   so a long sheet note wraps back under the date; as flex items it wrapped into a narrow column beside
+   it, and no two rows lined up on a phone. The edge is the day's kind; agreement and the days the app
+   cannot hold keep a quiet grey one. */
+.al-sheet-day { padding-left: 8px; border-left: 3px solid var(--al-sheet-ink, var(--border-mid)); }
+.al-sheet-date { white-space: nowrap; font-size: var(--type-label); font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+.al-sheet-sheet { margin-left: 8px; font-size: var(--type-small); color: var(--text-mid); }
+.al-sheet-app { display: block; margin-top: 2px; font-size: var(--type-label); color: var(--text-dark); }
 .al-sheet-more > summary {
     display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-radius: var(--radius-xs);
     font-size: var(--type-small); font-weight: 600; color: var(--text-mid);

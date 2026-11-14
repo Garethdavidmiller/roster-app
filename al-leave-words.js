@@ -163,17 +163,22 @@ const TOTAL_WORDS = /** @type {Record<string, [string, string]>} */ ({
 });
 
 /**
+ * The summary's lines, each with the kind it counts — the same key its chips wear, so the card can
+ * colour a line like the chips it sums up. An allowance that differs comes first, as its chip does.
  * @param {Record<string, number>} totals @param {number} [allowances] how many people's allowance differs
- * @returns {string[]}
+ * @returns {Array<{ key: string, text: string }>}
  */
-export function totalsLines(totals, allowances = 0) {
+export function totalsEntries(totals, allowances = 0) {
     const out = allowances > 0
-        ? [`${allowances} ${allowances === 1 ? 'person’s allowance differs' : 'people’s allowances differ'} between the sheet and the app`]
+        ? [{ key: 'allowance', text: `${allowances} ${allowances === 1 ? 'person’s allowance differs' : 'people’s allowances differ'} between the sheet and the app` }]
         : [];
     return [...out, ...Object.entries(TOTAL_WORDS)
         .filter(([k]) => (totals[k] ?? 0) > 0)
-        .map(([k, [one, many]]) => `${totals[k]} ${totals[k] === 1 ? one : many}`)];
+        .map(([k, [one, many]]) => ({ key: k, text: `${totals[k]} ${totals[k] === 1 ? one : many}` }))];
 }
+
+/** The summary's lines, words only. @param {Record<string, number>} totals @param {number} [allowances] */
+export const totalsLines = (totals, allowances = 0) => totalsEntries(totals, allowances).map(e => e.text);
 
 /** Why a person is not compared. @param {string} reason */
 export function reasonWords(reason) {

@@ -12,7 +12,7 @@ import { teamMembers, getBaseShift } from '../roster-data.js';
 import { LOST_PHONE } from '../operations-reset.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
 import { describeRefusal } from '../al-leave-file.js';
-import { dayLabel, appWords, chipsFor, totalsLines, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
+import { dayLabel, appWords, chipsFor, totalsLines, totalsEntries, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
     moreDaysWords, notComparedWords, oldWords } from '../al-leave-words.js';
 import { LEAVE_FILE_MAX_AGE_DAYS } from '../al-leave-file.js';
 import { parseISODate } from '../roster-data.js';
@@ -4510,6 +4510,9 @@ test('operations annual leave sheet: each person is checked against their own re
     await expect(result.locator('.al-sheet-warn'), 'a fresh copy saved by the clerks carries no warning').toHaveCount(0);
     await expect(result.locator('.al-sheet-overall')).toHaveText(overallWords(1, 2));
     await expect(result.locator('.al-sheet-totals li')).toHaveText(totalsLines({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }));
+    // …and each line carries its kind, which is what colours its bullet like the chips below it.
+    await expect(result.locator('.al-sheet-totals li')).toHaveClass(
+        totalsEntries({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }).map(e => new RegExp(`al-sheet-total--${e.key}`)));
     await expect(result.locator('.al-sheet-heading'))
         .toHaveText([CARD_WORDS.needsALook, CARD_WORDS.agree, CARD_WORDS.notCompared, CARD_WORDS.absent]);
     await expect(result.locator('.al-sheet-list li')).toHaveText([notComparedWords({ name: 'Z. Example', reason: 'not-in-app' })]);
@@ -4536,9 +4539,16 @@ test('operations annual leave sheet: each person is checked against their own re
     await more.locator('summary').click();
     await expect(day(fx.dates.match)).toHaveClass(/al-sheet-day--match/);
 
-    // The person who agrees has no chips at all.
+    // The person who agrees has no chips at all, and waits in a closed fold that says how many agree:
+    // the people who need a look are the work, and the agreeing ones come after only when asked for.
+    const agreeing = result.locator('.al-sheet-group');
+    await expect(agreeing).not.toHaveAttribute('open');
+    await expect(agreeing.locator('.al-sheet-count')).toHaveText('1');
     const b = people.nth(1).locator('.al-sheet-person');
     await expect(b.locator('.al-sheet-name')).toHaveText(fx.B.name);
+    await expect(b, 'folded away until asked for').toBeHidden();
+    await agreeing.locator('.al-sheet-group-head').click();
+    await expect(b).toBeVisible();
     await expect(b.locator('.al-sheet-chip')).toHaveCount(0);
 
     await expect(result.locator('.al-sheet-note').last()).toHaveText(CARD_WORDS.checkOnly);

@@ -1439,7 +1439,7 @@ Every sentence the Annual leave sheet card says (`operations-al-sheet.js`). Pure
 - `dayLabel(iso)` — "Tue 24 Feb 2026": every date carries its year, because the sheet runs into the next January.
 - `sheetWords(foundIn, kind)` · `appWords(day, year)` — the two halves of a day's line. `patternWords(shift)` · `recordWords(app)` — a pattern shift and a record in words.
 - `figuresLine(p)` · `personNotes(p, member)` — a person's figures on both sides (with the days the sheet's own total misses), and the lines that explain them: an allowance that differs, undated days over quota, a second row.
-- `chipsFor(counts)` · `totalsLines(totals)` — the chips on a person's closed row and the summary's lines, one per kind of difference, singular or plural. `reasonWords(reason)` — why a person is not compared.
+- `chipsFor(counts, allowanceDiffers?)` · `totalsEntries(totals, allowances?)` · `totalsLines(totals, allowances?)` — the chips on a person's closed row and the summary's lines, one per kind of difference, singular or plural. `totalsEntries` pairs each line with the kind its chips wear, so the card colours the line like them; `totalsLines` is the words alone. `reasonWords(reason)` — why a person is not compared.
 - `ageWords({ saved, ageDays, maxAge })` → `{ line, old }` — when the clerks last saved the sheet, and whether that is past the file's age limit.
 - `CARD_WORDS` — every fixed line and heading the card shows. `checkedWords` · `overallWords` · `oldWords` · `unplacedWords` · `appOnlyWords` · `moreDaysWords` · `notComparedWords` — its counted lines, singular and plural, so no sentence is written in `operations-al-sheet.js`.
 - Tested by `al-leave-words.test.mjs`.
