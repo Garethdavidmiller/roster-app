@@ -524,8 +524,8 @@ each of them another way:
 It is also the Calendar's access code, where a change brings tests of the order of events it could
 break (`.claude/rules/calendar.md`).
 
-**Blocker:** none beyond the trigger. **Size:** small, which is why it waits. About 25 sign-ins a
-month across the whole app (a sign-in lasts 60 days), each saving one start. **Success:** fewer
+**Blocker:** none beyond the trigger. **The gain:** small, which is why it waits. About 25 sign-ins
+a month across the whole app (a sign-in lasts 60 days), each saving one start. **Success:** fewer
 sign-ins over 3 seconds on the next full month, the forced step still appearing after a password
 reset, and a held Huddle tap still opening after a sign-in.
 

@@ -598,9 +598,10 @@ taken on 14 November instead, and closed: THE NOVEMBER READ, below.** The method
 
 The card's "This month" view on 14 Nov (owner screenshots; the card said the month's record was 12%
 full). It is the first read taken wholly on the trimmed card: every version row but one, of four
-opens, is v24.98 or later. **No figure in it can be set beside the September table above**, because
-the timing changed in between (THE CARD WAS TRIMMED); the Usable figures below are better than
-September's partly for that reason.
+opens, is v24.98 or later. **This table cannot be set beside the September one above**, because the
+timing changed in between (THE CARD WAS TRIMMED); its Usable figures are better than September's
+partly for that reason. The one comparison across the change is the one the October check asked
+for, below.
 
 | Reading | November to the 14th | Verdict |
 |---|---|---|
@@ -633,8 +634,8 @@ v24.40, are not in November's data. Two readings answer what it was for:
   day's networks, so a row describes a day as much as a version.
 
 What November cannot show is whether v24.29–v24.40 cost anything against v24.28 on the Usable
-timing, because nothing before v24.98 was timed that way. The item is closed on that limit, as the
-check's own rule says to.
+timing, because nothing before v24.98 was timed that way. That limit is recorded rather than worked
+round: the check's own rule closes the item once code loading is back near 20%, and it is.
 
 ### Signing in: red, and two of its waits were the app's own
 
