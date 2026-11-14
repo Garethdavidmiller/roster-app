@@ -535,6 +535,27 @@ waits while the answer is on screen.
 | The swap question on every free day | **Only where the Admin leave card asks it** (`projectAlBooking`) | Leave its record already settled — over RDW, a correction, an Other day or a Spare turn — was asked about, which Admin never does |
 | A day's words from its stored record | **From what the Calendar draws** (`resolveDayShift`) | Leave or an absence on a Sunday, or an absence on a rest day, read as if it were on screen |
 
+**Stage 1 after its review** (14 Nov 2026). Each of these produced a file and exited 0 without a word;
+each now asks, refuses, or reads correctly, with a test that failed before the fix:
+
+- **Asks:** an early-January `DD/MM` that no date beside it settles (`24/12 02/01`); two rows with the
+  same figures but different comments.
+- **Refuses:** a person-like totals row whose Used is not one COUNTIF of the calendar; a START entry
+  carrying a second date. Both need the workbook to change, so neither can be answered.
+- **Reads correctly:** a full stop makes a date only between two-digit parts (`1.5 DAYS` was 1 May);
+  Excel's legacy copy of a thread is split back into its entries; a one-word Sunday tag is matched only
+  within its own grade block.
+- **The reader** refuses malformed XML where it stands (an unclosed comment rescanned the part
+  quadratically), duplicate zip entries, and an entry that inflates past its cap.
+- **The command line** refuses an output inside ANY git checkout or worktree, a path with `..`, a day
+  list not ending `.csv`, and an output that names an input or the other output.
+- **The format's** own lookups take own entries only, and an unforeseen validator fault is a refusal,
+  never a throw.
+- **The order** is by code unit, so the seal no longer depends on the session's locale.
+
+Re-run on the 6 Nov copy: the same file, except `made` and the seal. One new question (an early-January
+date, `AL_WORKBOOK.md` §5) was answered from the evidence.
+
 **Still open before Phase 2:** `AL_WORKBOOK.md` §10 Q3 (are duplicate rows ever different?), Q7 (what
 column E means) and Q8 (does anyone besides the clerks save the file?), and §4.6's upload log, which
 must ship backend-first in a push of its own.

@@ -374,6 +374,8 @@ them as exceptions, and none of them is one.
 > **And the punctuation varies inside one thread.** The third date is written `19.08`, with a full
 > stop where the other two use a slash. Same `DD/MM` order, different separator, in the same cell.
 > Any mechanical read of these comments must accept both; a human reading them will not notice.
+> **But the full stop only between two-digit parts** (`19.08`, `21.10.2026`): a quantity such as
+> `1.5 DAYS` is not the first of May. The leave script reads it that way since the 14 Nov review.
 
 > **A COMMENT CAN NAME A DATE THE GRID ALSO HOLDS** [measured, 14 Nov 2026]. One thread names three
 > dates against an E of 2, and the third date is also in the grid, in that member's own name: granted
@@ -381,9 +383,20 @@ them as exceptions, and none of them is one.
 > grid. Count such a day once, from the grid, and check a comment's dates against the grid before
 > reporting a comment-versus-value mismatch, or the answer gains a day and the sheet takes the blame.
 >
+> **A `DD/MM` in the first days of January can be EITHER January** — the grid runs into the next one
+> (§2) [measured, 14 Nov 2026]. The same thread opens with `02/01`, then a reply `21/12 22/12`. Read as
+> this year's because the thread's other dates are, it sits beside a grid day of the member's own on
+> 3 January; read as next year's, it sits two days after their 29–31 December. Both fit, so only a
+> person can settle it. The leave script settles such a date only by a date BESIDE it — exactly one
+> reading within three days of another date in the same thread that has one reading of its own
+> (`02/01 03/01`) — and otherwise asks.
+>
 > **A joiner's START DATE is a date in the same comment** (`STARTED ON 20/09`, `START DATE 19/10`). A
-> mechanical scan for `DD/MM` must drop the dates of a comment that says START, or it lists the
-> start date as a day of leave.
+> mechanical scan for `DD/MM` must drop the START date — the first date after the word — or it lists
+> the start date as a day of leave. **It must drop nothing else.** An entry that gives another date
+> beside its start date (`STARTED 05/10, A/L 24/12`) may be naming a day of leave, so the leave script
+> stops on it and names the row rather than guess (14 Nov 2026). None does today: every joiner's other
+> dates are replies of their own.
 
 **Nothing in the grid marks an over-quota day.** It is only in column E and its comment. Do not go
 hunting for a fifth name on a date — there isn't one.
