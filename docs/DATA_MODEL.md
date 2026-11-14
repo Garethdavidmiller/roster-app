@@ -513,9 +513,9 @@ Not a collection, so only the facts the collections lean on are here, each point
 
 - **Sign-in** is a name (dropdown) and a password. The **default** password is the member's surname
   (lowercase, no spaces or special characters); a member can set their own in Settings → Password,
-  and sign-in tries the typed password and then, for anyone still on the default, the surname
-  (`credentialCandidatesFor` in `auth-identity.js` builds the ordered list, `ensureFirebaseSession`
-  tries each). An admin reset returns an account to the default (Operations → Account status →
+  and sign-in tries the typed password, or, when it spells the surname, the surname default first
+  and then the typed password (`credentialCandidatesFor` in `auth-identity.js` builds the ordered
+  list, `ensureFirebaseSession` tries each). An admin reset returns an account to the default (Operations → Account status →
   Reset, the `resetMemberPassword` Cloud Function). The default is not a secret: protection rests on
   Firebase Auth's rate-limiting and on rules that believe a member only on their own password account
   — `ARCHITECTURE.md` EXC-005, and `PASSWORD_DESIGN.md` for the design and phasing.

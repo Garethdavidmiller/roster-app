@@ -18,7 +18,7 @@ shipped change is not a measured one** — this file's whole method has been to 
 | ~~**The Phase 2 reading**~~ | **CLOSED 5 Sep, reconfirmed 12 Sep on 2.8× the sample** — 98.4% of attributed starts are cache-served | done |
 | ~~**Did the fast path work?**~~ | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: 1 open of ~800 eligible. Row one of the pre-registered table, so the identity finding stands and `VAL-AUTH-006` is not reopened — see *THE CLOSING READ* | done |
 
-**Three things happened after the close, and none reopens it:**
+**Four things happened after the close, and none reopens it:**
 
 - **26 Sep 2026** — the fast path was shown unable to beat Auth start-up as well as rare, and the owner
   RETIRED it (THE CLOSING READ → the correction; `DECISIONS.md` → "The provisional paint").
@@ -26,8 +26,11 @@ shipped change is not a measured one** — this file's whole method has been to 
   grant, shipped (`CALENDAR_DATA.md` 17).
 - **25 Oct 2026** — the App Speed card was trimmed and its timings changed (v24.98). The start ladder,
   the boot stages, the saved-copy/server split, the fast-path row and the connection comparisons left
-  the card, so every App Speed reading in this file was taken on an instrument that no longer exists — see *THE
-  CARD WAS TRIMMED*. One check from it, due at the 1 November read, is not recorded here yet.
+  the card, so every App Speed reading in this file before November was taken on an instrument that no longer
+  exists — see *THE CARD WAS TRIMMED*.
+- **14 Nov 2026** — the first read on the trimmed card closed the check it left for 1 November: it
+  was the release pace. It also found two waits in a sign-in that the app added itself; v26.12 fixed
+  one, and the other is on the roadmap with a trigger (*THE NOVEMBER READ*).
 
 ## A SECOND cost, and this plan was structurally blind to it (v22.90)
 
@@ -579,8 +582,8 @@ whole load — the card's label said so for the connection split only — and th
 every update slows code loading directly, which is the release-pace explanation in its plainest form.
 
 The card's version split now runs on **Usable**, so the check changes shape. It was due at the
-1 November read ("Last month" = October), on **A closer look → By app version — Usable**, and **its
-result is not recorded here yet**:
+1 November read ("Last month" = October), on **A closer look → By app version — Usable**. **It was
+taken on 14 November instead, and closed: THE NOVEMBER READ, below.** The method it set out:
 
 - Versions before v24.98 were timed the older way, which counted the hidden release reload (67% over
   1s in September). A short-lived version carries more of those, so it reads slower for that reason
@@ -590,6 +593,67 @@ result is not recorded here yet**:
   a new question with its own file.
 - **From v24.98 the release pace cannot inflate a row at all**: the hidden reload is not an open
   anybody watched. November's rows are the clean comparison.
+
+## THE NOVEMBER READ — 14 November 2026 (half a month). The October check closes; nothing reopens
+
+The card's "This month" view on 14 Nov (owner screenshots; the card said the month's record was 12%
+full). It is the first read taken wholly on the trimmed card: every version row but one, of four
+opens, is v24.98 or later. **This table cannot be set beside the September one above**, because the
+timing changed in between (THE CARD WAS TRIMMED); its Usable figures are better than September's
+partly for that reason. The one comparison across the change is the one the October check asked
+for, below.
+
+| Reading | November to the 14th | Verdict |
+|---|---|---|
+| First appears · Code loaded, under 1s | **80% · 79%** (1,561 · 1,567 opens), 2% over 3s each | the app's own work is still not the cost |
+| Usable, under 1s · over 3s, all pages | **41% · 12%** (1,429) | the Calendar is 1,233 of the 1,567 opens; the wall is still `accounts:lookup` |
+| Own roster, over 1s | **22%** (929) | the member's own stored roster, shown before the check answers (`CALENDAR_DATA.md` 17), is on screen within a second for nearly four opens in five |
+| After a release, until usable, over 1s | **10%** (163) | a release now costs the member who meets one very little |
+| Installed app · browser tab, over 1s | **69% · 89%** (895 · 202) | installed opens are quicker; the cause is not measured, and the existing install prompts are the lever |
+| Signing in: under 1s · 1–3s · over 3s | **8% · 64% · 28%** (25 sign-ins) | red at a fifth over 3s; see below |
+
+### The October check, closed: it was the release pace
+
+The check could not be run as written. **No November version stayed live for a week**: 99 versions
+reached `main` from 1 to 14 November, about seven a day. And the versions it was about, v24.17 to
+v24.40, are not in November's data. Two readings answer what it was for:
+
+- **Code loaded, the measure that raised it** (the "whole load" rows were code loading; see above):
+  21% over 1s, all pages together. That is back near the ~19% band of v24.17–v24.28, not the ~31%
+  that raised the question, now that release reloads are not counted. The Calendar alone cannot be
+  read off the card, but it cannot be above about 27%: that is what it would read if every other
+  page had loaded inside a second. That is the October check's first outcome: **it was the release
+  pace.**
+- **Usable by app version, on the clean timing**: 33 rows from v25.00 to v26.08, 20 to 86 opens
+  each, 50% to 96% over 1s, about 73% weighted. A release that made the Calendar slower would show
+  as a step that stays, and there is none. Before v25.56 the rows read 70% (637 opens); v25.56 to
+  v25.66, live from the evening of 8 November to the evening of the 10th, read 88% (121); everything
+  since reads 72% (335), and the newest row (v26.07–v26.08, 55% on 29 opens) is the second fastest
+  of the 33. The rows scatter more than chance alone would on samples this size. That is expected
+  when a version is live for hours: its opens come from whoever opened the app that day, on that
+  day's networks, so a row describes a day as much as a version.
+
+What November cannot show is whether v24.29–v24.40 cost anything against v24.28 on the Usable
+timing, because nothing before v24.98 was timed that way. That limit is recorded rather than worked
+round: the check's own rule closes the item once code loading is back near 20%, and it is.
+
+### Signing in: red, and two of its waits were the app's own
+
+A sign-in lasts 60 days, so few happen: 25 in half a month, each one four points of the figure, and
+three fewer slow ones would take the panel off red. The timer runs from pressing "Sign in" until the
+page is usable, across any reload (`perf-reporter.js`). Two waits inside it were the app's own doing:
+
+- **A first password attempt that could not succeed.** When the typed password spelt the surname
+  without being the stored default exactly (a capital letter, or a surname under six letters, whose
+  default is padded), the typed text was tried first and always failed, so the sign-in made an extra
+  round trip to Google's sign-in service before the one that worked. **v26.12 tries the default
+  first** (`PASSWORD_DESIGN.md` §3.2). It reaches only sign-ins on the surname default, so a small
+  move is the most to expect.
+- **The Calendar's reload after a sign-in**, which repeats the `accounts:lookup` round trip this file
+  is about. Left as it is, because the reload does three jobs: `ROADMAP.md` → "Calendar sign-in
+  without the reload", which holds the trigger.
+
+**Read Signing in again on the December card**, the first full month with v26.12.
 
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 

@@ -955,3 +955,78 @@ describe('createLightbox — a text field takes focus synchronously, everything 
     }
 });
 
+// ── CLOSED BEFORE ITS FIRST FRAME (14 Nov 2026) ─────────────────────────────────────────────────────
+// The frame `open()` defers to fades the overlay in and moves focus into it, and a close can come
+// before it runs: an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run
+// late, it faded the closing panel back in and took focus into it, so focus fell to <body> as the panel
+// went. Found by calendar.spec.js's day panel closed over a rebuilt grid, which lost the race on headless
+// WebKit about one run in five. The frames are HELD so each test chooses when they run.
+describe('createLightbox — a close before the first frame retires that frame', () => {
+    /** @type {Function[]} */ let frames = [];
+    const realRaf = global.requestAnimationFrame;
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); global.document.activeElement = null;
+        frames = [];
+        global.requestAnimationFrame = (fn) => { frames.push(fn); return 0; };
+    });
+    /** A lightbox whose panel takes focus and counts each time it does, beside a page control. */
+    const build = () => {
+        const overlay = makeEl({});
+        const content = makeEl({});
+        let panelFocused = 0;
+        Object.assign(content, { focus: () => { panelFocused++; global.document.activeElement = content; } });
+        const day = makeEl({});
+        Object.assign(day, { focus: () => { global.document.activeElement = day; } });
+        const lb = createLightbox({ overlay, content, closeBtn: null });
+        return { overlay, content, day, lb, panelFocused: () => panelFocused };
+    };
+
+    test('the late frame neither shows the closing panel again nor takes focus into it', () => {
+        try {
+            const { overlay, day, lb, panelFocused } = build();
+            day.focus();
+            lb.open();
+            assert.equal(overlay.classList.contains('open'), false, 'premise: the first frame has not run');
+            assert.equal(panelFocused(), 0, 'premise: nor moved focus');
+            lb.close();
+            assert.equal(global.document.activeElement, day, 'premise: the close gave focus back to the day');
+            frames.forEach(fn => fn());
+            assert.equal(overlay.classList.contains('open'), false, 'the closing panel was faded back in');
+            assert.equal(panelFocused(), 0, 'the late frame moved focus into a panel that is going');
+            assert.equal(global.document.activeElement, day, 'focus left the day it was given back to');
+            overlay._trigger('transitionend');
+            assert.equal(overlay.classList.contains('visible'), false, 'and the close still lands');
+        } finally { global.requestAnimationFrame = realRaf; }
+    });
+
+    test('opened again during that close, the NEW open keeps its frame', () => {
+        try {
+            const { overlay, content, day, lb, panelFocused } = build();
+            day.focus();
+            lb.open();
+            lb.close();
+            lb.open();   // during the fade: finishes the close, then opens afresh
+            assert.equal(overlay.classList.contains('open'), false, 'premise: neither frame has run');
+            frames.forEach(fn => fn());
+            assert.equal(overlay.classList.contains('open'), true, 'the second open never faded in');
+            assert.equal(panelFocused(), 1, 'exactly one frame moved focus: the second open’s, not the first’s');
+            assert.equal(global.document.activeElement, content);
+            lb.close();
+            overlay._trigger('transitionend');
+            assert.equal(overlay.classList.contains('visible'), false);
+        } finally { global.requestAnimationFrame = realRaf; }
+    });
+
+    test('a frame nothing closed still runs, however late', () => {
+        try {
+            const { overlay, content, lb } = build();
+            lb.open();
+            frames.forEach(fn => fn());
+            assert.equal(overlay.classList.contains('open'), true);
+            assert.equal(global.document.activeElement, content);
+            lb.close();
+            overlay._trigger('transitionend');
+        } finally { global.requestAnimationFrame = realRaf; }
+    });
+});
+

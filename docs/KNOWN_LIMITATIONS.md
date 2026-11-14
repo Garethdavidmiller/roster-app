@@ -104,6 +104,13 @@ An engine difference is deterministic and fails both attempts, so **a red `webki
 Compare the failing test NAMES between runs: different names ⇒ flake; the same test failing again ⇒
 investigate it, because the engine difference is what this job exists to catch.
 
+**A test that passes on its retry can still be finding a real bug** (14 Nov 2026). The day panel's
+focus test ("closing the day panel after the grid was redrawn behind it…") failed about one run in
+five here, and the cause was the app: a lightbox closed before its first frame ran that frame
+afterwards, which showed the closing panel again and moved focus into it (`createLightbox`,
+`overlay.js`). Headless WebKit draws slowly enough to expose that race, and a phone rarely would. So
+before calling a test a flake, give it one run that logs what happens.
+
 ## Two editors on one day: warned whenever the server can be asked
 
 Every manual record has one fixed id per member and date (`manualOverrideId` in `override-id.js`), so

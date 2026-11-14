@@ -24,7 +24,8 @@
  *   · a work email and a password stamp land under the MEMBER'S OWN document, and a stale claim is
  *     refreshed once and retried rather than failing for good;
  *   · a password that has changed is never reported as unchanged because a bookkeeping write failed;
- *   · a transient failure during re-authentication does not burn the surname candidate;
+ *   · re-authentication tries the surname default first when the typed text spells it, and a
+ *     transient failure stops at once rather than sending the second candidate behind it;
  *   · the admin endpoints are called with a FORCE-REFRESHED token, and the public reset request is
  *     called with NONE;
  *   · the fire-and-forget writers never throw into the page that called them.
@@ -290,21 +291,32 @@ describe('the password calls act on the page member\'s OWN account, or send noth
 });
 
 describe('re-authentication before a password change', () => {
-    test('a wrong-password on the typed text falls through to the surname candidate', async () => {
+    // The candidate list is the sign-in's own, so it carries the sign-in's ORDER (v26.12): when the
+    // typed text spells the surname, the default goes first, because the typed text can then never be
+    // the account's password (auth-identity.js → credentialCandidatesFor).
+    const reauthTried = () => state.authOps.filter((o) => o.op === 'reauthenticate').map((o) => o.pw);
+
+    test('an un-migrated member typing the surname in capitals re-authenticates at the FIRST attempt, with the default', async () => {
         signIn();
-        state.reauthRejects.set('SPRINGER', 'auth/wrong-password');
+        state.reauthRejects.set('SPRINGER', 'auth/wrong-password');   // the typed text is not the password
         await fc.reauthenticateWithPassword(MEMBER, 'SPRINGER');
-        const tried = state.authOps.filter((o) => o.op === 'reauthenticate').map((o) => o.pw);
-        assert.equal(tried.length, 2);
-        assert.equal(tried[0], 'SPRINGER');
+        assert.deepEqual(reauthTried(), ['springer']);
     });
 
-    test('a TRANSIENT failure stops at once — the surname is not tried behind a network error', async () => {
+    test('a member with a chosen password who types the surname is refused after BOTH candidates', async () => {
+        signIn();
+        state.reauthRejects.set('springer', 'auth/wrong-password');
+        state.reauthRejects.set('SPRINGER', 'auth/wrong-password');
+        await assert.rejects(fc.reauthenticateWithPassword(MEMBER, 'SPRINGER'), (e) => e.code === 'auth/wrong-password');
+        assert.deepEqual(reauthTried(), ['springer', 'SPRINGER'], 'the typed value is still tried, after the default');
+    });
+
+    test('a TRANSIENT failure stops at once — the typed value is not tried behind a network error', async () => {
         // Retrying on a rate-limit or an outage duplicates traffic and ends on a misleading error.
         signIn();
-        state.reauthRejects.set('SPRINGER', 'auth/network-request-failed');
+        state.reauthRejects.set('springer', 'auth/network-request-failed');
         await assert.rejects(fc.reauthenticateWithPassword(MEMBER, 'SPRINGER'), (e) => e.code === 'auth/network-request-failed');
-        assert.equal(state.authOps.filter((o) => o.op === 'reauthenticate').length, 1);
+        assert.deepEqual(reauthTried(), ['springer']);
     });
 
     test('it re-authenticates the SIGNED-IN account, with that account\'s email', async () => {
