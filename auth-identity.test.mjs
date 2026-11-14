@@ -94,12 +94,12 @@ describe('credentialCandidatesFor — gated dual-attempt (PASSWORD_DESIGN §3.2)
     test('typing the exact lowercase surname → one candidate (raw == derived, deduped)', () => {
         assert.deepEqual(credentialCandidatesFor('G. Miller', 'miller'), ['miller']);
     });
-    test('typing a mixed-case surname → the derived surname FIRST, then the raw value (v26.10)', () => {
+    test('typing a mixed-case surname → the derived surname FIRST, then the raw value (v26.12)', () => {
         assert.deepEqual(credentialCandidatesFor('G. Miller', 'Miller'), ['miller', 'Miller']);
         assert.deepEqual(credentialCandidatesFor('G. Miller', 'MILLER'), ['miller', 'MILLER']);
     });
     test('a short surname typed as the form asks (lower case) → the PADDED default first, then the raw value', () => {
-        // The case v26.10 is for: the sign-in form says "your surname in lowercase", and for a surname
+        // The case v26.12 is for: the sign-in form says "your surname in lowercase", and for a surname
         // under six letters that is never the account's password — the padded default is.
         assert.deepEqual(credentialCandidatesFor('T. Bibi', 'bibi'), ['bibibi', 'bibi']);
         assert.deepEqual(credentialCandidatesFor('T. Bibi', 'Bibi'), ['bibibi', 'Bibi']);

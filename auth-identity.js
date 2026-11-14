@@ -98,7 +98,7 @@ export function surnamePassword(fullName) {
  *     padding cases ("bibi" → "bibibi") — and grants an attacker nothing the surname doesn't already.
  * Deduped when the two would be byte-identical. An empty typed value yields no candidates.
  *
- * WHEN THE GATE OPENS, THE SURNAME GOES FIRST (v26.10). Once the typed value spells the surname but
+ * WHEN THE GATE OPENS, THE SURNAME GOES FIRST (v26.12). Once the typed value spells the surname but
  * is not byte-identical to its default, the raw value can never be the account's password: not the
  * default (they differ), and not a chosen one, because `validateNewPassword` refuses any choice that
  * spells the surname. Raw-first sent that doomed request to Google ahead of the real one on every

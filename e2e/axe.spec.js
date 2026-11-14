@@ -15,6 +15,7 @@ import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES, isTouchProject } from './helpers.js';
 import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
+import { alSheetFixture } from './al-sheet-fixture.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -530,6 +531,36 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             await expect(body, `#${id} opened`).toHaveClass(/\bopen\b/);
         }
         await expect(page.locator('#accountStatusContent'), 'premise: Account status has loaded').not.toHaveAttribute('aria-busy', 'true');
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    // THE ANNUAL LEAVE SHEET'S ANSWER (14 Nov 2026). The card is empty until a file is checked, so the
+    // every-card scan above reads only its controls. Its answer — coloured chips, folds within folds, day
+    // rows with a coloured edge — exists only after a check, the reason the roster review went unscanned
+    // for years (below), so it is driven here: a file checked, a person's days open, their agreeing days
+    // unfolded, and the fold of the people who agree opened too (its head is a heading inside a
+    // <summary>). The file and its people are al-sheet-fixture.js's.
+    test('operations — the annual leave sheet, checked (admin, signed in)', async ({ page }) => {
+        const fx = await alSheetFixture();
+        await page.addInitScript((rows) => {
+            const w = /** @type {any} */ (window);
+            w.__E2E = { ...(w.__E2E || {}), authUser: true, docs: [], docsByQuery: { overrides: rows } };
+        }, fx.records);
+        await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await page.locator('#alSheetChevron').click();
+        await page.locator('#alSheetFileInput')
+            .setInputFiles({ name: 'leave-2026.leave.json', mimeType: 'application/json', buffer: Buffer.from(fx.text) });
+        await page.locator('#alSheetCheckBtn').click();
+        await expect(page.locator('#alSheetResult')).toBeVisible();
+        const first = page.locator('.al-sheet-person').first();
+        await first.locator('.al-sheet-person-head').click();
+        await first.locator('.al-sheet-more > summary').click();
+        await expect(first.locator('.al-sheet-day--match')).toBeVisible();
+        await page.locator('.al-sheet-group-head').click();
+        await expect(page.locator('.al-sheet-group .al-sheet-person').first()).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });

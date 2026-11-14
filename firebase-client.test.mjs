@@ -291,7 +291,7 @@ describe('the password calls act on the page member\'s OWN account, or send noth
 });
 
 describe('re-authentication before a password change', () => {
-    // The candidate list is the sign-in's own, so it carries the sign-in's ORDER (v26.10): when the
+    // The candidate list is the sign-in's own, so it carries the sign-in's ORDER (v26.12): when the
     // typed text spells the surname, the default goes first, because the typed text can then never be
     // the account's password (auth-identity.js → credentialCandidatesFor).
     const reauthTried = () => state.authOps.filter((o) => o.op === 'reauthenticate').map((o) => o.pw);

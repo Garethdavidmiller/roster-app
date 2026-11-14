@@ -29,7 +29,7 @@ shipped change is not a measured one** — this file's whole method has been to 
   the card, so every App Speed reading in this file before November was taken on an instrument that no longer
   exists — see *THE CARD WAS TRIMMED*.
 - **14 Nov 2026** — the first read on the trimmed card closed the check it left for 1 November: it
-  was the release pace. It also found two waits in a sign-in that the app added itself; v26.10 fixed
+  was the release pace. It also found two waits in a sign-in that the app added itself; v26.12 fixed
   one, and the other is on the roadmap with a trigger (*THE NOVEMBER READ*).
 
 ## A SECOND cost, and this plan was structurally blind to it (v22.90)
@@ -646,14 +646,14 @@ page is usable, across any reload (`perf-reporter.js`). Two waits inside it were
 - **A first password attempt that could not succeed.** When the typed password spelt the surname
   without being the stored default exactly (a capital letter, or a surname under six letters, whose
   default is padded), the typed text was tried first and always failed, so the sign-in made an extra
-  round trip to Google's sign-in service before the one that worked. **v26.10 tries the default
+  round trip to Google's sign-in service before the one that worked. **v26.12 tries the default
   first** (`PASSWORD_DESIGN.md` §3.2). It reaches only sign-ins on the surname default, so a small
   move is the most to expect.
 - **The Calendar's reload after a sign-in**, which repeats the `accounts:lookup` round trip this file
   is about. Left as it is, because the reload does three jobs: `ROADMAP.md` → "Calendar sign-in
   without the reload", which holds the trigger.
 
-**Read Signing in again on the December card**, the first full month with v26.10.
+**Read Signing in again on the December card**, the first full month with v26.12.
 
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 

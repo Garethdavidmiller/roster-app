@@ -453,6 +453,17 @@ where it works and where it does not — the guide has the depth; the missing th
 "start here" ladder above it); HPP (one sentence at the point where hours are entered, since the
 premium is built from them); back pay (what "backdated to 1 April" means on the payslip it lands on).
 
+### Annual leave uploader — Phase 2, the Save
+**Status:** Conditional — Phases 0 and 1 built (v26.11), a check that writes nothing · **Owner:** Gareth · **Trigger:** the owner has used Phase 1 and decides (`AL_UPLOADER_PLAN.md` §10, decision 1) · **Blocker:** `AL_WORKBOOK.md` §10 questions 3, 7 and 8, and the upload log (plan §4.6), which ships backend-first in a push of its own · **Plan:** `docs/AL_UPLOADER_PLAN.md`
+
+Operations → Annual leave sheet compares the clerks' workbook with the app and saves nothing; each
+difference is put right by hand in Admin (OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet
+against the app"). Phase 2 would let the card record what the sheet adds — checked, confirmed person by
+person, with undo, a receipt and that log — and never remove leave (plan §10, decision 3). Stopping after
+Phase 1 is a real option: after the first catch-up most copies change a handful of days, which Admin's
+leave card handles well by hand (plan §8). Phase 3 — ticked conflicts, Sunday corrections, and the
+roster review naming workbook leave — would follow it.
+
 ---
 
 ## LATER — conditional; no work before the trigger
@@ -498,7 +509,7 @@ a promotion is released between the last upload under the old grade and the firs
 lift that rule. **Success:** a promotion released on any day imports the weeks either side of it.
 
 ### Calendar sign-in without the reload
-**Status:** Conditional · **Trigger:** staff say signing in on the Calendar is slow, or **Signing in** on the App Speed card is still red on a full month after v26.10 · **Owner:** Gareth · **Review:** the December 2026 card, read in the first week of January 2027
+**Status:** Conditional · **Trigger:** staff say signing in on the Calendar is slow, or **Signing in** on the App Speed card is still red on a full month after v26.12 · **Owner:** Gareth · **Review:** the December 2026 card, read in the first week of January 2027
 
 **Why.** A member who signs in on the Calendar watches the page reload, and the reload starts the app
 again from the top, including the round trip to Google's sign-in service that every start makes
@@ -506,10 +517,10 @@ again from the top, including the round trip to Google's sign-in service that ev
 page carries on in place after a sign-in. The card times a sign-in from pressing "Sign in" until the
 page is usable, across the reload (`perf-reporter.js`), so this second start sits inside the
 **Signing in** figure: 28% over 3 seconds on 25 sign-ins in the first half of November 2026, and red
-at a fifth. v26.10 removed the other wait the app added itself, a first password attempt that could
+at a fifth. v26.12 removed the other wait the app added itself, a first password attempt that could
 not succeed (`PASSWORD_DESIGN.md` §3.2), so the December card shows what is left.
 
-**Why it was not done with v26.10: the reload does three jobs**, and signing in in place has to do
+**Why it was not done with v26.12: the reload does three jobs**, and signing in in place has to do
 each of them another way:
 
 - **It rebuilds what the page built from the old session.** The drawer, its page pills and the name
@@ -701,6 +712,7 @@ both would need the governance gate answered before that changed.
 | Password design and its implementation record | `PASSWORD_DESIGN.md` |
 | Full-app authentication design | `AUTH_PLAN.md` |
 | The new CEA link, from January 2027 | `LINKS_DEC2026_PLAN.md` |
+| The annual leave uploader, phase by phase | `AL_UPLOADER_PLAN.md` |
 | Active constraints and accepted limitations | `KNOWN_LIMITATIONS.md` |
 | Backup, rollback and disaster recovery | `RECOVERY_RUNBOOK.md` |
 | Implementation specs (schema, functions, auth) | `docs/DATA_MODEL.md` (schema), `CLAUDE.md`, `AI_MAP.md`, `.claude/rules/*` |

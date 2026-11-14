@@ -101,7 +101,7 @@ The typed password is the real credential. A page asks for it through
    and the <6-char padding cases ("bibi" → "bibibi"). It grants an attacker nothing the surname
    doesn't already grant. Micro-hardening: when the raw typed value already equals the derived
    padded value, the two are one attempt.
-3. **When the gate opens, the surname goes FIRST (v26.10).** Behind an open gate the raw value can
+3. **When the gate opens, the surname goes FIRST (v26.12).** Behind an open gate the raw value can
    be the account's password only if it IS the default — and then it is one attempt — because
    `validateNewPassword` refuses a chosen password that spells the surname (§ "Validation" below).
    Raw-first therefore sent a request that could never succeed ahead of the real one: every sign-in
@@ -325,9 +325,9 @@ putting reset on the server).
 ## 9. Reading the App Speed card
 
 `loginTotal` on the App Speed card is the **Signing in** figure, timed from pressing "Sign in" until
-the page is usable. Until v26.10 it carried a doomed first attempt for every sign-in on the surname
+the page is usable. Until v26.12 it carried a doomed first attempt for every sign-in on the surname
 default that was not typed exactly as stored: a capital letter, or any surname under six letters,
-even typed as the form asks. From v26.10 the default goes first (§3.2), so a member on it signs in
+even typed as the form asks. From v26.12 the default goes first (§3.2), so a member on it signs in
 with one attempt. Two attempts are left only for a member with a chosen password who types their
 surname, which is refused either way. The reading before the change is `LATENCY.md` → THE NOVEMBER
 READ; read the December card for the one after.

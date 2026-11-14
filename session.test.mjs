@@ -29,7 +29,7 @@ let _createCalled  = false;  // did the code attempt browser-side account creati
 let _anonCalled    = false;  // did the code attempt an anonymous fallback? (must never)
 let _signInCalls   = 0;      // how many times email/password sign-in was attempted (for retry tests)
 /** Every password the sign-in mock was handed, in order — the fake RECORDS rather than discards, so
- *  a test can say which candidate went first (v26.10). Reset by the tests that read it. @type {string[]} */
+ *  a test can say which candidate went first (v26.12). Reset by the tests that read it. @type {string[]} */
 let _signInPasswords = [];
 let _onAuthSubs    = 0;      // how many times onAuthStateChanged was subscribed (primeAuth/fast-path tests)
 /** Live onAuthStateChanged subscribers, so a test can deliver a LATER emission. @type {Set<Function>} */
@@ -830,7 +830,7 @@ describe('ensureFirebaseSession identity tracking', () => {
     const accountWithPassword = (password) => (/** @type {number} */ _n, /** @type {string} */ pw) =>
         (pw === password ? 'ok' : 'auth/invalid-credential');
 
-    test('gated dual-attempt (v26.10): a typed MIXED-CASE surname signs an un-migrated member in with ONE request — the default first', async () => {
+    test('gated dual-attempt (v26.12): a typed MIXED-CASE surname signs an un-migrated member in with ONE request — the default first', async () => {
         // The account is on its surname default "miller". Raw-first sent "Miller" ahead of it — a
         // request that could never succeed, and a wrong password logged at Google.
         _signInCalls = 0; _signInPasswords = [];
@@ -841,10 +841,10 @@ describe('ensureFirebaseSession identity tracking', () => {
         assert.deepEqual(_signInPasswords, ['miller'], 'the default first, and nothing after it');
     });
 
-    test('gated dual-attempt (v26.10): a SHORT surname typed as the form asks signs in with ONE request — the padded default', async () => {
+    test('gated dual-attempt (v26.12): a SHORT surname typed as the form asks signs in with ONE request — the padded default', async () => {
         // "Your surname in lowercase", says the form. For a surname under six letters that is never
         // the password: the default is padded ("bibi" → "bibibi"). Every such sign-in paid a doomed
-        // first request before v26.10.
+        // first request before v26.12.
         _signInCalls = 0; _signInPasswords = [];
         _signInBehavior = accountWithPassword('bibibi');
         const ok = await ensureFirebaseSession('T. Bibi', undefined, 'bibi');

@@ -82,6 +82,7 @@ live anchors:
 | `LATENCY.md` | **CLOSED 19 Sep 2026 — nothing open.** The wall is the `accounts:lookup` round trip. The fast path built against it rarely fired, and was retired on 26 Sep 2026 and replaced by the own-roster copy (`CALENDAR_DATA.md` 17); Phase 2 closed on its own rule; Phase 3 measured and declined; Phase 4's trigger unfired. The App Speed card that carried its instruments was trimmed on 25 Oct 2026 | Holds the readings, the decision rules, and THE CLOSING READ of 19 Sep 2026 |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the Dec 2026 project context |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
+| `AL_UPLOADER_PLAN.md` | **Live** — Phases 0–1 built (v26.11); whether Phase 2 writes anything is decided after Phase 1 is used | Code comments cite its sections (§3 the leave file, §4 the card); §10 holds the owner's decisions and §12 what was built and what changed |
 | `ROADMAP_HISTORY.md` | Historical | **The archive.** Everything `ROADMAP.md` used to say about the past |
 | `DECISIONS.md` | Historical | **The closed decisions.** Features declined, and choices recorded so they are not re-argued |
 | `A11Y_BASELINE.md` | Live baseline | The axe triage the gate is measured against |
