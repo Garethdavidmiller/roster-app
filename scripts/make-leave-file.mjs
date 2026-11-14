@@ -57,11 +57,13 @@
  * ── IT NEVER WRITES INSIDE THE REPOSITORY ──────────────────────────────────────────────────────
  *
  * The Pages mirror serves every committed file. `--out` and `--csv` are refused inside the
- * repository, and the leave file must end `.leave.json`, which .gitignore excludes besides.
+ * repository, inside any other git checkout or worktree, and by a path with `..` in it; the leave file
+ * must end `.leave.json` and the day list `.csv`, which .gitignore excludes besides. No output may
+ * name an input or the other output (`isOutsideRepo`, `fileOf`).
  */
-import { readFileSync, writeFileSync, realpathSync, existsSync, lstatSync, readlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, realpathSync, existsSync, lstatSync, readlinkSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { dirname, resolve, relative, isAbsolute, join, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readXlsx, serialToIso, splitRef, colNumber } from './xlsx-read.mjs';
@@ -644,23 +646,79 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
 
 // ── The command line ────────────────────────────────────────────────────────────────────────────
 
+/** Does a path climb with `..` anywhere in it? @param {string} path */
+const climbs = path => path.split(/[\\/]+/).includes('..');
+
 /**
- * Is `path` outside the repository? The leave file must never be written where git could pick it up.
- * A FILE that is a symlink is judged by where it points, existing or not — writing to it writes
- * there — and a name that merely begins with two dots (`..x.leave.json`) is inside, not above.
- * @param {string} path @param {number} [hops] symlinks followed so far; a loop is refused
- * @returns {boolean}
+ * Where a write to `path` lands: the REAL directory it is written in, and the file there. A file that
+ * is a symlink is followed, existing or not — writing to it writes there — and a folder that does not
+ * exist yet is judged by the nearest one that does.
+ *
+ * null for a path with `..` in it, the given one or a link's own text: `resolve()` takes `..` away
+ * before any symlink is followed, so `<a folder that links into a checkout>/../x` was judged where it
+ * reads and written where it leads. And null for a loop of links.
+ * @param {string} path @param {number} [hops] symlinks followed so far
+ * @returns {{ dir: string, file: string }|null}
  */
-export function isOutsideRepo(path, hops = 0) {
+function writeTarget(path, hops = 0) {
+    if (climbs(path)) return null;
     const abs = resolve(path);
     if (lstatSync(abs, { throwIfNoEntry: false })?.isSymbolicLink()) {
-        return hops < 20 && isOutsideRepo(resolve(dirname(abs), readlinkSync(abs)), hops + 1);
+        if (hops >= 20) return null;
+        const link = readlinkSync(abs);
+        // The link's text, joined but NOT normalised, so a `..` in it is seen and refused.
+        return writeTarget(isAbsolute(link) ? link : `${dirname(abs)}${sep}${link}`, hops + 1);
     }
     let dir = dirname(abs);
     while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
-    const real = join(realpathSync(dir), relative(dir, abs));
-    const rel = relative(realpathSync(REPO), real);
-    return rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+    const real = realpathSync.native(dir);
+    return { dir: real, file: join(real, relative(dir, abs)) };
+}
+
+/**
+ * Is a real, existing directory inside a git work tree — this checkout, another one, or a worktree
+ * beside it? Asked of git from the directory alone: every `GIT_*` variable is left out (a GIT_DIR set
+ * by a hook would answer for the wrong repository), discovery crosses filesystems, and the answer is
+ * read in git's own words. Anything git says other than "not a git repository" is a yes.
+ * @param {string} dir
+ * @returns {boolean|null} null when git cannot be run here — then only this repository can be judged
+ */
+function insideGitWorkTree(dir) {
+    /** @type {Record<string, string>} */ const env = {};
+    for (const [k, v] of Object.entries(process.env)) if (!k.startsWith('GIT_') && v !== undefined) env[k] = v;
+    const r = spawnSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'], env: { ...env, LC_ALL: 'C', GIT_DISCOVERY_ACROSS_FILESYSTEM: '1' } });
+    if (r.error) return /** @type {any} */ (r.error).code === 'ENOENT' ? null : true;
+    if (r.status === 0) return true;
+    return !/not a git repository/i.test(r.stderr ?? '');
+}
+
+/**
+ * May the script write to `path`? The leave file must never land where git could pick it up: not in
+ * this repository, not in any other checkout or worktree of it (the Pages mirror serves whatever is
+ * committed from any of them), and not by a path with `..` in it. A FILE that is a symlink is judged
+ * by where it points, existing or not, and a name that merely begins with two dots (`..x.leave.json`)
+ * is inside, not above. With no git to ask, only this repository is judged.
+ * @param {string} path
+ * @returns {boolean}
+ */
+export function isOutsideRepo(path) {
+    const target = writeTarget(path);
+    if (!target) return false;
+    const rel = relative(realpathSync.native(REPO), target.file);
+    if (!(rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))) return false;
+    return insideGitWorkTree(target.dir) !== true;
+}
+
+/**
+ * The one file a path names, so two arguments can be told apart: an existing file by its real path
+ * and its device and inode (a hard link is the same file), one not made yet by where it will land.
+ * @param {string} path
+ */
+function fileOf(path) {
+    const st = statSync(path, { throwIfNoEntry: false });
+    if (st) return { file: realpathSync.native(path), inode: `${st.dev}:${st.ino}` };
+    return { file: writeTarget(path)?.file ?? resolve(path), inode: null };
 }
 
 /** @param {string[]} argv */
@@ -684,7 +742,22 @@ export async function main(argv) {
     const year = Number(need('year'));
     if (!Number.isInteger(year)) throw new Error('--year must be a year');
     if (!out.endsWith('.leave.json')) throw new Error('--out must end .leave.json, which .gitignore excludes');
-    for (const p of [out, args.csv]) if (typeof p === 'string' && !isOutsideRepo(p)) throw new Error(`refusing to write inside the repository: ${p}`);
+    if (typeof args.csv === 'string' && !args.csv.endsWith('.csv')) throw new Error('--csv must end .csv, which .gitignore excludes');
+    for (const p of [out, args.csv]) {
+        if (typeof p === 'string' && !isOutsideRepo(p)) {
+            throw new Error(`refusing to write inside the repository or any git checkout, or by a path with .. in it: ${p}`);
+        }
+    }
+    // An output must not be an input, or the other output: `--csv <the workbook>` once wrote a CSV
+    // header over the workbook and exited 0. Every pair is checked before anything is read or written.
+    /** @type {Array<[string, string]>} */ const named = [];
+    for (const k of ['workbook', 'previous', 'answers', 'out', 'csv']) if (typeof args[k] === 'string') named.push([k, /** @type {string} */ (args[k])]);
+    const files = named.map(([, p]) => fileOf(p));
+    for (let i = 0; i < named.length; i++) for (let j = i + 1; j < named.length; j++) {
+        if (files[i].file === files[j].file || (files[i].inode !== null && files[i].inode === files[j].inode)) {
+            throw new Error(`--${named[i][0]} and --${named[j][0]} name the same file; refusing before anything is written`);
+        }
+    }
     if (!args.previous && !args['first-run']) throw new Error('give --previous <last.leave.json>, or --first-run to be asked about every match');
     const today = typeof args.today === 'string' ? args.today : new Date().toISOString().slice(0, 10);
     if (!isRealIsoDate(today)) throw new Error('--today must be YYYY-MM-DD');

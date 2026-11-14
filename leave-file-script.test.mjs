@@ -46,11 +46,11 @@
  *     as Excel's legacy copy, two rows with the same figures and different comments, a one-word
  *     Sunday tag outside its own grade, and an order that changed with the session's locale. The
  *     reader refuses an XML part it cannot read where it stands, an entry that inflates past its cap
- *     and two entries with one name.
+ *     and two entries with one name; the command line, an output that names an input.
  */
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, symlinkSync, linkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -803,5 +803,59 @@ describe('the command line (main)', () => {
         const none = cli([...base, '--out', join(TMP, 'z.leave.json')]);
         assert.equal(none.status, 1);
         assert.match(none.stderr, /--first-run/);
+    });
+
+    /** Run once with --first-run and answer every question "not in the app", which needs no real name. @returns {string} */
+    const answerEverything = () => {
+        const run = cli([...base, '--first-run', '--out', join(TMP, 'asked.leave.json')]);
+        assert.equal(run.status, 2, run.stderr);
+        /** @type {Record<string, Record<string, null>>} */
+        const answers = { rows: {}, cells: {}, tags: {} };
+        for (const q of JSON.parse(run.stdout).questions) answers[{ 'row-name': 'rows', 'cell-name': 'cells', 'tag-name': 'tags' }[/** @type {'row-name'} */ (q.kind)]][q.key] = null;
+        const path = join(TMP, 'everything.local.json');
+        writeFileSync(path, JSON.stringify(answers));
+        return path;
+    };
+
+    test('a day list must end .csv, and no output may be reached by a path with .. in it', () => {
+        for (const [csv, why] of [[join(TMP, 'days.txt'), /--csv must end \.csv/], [workbook, /--csv must end \.csv/]]) {
+            const run = cli([...base, '--first-run', '--out', join(TMP, 'w.leave.json'), '--csv', csv]);
+            assert.equal(run.status, 1, csv);
+            assert.match(run.stderr, why, csv);
+        }
+        const climbs = cli([...base, '--first-run', '--out', `${TMP}/never/../w.leave.json`]);
+        assert.equal(climbs.status, 1);
+        assert.match(climbs.stderr, /refusing to write .* a path with \.\. in it/);
+        assert.ok(!existsSync(join(TMP, 'days.txt')) && !existsSync(join(TMP, 'w.leave.json')));
+    });
+
+    test('an output that names an input, or the other output, is refused before anything is written', () => {
+        const answersPath = answerEverything();
+        const before = readFileSync(workbook);
+        // The day list through a symlink to the workbook, and as a hard link to it: one file, two names.
+        symlinkSync(workbook, join(TMP, 'book-link.csv'));
+        linkSync(workbook, join(TMP, 'book-hard.csv'));
+        const prev = join(TMP, 'prev.leave.json');
+        writeFileSync(prev, '{}');
+        const ans = join(TMP, 'ans.leave.json');
+        writeFileSync(ans, '{}');
+        for (const [args, pair] of /** @type {Array<[string[], RegExp]>} */ ([
+            [['--first-run', '--answers', answersPath, '--out', join(TMP, 'c1.leave.json'), '--csv', join(TMP, 'book-link.csv')], /--workbook and --csv/],
+            [['--first-run', '--answers', answersPath, '--out', join(TMP, 'c2.leave.json'), '--csv', join(TMP, 'book-hard.csv')], /--workbook and --csv/],
+            [['--previous', prev, '--out', prev], /--previous and --out/],
+            [['--first-run', '--answers', ans, '--out', ans], /--answers and --out/],
+        ])) {
+            const run = cli([...base, ...args]);
+            assert.equal(run.status, 1, `${args.join(' ')}\n${run.stderr}`);
+            assert.match(run.stderr, pair);
+            assert.match(run.stderr, /name the same file; refusing before anything is written/);
+        }
+        assert.ok(readFileSync(workbook).equals(before), 'the workbook is as it was');
+        assert.equal(readFileSync(prev, 'utf8'), '{}');
+        assert.equal(readFileSync(ans, 'utf8'), '{}');
+        assert.ok(!existsSync(join(TMP, 'c1.leave.json')) && !existsSync(join(TMP, 'c2.leave.json')));
+        // …and with distinct files the same answers make a file, so the refusals above were the names.
+        const fine = cli([...base, '--first-run', '--answers', answersPath, '--out', join(TMP, 'c3.leave.json'), '--csv', join(TMP, 'c3.csv')]);
+        assert.equal(fine.status, 0, fine.stderr);
     });
 });
