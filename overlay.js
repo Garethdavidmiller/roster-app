@@ -451,6 +451,10 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     /** Retires this open's scroll/resize listeners. Reassigned per open, called on close. */
     let _stopScrollFade = /** @type {() => void} */ (() => {});
     let _stopFocusGuard = /** @type {() => void} */ (() => {});   // this open's guard; retired first thing in a close
+    /** Which open's first frame is still wanted. An open notes it and a close moves it on, so a frame
+     *  that runs after its open was closed does nothing (the frame in `open()`). Only a close writes
+     *  it: no open follows another without a close between them. */
+    let _frameWanted = 0;
 
     /** @param {KeyboardEvent} e */
     function onKey(e) {
@@ -484,7 +488,16 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         // a focus made synchronously in the gesture, and the frame below is not. The rest keep the frame.
         const early = /** @type {any} */ (typeof initialFocus === 'function' ? initialFocus() : initialFocus);
         const focusedEarly = _isTextEntry(early) && (early.focus(), document.activeElement === early);
+        const frame = _frameWanted;
         requestAnimationFrame(() => {
+            // CLOSED BEFORE ITS FIRST FRAME (14 Nov 2026). This frame fades the overlay in and moves
+            // focus into it, and a close can come first: an Escape before a slow engine draws, or a
+            // tab that runs no frames while it is hidden. Run late, it faded the closing panel back in
+            // and took focus into it, so focus fell to <body> as the panel went, where the Calendar's
+            // arrow keys change the month instead of the day. Headless WebKit draws slowly enough
+            // to lose that race about one run in five (calendar.spec.js, the day panel closed over a
+            // rebuilt grid).
+            if (frame !== _frameWanted) return;
             overlay.classList.add('open');
             if (focusedEarly) return;
             const explicit = /** @type {any} */ (typeof initialFocus === 'function' ? initialFocus() : initialFocus);
@@ -534,6 +547,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         if (!overlay.classList.contains('visible')) return _settling ?? Promise.resolve();
         _stopScrollFade();
         _stopFocusGuard();
+        _frameWanted++;   // an open whose first frame has not run yet must not run it now
         // A caller's onClose must NEVER strand the overlay: if it threw, dismissOverlay below would
         // not run, leaving the overlay .open/.visible, body scroll locked, and the pushed Back-history
         // entry orphaned (a later Android Back would then pop the wrong overlay). Isolate it.
