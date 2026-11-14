@@ -48,10 +48,10 @@
  * The Pages mirror serves every committed file. `--out` and `--csv` are refused inside the
  * repository, and the leave file must end `.leave.json`, which .gitignore excludes besides.
  */
-import { readFileSync, writeFileSync, realpathSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, realpathSync, existsSync, lstatSync, readlinkSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { dirname, resolve, relative, isAbsolute, join } from 'node:path';
+import { dirname, resolve, relative, isAbsolute, join, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readXlsx, serialToIso, splitRef, colNumber } from './xlsx-read.mjs';
 import { LEAVE_FILE_FORMAT, LEAVE_FILE_VERSION, validateLeaveFile, sealLeaveFile, readLeaveFile, describeRefusal,
@@ -369,7 +369,10 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
                 if (!name) continue;   // a person not in the app (asked, or answered as not in it)
                 holder.set(`${row}:${col}`, name);
                 const used = usedOf.get(name);
-                if (!used || !counting.includes(used)) { ask({ kind: 'unexpected', what: `${date}: a day counted only by a row that is not used` }); continue; }
+                // No used row yet: which of their rows it is, is a duplicate-rows question already asked.
+                // Calling the day "unexpected" would turn a question into a refusal (exit 3, not 2).
+                if (!used) continue;
+                if (!counting.includes(used)) { ask({ kind: 'unexpected', what: `${date}: a day counted only by a row that is not used` }); continue; }
                 if (isChristmasIso(date)) { ask({ kind: 'unexpected', what: `a name on ${date}, which the sheet should mark closed` }); continue; }
                 addDay(name, { name, date, kind: sunday ? 'sunday-counted' : 'leave', foundIn: 'grid', countedBySheet: true });
                 continue;
@@ -546,15 +549,21 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
 
 /**
  * Is `path` outside the repository? The leave file must never be written where git could pick it up.
- * @param {string} path @returns {boolean}
+ * A FILE that is a symlink is judged by where it points, existing or not — writing to it writes
+ * there — and a name that merely begins with two dots (`..x.leave.json`) is inside, not above.
+ * @param {string} path @param {number} [hops] symlinks followed so far; a loop is refused
+ * @returns {boolean}
  */
-export function isOutsideRepo(path) {
+export function isOutsideRepo(path, hops = 0) {
     const abs = resolve(path);
+    if (lstatSync(abs, { throwIfNoEntry: false })?.isSymbolicLink()) {
+        return hops < 20 && isOutsideRepo(resolve(dirname(abs), readlinkSync(abs)), hops + 1);
+    }
     let dir = dirname(abs);
     while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
     const real = join(realpathSync(dir), relative(dir, abs));
     const rel = relative(realpathSync(REPO), real);
-    return rel.startsWith('..') || isAbsolute(rel);
+    return rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel);
 }
 
 /** @param {string[]} argv */
