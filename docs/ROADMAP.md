@@ -451,6 +451,17 @@ where it works and where it does not — the guide has the depth; the missing th
 "start here" ladder above it); HPP (one sentence at the point where hours are entered, since the
 premium is built from them); back pay (what "backdated to 1 April" means on the payslip it lands on).
 
+### Annual leave uploader — Phase 2, the Save
+**Status:** Conditional — Phases 0 and 1 built (v26.10), a check that writes nothing · **Owner:** Gareth · **Trigger:** the owner has used Phase 1 and decides (`AL_UPLOADER_PLAN.md` §10, decision 1) · **Blocker:** `AL_WORKBOOK.md` §10 questions 3, 7 and 8, and the upload log (plan §4.6), which ships backend-first in a push of its own · **Plan:** `docs/AL_UPLOADER_PLAN.md`
+
+Operations → Annual leave sheet compares the clerks' workbook with the app and saves nothing; each
+difference is put right by hand in Admin (OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet
+against the app"). Phase 2 would let the card record what the sheet adds — checked, confirmed person by
+person, with undo, a receipt and that log — and never remove leave (plan §10, decision 3). Stopping after
+Phase 1 is a real option: after the first catch-up most copies change a handful of days, which Admin's
+leave card handles well by hand (plan §8). Phase 3 — ticked conflicts, Sunday corrections, and the
+roster review naming workbook leave — would follow it.
+
 ---
 
 ## LATER — conditional; no work before the trigger
@@ -667,6 +678,7 @@ both would need the governance gate answered before that changed.
 | Password design and its implementation record | `PASSWORD_DESIGN.md` |
 | Full-app authentication design | `AUTH_PLAN.md` |
 | The new CEA link, from January 2027 | `LINKS_DEC2026_PLAN.md` |
+| The annual leave uploader, phase by phase | `AL_UPLOADER_PLAN.md` |
 | Active constraints and accepted limitations | `KNOWN_LIMITATIONS.md` |
 | Backup, rollback and disaster recovery | `RECOVERY_RUNBOOK.md` |
 | Implementation specs (schema, functions, auth) | `docs/DATA_MODEL.md` (schema), `CLAUDE.md`, `AI_MAP.md`, `.claude/rules/*` |
