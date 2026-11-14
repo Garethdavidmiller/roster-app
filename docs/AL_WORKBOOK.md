@@ -146,6 +146,11 @@ the exact `Surname . I` form, so `N/A <I> <Surname>` does not match. That is cor
 with the app: Sundays are uncontracted, and the app refuses an AL override on one
 (`SUNDAY_FORBIDDEN_TYPES` in `override-utils.js`).
 
+**But a PLAIN name in a Sunday cell IS counted** [measured, 14 Nov 2026]. One Sunday carries a
+member's `Surname . I` with no `N/A` — the first day of a block that runs into the Monday — and
+`COUNTIF` matches it, so the sheet deducts a Sunday the app can never hold. It is the only one in the
+6 Nov file. Sweep Sundays for plain names before trusting a row's Used figure.
+
 **But they still belong in an answer.** When listing somebody's leave, give the days they are
 *away*, marking which are deducted — a member reading "27 Jun, then 29 Jun–2 Jul" has been handed a
 gap that does not exist in their life. This was got wrong once (8 Sep 2026) and is worth not
@@ -662,7 +667,7 @@ difference is.
 | **Sundays inside a block** | agree (both exclude) | Both refuse leave on an uncontracted day. |
 | **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. **This stops being theoretical in January 2027, and the row that will do it is already visible** [owner-confirmed, 14 Sep 2026]: one row has an untouched full allowance that is expected to carry over, so column C on its 2027 row is the c/f value this has been waiting for — at which point the app will state an entitlement lower than the workbook's for as long as the carry-over lasts. Worth deciding BEFORE it appears rather than discovering it as a discrepancy. **CONFIRMED IN USE [owner, 3 Nov 2026]:** some members are being allowed to take a few 2026 days in early January 2027. The owner's direction for the app is **per DAY, not per year**: from 1 January a leave day counts against the new year by default, and until 31 January an admin can charge a January day to the previous year's allowance instead. That is the opposite bookkeeping to this workbook's c/f column, which ADDS the carried days to the new year's allowance and counts the January days in the new year's grid — so once it is built the two will book the carried days to different years. The app counts them as 2026 days used; the workbook leaves them as 2026 remaining, carries them as c/f, and counts them as 2027 days used against a 2027 allowance raised by the same c/f. **2027's REMAINING agrees; 2026's differs by exactly the carried days** — an explained difference, not a disagreement. **BUILT at v25.18, switched ON at v25.19** (3 Nov 2026, once the rules accepting the field were live): a January leave day may carry `leaveYear: <year − 1>` (docs/DATA_MODEL.md), set from the Admin AL card's "Which year's allowance" panel. The owner's final answers (3 Nov 2026) widened the direction above in two places: a member may move their OWN days, and a manager or the admin anyone's; and a moved day stays correctable after January — there is no lock on 31 January. The one limit is **no more than the previous year has left**. So when reconciling 2026 against this workbook from January 2027 on, expect the app's 2026 used to exceed the sheet's by the moved days, and its 2027 used to fall short by the same days. |
 | **Pro-rated joining year** | should agree | The workbook's allowance for a joiner — column D, or D less the undated part of column E where the clerks pro-rate there (§5) — should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
-| **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
+| **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. **Worked means worked** [measured, 14 Nov 2026]: leave on a bank holiday the pattern works removes that day's lieu day in the app (`countDispatcherBankHolidaysWorked` reads the override before the pattern), so a figure from the pattern alone overstates the app by one for each bank holiday taken as leave — four of the ten Dispatcher rows, by one or two. |
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
 | **Employee of the Month** | **BOTH may show less entitlement** | **One extra AL day per award** [owner, 14 Sep 2026]. Neither system holds it: the workbook's allowance column reads a flat 32 for every CEA, and `getALEntitlement` returns a flat 32 too. **PARKED at the owner's request** — see below. |
 | **Leavers** | app may show a stale row | A leaver is `hidden` in the app but keeps their workbook row and figures. |
@@ -770,6 +775,17 @@ difference as an error.
    disagreements are the ones worth chasing, because they are wrong all year.
 4. For each person: workbook grid days + column E vs the app's recorded AL days.
 5. Report the **dates** that differ, never a count. A count cannot be acted on; a date can.
+
+**Run the app's OWN figures over the sheet before comparing** [measured, 14 Nov 2026]. Build each
+person's sheet days — grid and dated column E — as `annual_leave` overrides and call
+`alPosition({ overrides, member, year, todayStr })` (`al-entitlement.js`). That is what the app
+SHOULD show if it holds exactly those days, with every rule applied: rest days, Sundays, the start
+date, Christmas, a Dispatcher's lieu days. Compare the app with THAT, not with the sheet, and what is
+left is a recording difference, each one a date. On the 6 Nov file it moved twenty people's
+expected figures away from the sheet's — eleven of them Dispatchers — every one for a reason the
+app's rules give.
+**`consumesEntitlement(member, date)` takes the date as an ISO string** — handed a `Date`, it reports
+every day as uncounted, which reads as a catastrophic mismatch and is a calling mistake.
 
 ---
 
