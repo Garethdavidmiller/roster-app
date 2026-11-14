@@ -558,7 +558,8 @@ test('what the week\'s own save sends is held while it is in flight, and only th
 // the round trip: a control the save reads that the draft drops, a row put back over a record that
 // changed since, or a row the draft cannot take left half-changed — a phantom staged edit.
 
-const { isStagedRow, readRowDraft, applyRowDraft, readWeekDraft, applyWeekDraft, unsavedWeekDraft, sendingEntries, keptWeekDraft } = await import('./admin-week-row-state.js');
+const { isStagedRow, readRowDraft, applyRowDraft, readWeekDraft, applyWeekDraft, unsavedWeekDraft, sendingEntries, keptWeekDraft, prefillRow } = await import('./admin-week-row-state.js');
+const { keptRecord } = await import('./override-compare.js');
 const { PILL_TYPES } = await import('./admin-shift-types.js');
 
 /** A row carrying every control the save collector reads (admin-app.js), found by selector. */
@@ -668,38 +669,96 @@ describe('a staged row read as draft data, and put back', () => {
 });
 
 describe('a week of staged rows, kept and put back', () => {
-    test('read: only the staged rows, each carrying the saved record it was edited over', () => {
-        const rows = [draftRow({ date: '2026-12-07' }), draftRow({ date: '2026-12-08', type: 'sick' }),
-            draftRow({ date: '2026-12-09', type: 'rdw', existingId: 'ov9', prefilled: true }), draftRow({ date: '2026-12-10', existingId: 'ov10' })];
-        const kept = readWeekDraft(gridOf(rows.map(x => x.r)), d => `was:${d}`);
-        assert.deepEqual(kept.map(k => [k.date, k.type ?? 'remove', k.was]),
-            [['2026-12-08', 'sick', 'was:2026-12-08'], ['2026-12-10', 'remove', 'was:2026-12-10']]);
+    // Records as the page holds them. A row's baseline is the record it was DRAWN from (prefillRow), kept
+    // whole (keptRecord, override-compare.js), and compared on the way back by the rule a save uses.
+    const recOf = (/** @type {string} */ date, /** @type {any} */ over = {}) => ({ id: `ov-${date}`, memberName: 'G. Miller', date,
+        type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'G. Miller', createdAt: { toMillis: () => 1_000 }, ...over });
+    /** A row drawn from `rec`, then edited as a tap would (`applyRowDraft`). @param {any} rec @param {any} edit */
+    const editedOver = (rec, edit) => {
+        const x = draftRow({ date: rec.date, existingId: rec.id });
+        prefillRow(x.r, rec);
+        applyRowDraft(x.r, { date: rec.date, ...edit });
+        return x;
+    };
+    const throughStorage = (/** @type {any} */ v) => JSON.parse(JSON.stringify(v));
+
+    test('read: only the staged rows, each carrying the whole record its row was DRAWN from', () => {
+        const left = recOf('2026-12-09', { type: 'rdw', value: '09:00-17:00' });
+        const shown = recOf('2026-12-10', { note: 'half term' });
+        const untouched = draftRow({ date: '2026-12-07' });
+        const overEmpty = draftRow({ date: '2026-12-08', type: 'sick' });
+        const alone = draftRow({ date: '2026-12-09', existingId: left.id });
+        prefillRow(alone.r, left);
+        const removal = editedOver(shown, { remove: true });
+        const kept = readWeekDraft(gridOf([untouched.r, overEmpty.r, alone.r, removal.r]));
+        assert.deepEqual(kept.map(k => [k.date, k.type ?? 'remove']), [['2026-12-08', 'sick'], ['2026-12-10', 'remove']]);
+        assert.equal(kept[0].was, null, 'a row drawn from nothing kept nothing');
+        assert.deepEqual(kept[1].was, keptRecord(shown), 'the whole record, as a save compares it');
     });
 
-    test('put back: a day whose saved record has changed since is LEFT, and named', () => {
-        const fresh = [draftRow({ date: '2026-12-08' }), draftRow({ date: '2026-12-09' })];
-        const now = { '2026-12-08': '', '2026-12-09': 'ov9|sick|SICK' };   // a colleague recorded an absence since
-        const { put, left } = applyWeekDraft(gridOf(fresh.map(x => x.r)), [
-            { date: '2026-12-08', type: 'shift', start: '06:00', end: '14:00', was: '' },
-            { date: '2026-12-09', type: 'annual_leave', was: '' },
-            { date: '2026-12-11', type: 'rdw', was: '' },   // not in this week any more
+    test('put back: a day whose saved record has changed since, in any field a save compares, is LEFT and named', () => {
+        const same = recOf('2026-12-10'), moved = recOf('2026-12-11'), noted = recOf('2026-12-12'), resaved = recOf('2026-12-13');
+        const nowOn = /** @type {Record<string, any>} */ ({
+            '2026-12-09': recOf('2026-12-09', { type: 'sick', value: 'SICK' }),   // a colleague recorded an absence since
+            '2026-12-10': same,
+            '2026-12-11': { ...moved, leaveYear: 2027 },                         // the review's cases: a leave year moved,
+            '2026-12-12': { ...noted, note: 'swap agreed' },                     // a note written,
+            '2026-12-13': { ...resaved, createdAt: { toMillis: () => 2_000 } },  // the same value saved again
+        });
+        const dates = ['2026-12-08', '2026-12-09', '2026-12-10', '2026-12-11', '2026-12-12', '2026-12-13'];
+        const fresh = dates.map(date => draftRow({ date }));
+        const { put, left } = applyWeekDraft(gridOf(fresh.map(x => x.r)), throughStorage([
+            { date: '2026-12-08', type: 'shift', start: '06:00', end: '14:00', was: null },
+            { date: '2026-12-09', type: 'annual_leave', was: null },
+            { date: '2026-12-10', type: 'sick', was: keptRecord(same) },
+            { date: '2026-12-11', type: 'sick', was: keptRecord(moved) },
+            { date: '2026-12-12', type: 'sick', was: keptRecord(noted) },
+            { date: '2026-12-13', type: 'sick', was: keptRecord(resaved) },
+            { date: '2026-12-14', type: 'rdw', was: null },   // not in this week any more
             null, { date: 42 },
-        ], d => now[d] ?? '');
-        assert.equal(put, 1);
-        assert.deepEqual(left, ['2026-12-09', '2026-12-11']);
+        ]), d => nowOn[d] ?? null);
+        assert.equal(put, 2);
+        assert.deepEqual(left, ['2026-12-09', '2026-12-11', '2026-12-12', '2026-12-13', '2026-12-14']);
         assert.equal(fresh[0].r.dataset.type, 'shift');
-        assert.equal(fresh[1].r.dataset.type, undefined, 'never put over a record nobody has looked at again');
+        assert.equal(fresh[2].r.dataset.type, 'sick', 'an unchanged record takes its edit back');
+        for (const i of [1, 3, 4, 5]) assert.equal(fresh[i].r.dataset.type, undefined, `${dates[i]}: put over a record nobody has looked at again`);
+    });
+
+    test('the baseline is what the row SHOWED: a newer record the cache took in since is not what the edit was made over', () => {
+        // A load that lands while edits are staged leaves the rows alone (`_drawnFrom`), so by the time the page
+        // is hidden the cache can hold a colleague's newer record for a day whose row still shows the old one.
+        const shown = recOf('2026-12-10'), colleagues = recOf('2026-12-10', { note: 'moved to 2027', changedBy: 'S. Manager', createdAt: { toMillis: () => 9_000 } });
+        const [k] = throughStorage(readWeekDraft(gridOf([editedOver(shown, { type: 'sick' }).r])));
+        const fresh = draftRow({ date: shown.date, existingId: shown.id });
+        prefillRow(fresh.r, colleagues);
+        assert.deepEqual(applyWeekDraft(gridOf([fresh.r]), [k], () => colleagues), { put: 0, left: ['2026-12-10'] });
+        assert.equal(isStagedRow(fresh.r), false, 'the colleague\'s record is left as it was drawn');
     });
 
     test('the round trip: what is read off one grid comes back identical on a freshly drawn one', () => {
+        const rec = recOf('2026-12-10', { type: 'sick', value: 'SICK' });
         const before = [draftRow({ date: '2026-12-08', type: 'shift', start: '07:15', end: '15:15' }),
-            draftRow({ date: '2026-12-09', type: 'annual_leave', alSwapAsk: '1' }), draftRow({ date: '2026-12-10', existingId: 'ov10' })];
+            draftRow({ date: '2026-12-09', type: 'annual_leave', alSwapAsk: '1' }), editedOver(rec, { remove: true })];
         before[1].r.dataset.alSwap = 'no';
-        const kept = JSON.parse(JSON.stringify(readWeekDraft(gridOf(before.map(x => x.r)), () => '')));   // through storage
+        const kept = throughStorage(readWeekDraft(gridOf(before.map(x => x.r))));   // through storage
         const after = [draftRow({ date: '2026-12-08' }), draftRow({ date: '2026-12-09', alSwapAsk: '1' }),
-            draftRow({ date: '2026-12-10', type: 'sick', existingId: 'ov10', prefilled: true })];
-        assert.deepEqual(applyWeekDraft(gridOf(after.map(x => x.r)), kept, () => ''), { put: 3, left: [] });
-        assert.deepEqual(readWeekDraft(gridOf(after.map(x => x.r)), () => ''), kept);
+            draftRow({ date: '2026-12-10', existingId: rec.id })];
+        prefillRow(after[2].r, rec);
+        const nowOn = /** @type {Record<string, any>} */ ({ '2026-12-10': rec });
+        assert.deepEqual(applyWeekDraft(gridOf(after.map(x => x.r)), kept, d => nowOn[d] ?? null), { put: 3, left: [] });
+        assert.deepEqual(throughStorage(readWeekDraft(gridOf(after.map(x => x.r)))), kept);
+    });
+
+    test('a row kept before v26.08, its `was` the old id|type|value, is compared as it was then, for its one day', () => {
+        const nowOn = /** @type {Record<string, any>} */ ({ '2026-12-09': recOf('2026-12-09', { type: 'sick', value: 'SICK' }),
+            '2026-12-10': recOf('2026-12-10', { note: 'not part of the old signature' }) });
+        const fresh = ['2026-12-08', '2026-12-09', '2026-12-10'].map(date => draftRow({ date }));
+        const { put, left } = applyWeekDraft(gridOf(fresh.map(x => x.r)), [
+            { date: '2026-12-08', type: 'shift', start: '06:00', end: '14:00', was: '' },
+            { date: '2026-12-09', type: 'annual_leave', was: '' },                          // booked since: changed
+            { date: '2026-12-10', type: 'sick', was: 'ov-2026-12-10|annual_leave|AL' },     // id, type and value as kept
+        ], d => nowOn[d] ?? null);
+        assert.deepEqual({ put, left }, { put: 2, left: ['2026-12-09'] });
     });
 
     // RULE 6 (unsaved-draft.js, v25.97): a draft kept mid-save carries what that save was SENDING. Found
@@ -787,7 +846,6 @@ describe('a week of staged rows, kept and put back', () => {
 // What a manager reads as "already recorded" on each day. Each kind of record is drawn differently:
 // times split out of a shift, none for a fixed type, an Other day read through its grammar, and
 // Spare shown under Other.
-const { prefillRow } = await import('./admin-week-row-state.js');
 const pressed = (/** @type {any} */ x) => x.pills.filter((/** @type {any} */ p) => p.classList.contains('active')).map((/** @type {any} */ p) => p.dataset.type);
 const chips   = (/** @type {any} */ x) => x.flavours.filter((/** @type {any} */ f) => f.classList.contains('active')).map((/** @type {any} */ f) => f.dataset.flavour);
 

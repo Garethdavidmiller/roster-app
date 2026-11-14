@@ -15,6 +15,10 @@
 
 import { tsToMillis } from './override-utils.js';
 
+/** A record's revision in milliseconds: a Firestore Timestamp, or the number the browser-test stub
+ *  hands back, read the same way wherever a revision is compared. @param {any} t @returns {number} */
+const stampOf = (t) => (typeof t === 'number' ? t : tsToMillis(t));
+
 /**
  * Is `now` — a record as the SERVER holds it — still the record `was`, as this page showed it?
  *
@@ -43,11 +47,50 @@ export function sameOverrideRecord(was, now) {
     for (const k of ['memberName', 'date', 'type', 'value']) if (was[k] !== now[k]) return false;
     if ((was.note ?? '') !== (now.note ?? '')) return false;
     for (const k of ['source', 'replacedType', 'leaveYear']) if (opt(was[k]) !== opt(now[k])) return false;
-    /** @param {any} t */
-    const stamp = (t) => (typeof t === 'number' ? t : tsToMillis(t));
-    if (!(was.createdAt instanceof Date) && stamp(was.createdAt) !== stamp(now.createdAt)) return false;
+    if (!(was.createdAt instanceof Date) && stampOf(was.createdAt) !== stampOf(now.createdAt)) return false;
     if ('changedBy' in was && was.changedBy !== now.changedBy) return false;
     return true;
+}
+
+/**
+ * A saved record as an unsaved-work draft keeps it (unsaved-draft.js rule 5): every field
+ * `sameOverrideRecord` reads, plus the id, in a shape that survives localStorage's JSON — the
+ * revision (`createdAt`) as milliseconds, and this page's own optimistic copy marked `own` instead,
+ * because its stamp is the device's clock and is never compared. Null for a day with no record.
+ *
+ * Until v26.08 a draft kept only `id|type|value`, so a day whose leave year, note, source or
+ * revision had changed since read as the record the row was edited over, and the old edit was put
+ * back over it with no "changed since" (external review, 14 Nov 2026). And the save after a Restore
+ * cannot catch it: it compares with what the restored row now SHOWS, the newer record.
+ * @param {any} rec
+ * @returns {Record<string, any>|null}
+ */
+export function keptRecord(rec) {
+    if (!rec) return null;
+    const own = rec.createdAt instanceof Date;
+    /** @type {Record<string, any>} */
+    const kept = { id: rec.id, memberName: rec.memberName, date: rec.date, type: rec.type, value: rec.value,
+        note: rec.note ?? '', source: rec.source ?? null, replacedType: rec.replacedType ?? null,
+        leaveYear: rec.leaveYear ?? null, createdAt: own ? null : stampOf(rec.createdAt), own };
+    if ('changedBy' in rec) kept.changedBy = rec.changedBy ?? null;
+    return kept;
+}
+
+/**
+ * Is the record a day holds NOW still the one a draft kept (`keptRecord`)? A day with no record then
+ * and none now is unchanged; a record that came or went is a change. Otherwise the same id and
+ * `sameOverrideRecord`'s rule — one rule for "changed since you looked", whether a save asks it or a
+ * restore does. Fails toward "changed", as that rule does.
+ * @param {Record<string, any>|null|undefined} kept  as read back from storage
+ * @param {any} now
+ * @returns {boolean}
+ */
+export function sameKeptRecord(kept, now) {
+    if (!kept || !now) return !kept && !now;
+    if ((kept.id ?? null) !== (now.id ?? null)) return false;
+    const { own, ...was } = kept;
+    // An own copy compares on its fields alone: `sameOverrideRecord` skips the stamp of a `Date`.
+    return sameOverrideRecord(own ? { ...was, createdAt: new Date(0) } : was, now);
 }
 
 /**

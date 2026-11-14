@@ -22,6 +22,8 @@
  */
 
 import { test as base, expect } from '@playwright/test';
+// The key the app keeps the latest Newsletter's date under — the app's own constant, so there is one spelling.
+import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
 
 // A valid ES module exporting every name firebase-client.js pulls from the
 // three gstatic SDK entrypoints (app, firestore, auth) plus the lazily-imported
@@ -44,7 +46,9 @@ export const persistentLocalCache = () => marker('cache');
 // rows. Every other stub keeps the plain marker shape; nothing reads collection refs beyond
 // getDocs, which falls back to the shared docs array when no per-path seed exists.
 export const collection = (/** @type {any} */ _db, /** @type {any} */ path) => ({ __stub: 'collection', path });
-export const query = () => marker('query');
+// query() keeps the collection it asks (queryOf, Nov 2026), so getDocs can answer one collection's query
+// from window.__E2E.docsByQuery and every other read exactly as before. (No backticks: inside FIREBASE_STUB.)
+export const query = (/** @type {any} */ ref) => ({ __stub: 'query', queryOf: ref && ref.path });
 // where() RECORDS its constraint (v21.38), like writeBatch records its writes and doc captures its
 // path. The staged Admin load's whole claim is about WHICH query runs — one member versus the
 // collection — and that is invisible from the rendered DOM: both produce a correct-looking table.
@@ -246,9 +250,16 @@ export const getDocs = (/** @type {any} */ ref) => {
   // keeps every existing spec exactly as it was. Query-wrapped reads have no path and fall back
   // too. (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
   const byPath = e2e.docsByPath;
-  const rows = (byPath && ref && ref.path && Object.prototype.hasOwnProperty.call(byPath, ref.path))
-    ? byPath[ref.path]
-    : e2e.docs;
+  // window.__E2E.docsByQuery = { newsletters: [rows] } serves those rows to a QUERY of that collection
+  // (Nov 2026: the latest Newsletter, which the Calendar asks for as its documents open), ahead of
+  // everything else; a query of a collection it does not name falls back as before. Read at CALL time,
+  // so a spec can change the answer after the page has loaded. (No backticks: inside FIREBASE_STUB.)
+  const byQuery = e2e.docsByQuery;
+  const rows = (byQuery && ref && ref.queryOf && Object.prototype.hasOwnProperty.call(byQuery, ref.queryOf))
+    ? byQuery[ref.queryOf]
+    : (byPath && ref && ref.path && Object.prototype.hasOwnProperty.call(byPath, ref.path))
+      ? byPath[ref.path]
+      : e2e.docs;
   // window.__E2E.docsHeld = true holds every collection read until the SPEC sets it back to false
   // (Nov 2026). docsDelayMs is a timer, and a spec that has to act BEFORE the read lands is then
   // racing it: a 3-second delay that four taps on a loaded WebKit runner did not fit failed the Admin
@@ -795,16 +806,43 @@ export async function withLinksDesigners(page, names) {
 }
 
 /**
- * Set the Marylebone Newsletter's ☰ button for one test (CONFIG.NEWSLETTER_IN_MENU). It has been hidden
- * for everyone since 14 Nov 2026 (owner: none had come out since July), so a test of the button turns it
- * back on — which keeps the code ready for the day it returns — and a test of the hidden state says so
- * with `false` rather than relying on the committed value. Call BEFORE page.goto().
- * @param {import('@playwright/test').Page} page
- * @param {boolean} [inMenu]
+ * A date `days` before `from` (default today) as the app files an issue: 'YYYY-MM-DD', by the calendar.
+ * @param {number} days
+ * @param {Date} [from]
  */
-export async function withNewsletterInMenu(page, inMenu = true) {
-    _setConfigOverride(page, 'NEWSLETTER_IN_MENU',
-        /NEWSLETTER_IN_MENU:\s*(?:true|false)/, `NEWSLETTER_IN_MENU: ${inMenu}`);
+export function isoDaysAgo(days, from = new Date()) {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * This device already knows the latest Marylebone Newsletter: dated `isoDate`, or '' for none uploaded
+ * (newsletter-recency.js — what the Calendar's check leaves behind). Every load of this page starts from
+ * it, so use it on a page that does not ask; on the Calendar, `withServerNewsletter` is the answer it
+ * gets. Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ * @param {string} isoDate
+ */
+export async function withKnownNewsletter(page, isoDate) {
+    await page.addInitScript(([key, value]) => { try { localStorage.setItem(key, value); } catch { /* none */ } },
+        [NEWSLETTER_LATEST_KEY, isoDate]);
+}
+
+/**
+ * The server's latest Marylebone Newsletter, for the Calendar's check and the drawer's open: dated
+ * `isoDate`, or none at all for ''. Served only to a query of `newsletters` (the stub's docsByQuery).
+ * None is seeded as null, not []: the stub answers [] with `empty: false` and no documents, and only
+ * a missing row list gets its real empty snapshot. Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ * @param {string} isoDate
+ */
+export async function withServerNewsletter(page, isoDate) {
+    await page.addInitScript((d) => {
+        const w = /** @type {any} */ (window);
+        const issue = d ? [{ id: d, date: d, fileType: 'pdf',
+            storageUrl: `https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/newsletters%2F${d}.pdf?alt=media&token=e2e` }] : null;
+        w.__E2E = { ...(w.__E2E || {}), docsByQuery: { ...((w.__E2E || {}).docsByQuery || {}), newsletters: issue } };
+    }, isoDate);
 }
 
 export { expect };
