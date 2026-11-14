@@ -530,6 +530,10 @@ waits while the answer is on screen.
 | App-only leave: every leave record the sheet lacks | **Not a record no surface shows** — leave on a Sunday, or before a start date | Listing one put somebody under "Needs a look" for a record nobody could find |
 | A record before a start date judged by its type | **"Before the start date", whatever is stored** | Every surface hides it, and Admin refuses to save one |
 | An allowance difference shown in the figures | **Its own chip and summary line** | A person can need a look for that alone, and a closed row with no chip did not say why |
+| "Agree" when no day differs | **"Agree" only when the two FIGURES agree**: undated over-quota days, leave the app takes from this year after the sheet ends, and a day before the start date are reasons of their own, and a safety net catches a gap nothing names | Review, 14 Nov 2026: two different figures on one closed row were filed under "Agree" |
+| The carry-over flagged as an allowance difference and "other year" days | **Explained**: as many moved-back January days as the sheet carries forward are "carried", matched by count | AL_WORKBOOK.md §9 calls it an explained difference: both leave the same figure |
+| The swap question on every free day | **Only where the Admin leave card asks it** (`projectAlBooking`) | Leave its record already settled — over RDW, a correction, an Other day or a Spare turn — was asked about, which Admin never does |
+| A day's words from its stored record | **From what the Calendar draws** (`resolveDayShift`) | Leave or an absence on a Sunday, or an absence on a rest day, read as if it were on screen |
 
 **Still open before Phase 2:** `AL_WORKBOOK.md` §10 Q3 (are duplicate rows ever different?), Q7 (what
 column E means) and Q8 (does anyone besides the clerks save the file?), and §4.6's upload log, which

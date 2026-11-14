@@ -968,7 +968,9 @@ every comparable member's records and shows three things:
 
 - **A summary:** how many people need a look, how many agree, and who was not compared and why.
 - **One fold per person:** its chips say what kind of difference each is, and each day says what
-  the SHEET has, then what the APP has.
+  the SHEET has, then what the APP SHOWS — what the Calendar draws that day, not a stored record no
+  screen shows. **A person is under "Agree" only when the two figures agree**: every difference
+  between them is named by a chip on that row.
 - **Leave only the app has:** days the app holds that the sheet does not.
 
 The kinds of difference. The card names each one as a fact about the two records, never as one side
@@ -979,15 +981,23 @@ being wrong: the workbook is a quota grid and the app a leave record, and both c
 |---|---|---|
 | not in the app | the sheet has leave on a day the pattern has them working, and the app has nothing | whether the leave was booked |
 | rest day to ask about | the sheet has leave on a rest day, and the app has nothing | whether it was a swapped working day, which only whoever booked it knows. Admin's booking asks the same question (`.claude/rules/admin.md`) |
-| costs nothing in the app | the app holds the leave on a rest day, with no swap recorded, so it costs nothing | the same question, from the other side |
-| other year | the app charges it to a different year's allowance | see "Which year's allowance", above |
-| differs | the app has a shift, an absence or a rest day there instead | which of the two is right |
-| work recorded | the app has RDW, an Other day or a Spare turn there | with care: recorded work is pay evidence |
-| only in the app | the app holds leave on a date the sheet does not have | with the clerks |
-| allowance differs | the sheet's allowance and the app's disagree | `proRatedAL` and the joiner rows (AL_WORKBOOK.md §5 and §9) |
+| costs nothing in the app | the app holds the leave on a rest day, so it costs nothing | where the day carries "Was it a swapped working day?", the same question from the other side. Without it, the record already says the day was a rest day (leave over RDW, a correction, an Other day or a Spare turn), and Admin never asks |
+| from another year's allowance | the app charges it to a different year's allowance | see "Which year's allowance", above |
+| differs | the app shows a shift, an absence or a rest day there instead | which of the two is right |
+| with work recorded | the app shows RDW, an Other day or a Spare turn there | with care: recorded work is pay evidence |
+| before their start date | the sheet has leave before the member's start date in the app, where the app shows and counts nothing | whether the start date in the app is right |
+| only in the app | the app holds leave on a date the sheet does not have; the row says which year's allowance it costs | with the clerks |
+| after the sheet ends | the app takes leave from this year's allowance on a date after the sheet's last one — a January day moved back | nothing, usually: the sheet will carry the day forward instead (AL_WORKBOOK.md §9) |
+| undated over quota | the sheet deducts days over quota with no date, so they cannot be matched to a day | the dates, with the clerks, if the app is to hold them |
+| allowance differs | the sheet's allowance and the app's disagree; the row gives each side's parts (the sheet's carried-forward and joiner figures, the app's own note) | `proRatedAL` and the joiner rows (AL_WORKBOOK.md §5 and §9) |
+| figures differ | the two figures differ and nothing on the sheet says why — a safety net that should never show | report it: it means the card has met a case it does not know |
 
-A day that agrees, a Sunday the clerks have tagged, and a day before a member's start date are
-listed in a fold of their own, and never count as a difference.
+A day that agrees, a Sunday the clerks have tagged, and a **carried** day are listed in a fold of
+their own, and never count as a difference. A carried day is the carry-over working as designed:
+the sheet adds days carried forward from last year and counts the January days in this year, while
+the app takes those days from last year's allowance, so both leave the same figure. A corrected
+sheet figure is explained on the row: a day the sheet's own total misses takes one off, and a
+Sunday it counts gives one back.
 
 **Age.** The card says when the clerks last saved the sheet. Past **14 days** it warns you to ask for
 a fresh copy, and still shows the comparison: a check that writes nothing cannot do harm. If a later
@@ -996,10 +1006,18 @@ phase ever saves, that is where the limit would stop it (AL_UPLOADER_PLAN.md §1
 **Offline, it stops.** A read answered from this device's copy could call leave missing that is
 not, so the card refuses to check until it can reach the server.
 
+**The answer on screen is always for the file on screen.** Choosing another file, or typing in the
+paste box, takes the old answer away; choosing the SAME file again (a corrected copy saved over the
+old one) reads it again. An app update waits while a check runs or its answer is on screen — **Clear
+the check** when you are done to let it in. A notification tap does not wait: the check saves
+nothing, so leaving it costs nothing but running it again.
+
 **Who is left out, and why:** leavers, managers, anybody the app has no allowance on record for, and
-anybody the app does not hold. The summary names each one with the reason. A member in the app and
-not on the sheet is listed too. Leave the app holds on a Sunday, or before a member's start date, is
-not counted as "only in the app", because no screen shows it.
+anybody the app does not hold. The summary names each one with the reason **as the roster stands
+today** — somebody who could be compared now, but whose days the file does not carry, says a new
+leave file would include them. A member in the app and not on the sheet is listed too. Leave the app
+holds on a Sunday, before a member's start date, or on Christmas Day or Boxing Day is not counted as
+"only in the app": no screen shows the first two, and neither side counts the third.
 
 ## Staff PIN access for the Calendar
 

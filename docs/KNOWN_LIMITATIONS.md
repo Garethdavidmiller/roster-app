@@ -1018,8 +1018,15 @@ open:
 - **It knows only what the workbook says.** Column E's undated days (a joiner's reduction, a lump in
   words, a value its comment does not explain) are reported as figures and cannot be placed on
   dates. A column-E value with no comment has lost its dates for good (AL_WORKBOOK.md §8 defect 5).
+- **The carry-over is matched by count, not by day.** The sheet says how many days it carries
+  forward, never which, so the card pairs that many of the app's moved-back January days with it,
+  earliest first. A carry the app has not moved, or more moved days than the sheet carries, still
+  shows as a difference.
 - **An old copy is warned about, not refused.** Past 14 days the card asks for a fresh copy and
   still compares, because a check cannot do harm.
+- **An update waits while an answer is on screen,** for as long as it stays there: forty people's
+  differences are a long read, and a reload would take them away unsaid. Clearing the check lets it
+  in. A notification tap is not held.
 - **The seal catches a hand edit, not a forgery.** The file's digest is worked out by public code, so
   anyone who can run the script could seal an altered file. It needs the admin's own sign-in to
   use, and writes nothing, so this costs nothing today. It matters only if a later phase writes.
