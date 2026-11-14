@@ -144,6 +144,8 @@ shown that yet.
   static texts until they name it again (the Staff Guide's Latest tile, then `npm run
   generate:guide-index`; and `welcome-email.html`, with its three copies). Deleting the switch instead
   also takes its three lines off `roster-data.js`'s ratchet cap (`coordinator-ratchet.test.mjs`).
+  Declined (owner, 14 Nov 2026): an automatic version that hid the button once the latest issue was
+  six weeks old and brought it back with the next upload. The switch stays a decision someone makes.
 
 - **The month grid takes no pinch-zoom** (owner, 10 Nov 2026) · **Trigger to revisit: a member who
   needs to zoom the month and cannot.** The grid's `touch-action: pan-y` keeps a sideways swipe for
