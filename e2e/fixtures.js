@@ -794,4 +794,17 @@ export async function withLinksDesigners(page, names) {
         /LINKS_DESIGNERS:\s*\[[^\]]*\]/, `LINKS_DESIGNERS: ${JSON.stringify(names)}`);
 }
 
+/**
+ * Set the Marylebone Newsletter's ☰ button for one test (CONFIG.NEWSLETTER_IN_MENU). It has been hidden
+ * for everyone since 14 Nov 2026 (owner: none had come out since July), so a test of the button turns it
+ * back on — which keeps the code ready for the day it returns — and a test of the hidden state says so
+ * with `false` rather than relying on the committed value. Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ * @param {boolean} [inMenu]
+ */
+export async function withNewsletterInMenu(page, inMenu = true) {
+    _setConfigOverride(page, 'NEWSLETTER_IN_MENU',
+        /NEWSLETTER_IN_MENU:\s*(?:true|false)/, `NEWSLETTER_IN_MENU: ${inMenu}`);
+}
+
 export { expect };

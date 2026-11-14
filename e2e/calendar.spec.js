@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures.js';
+import { test, expect, withNewsletterInMenu } from './fixtures.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
 
@@ -3983,6 +3983,8 @@ test('huddle: offline with nothing cached, a tap says it could not load — neve
 test('circular: offline with nothing cached, the viewer and the drawer say they could not connect — never "none uploaded"', async ({ page }) => {
     // The Huddle's rule, which the one-shot Circular/Newsletter read never got (documents-client.js →
     // `latestIn`, whole-app review 10 Nov 2026): an empty answer from the cache alone is a read that failed.
+    // The drawer half is the Newsletter's read, so its hidden button is switched back on for it.
+    await withNewsletterInMenu(page);
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), authUser: true };
         window.open = /** @type {any} */ (() => ({ opener: null, close() {}, location: {} }));
@@ -4001,6 +4003,44 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     await page.locator('#navPanel .nav-panel-link--newsletter').click();
     await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
     await expect(page.locator('#navComingSoonLightbox')).not.toContainText('No newsletter has been uploaded yet');
+});
+
+// ── THE NEWSLETTER'S ☰ BUTTON IS HIDDEN (owner, 14 Nov 2026: "temporarily hide it" — none since July) ─────
+// One switch, CONFIG.NEWSLETTER_IN_MENU. Hidden, the drawer on every page leaves the button out and keeps
+// the Huddle and the Circular, and a notification's #newsletter still opens the latest issue: an upload
+// still notifies staff, and that is how its return reaches them. Switched back on, the button is where it
+// was. Each test sets the state it is about, so none of them changes meaning when the switch is flipped.
+for (const path of ['/', '/admin.html']) {
+    test(`newsletter: out of the ☰ menu while its switch is off, the other two documents kept — ${path}`, async ({ page }) => {
+        await withNewsletterInMenu(page, false);
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto(path);
+        await page.locator('#navMenuBtn').click();
+        const panel = page.locator('#navPanel');
+        await expect(panel.locator('.nav-panel-link--circular')).toBeVisible();
+        await expect(panel.locator('a.nav-panel-link[href="./#huddle"]')).toBeVisible();
+        await expect(panel.locator('.nav-panel-link--newsletter')).toHaveCount(0);
+        await expect(panel).not.toContainText('Newsletter');
+    });
+}
+
+test('newsletter: hidden from the menu, a notification\'s #newsletter still opens the latest issue', async ({ page }) => {
+    await withNewsletterInMenu(page, false);
+    await seedMember(page);
+    await page.goto('/index.html#newsletter');
+    await expect(page.locator('#docViewer')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#docViewerTitle')).toContainText('Marylebone Newsletter');
+});
+
+test('newsletter: switched back on, the ☰ button is back in its place, last of the three', async ({ page }) => {
+    await withNewsletterInMenu(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await page.locator('#navMenuBtn').click();
+    const latest = page.locator('#navPanel .nav-panel-links').first().locator('.nav-panel-link');
+    await expect(latest).toHaveText([/Daily Huddle/, /Weekly Retail Circular/, /Marylebone Newsletter/]);
 });
 
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {

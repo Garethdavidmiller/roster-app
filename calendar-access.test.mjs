@@ -233,6 +233,8 @@ const { showSignInPanel, resetUnlockFailures } = await import('./calendar-lock-c
 // The slot, so a test can ask WHICH card is standing where the Calendar goes. Real, not mocked —
 // it touches only the fake DOM, and the whole point of asking is that the answer is the shipped one.
 const { lockCardId } = await import('./calendar-lock-slot.js');
+// The switch the PIN hint follows — real, so the test sets the very object the card reads.
+const { CONFIG } = await import('./roster-data.js');
 
 // A DOM just rich enough for the module to build and query its card.
 /** @param {boolean} online */
@@ -747,9 +749,10 @@ describe('initCalendarAccess', () => {
         assert.ok(!lastPanelHtml().includes('calLockPin'), 'the PIN field was on the front door');
         assert.match(m.alternative?.label || '', /staff PIN/i, 'no route to the PIN from the front door');
         assert.match(m.alternative?.hint || '', /agency/i, 'the card does not say who the PIN is for');
-        // …and what it opens: the roster and all three documents (CALENDAR_DATA.md 15), as the staff
-        // guide says. It named the Huddle alone, so a visitor read it as no route to the other two.
-        for (const doc of ['Daily Huddle', 'Weekly Retail Circular', 'Marylebone Newsletter']) {
+        // …and what it opens: the roster and the documents the ☰ menu offers (CALENDAR_DATA.md 15), as the
+        // staff guide says. It named the Huddle alone, so a visitor read it as no route to the others. The
+        // Newsletter follows its menu button, in both states — the test below.
+        for (const doc of ['Daily Huddle', 'Weekly Retail Circular']) {
             assert.ok((m.alternative?.hint || '').includes(doc), `the PIN's hint does not say it opens the ${doc}`);
         }
 
@@ -759,6 +762,25 @@ describe('initCalendarAccess', () => {
         assert.ok(!lastPanelHtml().includes('SIGN-IN CARD'), 'the sign-in card is still up under the PIN card');
         assert.ok(m.host._removed, 'the previous card was not taken down');
     });
+
+    // THE NEWSLETTER IS NAMED ONLY WHILE ITS ☰ BUTTON IS (CONFIG.NEWSLETTER_IN_MENU — hidden by the owner on
+    // 14 Nov 2026, none having come out since July). A visitor promised it would find no way to it. Both
+    // states, through the real front door: the card reads the switch when it is built, so setting it is enough.
+    for (const inMenu of [true, false]) {
+        test(`the PIN's hint names the Marylebone Newsletter only while the menu offers it (switch ${inMenu ? 'on' : 'off'})`, async () => {
+            const committed = CONFIG.NEWSLETTER_IN_MENU;
+            CONFIG.NEWSLETTER_IN_MENU = inMenu;
+            try {
+                await initCalendarAccess({ onGranted: () => {} });
+                const hint = loginMounts[0]?.alternative?.hint || '';
+                assert.match(hint, /the Daily Huddle, the Weekly Retail Circular/, `the hint lost the other documents: "${hint}"`);
+                assert.equal(hint.includes('Marylebone Newsletter'), inMenu,
+                    `with the Newsletter's button ${inMenu ? 'shown' : 'hidden'} the hint reads: "${hint}"`);
+            } finally {
+                CONFIG.NEWSLETTER_IN_MENU = committed;
+            }
+        });
+    }
 
     test('the PIN card\'s "Sign in instead" returns to the sign-in card, in place', async () => {
         await initCalendarAccess({ onGranted: () => {} });

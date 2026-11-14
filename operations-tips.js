@@ -7,6 +7,32 @@
  * review gave that card's panel the section it was missing ("A closer look"), the coordinator was at
  * its ratchet cap to the line, and content is not coordination.
  */
+import { CONFIG } from './roster-data.js';
+
+/**
+ * The Newsletter card's words, in the state its ☰ menu button is in: HIDDEN while
+ * CONFIG.NEWSLETTER_IN_MENU is off (owner, 14 Nov 2026: none had come out since July). The header hint,
+ * what the receipt says staff were given, where a sign-out mid-upload is told to look, and the first
+ * lines of the `?` panel. An upload still notifies staff and the notification opens the issue
+ * (#newsletter), so the hidden state says that where the other names the menu.
+ * @type {{ hint: string|null, told: string, whereToCheck: string, tips: Array<{ icon: string, html: string }> }}
+ */
+export const NEWSLETTER_CARD = CONFIG.NEWSLETTER_IN_MENU === true ? {
+    hint: null,   // the markup's own: "staff open the latest from ☰ → Marylebone Newsletter"
+    told: 'staff can open it from ☰ → Marylebone Newsletter',
+    whereToCheck: '☰ → Marylebone Newsletter',
+    tips: [
+        { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter (PDF or Word) — staff open it from <strong>☰ → Marylebone Newsletter</strong>' },
+    ],
+} : {
+    hint: 'PDF or Word — hidden from staff’s ☰ menu for now',
+    told: 'staff with notifications on are told. Its ☰ menu button is still hidden',
+    whereToCheck: 'the Calendar with #newsletter on the end of its address',
+    tips: [
+        { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter (PDF or Word). Its <strong>☰ menu button is hidden</strong> for now, as none had come out since July' },
+        { icon: '🔔', html: 'An upload still notifies staff who have notifications on, and the notification opens it. The menu button can be switched back on when the newsletter returns' },
+    ],
+};
 
 /** @type {Record<string, { title: string, sections: Array<{ heading?: string, items: Array<{ icon: string, html: string }> }> }>} */
 export const CARD_TIPS = {
@@ -30,7 +56,7 @@ export const CARD_TIPS = {
     'newsletter': {
         title: 'Marylebone Newsletter',
         sections: [{ items: [
-            { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter (PDF or Word) — staff open it from <strong>☰ → Marylebone Newsletter</strong>' },
+            ...NEWSLETTER_CARD.tips,
             { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
             { icon: '📅', html: 'Set the date to the issue date of the newsletter' },
         ]}],

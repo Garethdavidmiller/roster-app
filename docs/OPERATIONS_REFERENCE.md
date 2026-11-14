@@ -390,6 +390,8 @@ Apply approved changes — saveRosterWrites (roster-import-save.js), in parts of
 
 Two independent document-upload flows with identical mechanics: an admin uploads a PDF from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same upload engine in `documents-client.js` (`firebase-client.js` re-exports the entry points).
 
+**The Newsletter's ☰ button is HIDDEN** (owner, 14 Nov 2026: none had come out since July). `CONFIG.NEWSLETTER_IN_MENU` is `false`, so the drawer shows the Huddle and the Circular only, and a newly uploaded issue reaches staff through its notification, which still opens it (`#newsletter`). The upload below works as it always has, and the Operations card says the button is hidden. Bringing it back: DECISIONS.md → "The Newsletter button is hidden".
+
 ### Upload flow (admin, Operations page)
 
 1. Admin opens the Operations page and expands the relevant card (Weekly Retail Circular or Marylebone Newsletter).
@@ -432,7 +434,7 @@ before relying on this summary:
 
 ### Staff access flow
 
-1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer.
+1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer (the Newsletter only while its button is shown, above).
 2. `nav-panel.js` click handler fires. A `_docFetching` flag returns early if a fetch is already in flight (a guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
 4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8 s budget (`DOC_FETCH_BUDGET_MS`), with a short-lived URL requested from `getDocumentUrl` in parallel against the same budget. A read that runs past it is handled as a Firestore error (below); a short-lived URL that runs past it gives way to the stored `storageUrl`:

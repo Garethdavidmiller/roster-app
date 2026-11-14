@@ -4,7 +4,7 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, withNewsletterInMenu } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
@@ -1909,8 +1909,13 @@ for (const [card, file, words] of [['circularUpload', 'circularFileInput', 'Circ
 // An upload whose account went mid-save may still land, so the admin is sent to LOOK — and told where,
 // as the Huddle card does (whole-app check, 10 Nov 2026; cal-docs NAA 5). It said "…then check whether
 // it saved", with nowhere named.
-for (const [prefix, drawer] of [['circular', '☰ → Weekly Retail Circular'], ['newsletter', '☰ → Marylebone Newsletter']]) {
-    test(`operations: a ${prefix} upload signed out mid-save says where to check`, async ({ page }) => {
+// The Newsletter's ☰ button can be hidden (CONFIG.NEWSLETTER_IN_MENU, owner, 14 Nov 2026), and then the menu is
+// nowhere to look: its #newsletter link still opens the latest issue, so that is where it sends the admin.
+for (const [prefix, drawer, inMenu] of [['circular', '☰ → Weekly Retail Circular', null],
+                                        ['newsletter', '☰ → Marylebone Newsletter', true],
+                                        ['newsletter', 'the Calendar with #newsletter on the end of its address', false]]) {
+    test(`operations: a ${prefix} upload signed out mid-save says where to check${inMenu === false ? ' — its ☰ button hidden' : ''}`, async ({ page }) => {
+        if (inMenu !== null) await withNewsletterInMenu(page, inMenu);
         await page.addInitScript(() => {
             const w = /** @type {any} */ (window);
             w.__E2E = { ...(w.__E2E || {}), failSetCode: 'auth/signed-out-during-request' };
@@ -1922,6 +1927,39 @@ for (const [prefix, drawer] of [['circular', '☰ → Weekly Retail Circular'], 
         await page.locator(`#${prefix}UploadBtn`).click();
         await expect(page.locator(`#${prefix}Feedback`)).toHaveText(
             `You were signed out before this upload was confirmed. Sign in again, then check ${drawer}.`);
+    });
+}
+
+// ── THE NEWSLETTER CARD SAYS WHEN ITS ☰ BUTTON IS HIDDEN (owner, 14 Nov 2026: "temporarily hide it") ─────
+// The card told the admin "staff open the latest from ☰ → Marylebone Newsletter", which is not so while the
+// button is hidden. Hidden, its header, its ? panel and its receipt say so, and what an upload still does;
+// shown, each names the menu again. The words are operations-tips.js → NEWSLETTER_CARD.
+for (const inMenu of [false, true]) {
+    test(`operations: the Newsletter card says where staff find it — ☰ button ${inMenu ? 'shown' : 'hidden'}`, async ({ page }) => {
+        await withNewsletterInMenu(page, inMenu);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await expect(page.locator('#newsletterUploadHint')).toHaveText(inMenu
+            ? 'PDF or Word — staff open the latest from ☰ → Marylebone Newsletter'
+            : 'PDF or Word — hidden from staff’s ☰ menu for now');
+
+        await page.locator('.btn-card-tips[data-card="newsletter"]').click();
+        const tips = page.locator('#tipsLightboxContent');
+        if (inMenu) await expect(tips).toContainText('staff open it from ☰ → Marylebone Newsletter');
+        else {
+            await expect(tips).toContainText('menu button is hidden');
+            await expect(tips).toContainText('An upload still notifies staff who have notifications on, and the notification opens it.');
+            await expect(tips).not.toContainText('staff open it from');
+        }
+        await page.locator('#tipsLightboxClose').click();
+        await expect(page.locator('#tipsLightbox')).toBeHidden();
+
+        await page.evaluate(() => document.getElementById('newsletterUploadBody')?.classList.add('open'));
+        await page.setInputFiles('#newsletterFileInput', { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+        await page.locator('#newsletterUploadBtn').click();
+        await expect(page.locator('#newsletterFeedback')).toHaveText(new RegExp(`^Newsletter uploaded for \\d{1,2} [A-Z][a-z]{2} \\d{4} — ${inMenu
+            ? 'staff can open it from ☰ → Marylebone Newsletter$'
+            : 'staff with notifications on are told\\. Its ☰ menu button is still hidden$'}`));
     });
 }
 

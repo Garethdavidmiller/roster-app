@@ -49,7 +49,7 @@
 
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
-import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
+import { APP_VERSION, CONFIG, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap } from './overlay.js';
 import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
@@ -93,6 +93,8 @@ const NAV_PAGES = [
  * A link with `comingSoon: true` (instead of `url`) renders as a button that
  * opens the "coming soon" lightbox rather than navigating.
  * (Guides moved to their own collapsible submenu — see NAV_GUIDES.)
+ * The Newsletter's entry stays here while it is HIDDEN (CONFIG.NEWSLETTER_IN_MENU, owner, 14 Nov 2026):
+ * the render drops it, so bringing it back is the switch alone and its click path stays tested.
  */
 const NAV_INFORMATION = [
     {
@@ -1114,7 +1116,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
     const infoGroups = NAV_INFORMATION.map(group => `
         ${NAV_INFORMATION.length > 1 ? `<p class="nav-panel-group-heading">${group.heading}</p>` : ''}
         <ul class="nav-panel-links">
-            ${group.links.map(/** @param {any} link */ link => {
+            ${group.links.filter(/** @param {any} link */ link => !link.newsletter || CONFIG.NEWSLETTER_IN_MENU === true).map(/** @param {any} link */ link => {
                 if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
                 if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
                 if (link.newsletter)  return `<li><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
