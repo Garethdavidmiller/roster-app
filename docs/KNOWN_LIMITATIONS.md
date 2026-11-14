@@ -502,6 +502,13 @@ classification in `AUTH_PLAN.md` §2. What still holds:
   class that went wrong, a NAME next to a FIGURE. It is not a classification guard: a new personal
   field in a doc that never names anybody passes it, and so does a name beside something neither
   vocabulary lists.
+- **The leave uploader's file is kept out by its own three locks** (Nov 2026): it names every
+  colleague against their dates of leave, so `scripts/make-leave-file.mjs` will not write inside the
+  repository, `.gitignore` excludes `*.leave.json` and `*.local.json`, and `leave-file-privacy.test.mjs`
+  fails on a tracked file that IS a leave file — recognised by its format marker and a full seal. That
+  recognises the file, not what it says: the same days copied into a doc without the seal pass it,
+  and pass `payroll-anonymity.test.mjs` too, whose leave words are counts and a reason for absence,
+  never a date.
 
 ### A row comment that said too much about a colleague remains in git HISTORY
 
@@ -1001,8 +1008,9 @@ re-record, that is the signal to store more than the type.
 ### The Annual leave sheet card checks; it does not correct (Phase 1, owner, 14 Nov 2026)
 Operations → Annual leave sheet compares the clerks' workbook with the app and **writes nothing**.
 Every difference it finds is put right by hand, a day at a time, in Admin. Whether the app should
-ever write from the sheet is decided after this phase has been used (AL_UPLOADER_PLAN.md §10). What
-that leaves open:
+ever write from the sheet is decided after this phase has been used (AL_UPLOADER_PLAN.md §10; the
+trigger and blockers are ROADMAP.md → "Annual leave uploader — Phase 2, the Save"). What that leaves
+open:
 
 - **It cannot tell "cancelled since" from "never recorded".** Leave cancelled in the app after the
   clerks' last save still shows as "not in the app", which is correct but reads like a gap. Telling

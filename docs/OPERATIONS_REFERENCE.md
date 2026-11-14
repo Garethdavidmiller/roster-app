@@ -388,7 +388,7 @@ Apply approved changes — saveRosterWrites (roster-import-save.js), in parts of
 
 ### Overview
 
-Two independent document-upload flows with identical mechanics: an admin uploads a PDF from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same upload engine in `documents-client.js` (`firebase-client.js` re-exports the entry points).
+Two independent document-upload flows with identical mechanics: an admin uploads a PDF or Word (.docx) file from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same upload engine in `documents-client.js` (`firebase-client.js` re-exports the entry points).
 
 **The Newsletter's ☰ button shows only while its latest issue is under six weeks old** (owner, 14 Nov 2026; `newsletter-recency.js`). Set the date to the **issue date**: the six weeks are counted from it, and the latest is the one with the latest date. A recent upload is on the uploading device's menu at once, and on everybody else's the next time they open the Calendar, which asks once a load; an older issue is filed but never offered, and the receipt says so. Its notification still opens it whatever its age (`#newsletter`). Why, and what moves with it: DECISIONS.md → "The Newsletter button follows its latest issue".
 
