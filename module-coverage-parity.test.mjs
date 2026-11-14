@@ -71,6 +71,8 @@ const UNNAMED_BY_DESIGN = {
     'operations-errors.js': 'driven through its card by e2e/operations.spec.js (Error Log)',
     'operations-usage.js':  'driven through its card by e2e/operations.spec.js (Usage)',
     'operations-speed.js':  'driven through its card by e2e/operations.spec.js (App Speed)',
+    'operations-al-sheet.js': 'driven through its card by e2e/operations.spec.js ("operations annual leave sheet: …", five tests, eight wiring mutations caught) and scanned with its answer drawn in e2e/axe.spec.js; every word is al-leave-words.js, unit-tested by al-leave-words.test.mjs',
+    'operations-doc-uploads.js': 'configuration only, over doc-upload.js — driven through both cards by e2e/operations.spec.js (the Circular and Newsletter uploads, "Circular uploaded for" / "Newsletter uploaded for")',
 
     // ── Added at the v24.28 review, when the corpus stopped counting COMMENTS as coverage ──────
     // Each was "named" only by a comment somewhere. Every reason below was checked against the spec

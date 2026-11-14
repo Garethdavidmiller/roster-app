@@ -12,7 +12,7 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
@@ -26,8 +26,9 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
-import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
+import { initDocumentUploadCards } from './operations-doc-uploads.js';
 import { initDocLinksCard, docLinksRequestInFlight } from './operations-doc-links.js';
+import { initAlSheetCard, alSheetBusy } from './operations-al-sheet.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
@@ -40,8 +41,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { CARD_TIPS, NEWSLETTER_CARD } from './operations-tips.js';
-import { noteNewsletterUploaded } from './newsletter-recency.js';
+import { CARD_TIPS } from './operations-tips.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
@@ -78,12 +78,14 @@ export function init() {
     // memory only, so a reload could lose it. The reader was told to reload; that is theirs to do.
     // And a Document links check or run still waiting for its answer holds it too (v25.92): a run can
     // take minutes, and its report is the only record of what it did (operations-doc-links.js).
+    // And an Annual leave sheet check, running or on screen (14 Nov 2026): a long read, with no Save.
     const _opsBusy = () =>
         !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
         || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
         || !!document.querySelector('[data-uploading]')
         || writesInFlight() > 0
-        || docLinksRequestInFlight();
+        || docLinksRequestInFlight()
+        || alSheetBusy();
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_opsBusy), isBusy: _opsBusy });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
@@ -173,9 +175,9 @@ export function init() {
     });
 
     initHuddleUpload({ currentIsAdmin: true, currentUser });
-    initCircularUpload();
-    initNewsletterUpload();
+    initDocumentUploadCards({ currentUser });
     initDocLinksCard({ auth, askToConfirm: confirmDialog });
+    initAlSheetCard();
 
     initRosterUpload({
         currentUser,
@@ -203,6 +205,7 @@ export function init() {
     initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
     initCardCollapse('docLinksToggleHeader',       'docLinksBody',       'docLinksChevron');
     initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
+    initCardCollapse('alSheetToggleHeader',        'alSheetBody',        'alSheetChevron');
     const authSetupCard = initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
     // Account status collapse wired ONCE here (not inside initAccountStatus) — its _cardLoadError
     // retry re-invokes initAccountStatus, and initCardCollapse has no idempotency guard, so wiring it
@@ -762,41 +765,6 @@ export function init() {
             main.prepend(banner);
         }
     });
-
-    // ============================================
-    // MARYLEBONE NEWSLETTER UPLOAD
-    // ============================================
-    function initNewsletterUpload() {
-        initDocUploadCard({
-            dateId: 'newsletterDate', fileId: 'newsletterFileInput',
-            fileLabelId: 'newsletterFileName', uploadBtnId: 'newsletterUploadBtn',
-            feedbackId: 'newsletterFeedback', uploadFn: uploadNewsletter, currentUser,
-            isAccepted: f => isPdfFile(f) || isDocxFile(f),
-            rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
-            sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-            // The date arrives in words ("6 Nov 2026"): formatted again here, it read "uploaded for —" (10 Nov 2026).
-            successMsg: (date, iso) => `Newsletter uploaded for ${date} — ${NEWSLETTER_CARD.told(iso)}`,
-            btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter', onUploaded: noteNewsletterUploaded,   // this device's ☰ button at once
-            whereToCheck: NEWSLETTER_CARD.whereToCheck,   // where a sign-out mid-upload is told to look
-        });
-    }
-
-    // ============================================
-    // WEEKLY RETAIL CIRCULAR UPLOAD
-    // ============================================
-    function initCircularUpload() {
-        initDocUploadCard({
-            dateId: 'circularDate', fileId: 'circularFileInput',
-            fileLabelId: 'circularFileName', uploadBtnId: 'circularUploadBtn',
-            feedbackId: 'circularFeedback', uploadFn: uploadCircular, currentUser,
-            isAccepted: f => isPdfFile(f) || isDocxFile(f),
-            rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
-            sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-            successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
-            btnLabel: 'Upload Circular', logPrefix: 'Circular',
-            whereToCheck: '☰ → Weekly Retail Circular',
-        });
-    }
 
     // ============================================
     // ICON LIGHTBOX — About panel (shared about-lightbox.js)

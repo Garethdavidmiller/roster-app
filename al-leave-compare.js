@@ -39,8 +39,8 @@
  * Pure: no DOM, no Firebase. The records arrive as plain objects, one member's at a time.
  */
 
-import { getBaseShift, parseISODate } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
+import { getBaseShift, parseISODate, isSunday } from './roster-data.js';
+import { shouldReplaceOverride, isBeforeMemberStart, isOverrideDisplaySuppressed } from './override-utils.js';
 import { consumesEntitlement, alPosition, entitlementFor } from './al-entitlement.js';
 import { projectAlBooking } from './admin-al-projection.js';
 import { leaveYearOf } from './leave-year.js';
@@ -121,9 +121,14 @@ export function comparePerson({ person, days, member, records, year, todayStr, f
         out.push({ date: d.date, kind: d.kind, foundIn: d.foundIn, countedBySheet: d.countedBySheet, state, app, pattern });
     }
     // Leave the app holds that the sheet does not — the pass a loop over the sheet can never make.
+    // A record no surface SHOWS is left out: leave on a Sunday (display layer 5,
+    // `isOverrideDisplaySuppressed`) or before the start date. Neither costs anything or appears
+    // anywhere, so listing one put a person under "Needs a look" for a record nobody could find.
     const appOnly = [];
     for (const [date, w] of [...winners].sort(([a], [b]) => a.localeCompare(b))) {
         if (w.type !== 'annual_leave' || date < firstDate || date > lastDate || sheetLeave.has(date)) continue;
+        const day = parseISODate(date);
+        if (isBeforeMemberStart(member, day) || isOverrideDisplaySuppressed(w, getBaseShift(member, day), isSunday(date))) continue;
         appOnly.push({ date, counts: consumesEntitlement(member, date, winners) && leaveYearOf({ ...w, date }) === year,
                        source: w.source ?? null });
     }

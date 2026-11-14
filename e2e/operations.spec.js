@@ -10,6 +10,12 @@ import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
 import { LOST_PHONE } from '../operations-reset.js';
+import { alSheetFixture } from './al-sheet-fixture.js';
+import { describeRefusal } from '../al-leave-file.js';
+import { dayLabel, appWords, chipsFor, totalsLines, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
+    moreDaysWords, notComparedWords, oldWords } from '../al-leave-words.js';
+import { LEAVE_FILE_MAX_AGE_DAYS } from '../al-leave-file.js';
+import { parseISODate } from '../roster-data.js';
 
 // ── OPERATIONS (operations.html) ──────────────────────────────────────────
 
@@ -4446,4 +4452,182 @@ test('operations document links: a check or a run still waiting for its answer h
     held.shift()?.();
     await expect(result).toContainText('Done. 3 files have new links');
     expect(await busy(), 'the report is on screen, so an update need wait no longer').toBe(false);
+});
+
+// ── ANNUAL LEAVE SHEET (14 Nov 2026) ────────────────────────────────────────────────────────────────
+// Phase 1 of the leave uploader (docs/AL_UPLOADER_PLAN.md): a sealed leave file in, each member's
+// records read whole, every difference on screen, and NOTHING written. The file and its two people
+// come from al-sheet-fixture.js — taken from the roster by rule, never typed here by name. The words
+// are al-leave-words.js's and are asserted from it; what only a browser shows is the WIRING: the right
+// sentence on the right day, each member read once and by name, a cached read stopping the check, a hand
+// edit refused before anything is read, and an update waiting while the answer is on screen.
+/**
+ * Operations, signed in as the admin, with the Annual leave sheet card open and these override records
+ * served to its reads.
+ * @param {import('@playwright/test').Page} page @param {any[]} records @param {Record<string, any>} [more]
+ */
+async function openAlSheet(page, records, more = {}) {
+    await page.addInitScript(([rows, extra]) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), authUser: true, docs: [], docsByQuery: { overrides: rows }, ...extra };
+    }, [records, more]);
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.locator('#alSheetChevron').click();
+    await expect(page.locator('#alSheetCheckBtn')).toBeVisible();
+}
+/** @param {import('@playwright/test').Page} page @param {string} text */
+const chooseLeaveFile = (page, text) => page.locator('#alSheetFileInput')
+    .setInputFiles({ name: 'leave-2026.leave.json', mimeType: 'application/json', buffer: Buffer.from(text) });
+/** Every member the card asked for by name, in order. @param {import('@playwright/test').Page} page */
+const memberReads = page => page.evaluate(() => (/** @type {any} */ (window).__E2E?.whereCalls || [])
+    .filter((/** @type {any[]} */ w) => w[0] === 'memberName').map((/** @type {any[]} */ w) => w[2]));
+/** What the page would answer the worker's "busy?" — an update's reload waits while it is true. */
+const alSheetBusy = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => new Promise(resolve => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (e) => resolve(e.data?.busy);
+    navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
+}));
+
+test('operations annual leave sheet: each person is checked against their own records, day by day, and nothing is saved', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    const check = page.locator('#alSheetCheckBtn');
+    await expect(check, 'nothing chosen yet').toBeDisabled();
+    await chooseLeaveFile(page, fx.text);
+    await expect(page.locator('#alSheetFileName')).toHaveText('leave-2026.leave.json');
+    await check.click();
+
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+    const result = page.locator('#alSheetResult');
+    await expect(result).toBeVisible();
+    expect((await memberReads(page)).sort(), 'each person on the sheet is read once, whole, by name — and nobody else')
+        .toEqual([fx.A.name, fx.B.name].sort());
+
+    await expect(result.locator('.al-sheet-age')).toContainText('(2 days ago)');
+    await expect(result.locator('.al-sheet-warn'), 'a fresh copy saved by the clerks carries no warning').toHaveCount(0);
+    await expect(result.locator('.al-sheet-overall')).toHaveText(overallWords(1, 2));
+    await expect(result.locator('.al-sheet-totals li')).toHaveText(totalsLines({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }));
+    await expect(result.locator('.al-sheet-heading'))
+        .toHaveText([CARD_WORDS.needsALook, CARD_WORDS.agree, CARD_WORDS.notCompared, CARD_WORDS.absent]);
+    await expect(result.locator('.al-sheet-list li')).toHaveText([notComparedWords({ name: 'Z. Example', reason: 'not-in-app' })]);
+
+    // The person who needs a look: their closed row says why, and their days say what each side has.
+    const people = result.locator('.al-sheet-people');
+    const a = people.nth(0).locator('.al-sheet-person');
+    await expect(a).toHaveCount(1);
+    await expect(a.locator('.al-sheet-name')).toHaveText(fx.A.name);
+    await expect(a.locator('.al-sheet-chip')).toHaveText(chipsFor({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }).map(c => c.text));
+    await a.locator('.al-sheet-person-head').click();
+    /** @param {string} d */
+    const day = d => a.locator('.al-sheet-day', { hasText: dayLabel(d) });
+    await expect(day(fx.dates.missing)).toHaveClass(/al-sheet-day--not-in-app/);
+    await expect(day(fx.dates.missing).locator('.al-sheet-app')).toHaveText(appWords({ state: 'not-in-app', app: null,
+        pattern: getBaseShift(fx.A, parseISODate(fx.dates.missing)) }, fx.year));
+    await expect(day(fx.dates.restDay)).toHaveClass(/al-sheet-day--rest-day/);
+    await expect(day(fx.dates.appOnly)).toHaveClass(/al-sheet-day--app-only/);
+    await expect(day(fx.dates.appOnly).locator('.al-sheet-app')).toHaveText(appOnlyWords(true));
+    // The day that agrees is folded away, not lost.
+    const more = a.locator('.al-sheet-more');
+    await expect(more.locator('summary')).toHaveText(moreDaysWords(1));
+    await expect(day(fx.dates.match)).toBeHidden();
+    await more.locator('summary').click();
+    await expect(day(fx.dates.match)).toHaveClass(/al-sheet-day--match/);
+
+    // The person who agrees has no chips at all.
+    const b = people.nth(1).locator('.al-sheet-person');
+    await expect(b.locator('.al-sheet-name')).toHaveText(fx.B.name);
+    await expect(b.locator('.al-sheet-chip')).toHaveCount(0);
+
+    await expect(result.locator('.al-sheet-note').last()).toHaveText(CARD_WORDS.checkOnly);
+    const writes = await page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E || {};
+        return [...(e.setWrites || []), ...(e.batchWrites || []), ...(e.deletedPaths || [])];
+    });
+    expect(writes, 'a check writes nothing').toEqual([]);
+
+    // Clear takes it off the screen, and leaves nothing chosen.
+    await page.locator('#alSheetClearBtn').click();
+    await expect(result).toBeHidden();
+    await expect(page.locator('#alSheetClearBtn')).toBeHidden();
+    await expect(page.locator('#alSheetFileName')).toHaveText('');
+    await expect(check).toBeDisabled();
+    expect(errors).toEqual([]);
+});
+
+test('operations annual leave sheet: a hand-edited file is refused by its seal before anything is read', async ({ page }) => {
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    const edited = fx.text.replace(`"date":"${fx.dates.missing}"`, `"date":"${fx.dates.appOnly}"`);
+    expect(edited, 'premise: the edit applied').not.toBe(fx.text);
+    // The most recent way in wins: a file chosen and then text pasted checks the TEXT, and lets the file go.
+    await chooseLeaveFile(page, fx.text);
+    await expect(page.locator('#alSheetFileName')).toHaveText('leave-2026.leave.json');
+    await page.locator('#alSheetPaste').fill(edited);
+    await expect(page.locator('#alSheetFileName')).toHaveText('');
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(describeRefusal({ code: 'changed-since-made' }));
+    await expect(page.locator('#alSheetFeedback')).toHaveClass(/huddle-feedback--err/);
+    await expect(page.locator('#alSheetResult')).toBeHidden();
+    expect(await memberReads(page), 'nobody’s records were read for a file that is not the one made').toEqual([]);
+
+    await page.locator('#alSheetPaste').fill('not a leave file');
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(describeRefusal({ code: 'not-json' }));
+
+    // …and the other way round: a file chosen after pasting empties the box, and the FILE is checked.
+    await chooseLeaveFile(page, fx.text);
+    await expect(page.locator('#alSheetPaste')).toHaveValue('');
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+});
+
+test('operations annual leave sheet: a read answered from this device’s cache stops the whole check', async ({ page }) => {
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    await chooseLeaveFile(page, fx.text);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.offline);
+    await expect(page.locator('#alSheetResult'), 'no comparison drawn on a partial copy').toBeHidden();
+    await expect(page.locator('#alSheetCheckBtn'), 'the same file can be checked again').toBeEnabled();
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = false; });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+});
+
+test('operations annual leave sheet: an update waits while a check runs and while its answer is on screen', async ({ page }) => {
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    expect(await alSheetBusy(page), 'nothing checked yet').toBe(false);
+    await chooseLeaveFile(page, fx.text);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.checking);
+    expect(await alSheetBusy(page), 'reading the records — a reload now loses the check').toBe(true);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(page.locator('#alSheetResult')).toBeVisible();
+    expect(await alSheetBusy(page), 'forty people’s differences on screen — a reload takes them away unsaid').toBe(true);
+    await page.locator('#alSheetClearBtn').click();
+    expect(await alSheetBusy(page), 'cleared, so an update need wait no longer').toBe(false);
+});
+
+test('operations annual leave sheet: an old copy is flagged, and an allowance that differs is a reason to look on its own', async ({ page }) => {
+    const fx = await alSheetFixture({ savedDaysAgo: LEAVE_FILE_MAX_AGE_DAYS + 6, bAllowanceOff: 1 });
+    await openAlSheet(page, fx.records);
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    const result = page.locator('#alSheetResult');
+    await expect(result.locator('.al-sheet-warn')).toHaveText(oldWords(LEAVE_FILE_MAX_AGE_DAYS));
+    await expect(result.locator('.al-sheet-overall')).toHaveText(overallWords(2, 2));
+    await expect(result.locator('.al-sheet-totals li').first()).toHaveText(totalsLines({}, 1)[0]);
+    await expect(result.locator('.al-sheet-heading'), 'nobody agrees now').not.toContainText([CARD_WORDS.agree]);
+    // B's only difference is the allowance, and their closed row still says so.
+    const b = result.locator('.al-sheet-person').filter({ has: page.locator('.al-sheet-name', { hasText: fx.B.name }) });
+    await expect(b.locator('.al-sheet-chip')).toHaveText(chipsFor({}, true).map(c => c.text));
+    await b.locator('.al-sheet-person-head').click();
+    await expect(b.locator('.al-sheet-explain').first()).toContainText('The sheet allows');
 });

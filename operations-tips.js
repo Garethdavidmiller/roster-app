@@ -87,6 +87,32 @@ export const CARD_TIPS = {
             { icon: '🚨', html: 'Use it if a document link has been shared somewhere it shouldn’t be. Running it again is always safe.' },
         ]}],
     },
+    'annual-leave-sheet': {
+        title: 'Annual leave sheet',
+        sections: [
+            { heading: 'What it does', items: [
+                { icon: '📒', html: 'The clerks keep everybody’s annual leave in a workbook of their own. This card sets that sheet beside what the app holds, <strong>person by person and day by day</strong>, and shows each place they differ, and why.' },
+                { icon: '🔒', html: 'It is a <strong>check only</strong>. Nothing is saved and nothing is kept on this device; <strong>Clear the check</strong> takes it off the screen. To change a day, use <strong>Change a Shift</strong> on the Admin page.' },
+            ]},
+            { heading: 'Getting a leave file', items: [
+                { icon: '🧾', html: 'The app can’t read the workbook itself. Upload it in a Claude session and ask for a <strong>leave file</strong>. Where the sheet is unclear — a misspelt name, a date with no year — the session asks you rather than guessing.' },
+                { icon: '🔏', html: 'The file is <strong>sealed</strong>: change a single character by hand and this card refuses it. Ask for a new file instead.' },
+                { icon: '🗓️', html: 'The card says when the clerks last saved their sheet. A copy more than 14 days old carries a warning, because anything booked since then shows as <strong>only in the app</strong>.' },
+            ]},
+            { heading: 'Reading the answer', items: [
+                { icon: '➖', html: '<strong>Not in the app</strong> — leave on the sheet that the app does not hold, on a day the person was due to work.' },
+                { icon: '❓', html: '<strong>Rest day to ask about</strong> or <strong>costs nothing in the app</strong> — leave on a day their pattern has them resting. It only costs a day if they swapped a working day onto it, which only the person who booked it knows.' },
+                { icon: '🔀', html: '<strong>Other year</strong> — the app charges that day to a different year’s allowance (a January day counted in the year before).' },
+                { icon: '↔️', html: '<strong>Differs</strong> — the app has a shift, an absence or a rest day recorded there instead.' },
+                { icon: '💼', html: '<strong>Work recorded</strong> — the app has RDW, an Other day or a Spare turn there. That is pay evidence: never overwrite it just to make the two agree.' },
+                { icon: '➕', html: '<strong>Only in the app</strong> — leave the app holds that the sheet does not. Often it was booked after the clerks last saved.' },
+                { icon: '📅', html: 'The clerks mark some <strong>Sundays</strong> with a tag. A Sunday is never contracted, so it is never leave on either side; each one is listed with what the app has that day.' },
+            ]},
+            { heading: 'Who is left out', items: [
+                { icon: '👋', html: 'Leavers, managers and anybody with no leave allowance in the app are listed under <strong>On the sheet, not compared</strong>. Anybody in the app that the sheet does not list comes last.' },
+            ]},
+        ],
+    },
     'reset-requests': {
         title: '🙋 Password Reset Requests',
         sections: [{ items: [

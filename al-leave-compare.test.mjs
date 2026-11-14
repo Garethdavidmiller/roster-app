@@ -343,6 +343,19 @@ describe('app-only leave: its own pass, inside the sheet’s dates only', () => 
         assert.deepEqual(compare(CEA, [], [AL(CEA, d1, { leaveYear: YEAR })]).appOnly, []);
     });
 
+    test('a record no surface shows is not app-only leave: on a Sunday, or before the start date', () => {
+        const sun = findSunday(CEA, '2026-07-01', any);
+        const sunday = compare(CEA, [], [AL(CEA, sun)]);
+        assert.deepEqual(sunday.appOnly, []);
+        assert.equal(sunday.needsALook, false);
+        const early = find(JOINER, '2026-08-01', any);
+        assert.ok(isBeforeMemberStart(JOINER, parseISODate(early)), `premise: ${early} is before the start`);
+        assert.deepEqual(compare(JOINER, [], [AL(JOINER, early)]).appOnly, []);
+        // A weekday rest day IS drawn (leave that costs nothing), so it stays a difference to look at.
+        const rest = find(CEA, '2026-07-01', resting);
+        assert.deepEqual(compare(CEA, [], [AL(CEA, rest)]).appOnly.map((/** @type {any} */ a) => [a.date, a.counts]), [[rest, false]]);
+    });
+
     test('app-only leave alone is enough for somebody to look', () => {
         const d = find(CEA, '2026-07-01', timed);
         const e = find(CEA, '2026-07-01', timed, [d]);

@@ -39,9 +39,12 @@
  *
  * A name it cannot match mechanically (`Surname . I` against `I. Surname`), a duplicate row it
  * cannot settle by rule, a comment date that could be either January: each becomes a QUESTION, and
- * no file is written until it is answered. The answers, and every match made, go into the file's
- * `nameMap`, and the NEXT run reads them from the previous file — so two sessions make the same file
- * from the same workbook (plan §3.4). The map is never committed: the exceptions in it are personal.
+ * no file is written until it is answered. Every NAME answer and match goes into the file's
+ * `nameMap`, and the NEXT run reads them from the previous file — so two sessions match the same names
+ * from the same workbook (plan §3.4). The other answers (which duplicate row, which January) are keyed
+ * by row and cell, which move between copies of the sheet, so they are not carried: a new copy asks
+ * them again (leave-file-script.test.mjs pins it). The map is never committed: the exceptions in it are
+ * personal.
  *
  * ── IT NEVER WRITES INSIDE THE REPOSITORY ──────────────────────────────────────────────────────
  *
@@ -62,7 +65,7 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── Names ───────────────────────────────────────────────────────────────────────────────────────
 
-/** One spelling of a key: lower case, single spaces, no stray dots or spaces at the ends. @param {string} s */
+/** One spelling of a key: lower case, single spaces, nothing at either end. Dots are kept: `Smith . J` is the sheet's form. @param {string} s */
 export const normaliseKey = s => s.toLowerCase().replace(/\s+/g, ' ').trim();
 
 /** `I. Surname` → its parts, lower case. @param {string} name */
