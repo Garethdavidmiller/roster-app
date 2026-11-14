@@ -318,3 +318,128 @@ export function ageWords({ saved, ageDays, maxAge }) {
     return { line: `The clerks last saved this sheet on ${when} (${ago}). Anything booked since then shows as only in the app.`,
              old: ageDays > maxAge, unknown: false };
 }
+
+// ── THE SAVE (Phase 2b) ─────────────────────────────────────────────────────────────────────────
+// What the Save says (operations-al-save.js). The rest-day question and its two answers are the Admin
+// leave card's own words (admin-week-editor.js, admin-range-booking.js), so the day is asked about the
+// same way wherever leave is booked. A refusal says why and what to do; nothing says the admin is
+// wrong, and nothing is said about a colleague but that a day changed.
+
+/** The Save's fixed lines. */
+export const SAVE_WORDS = Object.freeze({
+    swapped: 'Swapped — counts',
+    free: 'Rest day — free',
+    intro: 'Only the people you confirm are saved. Each day is checked again as it is written, and a day somebody has changed since this check is left as it is.',
+    removedSince: 'Removed in the app since this sheet was last saved here, so the Save will not put it back. If it should be there, add it in Admin.',
+    nothingForSave: 'Nothing here is for the Save: a day that differs another way is changed in Admin, with Change a Shift.',
+    confirmFirst: 'Confirm a person to save',
+    saveable: 'Nothing is saved until you confirm a person and press Save. A day that differs another way is changed in Admin, with Change a Shift.',
+    logsUnreadable: 'The record of earlier Saves couldn’t be read, so this file can’t be saved. Check again with a connection.',
+    noName: 'You need to be signed in as yourself to save, so this file can’t be saved here.',
+    offlineNow: 'You’re offline. Save again with a connection.',
+    lost: 'The connection was lost, so the Save stopped. Check again when you’re back online: whatever was saved shows as already right, and saving again finishes it.',
+    failed: 'The Save stopped part way. Check again to see what was saved, then save again to finish it.',
+    unreadAfter: 'The app’s records couldn’t be read after the Save, so it isn’t recorded yet. Check again with a connection to see what was saved and record it.',
+    recorded: 'This Save is recorded, so it can be undone.',
+    notRecorded: 'This Save couldn’t be recorded, so it can’t be undone here. What it saved is in the app.',
+    nowRecorded: 'The earlier Save is now recorded, so it can be undone.',
+    undo: 'Undo this Save',
+    undoing: 'Taking back what the Save added…',
+    undoStopped: 'The Undo stopped part way. Nothing about it was recorded, so you can press Undo again.',
+    undoNothing: 'Nothing was taken back: every day it added has changed since, or is already gone.',
+    recheckFailed: 'The check after it stopped part way. Check again to see what the app now holds.',
+    clearAsk: 'Clear the check? Your answers, and the people you have confirmed, go with it.',
+});
+
+/** The question over a rest day. @param {string} date */
+export const questionWords = date => `Was ${dayLabel(date)} a swapped working day?`;
+
+/**
+ * What a person's confirmation does: days added, and days already booked that a swap now makes count.
+ * @param {{ name: string, add: number, swap: number }} a
+ */
+export function confirmWords({ name, add, swap }) {
+    const adds = `add ${add} ${plural(add, 'day', 'days')} of leave`;
+    const swaps = `count ${swap} booked rest ${plural(swap, 'day', 'days')} as swapped`;
+    const what = add && swap ? `${adds}, and ${swaps}` : add ? adds : swaps;
+    return `${what.charAt(0).toUpperCase()}${what.slice(1)} for ${name}`;
+}
+
+/** The person's figures once the Save is done. @param {import('./al-leave-compare.js').PersonComparison} p */
+export const afterWords = p => `After this Save — ${figuresLine(p)}`;
+
+/** What the Save leaves different, in the chips' own words. @param {Array<{ text: string }>} chips */
+export const stillDiffersWords = chips => `Still different after it: ${chips.map(c => c.text).join(' · ')}`;
+
+/** Rest days not yet answered, which the Save leaves alone. @param {number} n */
+export const unansweredWords = n => `${n} ${plural(n, 'rest day above is', 'rest days above are')} still to answer, and won’t be saved until ${plural(n, 'it is', 'they are')}.`;
+
+/** The Save button. @param {{ days: number, people: number }} t */
+export const saveButtonWords = t => (t.days === 0 ? SAVE_WORDS.confirmFirst
+    : `Save ${t.days} ${plural(t.days, 'day', 'days')} for ${t.people} ${plural(t.people, 'person', 'people')}`);
+
+/** While the Save runs. @param {number} done @param {number} total */
+export const savingWords = (done, total) => `Saving… ${done} of ${total} ${plural(total, 'day', 'days')}`;
+
+/** "6 Nov 2026" from an ISO instant or a server stamp. @param {any} at */
+const dateOf = at => formatDayMonthYear(at instanceof Date ? at : parseISODate(String(at).slice(0, 10)));
+
+/**
+ * Why this file cannot be saved (al-leave-plan.js → `saveRefusal`), with what to do instead.
+ * @param {'age-unknown'|'too-old'|'older-copy'} code
+ * @param {{ maxAge: number, newest?: { clerksLastSaved: string, savedAt?: any }|null }} a  `savedAt` as a Date
+ */
+export function refusalWords(code, { maxAge, newest = null }) {
+    const fresh = 'Ask the clerks for a fresh copy and make a new leave file.';
+    if (code === 'age-unknown') return `This file doesn’t say when the clerks last saved the sheet, so it can’t be saved. ${fresh}`;
+    if (code === 'too-old') return `This copy is more than ${maxAge} days old, so it can’t be saved. ${fresh}`;
+    const when = newest?.savedAt instanceof Date ? ` on ${dateOf(newest.savedAt)}` : '';
+    return `A newer copy of this sheet, saved by the clerks on ${newest ? dateOf(newest.clerksLastSaved) : 'a later date'}, was saved here${when}. `
+        + 'This copy is older, so it can’t be saved: it could put back leave cancelled since.';
+}
+
+/**
+ * The receipt's first lines: what was saved, and for whom nothing was. `unsure`: the Save stopped
+ * where its writes may have landed and the server could not be read since, so "Nothing was saved"
+ * would be a guess; the line saying why it stopped goes on alone. A refused person is refused whole:
+ * their days go in one part (al-leave-save.js), which takes 450 operations, and a year's sheet gives
+ * anybody a few dozen days.
+ * @param {{ days: number, people: number, refused: Map<string, string[]>, unsure?: boolean }} a
+ * @returns {string[]}
+ */
+export function receiptWords({ days, people, refused, unsure = false }) {
+    /** @type {string[]} */ const out = [];
+    if (days) out.push(`Saved ${days} ${plural(days, 'day', 'days')} for ${people} ${plural(people, 'person', 'people')}.`);
+    for (const [name, dates] of refused) {
+        out.push(`Nothing was saved for ${name}: ${dates.map(dayLabel).join(', ')} changed after the check. `
+            + 'Their answers are kept; look at them again below.');
+    }
+    if (!out.length && !unsure) out.push('Nothing was saved.');
+    return out;
+}
+
+/**
+ * The last Save of this year's sheet, as the summary names it, with its Undo beside it.
+ * @param {{ savedAt: Date|null, savedBy: string, added: number }} a
+ */
+export const lastSaveWords = ({ savedAt, savedBy, added }) => `This sheet was last saved here${savedAt ? ` on ${dateOf(savedAt)}` : ''} by ${savedBy}, `
+    + `adding ${added} ${plural(added, 'day', 'days')} of leave.`;
+
+/** The Undo's question. @param {number} n days the Save added */
+export const undoConfirmWords = n => `This takes back the ${n} ${plural(n, 'day', 'days')} of leave the Save added — except any that somebody has changed since.`;
+
+/** "C. Specimen, Tue 3 Mar 2026" for a "Name|date" key. @param {string} key */
+const keyWords = key => { const [name, date] = key.split('|'); return `${name}, ${dayLabel(date)}`; };
+
+/**
+ * What an Undo did.
+ * @param {{ removed: string[], kept: string[], gone: string[] }} r
+ * @returns {string[]}
+ */
+export function undoneWords({ removed, kept, gone }) {
+    if (!removed.length) return [SAVE_WORDS.undoNothing];
+    const out = [`Took back ${removed.length} ${plural(removed.length, 'day', 'days')} of leave.`];
+    if (kept.length) out.push(`${kept.length} ${plural(kept.length, 'day was', 'days were')} kept, because ${plural(kept.length, 'it has', 'they have')} changed since: ${kept.map(keyWords).join('; ')}.`);
+    if (gone.length) out.push(`${gone.length} ${plural(gone.length, 'day was', 'days were')} already gone.`);
+    return out;
+}

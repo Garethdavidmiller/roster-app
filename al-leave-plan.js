@@ -283,19 +283,41 @@ export function logLists({ after, plans, recordsByName, savedBy }) {
         for (const d of p.days) if (d.kind === 'leave' && HELD_STATES.includes(d.state)) inLine.add(dayKey(p.name, d.date));
     }
     const added = new Set();
-    for (const plan of plans) {
-        const byId = new Map((recordsByName.get(plan.name) ?? []).map(r => [r.id, r]));
-        for (const w of plan.writes) {
-            if (w.kind === 'swap') continue;
-            const r = byId.get(w.fixedId);
-            if (r && r.type === LEAVE && r.memberName === plan.name && r.date === w.date && r.changedBy === savedBy
-                && (r.source ?? '') === 'manual') added.add(dayKey(plan.name, w.date));
-        }
+    for (const [name, dates] of landedWrites({ plans, recordsByName, savedBy, kinds: ADDING })) {
+        for (const date of dates) added.add(dayKey(name, date));
     }
     // Only a day that is in line can have been added: the rules hold `added` to no more than `inLine`.
     for (const k of added) inLine.add(k);
     return { inLine: [...inLine].sort(), added: [...added].sort() };
 }
+
+/** The kinds of write that create a record, which an Undo may take back; a 'swap' rewrites one. */
+const ADDING = ['add', 'add-swapped'];
+
+/**
+ * The writes of `plans` that a read made after the Save shows landed as written, by person: the
+ * record at the write's fixed id is annual leave for that person and day, written by `savedBy` as
+ * Admin's leave card writes it, and carries the write's own swap answer. It is what the receipt
+ * counts once the server has been read, because a Save whose answer was lost on the way back may
+ * have landed whole, and "Nothing was saved" would then be untrue (14 Nov 2026). `kinds` narrows it
+ * to the writes that create a record (`logLists`).
+ * @param {{ plans: PersonPlan[], recordsByName: Map<string, any[]>, savedBy: string, kinds?: string[] }} a
+ * @returns {Map<string, string[]>}
+ */
+export function landedWrites({ plans, recordsByName, savedBy, kinds }) {
+    /** @type {Map<string, string[]>} */ const out = new Map();
+    for (const plan of plans) {
+        const byId = new Map((recordsByName.get(plan.name) ?? []).map(r => [r.id, r]));
+        const dates = plan.writes.filter(w => (!kinds || kinds.includes(w.kind)) && landedAs(w, byId.get(w.fixedId), plan.name, savedBy))
+            .map(w => w.date);
+        if (dates.length) out.set(plan.name, dates);
+    }
+    return out;
+}
+
+/** @param {PlannedWrite} w @param {any} r the record read at its fixed id @param {string} name @param {string} savedBy */
+const landedAs = (w, r, name, savedBy) => !!r && r.type === LEAVE && r.memberName === name && r.date === w.date
+    && r.changedBy === savedBy && (r.source ?? '') === 'manual' && (r.replacedType ?? null) === (w.fields.replacedType ?? null);
 
 /**
  * The upload log's fields, all but the server's `savedAt`. Null when there is nothing in line to

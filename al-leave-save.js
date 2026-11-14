@@ -13,7 +13,9 @@
  * read the day. So every part commits through `commitChecked` (admin-override-store.js): one
  * transaction that refuses, writing nothing and naming the days, unless each day still holds what the
  * check read and each fixed id holds nothing the check did not see. It waits for this device's own
- * unsent saves first, and recognises its own write after an answer was lost.
+ * unsent saves first, and recognises its own write after an answer was lost. The store is loaded with
+ * the first Save or Undo, never with the page (`adminStore`): a check only reads, and Operations loads
+ * none of Admin's store until something is to be written (e2e/operations.spec.js).
  *
  * OPERATIONS HAS NO ADMIN CACHE. `commitChecked` looks an id up in Admin's page cache, which this page
  * never fills, so here an id passed without its row means "must hold nothing at all". Every record a
@@ -58,7 +60,6 @@
 
 import { db, collection, query, where, getDocs, doc, runTransaction, writeBatch, serverTimestamp, writeWithClaimRetry,
     COLLECTIONS } from './firebase-client.js';
-import { commitChecked, DELETE_REFUSED } from './admin-override-store.js';
 import { buildOverrideWrite, chunkByWrites } from './override-utils.js';
 import { overrideFromSnapshot } from './override-compare.js';
 import { writesFor, planUndo, dayKey } from './al-leave-plan.js';
@@ -125,13 +126,17 @@ export async function readUploadLogs(year) {
  *   saying so, so only the read after the Save can say what is there
  */
 
+/** Admin's checked commit, loaded with the first Save or Undo, not with the page (header). */
+const adminStore = () => import('./admin-override-store.js');
+
 /**
  * How a part's failure ends the Save, or null for a refusal, which ends only its person's part.
- * @param {any} err @returns {{ stopped: 'offline'|'unconfirmed'|'failed', partial: boolean }|null}
+ * @param {any} err @param {string} refused the store's refusal code (`DELETE_REFUSED`)
+ * @returns {{ stopped: 'offline'|'unconfirmed'|'failed', partial: boolean }|null}
  */
-function stopFor(err) {
+function stopFor(err, refused) {
     const code = err?.code;
-    if (code === DELETE_REFUSED) return null;
+    if (code === refused) return null;
     // A transaction that never reached the server may still have committed — unless it never started,
     // because this device's own unsent saves had not drained in time (`unsent`, commitIfUnchanged).
     if (NO_SERVER.has(code)) return { stopped: 'offline', partial: !err?.unsent };
@@ -152,6 +157,7 @@ export async function saveLeavePlans(plans, { onProgress } = {}) {
     /** @type {SaveOutcome} */
     const out = { saved: new Map(), refused: new Map(), stopped: null, code: null, partial: false };
     if (globalThis.navigator?.onLine === false) return { ...out, stopped: 'offline', code: 'unavailable' };
+    const { commitChecked, DELETE_REFUSED } = await adminStore();
     const writing = plans.filter(p => p.writes.length);
     const total = writing.reduce((n, p) => n + p.writes.length, 0);
     let done = 0;
@@ -172,7 +178,7 @@ export async function saveLeavePlans(plans, { onProgress } = {}) {
                     removed, line: REFUSED_LINE, holdOffline: false })), { batched: true, held: false });
             } catch (err) {
                 const e = /** @type {any} */ (err);
-                const stop = stopFor(e);
+                const stop = stopFor(e, DELETE_REFUSED);
                 if (!stop) {
                     out.refused.set(plan.name, Array.isArray(e?.dates) && e.dates.length ? e.dates : part.map(w => w.date));
                     break;   // this person stops; the others go on (header)
@@ -241,6 +247,7 @@ export async function pruneUploadLogs(keepFrom) {
  */
 export async function undoUpload(log, { recordsByName, undoneBy }) {
     const plan = planUndo({ log, recordsByName });
+    const { commitChecked, DELETE_REFUSED } = await adminStore();
     /** @type {string[]} */ const removed = [];
     /** @type {string[]} */ const kept = [...plan.kept];
     /** @type {Map<string, any[]>} */ const byPerson = new Map();

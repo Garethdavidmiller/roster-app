@@ -20,7 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ANSWERS, LOG_MAX_DAYS, HELD_STATES, WRITE_KINDS, dayKey, parseDayKey, writableDate, questionsFor, planPerson,
-    writesFor, saveTotals, recordsAfter, judgeUploads, saveRefusal, logLists, logFields, planUndo } from './al-leave-plan.js';
+    writesFor, saveTotals, recordsAfter, judgeUploads, saveRefusal, logLists, logFields, planUndo, landedWrites } from './al-leave-plan.js';
 import { comparePerson, DAY_STATES } from './al-leave-compare.js';
 import { getBaseShift, parseISODate, isSunday, isBankHoliday } from './roster-data.js';
 import { manualOverrideId } from './override-id.js';
@@ -350,6 +350,32 @@ describe('the log is built from what the app holds after the Save', () => {
         const lists = logLists({ after: [compare(CEA, [leave(CEA, REST)], read)], plans: [p], recordsByName: new Map([[CEA.name, read]]), savedBy: ADMIN });
         assert.deepEqual(lists.added, []);
         assert.deepEqual(lists.inLine, [dayKey(CEA.name, REST)]);
+    });
+
+    test('what the receipt counts: every write the read shows landed as written, a rewrite of a stored day included', () => {
+        const person = compare(CEA, [leave(CEA, WORK), leave(CEA, WORK2), leave(CEA, REST)]);
+        const p = plan(person, [], { answers: new Map([[REST, 'swapped']]) });
+        const at = new Map(p.writes.map(w => [w.date, w]));
+        // WORK landed; WORK2 holds a colleague's record; REST holds leave without the swap answered.
+        const read = [
+            { id: manualOverrideId(CEA.name, WORK), ...at.get(WORK)?.fields, createdAt: { seconds: 5 } },
+            { id: manualOverrideId(CEA.name, WORK2), ...at.get(WORK2)?.fields, changedBy: 'C. Manager', createdAt: { seconds: 6 } },
+            { id: manualOverrideId(CEA.name, REST), ...at.get(REST)?.fields, replacedType: undefined, createdAt: { seconds: 7 } },
+        ];
+        const landed = () => landedWrites({ plans: [p], recordsByName: new Map([[CEA.name, read]]), savedBy: ADMIN });
+        assert.deepEqual([...landed()], [[CEA.name, [WORK]]]);
+        read[2].replacedType = at.get(REST)?.fields.replacedType;
+        assert.deepEqual(landed().get(CEA.name)?.slice().sort(), [WORK, REST].sort(), 'the swap answer is part of what was written');
+        assert.equal(landedWrites({ plans: [p], recordsByName: new Map(), savedBy: ADMIN }).size, 0, 'nothing read, nothing landed');
+        // A rewrite (the stored day answered "swapped") landed is saved, though an Undo never takes it back.
+        const stored = AL(CEA, REST2, { id: manualOverrideId(CEA.name, REST2) });
+        const q = plan(compare(CEA, [leave(CEA, REST2)], [stored]), [stored], { answers: new Map([[REST2, 'swapped']]) });
+        assert.equal(q.writes[0]?.kind, 'swap');
+        const back = [{ id: stored.id, ...q.writes[0].fields, createdAt: { seconds: 9 } }];
+        assert.deepEqual(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, back]]), savedBy: ADMIN }).get(CEA.name), [REST2]);
+        assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, [stored]]]), savedBy: ADMIN }).size, 0,
+            'the stored day as it was is not the rewrite');
+        assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, back]]), savedBy: ADMIN, kinds: ['add', 'add-swapped'] }).size, 0);
     });
 
     test('logFields carries the file’s own identity, and refuses an empty log or one too long for the rules', () => {

@@ -48,7 +48,31 @@ export const persistentLocalCache = () => marker('cache');
 export const collection = (/** @type {any} */ _db, /** @type {any} */ path) => ({ __stub: 'collection', path });
 // query() keeps the collection it asks (queryOf, Nov 2026), so getDocs can answer one collection's query
 // from window.__E2E.docsByQuery and every other read exactly as before. (No backticks: inside FIREBASE_STUB.)
-export const query = (/** @type {any} */ ref) => ({ __stub: 'query', queryOf: ref && ref.path });
+export const query = (/** @type {any} */ ref, /** @type {any[]} */ ...cs) => ({ __stub: 'query', queryOf: ref && ref.path,
+  wheres: cs.filter(c => c && c.__stub === 'where' && c.field) });
+// window.__E2E.writesLand = true makes a committed write LAND where the next read sees it (14 Nov 2026): a
+// set or an update goes into docsByQuery under its collection (the list made if it is not there), a
+// delete takes the row out, and a server timestamp becomes the commit's time in epoch ms. A transaction
+// reads that list too, and a query of it is filtered by its == and < constraints. OFF by default, so
+// every spec written before it reads only what it seeded. The leave sheet's Save reads its own writes
+// back to write its upload log, and finds its log again on the next check, which is what it is for.
+// (No backticks: inside FIREBASE_STUB.)
+const _landWrite = (/** @type {any} */ path, /** @type {any} */ data, /** @type {string} */ mode) => {
+  const e2e = globalThis.__E2E || {};
+  if (!e2e.writesLand || !path) return;
+  const parts = String(path).split('/'); const id = parts.pop(); const col = parts.pop();
+  if (!col || !id) return;
+  const byQ = e2e.docsByQuery = e2e.docsByQuery || {};
+  const rows = Array.isArray(byQ[col]) ? byQ[col] : (byQ[col] = []);
+  const at = rows.findIndex(r => r.id === id);
+  if (mode === 'delete') { if (at >= 0) rows.splice(at, 1); return; }
+  const now = Date.now();
+  const fields = Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, v && v.__stub === 'ts' ? now : v]));
+  const row = mode === 'update' && at >= 0 ? { ...rows[at], ...fields, id } : { ...fields, id };
+  if (at >= 0) rows[at] = row; else rows.push(row);
+};
+const _matches = (/** @type {any} */ row, /** @type {any[]} */ wheres) => wheres.every(w => (w.op === '==' ? row[w.field] === w.value
+  : w.op === '<' ? row[w.field] < w.value : true));
 // where() RECORDS its constraint (v21.38), like writeBatch records its writes and doc captures its
 // path. The staged Admin load's whole claim is about WHICH query runs — one member versus the
 // collection — and that is invisible from the rendered DOM: both produce a correct-looking table.
@@ -57,7 +81,8 @@ export const where = (/** @type {any} */ field, /** @type {any} */ op, /** @type
   const e2e = globalThis.__E2E || {};
   (e2e.whereCalls = e2e.whereCalls || []).push([field, op, value]);
   globalThis.__E2E = e2e;
-  return marker('where');
+  // The constraint travels too (14 Nov 2026), for the one mode that filters on it: writesLand, below.
+  return { __stub: 'where', field, op, value };
 };
 export const orderBy = () => marker('orderBy');
 export const limit = () => marker('limit');
@@ -87,22 +112,24 @@ export const serverTimestamp = () => marker('ts');
 export const writeBatch = () => {
     const e2e = globalThis.__E2E || (globalThis.__E2E = {});
     e2e.batchWrites = e2e.batchWrites || [];
+    /** @type {any[]} */ const landing = [];   // writesLand: applied at commit, as the server would
     return {
-        set: (/** @type {any} */ _ref, /** @type {any} */ data) => { e2e.batchWrites.push(data); },
+        set: (/** @type {any} */ _ref, /** @type {any} */ data) => { e2e.batchWrites.push(data); landing.push([_ref && _ref.path, data, 'set']); },
         update: noop,
         // RECORDED (Oct 2026), not discarded: the roster re-import defect was a DELETE, and a
         // harness that drops deletes cannot see one happen.
-        delete: (/** @type {any} */ ref) => { (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || '')); },
+        delete: (/** @type {any} */ ref) => { (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || '')); landing.push([ref && ref.path, null, 'delete']); },
         // HOLD SEAM (v24.21): with window.__E2E.holdCommits set, a commit stays pending until the
         // test calls window.__E2E.releaseCommits() — the way a real commit waits on a weak signal
         // for the server's answer. That wait is what slow-save.js explains, and without a way to
         // make it happen here the notice could only be tested as a unit, never as wired.
         commit: () => {
-            if (!e2e.holdCommits) return Promise.resolve();
+            const land = () => { for (const [p, d, m] of landing.splice(0)) _landWrite(p, d, m); };
+            if (!e2e.holdCommits) { land(); return Promise.resolve(); }
             return new Promise(resolve => {
                 (e2e._held = e2e._held || []).push(resolve);
                 e2e.releaseCommits = () => { const h = e2e._held || []; e2e._held = []; h.forEach(r => r()); };
-            });
+            }).then(land);
         },
     };
 };
@@ -131,8 +158,9 @@ export const runTransaction = (_db, fn) => {
     // txDocs still WINS where a test sets it — that is the seam for "the server disagrees with the
     // snapshot you loaded", which is the only way to express a competing writer.
     const scoped = col && e2e.docsByPath && Array.isArray(e2e.docsByPath[col]) ? e2e.docsByPath[col] : null;
+    const landed = col && e2e.writesLand && e2e.docsByQuery && Array.isArray(e2e.docsByQuery[col]) ? e2e.docsByQuery[col] : null;
     const rows = Array.isArray(e2e.txDocs) ? e2e.txDocs
-      : (scoped || (Array.isArray(e2e.docs) ? e2e.docs : []));
+      : (scoped || landed || (Array.isArray(e2e.docs) ? e2e.docs : []));
     return rows.find(r => r.id === id) || null;
   };
   const ts = (v) => (typeof v === 'number' && v >= 1e12 ? { toDate: () => new Date(v), toMillis: () => v } : v);
@@ -153,11 +181,18 @@ export const runTransaction = (_db, fn) => {
       e2e.setWrites = e2e.setWrites || [];
       e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
       (e2e.batchWrites = e2e.batchWrites || []).push(data);
+      _landWrite(ref && ref.path, data, opts && opts.merge ? 'update' : 'set');
+    },
+    // An update, RECORDED like a set (14 Nov 2026): the leave sheet's Undo marks its upload log with one.
+    update: (/** @type {any} */ ref, /** @type {any} */ data) => {
+      (e2e.updateWrites = e2e.updateWrites || []).push({ path: (ref && ref.path) || '', data });
+      _landWrite(ref && ref.path, data, 'update');
     },
     delete: (/** @type {any} */ ref) => {
       e2e.deletedPaths = e2e.deletedPaths || [];
       if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
       (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || ''));
+      _landWrite(ref && ref.path, null, 'delete');
       const parts = ref && ref.path ? String(ref.path).split('/') : [];
       const id = parts.length ? parts[parts.length - 1] : null;
       const col = parts.length > 1 ? parts[parts.length - 2] : null;
@@ -186,6 +221,13 @@ export const runTransaction = (_db, fn) => {
       (e2e._held = e2e._held || []).push(resolve);
       e2e.releaseCommits = () => { const h = e2e._held || []; e2e._held = []; h.forEach(r => r()); };
     }).then(() => fn(tx));
+  }
+  // window.__E2E.txLoseAnswer makes the NEXT transaction commit, its writes landing, and then REJECT
+  // with 'unavailable': the connection lost between the server's commit and its answer, so the page
+  // cannot know the write landed (14 Nov 2026, the leave sheet's Save). One-shot.
+  if (e2e.txLoseAnswer) {
+    e2e.txLoseAnswer = false;
+    return Promise.resolve(fn(tx)).then(() => { throw Object.assign(new Error('connection lost'), { code: 'unavailable' }); });
   }
   return Promise.resolve(fn(tx));
 };
@@ -256,7 +298,8 @@ export const getDocs = (/** @type {any} */ ref) => {
   // so a spec can change the answer after the page has loaded. (No backticks: inside FIREBASE_STUB.)
   const byQuery = e2e.docsByQuery;
   const rows = (byQuery && ref && ref.queryOf && Object.prototype.hasOwnProperty.call(byQuery, ref.queryOf))
-    ? byQuery[ref.queryOf]
+    ? (e2e.writesLand && Array.isArray(ref.wheres) && ref.wheres.length && Array.isArray(byQuery[ref.queryOf])
+      ? byQuery[ref.queryOf].filter(r => _matches(r, ref.wheres)) : byQuery[ref.queryOf])
     : (byPath && ref && ref.path && Object.prototype.hasOwnProperty.call(byPath, ref.path))
       ? byPath[ref.path]
       : e2e.docs;

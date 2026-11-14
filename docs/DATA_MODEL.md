@@ -296,10 +296,16 @@ own bound name, so the admin must be signed in as themselves. Update: the undo o
 the Save wrote may move. A create sent again after its answer was lost arrives as an update and is
 refused, so the Save writes its log in a transaction that reads first. Delete: the admin. The rules
 cannot check the entries or that `added` lies inside `inLine` (a rule has no loop); the Save must.
-**Nothing writes it yet.** The rules shipped first, in a release with no writer (CLAUDE.md → backend-first).
-**Retention, planned with the Save:** a log is needed while its year's sheet can still be uploaded, which
-is its own year and the January after (carried days); the Save is to delete logs older than that. Losing
-one costs only memory: the next upload behaves like the first.
+**Written by the Save on Operations → Annual leave sheet** (`al-leave-save.js`): one log per Save, LAST,
+from a read of what the server then holds — so `added` names only days the read shows are the Save's own,
+and a Save whose answer was lost on the way back is still recorded. Where that read cannot be made, the
+next check of the same file in the same visit writes it; a closed page loses it (KNOWN_LIMITATIONS.md).
+An Undo sets the three undo fields once, and records nothing when it removed nothing. The rules shipped
+first, in a release with no writer (CLAUDE.md → backend-first).
+**Retention:** each Save deletes the logs from before last year (`pruneUploadLogs`). A log is needed while
+its year's sheet can still be uploaded, which is its own year and the January after, so keeping last
+year's whole covers that January with room to spare. Losing one costs only memory: the next upload of
+that year behaves like the first.
 
 **analytics** — anonymous usage counters; **no member identity is ever stored**
 ```

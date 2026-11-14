@@ -576,9 +576,42 @@ left open:
 - **Mutation:** each of the 28 guard lines fails a test when broken. Three `is string` checks placed
   before a `matches()` were removed, because `matches()` on any other type already refuses the write.
 
-**Still open before Phase 2b:** `AL_WORKBOOK.md` §10 Q3 (are duplicate rows ever different?) and Q7 (what
-column E means); Q8 (does anyone besides the clerks save the file?) before the older-file refusal is
-relied on.
+**Phase 2b** (v26.12): the Save, its log and its Undo. What a Save writes is `al-leave-plan.js` (pure),
+sending it is `al-leave-save.js`, and the card's part is `operations-al-save.js`. What it settled, and
+where it narrows or extends §4.7–4.10:
+
+- **Each day is Admin's own write**, at the fixed id, through the same checked commit (`commitChecked`):
+  a day somebody has changed since the check is refused, and that person's part is written whole or not
+  at all. A lost answer is recognised as the Save's own write, not doubled.
+- **Removed since is never written**, even when confirmed: a day an earlier log calls in line that the
+  app has lost is shown, with Admin as the way to put it back (§4.6).
+- **`inLine` covers everyone compared**, not only the people saved, so a later copy is protected for the
+  days that were already right too.
+- **Answers carry across the fresh check after every Save and Undo**, for each day still asked;
+  **confirmations do not**, because what a person's box covers has changed (§4.9).
+- **What was saved is read back**: the receipt counts what the server holds afterwards
+  (`landedWrites`), so a Save whose answer was lost on the way back is reported and recorded rather than
+  called "nothing". Where that read fails, the next check of the same file in the visit writes the log.
+- **A fault never leaves the card locked.** An error nothing expects, after the writes or in the check
+  that follows them, still unlocks the card. Its line says the Save stopped part way, never "saved" or
+  "nothing", and the fresh check shows what landed.
+- **The Undo works per person, in parts**, and resends what was not refused: the log can be marked
+  undone only once, so a partial undo is finished in the same press. An Undo that removed nothing
+  records nothing. It is offered for the newest Save of the year.
+- **Logs are kept for this year and last** (`pruneUploadLogs`), deleted after that by each Save.
+- **A refusal for age replaces the age warning**, so the card does not say the same thing twice.
+- **The Sunday rule's seventh layer**: `writableDate` never writes leave on a Sunday, or on Christmas
+  Day or Boxing Day (CLAUDE.md → Sundays).
+
+**The three questions §10 left open went ahead on defaults that only narrow what is written:** Q3
+(duplicate rows) — the script already asks about differing duplicates, so the Save never sees one
+unanswered; Q7 (column E) — only dated days are written, never an undated lump; Q8 (who saves the
+file) — the older-copy refusal trusts the clerks' save time, and "removed since" protects whichever way
+it is answered. An answer that differs changes the script or this plan, not the Save's guards.
+
+**Mutation:** 21 of the store's guard lines and 42 of the card's 43 wiring lines each fail a test when
+broken (the tests and the browser spec name which). The 43rd, `alSaveWorking()` in `alSheetBusy`,
+changes nothing a test can see by design; its comment says why.
 
 # Part 2 — The review of draft 1
 

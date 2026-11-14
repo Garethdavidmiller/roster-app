@@ -1708,7 +1708,7 @@ test('admin: a colleague signing in from another tab does not sign anybody out h
 
 // ── SUNDAY IS NOT A CONTRACTED DAY — LAYERS 1 AND 2, AS THE GRID ACTUALLY DRAWS THEM ────────────
 //
-// CLAUDE.md's Sunday rule has six enforcement layers and says none of them is removable alone. Two
+// CLAUDE.md's Sunday rule has seven enforcement layers and says none of them is removable alone. Two
 // of them live in `admin-week-editor.js` — the per-row pills a manager presses, and the bulk sweep
 // that stages a whole week at once — and until now neither had a behavioural test in any lane. A
 // mutation sweep replaced each guard's condition with `false` and everything stayed green.
