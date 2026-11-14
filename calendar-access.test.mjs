@@ -233,8 +233,8 @@ const { showSignInPanel, resetUnlockFailures } = await import('./calendar-lock-c
 // The slot, so a test can ask WHICH card is standing where the Calendar goes. Real, not mocked —
 // it touches only the fake DOM, and the whole point of asking is that the answer is the shipped one.
 const { lockCardId } = await import('./calendar-lock-slot.js');
-// The switch the PIN hint follows — real, so the test sets the very object the card reads.
-const { CONFIG } = await import('./roster-data.js');
+// Where this device keeps the latest Newsletter's date — real, so the test sets the very key the card reads.
+const { NEWSLETTER_LATEST_KEY } = await import('./newsletter-recency.js');
 
 // A DOM just rich enough for the module to build and query its card.
 /** @param {boolean} online */
@@ -763,21 +763,30 @@ describe('initCalendarAccess', () => {
         assert.ok(m.host._removed, 'the previous card was not taken down');
     });
 
-    // THE NEWSLETTER IS NAMED ONLY WHILE ITS ☰ BUTTON IS (CONFIG.NEWSLETTER_IN_MENU — hidden by the owner on
-    // 14 Nov 2026, none having come out since July). A visitor promised it would find no way to it. Both
-    // states, through the real front door: the card reads the switch when it is built, so setting it is enough.
-    for (const inMenu of [true, false]) {
-        test(`the PIN's hint names the Marylebone Newsletter only while the menu offers it (switch ${inMenu ? 'on' : 'off'})`, async () => {
-            const committed = CONFIG.NEWSLETTER_IN_MENU;
-            CONFIG.NEWSLETTER_IN_MENU = inMenu;
+    // THE NEWSLETTER IS NAMED ONLY WHILE ITS ☰ BUTTON IS: while this device knows of an issue under six
+    // weeks old (newsletter-recency.js, owner, 14 Nov 2026). A visitor promised it would find no way to it.
+    // Through the real front door, with the answer the Calendar keeps set before the card is built; the
+    // dates are counted back from today with the calendar's own arithmetic, so a clock change cannot move them.
+    const isoDaysAgo = (/** @type {number} */ n) => {
+        const d = new Date(); d.setDate(d.getDate() - n);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    for (const [label, latest, named] of /** @type {[string, string|null, boolean][]} */ ([
+        ['an issue three days old', isoDaysAgo(3), true],
+        ['an issue six weeks old to the day', isoDaysAgo(42), false],
+        ['none has been uploaded', '', false],
+        ['this device has never asked', null, false],
+    ])) {
+        test(`the PIN's hint names the Marylebone Newsletter only while the menu offers it (${label})`, async () => {
+            if (latest === null) store.delete(NEWSLETTER_LATEST_KEY); else store.set(NEWSLETTER_LATEST_KEY, latest);
             try {
                 await initCalendarAccess({ onGranted: () => {} });
                 const hint = loginMounts[0]?.alternative?.hint || '';
                 assert.match(hint, /the Daily Huddle, the Weekly Retail Circular/, `the hint lost the other documents: "${hint}"`);
-                assert.equal(hint.includes('Marylebone Newsletter'), inMenu,
-                    `with the Newsletter's button ${inMenu ? 'shown' : 'hidden'} the hint reads: "${hint}"`);
+                assert.equal(hint.includes('Marylebone Newsletter'), named,
+                    `with ${label}, the hint reads: "${hint}"`);
             } finally {
-                CONFIG.NEWSLETTER_IN_MENU = committed;
+                store.delete(NEWSLETTER_LATEST_KEY);
             }
         });
     }

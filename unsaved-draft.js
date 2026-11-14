@@ -28,7 +28,9 @@
  *      chose to discard (`keepDraftWhenHidden`, page-session.js).
  *   3. IT MIRRORS THE UNSAVED STATE AT THE LAST HIDE. Hidden while dirty writes it; hidden while
  *      clean deletes it, which is what clears it after a save, a discard, or a design switched away
- *      from; a save clears it at once as well, and Restore and Discard both delete it. The one thing
+ *      from; a save clears it at once as well, and Restore and Discard both delete the copy they
+ *      answered — that copy only, as another tab may have kept a newer one while the question waited
+ *      (`dropIfStill`, external review, 14 Nov 2026). The one thing
  *      a clean hide may NOT delete is a draft an EARLIER page life left that has not been answered
  *      yet — the page can be hidden while it is still loading the data its offer waits for — or one
  *      ANOTHER TAB kept (v26.03): each page life marks what it keeps (`life`), and `forget` deletes
@@ -42,8 +44,10 @@
  *   5. A DRAFT IS WORK, NOT A DECISION. What it puts back is unsaved again, and saving it asks the
  *      page's own questions. Links restores the concurrency baseline the edits were made against
  *      (`draftBaseline`), so a colleague's save since still meets "Someone else saved"; Admin puts
- *      back only the rows whose saved record is still the one the row was edited over
- *      (`savedSignature`), and names the days it left alone.
+ *      back only the rows whose saved record is still the one the row was DRAWN from, compared whole
+ *      by the rule a save uses (`keptRecord` / `sameKeptRecord`, override-compare.js — v26.08: an
+ *      `id|type|value` signature missed a moved leave year, a note and a fresh save), and names the
+ *      days it left alone.
  *   6. WORK A SAVE HAS SINCE LANDED IS NOT UNSAVED (v25.97). A page hidden while a save was still
  *      waiting for its answer keeps that save's rows, and rightly: a save held only in memory (the
  *      app open in a second tab, where the IndexedDB lease is single-tab) or a transaction still
@@ -159,17 +163,6 @@ export function draftBaseline(raw) {
 }
 
 /**
- * What identifies the saved record a staged Admin row was edited over (rule 5): its id, type and
- * value, because a manual record keeps ONE id per member and day (override-id.js), so a colleague's
- * newer edit of that day has the same id and a different value. No record is the empty string.
- * @param {{ id?: string, type?: string, value?: string }|null|undefined} saved
- * @returns {string}
- */
-export function savedSignature(saved) {
-    return saved ? `${saved.id ?? ''}|${saved.type ?? ''}|${saved.value ?? ''}` : '';
-}
-
-/**
  * What Admin says once a week's draft is back: how to finish, and which days it left as saved
  * because their record has changed since (rule 5).
  * @param {number} put   rows put back
@@ -208,7 +201,8 @@ function sweepStaleDrafts(now) {
  * except a draft an earlier page life left that has not been answered yet, or one another tab kept
  * (rule 3). `offer` asks
  * once, through the page's own `confirmDialog`: Discard deletes the draft; Restore runs `apply`
- * and deletes it afterwards — unless `apply` could not put it back (it returned false, or threw),
+ * and deletes it afterwards — each only the copy it asked about, never a newer one another tab kept
+ * meanwhile — unless `apply` could not put it back (it returned false, or threw),
  * in which case it stays for the next load; and a question dismissed unanswered leaves it waiting,
  * still unanswered (rule 1), for the next load to ask. Before asking, an `unsaved` hook takes out
  * what has since saved (rule 6); when nothing is left the draft is deleted and nothing is asked.
@@ -222,16 +216,27 @@ function sweepStaleDrafts(now) {
 export function createDraftSlot({ page, by, now = Date.now, usable = () => true }) {
     sweepStaleDrafts(now());
     const key = draftKey(page, by);
-    /** @returns {Draft|null} */
-    const peek = () => {
+    /**
+     * Delete the stored copy only while it is still `raw`, the exact copy this page read (external
+     * review, 14 Nov 2026). Two tabs share the slot and a question waits for a person: going to one tab
+     * to answer it is what hides the other, which keeps a NEWER copy then — and answering the old
+     * question deleted whatever the slot held by then, the only copy of that work. Each keep is its
+     * own copy (its time and its page life are in it), so the text itself is the revision.
+     * @param {string|null} raw
+     */
+    const dropIfStill = (raw) => { if (raw !== null && lsGet(key) === raw) lsDel(key); };
+    /** The slot read once: the stored copy exactly, and what of it may be offered. */
+    const read = () => {
         const raw = lsGet(key);
-        if (raw === null) return null;
+        if (raw === null) return { raw, draft: null };
         const draft = decodeDraft(raw, { page, by, now: now() });
         let offerable = false;
         try { offerable = !!draft && usable(draft.data); } catch { /* a test that cannot read it has its answer */ }
-        if (!offerable) lsDel(key);   // too old, unreadable, unusable or not this member's: never offered, so not kept
-        return offerable ? draft : null;
+        if (!offerable) dropIfStill(raw);   // too old, unreadable, unusable or not this member's: never offered, so not kept
+        return { raw, draft: offerable ? draft : null };
     };
+    /** @returns {Draft|null} */
+    const peek = () => read().draft;
     // An earlier page life's draft, still waiting for its question (rule 3).
     let waiting = !!peek();
     // What THIS page life marks its own copy with (rule 3): a clean hide here must not delete a copy
@@ -264,19 +269,21 @@ export function createDraftSlot({ page, by, now = Date.now, usable = () => true 
          * @returns {Promise<'none'|'saved'|'discarded'|'restored'|'kept'|'unanswered'>}
          */
         async offer({ ask, apply, unsaved }) {
-            let draft = peek();
+            // Every delete below is of THIS copy, the one asked about, never of whatever the slot holds by then.
+            const { raw, draft: read0 } = read();
+            let draft = read0;
             if (!draft) { waiting = false; return 'none'; }
             if (unsaved) {
                 /** @type {Record<string, any>|null} */ let left = draft.data;
                 try { left = unsaved(draft); } catch (err) { console.error('[unsaved-draft] could not tell what has since saved:', err); }
-                if (!left) { waiting = false; lsDel(key); return 'saved'; }   // all of it landed: nothing to ask about
+                if (!left) { waiting = false; dropIfStill(raw); return 'saved'; }   // all of it landed: nothing to ask about
                 draft = { ...draft, data: left };
             }
             const restore = await ask({ title: 'Unsaved changes', message: restoreQuestion(draft.savedAt, now()),
                 confirmLabel: 'Restore', cancelLabel: 'Discard', dismissResult: null });
             // Only an explicit Discard deletes (rule 1); `waiting` stays as it was, so a clean hide keeps it (rule 3).
             if (restore === null || restore === undefined) return 'unanswered';
-            if (!restore) { waiting = false; lsDel(key); return 'discarded'; }
+            if (!restore) { waiting = false; dropIfStill(raw); return 'discarded'; }
             try {
                 if (await apply(draft) === false) return 'kept';
             } catch (err) {
@@ -284,7 +291,7 @@ export function createDraftSlot({ page, by, now = Date.now, usable = () => true 
                 return 'kept';
             }
             waiting = false;
-            lsDel(key);
+            dropIfStill(raw);
             return 'restored';
         },
     };

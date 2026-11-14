@@ -16,7 +16,8 @@
 import { enhanceSelect } from './select-sheet.js';
 import { CONFIG, MONTH_NAMES, computeEaster, teamMembers, resolveMemberRoster } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
-import { authReady } from './firebase-client.js';
+import { authReady, getLatestNewsletter } from './firebase-client.js';
+import { checkLatestNewsletter } from './newsletter-recency.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
@@ -1089,6 +1090,10 @@ initNavPanel({
     // The drawer's two document links are refused at the tap while the Calendar is locked (v23.17).
     canReadDocuments: hasDocumentAccess,
 });
+// THE NEWSLETTER'S ☰ BUTTON FOLLOWS ITS LATEST ISSUE (newsletter-recency.js, owner, 14 Nov 2026). Asked
+// HERE, once a load, as the documents open: the moment this page's other reads run, through the gate a
+// tap passes. Every page's drawer then reads the answer this device keeps; a locked Calendar asks nothing.
+checkLatestNewsletter({ ready: calendarAuthReady, canRead: hasDocumentAccess, fetchLatest: getLatestNewsletter });
 
 // ── Start the Calendar, or ask for the staff PIN ─────────────────────────────────────────────────
 // The LAST thing the module does, deliberately: every shell subsystem above is wired first, so a

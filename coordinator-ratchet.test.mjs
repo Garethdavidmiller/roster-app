@@ -283,11 +283,9 @@ const CAPS = {
     // down with it rather than banking eighty lines as headroom, per the header's rule.
     'calendar-app.js':         1310,
                                        //   ← 1320 until v23.69, when the month LEGEND left for calendar-legend.js (1264 now)
-    'roster-data.js':          1253,   // mostly data, not logic
-    // 1250 → 1253 on 14 Nov 2026, a RAISE, by exactly the lines added: CONFIG.NEWSLETTER_IN_MENU, the
-    // switch that hides the Marylebone Newsletter's ☰ button (owner, "temporarily hide it"). A switch is
-    // DATA, the kind of growth the note below licenses; nothing in it is a rule a Node test could hold
-    // apart from its readers, which are tested where they read it. Lower it again when the switch goes.
+    'roster-data.js':          1250,   // mostly data, not logic
+    // 1253 for a day (14 Nov 2026): CONFIG.NEWSLETTER_IN_MENU, the switch that hid the Newsletter's ☰ button, went
+    // when the button began to follow its latest issue (newsletter-recency.js), and the ceiling came back down with it.
     // 1360 → 1250 at v23.31, and this is the entry below FINISHING rather than another raise. That
     // note said the file's length "tracks HEADCOUNT, so it will cross again on a future starter,
     // and that is not drift" — a correct diagnosis that leaves the guard unable to do its job: a

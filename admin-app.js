@@ -17,7 +17,7 @@ import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-perio
 import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage } from './page-session.js';
-import { createDraftSlot, savedSignature, weekRestoredLine } from './unsaved-draft.js';
+import { createDraftSlot, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
@@ -1626,10 +1626,9 @@ export function init() {
             markChanged,
             onEditRow: handleEdit,
         });
-        /** The saved record on each day NOW, for one member — what a kept row's `was` is checked against. @param {string} m */
-        const _savedOn = (m) => { const map = buildMemberDateMap(m); return (/** @type {string} */ d) => savedSignature(map.get(d)); };
+        // Each kept row carries the whole record its row was DRAWN from (readWeekDraft), checked on Restore.
         keepDraftWhenHidden(hasUnsavedChanges, {
-            keep: () => _draft.keep({ member: fieldMember.value, date: fieldDate.value }, keptWeekDraft(readWeekDraft(weekGrid, _savedOn(fieldMember.value)), sendingDays(), fieldMember.value)),
+            keep: () => _draft.keep({ member: fieldMember.value, date: fieldDate.value }, keptWeekDraft(readWeekDraft(weekGrid), sendingDays(), fieldMember.value)),
             forget: () => _draft.forget(),
         });
         /** Offered once the member it is for has loaded, to somebody who may still edit them; Restore shows that member
@@ -1652,7 +1651,8 @@ export function init() {
                         : 'Your unsaved changes weren’t put back, because a different member or week is on screen. They’ll be offered again the next time you open Admin.');
                     return false;
                 }
-                const { put, left } = applyWeekDraft(weekGrid, kept.data.rows, _savedOn(member));
+                const heldNow = buildMemberDateMap(member);   // read after the load above: what each day holds NOW
+                const { put, left } = applyWeekDraft(weekGrid, kept.data.rows, (d) => heldNow.get(d));
                 if (put) markChanged();
                 updateSaveBtn();
                 (put ? showSuccess : showError)(weekRestoredLine(put, left.map(formatDisplay)));

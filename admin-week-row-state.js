@@ -29,9 +29,10 @@
  * things is not a boundary; it is a cut made to create room, which is exactly what this extraction
  * was trying to avoid.
  *
- * This cluster needs NONE. It imports the shift-type table, the Other-day grammar and the status
- * helper and nothing else — every function takes a row element and reads the DOM under it. That is what a
- * seam looks like: the functions here do not know the editor exists.
+ * This cluster needs NONE. It imports the shift-type table, the Other-day grammar, the status helper
+ * and the record comparison (override-compare.js, v26.08), all pure, and nothing else — every function
+ * takes a row element and reads the DOM under it. That is what a seam looks like: the functions here do
+ * not know the editor exists.
  *
  * Keep it that way. If something in here starts needing the editor's state or its injected
  * services, the seam has moved and this module is the wrong home for it.
@@ -40,6 +41,7 @@
 import { TYPES } from './admin-shift-types.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { setStatus } from './status-text.js';
+import { keptRecord, sameKeptRecord } from './override-compare.js';
 
 /** The saved record each row was DRAWN from, by row (v25.89, external review). A load that lands while
  *  edits are staged updates the cache and deliberately leaves the grid alone, so the cache can hold a
@@ -326,7 +328,7 @@ export function isStagedRow(row) {
 
 /**
  * @typedef {{ date: string, remove?: boolean, type?: string, start?: string, end?: string,
- *             flavour?: string, rdw?: boolean, swap?: string, was?: string }} RowDraft
+ *             flavour?: string, rdw?: boolean, swap?: string, was?: any }} RowDraft
  */
 
 /**
@@ -390,17 +392,20 @@ export function applyRowDraft(row, d) {
 
 /**
  * Every staged row of the week on screen, as the draft keeps it: each with `was`, the saved record
- * the row was edited over (`savedSignature`, unsaved-draft.js), so a restore can tell when that has
- * changed since.
+ * the row was edited over, whole (`keptRecord`, override-compare.js), so a restore can tell when that
+ * has changed since. The record the row was DRAWN from, never the cache's: a load that lands while
+ * edits are staged leaves the rows alone (`_drawnFrom`), so the cache can already hold a colleague's
+ * newer record, and keeping THAT as the baseline put the old edit back over it (14 Nov 2026).
  * @param {ParentNode} grid
- * @param {(date: string) => string} was
  * @returns {RowDraft[]}
  */
-export function readWeekDraft(grid, was) {
+export function readWeekDraft(grid) {
     return /** @type {RowDraft[]} */ ([...grid.querySelectorAll('.day-row')]
-        .map(r => readRowDraft(/** @type {HTMLElement} */ (r)))
-        .filter(Boolean))
-        .map(d => ({ ...d, was: was(d.date) }));
+        .map(r => {
+            const d = readRowDraft(/** @type {HTMLElement} */ (r));
+            return d && { ...d, was: keptRecord(_drawnFrom.get(r) ?? null) };
+        })
+        .filter(Boolean));
 }
 
 /**
@@ -470,16 +475,31 @@ export function unsavedWeekDraft(data, recordOn, stillHeld) {
 }
 
 /**
+ * Is the record a day holds now still the one a kept row was edited over? Compared whole, by the rule
+ * a save uses (`sameKeptRecord`). A row kept before v26.08 carries `id|type|value` instead of the
+ * record; it is compared as it was then, for the one day such a draft can live (unsaved-draft.js
+ * rule 4) — refusing it would name days that had not changed as "changed since".
+ * @param {any} was  the row's kept `was`
+ * @param {any} now  the record on that day now, or nothing
+ * @returns {boolean}
+ */
+function _stillEditedOver(was, now) {
+    if (typeof was === 'string') return was === (now ? `${now.id ?? ''}|${now.type ?? ''}|${now.value ?? ''}` : '');
+    return sameKeptRecord(was, now);
+}
+
+/**
  * Put a kept week back on the grid on screen. A row is restored only while its saved record is still
- * the one it was edited over: a colleague's change since, or a booking made from another card, is
- * never overwritten by a draft nobody has looked at again. Those days come back in `left`, with any
- * row this week no longer has.
+ * the one it was edited over, in every field a save compares: a colleague's change since — a leave
+ * year moved, a note, a fresh save of the same value — or a booking made from another card, is never
+ * overwritten by a draft nobody has looked at again. Those days come back in `left`, with any row this
+ * week no longer has.
  * @param {ParentNode} grid
  * @param {any} rows      the draft's rows, as read back from storage
- * @param {(date: string) => string} was  the saved record on each day NOW
+ * @param {(date: string) => any} recordOn  the saved record on each day NOW (`buildMemberDateMap`)
  * @returns {{ put: number, left: string[] }}
  */
-export function applyWeekDraft(grid, rows, was) {
+export function applyWeekDraft(grid, rows, recordOn) {
     const byDate = new Map([...grid.querySelectorAll('.day-row')]
         .map(r => [/** @type {HTMLElement} */ (r).dataset.date, /** @type {HTMLElement} */ (r)]));
     let put = 0;
@@ -487,7 +507,7 @@ export function applyWeekDraft(grid, rows, was) {
     for (const d of Array.isArray(rows) ? rows : []) {
         if (!d || typeof d.date !== 'string') continue;
         const row = byDate.get(d.date);
-        if (row && d.was === was(d.date) && applyRowDraft(row, d)) put++;
+        if (row && _stillEditedOver(d.was, recordOn(d.date)) && applyRowDraft(row, d)) put++;
         else left.push(d.date);
     }
     return { put, left };

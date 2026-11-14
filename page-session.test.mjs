@@ -562,14 +562,8 @@ describe('unsaved-draft.js', () => {
         }
     });
 
-    test('an Admin row\'s saved record is told apart by id, type AND value — one id serves a member\'s day for good (rule 5)', () => {
-        assert.equal(ud.savedSignature(null), '');
-        assert.equal(ud.savedSignature(undefined), '');
-        const was = ud.savedSignature({ id: 'm_G_2026-12-08', type: 'annual_leave', value: 'AL' });
-        assert.notEqual(was, ud.savedSignature({ id: 'm_G_2026-12-08', type: 'sick', value: 'SICK' }), 'a colleague\'s newer edit keeps the id');
-        assert.notEqual(was, '');
-        assert.equal(was, ud.savedSignature({ id: 'm_G_2026-12-08', type: 'annual_leave', value: 'AL' }));
-    });
+    // An Admin row's kept record, and how a restore compares it, are override-compare.js's
+    // (`keptRecord` / `sameKeptRecord`, tested in override-utils.test.mjs beside `sameOverrideRecord`).
 
     test('what Admin says after a restore names the days it left as saved', () => {
         assert.equal(ud.weekRestoredLine(2, []), 'Your unsaved changes are back — check them, then select Save changes.');
@@ -663,6 +657,52 @@ describe('unsaved-draft.js', () => {
                 assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: () => { throw new Error('no grid'); } }), 'kept');
             } finally { console.error = realError; }
             assert.ok(ls.has(KEY));
+        });
+
+        // AN ANSWER DELETES ONLY THE COPY IT WAS ASKED ABOUT (external review, 14 Nov 2026). Two tabs share
+        // one slot, and the question waits for a person: going to the first tab to answer it is exactly what
+        // hides the second, which keeps a NEWER copy of its own work then. Answering the old question used to
+        // delete whatever the slot held by then — the only copy of work an iPhone may yet discard.
+        describe('another tab keeps a newer copy while this one is still being answered', () => {
+            const KEPT_LATER = { member: 'A. Member', date: '2026-12-14' };
+            /** The second tab's copy, kept at the moment the first tab's question is answered (or put back). */
+            const keepInAnotherTab = () => slotFor('A. Member', NOW + 60_000).keep(KEPT_LATER, { rows: [{ date: '2026-12-15', type: 'rdw' }] });
+            const storedScope = () => { assert.ok(ls.has(KEY), "the other tab's newer copy was deleted"); return JSON.parse(String(ls.get(KEY))).scope; };
+
+            for (const [answer, outcome] of /** @type {[boolean, string][]} */ ([[false, 'discarded'], [true, 'restored']])) {
+                test(`${answer ? 'Restore' : 'Discard'} leaves the newer copy where it is`, async () => {
+                    ls.set(KEY, stored());
+                    const slot = slotFor('A. Member');
+                    const asking = async () => { keepInAnotherTab(); return answer; };
+                    assert.equal(await slot.offer({ ask: asking, apply: () => {} }), outcome);
+                    assert.ok(ls.has(KEY), `${answer ? 'Restore' : 'Discard'} of the old question deleted the other tab's newer copy`);
+                    assert.deepEqual(storedScope(), KEPT_LATER);
+                    slot.forget();   // and this tab, clean, cannot delete it either (rule 3)
+                    assert.ok(ls.has(KEY));
+                });
+            }
+
+            test('a Restore still being put back leaves a copy kept meanwhile', async () => {
+                ls.set(KEY, stored());
+                const apply = async () => { await Promise.resolve(); keepInAnotherTab(); };
+                assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply }), 'restored');
+                assert.deepEqual(storedScope(), KEPT_LATER, 'the newer copy went when the old one was put back');
+            });
+
+            test('a draft that has all since saved is deleted only while it is still the one that was read', async () => {
+                ls.set(KEY, stored());
+                const unsaved = () => { keepInAnotherTab(); return null; };
+                assert.equal(await slotFor('A. Member').offer({ ask: ask(true), apply: () => {}, unsaved }), 'saved');
+                assert.deepEqual(storedScope(), KEPT_LATER);
+            });
+
+            test('with no other tab, each answer still deletes the copy it answered', async () => {
+                for (const [answer, outcome] of /** @type {[boolean, string][]} */ ([[false, 'discarded'], [true, 'restored']])) {
+                    ls.set(KEY, stored());
+                    assert.equal(await slotFor('A. Member').offer({ ask: ask(answer), apply: () => {} }), outcome);
+                    assert.equal(ls.has(KEY), false, `${outcome}: the answered copy was left behind`);
+                }
+            });
         });
 
         // WORK A SAVE HAS SINCE LANDED IS NOT UNSAVED (rule 6, v25.97). A page hidden while its save was

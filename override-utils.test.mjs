@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PILL_TYPES, TYPES } from './admin-shift-types.js';
 import { manualOverrideId } from './override-id.js';
-import { sameOverrideRecord, overrideFromSnapshot } from './override-compare.js';
+import { sameOverrideRecord, overrideFromSnapshot, keptRecord, sameKeptRecord } from './override-compare.js';
 import { isClockTime } from './clock-input.js';
 import { isSunday, TIME_RE, teamMembers } from './roster-data.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
@@ -1675,6 +1675,65 @@ describe('sameOverrideRecord', () => {
     it('nothing to compare is never "the same"', () => {
         assert.equal(sameOverrideRecord(null, server()), false);
         assert.equal(sameOverrideRecord(shown, null), false);
+    });
+});
+
+// ── keptRecord / sameKeptRecord — the same rule, for a record kept in an unsaved-work draft (v26.08) ──
+// A draft kept only `id|type|value`, so a leave year moved, a note or a fresh save of the same value
+// since read as unchanged, and Restore put the old edit back with no "changed since" (external review,
+// 14 Nov 2026). Every assertion here goes through JSON, as localStorage does: what is compared is what
+// a draft can actually carry.
+describe('keptRecord / sameKeptRecord', () => {
+    const drawn = { id: 'm_2027-01-05_G.%20Miller', memberName: 'G. Miller', date: '2027-01-05', type: 'annual_leave',
+        value: 'AL', note: '', source: 'manual', leaveYear: 2026, changedBy: 'G. Miller', createdAt: { toMillis: () => 1_000 } };
+    /** What a day holds now. @param {any} [over] */
+    const nowHolds = (over = {}) => ({ ...drawn, ...over });
+    /** A record as a draft carries it: kept, then through storage. @param {any} rec */
+    const throughStorage = (rec) => JSON.parse(JSON.stringify(keptRecord(rec)));
+
+    it('the record a row was drawn from, kept and read back, is still the same record', () => {
+        assert.equal(sameKeptRecord(throughStorage(drawn), nowHolds()), true);
+    });
+
+    it('every field a save compares counts here too, the review\'s three among them', () => {
+        for (const [k, v] of Object.entries({ leaveYear: 2027, note: 'swapped with S. Silva', createdAt: { toMillis: () => 2_000 },
+            type: 'sick', value: 'SICK', source: 'roster_import', replacedType: 'shift', changedBy: 'S. Manager',
+            memberName: 'S. Silva', date: '2027-01-06', id: 'm_other' })) {
+            assert.equal(sameKeptRecord(throughStorage(drawn), nowHolds({ [k]: v })), false, `a change of ${k} went unseen`);
+        }
+    });
+
+    it('a day with no record then and none now is unchanged; a record that came or went is a change', () => {
+        assert.equal(keptRecord(null), null);
+        assert.equal(sameKeptRecord(throughStorage(null), null), true);
+        assert.equal(sameKeptRecord(throughStorage(null), nowHolds()), false, 'a colleague booked the empty day');
+        assert.equal(sameKeptRecord(throughStorage(drawn), null), false, 'a colleague deleted the record');
+    });
+
+    it("this page's own optimistic copy is matched on its fields, as a save matches it — its stamp is the device's clock", () => {
+        const { changedBy: _c, ...ownCopy } = { ...drawn, createdAt: new Date(999) };
+        const kept = throughStorage(ownCopy);
+        assert.equal(kept.own, true);
+        assert.equal(sameKeptRecord(kept, nowHolds({ createdAt: { toMillis: () => 123_456 } })), true);
+        assert.equal(sameKeptRecord(kept, nowHolds({ createdAt: { toMillis: () => 123_456 }, leaveYear: 2027 })), false);
+    });
+
+    it('a stamp kept as milliseconds still matches the Timestamp it came from', () => {
+        const kept = throughStorage({ ...drawn, createdAt: { seconds: 1_700_000_000, toMillis: () => 1_700_000_000_000 } });
+        assert.equal(kept.createdAt, 1_700_000_000_000);
+        assert.equal(sameKeptRecord(kept, nowHolds({ createdAt: { toMillis: () => 1_700_000_000_000 } })), true);
+    });
+
+    it('a stamp the browser-test stub hands back as a number is kept as that number', () => {
+        const kept = throughStorage({ ...drawn, createdAt: 1_700_000_000_000 });
+        assert.equal(kept.createdAt, 1_700_000_000_000);
+        assert.equal(sameKeptRecord(kept, nowHolds({ createdAt: 1_700_000_000_000 })), true);
+        assert.equal(sameKeptRecord(kept, nowHolds({ createdAt: 1_700_000_000_001 })), false);
+    });
+
+    it('absent fields kept and read back equal empty ones, as they do for a save', () => {
+        const { note: _n, leaveYear: _l, ...bare } = drawn;
+        assert.equal(sameKeptRecord(throughStorage(bare), nowHolds({ note: '', leaveYear: null })), true);
     });
 });
 

@@ -41,6 +41,7 @@ import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox } fr
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS, NEWSLETTER_CARD } from './operations-tips.js';
+import { noteNewsletterUploaded } from './newsletter-recency.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
@@ -766,7 +767,6 @@ export function init() {
     // MARYLEBONE NEWSLETTER UPLOAD
     // ============================================
     function initNewsletterUpload() {
-        if (NEWSLETTER_CARD.hint) document.getElementById('newsletterUploadHint')?.replaceChildren(NEWSLETTER_CARD.hint);   // the ☰ button is hidden
         initDocUploadCard({
             dateId: 'newsletterDate', fileId: 'newsletterFileInput',
             fileLabelId: 'newsletterFileName', uploadBtnId: 'newsletterUploadBtn',
@@ -775,8 +775,8 @@ export function init() {
             rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
             // The date arrives in words ("6 Nov 2026"): formatted again here, it read "uploaded for —" (10 Nov 2026).
-            successMsg: date => `Newsletter uploaded for ${date} — ${NEWSLETTER_CARD.told}`,
-            btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
+            successMsg: (date, iso) => `Newsletter uploaded for ${date} — ${NEWSLETTER_CARD.told(iso)}`,
+            btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter', onUploaded: noteNewsletterUploaded,   // this device's ☰ button at once
             whereToCheck: NEWSLETTER_CARD.whereToCheck,   // where a sign-out mid-upload is told to look
         });
     }

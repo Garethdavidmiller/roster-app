@@ -59,14 +59,15 @@ export function isDocxFile(f) {
  *   dateId: string, fileId: string, fileLabelId: string, uploadBtnId: string, feedbackId: string,
  *   uploadFn: (date: string, file: File, user: string, ...extra: any[]) => Promise<any>,
  *   currentUser: string|null,
- *   successMsg: (date: string) => string,     // given the date as app copy spells it (10 Nov 2026), not ISO
+ *   successMsg: (date: string, iso: string) => string,  // the date as app copy spells it (10 Nov 2026), then the ISO one
  *   btnLabel: string,
  *   logPrefix: string,
  *   maxDateOffsetDays?: number,               // date input cap = today + this (default 0). Huddle: 1.
  *   isAccepted?: (f: File) => boolean,        // default isPdfFile
  *   rejectTypeMsg?: string,                   // default 'Please choose a PDF file'
  *   sigMismatchMsg?: string,                  // shown on a SIGNATURE_MISMATCH upload error
- *   whereToCheck?: string,                    // where to look after a sign-out mid-upload (default 'whether it saved')
+ *   whereToCheck?: string|((iso: string) => string),  // where to look after a sign-out mid-upload (default 'whether it saved')
+ *   onUploaded?: (iso: string) => void,       // told the ISO date once the upload has landed (the Newsletter's ☰ button)
  *   transform?: (file: File, ctx: { setBtnText: (t: string) => void })
  *               => Promise<{ extraArgs?: any[], abortMsg?: string }>,  // e.g. DOCX→HTML → [htmlContent]
  * }} cfg
@@ -218,7 +219,8 @@ export function initDocUploadCard(cfg) {
       await runGatedWrite(() => cfg.uploadFn(date, file, cfg.currentUser || '', ...extraArgs));
       // The date in app copy's own spelling ("10 Nov 2026", the one the date field shows), never
       // the ISO key it was filed under (whole-app review, 10 Nov 2026).
-      /** @type {HTMLElement} */ (feedback).textContent = cfg.successMsg(formatDayMonthYear(parseISODate(date)));
+      /** @type {HTMLElement} */ (feedback).textContent = cfg.successMsg(formatDayMonthYear(parseISODate(date)), date);
+      cfg.onUploaded?.(date);
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--ok';
       fileInput.value = '';
       /** @type {HTMLElement} */ (fileLabel).textContent = '';
@@ -236,7 +238,7 @@ export function initDocUploadCard(cfg) {
       // never by the "connection dropped" line, which is about a read that could not answer.
       const _e = /** @type {any} */ (err);
       /** @type {HTMLElement} */ (feedback).textContent =
-        unconfirmedWriteLine(_e, 'this upload', cfg.whereToCheck || 'whether it saved')
+        unconfirmedWriteLine(_e, 'this upload', (typeof cfg.whereToCheck === 'function' ? cfg.whereToCheck(date) : cfg.whereToCheck) || 'whether it saved')
         ?? (_e?.code === 'upload/superseded'
           ? 'Someone else saved a newer file for this date. Reload to see it, then upload again only if yours should replace it.'
           : _e?.code === 'upload/unconfirmed'

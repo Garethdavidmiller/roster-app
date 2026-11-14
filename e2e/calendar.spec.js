@@ -1,4 +1,5 @@
-import { test, expect, withNewsletterInMenu } from './fixtures.js';
+import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
+import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
 
@@ -3983,8 +3984,9 @@ test('huddle: offline with nothing cached, a tap says it could not load — neve
 test('circular: offline with nothing cached, the viewer and the drawer say they could not connect — never "none uploaded"', async ({ page }) => {
     // The Huddle's rule, which the one-shot Circular/Newsletter read never got (documents-client.js →
     // `latestIn`, whole-app review 10 Nov 2026): an empty answer from the cache alone is a read that failed.
-    // The drawer half is the Newsletter's read, so its hidden button is switched back on for it.
-    await withNewsletterInMenu(page);
+    // The drawer half is the Newsletter's read, so the Calendar's check is given a recent issue to show
+    // its button by; the device then goes offline with nothing of it cached.
+    await withServerNewsletter(page, isoDaysAgo(3));
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), authUser: true };
         window.open = /** @type {any} */ (() => ({ opener: null, close() {}, location: {} }));
@@ -3992,7 +3994,12 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/');
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
-    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });   // offline from here
+    await expect.poll(() => page.evaluate((k) => localStorage.getItem(k), NEWSLETTER_LATEST_KEY), { message: 'premise: the Calendar found the issue' })
+        .toBe(isoDaysAgo(3));
+    await page.evaluate(() => {   // offline from here, with nothing of the Newsletter cached
+        const e2e = /** @type {any} */ (window).__E2E;
+        e2e.docsFromCache = true; e2e.docsByQuery.newsletters = null;   // null: the stub's empty snapshot
+    });
     await page.evaluate(() => { location.hash = '#circular'; });
     const body = page.locator('#docViewerBody');
     await expect(body).toContainText("Couldn't load this document.", { timeout: 10_000 });
@@ -4005,42 +4012,94 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     await expect(page.locator('#navComingSoonLightbox')).not.toContainText('No newsletter has been uploaded yet');
 });
 
-// ── THE NEWSLETTER'S ☰ BUTTON IS HIDDEN (owner, 14 Nov 2026: "temporarily hide it" — none since July) ─────
-// One switch, CONFIG.NEWSLETTER_IN_MENU. Hidden, the drawer on every page leaves the button out and keeps
-// the Huddle and the Circular, and a notification's #newsletter still opens the latest issue: an upload
-// still notifies staff, and that is how its return reaches them. Switched back on, the button is where it
-// was. Each test sets the state it is about, so none of them changes meaning when the switch is flipped.
-for (const path of ['/', '/admin.html']) {
-    test(`newsletter: out of the ☰ menu while its switch is off, the other two documents kept — ${path}`, async ({ page }) => {
-        await withNewsletterInMenu(page, false);
+// ── THE NEWSLETTER'S ☰ BUTTON FOLLOWS ITS LATEST ISSUE (owner, 14 Nov 2026) ─────────────────────────────
+// It shows while the latest issue is under six weeks old, and comes back with the next upload
+// (newsletter-recency.js). The Calendar asks as its documents open; every page's drawer reads the answer
+// this device keeps, again at every open. A device that has never asked offers no issue. Each test sets
+// the state it is about: the answer the device holds, or the issue the server has.
+const STORED_KEY = NEWSLETTER_LATEST_KEY;
+const drawerDocs = (/** @type {import('@playwright/test').Page} */ page) => page.locator('#navPanel .nav-panel-links').first().locator('.nav-panel-link');
+const newsletterRow = (/** @type {import('@playwright/test').Page} */ page) => page.locator('#navPanel .nav-panel-link--newsletter');
+/** The open drawer's Latest list, read off the screen: with the Newsletter last, or without it. Named in
+ *  full both ways, so "hidden" cannot pass on a drawer that has not opened yet (nothing in it is visible). */
+const expectLatestDocs = (/** @type {import('@playwright/test').Page} */ page, /** @type {boolean} */ withNewsletter) =>
+    expect(drawerDocs(page).filter({ visible: true })).toHaveText(withNewsletter
+        ? [/Daily Huddle/, /Weekly Retail Circular/, /Marylebone Newsletter/]
+        : [/Daily Huddle/, /Weekly Retail Circular/]);
+
+test('newsletter: a device that has never asked offers no issue, and keeps the other two documents', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/admin.html');   // a page that does not ask
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel .nav-panel-link--circular')).toBeVisible();
+    await expect(page.locator('#navPanel a.nav-panel-link[href="./#huddle"]')).toBeVisible();
+    await expectLatestDocs(page, false);
+});
+
+for (const [label, issue, shown] of /** @type {[string, string, boolean][]} */ ([
+    ['an issue three days old', isoDaysAgo(3), true],
+    ['an issue 41 days old', isoDaysAgo(41), true],
+    ['an issue six weeks old to the day', isoDaysAgo(42), false],
+    ['none uploaded', '', false],
+])) {
+    test(`newsletter: ${label} this device knows of — ${shown ? 'on the ☰ menu, last of the three' : 'not on the ☰ menu'}`, async ({ page }) => {
+        await withKnownNewsletter(page, issue);
         await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
         await seedMemberSession(page, 'G. Miller');
-        await page.goto(path);
+        await page.goto('/admin.html');
+        // Drawn that way before it is ever opened, too: the row's own `hidden`, not only the open's refresh.
+        await expect(newsletterRow(page).locator('xpath=..'), 'the row as first drawn').toHaveJSProperty('hidden', !shown);
         await page.locator('#navMenuBtn').click();
-        const panel = page.locator('#navPanel');
-        await expect(panel.locator('.nav-panel-link--circular')).toBeVisible();
-        await expect(panel.locator('a.nav-panel-link[href="./#huddle"]')).toBeVisible();
-        await expect(panel.locator('.nav-panel-link--newsletter')).toHaveCount(0);
-        await expect(panel).not.toContainText('Newsletter');
+        await expectLatestDocs(page, shown);
     });
 }
 
-test('newsletter: hidden from the menu, a notification\'s #newsletter still opens the latest issue', async ({ page }) => {
-    await withNewsletterInMenu(page, false);
+for (const [label, issue, shown] of /** @type {[string, string, boolean][]} */ ([
+    ['a recent issue', isoDaysAgo(5), true],
+    ['an issue six weeks old', isoDaysAgo(50), false],
+    ['no issue at all', '', false],
+])) {
+    test(`newsletter: the Calendar asks as its documents open, and every page follows its answer — ${label}`, async ({ page }) => {
+        // The device starts by knowing of an OLD issue, so a recent answer has to come from the read.
+        await page.addInitScript(([k, v]) => { if (localStorage.getItem(k) === null) localStorage.setItem(k, v); }, [STORED_KEY, isoDaysAgo(90)]);
+        await withServerNewsletter(page, issue);
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+        await expect.poll(() => page.evaluate((k) => localStorage.getItem(k), STORED_KEY), { message: 'the Calendar did not keep the answer' })
+            .toBe(issue);
+        await page.locator('#navMenuBtn').click();
+        await expectLatestDocs(page, shown);
+        // …and a page that does not ask reads what the Calendar kept.
+        await page.goto('/admin.html');
+        await page.locator('#navMenuBtn').click();
+        await expectLatestDocs(page, shown);
+    });
+}
+
+test('newsletter: an issue that turns six weeks old with the page open leaves the ☰ menu at the next open', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 10, 14, 12, 0, 0) });
+    await withKnownNewsletter(page, '2026-10-04');   // 41 days before 14 Nov
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.locator('#navMenuBtn').click();
+    await expect(newsletterRow(page)).toBeVisible();
+    await page.locator('#navPanelClose').click();
+    await expect(page.locator('#navPanel')).not.toHaveClass(/open/);
+    await page.clock.fastForward('24:00:00');   // 15 Nov: six weeks to the day
+    await page.locator('#navMenuBtn').click();
+    await expectLatestDocs(page, false);
+});
+
+test('newsletter: off the ☰ menu, a notification\'s #newsletter still opens the latest issue', async ({ page }) => {
+    await withServerNewsletter(page, isoDaysAgo(60));
     await seedMember(page);
     await page.goto('/index.html#newsletter');
     await expect(page.locator('#docViewer')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('#docViewerTitle')).toContainText('Marylebone Newsletter');
-});
-
-test('newsletter: switched back on, the ☰ button is back in its place, last of the three', async ({ page }) => {
-    await withNewsletterInMenu(page);
-    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
-    await seedMemberSession(page, 'G. Miller');
-    await page.goto('/');
-    await page.locator('#navMenuBtn').click();
-    const latest = page.locator('#navPanel .nav-panel-links').first().locator('.nav-panel-link');
-    await expect(latest).toHaveText([/Daily Huddle/, /Weekly Retail Circular/, /Marylebone Newsletter/]);
 });
 
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {

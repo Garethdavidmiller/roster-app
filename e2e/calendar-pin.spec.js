@@ -13,7 +13,8 @@
  *   · **that a viewer is still refused by the protected pages.** The policy is unit-tested; whether
  *     the pages actually consult it on a viewer session is a wiring question.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
+import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
 import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags, isTouchProject } from './helpers.js';
 import { forcePasswordSet } from './fixtures.js';
 
@@ -214,6 +215,24 @@ test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page })
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#huddleOpenFileBtn'), 'the member signed in, and the Huddle they tapped for never came')
         .toBeVisible({ timeout: 10_000 });
+});
+
+// The Newsletter's ☰ button follows its latest issue (newsletter-recency.js, owner, 14 Nov 2026), and the
+// Calendar asks for it as its documents open. Locked, they are shut: nothing is asked, and the menu offers
+// what this device last knew — tapped, it is answered as the other two are.
+test('locked: the Newsletter check asks nothing, and the menu offers what this device last knew', async ({ page }) => {
+    await withKnownNewsletter(page, isoDaysAgo(3));
+    await withServerNewsletter(page, isoDaysAgo(60));   // would hide it, were it asked
+    await page.goto('/');
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    const row = page.locator('#navPanel .nav-panel-link--newsletter');
+    await expect(row).toBeVisible();
+    // ABSOLUTE: a locked Calendar reads nothing at all, so one read here is the check going through the lock.
+    expect(await docReads(page), 'the locked Calendar asked for the Newsletter').toBe(0);
+    expect(await page.evaluate((k) => localStorage.getItem(k), NEWSLETTER_LATEST_KEY)).toBe(isoDaysAgo(3));
+    await row.click();
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
 });
 
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {

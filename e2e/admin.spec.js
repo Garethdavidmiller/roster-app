@@ -519,7 +519,7 @@ async function stageAbsenceAndHide(page) {
     await setVisibility(page, 'hidden');
     const kept = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), ADMIN_DRAFT);
     expect(kept?.scope, 'hidden with a staged row: the member and the week are kept').toEqual({ member: 'G. Miller', date: '2026-12-07' });
-    expect(kept?.data?.rows).toEqual([expect.objectContaining({ date, type: 'sick', was: '' })]);
+    expect(kept?.data?.rows).toEqual([expect.objectContaining({ date, type: 'sick', was: null })]);   // drawn from no record
     const clock = await page.evaluate(() => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
     return { date, clock };
 }
@@ -543,6 +543,50 @@ test('admin: staged rows kept when the page was hidden are offered on the next l
     await setVisibility(page, 'hidden');
     expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'saved: nothing to keep').toBeNull();
 });
+
+// A KEPT ROW REMEMBERS THE WHOLE RECORD IT WAS EDITED OVER (external review, 14 Nov 2026). The draft kept
+// only id|type|value, so a colleague's fresh save of the same value — a note, a new revision — read as
+// unchanged, and Restore put the old edit back over it with no "changed since". The save after a Restore
+// cannot catch it: it compares with what the restored row now shows, which is the colleague's record.
+for (const [label, colleagueSavedSince] of /** @type {[string, boolean][]} */ ([
+    ['the same record', false],
+    ['a record a colleague has saved again since, with a note', true],
+])) {
+    test(`admin: a kept edit over a saved day, Restored over ${label}, ${colleagueSavedSince ? 'is left as saved and named' : 'is put back'}`, async ({ page }) => {
+        const shown = { id: 'm_2026-12-08_G.%20Miller', memberName: 'G. Miller', date: '2026-12-08', type: 'annual_leave', value: 'AL',
+            note: '', source: 'manual', changedBy: 'G. Miller', createdAt: 1_000 };
+        await page.addInitScript((doc) => { /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { docs: [doc] }); }, shown);
+        await openAdminOnDecember(page);
+        const row = page.locator('.day-row[data-date="2026-12-08"]');
+        await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'premise: the row is drawn from its record').toHaveAttribute('aria-pressed', 'true');
+        await clickInView(row.locator('.type-pill-btn[data-type="sick"]'));
+        await expect(page.locator('#saveBtn')).toBeEnabled();
+        await setVisibility(page, 'hidden');
+        const kept = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), ADMIN_DRAFT);
+        expect(kept?.data?.rows?.[0]?.was, 'the whole record the row was drawn from is kept')
+            .toMatchObject({ id: shown.id, type: 'annual_leave', value: 'AL', note: '', changedBy: 'G. Miller', createdAt: 1_000 });
+        if (colleagueSavedSince) {
+            // What the next load reads: the same AL, the same value, saved again by a manager with a note.
+            await page.addInitScript((doc) => { /** @type {any} */ (window).__E2E.docs = [doc]; },
+                { ...shown, note: 'swap agreed with a colleague', changedBy: 'S. Manager', createdAt: 2_000 });
+        }
+        await reloadPastLeaveSite(page);
+        const offer = page.locator('.dialog-overlay.visible');
+        await expect(offer).toContainText('Restore your unsaved changes from');
+        await offer.getByRole('button', { name: 'Restore' }).click();
+        await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
+        const sick = page.locator('.day-row[data-date="2026-12-08"] .type-pill-btn[data-type="sick"]');
+        if (colleagueSavedSince) {
+            await expect(page.locator('#formFeedback')).toContainText(/Your unsaved changes were not put back: .*8 Dec.* has changed since\./);
+            await expect(sick, "the old edit was put over the colleague's record").toHaveAttribute('aria-pressed', 'false');
+            await expect(page.locator('#saveBtn'), 'nothing staged').toBeDisabled();
+        } else {
+            await expect(page.locator('#formFeedback')).toContainText('Your unsaved changes are back — check them, then select Save changes.');
+            await expect(sick).toHaveAttribute('aria-pressed', 'true');
+            await expect(page.locator('#saveBtn')).toBeEnabled();
+        }
+    });
+}
 
 test('admin: Discard deletes the kept rows, changes nothing, and the next load asks nothing', async ({ page }) => {
     const { clock } = await stageAbsenceAndHide(page);
