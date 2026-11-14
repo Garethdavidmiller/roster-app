@@ -659,6 +659,10 @@ Every one of these is silent, and every one has been seen. [measured]
    are one continuous block — and the totals row's `COUNTIF` matches the first spelling only. **Nine
    booked days are uncounted**, and the row reads as exactly at its allowance. Before trusting any
    row's Used figure, count the grade block for the surname LOOSELY and compare.
+   **Count them** [owner, 14 Nov 2026]: a misspelt name in the grid is still that person's leave.
+   The row's Remaining is short by exactly those days, so an answer counts them and gives the
+   figure the sheet shows beside it. The Sunday tags either side of that block were spelt
+   correctly, which is how you know whose days they are.
 10. **A person with grid bookings and no totals row** [measured, 8 Nov 2026]. One Dispatcher has 22
    days in the Dispatcher block and **no row on `New Marylebone Totals` at all**, so nothing counts
    them and no Remaining exists anywhere in the file. The app has the member.
