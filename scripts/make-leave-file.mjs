@@ -19,17 +19,24 @@
  *   · The calendar sheet is chosen by its FIRST DATE (`<year>-01-01` in B2) and a Marylebone name,
  *     never by its name alone — the 2021 sheet's name looks more canonical than the live one (§2).
  *     The totals sheet is the one whose COUNTIF formulas name that calendar.
- *   · A totals row is a row whose Used is a COUNTIF of the calendar, and what it COUNTS is the
+ *   · A totals row is a row whose Used is ONE COUNTIF of the calendar, and what it COUNTS is the
  *     formula's criterion. A row relabelled "Vacancy" still counts its leaver's days (measured,
  *     14 Nov 2026), and the reader's own count must equal the sheet's cached Used on every row, or
- *     nothing is written.
+ *     nothing is written. A row that looks like a person's (a role, a `Surname . I`, a figure or a
+ *     comment in column E) whose Used is anything else stops the file: skipping it lost the row's
+ *     column E, the §0 failure, with exit 0.
  *   · Grade blocks come from the COUNTIF ranges, so a name is only ever counted in its own block (§3).
  *   · Column E is read with its threaded comment, scoped to the totals sheet through its own
- *     relationships, replies included, `/` and `.` both accepted, a START entry's date dropped,
- *     a date the grid already holds counted once (§5, §6).
+ *     relationships, replies included; where only Excel's legacy copy of a thread survives, it is split
+ *     back into the thread's entries. `D/M` and `DD.MM` are both dates, the full stop only between two
+ *     digits each side (`1.5 DAYS` is not 1 May). A START entry's first date after the word is the
+ *     start date and is dropped; another date in that entry is asked about. A date the grid already
+ *     holds is counted once (§5, §6).
  *   · Sunday tags are never leave. A tag is placed by its TEXT, or by an answer; its slot column —
  *     whoever holds the days either side — is offered as evidence and never decides (measured: one
- *     neighbour agrees with a readable tag 51 times in 83, §7).
+ *     neighbour agrees with a readable tag 51 times in 83, §7). A surname alone is matched only within
+ *     its own grade block.
+ *   · Everything is ordered by code unit, never by locale, so the seal does not depend on the session.
  *   · A misspelt name in the grid is still that person's leave (owner, 14 Nov 2026), recorded as not
  *     counted by the sheet, so the file says what the sheet's own total missed (§8 defect 9).
  *   · NEVER KEY ANYTHING BY NAME ALONE (§8 defect 6): rows are kept by row number, and a person with
@@ -38,7 +45,8 @@
  * ── IT ASKS, NEVER GUESSES ─────────────────────────────────────────────────────────────────────
  *
  * A name it cannot match mechanically (`Surname . I` against `I. Surname`), a duplicate row it
- * cannot settle by rule, a comment date that could be either January: each becomes a QUESTION, and
+ * cannot settle by rule (rows with the same figures and different comments included), a comment date
+ * that could be either January with no date beside it to settle it: each becomes a QUESTION, and
  * no file is written until it is answered. Every NAME answer and match goes into the file's
  * `nameMap`, and the NEXT run reads them from the previous file — so two sessions match the same names
  * from the same workbook (plan §3.4). The other answers (which duplicate row, which January) are keyed
@@ -117,12 +125,45 @@ function suggestions(/** @type {string} */ surname, /** @type {any[]} */ members
 
 const STATE_ONLY = /^\s*(available|pending|n\s*\/\s*a|na|closed)\s*$/i;
 const STATE_TOKEN = /(?<![A-Za-z])(?:n\s*\/\s*a|na)(?![A-Za-z])/gi;
-const DATE_TOKEN = /(?<!\d)(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2}|\d{4}))?(?!\d)/g;
+// A comment date: `D/M` or `DD/MM` (then `/YY` or `/YYYY`), or `DD.MM` (then `.YY` or `.YYYY`). The
+// clerks write `19.08` and `21.10` (§5), so the full stop stays — but only between TWO-digit parts,
+// or a quantity reads as a day: `1.5 DAYS FROM PRE JUNE` was the first of May.
+const DATE_TOKEN = /(?<!\d)(?:(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?|(\d{2})\.(\d{2})(?:\.(\d{2}|\d{4}))?)(?!\d)/g;
 const COUNTIF = /^COUNTIF\(\s*'?([^'!]+)'?!\$?([A-Z]{1,3})\$?(\d+):\$?([A-Z]{1,3})\$?(\d+)\s*,\s*"((?:[^"]|"")*)"\s*\)$/i;
 const ROLE_GRADE = /** @type {Record<string, string>} */ ({ CEA: 'CEA', BLCEA: 'CEA', CES: 'CES', DISP: 'DISP' });
+/** The sheet's grade block for an app role. Management has none: a manager is never matched into one. */
+const MEMBER_GRADE = /** @type {Record<string, string>} */ ({ CEA: 'CEA', CES: 'CES', Dispatcher: 'DISP' });
+/** @param {any} m a teamMembers entry @returns {string|null} */
+const memberGrade = m => (typeof m?.role === 'string' && Object.hasOwn(MEMBER_GRADE, m.role) ? MEMBER_GRADE[m.role] : null);
+
+/**
+ * Order by UTF-16 code unit, never by locale: `localeCompare` sorts by the SESSION's collation, so
+ * the same workbook made a different file — and a different seal — in a Swedish locale and an English
+ * one (`Ö` after `Z`, or beside `O`).
+ * @param {string} a @param {string} b
+ */
+const byCodeUnit = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** @param {string} iso @param {number} n */
 const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * A column-E comment's entries from Excel's LEGACY note, read where no thread survives. Excel's copy
+ * of a threaded comment is a placeholder sentence, then `Comment:` and each `Reply:` on a line of its
+ * own with the text beneath (§5). Read whole it is ONE entry where the thread was several, so a
+ * joiner's `STARTED` root took its dated replies down with it; it is split back into the thread it
+ * copies, the placeholder dropped. A plain note is one entry, as it was written.
+ * @param {string} note
+ * @returns {string[]|null} null for a copy of a thread with no `Comment:` in it — not a known shape
+ */
+function legacyNoteEntries(note) {
+    const text = note.replace(/\r\n?/g, '\n');
+    if (!text.trimStart().startsWith('[Threaded comment]')) return [note];
+    const heads = [...text.matchAll(/^(?:Comment|Reply):[ \t]*$/gm)];
+    if (!heads.length) return null;
+    return heads.map((h, i) => text.slice((h.index ?? 0) + h[0].length, heads[i + 1]?.index ?? text.length)
+        .split('\n').map(line => line.trim()).join('\n').trim());
+}
 
 /**
  * @typedef {{ kind: string, key?: string, [k: string]: unknown }} Question
@@ -134,8 +175,9 @@ const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400
  * The workbook, read into the shape the method needs. Throws only on a file that is not a workbook.
  * @param {ReturnType<typeof readXlsx>} wb @param {number} year
  * @param {(q: Question) => void} unexpected
+ * @param {(n: string) => void} [note] what was read past and why, for the session to see
  */
-export function readLeaveWorkbook(wb, year, unexpected) {
+export function readLeaveWorkbook(wb, year, unexpected, note = () => {}) {
     const first = `${year}-01-01`;
     const calendars = wb.sheetNames.filter(n => /marylebone/i.test(n)
         && serialToIso(wb.sheet(n).cells.get('B2')?.v, wb.date1904) === first);
@@ -171,21 +213,49 @@ export function readLeaveWorkbook(wb, year, unexpected) {
         return typeof v === 'number' && Number.isInteger(v) ? v : NaN;
     };
 
+    /**
+     * Does a totals row look like a person's, whatever its Used holds? Then a Used the method cannot
+     * read stops the file. Skipped, the row's grid days came out as "no totals row" and its column E
+     * — the leave §0 is about — went with it, and the run still succeeded. Column E's text is the
+     * header's, so only a FIGURE or a comment there marks a person.
+     * @param {number} row
+     */
+    const personLike = row => {
+        const e = val(`E${row}`);
+        return Object.hasOwn(ROLE_GRADE, String(val(`A${row}`) ?? '').trim().toUpperCase())
+            || !!sheetParts(String(val(`B${row}`) ?? '')) || typeof e === 'number'
+            || tot.threaded.has(`E${row}`) || tot.notes.has(`E${row}`);
+    };
+
     /** @type {any[]} */ const totals = [];
     for (const [ref, c] of tot.cells) {
         const { col, row } = splitRef(ref);
-        if (col !== 'G' || !c.f) continue;
-        const m = COUNTIF.exec(c.f);
-        if (!m || m[1] !== cal.name) continue;
+        if (col !== 'G') continue;
+        if (!c.f && (c.v === null || (typeof c.v === 'string' && !c.v.trim()))) continue;   // nothing there
+        // A totals row is ONE COUNTIF of this calendar, by name. Anything else in Used — two counts
+        // added, a criterion that is a cell, a figure typed over the formula, another sheet's count —
+        // is not a reading the method has, on a person's row or anywhere else.
+        const m = c.f ? COUNTIF.exec(c.f) : null;
+        if (!m || m[1] !== cal.name) {
+            if (personLike(row)) {
+                unexpected({ kind: 'unexpected', what: `totals row ${row}: its Used is not one COUNTIF of this calendar by name, so its days and its column E cannot be read` });
+            } else if (c.f || typeof c.v === 'number') {
+                note(`totals row ${row}: column G is not a count of this calendar, and the row is not a person's (left out)`);
+            }
+            continue;
+        }
         const range = { c1: colNumber(m[2]), c2: colNumber(m[4]), r1: Number(m[3]), r2: Number(m[5]) };
         const printed = { carriedForward: num(`C${row}`, true), allowance: num(`D${row}`, false), columnE: num(`E${row}`, true),
                           used: num(`G${row}`, false), remaining: num(`H${row}`, false) };
         if (Object.values(printed).some(Number.isNaN)) { unexpected({ kind: 'unexpected', what: `totals row ${row} has a figure that is not a whole number` }); continue; }
         const role = String(val(`A${row}`) ?? '').trim().toUpperCase();
         const label = String(val(`B${row}`) ?? '').trim();
-        // Column E's comment: the thread (body and replies, in the file's order), else the legacy note.
+        // Column E's comment: the thread (body and replies, in the file's order), else the legacy note,
+        // split back into its thread when it is Excel's copy of one.
         const thread = tot.threaded.get(`E${row}`);
-        const entries = thread?.length ? thread.map(t => t.text) : (tot.notes.has(`E${row}`) ? [tot.notes.get(`E${row}`) ?? ''] : []);
+        const legacy = tot.notes.get(`E${row}`);
+        const entries = thread?.length ? thread.map(t => t.text) : legacy === undefined ? [] : legacyNoteEntries(legacy);
+        if (!entries) { unexpected({ kind: 'unexpected', what: `totals row ${row}: column E's comment is a copy of a thread with no Comment: in it` }); continue; }
         totals.push({ row, role, label, criterion: m[6].replace(/""/g, '"'), range, printed, eEntries: entries,
                       otherComments: [...tot.threaded.keys(), ...tot.notes.keys()].filter(k => k !== `E${row}` && splitRef(k).row === row).length });
     }
@@ -194,7 +264,7 @@ export function readLeaveWorkbook(wb, year, unexpected) {
     // The grade blocks, from the ranges — a name is only ever counted in its own block (§3).
     /** @type {Map<string, { grade: string, c1: number, c2: number }>} */ const blocks = new Map();
     for (const t of totals) {
-        const grade = ROLE_GRADE[t.role];
+        const grade = Object.hasOwn(ROLE_GRADE, t.role) ? ROLE_GRADE[t.role] : undefined;
         const key = `${t.range.c1}-${t.range.c2}`;
         if (!grade) { unexpected({ kind: 'unexpected', what: `totals row ${t.row} has a role the method does not know` }); continue; }
         const b = blocks.get(key);
@@ -241,7 +311,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
     /** @type {Question[]} */ const questions = [];
     /** @type {string[]} */ const notes = [];
     const ask = (/** @type {Question} */ q) => { if (!questions.some(x => x.kind === q.kind && x.key === q.key && x.what === q.what)) questions.push(q); };
-    const wbr = readLeaveWorkbook(workbook, year, ask);
+    const wbr = readLeaveWorkbook(workbook, year, ask, n => notes.push(n));
     if (!wbr) return { file: null, questions, notes };
     const known = new Set(members.map(m => m.name));
     /** @type {{ rows: Record<string, string|null>, cells: Record<string, string|null>, tags: Record<string, string|null> }} */
@@ -311,9 +381,13 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
 
     // ── Which of a person's rows is theirs (§8 defect 1) ──
     /** @type {Map<string, any>} */ const usedOf = new Map();
+    // One row twice: the same figures, grade, count and block — and the same column-E comment. Two
+    // rows that agree on every figure can still date different days in their comments, and settling
+    // them as identical dropped the second row's dates; that is a person's call.
     const same = (/** @type {any} */ a, /** @type {any} */ b) => JSON.stringify(a.printed) === JSON.stringify(b.printed)
         && a.grade === b.grade && normaliseKey(a.criterion) === normaliseKey(b.criterion)
-        && a.range.c1 === b.range.c1 && a.range.c2 === b.range.c2;
+        && a.range.c1 === b.range.c1 && a.range.c2 === b.range.c2
+        && JSON.stringify(a.eEntries.map(normaliseKey)) === JSON.stringify(b.eEntries.map(normaliseKey));
     for (const [name, list] of rowsOf) {
         if (list.length === 1) { usedOf.set(name, list[0]); continue; }
         /** @type {any} */ let used;
@@ -424,7 +498,12 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
     for (const t of tags) {
         const key = `${t.grade}|${t.key}`;
         const neighbours = { date: t.date, saturday: holder.get(`${t.row - 1}:${t.col}`) ?? null, monday: holder.get(`${t.row + 1}:${t.col}`) ?? null };
-        const name = resolveName('tags', key, () => mechanicalMatch(tagParts(t.key), members), () => ({
+        // A surname alone is matched only among the members of the block it sits in: `N/A Smith` in
+        // the CES columns is not the CEA Smith, however few Smiths the roster has. Two words carry
+        // their initial, so they are matched as a row's name is.
+        const parts = tagParts(t.key);
+        const pool = parts?.initial === null ? members.filter(m => memberGrade(m) === t.grade) : members;
+        const name = resolveName('tags', key, () => mechanicalMatch(parts, pool), () => ({
             kind: 'tag-name', key, grade: t.grade, dates: [], neighbours: [], suggestions: suggestions(tagParts(t.key)?.surname ?? t.key, members) }));
         if (name === undefined) {
             const q = questions.find(x => x.kind === 'tag-name' && x.key === key);
@@ -446,31 +525,46 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
     for (const [name, used] of usedOf) {
         const grid = daysOf.get(name) ?? new Map();
         /** @type {string[]} */ const dated = [];
-        let joiner = false, words = false;
-        // Every date token in the thread, with the dates it could be. A DD/MM in the first two days
-        // of January could be this January or next (the grid runs into it, §2): it takes the year of
-        // the thread's other dates when they all agree — `02/01 03/01` is two days in a row — and is
-        // otherwise a question.
+        let joiner = false, words = false, mixed = false;
         /** @type {Array<{ token: string, candidates: string[] }>} */ const found = [];
         for (const text of used.eEntries) {
-            if (/\bstart/i.test(text)) { joiner = true; continue; }   // a joiner's start date is not leave
             const tokens = [...text.matchAll(DATE_TOKEN)];
+            const start = /\bstart/i.exec(text);
+            if (start) {
+                // A joiner's start date is not leave (§5): it is the first date after the word. Any
+                // other date in the same entry — `STARTED 05/10, A/L 24/12` — may be leave or may not,
+                // and dropping it with the start date lost a day; only a person reading it can say.
+                joiner = true;
+                const startDate = tokens.find(tk => (tk.index ?? 0) > start.index);
+                if (tokens.some(tk => tk !== startDate)) {
+                    ask({ kind: 'unexpected', what: `totals row ${used.row}: one comment entry gives a start date and another date` });
+                    mixed = true;
+                }
+                continue;
+            }
             if (!tokens.length) { if (text.trim()) words = true; continue; }
             for (const tk of tokens) {
-                const mm = tk[2].padStart(2, '0'), dd = tk[1].padStart(2, '0');
-                const candidates = (tk[3] ? [`${tk[3].length === 2 ? `20${tk[3]}` : tk[3]}-${mm}-${dd}`]
+                const mm = (tk[2] ?? tk[5]).padStart(2, '0'), dd = (tk[1] ?? tk[4]).padStart(2, '0'), yy = tk[3] ?? tk[6];
+                const candidates = (yy ? [`${yy.length === 2 ? `20${yy}` : yy}-${mm}-${dd}`]
                     : [`${year}-${mm}-${dd}`, `${year + 1}-${mm}-${dd}`])
                     .filter(c => isRealIsoDate(c) && c >= wbr.source.firstDate && c <= wbr.lastDate);
                 found.push({ token: tk[0], candidates });
             }
         }
-        const settledYears = new Set(found.filter(f => f.candidates.length === 1).map(f => f.candidates[0].slice(0, 4)));
+        if (mixed) continue;
+        // A DD/MM in the first days of January can be this January or next (the grid runs into it,
+        // §2). It is settled only by a date BESIDE it: exactly one of its readings within three days of
+        // another date in the thread that has one reading of its own. `02/01 03/01` (the next day) and
+        // `02/01 05/01` (across a weekend) settle; `24/12 02/01` does not, though it took this year's
+        // January once — the likelier reading is one block over Christmas into next, so it is asked.
+        const anchors = found.filter(f => f.candidates.length === 1).map(f => Date.parse(f.candidates[0]));
+        const beside = (/** @type {string} */ iso) => anchors.some(a => Math.abs(Date.parse(iso) - a) <= 3 * 86_400_000);
         for (const f of found) {
             const qKey = `${used.row}|${f.token}`;
             let iso = f.candidates.length === 1 ? f.candidates[0] : undefined;
             if (f.candidates.length > 1) {
-                iso = answers.commentDates?.[qKey]
-                    ?? (settledYears.size === 1 ? f.candidates.find(c => settledYears.has(c.slice(0, 4))) : undefined);
+                const near = f.candidates.filter(beside);
+                iso = answers.commentDates?.[qKey] ?? (near.length === 1 ? near[0] : undefined);
             }
             if (!iso) {
                 if (f.candidates.length) ask({ kind: 'comment-date', key: qKey, row: used.row, token: f.token, candidates: f.candidates });
@@ -528,7 +622,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
     const listed = new Set([...people.map(p => p.name), ...notImported.keys()]);
     const days = people.flatMap(p => [...(daysOf.get(p.name)?.values() ?? [])]
         .map(d => (d.kind === 'leave' && d.date.startsWith(`${year + 1}-`) ? { ...d, leaveYear: year } : d)))
-        .sort((a, b) => a.name.localeCompare(b.name) || a.date.localeCompare(b.date));
+        .sort((a, b) => byCodeUnit(a.name, b.name) || byCodeUnit(a.date, b.date));
     const file = {
         format: LEAVE_FILE_FORMAT, version: LEAVE_FILE_VERSION, year,
         source: { sha256, ...wbr.source },
@@ -537,7 +631,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
         people,
         days,
         absentFromWorkbook: members.filter(m => !listed.has(m.name) && leaveRecordability(m, year) === null).map(m => m.name).sort(),
-        notImported: [...notImported].map(([name, reason]) => ({ name, reason })).sort((a, b) => a.name.localeCompare(b.name)),
+        notImported: [...notImported].map(([name, reason]) => ({ name, reason })).sort((a, b) => byCodeUnit(a.name, b.name)),
         unplacedSundayTags,
     };
     const refusals = validateLeaveFile(file);

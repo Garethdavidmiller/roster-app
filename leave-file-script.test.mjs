@@ -39,7 +39,14 @@
  *   · a misspelt grid name is that person's leave, uncounted by the sheet (§8 defect 9); a person
  *     with no totals row (defect 10); three kinds of duplicate row, one only a person can settle,
  *     and a blank-E duplicate that is asked about once it carries a comment (defect 1); a manager and
- *     a leaver left out; a recordable member absent from the workbook.
+ *     a leaver left out; a recordable member absent from the workbook;
+ *   · and where the method once guessed, it now asks or refuses (review of Stage 1, 14 Nov 2026): a
+ *     person's row whose Used is not one COUNTIF of the calendar, an early-January date with no date
+ *     beside it, `1.5 DAYS` read as a date, a START entry with another date in it, a thread kept only
+ *     as Excel's legacy copy, two rows with the same figures and different comments, a one-word
+ *     Sunday tag outside its own grade, and an order that changed with the session's locale. The
+ *     reader refuses an XML part it cannot read where it stands, an entry that inflates past its cap
+ *     and two entries with one name.
  */
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,9 +55,9 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { buildXlsx, isoToSerial, zip } from './test-fixtures/xlsx-write.mjs';
+import { buildXlsx, isoToSerial, zip, legacyThreadNote, THREAD_NOTE_PLACEHOLDER } from './test-fixtures/xlsx-write.mjs';
 import { readXlsx, readZip, serialToIso, parseXml } from './scripts/xlsx-read.mjs';
-import { buildLeaveFile } from './scripts/make-leave-file.mjs';
+import { buildLeaveFile, normaliseKey } from './scripts/make-leave-file.mjs';
 import { validateLeaveFile, sealLeaveFile, readLeaveFile, canonicalJson, isSundayIso } from './al-leave-file.js';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -166,7 +173,11 @@ const ANSWERS = {
  * Build the workbook. Options change one thing each, for the tests that need a variant.
  * @param {{ cachedUsed?: Record<number, number>, lastModifiedBy?: string|null, extraPlaced?: Array<[string, string, string]>,
  *           secondCalendar?: boolean, modified?: string|null, extraThreads?: Record<string, string[]>,
- *           columnE?: Record<number, number> }} [o]
+ *           columnE?: Record<number, number>, extraTotals?: TotalsRow[], totalsCells?: Record<string, any>,
+ *           calendarCells?: Record<string, any>, legacyOnly?: number[] }} [o]
+ *   `extraTotals` adds rows (and `totalsCells` then writes over any cell of the totals sheet, `null`
+ *   removing it), `calendarCells` writes over the calendar, and `legacyOnly` keeps those rows' threads
+ *   only as Excel's legacy copy — the shape a workbook saved by an older Excel is left in.
  */
 function leaveWorkbook(o = {}) {
     const placed = [...PLACED, ...(o.extraPlaced ?? [])];
@@ -181,6 +192,7 @@ function leaveWorkbook(o = {}) {
         for (const col of Object.values(BLOCK_COLS).flat()) cal[`${col}${r}`] = fill;
     }
     for (const [iso, col, text] of placed) cal[`${col}${rowOf(iso)}`] = text;
+    Object.assign(cal, o.calendarCells ?? {});
 
     /** @type {Record<string, any>} */
     const tot = { A1: 'Role', B1: 'Name', C1: 'c/f', D1: 'AL allowance', E1: 'AL over depot quota', F1: 'Total', G1: 'Used', H1: 'Remaining' };
@@ -188,7 +200,7 @@ function leaveWorkbook(o = {}) {
     const threads = {};
     /** @type {Record<string, string>} */
     const notes = {};
-    for (const t of TOTALS) {
+    for (const t of [...TOTALS, ...(o.extraTotals ?? [])]) {
         const block = t.role === 'DISP' ? 'DISP' : t.role === 'CES' ? 'CES' : 'CEA';
         const counted = placed.filter(([iso, col, text]) => blockOfCol(col) === block && rowOf(iso) >= 2 && rowOf(iso) <= LAST_ROW
             && text.toLowerCase() === t.crit.toLowerCase()).length;
@@ -202,11 +214,13 @@ function leaveWorkbook(o = {}) {
         tot[`F${t.row}`] = { f: `C${t.row}+D${t.row}`, v: cf + t.d };
         tot[`G${t.row}`] = { f: `COUNTIF('New Marylebone Calendar'!${RANGE[block]},"${t.crit}")`, v: used };
         tot[`H${t.row}`] = { f: `F${t.row}-(G${t.row}+E${t.row})`, v: cf + t.d - (used + e) };
-        if (t.thread) threads[`E${t.row}`] = t.thread.map((x, i) => ({ ...x, person: i % 2 ? 'Clerk Two' : 'Clerk One' }));
+        if (t.thread && o.legacyOnly?.includes(t.row)) notes[`E${t.row}`] = legacyThreadNote(t.thread);
+        else if (t.thread) threads[`E${t.row}`] = t.thread.map((x, i) => ({ ...x, person: i % 2 ? 'Clerk Two' : 'Clerk One' }));
         if (t.note) notes[`E${t.row}`] = t.note;
     }
     threads.D5 = [{ text: 'START DATE 28/09', person: 'Clerk One' }];   // a comment outside column E
     for (const [ref, texts] of Object.entries(o.extraThreads ?? {})) threads[ref] = texts.map(text => ({ text, person: 'Clerk One' }));
+    Object.assign(tot, o.totalsCells ?? {});
 
     /** A small calendar + totals pair for a decoy sheet. @param {string} calName @param {string} first */
     const decoy = (calName, totName, first) => {
@@ -535,6 +549,194 @@ describe('the method (buildLeaveFile)', () => {
         assert.equal(file, null);
         assert.deepEqual(asked(questions), ['cell-name CES|trail . d']);
         assert.ok(notes.some(n => n.includes('no longer on the roster')));
+    });
+});
+
+// ── Where the method once guessed, it now asks or refuses (review of Stage 1, 14 Nov 2026) ─────────
+
+/** People only some variants need — invented like the rest, and on no roster. */
+const T_BROKEN = { name: 'T. Broken', role: 'CEA', rosterType: 'main', currentWeek: 11 };
+const W_TWIN = { name: 'W. Twin', role: 'CEA', rosterType: 'main', currentWeek: 12 };
+/** A row whose Used is read or not by what G21 holds; its grid day and its over-quota day are real. */
+const BROKEN_ROW = { row: 21, role: 'CEA', crit: 'Broken . T', d: 32, e: 1, thread: [{ text: '24/03' }] };
+/** @param {Record<string, any>} [totalsCells] @param {TotalsRow} [row] */
+const brokenBook = (totalsCells, row = BROKEN_ROW) => leaveWorkbook({ extraTotals: [row], extraPlaced: [['2026-03-25', 'C', 'Broken . T']], totalsCells });
+/** @param {any} f @param {string} name */
+const daysFor = (f, name) => daysOf(f).filter((/** @type {string[]} */ d) => d[0] === name);
+/** @param {any[]} qs */
+const refusals = qs => qs.filter(q => q.kind === 'unexpected').map(q => q.what);
+
+describe('the method: where it once guessed, it now asks or refuses', () => {
+    test('a totals row read in full, as the baseline the next test breaks', () => {
+        const { file, questions } = build(brokenBook(), { members: [...MEMBERS, T_BROKEN] });
+        assert.deepEqual(questions, []);
+        assert.deepEqual(daysFor(file, 'T. Broken'), [['T. Broken', '2026-03-24', 'leave', 'column-e'], ['T. Broken', '2026-03-25', 'leave', 'grid']]);
+    });
+
+    test('a person’s row whose Used is not ONE count of this calendar stops the file — it is never dropped', () => {
+        // Dropped, the row's grid day came out as "no totals row" and its over-quota day vanished
+        // (AL_WORKBOOK.md §0), and the run still exited 0.
+        const cal = "'New Marylebone Calendar'!$C$2:$F$368";
+        const why = ['totals row 21: its Used is not one COUNTIF of this calendar by name, so its days and its column E cannot be read'];
+        const silent = { ...BROKEN_ROW, thread: undefined };
+        for (const [what, G21, more, row] of /** @type {Array<[string, any, Record<string, any>, TotalsRow]>} */ ([
+            ['two counts added', { f: `COUNTIF(${cal},"Broken . T")+COUNTIF(${cal},"Brokn . T")`, v: 1 }, {}, BROKEN_ROW],
+            ['a criterion that is a cell', { f: `COUNTIF(${cal},B21)`, v: 1 }, {}, BROKEN_ROW],
+            ['a figure typed over the formula', 1, {}, BROKEN_ROW],
+            ['another calendar’s count', { f: 'COUNTIF(\'Marylebone Calendar\'!$C$2:$F$9,"Broken . T")', v: 0 }, {}, BROKEN_ROW],
+            // Each mark of a person's row is enough on its own: a role…
+            ['a role, nothing else', 1, { B21: 'Vacancy', E21: null }, silent],
+            // …a name in the sheet's form…
+            ['a name, nothing else', 1, { A21: null, E21: null }, silent],
+            // …a figure in column E…
+            ['a figure in column E, nothing else', 1, { A21: null, B21: 'Vacancy' }, silent],
+            // …or a comment there.
+            ['a comment on column E, nothing else', 1, { A21: null, B21: 'Vacancy', E21: null }, BROKEN_ROW],
+        ])) {
+            const { file, questions } = build(brokenBook({ G21, ...more }, row), { members: [...MEMBERS, T_BROKEN] });
+            assert.equal(file, null, what);
+            assert.deepEqual(refusals(questions), why, what);
+        }
+    });
+
+    test('a row that is nobody’s is left out with a note when its Used is a formula or a figure; blanks and labels say nothing', () => {
+        const plain = build(leaveWorkbook());
+        const footer = build(leaveWorkbook({ totalsCells: { B40: 'Total', G40: { f: 'SUM(G2:G20)', v: 25 }, B41: 'Typed', G41: 7, G42: '', B43: 'Label', G43: 'Used' } }));
+        assert.ok(footer.file && plain.file);
+        assert.equal(canonicalJson(footer.file), canonicalJson(plain.file));
+        assert.deepEqual(footer.notes.filter(n => !plain.notes.includes(n)), [
+            'totals row 40: column G is not a count of this calendar, and the row is not a person\'s (left out)',
+            'totals row 41: column G is not a count of this calendar, and the row is not a person\'s (left out)']);
+    });
+
+    test('an early-January date is settled only by a date BESIDE it — otherwise it is asked', () => {
+        const noAnswer = { ...ANSWERS, commentDates: {} };
+        /** @param {string} comment @param {any} [answers] */
+        const lone = (comment, answers = noAnswer) => build(leaveWorkbook({ extraThreads: { E17: [comment] }, columnE: { 17: 2 } }), { answers });
+        // One block over Christmas into next January is the likelier reading of this, so it is not
+        // given this year's January because the other date is this year's (the old rule).
+        const christmas = lone('24/12 02/01');
+        assert.equal(christmas.file, null);
+        assert.deepEqual(asked(christmas.questions), ['comment-date 17|02/01']);
+        assert.deepEqual(christmas.questions[0].candidates, ['2026-01-02', '2027-01-02']);
+        // Two days after New Year's Eve is next January, from this year's sheet.
+        const newYear = lone('31/12 02/01').file;
+        assert.deepEqual(daysFor(newYear, 'P. Lone'), [['P. Lone', '2026-12-31', 'leave', 'column-e'], ['P. Lone', '2027-01-02', 'leave', 'column-e']]);
+        assert.equal(newYear.days.find((/** @type {any} */ d) => d.name === 'P. Lone' && d.date === '2027-01-02').leaveYear, 2026);
+        // Across a weekend still settles: Friday the 2nd, Monday the 5th.
+        assert.deepEqual(daysFor(lone('02/01 05/01').file, 'P. Lone'), [['P. Lone', '2026-01-02', 'leave', 'column-e'], ['P. Lone', '2026-01-05', 'leave', 'column-e']]);
+        // An answer still wins over the rule.
+        const answered = lone('31/12 02/01', { ...ANSWERS, commentDates: { '17|02/01': '2026-01-02' } }).file;
+        assert.deepEqual(daysFor(answered, 'P. Lone').map(d => d[1]), ['2026-01-02', '2026-12-31']);
+    });
+
+    test('a full stop makes a date only between two-digit parts: `1.5 DAYS` is not the first of May', () => {
+        /** @param {string} comment */
+        const lump = comment => build(leaveWorkbook({ extraThreads: { E15: [comment] } })).file;
+        const words = lump('1.5 DAYS FROM PRE JUNE');
+        assert.deepEqual(daysFor(words, 'M. Lump'), []);
+        assert.deepEqual(words.people.find((/** @type {any} */ p) => p.name === 'M. Lump').columnE, ce([0, 0, 3, 0]));
+        // The forms the clerks do write still read: `D/M`, and `DD.MM.YYYY`.
+        for (const [comment, date] of [['1/5', '2026-05-01'], ['21.10.2026', '2026-10-21']]) {
+            const f = lump(comment);
+            assert.deepEqual(daysFor(f, 'M. Lump'), [['M. Lump', date, 'leave', 'column-e']], comment);
+            assert.deepEqual(f.people.find((/** @type {any} */ p) => p.name === 'M. Lump').columnE, ce([1, 0, 0, 2]), comment);
+        }
+    });
+
+    test('a START entry’s first date after the word is the start date; any other date in it is asked about', () => {
+        /** @param {string[]} thread */
+        const joiner = thread => build(leaveWorkbook({ extraThreads: { E5: thread } }));
+        for (const entry of ['STARTED 05/10, A/L 24/12', '28/09 STARTED']) {
+            const { file, questions } = joiner([entry]);
+            assert.equal(file, null, entry);
+            assert.deepEqual(refusals(questions), ['totals row 5: one comment entry gives a start date and another date'], entry);
+        }
+        // One date, after the word: a joiner, no day of leave, the rest of column E the reduction — as before.
+        for (const entry of ['STARTED 28/09', 'START ON 19/10', 'STARTED SUN 20/09 9 DAYS LEAVE THIS YEAR']) {
+            const { file } = joiner([entry, '12/10', '13/10']);
+            assert.ok(file, entry);
+            assert.deepEqual(daysFor(file, 'C. Joiner'), EXPECTED_DAYS.filter(d => d[0] === 'C. Joiner'), entry);
+            assert.deepEqual(file.people.find((/** @type {any} */ p) => p.name === 'C. Joiner').columnE, ce([2, 25, 0, 0]), entry);
+        }
+    });
+
+    test('where only Excel’s legacy copy of a thread survives, it is read as the thread it copies', () => {
+        // Read whole, the joiner's copy was one entry with START in it, and took both dated replies down.
+        const threaded = build(leaveWorkbook()).file;
+        const legacy = build(leaveWorkbook({ legacyOnly: [2, 5] })).file;
+        assert.ok(legacy);
+        assert.equal(canonicalJson(legacy), canonicalJson(threaded));
+        // A copy with no `Comment:` in it is not a shape the method knows.
+        const bare = build(brokenBook({}, { ...BROKEN_ROW, thread: undefined, note: THREAD_NOTE_PLACEHOLDER }), { members: [...MEMBERS, T_BROKEN] });
+        assert.equal(bare.file, null);
+        assert.deepEqual(refusals(bare.questions), ['totals row 21: column E\'s comment is a copy of a thread with no Comment: in it']);
+    });
+
+    test('two rows with the same figures and DIFFERENT comments are asked about, not settled as one', () => {
+        /** @param {string} second */
+        const twins = second => build(leaveWorkbook({ extraTotals: [
+            { row: 21, role: 'CEA', crit: 'Twin . W', d: 32, e: 1, thread: [{ text: '10/06' }] },
+            { row: 22, role: 'CEA', crit: 'Twin . W', d: 32, e: 1, thread: [{ text: second }] }] }), { members: [...MEMBERS, W_TWIN] });
+        const differ = twins('11/06');
+        assert.equal(differ.file, null);
+        assert.deepEqual(asked(differ.questions), ['duplicate-rows W. Twin']);
+        // The same comment, spaced differently, is still one row twice.
+        const same = twins('  10/06 ').file;
+        assert.deepEqual(daysFor(same, 'W. Twin'), [['W. Twin', '2026-06-10', 'leave', 'column-e']]);
+        assert.deepEqual(same.people.find((/** @type {any} */ p) => p.name === 'W. Twin').sheetRows.map((/** @type {any} */ r) => [r.row, r.why ?? null]),
+            [[21, null], [22, 'duplicate-identical']]);
+    });
+
+    test('a surname alone on a Sunday is matched only within its own grade block', () => {
+        // B. Sample is the only Sample on the roster, and a CEA: in the CES columns the tag is not theirs.
+        const ces = build(leaveWorkbook({ extraPlaced: [['2026-05-17', 'H', 'N/A Sample']] }));
+        assert.equal(ces.file, null);
+        assert.deepEqual(asked(ces.questions), ['tag-name CES|sample']);
+        // In their own block it is, and a CES surname in the CES block is still matched.
+        const own = build(leaveWorkbook({ extraPlaced: [['2026-05-24', 'H', 'N/A Trial'], ['2026-05-31', 'F', 'N/A Sample']] })).file;
+        assert.ok(own);
+        assert.ok(daysOf(own).some((/** @type {string[]} */ d) => d.join() === 'D. Trial,2026-05-24,sunday-tag,grid-tag'));
+        assert.ok(daysOf(own).some((/** @type {string[]} */ d) => d.join() === 'B. Sample,2026-05-31,sunday-tag,grid-tag'));
+    });
+
+    test('the file — and so its seal — is the same whatever the session’s collation', () => {
+        const members = [...MEMBERS, { name: 'Z. Zeta', role: 'CEA', rosterType: 'main', currentWeek: 13 },
+            { name: 'Ö. Öst', role: 'CEA', rosterType: 'main', currentWeek: 14 }];
+        const answers = { ...ANSWERS, cells: { ...ANSWERS.cells, 'CEA|ost . o': 'Ö. Öst', 'CEA|öst . ö': null, 'CEA|zeta . q': null } };
+        const book = leaveWorkbook({ extraPlaced: [['2026-07-14', 'D', 'Zeta . Z'], ['2026-07-15', 'D', 'Ost . O'], ['2026-07-16', 'D', 'Öst . Ö'], ['2026-07-17', 'D', 'Zeta . Q']] });
+        const real = String.prototype.localeCompare;
+        /** Made with `localeCompare` answering as a session in that locale would. @param {string} locale */
+        const madeIn = locale => {
+            const collator = new Intl.Collator(locale);
+            String.prototype.localeCompare = function (/** @type {string} */ that) { return collator.compare(String(this), that); };
+            try { return build(book, { members, answers }).file; } finally { String.prototype.localeCompare = real; }
+        };
+        const sv = madeIn('sv'), en = madeIn('en');   // Swedish puts Ö after Z; English beside O
+        assert.ok(sv && en);
+        assert.equal(canonicalJson(sv), canonicalJson(en));
+        // Code-unit order: `Z` (U+005A) before `Ö` (U+00D6), in both lists the order is visible in.
+        assert.deepEqual(sv.days.slice(-2).map((/** @type {any} */ d) => d.name), ['Z. Zeta', 'Ö. Öst']);
+        assert.deepEqual(sv.notImported.map((/** @type {any} */ n) => n.name), ['F. Leaver', 'J. Boss', 'Zeta . Q', 'Öst . Ö']);
+    });
+
+    test('the calendar must be one row per day from row 2: a repeated or a missing date stops everything', () => {
+        const repeated = build(leaveWorkbook({ calendarCells: { B70: isoToSerial('2026-03-11') } }));
+        assert.equal(repeated.file, null);
+        assert.deepEqual(refusals(repeated.questions), ['the calendar\'s dates are not one row per day from row 2 (row 70)']);
+        const missing = build(leaveWorkbook({ calendarCells: { B70: null } }));
+        assert.equal(missing.file, null);
+        assert.deepEqual(refusals(missing.questions), ['the calendar\'s dates are not one row per day from row 2 (row 71)']);
+    });
+
+    test('the file the method makes is checked by the app’s own validator BEFORE it is sealed', () => {
+        // A cell of words answered "not in the app" is listed by its spelling, and this one is longer
+        // than any name the format accepts: the method must not seal a file the app would refuse.
+        const spelt = 'Held for a colleague from another depot until the end of the month, then released';
+        const { file, questions } = build(leaveWorkbook({ extraPlaced: [['2026-07-21', 'D', spelt]] }),
+            { answers: { ...ANSWERS, cells: { ...ANSWERS.cells, [`CEA|${normaliseKey(spelt)}`]: null } } });
+        assert.equal(file, null);
+        assert.deepEqual(refusals(questions), ['the file the method made is refused: Part of the file is not in the expected form (notImported).']);
     });
 });
 

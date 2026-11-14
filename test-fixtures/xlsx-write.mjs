@@ -60,6 +60,16 @@ export const THREAD_NOTE_PLACEHOLDER = '[Threaded comment]\n\nYour version of Ex
     + 'however, any edits to it will get removed if the file is opened in a newer version of Excel. '
     + 'Learn more: https://go.microsoft.com/fwlink/?linkid=870924';
 
+/**
+ * Excel's legacy copy of a thread: the placeholder, then `Comment:` and each `Reply:` with its text
+ * indented beneath. Written beside every thread here, and on its own for a test of a workbook where
+ * only the copy survives.
+ * @param {Array<{ text: string, reply?: boolean }>} list
+ */
+export function legacyThreadNote(list) {
+    return `${THREAD_NOTE_PLACEHOLDER}\n\n` + list.map(e => `${e.reply ? 'Reply' : 'Comment'}:\n    ${e.text}`).join('\n');
+}
+
 /** XML text and attribute escaping — a name with `&` or `'` must survive the round trip. */
 export function esc(/** @type {string} */ s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -168,10 +178,7 @@ export function buildXlsx(spec, damage = {}) {
         }
         // Excel's own legacy copy of each thread, unless the spec gives that ref a note of its own.
         /** @type {Record<string, string>} */ const threadNotes = {};
-        for (const [ref, list] of threads) {
-            threadNotes[ref] = `${THREAD_NOTE_PLACEHOLDER}\n\n`
-                + list.map(e => `${e.reply ? 'Reply' : 'Comment'}:\n    ${e.text}`).join('\n');
-        }
+        for (const [ref, list] of threads) threadNotes[ref] = legacyThreadNote(list);
         const notes = Object.entries({ ...threadNotes, ...(s.notes ?? {}) });
         if (notes.length) {
             const k = n - noteCount++;
