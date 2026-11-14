@@ -479,7 +479,7 @@ added.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Go ahead with Phase 0 and Phase 1 (no app writes), and decide on Phase 2 after using Phase 1? | **Yes.** Phases 0 and 1 built (v26.10); Phase 2 waits |
+| 1 | Go ahead with Phase 0 and Phase 1 (no app writes), and decide on Phase 2 after using Phase 1? | **Yes.** Phases 0 and 1 built (v26.10). Phase 2 approved on 14 Nov 2026; 2a built (v26.11) |
 | 2 | The name map: carried forward in the latest leave file, or a private repository? | **The leave file carries it** (`nameMap`), and the next session reads it back |
 | 3 | Is the workbook the authority for which days are booked? | **Yes, for adding — never for removing** |
 | 4 | Age limit for the clerks' copy | **14 days** (`LEAVE_FILE_MAX_AGE_DAYS`). On the Phase 1 card it is a warning, because a check cannot do harm; Phase 2 is where it would stop a save |
@@ -556,9 +556,29 @@ each now asks, refuses, or reads correctly, with a test that failed before the f
 Re-run on the 6 Nov copy: the same file, except `made` and the seal. One new question (an early-January
 date, `AL_WORKBOOK.md` §5) was answered from the evidence.
 
-**Still open before Phase 2:** `AL_WORKBOOK.md` §10 Q3 (are duplicate rows ever different?), Q7 (what
-column E means) and Q8 (does anyone besides the clerks save the file?), and §4.6's upload log, which
-must ship backend-first in a push of its own.
+**Phase 2a** (v26.11): the upload log, `alUploads`. Its rules, its entry in `DATA_MODEL.md` and 11 rules
+tests, in a release with nothing that writes it (CLAUDE.md → backend-first). What it settled that §4.6
+left open:
+
+- **The file is named twice.** `fileDigest` is the leave file's seal, which covers the name answers too;
+  `workbookSha256` is the clerks' copy itself, which is what somebody holding the `.xlsx` can check.
+- **Two lists, not one.** `inLine` is every sheet day the app held as leave once the Save was done, the
+  days it added and those already right; it is what stops cancelled leave coming back. `added` is only
+  what the Save created, the one thing an undo may remove (§4.10).
+- **An undo is recorded, never a deletion of the log**: `undoneAt`, `undoneBy` and `undone`, once.
+  Deleting the log would forget the clerks' save time too, and an older copy could then be uploaded over
+  a newer one.
+- **A create sent again is refused.** When a create's answer is lost, the SDK sends it again and it
+  arrives as an update, which only an undo may be. So the Save writes its log in a transaction that
+  reads first; a rules test shows both.
+- **`clerksLastSaved` is never null in a log**, though a leave file may say null: a copy of unknown age
+  cannot be ordered against another, so the Save refuses one.
+- **Mutation:** each of the 28 guard lines fails a test when broken. Three `is string` checks placed
+  before a `matches()` were removed, because `matches()` on any other type already refuses the write.
+
+**Still open before Phase 2b:** `AL_WORKBOOK.md` §10 Q3 (are duplicate rows ever different?) and Q7 (what
+column E means); Q8 (does anyone besides the clerks save the file?) before the older-file refusal is
+relied on.
 
 # Part 2 — The review of draft 1
 
