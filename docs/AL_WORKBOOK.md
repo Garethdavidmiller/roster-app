@@ -547,7 +547,7 @@ Every one of these is silent, and every one has been seen. [measured]
    the grid holds a day more than the allowance. Not investigated; it may be a genuine over-booking
    the clerks allowed, a name in one cell too many, or the Employee of the Month day (§9).
 3. **A person in the workbook who is not on the app roster**, with real 2026 bookings and a
-   matching name on the 2021 sheet. See §10. [Re-measured 14 Nov 2026: five CES grid days in one
+   matching name on the 2021 sheet. See §10 — a leaver (owner, 14 Nov 2026). [Re-measured 14 Nov 2026: five CES grid days in one
    June week, a Sunday tag beside them, and **no 2026 totals row**, so the sheet counts them nowhere
    either.]
 4. **An off-by-one COUNTIF range.** Two rows count `G2:H367` where their neighbours count
@@ -795,14 +795,16 @@ Answer any of these and strike it from this list rather than answering it again 
 when the workbook is next uploaded, rather than waiting to be volunteered an answer. Several of
 them change what a figure MEANS, so an unanswered one is not a tidiness problem.
 
-1. **The person in the workbook who is not on the app roster** (§8 defect 3) has 2026 bookings.
+1. ~~**The person in the workbook who is not on the app roster** (§8 defect 3) has 2026 bookings.
    Current staff member missing from the app, a leaver whose row was left behind, or somebody at
-   another location?
+   another location?~~ **Answered [owner, 14 Nov 2026]: somebody who has left.** Their grid days
+   stayed behind with no totals row, the same shape as §8 defect 12, and there is nothing to add to
+   the app.
 2. **The initial mismatches** in §7 — one is now owner-confirmed as the same person; are the other
    two first name vs known-as, or workbook errors?
 3. **Duplicate rows** — is one of each pair authoritative, or is that just untidiness to be ignored?
 4. **Dispatcher allowance** — does the workbook figure already include lieu days for bank holidays
-   worked, or is it the base only?
+   worked, or is it the base only? *(Asked again 14 Nov 2026: the owner is not sure yet.)*
 5. ~~**Carry-forward** — is c/f in use for 2027, and should the app model it?~~ **Answered [owner, 3 Nov
    2026]:** yes — a few 2026 days are being taken in early January 2027, and the app should model it
    per day (§9, the carry-forward row). Built at v25.18: anyone on their own leave, managers and the
@@ -866,10 +868,13 @@ be compared on, by one to six days — the bank holidays each pattern works. If 
 the base alone, every Dispatcher's app balance reads that many days above the sheet all year, and a
 reconciliation that does not expect it reports ten discrepancies that are this one question.
 
-16. **A CEA starter row with nobody on the app roster** [measured, 14 Nov 2026]. One CEA row reads
+16. ~~**A CEA starter row with nobody on the app roster** [measured, 14 Nov 2026]. One CEA row reads
    `START DATE 19/10`, with the pro-rating in column E and nothing booked, and the app has no member
    it could be. Somebody to add, or a trainee with no line yet (the question 14 case)? Ask; do not
-   pair it with anybody by date.
+   pair it with anybody by date.~~ **Answered [owner, 14 Nov 2026]: a new CEA in training** — the
+   question 14 case again, now for a CEA. The sheet carries a trainee from their start date; the app
+   carries them once the owner asks for them to be added (`/new-starter`), which for earlier trainees
+   was with their training pattern, before they had a line.
 
 ---
 
