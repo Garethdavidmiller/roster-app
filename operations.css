@@ -1542,10 +1542,13 @@ body.auth-ready .container { display: grid; }
    words — the kinds added later reuse these pairs, so no new contrast is introduced. */
 .al-sheet-paste-label { display: block; font-size: var(--type-small); color: var(--text-mid); margin-bottom: 6px; }
 /* The Pay Calculator's paste box (.pt-paste), as a second way in — but capped at seven lines: a pasted
-   leave file is machine text nobody reads, and at a third of the screen it buried the card's answer. */
+   leave file is machine text nobody reads, and at a third of the screen it buried the card's answer.
+   Set in Inter, NOT the Pay Calculator's monospace: every control this page styles is (pages.spec.js,
+   "every control Admin and Operations style is set in Inter"), and a system monospace is Consolas on
+   the station PC — a second face beside the card's own. */
 .al-sheet-paste {
     display: block; width: 100%; box-sizing: border-box; margin-bottom: 12px; padding: 8px 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-small);
+    font-family: inherit; font-size: var(--type-small);
     background-color: var(--field-bg); color: var(--text-dark);
     border: var(--field-border); border-radius: var(--radius-field);
     resize: none; field-sizing: content; min-height: 3lh; max-height: min(30vh, 7lh); overflow: auto;

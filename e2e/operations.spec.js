@@ -1288,14 +1288,15 @@ test('operations account status: a reset that lands keeps focus on that row\'s R
 });
 
 // WCAG 2.5.3 again: each file input's name must hold the words of the label that stands for it on
-// screen ("Choose file", "Choose PDF"). They were "Choose huddle PDF or Word document" and the like, so
-// "click Choose file" reached nothing. axe does not test inputs for this, so it is measured here.
+// screen ("Choose file", "Choose PDF", "Choose leave file"). They were "Choose huddle PDF or Word
+// document" and the like, so "click Choose file" reached nothing. axe does not test inputs for this,
+// so it is measured here.
 test('operations: every file input\'s name begins with the words of its visible label', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     const pairs = await page.locator('label.huddle-file-label').evaluateAll(labels => labels.map(l => [
         (l.textContent || '').trim(), document.getElementById(l.getAttribute('for') || '')?.getAttribute('aria-label') || '']));
-    expect(pairs.length).toBe(4);
+    expect(pairs.length, 'premise: five file inputs — the three documents, the roster PDF and the leave file').toBe(5);
     for (const [label, name] of pairs) expect(name.startsWith(label), `"${name}" does not begin with "${label}"`).toBe(true);
 });
 
