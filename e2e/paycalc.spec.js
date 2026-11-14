@@ -104,23 +104,25 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         // The result rail is the primary live output — on-screen at load.
         await expect(page.locator('.result-card')).toBeInViewport();
 
-        // WORKSPACE (v16.67; result raised to the period-band row v16.71): Hours + Settings span
-        // the two WIDE work columns (col 1–2); the col-3 SIDEBAR (.pc-side) holds the result card
-        // AND the four occasional cards, stacked in one column to the right of the work cards. The
-        // sidebar now starts at row 3 (level with the period band) so the take-home result heads
-        // the top-right corner instead of leaving a navy void above it. The result is NOT sticky.
+        // WORKSPACE (v16.67; result raised to the period-band row v16.71; to the top row in the laptop
+        // polish, 13 Nov 2026): Hours + Settings span the two WIDE work columns (col 1–2); the col-3
+        // SIDEBAR (.pc-side) holds the result card AND the four occasional cards, stacked in one
+        // column to the right of the work cards. The sidebar shares the work column's row, so the
+        // take-home result heads the top-right corner level with whatever heads the work column —
+        // on this first visit, the welcome banner — and no navy void sits above it. NOT sticky.
         const zone = await page.evaluate(() => {
             const hh = document.getElementById('hoursCard').getBoundingClientRect();
             const ss = document.getElementById('settingsCard').getBoundingClientRect();
-            const pc = document.querySelector('.period-controls').getBoundingClientRect();
+            const pc = /** @type {Element} */ ([...document.querySelector('.pc-work').children]
+                .find(el => el.getClientRects().length)).getBoundingClientRect();
             const rr = document.querySelector('.result-card').getBoundingClientRect();
             const pp = document.getElementById('payslipCard').getBoundingClientRect();
             const bp = document.getElementById('backPayCard').getBoundingClientRect();
             return {
                 sidebarRightOfHours: rr.left > hh.right - 2 && pp.left > hh.right - 2,
-                // The result now tops the right column: level with the period band (not the Hours
-                // card below it) and strictly ABOVE the Hours card — no navy void sits above it.
-                resultTopsColumn: Math.abs(pc.top - rr.top) < 40 && rr.top < hh.top - 10,
+                // The result tops the right column: level with the first block of the work column
+                // and strictly ABOVE the Hours card — no navy void sits above it.
+                resultTopsColumn: Math.abs(pc.top - rr.top) < 2 && rr.top < hh.top - 10,
                 // Settings spans the two work columns → wider than a single col-3 sidebar card.
                 // (~1.45× at the tight 1024 end, more at wider viewports.)
                 settingsWide: ss.width > pp.width * 1.2,
@@ -131,7 +133,7 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
             };
         });
         expect(zone.sidebarRightOfHours, 'the col-3 sidebar is right of the work cards').toBe(true);
-        expect(zone.resultTopsColumn, 'result tops column 3, level with the period band and above Hours').toBe(true);
+        expect(zone.resultTopsColumn, 'result tops column 3, level with the first block of the work column and above Hours').toBe(true);
         expect(zone.settingsWide, 'Settings spans the wide work columns').toBe(true);
         expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
         expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);
@@ -2396,6 +2398,48 @@ test('paycalc: a manager is told who the calculator is for — with nothing prom
     expect(errors, 'Uncaught JS exceptions on the manager card').toHaveLength(0);
 });
 
+// …and on a short laptop window the refusal is read whole (laptop polish, 13 Nov 2026): at 1280×593 its
+// way back sat 23px under the fold. The role emoji over its title steps aside there (a taller window
+// keeps it), and the card takes the sign-in card's short-window padding, because it wears that card's
+// panel: signed out, this same page shows the sign-in card, so the two are compared directly.
+test('paycalc: on a short laptop window the refusal card ends on screen, its way back included', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a laptop window');
+    await page.setViewportSize({ width: 1280, height: 593 });
+    const padding = (/** @type {string} */ sel) => page.locator(sel).evaluate(el => {
+        const cs = getComputedStyle(el); return [cs.paddingTop, cs.paddingBottom]; });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#loginCard')).toBeVisible();
+    const door = await padding('#loginCard');
+    await seedSession(page, 'D. Minto');
+    await page.goto('/paycalc.html');
+    const back = page.locator('#unsupportedGradeBanner a.login-back');
+    await expect(back).toBeVisible();
+    expect(await padding('#unsupportedGradeBanner'), 'the refusal and the sign-in card are one door: one padding').toEqual(door);
+    const bottom = await back.evaluate(el => Math.round(el.getBoundingClientRect().bottom));
+    expect(bottom, `the way back ends ${bottom - 593}px under the fold of a 1280×593 window`).toBeLessThanOrEqual(593);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.locator('#unsupportedGradeBanner .pc-role-icon'), 'a tall window keeps the emoji').toBeVisible();
+});
+
+// From 768px the Earlier and Later buttons share the select's row, and centred beside it they were 36px
+// to its 44 (laptop polish, 13 Nov 2026). They take the row's height now, so the three read as one row.
+test('paycalc: from 768px the period buttons are as tall as the select beside them', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop window');
+    await seedMemberSession(page, 'G. Miller');
+    for (const width of [800, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#prevBtn')).toBeVisible();
+        const h = await page.evaluate(() => {
+            const tall = (/** @type {string} */ s) => { const e = /** @type {HTMLElement|null} */ (document.querySelector(s));
+                return e && e.offsetParent ? Math.round(e.getBoundingClientRect().height) : null; };
+            return { select: tall('#periodSelectTrigger') ?? tall('#periodSelect'), earlier: tall('#prevBtn'), later: tall('#nextBtn') };
+        });
+        expect(h.select, `premise: the select is drawn at ${width}px`).toBeGreaterThanOrEqual(44);
+        expect([h.earlier, h.later], `${width}px: Earlier and Later against the select's ${h.select}px`).toEqual([h.select, h.select]);
+    }
+});
+
 // THE SIGN-IN CARD EXPLAINS THE PAGE (v25.50). A visitor with no named session — a member whose
 // session lapsed, or the shared staff PIN, which carries no name — met a bare "Pay Calculator · Sign
 // in" with nothing to say what it was or who it was for. The PIN line is worded for everybody rather
@@ -2659,6 +2703,49 @@ test('paycalc: the change of grade is said once — before the day, then never a
     await expect(page.locator('#gradeRosterLine')).toHaveText('The roster lists you as CEA until 21 Nov 2026, then CES from 22 Nov 2026.');
     expect(errors).toHaveLength(0);
 });
+
+// THE NOTES THAT HEAD THE PAGE ARE THE WORK COLUMN'S, ON A LAPTOP TOO (laptop polish, 13 Nov 2026).
+// The grade note had no place in the desktop grid, so it was auto-placed into ONE 330px column — with
+// navy beside it and the period band flush beneath — or, with the welcome banner up, into the top of
+// the take-home column. Both notes are measured against the period band they head, at the owner's
+// laptop size: the same left edge and width, one 16px gap each, and the take-home level with the
+// first of them.
+for (const [name, confirmed] of /** @type {const} */ ([['settings confirmed', true], ['welcome banner up', false]])) {
+    test(`paycalc laptop: the grade note spans the work columns — ${name}`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'the desktop grid, at a laptop window');
+        const errors = collectFatalErrors(page);
+        await page.setViewportSize({ width: 1280, height: 593 });
+        await page.clock.setFixedTime(new Date('2026-11-13T09:00:00Z'));
+        await seedSession(page, PROMOTED);
+        await page.addInitScript((ok) => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+            localStorage.setItem('myb_pc_kjedlinski_grade', 'roster');
+            localStorage.setItem('myb_pc_kjedlinski_p59', JSON.stringify({ satH: 8 }));
+            if (ok) { localStorage.setItem('myb_pc_kjedlinski_setup', '1'); localStorage.setItem('myb_pc_kjedlinski_setup_2026_27', '1'); }
+        }, confirmed);
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await expect(page.locator('#gradeNote')).toBeVisible();
+        expect(await page.locator('#setupBanner').isVisible(), 'premise: the welcome banner shows exactly when settings are unconfirmed').toBe(!confirmed);
+        const m = await page.evaluate(() => {
+            const r = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            const band = r('.period-controls');
+            const notes = ['#setupBanner', '#gradeNote'].map(s => /** @type {HTMLElement} */ (document.querySelector(s)))
+                .filter(el => el.getClientRects().length).map(el => el.getBoundingClientRect());
+            const stack = [...notes, band];
+            return {
+                edges: notes.map(n => ({ left: Math.round(n.left - band.left), width: Math.round(n.width - band.width) })),
+                steps: stack.slice(1).map((b, i) => Math.round(b.top - stack[i].bottom)),
+                resultOffset: Math.round(r('.result-card').top - stack[0].top),
+            };
+        });
+        expect(m.edges.every(e => e.left === 0 && e.width === 0), `each note shares the period band's left edge and width: ${JSON.stringify(m.edges)}`).toBe(true);
+        expect(m.steps.every(s => s === 16), `one 16px gap from note to note to the band: ${JSON.stringify(m.steps)}`).toBe(true);
+        expect(m.resultOffset, 'the take-home heads column 3, level with the first note').toBe(0);
+        expect(errors).toHaveLength(0);
+    });
+}
 
 test('paycalc: a grade chosen by hand covers whole payslips from the one named; earlier ones follow the roster', async ({ page }) => {
     const errors = collectFatalErrors(page);
@@ -3185,10 +3272,13 @@ test('paycalc: a back-pay rate locked from the record reads as a fixed value, an
 });
 
 test('paycalc desktop: a hidden setup banner or privacy note leaves no gap behind it', async ({ page }, info) => {
-    // Rows 1 and 2 of the desktop grid belong to the setup banner and the first-visit privacy note,
-    // and an empty grid row still takes its row-gap. Only the note's was taken back, so a RETURNING
-    // member — both hidden, the normal state — had the workspace 20px under the header against the
-    // 4px of every other card page (pages.spec.js measures the first visit only, where both show).
+    // The setup banner and the first-visit privacy note once owned grid rows 1 and 2, and an empty
+    // grid row still takes its row-gap: a RETURNING member — both hidden, the normal state — had the
+    // workspace 20px under the header against the 4px of every other card page (pages.spec.js
+    // measures the first visit only, where both show). And with the banner up, the take-home column
+    // started BELOW those rows, a navy void at the top right (laptop polish, 13 Nov 2026). Both notes
+    // now head the work column itself, so this measures both halves: one 16px gap between whatever
+    // shows, and the take-home level with the first of it.
     test.skip(isTouchProject(info), 'the 1366px desktop grid');
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
@@ -3216,15 +3306,18 @@ test('paycalc desktop: a hidden setup banner or privacy note leaves no gap behin
             `${name}: the premise — which of the banner and the note it shows`).toEqual(shows);
         const m = await page.evaluate(() => {
             const header = /** @type {Element} */ (document.querySelector('.app-header')).getBoundingClientRect().bottom;
-            const shown = ['#setupBanner', '#privacyNoteTop', '.pc-work > :first-child']
+            const shown = ['#setupBanner', '#privacyNoteTop', '.period-controls']
                 .map(s => /** @type {HTMLElement} */ (document.querySelector(s)))
                 .filter(el => el.getClientRects().length)
                 .map(el => el.getBoundingClientRect());
+            const result = /** @type {Element} */ (document.querySelector('.result-card')).getBoundingClientRect();
             return { top: Math.round(shown[0].top - header),
-                     steps: shown.slice(1).map((r, i) => Math.round(r.top - shown[i].bottom)) };
+                     steps: shown.slice(1).map((r, i) => Math.round(r.top - shown[i].bottom)),
+                     resultOffset: Math.round(result.top - shown[0].top) };
         });
         expect(m.top, `${name}: the first block sits 4px under the header`).toBe(4);
         expect(m.steps.every(s => s === 16), `${name}: one 16px gap between the blocks, measured ${JSON.stringify(m.steps)}`).toBe(true);
+        expect(m.resultOffset, `${name}: the take-home heads column 3, level with the first block — no navy above it`).toBe(0);
     }
 });
 
@@ -4052,9 +4145,10 @@ test('paycalc: on a desktop Tab follows the page — the period band and Hours b
     expect(stops[regions.indexOf('band')].id).toBe('tyTab0');
 
     // The order is the DOM's, so it has to follow the breakpoint both ways: below 1024px the card
-    // leads the work column again, as a first-time member on a phone meets it.
+    // leads the work column's cards again (only the notes that head the page come before it), as a
+    // first-time member on a phone meets it.
     await page.setViewportSize({ width: 900, height: 900 });
-    await expect.poll(() => page.evaluate(() => document.querySelector('.pc-work')?.firstElementChild?.id)).toBe('settingsCard');
+    await expect.poll(() => page.evaluate(() => document.querySelector('.period-controls')?.previousElementSibling?.id)).toBe('settingsCard');
     await page.setViewportSize({ width: 1366, height: 768 });
     await expect.poll(() => page.evaluate(() => document.getElementById('hoursCard')?.nextElementSibling?.id)).toBe('settingsCard');
 });

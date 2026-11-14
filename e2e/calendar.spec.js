@@ -4149,6 +4149,36 @@ test('huddle: a long plan scrolls from the keyboard — the body is a Tab stop i
         .toBeGreaterThan(0);
 });
 
+// ON A LAPTOP THE HUDDLE SITS IN THE APP'S BAND (laptop polish, 13 Nov 2026). The viewer is full-bleed,
+// and at 1536px its prose ran 1504px across and its table stretched to match, a three-column day plan
+// with 900px of air in the middle column. The table now takes the band every other page has, centred,
+// and a paragraph the app's reading measure from the same left edge; a phone keeps its own edges.
+test('huddle: on a wide laptop the plan sits in the app\'s band, its prose at a reading measure', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a laptop window');
+    await page.setViewportSize({ width: 1536, height: 735 });
+    await calendarWithHuddle(page, {
+        fileType: 'docx', storagePath: 'huddles/2026-09-25-a.docx',
+        htmlContent: '<h2>Safety</h2><p>' + 'Keep the gateline staffed until the last arrival tonight. '.repeat(6) + '</p>'
+            + '<table><tr><th>Time</th><th>What</th><th>Who</th></tr><tr><td>07:30</td><td>Gateline briefing</td><td>Earlies</td></tr></table>',
+    });
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleViewerBody table')).toBeVisible({ timeout: 15_000 });
+    const g = await page.evaluate(() => {
+        const body = /** @type {HTMLElement} */ (document.getElementById('huddleViewerBody'));
+        const box = (/** @type {string} */ s) => /** @type {Element} */ (body.querySelector(s)).getBoundingClientRect();
+        const p = /** @type {HTMLElement} */ (body.querySelector(':scope > p'));
+        const lines = Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight));
+        return { inner: body.clientWidth, band: parseFloat(getComputedStyle(body).getPropertyValue('--content-max-width')),
+            table: box('table'), p: box(':scope > p'), perLine: (p.textContent || '').length / lines };
+    });
+    expect(Math.round(g.table.width), 'the table takes the app\'s band').toBe(g.band);
+    expect(Math.abs(g.table.left - (g.inner - g.table.right)), 'the band is centred in the window').toBeLessThanOrEqual(1);
+    expect(Math.round(g.p.left), 'prose and table share one left edge').toBe(Math.round(g.table.left));
+    expect(g.perLine, `the prose runs ${Math.round(g.perLine)} characters to a line`).toBeLessThanOrEqual(95);
+});
+
 // ── A CACHE-SERVED LEAVE BALANCE IS REFUSED (Oct 2026 review) ───────────────────────────────────
 // Offline, the year query is answered from whatever records the device happens to hold, and counting
 // those overstates the leave left. The panel must say it could not load rather than show a figure.
@@ -4559,6 +4589,60 @@ for (const [width, height, taller] of [[360, 695, 0], [360, 695, 55], [390, 844,
         if (taller) expect(g.pageH - g.vh, 'premise: the page is taller than the screen, as on the owner\'s phone').toBeGreaterThanOrEqual(taller - 1);
         expect(Math.round(g.card - g.last), 'an empty band runs under the last name').toBeLessThanOrEqual(1);
         expect(g.wrap, 'the box is under half the screen: two or three rows where the screen is short').toBeGreaterThanOrEqual(g.vh / 2 - 1);
+    });
+}
+
+// …and on a laptop the card ends where the month does (laptop polish, 13 Nov 2026). From 1024px the box
+// is capped at the window less what stands round it, written as a constant, and 280px left a 25px navy
+// band under the card at every laptop size, where the month's key and the page's sides have 16px. The
+// band is measured against the body's own bottom padding, not a number, and the page must not scroll:
+// on Windows a fraction of a pixel over the window draws a scrollbar.
+for (const [width, height] of /** @type {const} */ ([[1024, 600], [1280, 593], [1366, 650], [1536, 735]])) {
+    test(`calendar: on a laptop the Team View card ends where the month does, ${width}×${height}`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a laptop window');
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            for (const k of ['myb_notif_prompt_done', 'myb_install_prompt_done']) { try { localStorage.setItem(k, '1'); } catch { /* private mode */ } }
+        });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#notifPrompt'), 'premise: no notifications strip above the card').toBeHidden();
+        await page.locator('#teamViewBtn').click();
+        await expect(page.locator('.team-table tbody tr').nth(15), 'a grade long enough to need scrolling').toBeAttached();
+        const g = await page.evaluate(() => {
+            const box = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            return { vh: innerHeight, below: innerHeight - box('.team-view-container').bottom,
+                pad: parseFloat(getComputedStyle(document.body).paddingBottom),
+                wrap: box('.team-table-wrap').height, table: box('.team-table').height, pageH: document.documentElement.scrollHeight };
+        });
+        expect(g.table, 'premise: a grade taller than its box, so the cap is what sets the card').toBeGreaterThan(g.wrap);
+        expect(g.pageH, 'the page does not scroll').toBeLessThanOrEqual(g.vh);
+        expect(g.below, `the band under the card is ${g.below.toFixed(1)}px, the page's own margin is ${g.pad}px`).toBeLessThanOrEqual(g.pad + 2);
+        expect(g.below).toBeGreaterThanOrEqual(g.pad);
+    });
+}
+
+// …and its help is read whole there (laptop polish, 13 Nov 2026). The panel was capped at 78% of the
+// window, 463px of a 593px one, and its help is about 500px, so the last lines scrolled inside it, cut at
+// the panel's edge with nothing to say there was more.
+for (const [width, height] of /** @type {const} */ ([[1280, 593], [1366, 650]])) {
+    test(`calendar: on a laptop the Team View help is read whole, ${width}×${height}`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a laptop window');
+        await page.setViewportSize({ width, height });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#teamViewBtn').click();
+        await page.locator('#teamHelpBtn').click();
+        await expect(page.locator('#teamInfoLightbox')).toBeVisible();
+        const g = await page.locator('#teamInfoContent').evaluate(el => {
+            const r = el.getBoundingClientRect();
+            return { scrollH: el.scrollHeight, clientH: el.clientHeight, top: r.top, bottom: r.bottom, vh: innerHeight };
+        });
+        expect(g.scrollH, 'the help scrolls inside its panel').toBeLessThanOrEqual(g.clientH + 1);
+        expect(g.top, 'the panel starts inside the window').toBeGreaterThanOrEqual(0);
+        expect(g.bottom, 'the panel ends inside the window').toBeLessThanOrEqual(g.vh);
     });
 }
 

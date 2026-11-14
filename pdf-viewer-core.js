@@ -24,7 +24,7 @@
  * exists to remove, and a helpful-looking link would put it back.
  */
 
-/** Zoom, as a multiple of "the page fills the width": a phone reads a sheet's weekly grid at 2× or 3×. */
+/** Zoom, as a multiple of "the page fits the box" (pageLayout): a phone reads a sheet's weekly grid at 2× or 3×. */
 export const ZOOM_STEPS = Object.freeze([1, 1.5, 2, 3]);
 
 /**
@@ -72,14 +72,21 @@ export const zoomLabel = (zoom) => `${Math.round(zoom * 100)}%`;
  * @param {number} p.pageWidth   the page's width at scale 1 (PDF points — what PDF.js's viewport reports)
  * @param {number} p.pageHeight  its height at scale 1
  * @param {number} p.boxWidth    the width the page may fill at 1× zoom, in CSS pixels
+ * @param {number} [p.boxHeight] the height a LANDSCAPE page may fill at 1× zoom; 0 or absent fits the width only.
+ *   A slide is read one at a time, so at 1× it fits the window both ways: fitted to the width alone, a 16:9 slide was
+ *   960×540 on a laptop that shows 444px under the bar, the bottom of every slide was always off screen, and "−" is
+ *   disabled at 1× (laptop polish, 13 Nov 2026). A PORTRAIT sheet keeps the width fit and is read by scrolling: fitted
+ *   to a laptop's height an A4 page would be 314px wide, and its weekly grid unreadable.
  * @param {number} [p.zoom]      a ZOOM_STEPS value
  * @param {number} [p.dpr]       window.devicePixelRatio
  * @param {number} [p.maxPixels] the canvas pixel cap
  * @returns {{ cssWidth: number, cssHeight: number, pixelWidth: number, pixelHeight: number, scale: number }}
  *   `scale` is what PDF.js's getViewport takes to fill `pixelWidth`
  */
-export function pageLayout({ pageWidth, pageHeight, boxWidth, zoom = 1, dpr = 1, maxPixels = MAX_CANVAS_PIXELS }) {
-    const fit = Math.max(1, Math.min(MAX_FIT_WIDTH, Math.floor(boxWidth)));
+export function pageLayout({ pageWidth, pageHeight, boxWidth, boxHeight = 0, zoom = 1, dpr = 1, maxPixels = MAX_CANVAS_PIXELS }) {
+    let fit = Math.min(MAX_FIT_WIDTH, Math.floor(boxWidth));
+    if (boxHeight > 0 && pageWidth > pageHeight) fit = Math.min(fit, Math.floor(boxHeight * pageWidth / pageHeight));
+    fit = Math.max(1, fit);
     const cssWidth = Math.max(1, Math.floor(fit * zoom));
     const cssHeight = Math.max(1, Math.round(cssWidth * pageHeight / pageWidth));
     let density = Math.min(Math.max(dpr || 1, 1), MAX_DEVICE_PIXEL_RATIO);

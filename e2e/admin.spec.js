@@ -80,10 +80,30 @@ test('a tips panel with more below the fold says so, and stops saying it at the 
         .toBeGreaterThan(2);
     await expect(panel).toHaveClass(/\bhas-more\b/);
 
+    const head = () => panel.evaluate(el => {
+        const p = el.getBoundingClientRect(), x = /** @type {Element} */ (el.querySelector('#tipsLightboxClose')).getBoundingClientRect(),
+            t = /** @type {Element} */ (el.querySelector('#tipsLbTitle')).getBoundingClientRect();
+        return { closeTop: Math.round(x.top - p.top), titleTop: Math.round(t.top - p.top), titleToBody: Math.round(
+            /** @type {Element} */ (el.querySelector('#tipsLbBody')).getBoundingClientRect().top - t.bottom),
+            // the still block's own band under the title: what the tips scroll beneath
+            bandUnderTitle: Math.round(/** @type {Element} */ (el.querySelector('.tips-lb-top')).getBoundingClientRect().bottom - t.bottom) };
+    });
+    await expect.poll(() => panel.evaluate(el => el.getAnimations().length), { message: 'the panel has finished opening' }).toBe(0);
+    const atRest = await head();
     await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
     // And it goes once there is nothing more to read — a fade that never clears is a panel that
     // always claims to be hiding something.
     await expect(panel).not.toHaveClass(/\bhas-more\b/);
+    // THE ✕ AND THE TITLE STAYED WHERE THEY WERE (laptop polish, 13 Nov 2026): they scrolled away with the
+    // tips, leaving a long panel with no title and nothing to close it but Escape or the backdrop.
+    const scrolled = await head();
+    expect({ closeTop: scrolled.closeTop, titleTop: scrolled.titleTop }, 'the ✕ and the title do not move as the tips scroll')
+        .toEqual({ closeTop: atRest.closeTop, titleTop: atRest.titleTop });
+    expect(atRest.titleToBody, 'at rest the title keeps its gap above the tips').toBeGreaterThanOrEqual(15);
+    expect(atRest.closeTop, 'and the ✕ sits where it always did, 14px from the top').toBe(14);
+    expect(scrolled.bandUnderTitle, 'the tips scroll under a band below the title, not up against it').toBeGreaterThanOrEqual(15);
+    await page.locator('#tipsLightboxClose').click();
+    await expect(page.locator('#tipsLightbox')).toBeHidden();
 });
 
 // ── THE SAVE RECEIPT (v21.38, external review) ──────────────────────────────────────────────────
@@ -5089,9 +5109,15 @@ test('admin: the side column SCROLLS to the Record button, rather than squashing
     const side = page.locator('.col-side');
     expect(await side.evaluate(el => el.scrollHeight - el.clientHeight),
         'the open card makes the column taller than the window, so it must overflow — not squash').toBeGreaterThan(50);
+    // …AND IT SAYS SO (laptop polish, 13 Nov 2026): nothing showed that the column scrolls, and on a Mac
+    // the overlay scrollbar stays hidden until used. The fade every scrolling panel wears, until the end.
+    const fade = () => side.evaluate(el => ({ more: el.classList.contains('has-more'), mask: getComputedStyle(el).maskImage }));
+    await expect.poll(fade, { message: 'the column fades at its foot while there is more below' })
+        .toEqual({ more: true, mask: expect.stringContaining('linear-gradient') });
     const box = /** @type {{x:number,y:number,width:number,height:number}} */ (await side.boundingBox());
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.wheel(0, 2000);
+    await expect.poll(fade, { message: 'and stops fading once the end is reached' }).toEqual({ more: false, mask: 'none' });
     await expect.poll(() => page.evaluate(() => {
         const b = /** @type {HTMLElement} */ (document.getElementById('alSaveBtn')).getBoundingClientRect();
         const s = /** @type {HTMLElement} */ (document.querySelector('.col-side')).getBoundingClientRect();
@@ -5104,6 +5130,24 @@ test('admin: the side column SCROLLS to the Record button, rather than squashing
         .filter(c => c.scrollHeight - c.clientHeight > 1).map(c => c.id));
     expect(clipped, 'a card in the side column is squashed below its content').toEqual([]);
 });
+
+// A SHORT LAPTOP WINDOW SHOWS THE WEEK, NOT JUST ITS CONTROLS (laptop polish, 13 Nov 2026). At 1280×593 —
+// a 1920-pixel laptop at Windows' 150% — 474px stood above Sunday and the window showed two days of seven.
+// The bulk bar and the rows were sized for a tall desk and a thumb; with a mouse on a short window the
+// spacing tightens (no control moves) and a row is 42px, so three days show at 593 and four at 650.
+for (const [width, height, days] of /** @type {const} */ ([[1280, 593, 3], [1366, 650, 4]])) {
+    test(`admin laptop: the opening screen shows ${days} days of the week at ${width}×${height}`, async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a laptop window and a mouse');
+        await deskAdmin(page, { width, height });
+        const g = await page.evaluate(() => {
+            const rows = [...document.querySelectorAll('.day-row')];
+            return { whole: rows.filter(r => r.getBoundingClientRect().bottom <= innerHeight).length,
+                rowH: rows[0].getBoundingClientRect().height };
+        });
+        expect(g.whole, 'whole days on the opening screen').toBeGreaterThanOrEqual(days);
+        expect(g.rowH, 'a row sized for a mouse, not a thumb').toBeLessThanOrEqual(43);
+    });
+}
 
 test('admin: a save error is never under the Unsaved bar — scrolled to, or at the very end of the page (1366×768)', async ({ page }, info) => {
     // The bar is fixed over the foot of the screen and nothing reserved its height: the save error,

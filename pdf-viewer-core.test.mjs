@@ -72,6 +72,27 @@ describe('page layout', () => {
         assert.equal(l.cssWidth, MAX_FIT_WIDTH);
         assert.equal(pageLayout({ ...SLIDE, boxWidth: 1880, zoom: 2, dpr: 1 }).cssWidth, MAX_FIT_WIDTH * 2, 'zoom still works from there');
     });
+    test('a SLIDE fits the box both ways at 1× — a laptop sees the whole slide, and zoom still starts from there', () => {
+        // 1280×593: 1248px wide, 444px tall under a two-row bar. Fitted to the width alone the slide was 960×540, the
+        // bottom 96px of every slide was always off screen, and "−" is disabled at 1× (laptop polish, 13 Nov 2026).
+        const l = pageLayout({ ...SLIDE, boxWidth: 1248, boxHeight: 444, dpr: 1 });
+        assert.ok(l.cssHeight <= 444, `the slide's height is inside the box: ${l.cssWidth}×${l.cssHeight}`);
+        assert.equal(l.cssWidth, Math.floor(444 * SLIDE.pageWidth / SLIDE.pageHeight), 'and it is as big as the height allows');
+        assert.equal(pageLayout({ ...SLIDE, boxWidth: 1248, boxHeight: 444, zoom: 2, dpr: 1 }).cssWidth, l.cssWidth * 2, 'zoom multiplies the fitted size');
+        // A tall box changes nothing: the width (or the 960 cap) binds first, as before.
+        assert.equal(pageLayout({ ...SLIDE, boxWidth: 1248, boxHeight: 900, dpr: 1 }).cssWidth, MAX_FIT_WIDTH);
+        assert.equal(pageLayout({ ...SLIDE, boxWidth: 343, boxHeight: 600, dpr: 1 }).cssWidth, 343, 'a phone held upright: the width binds');
+    });
+    test('a PORTRAIT sheet keeps the width fit whatever the height — it is read by scrolling', () => {
+        // Fitted to a laptop's 444px an A4 sheet would be 313px wide and its weekly grid unreadable.
+        const tall = pageLayout({ ...A4, boxWidth: 1248, boxHeight: 444, dpr: 1 });
+        assert.equal(tall.cssWidth, MAX_FIT_WIDTH);
+        assert.equal(pageLayout({ ...A4, boxWidth: 343, boxHeight: 444, dpr: 1 }).cssWidth, 343);
+    });
+    test('no height yet (or none given) fits the width only, as before', () => {
+        assert.equal(pageLayout({ ...SLIDE, boxWidth: 1248, dpr: 1 }).cssWidth, MAX_FIT_WIDTH);
+        assert.equal(pageLayout({ ...SLIDE, boxWidth: 1248, boxHeight: 0, dpr: 1 }).cssWidth, MAX_FIT_WIDTH);
+    });
     test('a box with no width yet still gives every size at least one pixel', () => {
         const l = pageLayout({ ...A4, boxWidth: 0, dpr: 2 });
         for (const v of [l.cssWidth, l.cssHeight, l.pixelWidth, l.pixelHeight]) assert.ok(v >= 1);

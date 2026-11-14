@@ -461,6 +461,11 @@ body {
     .nl-weeks-all { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
     .nl-weeks-one:not(.is-chosen) { display: block; }
     .nl-files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* Two cards side by side are one row: the link fills its cell, so a card whose name wraps no longer stands 56px
+       beside a 42px neighbour, and the name balances its lines instead of leaving "page" alone on the second
+       (laptop polish, 13 Nov 2026). */
+    .nl-files > li { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .nl-file-name { text-wrap: balance; }
 }
 
 /* A thumb's target. After the base rules, so it wins (css-tokens.md, v19.61). */
@@ -539,6 +544,18 @@ body {
     font-size: var(--type-small);
     font-variant-numeric: tabular-nums;
     color: var(--on-navy-muted);
+}
+/* ONE ROW ON A LAPTOP (laptop polish, 13 Nov 2026). The phone's two rows — title and ✕, then the file's details and the
+   zoom — took 109px, 18% of a 593px window, with most of each row empty; from 1024px all four fit one line, and the 46px
+   goes to the page (a slide is fitted to the height that is left: pdf-viewer-core.js → pageLayout). The rows step aside
+   (`display: contents`) and the ✕ goes last, where a close button sits; in the Tab order it stays first, as a dialog's
+   close conventionally does. */
+@media (min-width: 1024px) {
+    .pdf-viewer-bar { display: flex; align-items: center; column-gap: 16px; }
+    .pdf-viewer-row { display: contents; }
+    .pdf-viewer-title { flex: 0 1 auto; }
+    .pdf-viewer-meta { flex: 1 1 auto; }
+    .pdf-viewer-close { order: 1; }
 }
 .pdf-viewer-pages {
     flex: 1;

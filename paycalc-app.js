@@ -84,8 +84,8 @@ import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
  * @param {any} member the signed-in teamMembers entry
  */
 function _showUnsupportedRole(member) {
-    // A BODY CLASS, never the `hidden` attribute: `.pc-work`/`.pc-side` are `display: contents` on
-    // mobile and `flex` on desktop, both of which out-specify `hidden`'s UA rule, so the
+    // A BODY CLASS, never the `hidden` attribute: `.pc-side` is `display: contents` on mobile and
+    // both are `flex` on desktop, each of which out-specifies `hidden`'s UA rule, so the
     // calculator would render in full while this code believed it was gone. See paycalc.css.
     document.body.classList.add('role-unsupported');
     document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');

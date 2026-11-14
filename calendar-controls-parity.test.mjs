@@ -31,7 +31,8 @@
 //  10. no literal z-index reaches the overlay bands — those are the --z-* scale;
 //  11. every screen breakpoint that restates the body's padding keeps the safe-area insets;
 //  12. the Huddle's pinned column is the viewer's own white;
-//  13. Team View's grade tabs and the leave panel's two links wear the button corner, not a pill's.
+//  13. Team View's grade tabs and the leave panel's two links wear the button corner, not a pill's;
+//  14. the month heading's mark is the app's chevron, and no generated content draws a picker glyph.
 //
 // Comments are stripped before matching, so a rule can't hide inside one — or be invented by one.
 
@@ -239,4 +240,17 @@ test('12. the Huddle\'s pinned column is the viewer\'s own white', () => {
         .map(r => declared(r.body, 'background')).filter(Boolean).pop();
     assert.equal(fill('#huddleViewer'), 'white', 'premise: the viewer is white');
     assert.equal(fill('#huddleViewerBody .huddle-shift-col'), fill('#huddleViewer'));
+});
+
+// "The picker chevrons are tokens" (css-tokens.md): the month heading opens the month jump, and its mark
+// was "▾", a character Inter does not carry, so each device drew its own triangle from a fallback font
+// beside a member picker wearing `--caret-chevron` (laptop polish, 13 Nov 2026). Measured in a browser:
+// the glyph's width followed the fallback face, 24.1px under serif and 28.9px under monospace at 48px.
+test('14. the month heading\'s mark is the app\'s chevron, and no generated content draws a picker glyph', () => {
+    const mark = NESTED.filter(r => r.selector === '.month-year::after' && !r.at.some(a => /\bprint\b/.test(a)));
+    assert.ok(mark.length >= 1, 'premise: the heading draws a mark');
+    assert.ok(mark.some(r => (declared(r.body, 'background') || '').includes('var(--caret-chevron)')),
+        'the heading\'s mark is --caret-chevron, the mark every picker wears');
+    const glyphs = NESTED.filter(r => /content\s*:[^;]*[▾▼▿⌄⏷]/.test(r.body)).map(r => r.selector);
+    assert.deepEqual(glyphs, [], 'a picker mark drawn as a character takes whatever font the device has');
 });

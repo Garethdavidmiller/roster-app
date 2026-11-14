@@ -1298,6 +1298,89 @@ test('guides: a paragraph keeps a reading measure on a desktop, and a phone is u
     }
 });
 
+// The FIP guide's rule rows and steps (laptop polish, 13 Nov 2026). Each draws its card's dividers, so a
+// measure on the ROW stopped the dividers ~165px short of the card, and the steps had none at all: 92
+// characters a line, on 23px lines. From 1024px the measure goes on the WORDS. A row keeps the column and
+// takes its measure as padding (the same text width as before); a step's body is a 64ch block with its own
+// 20px lines. 64ch is read off a probe in each element's own font, so a size change moves both sides.
+test('fip: on a desktop a rule row\'s divider spans its card and a step reads at the guide\'s measure', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    const m = await page.evaluate(() => {
+        /** 64ch in an element's own font. @param {Element} el */
+        const measure = (el) => { const p = document.createElement('span');
+            p.style.cssText = 'display:inline-block;width:64ch;visibility:hidden;position:absolute';
+            el.appendChild(p); const w = p.getBoundingClientRect().width; p.remove(); return w; };
+        /** The extent of an element's words. @param {Element} el */
+        const words = (el) => { const r = document.createRange(); r.selectNodeContents(el);
+            const boxes = [...r.getClientRects()].filter(b => b.width);
+            return { left: Math.min(...boxes.map(b => b.left)), right: Math.max(...boxes.map(b => b.right)),
+                     tops: [...new Set(boxes.map(b => Math.round(b.top)))].sort((a, b) => a - b) }; };
+        const rows = [...document.querySelectorAll('.rule-list li')].map(li => {
+            const list = /** @type {Element} */ (li.parentElement).getBoundingClientRect(), box = li.getBoundingClientRect();
+            return { short: Math.round(list.width - box.width), over: Math.round(words(li).right - box.left - measure(li)) };
+        });
+        const steps = [...document.querySelectorAll('.steps li > span')].map(span => {
+            const w = words(span);
+            return { over: Math.round(w.right - w.left - measure(span)), pitch: w.tops.length > 1 ? w.tops[1] - w.tops[0] : 0 };
+        });
+        return { rows, steps };
+    });
+    expect(m.rows.length, 'premise: the rule lists are on the page').toBeGreaterThan(4);
+    expect(m.rows.filter(r => r.short > 1), 'a rule row stops short of its card, and its divider with it').toEqual([]);
+    expect(m.rows.filter(r => r.over > 1), 'a rule row\'s words run past 64ch').toEqual([]);
+    expect(m.steps.length, 'premise: the steps are on the page').toBeGreaterThan(4);
+    expect(m.steps.filter(st => st.over > 1), 'a step runs past 64ch').toEqual([]);
+    expect(m.steps.filter(st => st.pitch > 21), 'a step is on its row\'s loose 23px lines').toEqual([]);
+    // A phone keeps its rows and steps as they were.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    expect(await page.locator('.steps li > span').first().evaluate(el => getComputedStyle(el).display), 'a phone\'s step body').toBe('inline');
+    expect(await page.locator('.rule-list li').first().evaluate(el => getComputedStyle(el).paddingRight), 'a phone\'s rule row').toBe('14px');
+});
+
+// Three things on the Railcard guide (laptop polish, 13 Nov 2026). The source banner's MARYLEBONE tag was
+// an inline-block, which Chromium will break after, so a line began ". One item…", and its tint was the
+// banner's own amber, so only its padding showed. The red CHECK layer label shares the checklist's class
+// name and wore that card's white, shadowed box. And "↳ Follows the … fare" was a square band as wide as
+// the note under it, which read as selected text.
+test('railcard: the banner keeps its full stop, CHECK wears no card, and the fare tag is as wide as its words', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 593 });
+    await page.goto('/railcard-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    const starts = await page.locator('.source-banner p').evaluate(el => {
+        /** @type {{ top: number, text: string }[]} */
+        const out = [];
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const text = n.textContent || '';
+            for (let i = 0; i < text.length; i++) {
+                const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+                const box = r.getClientRects()[0]; if (!box || !text[i].trim()) continue;
+                let line = out.find(l => Math.abs(l.top - box.top) < 6);
+                if (!line) { line = { top: box.top, text: '' }; out.push(line); }
+                line.text += text[i];
+            }
+        }
+        return out.sort((a, b) => a.top - b.top).map(l => l.text[0]);
+    });
+    expect(starts.length, 'premise: the banner wraps').toBeGreaterThan(1);
+    expect(starts, 'a line of the banner starts with a full stop').not.toContain('.');
+    expect(await page.locator('.source-banner .tl-tag').evaluate(el => getComputedStyle(el).boxShadow), 'the banner tag has no edge').not.toBe('none');
+    const check = await page.locator('.rc-layer-lbl.check').first().evaluate(el => {
+        const cs = getComputedStyle(el); return { shadow: cs.boxShadow, fill: cs.backgroundColor }; });
+    expect(check, 'CHECK wears the checklist card').toEqual({ shadow: 'none', fill: 'rgba(0, 0, 0, 0)' });
+    const fare = await page.locator('.rc-cutoff.fare').first().evaluate(el => {
+        const r = el.getBoundingClientRect(), val = /** @type {Element} */ (el.parentElement).getBoundingClientRect();
+        const say = document.createRange(); say.selectNodeContents(el);
+        const note = document.createRange(); note.selectNodeContents(/** @type {Element} */ (el.parentElement?.querySelector('.rc-sub')));
+        return { spare: Math.round(val.width - r.width), wordsAt: Math.round(say.getClientRects()[0].left), noteAt: Math.round(note.getClientRects()[0].left) };
+    });
+    expect(fare.spare, 'the fare tag runs the width of the note under it').toBeGreaterThan(40);
+    expect(fare.wordsAt, 'the fare tag\'s words line up with the note under them').toBe(fare.noteAt);
+});
+
 // The Railcard quick check on a desktop (owner, Nov 2026: LARGER TEXT, not a narrower card). Its
 // note keeps the 64ch measure above, and at 12.5px that stopped about 200px short of a ~700px card —
 // each card measured ~30% empty on its right here, ~20% on CI's slightly wider render. One factor

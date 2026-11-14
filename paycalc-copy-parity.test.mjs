@@ -57,7 +57,7 @@ function subtitleFor(title) {
     assert.ok(row, `no row titled "${title}" in paycalc.html`);
     const sub = /<div class="h-sub">([\s\S]*?)<\/div>/.exec(row);
     assert.ok(sub, `the "${title}" row has no .h-sub explaining it`);
-    return sub[1].replace(/<[^>]+>/g, '').trim();
+    return sub[1].replace(/<[^>]+>/g, '').replace(/&nbsp;|\u00a0/g, ' ').trim();   // the words, as read
 }
 
 // ── A PICKER SHEET IS TITLED WITH ITS FIELD'S OWN LABEL (whole-app review, Nov 2026) ──────────────

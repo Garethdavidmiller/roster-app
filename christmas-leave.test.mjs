@@ -363,11 +363,12 @@ describe('a day shown wrongly — what each surface draws', () => {
     });
 
     test('one phrasing for every surface that lists them', () => {
+        // A day's name never breaks across lines: `\u00a0` is the no-break space inside it.
         assert.equal(christmasLeaveLine([]), null);
-        assert.equal(christmasLeaveLine(['2026-12-25']), 'Christmas Day: annual leave, not counted');
-        assert.equal(christmasLeaveLine(['2026-12-26']), 'Boxing Day: annual leave, not counted');
+        assert.equal(christmasLeaveLine(['2026-12-25']), 'Christmas\u00a0Day: annual leave, not counted');
+        assert.equal(christmasLeaveLine(['2026-12-26']), 'Boxing\u00a0Day: annual leave, not counted');
         assert.equal(christmasLeaveLine(['2026-12-25', '2026-12-26']),
-            'Christmas Day and Boxing Day: annual leave, not counted');
+            'Christmas\u00a0Day and Boxing\u00a0Day: annual leave, not counted');
     });
 
     test('the worked-day test the day panel and Admin\'s note use is the allowance\'s own', () => {

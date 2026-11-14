@@ -148,6 +148,46 @@
 
   <main>
 
+  <!-- ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────
+       Every consumer of the grade falls back to CEA when no grade is stored, so a Dispatcher
+       or a manager could open this page and be handed a polished, plausible, wrong
+       take-home figure with nothing saying it did not apply to them. An explicit refusal is worth
+       more than a confident answer: the numbers are not merely unverified for these roles, they
+       are somebody else's. Shown INSTEAD of the calculator, not above it — a banner over a working
+       form is an invitation to use the form.
+       THE WORDS ARE WRITTEN BY paycalc-role-card.js (v25.50), because they differ by who is reading —
+       a Dispatcher, a manager, a name the roster no longer holds — so the three text slots are empty
+       here and filled in the same call that shows the card. The reason comes straight after the
+       title, because it answers the question the reader arrived with; then what the calculator DOES
+       and its guide, in the sign-in card's own "about" box, since the page's own guide link is hidden
+       on the refusal (paycalc.css). It wears the sign-in card's panel too (shared.css), so the two
+       ways this page turns somebody away look like one door — down to the same way out. -->
+  <div class="pc-role-card hidden" id="unsupportedGradeBanner">
+    <div class="pc-role-icon" aria-hidden="true">💷</div>
+    <h2 class="pc-role-title" id="unsupportedGradeTitle"></h2>
+    <p class="pc-role-why" id="unsupportedGradeWhy"></p>
+    <div class="login-about" id="unsupportedGradeAbout">
+      <p class="field-eyebrow">What it does</p>
+      <p class="login-about-line" id="unsupportedGradeWhat"></p>
+      <a class="login-about-link" href="./paycalc-guide.html">Read the Pay Calculator Guide →</a>
+    </div>
+    <p class="login-help">Everything else in the app works as normal.</p>
+    <a href="./" class="login-back pc-role-back">← Back to roster</a>
+  </div>
+
+  <!-- DESKTOP WORK COLUMN (columns 1–2): the notes that head the page, then Settings + period band +
+       Hours. `.pc-work` is a plain block on mobile (DOM order unchanged there; paycalc.css says why it
+       is not display:contents) and a flex column on desktop sharing ONE grid row with `.pc-side` — so
+       neither column's height can inflate the other's rows (the v18.47 fix for the expanded-sidebar
+       mid-page void; flex `order` puts the period band first on desktop while mobile keeps this DOM
+       order).
+       THE NOTES ARE IN HERE, NOT ABOVE IT (laptop polish, 13 Nov 2026). As rows of their own above
+       the workspace they took the work columns only, so the take-home column started below them —
+       a navy void at the top right on every visit that showed the welcome banner — and the two
+       grade notes, which had no row at all, were auto-placed into a single 330px column. In the
+       work column a hidden one takes no gap and a shown one is as wide as the cards beneath it. -->
+  <div class="pc-work">
+
   <!-- SETUP BANNER: shown when current tax year's settings haven't been confirmed yet -->
   <div class="setup-banner hidden" id="setupBanner">
     <h2 id="setupBannerTitle">👋 Estimate your take-home</h2>
@@ -189,46 +229,12 @@
     <p id="gradeNoteDone" tabindex="-1" hidden></p>
   </div>
 
-  <!-- ── A ROLE THIS CALCULATOR HAS NO CONFIRMED RATES FOR (v21.78) ────────────────────────────
-       Every consumer of the grade falls back to CEA when no grade is stored, so a Dispatcher
-       or a manager could open this page and be handed a polished, plausible, wrong
-       take-home figure with nothing saying it did not apply to them. An explicit refusal is worth
-       more than a confident answer: the numbers are not merely unverified for these roles, they
-       are somebody else's. Shown INSTEAD of the calculator, not above it — a banner over a working
-       form is an invitation to use the form.
-       THE WORDS ARE WRITTEN BY paycalc-role-card.js (v25.50), because they differ by who is reading —
-       a Dispatcher, a manager, a name the roster no longer holds — so the three text slots are empty
-       here and filled in the same call that shows the card. The reason comes straight after the
-       title, because it answers the question the reader arrived with; then what the calculator DOES
-       and its guide, in the sign-in card's own "about" box, since the page's own guide link is hidden
-       on the refusal (paycalc.css). It wears the sign-in card's panel too (shared.css), so the two
-       ways this page turns somebody away look like one door — down to the same way out. -->
-  <div class="pc-role-card hidden" id="unsupportedGradeBanner">
-    <div class="pc-role-icon" aria-hidden="true">💷</div>
-    <h2 class="pc-role-title" id="unsupportedGradeTitle"></h2>
-    <p class="pc-role-why" id="unsupportedGradeWhy"></p>
-    <div class="login-about" id="unsupportedGradeAbout">
-      <p class="field-eyebrow">What it does</p>
-      <p class="login-about-line" id="unsupportedGradeWhat"></p>
-      <a class="login-about-link" href="./paycalc-guide.html">Read the Pay Calculator Guide →</a>
-    </div>
-    <p class="login-help">Everything else in the app works as normal.</p>
-    <a href="./" class="login-back pc-role-back">← Back to roster</a>
-  </div>
-
   <!-- PRIVACY NOTE — FIRST VISIT ONLY (v24.32, owner). The same sentence is the first line of the
        note at the foot of the page, which every visit sees; up here it is for the one reader it
        matters most to — somebody about to type in figures from a payslip for the first time. It is
        hidden at load once this member has saved settings or any hours (paycalc-app.js, beside
        runMigrations), and starts hidden so a returning member never sees it flash. -->
   <div class="privacy-note-standalone hidden" id="privacyNoteTop">🔒 Your pay data is saved in this browser on this device — never sent to any server or seen by anyone.</div>
-
-  <!-- DESKTOP WORK COLUMN (columns 1–2): Settings + period band + Hours. `.pc-work` is
-       display:contents on mobile (DOM order unchanged there) and a flex column on desktop
-       sharing ONE grid row with `.pc-side` — so neither column's height can inflate the
-       other's rows (the v18.47 fix for the expanded-sidebar mid-page void; flex `order`
-       puts the period band first on desktop while mobile keeps this DOM order). -->
-  <div class="pc-work">
 
   <!-- SETTINGS (at top so first-time users find it immediately) -->
   <div class="content-card" id="settingsCard">
@@ -452,7 +458,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. <span class="h-payslip">Shows as "Ord Basic Pay @1.25" on your payslip.</span></div>
+          <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. <span class="h-payslip">Shows as "Ord&nbsp;Basic&nbsp;Pay&nbsp;@1.25" on your payslip.</span></div>
           <div class="val-warn" id="satWarn" role="alert"><span aria-hidden="true">⚠</span> You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
         <div>
@@ -475,7 +481,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
           <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
-          <div class="h-sub">Any hours you worked on a Sunday, rostered or not — <strong>Sunday always pays 1.5×</strong>. <span class="h-payslip">Shows as "RDW Sun 1.5" on your payslip.</span></div>
+          <div class="h-sub">Any hours you worked on a Sunday, rostered or not — <strong>Sunday always pays 1.5×</strong>. <span class="h-payslip">Shows as "RDW&nbsp;Sun&nbsp;1.5" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -497,7 +503,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Rostered</div>
           <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). <span class="h-payslip">Shows as "Bank Holiday Rostered 1.25" on your payslip.</span></div>
+          <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Rostered&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -519,7 +525,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Overtime</div>
           <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. <span class="h-payslip">Shows as "Bank Holiday Overtime 1.25" on your payslip.</span></div>
+          <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -550,7 +556,7 @@
           <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £26.86/hr</span>
           <!-- Prose lives here ONLY (v18.46 — sweep item 12): JS fills just the cut-off date span,
                so the copy can't drift between HTML and a JS duplicate (it used to exist in both). -->
-          <div class="h-sub">Extra hours on top of a rostered shift. <span class="h-payslip">Shows as "Overtime 1.25" on your payslip.</span></div>
+          <div class="h-sub">Extra hours on top of a rostered shift. <span class="h-payslip">Shows as "Overtime&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -572,7 +578,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
           <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster. <strong>Sundays go in Sunday Working instead</strong> — it pays 1.5×, even though your payslip calls it "RDW Sun 1.5". <span class="h-payslip">Shows as "RDW 1.25" on your payslip.</span></div>
+          <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster. <strong>Sundays go in Sunday Working instead</strong> — it pays 1.5×, even though your payslip calls it "RDW&nbsp;Sun&nbsp;1.5". <span class="h-payslip">Shows as "RDW&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -596,7 +602,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🎁</span> Boxing Day Working</div>
           <span class="rate-badge badge-box" id="badge-box">3×  ·  £64.47/hr</span>
-          <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. <span class="h-payslip">Shows as "Bank Holiday Overtime 3.0" on your payslip.</span></div>
+          <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;3.0" on your payslip.</span></div>
         </div>
         <div>
           <div class="hhmm-wrap">

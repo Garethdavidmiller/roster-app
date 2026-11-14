@@ -400,6 +400,19 @@ the Pay Calculator's comparison table also uses — the uppercase label is the c
     cursor: pointer;
 }
 .tr-head:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* ONE CHIP COLUMN FOR THE WHOLE LIST (laptop polish, 13 Nov 2026). Each row was a grid of its own, so its `auto` chip
+   column was as wide as its own chip: "New route" pushed its sentence 10px right of the "+6 a day" rows below it
+   (css-tokens.md → "`auto` in two grids is two different widths"). As a subgrid through the <li> to the button, the
+   column is as wide as the widest chip in the list, and each chip keeps its own width. From 520px only — below that
+   the chip has a line of its own (the block after this one). */
+@media (min-width: 520px) {
+    @supports (grid-template-columns: subgrid) {
+        .tr-heads { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 10px; row-gap: 8px; }
+        .tr-heads > li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+        .tr-head { grid-column: 1 / -1; grid-template-columns: subgrid; }
+        .tr-head > .tr-chip { justify-self: start; }
+    }
+}
 /* On a phone the chip takes its own line above the sentence: beside it, it left the sentence 188px
    of a 323px row and the longest ran to eleven lines (v24.83). */
 @media (max-width: 519px) {

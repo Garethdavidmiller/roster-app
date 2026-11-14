@@ -170,6 +170,10 @@ body {
     white-space: nowrap;
 }
 .tl-tag.local    { color: var(--amber); background: var(--amber-bg); }
+/* In the source banner the tag sits on the banner's own --amber-bg, where only its padding showed (it
+   read as stray spaces), and as an inline-block Chromium broke the line after it, starting the next
+   with ". One item". Inline, and edged as the Rangers guide's Draft pill is (laptop polish, 13 Nov 2026). */
+.source-banner .tl-tag { display: inline; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent); }
 
 .rc-layers {
     margin-top: 7px;
@@ -235,7 +239,9 @@ body {
 .gotcha-text strong { color: var(--navy); }
 
 /* ── Checklist ───────────────────────────── */
-.check {
+/* `div.`, not `.check`: the red CHECK layer label (`.rc-layer-lbl.check`, a span) shares the class, and
+   wore this card's white, shadowed box (laptop polish, 13 Nov 2026). The print rule matches it. */
+div.check {
     background: var(--white);
     border-radius: 12px;
     box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
@@ -350,7 +356,7 @@ body {
        38px tall here while rangers hid its identical control. Since polish round 2 the link is one
        shared recipe and `guide-shell.css` hides it in print alongside the header arrow, for every
        guide at once. */
-    .rc, .gotchas, .check, .digital { box-shadow: none; }
+    .rc, .gotchas, div.check, .digital { box-shadow: none; }
     .section { break-after: avoid; }
 }
 
@@ -486,7 +492,10 @@ body {
 .key--ticket .key-item { display: block; }
 
 /* ── "Follows the ticket" cutoff — navy, because it is not a time at all ─────────────────────── */
-.rc-cutoff.fare { background: var(--navy-tag-bg); color: var(--navy); }
+/* As wide as its words, and hung by its padding so they stay in line with the note under them: a
+   full-width square band read as selected text (laptop polish, 13 Nov 2026). */
+.rc-cutoff.fare { background: var(--navy-tag-bg); color: var(--navy);
+                  width: fit-content; padding: 1px 6px; margin-left: -6px; border-radius: 4px; }
 
 /* ── Callout variants inside a card ──────────────────────────────────────────────────────────
    A CORRECTION is red because it records something this guide previously got wrong and a staff

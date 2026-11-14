@@ -8,7 +8,7 @@
  * are pinned in Node (newlink-render.test.mjs, newlink-data.test.mjs); this drives the real page through them.
  */
 import { test, expect, withLinksDesigners } from './fixtures.js';
-import { collectFatalErrors, scaleText, seedSession, signInThroughOverlay } from './helpers.js';
+import { collectFatalErrors, isTouchProject, scaleText, seedSession, signInThroughOverlay } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
@@ -493,6 +493,48 @@ test.describe('new link', () => {
         await expect(link).toBeFocused();
         expect(errors).toEqual([]);
         expect(logged, 'no CSP refusal, no failed worker, nothing PDF.js complained about').toEqual([]);
+    });
+
+    // ON A LAPTOP A SLIDE IS SEEN WHOLE (laptop polish, 13 Nov 2026). At 1280×593 the bar took two rows (109px) and the
+    // page was fitted to the width alone, so a 16:9 slide was 960×540 in 444px: the bottom of EVERY slide was always off
+    // screen, and "−" is disabled at 100%. The bar is one row from 1024px, and a LANDSCAPE page fits the height too
+    // (pdf-viewer-core.js → pageLayout); a portrait sheet keeps the width fit, read by scrolling.
+    test('on a laptop a slide is seen whole under a one-row bar, and a sheet still fills the width', async ({ page }, info) => {
+        test.skip(isTouchProject(info), 'a laptop window');
+        await page.setViewportSize({ width: 1280, height: 593 });
+        await servePack(page);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const pages = page.locator('#pdfViewerSheet .pdf-viewer-page');
+        /** @param {string} path */
+        const open = async (path) => {
+            await page.locator(`#nlPackList a.nl-file[data-file="${path}"]`).click();
+            await expect(page.locator('#pdfViewer')).toHaveClass(/\bopen\b/);
+            await expect(pages.first().locator('canvas')).toHaveCount(1, { timeout: 20_000 });
+        };
+        const slides = PACK.find(f => f.path.startsWith('presentations/'));
+        const sheet = PACK.find(f => f.design && !f.path.startsWith('presentations/'));
+        if (!slides || !sheet) throw new Error('the pack has no presentation or no sheet to open');
+        await open(slides.path);
+        const m = await page.evaluate(() => {
+            const r = (/** @type {string} */ s) => /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect();
+            const box = /** @type {HTMLElement} */ (document.getElementById('pdfViewerPages'));
+            const cs = getComputedStyle(box);
+            const first = r('#pdfViewerSheet .pdf-viewer-page');
+            return { title: r('#pdfViewerTitle').top, zoom: r('#pdfViewerZoomIn').top, close: r('#pdfViewerClose').top,
+                     zoomRight: r('#pdfViewerZoomIn').right, closeLeft: r('#pdfViewerClose').left,
+                     zoomBottom: r('#pdfViewerZoomIn').bottom, bar: r('.pdf-viewer-bar').height,
+                     slideH: first.height, roomH: box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) };
+        });
+        expect(Math.abs(m.zoom - m.close), 'the zoom and the ✕ share one row').toBeLessThan(2);
+        expect(m.bar, `one row: ${m.bar}px`).toBeLessThan(70);
+        expect(m.closeLeft, 'and the ✕ is the last thing on it, where a close button sits').toBeGreaterThan(m.zoomRight);
+        expect(m.slideH, `the whole slide fits the window: ${m.slideH}px in ${m.roomH}px`).toBeLessThanOrEqual(m.roomH + 0.5);
+        await expect(page.locator('#pdfViewerZoomOut'), 'zoom still starts at 100%').toBeDisabled();
+        await page.locator('#pdfViewerClose').click();
+        await expect(page.locator('#pdfViewer')).not.toHaveClass(/\bvisible\b/);
+        await open(sheet.path);
+        expect(await pages.first().evaluate(e => e.getBoundingClientRect().width), 'a portrait sheet keeps the width fit').toBeGreaterThanOrEqual(959);
     });
 
     test('the viewer closes on Escape and Back too, and opens the next file fresh', async ({ page }) => {

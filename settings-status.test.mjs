@@ -103,7 +103,7 @@ describe('false alarm — the noisy failure', () => {
         // "Turn on notifications" is a lie when the browser will refuse: the member taps, nothing
         // happens, and the summary has sent them into a dead end.
         const s = summarise({ ...ALL_OK, notifications: 'blocked' });
-        assert.deepEqual(s.items, ['Notifications are blocked on this phone']);
+        assert.deepEqual(s.items, ['Notifications are blocked on this device']);
     });
 
     test('an install OFFER is not a thing to finish', () => {

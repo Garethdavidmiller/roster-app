@@ -5,7 +5,7 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay, isTouchProject } from './helpers.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -1050,4 +1050,39 @@ test('settings: the notification kinds break between themselves, never inside on
             els => els.filter(e => e.getClientRects().length > 1).map(e => e.textContent));
         expect(split, `kinds split across lines at ${width}px`).toEqual([]);
     }
+});
+
+// The blocked-notification route on a laptop (laptop polish, 13 Nov 2026): "Site settings → Notifications
+// → Allow" broke after "Site settings", so the next line began "→ Notifications", which reads as a stray
+// arrow. The route is one unit now (`.nav-path`, huddle.js), so no line of the message starts with one.
+// Lines are read the way a reader meets them: each character's own box, grouped by the line it sits on.
+test('settings: a blocked notification\'s route never starts a line with an arrow on a laptop', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the desktop browser\'s route; a phone gets its own');
+    await page.setViewportSize({ width: 1280, height: 593 });
+    await page.addInitScript(() => {
+        try { Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'denied' }); } catch { /* no Notification */ }
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    const msg = page.locator('#notifDeniedMsg');
+    await expect(msg).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const lines = await msg.evaluate(el => {
+        /** @type {{ top: number, text: string }[]} */
+        const out = [];
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            const text = n.textContent || '';
+            for (let i = 0; i < text.length; i++) {
+                const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+                const box = r.getClientRects()[0]; if (!box) continue;
+                let line = out.find(l => Math.abs(l.top - box.top) < 6);
+                if (!line) { line = { top: box.top, text: '' }; out.push(line); }
+                line.text += text[i];
+            }
+        }
+        return out.sort((a, b) => a.top - b.top).map(l => l.text.trim());
+    });
+    expect(lines.length, 'premise: the message wraps at 1280px').toBeGreaterThan(1);
+    expect(lines.filter(l => l.startsWith('→')), `a line starts with an arrow: ${JSON.stringify(lines)}`).toEqual([]);
 });

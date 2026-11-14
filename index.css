@@ -1024,19 +1024,15 @@
             .swipe-hint   { display: none !important; }
         }
 
-        /* SHORT DESKTOP WINDOWS: THE DESKTOP'S CELL, TIGHTER, SO THE MONTH FITS A LAPTOP WINDOW. A row is
-           as tall as its tallest cell's CONTENT, and every row is `1fr`, so the TALLEST CELL IN THE MONTH
-           sets the height of all of them: the row floor here never applies. 820px: a laptop window runs
-           ~590–790px tall (Edge, Windows at 125–150%, the taskbar showing); a 1920×1080 desktop's ~950.
-           ⚠️ THE CELL KEEPS THE DESKTOP'S SHAPE — the date, the badge beneath it, the time beneath that
-           (owner, 13 Nov 2026: "it looks fine on a desktop PC but on this laptop the calendar looks
-           weird"). Until v26.02 the badge and the time shared one line here. It fitted only from ~1366px
-           wide; at 1280 (a 1920-pixel laptop at 150%, a usual Windows setting) an Early badge or
-           today's cell stacked again, so ONE month drew two kinds of cell, and the one that stacked made
-           every row 75px and pushed the last week off the screen anyway. Only the spacing tightens now:
-           the type does not change, and every line has a stated `line-height`, so the cell's height
-           does not rest on the font's own line spacing (62px, measured in Chromium; the same tests run
-           under WebKit in CI). Measured: e2e "the whole month fits a laptop window". */
+        /* SHORT DESKTOP WINDOWS: THE DESKTOP'S CELL, TIGHTER, SO THE MONTH FITS A LAPTOP WINDOW. Every row is
+           `1fr`, so the TALLEST CELL IN THE MONTH sets them all, and the row floor here never applies. 820px:
+           a laptop window runs ~590–790px tall (Windows at 125–150%, the taskbar showing); a desktop's ~950.
+           ⚠️ THE CELL KEEPS THE DESKTOP'S SHAPE — date, badge beneath, time beneath (owner, 13 Nov 2026: "it
+           looks fine on a desktop PC but on this laptop the calendar looks weird"). Badge and time on one line
+           (until v26.02) fitted only from ~1366px; at 1280 an Early or today's cell stacked again, so one month
+           drew two kinds of cell and the stacked one set every row to 75px. Only the spacing tightens: every
+           line states its `line-height`, so the cell's 62px does not rest on the font's own (Chromium; WebKit
+           in CI). Measured: e2e "the whole month fits a laptop window". */
         @media screen and (min-width: 1024px) and (max-height: 820px) {
             .controls { padding-top: 6px; padding-bottom: 6px; }
             .calendar-container { padding-top: 8px; padding-bottom: 10px; }
@@ -1623,15 +1619,11 @@
            auto` makes this box the header's scroll container and its other axis `auto` too, so uncapped it
            was as tall as the table and the sticky `thead` left with the page.
 
-           ON A PHONE THE BOX TAKES WHAT THE CARD HAS LEFT (owner's phone, 10 Nov 2026), not a height worked
-           out beside it. From v25.49 to v25.72 it was `100dvh − 250px`, the measured height of what stands
-           round it, while the card reached the foot of the screen by its own route (the flex chain from
-           the body's `min-height`). Wherever the two disagreed the difference was an empty band under the
-           last name: 27px on any phone, where what stands round it came to 223px, and 82px on the owner's,
-           where the page came out 55px taller than the screen (the cause on the phone is not established;
-           a test browser does not reproduce it). A basis of `0` makes the box the card's leftover BY
-           CONSTRUCTION, whatever the card's height. `flex: 1` alone would not: its 0% basis counts as
-           `content` in an auto-height column, and the whole table would push the card past the screen.
+           ON A PHONE THE BOX TAKES WHAT THE CARD HAS LEFT (owner's phone, 10 Nov 2026), never a height worked
+           out beside it: `100dvh − 250px` (v25.49–v25.72) left an empty band under the last name wherever that
+           sum was wrong, 82px on the owner's phone. A basis of `0` makes the box the card's leftover BY
+           CONSTRUCTION. `flex: 1` alone would not: its 0% basis counts as `content` in an auto-height
+           column, and the whole table would push the card past the screen.
            THE FLOOR: sideways, or with larger text or a strip, the leftover can be two rows. There the
            box keeps half a screen and the page scrolls by the rest; scroll chains to the page at either
            end, so every row stays reachable. THE CEILING never binds while the flex chain bounds the box,
@@ -1647,10 +1639,12 @@
                 max-height: 100dvh;
             }
         }
+        /* 272px is what stands round the box, measured: its top at 255px in both engines, the body's 16px
+           foot, and 1px so a fraction never scrolls the page (e2e "the Team View card ends where the month does"). */
         @media (min-width: 1024px) {
             .team-table-wrap {
-                max-height: max(calc(100vh - 280px), 50vh);
-                max-height: max(calc(100dvh - 280px), 50dvh);
+                max-height: max(calc(100vh - 272px), 50vh);
+                max-height: max(calc(100dvh - 272px), 50dvh);
                 /* The card's foot, and it clips its rows: the card's corners, or theirs stand out. */
                 border-bottom-left-radius: var(--radius-lg);
                 border-bottom-right-radius: var(--radius-lg);
@@ -1753,6 +1747,10 @@
             width: min(340px, 88vw);
             max-height: 78vh;
             max-height: 78dvh;
+        }
+        /* A short laptop window reads the help whole: 78% of 593px is under its ~500px. After the base rule. */
+        @media screen and (min-width: 1024px) and (max-height: 820px) {
+            #teamInfoContent { max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); }
         }
         #teamInfoClose { color: rgba(255, 255, 255, 0.45); }
         @media (hover: hover) and (pointer: fine) {
@@ -1904,8 +1902,8 @@
                 display: none !important;
             }
 
-            /* Drop the "tap to jump" ▾ affordance on the month heading — it's a
-               screen-only cue and prints as a stray glyph beside the month name. */
+            /* Drop the "tap to jump" chevron on the month heading — it's a
+               screen-only cue and prints as a stray mark beside the month name. */
             .month-year { cursor: default !important; }
             .month-year::after { content: none !important; }
 
@@ -2873,6 +2871,12 @@
             line-height: 1.55;
             color: var(--text-dark);
         }
+        /* On a laptop the Huddle sits in every page's band, not 1504px across (laptop polish, 13 Nov 2026);
+           the padded box still scrolls, so the scrollbar keeps the edge. The centred loading line is left out. */
+        @media screen and (min-width: 1024px) {
+            #huddleViewerBody { padding-inline: max(24px, calc((100% - var(--content-max-width)) / 2)); }
+            #huddleViewerBody > :is(p, ul, ol, h1, h2, h3):not(#huddleViewerLoading) { max-width: 68ch; }
+        }
         /* A Tab stop, so a keyboard can scroll the day plan (cal-docs-7). It is the box that clips,
            so its ring is drawn inside it, as Team View's scroller's is. */
         #huddleViewerBody:focus-visible { outline-offset: -2px; }
@@ -3105,11 +3109,9 @@
             background-size: 1em;
             padding-right: 30px;
         }
-        /* AN APP FOCUS INDICATOR, where there was only the platform's (polish pass). The month
-           select takes initial focus when the dialog opens, so this was the first thing a keyboard
-           user saw — and on Android it was Chrome's own orange ring on a white panel, which is the
-           ~1.5:1 gold-on-light case the focus-token rules exist to forbid. Same recipe as the
-           Calendar's own selects (`.controls select:focus-visible`), including the brighten to white. */
+        /* AN APP FOCUS INDICATOR (polish pass): the month select takes focus as the dialog opens, and on
+           Android it wore Chrome's orange ring on white, the ~1.5:1 case the focus tokens forbid. The
+           recipe of the Calendar's own selects (`.controls select:focus-visible`), white included. */
         .month-jump-selects select:focus-visible {
             outline: var(--focus-outline);
             outline-offset: 2px;
@@ -3163,13 +3165,14 @@
             padding: 2px 6px;
             transition: background var(--dur-med);
         }
-        /* NON-BREAKING space, or the caret is a word of its own: at 360px under text scaling the ▾
-           dropped alone onto the next line, a stray glyph rather than this heading's affordance. */
+        /* The mark is every picker's chevron: "▾" is not in Inter, so each device drew its own. U+2060 has no
+           width and allows no break before it, so the mark never drops alone onto the next line; the padding
+           is its footprint (0.54em, the glyph's was 0.40em), the image hanging 0.12em past it where the SVG is empty. */
         .month-year::after {
-            content: '\00a0▾';
-            font-size: 0.6em;
-            opacity: 0.5;
-            vertical-align: middle;
+            content: '\2060';
+            padding-left: 0.54em;
+            background: var(--caret-chevron) right -0.12em center / 0.62em no-repeat;
+            opacity: 0.6;
         }
         @media (hover: hover) and (pointer: fine) {
             .month-year:hover { background: rgba(0,30,60,0.07); }
