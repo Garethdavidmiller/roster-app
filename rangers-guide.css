@@ -80,6 +80,16 @@ h2.section:first-of-type { margin-top: 4px; }
 }
 .quick p { margin-bottom: 8px; }
 .quick p:last-child { margin-bottom: 0; }
+/* LARGER TEXT ON A DESKTOP, NOT A NARROWER BOX (owner, 14 Nov 2026) — the Railcard quick check's rule
+   (railcard-guide.css → `--qc-scale`), applied to this guide's one box. From 1024px the reading measure
+   below stops a paragraph at 64ch, which at 14px is 564px of this box's 697: a fifth of the box was
+   empty on its right (measured; 23% in Safari). 17px takes the measure to the box's edge (98%; Safari
+   93%) for 41px more of the first screen, and a line still holds the same characters. 18px, the
+   Railcard's 1.28, filled exactly but was larger than any text in that guide's quick check. Screen
+   only: a phone already fills the box, and paper keeps 14px. */
+@media screen and (min-width: 1024px) {
+    .quick { font-size: 17px; }
+}
 
 /* ── Key strip ─────────────────────────────────────────────────────────────── */
 .key {

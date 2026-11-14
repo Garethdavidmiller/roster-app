@@ -527,6 +527,10 @@ generator intro) is capped with `max-width: ~64–72ch` at the `min-width: 1024p
 not run past the ~75ch comfortable ceiling. Forms, tables, grids and data-viz keep the full column
 width — only prose gets the measure cap. Data-viz bar charts (`.usage-bars`/`.speed-rows`) are capped
 (~540px) so bars stay a comparable, scannable length.
+- **A `ch` is not a character** (measured 14 Nov 2026): it is the width of a zero, about 1.3 average
+  characters in Inter, so 64–72ch holds about 80–94 characters a line. Left as written (owner, 14 Nov
+  2026): narrowing to a literal ~75 characters (about 56ch) adds roughly a line to every capped
+  paragraph on a short laptop window. DECISIONS.md holds what would reopen it.
 
 **Accepted constraint — two-column voids.** admin and operations use an explicit-grid two-column
 desktop layout whose row order is fixed so the SAME source order gives a good mobile stack. Because
