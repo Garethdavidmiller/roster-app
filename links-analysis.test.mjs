@@ -835,6 +835,25 @@ describe('the design-checks triage block', () => {
             'the row itself no longer states the shortfall — the fixture or the row has changed');
     });
 
+    test('with points to discuss below it, the nothing-to-fix line says how many — alone it read as a pass', () => {
+        // External review, 14 Nov 2026: "Nothing found that has to be fixed" sat above three warnings
+        // and read to a reviewer as approval. The count is read off the rendered "Worth discussing"
+        // list, so the line and the list beneath it cannot disagree.
+        resetDom();
+        const patterns = /** @type {Record<string, any>} */ ({});
+        for (let i = 1; i <= ROTATING_LINES; i++) {
+            patterns[String(i)] = { sun: 'RD', mon: '06:00-14:00', tue: '06:00-14:00',
+                wed: '06:00-14:00', thu: '06:00-14:00', fri: 'RD', sat: 'RD' };
+        }
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const block = els.checksContent.innerHTML.split('check-section-head')[0];
+        const discussed = (/check-triage--discuss[\s\S]*?<\/ul>/.exec(block)?.[0].match(/<li>/g) || []).length;
+        assert.ok(discussed >= 2, `premise: the fixture leaves several points to discuss (found ${discussed})`);
+        const head = /check-triage--none"><span class="check-triage-head">([^<]*)</.exec(block)?.[1];
+        assert.equal(head, `Nothing found that has to be fixed — but ${discussed} points below are worth discussing`,
+            'the nothing-to-fix line does not say how many points follow it, so above the warnings it reads as a pass');
+    });
+
     test('a worked-weekend design reaches the triage too', () => {
         resetDom();
         const patterns = /** @type {Record<string, any>} */ ({});

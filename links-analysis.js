@@ -876,14 +876,20 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
               items.map(t => `<li>${escapeHtml(t)}</li>`).join('') + `</ul></div>`
             : '';
         // NOTHING TO FIX IS SAID OUT LOUD, and it is deliberately not a tick: this card's whole
-        // reason for existing is that a quiet panel must never read as an approval. It says what was
-        // looked at, and the sections below are what say it.
+        // reason for existing is that a quiet panel must never read as an approval. It names what
+        // follows it, because a bare line above the points to discuss read as a pass (external
+        // review, 14 Nov 2026) — and on a real design FF19 always leaves one. Why not the review's
+        // own wording: .claude/rules/links-design.md → the triage block.
+        const discussing = triage.discuss.length;
+        const nothingToFix = discussing
+            ? `Nothing found that has to be fixed — but ${discussing} ${discussing === 1 ? 'point below is' : 'points below are'} worth discussing`
+            : 'Nothing found that has to be fixed — the rows below say what was checked';
         const triageHtml =
             `<div class="check-triage">` +
             (triage.fix.length
                 ? triageRow('check-triage--fix', '⛔', 'Needs fixing before review', triage.fix)
                 : `<div class="check-triage-group check-triage--none"><span class="check-triage-head">` +
-                  `Nothing found that has to be fixed — the rows below say what was checked</span></div>`) +
+                  `${escapeHtml(nothingToFix)}</span></div>`) +
             triageRow('check-triage--discuss', '⚠', 'Worth discussing', triage.discuss) +
             `</div>`;
 
