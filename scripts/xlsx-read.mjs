@@ -23,6 +23,16 @@
  * The workbook is UNTRUSTED input. Sizes are capped before and during inflation, every entry's
  * CRC is checked, and a structure this reader does not know is refused with a message that names the
  * PART, never a cell's content: the content is colleagues' names against their leave.
+ *
+ *   · The cap DURING inflation is the one that counts: the size an entry claims is the archive's own
+ *     word, so a small claim proves nothing about what its bytes inflate to.
+ *   · Two entries with one name are refused: the second would silently replace the first, and which
+ *     one a reader sees would depend on the reader.
+ *   · The XML scanner must match at the exact place it stands, or it refuses. A scanner that searched
+ *     forward skipped any `<` it could not read, and rescanned to the end of the part from every
+ *     unclosed `<!--`, `<?` or `<![CDATA[`. That cost grows with the square of the part: 300 KB of
+ *     unclosed comments took 4.5 s and was read without complaint, and 2.9 MB of them zip to 4.4 KB
+ *     (measured, 14 Nov 2026). A DOCTYPE is refused outright: a workbook never has one.
  */
 import { inflateRawSync, crc32 } from 'node:zlib';
 
@@ -37,9 +47,11 @@ const refuse = msg => Object.assign(new Error(`xlsx: ${msg}`), { code: 'XLSX_REF
 /**
  * Every entry of a zip, by name, inflated on demand.
  * @param {Buffer} buf
+ * @param {{ maxEntryBytes?: number, maxTotalBytes?: number }} [limits] the caps — smaller in a test,
+ *   which should not have to build 64 MB to prove one is enforced
  * @returns {Map<string, () => Buffer>}
  */
-export function readZip(buf) {
+export function readZip(buf, { maxEntryBytes = MAX_ENTRY_BYTES, maxTotalBytes = MAX_TOTAL_BYTES } = {}) {
     if (!Buffer.isBuffer(buf) || buf.length < 22) throw refuse('not a zip file');
     let eocd = -1;
     for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65_557); i--) {
@@ -68,16 +80,24 @@ export function readZip(buf) {
         const name = buf.subarray(p + 46, p + 46 + nameLen).toString('utf8');
         p += 46 + nameLen + extraLen + commentLen;
         if (flags & 1) throw refuse(`encrypted entry ${name}`);
-        if (usize > MAX_ENTRY_BYTES) throw refuse(`entry too large: ${name}`);
+        if (entries.has(name)) throw refuse(`two entries named ${name}`);
+        if (usize > maxEntryBytes) throw refuse(`entry too large: ${name}`);
         total += usize;
-        if (total > MAX_TOTAL_BYTES) throw refuse('archive too large');
+        if (total > maxTotalBytes) throw refuse('archive too large');
         if (method !== 0 && method !== 8) throw refuse(`unsupported compression in ${name}`);
         entries.set(name, () => {
             if (local + 30 > buf.length || buf.readUInt32LE(local) !== 0x04034b50) throw refuse(`damaged entry ${name}`);
             const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
             if (start + csize > buf.length) throw refuse(`truncated entry ${name}`);
             const raw = buf.subarray(start, start + csize);
-            const out = method === 0 ? Buffer.from(raw) : inflateRawSync(raw, { maxOutputLength: MAX_ENTRY_BYTES });
+            /** @type {Buffer} */ let out;
+            try {
+                // The claimed size was checked above, but it is only the archive's word: this cap is
+                // what stops a small entry inflating without limit (header).
+                out = method === 0 ? Buffer.from(raw) : inflateRawSync(raw, { maxOutputLength: maxEntryBytes });
+            } catch (e) {
+                throw refuse(/** @type {any} */ (e)?.code === 'ERR_BUFFER_TOO_LARGE' ? `entry too large when inflated: ${name}` : `damaged entry ${name}`);
+            }
             if (out.length !== usize || crc32(out) !== crc) throw refuse(`checksum mismatch in ${name}`);
             return out;
         });
@@ -105,6 +125,12 @@ const local = qname => qname.slice(qname.indexOf(':') + 1);
  * Parse XML into a light tree. Element names lose their namespace prefix; attributes keep theirs
  * (`r:id`). Text is decoded and kept on the element that holds it. Machine-written OOXML is
  * well-formed, and anything that is not is refused.
+ *
+ * The scanner is STICKY: each piece must begin exactly where the last one ended, or the part is
+ * refused. So a `<` that is none of the forms below is refused rather than skipped, and an unclosed
+ * comment, declaration or CDATA section is scanned to the end once and refused — a forward search
+ * found nothing at it, moved on, and scanned to the end again from the next one (header). There is no
+ * DOCTYPE form: one is refused with the rest.
  * @param {string} xml
  * @returns {XmlNode}
  */
@@ -112,13 +138,14 @@ export function parseXml(xml) {
     /** @type {XmlNode} */
     const root = { name: '#root', attrs: {}, children: [], text: '' };
     const stack = [root];
-    const re = /<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!DOCTYPE[^>]*>|<(\/?)([A-Za-z_][\w:.-]*)((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/g;
-    let m;
-    while ((m = re.exec(xml))) {
+    const re = /<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<(\/?)([A-Za-z_][\w:.-]*)((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/y;
+    while (re.lastIndex < xml.length) {
+        const m = re.exec(xml);
+        if (!m) throw refuse('malformed XML');
         const top = stack[stack.length - 1];
         if (m[1] !== undefined) { top.text += m[1]; continue; }
         if (m[6] !== undefined) { top.text += decode(m[6]); continue; }
-        if (m[3] === undefined) continue;                     // comment, declaration, doctype
+        if (m[3] === undefined) continue;                     // a comment or a declaration
         const name = local(m[3]);
         if (m[2] === '/') {
             if (top.name !== name) throw refuse('malformed XML');

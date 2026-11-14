@@ -46,10 +46,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { buildXlsx, isoToSerial, zip } from './test-fixtures/xlsx-write.mjs';
-import { readXlsx, readZip, serialToIso } from './scripts/xlsx-read.mjs';
+import { readXlsx, readZip, serialToIso, parseXml } from './scripts/xlsx-read.mjs';
 import { buildLeaveFile } from './scripts/make-leave-file.mjs';
 import { validateLeaveFile, sealLeaveFile, readLeaveFile, canonicalJson, isSundayIso } from './al-leave-file.js';
 
@@ -349,6 +349,58 @@ describe('the reader (scripts/xlsx-read.mjs)', () => {
         assert.throws(() => readZip(zip(parts, { claimMethod: { name: 'xl/workbook.xml', method: 12 } })), /unsupported compression in xl\/workbook\.xml/);
         assert.throws(() => readZip(Buffer.from('not a zip at all, just words in a file')), /not a zip file/);
         assert.throws(() => readXlsx(zip([['other.txt', Buffer.from('x')]])), /missing part xl\/workbook\.xml/);
+    });
+
+    test('the cap holds DURING inflation: an entry that claims to be small and inflates past it is refused', () => {
+        // 64 KB of zeros deflate to a few hundred bytes, and the directory says the entry is 100 bytes:
+        // only the cap handed to the inflater stops it. Without that cap it inflated in full and was
+        // refused only afterwards, by its checksum — however large it had grown by then.
+        const bomb = zip([['xl/workbook.xml', Buffer.alloc(65_536)]], { claimSize: { name: 'xl/workbook.xml', size: 100 } });
+        const get = readZip(bomb, { maxEntryBytes: 1024 }).get('xl/workbook.xml');
+        assert.ok(get);
+        assert.throws(() => get(), /entry too large when inflated: xl\/workbook\.xml/);
+        // A stream that is not deflate at all is a damaged entry, named — never zlib's own error.
+        const notDeflate = zip([['xl/workbook.xml', Buffer.from([0x07, 0x00])]], { method: 0, claimMethod: { name: 'xl/workbook.xml', method: 8 } });
+        assert.throws(() => readZip(notDeflate).get('xl/workbook.xml')?.(), /damaged entry xl\/workbook\.xml/);
+    });
+
+    test('two entries with one name are refused: the second would silently replace the first', () => {
+        const twice = zip([['xl/workbook.xml', Buffer.from('<workbook/>')], ['xl/workbook.xml', Buffer.from('<other/>')]]);
+        assert.throws(() => readZip(twice), /two entries named xl\/workbook\.xml/);
+    });
+
+    test('the XML scanner reads only from where it stands: a `<` it cannot read is refused, never skipped', () => {
+        for (const xml of ['<a><!-- never closed</a>', '<a><?never closed</a>', '<a><![CDATA[never closed</a>',
+            '<!DOCTYPE a><a/>', '<a>one < two</a>', '<a>x</a><']) {
+            assert.throws(() => parseXml(xml), /malformed XML/, xml);
+        }
+        // What it can read, it still reads: a declaration, a comment and CDATA, each closed.
+        const read = parseXml('<?xml version="1.0"?><!-- a note --><a><![CDATA[x<y]]>&amp;z</a>');
+        assert.deepEqual(read.children.map(c => [c.name, c.text]), [['a', 'x<y&z']]);
+    });
+
+    test('an unclosed construct is refused in ONE pass: a few hundred KB of them, quickly', () => {
+        // In a child with a hard limit, so a scanner that went back to searching forward fails here
+        // instead of holding up the suite. 300 KB of unclosed comments took the old one 4.5 s, read
+        // without complaint, and its cost grew with the square of the part (xlsx-read.mjs header).
+        const code = `
+            const { parseXml } = await import(${JSON.stringify(pathToFileURL(join(ROOT, 'scripts', 'xlsx-read.mjs')).href)});
+            const out = {};
+            for (const [label, open] of Object.entries({ comment: '<!--', declaration: '<?', cdata: '<![CDATA[', doctype: '<!DOCTYPE ' })) {
+                const xml = '<r>' + (open + 'x').repeat(Math.ceil(300_000 / (open.length + 1))) + '</r>';
+                const started = performance.now();
+                let result = 'read without complaint';
+                try { parseXml(xml); } catch (e) { result = e.message; }
+                out[label] = { result, ms: performance.now() - started };
+            }
+            process.stdout.write(JSON.stringify(out));`;
+        const child = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8', timeout: 60_000 });
+        assert.equal(child.error, undefined, 'the scan did not finish within a minute');
+        assert.equal(child.status, 0, child.stderr);
+        for (const [label, { result, ms }] of Object.entries(JSON.parse(child.stdout))) {
+            assert.match(result, /malformed XML/, label);
+            assert.ok(ms < 1000, `${label}: ${Math.round(ms)} ms`);
+        }
     });
 });
 
