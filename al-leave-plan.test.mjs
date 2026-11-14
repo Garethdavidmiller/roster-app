@@ -161,6 +161,17 @@ describe('what a Save writes, day by day', () => {
         assert.equal(writesFor(w), 3, 'its record and a delete for each record it replaces');
     });
 
+    test('an older record AT the fixed id, beneath a newer winner, is the one the check compares there — and the winner goes', () => {
+        const atFixed = AL(CEA, REST, { id: manualOverrideId(CEA.name, REST), createdAt: { seconds: 2 } });
+        const newer = AL(CEA, REST, { id: 'newer-random' });
+        const records = [atFixed, newer];
+        const person = compare(CEA, [leave(CEA, REST)], records);
+        assert.equal(stateOf(person, REST), 'free-in-app', 'premise: the newer record wins the day');
+        const w = plan(person, records, { answers: new Map([[REST, 'swapped']]) }).writes[0];
+        assert.equal(w.shown, atFixed, 'the fixed id is overwritten, so it must still hold what was loaded there');
+        assert.deepEqual(w.replaces.map(r => r.id), ['newer-random']);
+    });
+
     test('leave the app records as free for a reason of its own is never asked about, and nothing is written', () => {
         // Leave over RDW on a rest day is free, and settled by its record (owner, 10 Nov 2026).
         const overRdw = AL(CEA, REST, { replacedType: 'rdw' });
