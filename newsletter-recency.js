@@ -140,5 +140,9 @@ export async function checkLatestNewsletter({ ready, canRead, fetchLatest }) {
         if (!canRead()) return;
         const latest = await fetchLatest();
         recordLatestNewsletter(latest?.date ?? null);
-    } catch { /* kept: a read that could not answer says nothing about the newsletter */ }
+    } catch (err) {
+        // Kept as it was: a read that could not answer says nothing about the newsletter. Offline this is
+        // the normal path (latestIn refuses an empty cache), so it is a warning for a developer, not an error.
+        console.warn('[newsletter] could not check the latest issue; the ☰ menu keeps what this device knew', /** @type {any} */ (err)?.code ?? err);
+    }
 }
