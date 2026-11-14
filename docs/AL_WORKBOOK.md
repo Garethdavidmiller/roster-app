@@ -237,6 +237,12 @@ repeating.
 > `roster-data.js`. That is the check to run the next time this is in front of somebody who can:
 > resolve each of the 75 tag dates through `resolveEffectiveShift` with the override map loaded,
 > and the census becomes exact. Until then, report the tag and the pattern, and say which it is.
+>
+> **RE-COUNTED ON THE 6 NOV FILE, ALL THREE GRADES** [measured, 14 Nov 2026]. 173 tags: 82 in the
+> CEA block, 58 CES and 33 Dispatcher. The app's pattern was read for 171 of them (the other two are
+> leavers'): a named shift on 83, spare on 32 and a rest day on 56, so **two in three are contracted**. The
+> CEA block alone (81) reads 32 / 24 / 25: contracted 69%, as on 14 Sep. It is still the pattern and
+> not the published roster, so the caveat above stands.
 
 > **ASK "was the member DUE AT WORK", not "was a shift named".** SPARE is contracted — the person
 > is expected at the station — so being away from one is being away from work exactly as a named
@@ -418,6 +424,13 @@ There is one comment file per sheet and they are **not** named after the sheet.
 > the totals sheet is `sheet22.xml` → `threadedComment15.xml`, but do not hardcode that — it is a
 > property of the file, not of the workbook.
 
+**To put the app's pattern beside a date, ask the app** [measured, 14 Nov 2026]. A Node script run
+from the repository root can import `getBaseShift` and `isBankHoliday` from `roster-data.js`, and
+scheduled roster moves are applied, so a member who changed line is read on the right one. Marking a
+sheet day as one the app will not count, because it is a Sunday or a rest day on the pattern, agreed
+exactly with `alPosition`'s own uncounted days on the 6 Nov file (16 of 16). Each check confirms the
+other.
+
 ---
 
 ## 7 · Names — the workbook's form vs the app's
@@ -461,6 +474,12 @@ drops people.
 > Two more spellings that break an exact match: the in-sheet double spelling above, and one cell
 > that reads **`N/A <I> <Surname> NA`** with the state repeated. **Match loosely, then confirm by
 > slot column.**
+>
+> **Still the same eight in the 6 Nov file** [measured, 14 Nov 2026]: the same three first names,
+> and the slot column gives the same three members. **Run the method; do not ask the owner who they
+> are.** This section says how they were resolved but, rightly, not who they are, and a session
+> reading it nearly put the question to the owner again. The name on five Sundays has three in the
+> same column as that member's leave beside them; the other two stand alone.
 >
 > ## ⚠️ A REVERSED TAG READS AS A BOOKING — measured, by catching a scan out
 >
