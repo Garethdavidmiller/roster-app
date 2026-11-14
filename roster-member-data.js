@@ -194,10 +194,12 @@ export const teamMembers = [
     // 14th November"). Phase 2 (from Sun 15 Nov): the DISPATCHER link on A. Atkins's line, which he
     // leaves that day. `currentWeek: 9` there is REFERENCE-ANCHORED — A. Atkins's own base value, the
     // line at the 1 Feb 2026 reference Sunday — not the line he is on that week.
-    // ⚠️ `proRatedAL: 5` is PROVISIONAL — J. Bangi's figure, who started the same day in the same grade
-    // (a day-count: 88 of 365 days × 22 = 5.3). REPLACE it with the workbook's `AL allowance` before the
-    // year ends, reading docs/AL_WORKBOOK.md §5 first; booked in docs/MAINTENANCE_CALENDAR.md. It
-    // replaces only the 22-day BASE: lieu days for bank holidays worked are still added on top.
+    // `proRatedAL: 5` is TRANSCRIBED from the clerks' workbook (`New Marylebone Totals`, read 14 Nov
+    // 2026) — and NOT from its `AL allowance` column, which the clerks leave at the full 22 for a
+    // joiner. They carry the reduction in the next column, whose note gives only the start date
+    // (AL_WORKBOOK.md §5). It agrees with the figure entered provisionally on 12 Nov, J. Bangi's
+    // day-count; re-read the book, never recompute. It replaces only the 22-day BASE: lieu days for
+    // bank holidays worked are still added on top.
     { name: 'A. Guinea',               currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
       rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'dispatcher', currentWeek: 9 }] },

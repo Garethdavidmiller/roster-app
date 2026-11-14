@@ -272,6 +272,39 @@
         </div>
     </div>
 
+    <!-- ==================== ANNUAL LEAVE SHEET (check only) ==================== -->
+    <!-- Phase 1 of the annual leave uploader (docs/AL_UPLOADER_PLAN.md): a leave file a session made
+         from the clerks' workbook, set beside the app's own records. It saves NOTHING; the card's
+         module is operations-al-sheet.js and its sentences al-leave-words.js. -->
+    <div class="card" id="alSheetCard">
+        <div class="card-header card-header-toggle" id="alSheetToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🏖️</span> Annual leave sheet</h2>
+                <span class="hint">Check the clerks’ leave sheet against the app, person by person — nothing is saved</span>
+            </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="annual-leave-sheet" aria-label="Tips for Annual leave sheet">?</button>
+                <span class="collapse-chevron" id="alSheetChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body" id="alSheetBody">
+            <div class="card-body">
+                <p class="auth-desc">The app can’t read the clerks’ workbook itself. Upload it in a Claude session and ask for a <strong>leave file</strong>, then choose that file here to see, person by person, where the sheet and the app disagree, and why. <strong>This is a check only: nothing is saved.</strong></p>
+                <div class="huddle-row">
+                    <label for="alSheetFileInput" class="huddle-file-label">Choose leave file</label>
+                    <input type="file" id="alSheetFileInput" accept=".json,application/json,text/plain,application/octet-stream" class="visually-hidden-file" aria-label="Choose leave file — the one made from the clerks’ workbook">
+                </div>
+                <p id="alSheetFileName" class="huddle-filename" aria-live="polite"></p>
+                <label class="al-sheet-paste-label" for="alSheetPaste">Or paste the file’s text</label>
+                <textarea id="alSheetPaste" class="al-sheet-paste" rows="3" spellcheck="false" autocomplete="off" placeholder="Paste here…"></textarea>
+                <button type="button" id="alSheetCheckBtn" class="huddle-upload-btn" disabled>Check against the app</button>
+                <div id="alSheetFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+                <div id="alSheetResult" class="al-sheet-result" hidden></div>
+                <button type="button" id="alSheetClearBtn" class="roster-cancel-btn" hidden>Clear the check</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== PASSWORD RESET REQUESTS ==================== -->
     <!-- Sits directly ABOVE Account status because that is where the remedy is (its Reset button), so
          the queue and the action are adjacent. Written only by the requestPasswordReset Cloud Function;

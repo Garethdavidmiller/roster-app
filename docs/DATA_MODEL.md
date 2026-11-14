@@ -262,6 +262,45 @@ write it could move the line past entries nobody has been told about, or hold th
 Holds no entry, name or message — two timestamps. The first check after a deploy creates it with the
 line at that moment, so the existing backlog is never announced. The rules: `functions/error-log-notice.js`.
 
+**alUploads** (the annual leave uploader's log, v26.11) — one document per Save on Operations → Annual leave sheet
+```
+year              int — the leave file's year (2020–2100, the bounds its format holds)
+fileDigest        "sha256:<64 hex>" — the leave file's seal, so the same file uploaded again is recognised
+workbookSha256    "<64 hex>" — the workbook's own SHA-256 (the file's `source.sha256`): which copy of the
+                  clerks' sheet, exactly
+clerksLastSaved   "YYYY-MM-DDTHH:MM:SSZ" — when the workbook was last saved, as the file states it. Never
+                  null here: a copy of unknown age cannot be ordered against another, so the Save refuses one
+lastSavedByClerk  boolean, or null where the file cannot tell — whether that save was a clerk's
+savedAt           Firestore server timestamp — when the Save wrote this log. It is written LAST, from a
+                  re-read of what landed
+savedBy           the admin's own name (`memberName()`), never anybody else's
+appVersion        the release that wrote it (APP_VERSION)
+inLine            list of "Name|YYYY-MM-DD" — every sheet leave day the app held as leave once the Save was
+                  done: the days it added and the days that were already right. 1 to 4,000 entries
+added             list of "Name|YYYY-MM-DD" — the days this Save CREATED, the only days an undo may remove.
+                  Never longer than inLine
+undoneAt          Firestore server timestamp — set once, by an undo; absent until then
+undoneBy          the admin's own name, set with undoneAt
+undone            list of "Name|YYYY-MM-DD" — what the undo removed: the added days nobody had written since.
+                  Never longer than added
+```
+**What it is for**: the Save (Phase 2b) reads it three ways (AL_UPLOADER_PLAN.md §4.6, §4.10). A sheet day a
+log says was brought into line, and the app no longer holds, was removed in the app since: it is shown,
+never ticked, so leave cancelled in the app does not come back. A copy of the workbook saved before the
+newest one logged is refused by name. An undo removes only `added` days nobody has written since
+`savedAt`. It is also where an uploaded day records where it came from, without a field on the leave
+record itself. The entries take the override cache key's form, `memberName|YYYY-MM-DD`.
+**Admin only, both ways** (`firestore.rules` → alUploads), because it names colleagues against their
+leave days. Create: every field and nothing else, `savedAt` the server's clock, `savedBy` the writer's
+own bound name, so the admin must be signed in as themselves. Update: the undo only, once, and nothing
+the Save wrote may move. A create sent again after its answer was lost arrives as an update and is
+refused, so the Save writes its log in a transaction that reads first. Delete: the admin. The rules
+cannot check the entries or that `added` lies inside `inLine` (a rule has no loop); the Save must.
+**Nothing writes it yet.** The rules shipped first, in a release with no writer (CLAUDE.md → backend-first).
+**Retention, planned with the Save:** a log is needed while its year's sheet can still be uploaded, which
+is its own year and the January after (carried days); the Save is to delete logs older than that. Losing
+one costs only memory: the next upload behaves like the first.
+
 **analytics** — anonymous usage counters; **no member identity is ever stored**
 ```
 Document  analytics/pv_<YYYY-MM>   { month: "YYYY-MM", counts: { <pageId>: <int> } }  — page popularity per month

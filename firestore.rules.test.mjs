@@ -6,7 +6,7 @@
  *
  * Covers every top-level collection in firestore.rules — overrides, huddles, circulars,
  * newsletters, linkDesigns, linkTargetSets, staffContact, passwordStatus, resetRequests,
- * clientErrors, errorLogNotice, pushSubscriptions, viewerAttempts, overtimeWindows and analytics. This said "all 9
+ * clientErrors, errorLogNotice, alUploads, pushSubscriptions, viewerAttempts, overtimeWindows and analytics. This said "all 9
  * collections" over a list of ten while the rules held fourteen (test audit, 7 Nov 2026); the rules
  * file is the authority, and a new collection there needs its own describe here.
  *
@@ -1408,6 +1408,194 @@ describe('errorLogNotice (the Error Log notification record)', () => {
         // everything would also pass.
         await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
         await assertSucceeds(getDocs(collection(adminDb(), 'clientErrors')));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alUploads — the annual leave uploader's log (v26.11, AL_UPLOADER_PLAN.md §4.6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('alUploads (the annual leave uploader\'s log)', () => {
+    // A log names colleagues against their leave days, so every person here is INVENTED, the admin
+    // included. `savedBy` must be the writer's own bound name (`memberName()`), so the admin is a
+    // member identity that also carries the admin claim, as the real admin's token does.
+    const ADMIN = 'A. Clerkson';
+    const loggingAdminDb = () => testEnv.authenticatedContext('uid_al_admin', memberClaims(ADMIN, { admin: true })).firestore();
+    const LOG = () => ({
+        year: 2026,
+        fileDigest: 'sha256:' + 'a1'.repeat(32),
+        workbookSha256: 'b2'.repeat(32),
+        clerksLastSaved: '2026-11-06T14:22:10Z',
+        lastSavedByClerk: true,
+        savedAt: serverTimestamp(),
+        savedBy: ADMIN,
+        appVersion: APP_VERSION,
+        inLine: ['B. Example|2026-03-02', 'B. Example|2026-03-03', 'C. Specimen|2026-07-14'],
+        added: ['B. Example|2026-03-03'],
+    });
+    const UNDO = () => ({ undoneAt: serverTimestamp(), undoneBy: ADMIN, undone: ['B. Example|2026-03-03'] });
+    /** `assertFails`, naming the case that got through — it takes no message of its own.
+     *  @param {Promise<any>} pr @param {string} what */
+    async function refused(pr, what) {
+        try { await assertFails(pr); } catch (e) { throw new Error(`${what}: ${e instanceof Error ? e.message : e}`, { cause: e }); }
+    }
+    /** A log the admin has written, for the tests that act on one. */
+    async function writtenLog() {
+        const ref = doc(collection(loggingAdminDb(), 'alUploads'));
+        await assertSucceeds(setDoc(ref, LOG()));
+        return ref.id;
+    }
+    /** @param {number} n */
+    const entries = (n) => Array.from({ length: n }, (_, i) => `D. Placeholder${i}|2026-05-01`);
+
+    test('the admin writes a log, reads it back, and finds the year\'s logs', async () => {
+        const id = await writtenLog();
+        const db = loggingAdminDb();
+        const snap = await assertSucceeds(getDoc(doc(db, 'alUploads', id)));
+        assert.equal(snap.data()?.savedBy, ADMIN);
+        await assertSucceeds(getDocs(query(collection(db, 'alUploads'), where('year', '==', 2026))));
+    });
+
+    test('nobody but the admin reads, writes, undoes or deletes one', async () => {
+        const id = await writtenLog();
+        const others = [
+            ['a manager', managerDb('E. Sample'), 'E. Sample'],
+            ['a member', namedDb('F. Example'), 'F. Example'],
+            ['the PIN viewer', viewerDb(), ADMIN],
+            ['a session with no claim', staffDb(), ADMIN],
+            ['an anonymous session', anonymousSessionDb(), ADMIN],
+            ['no session', anonDb(), ADMIN],
+        ];
+        for (const [who, db, name] of others) {
+            await refused(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), savedBy: name }), `${who} created a log`);
+            await refused(getDoc(doc(db, 'alUploads', id)), `${who} read a log`);
+            await refused(getDocs(collection(db, 'alUploads')), `${who} listed the logs`);
+            await refused(updateDoc(doc(db, 'alUploads', id), { ...UNDO(), undoneBy: name }), `${who} undid a log`);
+            await refused(deleteDoc(doc(db, 'alUploads', id)), `${who} deleted a log`);
+        }
+    });
+
+    test('a log says who made it: the admin is signed in as themselves, and savedBy is their own name', async () => {
+        await assertFails(setDoc(doc(collection(loggingAdminDb(), 'alUploads')), { ...LOG(), savedBy: 'B. Example' }));
+        // The admin claim on a token with no bound name: memberName() is null, so no name will do.
+        await assertFails(setDoc(doc(collection(adminDb(), 'alUploads')), LOG()));
+        await refused(setDoc(doc(collection(adminDb(), 'alUploads')), { ...LOG(), savedBy: null }),
+            'a log saying nobody made it, from an admin token with no bound name');
+    });
+
+    test('savedAt is the server\'s clock, never the device\'s', async () => {
+        await assertFails(setDoc(doc(collection(loggingAdminDb(), 'alUploads')), { ...LOG(), savedAt: Timestamp.now() }));
+    });
+
+    test('every field is required, and nothing else may ride in', async () => {
+        const db = loggingAdminDb();
+        for (const field of Object.keys(LOG())) {
+            const log = LOG();
+            delete log[field];
+            await refused(setDoc(doc(collection(db, 'alUploads')), log), `a log without ${field} was accepted`);
+        }
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), note: '' }));
+        // An undo's fields are the undo's: a log cannot be born undone.
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), ...UNDO() }));
+    });
+
+    test('each field holds the shape the leave file gives it', async () => {
+        const db = loggingAdminDb();
+        /** @type {Array<Record<string, any>>} each one changes the log in one way the rules must refuse */
+        const bad = [
+            { year: 2019 }, { year: 2101 }, { year: '2026' }, { year: 2026.5 },
+            { fileDigest: 'a1'.repeat(32) }, { fileDigest: 'sha256:' + 'A1'.repeat(32) },
+            { fileDigest: 'sha256:' + 'a'.repeat(63) }, { fileDigest: 'sha256:' + 'a'.repeat(65) },
+            { fileDigest: ['sha256:' + 'a1'.repeat(32)] },
+            { workbookSha256: 'sha256:' + 'b2'.repeat(32) }, { workbookSha256: 'B2'.repeat(32) }, { workbookSha256: 'b'.repeat(63) },
+            { clerksLastSaved: null }, { clerksLastSaved: '2026-11-06' }, { clerksLastSaved: '2026-11-06T14:22:10.000Z' },
+            { clerksLastSaved: Timestamp.fromMillis(Date.UTC(2026, 10, 6)) },
+            { lastSavedByClerk: 'yes' }, { lastSavedByClerk: 1 },
+            { savedBy: null },
+            { appVersion: '' }, { appVersion: 'x'.repeat(17) }, { appVersion: 26.11 }, { appVersion: ['26.11'] },
+            // One entry, not in a list: a string has a size too, so only the type check refuses it.
+            { inLine: 'B. Example|2026-03-02' },
+            { inLine: entries(40), added: 'B. Example|2026-03-03' },
+            // A Save that brought nothing into line has nothing to record.
+            { inLine: [], added: [] },
+        ];
+        for (const change of bad) {
+            await refused(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), ...change }),
+                `${JSON.stringify(change).slice(0, 80)} was accepted`);
+        }
+        // Guard the guard: the bounds themselves, and the other answers the file may give.
+        for (const change of [{ year: 2020 }, { year: 2100 }, { lastSavedByClerk: false }, { lastSavedByClerk: null }, { added: [] }]) {
+            await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), ...change }));
+        }
+    });
+
+    test('the lists are capped: 4,000 days in line at most, and no more added than are in line', async () => {
+        const db = loggingAdminDb();
+        await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), inLine: entries(4000) }));
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), inLine: entries(4001) }));
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), added: entries(4) }));
+    });
+
+    test('a first catch-up of a realistic size is written and undone', async () => {
+        // About what the 6 Nov copy holds: some 1,300 dated days in line, a few hundred of them new.
+        const db = loggingAdminDb();
+        const ref = doc(collection(db, 'alUploads'));
+        await assertSucceeds(setDoc(ref, { ...LOG(), inLine: entries(1300), added: entries(400) }));
+        await assertSucceeds(updateDoc(ref, { ...UNDO(), undone: entries(390) }));
+    });
+
+    test('the undo: once, at the server\'s clock, by the admin as themselves, and nothing else moves', async () => {
+        const db = loggingAdminDb();
+        const id = await writtenLog();
+        const ref = doc(db, 'alUploads', id);
+        await refused(updateDoc(ref, { ...UNDO(), undoneAt: Timestamp.now() }), 'an undo at the device\'s clock');
+        await refused(updateDoc(ref, { ...UNDO(), undoneBy: 'B. Example' }), 'an undo naming somebody else');
+        await refused(updateDoc(doc(adminDb(), 'alUploads', id), UNDO()), 'an undo by an admin with no bound name');
+        await refused(updateDoc(doc(adminDb(), 'alUploads', id), { ...UNDO(), undoneBy: null }),
+            'an undo saying nobody made it, from an admin token with no bound name');
+        await refused(updateDoc(ref, { undoneAt: serverTimestamp(), undoneBy: ADMIN }), 'an undo with no list of what it removed');
+        await refused(updateDoc(ref, { ...UNDO(), undone: entries(2) }), 'an undo removing more than the Save added');
+        await refused(updateDoc(ref, { ...UNDO(), inLine: ['B. Example|2026-03-02'] }), 'an undo that rewrote what was in line');
+        await refused(updateDoc(ref, { added: [] }), 'a rewrite with no undo at all');
+        await assertSucceeds(updateDoc(ref, UNDO()));
+        await refused(updateDoc(ref, { ...UNDO(), undone: [] }), 'a second undo');
+        const after = (await getDoc(ref)).data();
+        assert.deepEqual(after?.undone, ['B. Example|2026-03-03']);
+        assert.deepEqual(after?.inLine, LOG().inLine, 'what the Save brought into line is still on the log');
+        // What an undo removed is a list too: one entry as a string has a size, and would fit here.
+        const wide = doc(collection(db, 'alUploads'));
+        await assertSucceeds(setDoc(wide, { ...LOG(), inLine: entries(40), added: entries(40) }));
+        await refused(updateDoc(wide, { ...UNDO(), undone: 'B. Example|2026-03-03' }), 'an undo whose list is a string');
+    });
+
+    test('a create sent again is refused, so the Save writes its log in a transaction that reads first', async () => {
+        // When a create's answer is lost, the SDK sends it again. The copy finds the log already there,
+        // so it is an UPDATE, and its savedAt is a new server time: the undo-only rule refuses it.
+        const db = loggingAdminDb();
+        const ref = doc(collection(db, 'alUploads'));
+        await assertSucceeds(setDoc(ref, LOG()));
+        await assertFails(setDoc(ref, LOG()));
+        // The shape the Save will use instead: read inside the transaction, write only if absent.
+        const writeOnce = () => runTransaction(db, async (tx) => {
+            const there = await tx.get(ref);
+            if (there.exists()) return 'already written';
+            tx.set(ref, LOG());
+            return 'written';
+        });
+        const fresh = doc(collection(db, 'alUploads'));
+        const writeFresh = () => runTransaction(db, async (tx) => {
+            if ((await tx.get(fresh)).exists()) return 'already written';
+            tx.set(fresh, LOG());
+            return 'written';
+        });
+        assert.equal(await assertSucceeds(writeOnce()), 'already written');
+        assert.equal(await assertSucceeds(writeFresh()), 'written');
+        assert.equal(await assertSucceeds(writeFresh()), 'already written');
+    });
+
+    test('the admin deletes a log: it names people, so it is kept no longer than it is needed', async () => {
+        const id = await writtenLog();
+        await assertSucceeds(deleteDoc(doc(loggingAdminDb(), 'alUploads', id)));
     });
 });
 

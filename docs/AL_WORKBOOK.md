@@ -70,6 +70,12 @@ It is maintained by the roster clerks, not by the app. The threaded comments are
 roster clerks** [measured] — one is on the app roster as a Management account; the other is not on
 it at all.
 
+**Hash the file before reading it** [measured, 14 Nov 2026]. An upload can be byte-for-byte a file
+already read — the 14 Nov upload was the 8 Nov one again (SHA-256) — and `docProps/core.xml` →
+`dcterms:modified` gives the clerks' last save, which is the date every figure in it is AS OF (6 Nov
+2026 for that file). Say both in the answer: leave booked after that save can be in the app and not
+in the sheet, and reads as a discrepancy that is not one.
+
 ---
 
 ## 2 · Which sheets to read — and the decoy
@@ -139,6 +145,11 @@ Two states matter when counting:
 the exact `Surname . I` form, so `N/A <I> <Surname>` does not match. That is correct and it agrees
 with the app: Sundays are uncontracted, and the app refuses an AL override on one
 (`SUNDAY_FORBIDDEN_TYPES` in `override-utils.js`).
+
+**But a PLAIN name in a Sunday cell IS counted** [measured, 14 Nov 2026]. One Sunday carries a
+member's `Surname . I` with no `N/A` — the first day of a block that runs into the Monday — and
+`COUNTIF` matches it, so the sheet deducts a Sunday the app can never hold. It is the only one in the
+6 Nov file. Sweep Sundays for plain names before trusting a row's Used figure.
 
 **But they still belong in an answer.** When listing somebody's leave, give the days they are
 *away*, marking which are deducted — a member reading "27 Jun, then 29 Jun–2 Jul" has been handed a
@@ -226,6 +237,12 @@ repeating.
 > `roster-data.js`. That is the check to run the next time this is in front of somebody who can:
 > resolve each of the 75 tag dates through `resolveEffectiveShift` with the override map loaded,
 > and the census becomes exact. Until then, report the tag and the pattern, and say which it is.
+>
+> **RE-COUNTED ON THE 6 NOV FILE, ALL THREE GRADES** [measured, 14 Nov 2026]. 173 tags: 82 in the
+> CEA block, 58 CES and 33 Dispatcher. The app's pattern was read for 171 of them (the other two are
+> leavers'): a named shift on 83, spare on 32 and a rest day on 56, so **two in three are contracted**. The
+> CEA block alone (81) reads 32 / 24 / 25: contracted 69%, as on 14 Sep. It is still the pattern and
+> not the published roster, so the caveat above stands.
 
 > **ASK "was the member DUE AT WORK", not "was a shift named".** SPARE is contracted — the person
 > is expected at the station — so being away from one is being away from work exactly as a named
@@ -298,11 +315,24 @@ elsewhere. Read the comment before assuming the value means over-quota days.
 > joiner's row (73) does it the other way, with the pro-rated figure typed straight into D — so
 > **both conventions are live in the same sheet**, and neither is marked. Read the comment on every
 > joiner's row before quoting an allowance, and before the §9 check against `proRatedAL`.
+>
+> **The start date can sit on the ALLOWANCE cell too** [measured, 14 Nov 2026]. Row 76 carries it
+> twice: as the `STARTED` comment on E76, and as a second comment on **D76** giving the same date. It
+> is the only comment on the totals sheet outside column E. It is not leave, so the method does not
+> count it, but it is the start date a `/new-starter` needs. `scripts/make-leave-file.mjs` reports
+> any such comment for reading by hand rather than reading it itself.
 
 **The pattern holds TEN FOR TEN** [measured, 14 Sep 2026]. Every dated over-quota comment checked —
 ten dates across eight members, one of whom has three — falls on a date whose four CEA slots are
 already full, exactly as on 24 Dec, with no exceptions. That is as close to confirming the
 `[inferred]` meaning of column E as the file alone can get; it still wants the owner's word.
+
+**And THIRTY-THREE FOR THIRTY-THREE, across every grade** [measured, 14 Nov 2026], once "full" is
+read as **no AVAILABLE slot** rather than "every slot holds a name". A slot marked `Closed` or `N/A`
+does not exist that day, so a two-slot CES or Dispatcher block holding one name and one `Closed` is
+full. Read that way, every dated over-quota day in the sheet — 33 dates across 22 rows — falls on a
+day its grade had no slot left to give. A check that demands a name in every slot reports seven of
+them as exceptions, and none of them is one.
 
 > ## ✅ §0 CONFIRMED AGAINST THE APP'S OWN FIGURE — the first time, 14 Sep 2026
 >
@@ -344,6 +374,29 @@ already full, exactly as on 24 Dec, with no exceptions. That is as close to conf
 > **And the punctuation varies inside one thread.** The third date is written `19.08`, with a full
 > stop where the other two use a slash. Same `DD/MM` order, different separator, in the same cell.
 > Any mechanical read of these comments must accept both; a human reading them will not notice.
+> **But the full stop only between two-digit parts** (`19.08`, `21.10.2026`): a quantity such as
+> `1.5 DAYS` is not the first of May. The leave script reads it that way since the 14 Nov review.
+
+> **A COMMENT CAN NAME A DATE THE GRID ALSO HOLDS** [measured, 14 Nov 2026]. One thread names three
+> dates against an E of 2, and the third date is also in the grid, in that member's own name: granted
+> over quota, then given a slot when one freed. **E is right** — it counts the dated days NOT in the
+> grid. Count such a day once, from the grid, and check a comment's dates against the grid before
+> reporting a comment-versus-value mismatch, or the answer gains a day and the sheet takes the blame.
+>
+> **A `DD/MM` in the first days of January can be EITHER January** — the grid runs into the next one
+> (§2) [measured, 14 Nov 2026]. The same thread opens with `02/01`, then a reply `21/12 22/12`. Read as
+> this year's because the thread's other dates are, it sits beside a grid day of the member's own on
+> 3 January; read as next year's, it sits two days after their 29–31 December. Both fit, so only a
+> person can settle it. The leave script settles such a date only by a date BESIDE it — exactly one
+> reading within three days of another date in the same thread that has one reading of its own
+> (`02/01 03/01`) — and otherwise asks.
+>
+> **A joiner's START DATE is a date in the same comment** (`STARTED ON 20/09`, `START DATE 19/10`). A
+> mechanical scan for `DD/MM` must drop the START date — the first date after the word — or it lists
+> the start date as a day of leave. **It must drop nothing else.** An entry that gives another date
+> beside its start date (`STARTED 05/10, A/L 24/12`) may be naming a day of leave, so the leave script
+> stops on it and names the row rather than guess (14 Nov 2026). None does today: every joiner's other
+> dates are replies of their own.
 
 **Nothing in the grid marks an over-quota day.** It is only in column E and its comment. Do not go
 hunting for a fifth name on a date — there isn't one.
@@ -390,6 +443,27 @@ There is one comment file per sheet and they are **not** named after the sheet.
 > the totals sheet is `sheet22.xml` → `threadedComment15.xml`, but do not hardcode that — it is a
 > property of the file, not of the workbook.
 
+**To put the app's pattern beside a date, ask the app** [measured, 14 Nov 2026]. A Node script run
+from the repository root can import `getBaseShift` and `isBankHoliday` from `roster-data.js`, and
+scheduled roster moves are applied, so a member who changed line is read on the right one. Marking a
+sheet day as one the app will not count, because it is a Sunday or a rest day on the pattern, agreed
+exactly with `alPosition`'s own uncounted days on the 6 Nov file (16 of 16). Each check confirms the
+other.
+
+**Or let the script do the whole method** [14 Nov 2026]. `node scripts/make-leave-file.mjs` reads the
+workbook the way this section and §7 describe, and writes the **leave file** that Operations → Annual
+leave sheet checks against the app (`docs/AL_UPLOADER_PLAN.md`; the usage line is in the script's
+header). Its rules, in short:
+
+- It **asks** about anything it cannot settle mechanically, such as a name, a duplicate row or a
+  January date, and writes nothing until it has the answers.
+- It **refuses** a workbook that is not shaped the way this file describes.
+- Its own count must equal the sheet's cached Used on **every** row.
+- It will not write its output inside the repository.
+
+On the 6 Nov copy it reproduced the hand reading of 14 Nov exactly. **The output names colleagues
+against their leave, so it stays outside the repository** (§12), like the workbook itself.
+
 ---
 
 ## 7 · Names — the workbook's form vs the app's
@@ -430,9 +504,28 @@ drops people.
 > cannot be read: a leave block holds ONE slot letter for its whole run, so the Sunday cell in that
 > same column belongs to whoever holds the days either side. It resolved all three here.
 >
+> **QUALIFIED: it is evidence, not proof** [measured on the 6 Nov copy, 14 Nov 2026]. Test it
+> against every Sunday tag whose text CAN be read:
+>
+> - When the **same person holds the slot on both sides**, they are the person the tag names
+>   **20 times in 21**.
+> - When somebody holds it on **one side only**, it is them only **51 times in 83**, not much better
+>   than a guess.
+>
+> So the slot column can support a reading, but it cannot make one alone. Why a one-sided slot
+> misleads so often is [unknown].
+> `scripts/make-leave-file.mjs` places a tag by its text or by an answer, and offers the slot column
+> as evidence in the question it asks. **Never file a tag under somebody on the slot column alone.**
+>
 > Two more spellings that break an exact match: the in-sheet double spelling above, and one cell
 > that reads **`N/A <I> <Surname> NA`** with the state repeated. **Match loosely, then confirm by
 > slot column.**
+>
+> **Still the same eight in the 6 Nov file** [measured, 14 Nov 2026]: the same three first names,
+> and the slot column gives the same three members. **Run the method; do not ask the owner who they
+> are.** This section says how they were resolved but, rightly, not who they are, and a session
+> reading it nearly put the question to the owner again. The name on five Sundays has three in the
+> same column as that member's leave beside them; the other two stand alone.
 >
 > ## ⚠️ A REVERSED TAG READS AS A BOOKING — measured, by catching a scan out
 >
@@ -519,7 +612,11 @@ Every one of these is silent, and every one has been seen. [measured]
    the grid holds a day more than the allowance. Not investigated; it may be a genuine over-booking
    the clerks allowed, a name in one cell too many, or the Employee of the Month day (§9).
 3. **A person in the workbook who is not on the app roster**, with real 2026 bookings and a
-   matching name on the 2021 sheet. See §10.
+   matching name on the 2021 sheet. See §10 — a leaver (owner, 14 Nov 2026). [Re-measured 14 Nov
+   2026: five CES grid days in one June week, with a Sunday tag beside them. **Corrected the same
+   day:** this first said there was no 2026 totals row. There is one: **row 48, relabelled
+   `Vacancy`** in column B. Its COUNTIF still names the leaver, so the sheet counts all five days.
+   See defect 12.]
 4. **An off-by-one COUNTIF range.** Two rows count `G2:H367` where their neighbours count
    `G2:H368`. Harmless today — the excluded row is 2 Jan 2027 and is `Closed` — but it is the sort
    of thing that becomes wrong when the sheet is extended.
@@ -532,6 +629,10 @@ Every one of these is silent, and every one has been seen. [measured]
    carries E50, E52, E55 and E56 but nothing on E51. **That member's answer can be complete on the
    total and cannot be complete on the days.** Only the clerks can recover them. Every other
    non-empty column E in the sheet does carry its dates.
+
+   **TWICE by the file last saved on 6 Nov 2026** [measured, 14 Nov 2026]: row 57 (CES) is now the
+   same — E = 2, and nothing on either route, threaded or legacy. Both rows' totals stand and both
+   rows' days are unknown.
 6. **Carry-forward is used on EXACTLY ONE live row — and finding it exposed a worse bug.**
    [corrected TWICE on 14 Sep 2026] Row 6 carries **c/f = 2**; every other row on
    `New Marylebone Totals` is blank. Twelve more c/f values, up to 13 days, sit on the **2021**
@@ -606,12 +707,32 @@ Every one of these is silent, and every one has been seen. [measured]
    are one continuous block — and the totals row's `COUNTIF` matches the first spelling only. **Nine
    booked days are uncounted**, and the row reads as exactly at its allowance. Before trusting any
    row's Used figure, count the grade block for the surname LOOSELY and compare.
+   **Count them** [owner, 14 Nov 2026]: a misspelt name in the grid is still that person's leave.
+   The row's Remaining is short by exactly those days, so an answer counts them and gives the
+   figure the sheet shows beside it. The Sunday tags either side of that block were spelt
+   correctly, which is how you know whose days they are.
 10. **A person with grid bookings and no totals row** [measured, 8 Nov 2026]. One Dispatcher has 22
    days in the Dispatcher block and **no row on `New Marylebone Totals` at all**, so nothing counts
    them and no Remaining exists anywhere in the file. The app has the member.
 11. **A column-E value its comment does not account for** [measured, 8 Nov 2026]. One Dispatcher
    row (67) has E = 5 and a comment naming a single date. Four of the five days are unexplained —
    §0 step 3 applies, and it is a question for the clerks, not a rounding error.
+12. **A leaver's totals row is relabelled `Vacancy`, and still counts them** [measured, 14 Nov 2026;
+   corrected the same day]. One CEA leaver (the app has them `hidden`) has three grid days in
+   February: one block, with its Sunday tagged. **Their totals row is row 16.** Column B reads
+   `Vacancy`, but its COUNTIF still names the leaver, so the sheet counts the three days (Used 3).
+   Defect 3's leaver is the same at row 48.
+
+   This entry first said "no 2026 totals row", because the first reading looked for the name in
+   column B. **Read the COUNTIF's criterion, never column B: the criterion is what the row counts.**
+   A sweep of column B also mistakes both leavers for defect 10's case, which is genuinely different:
+   that person has no row at all, so no criterion names them. That case is still true on the 6 Nov
+   copy (22 days).
+
+   **A third `Vacancy` row, row 25 (CEA), counts nothing.** Its criterion has been overtyped with
+   what reads as part of a formula, so it matches no cell. Used is 0, and the allowance (24) belongs
+   to nobody. Harmless today, but a row that counts nothing looks exactly like a person who has
+   booked nothing. The script leaves it out, with a note.
 
 
 ---
@@ -628,10 +749,11 @@ difference is.
 | **Sundays inside a block** | agree (both exclude) | Both refuse leave on an uncontracted day. |
 | **Carry-forward** | app shows **less** entitlement | `getALEntitlement` has no c/f input. **This stops being theoretical in January 2027, and the row that will do it is already visible** [owner-confirmed, 14 Sep 2026]: one row has an untouched full allowance that is expected to carry over, so column C on its 2027 row is the c/f value this has been waiting for — at which point the app will state an entitlement lower than the workbook's for as long as the carry-over lasts. Worth deciding BEFORE it appears rather than discovering it as a discrepancy. **CONFIRMED IN USE [owner, 3 Nov 2026]:** some members are being allowed to take a few 2026 days in early January 2027. The owner's direction for the app is **per DAY, not per year**: from 1 January a leave day counts against the new year by default, and until 31 January an admin can charge a January day to the previous year's allowance instead. That is the opposite bookkeeping to this workbook's c/f column, which ADDS the carried days to the new year's allowance and counts the January days in the new year's grid — so once it is built the two will book the carried days to different years. The app counts them as 2026 days used; the workbook leaves them as 2026 remaining, carries them as c/f, and counts them as 2027 days used against a 2027 allowance raised by the same c/f. **2027's REMAINING agrees; 2026's differs by exactly the carried days** — an explained difference, not a disagreement. **BUILT at v25.18, switched ON at v25.19** (3 Nov 2026, once the rules accepting the field were live): a January leave day may carry `leaveYear: <year − 1>` (docs/DATA_MODEL.md), set from the Admin AL card's "Which year's allowance" panel. The owner's final answers (3 Nov 2026) widened the direction above in two places: a member may move their OWN days, and a manager or the admin anyone's; and a moved day stays correctable after January — there is no lock on 31 January. The one limit is **no more than the previous year has left**. So when reconciling 2026 against this workbook from January 2027 on, expect the app's 2026 used to exceed the sheet's by the moved days, and its 2027 used to fall short by the same days. |
 | **Pro-rated joining year** | should agree | The workbook's allowance for a joiner — column D, or D less the undated part of column E where the clerks pro-rate there (§5) — should equal the app's `proRatedAL[2026]`. Check it — this is the cheapest real check in the whole reconciliation. |
-| **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. |
+| **Dispatcher lieu days** | check | The app adds one lieu day per bank holiday worked. Whether the workbook's allowance for a Dispatcher already includes them is **[unknown]**. **Worked means worked** [measured, 14 Nov 2026]: leave on a bank holiday the pattern works removes that day's lieu day in the app (`countDispatcherBankHolidaysWorked` reads the override before the pattern), so a figure from the pattern alone overstates the app by one for each bank holiday taken as leave — four of the ten Dispatcher rows, by one or two. |
 | **A SWAPPED working day booked off** | app shows **more** remaining | **The commonest real cause, ANSWERED BY THE OWNER 14 Sep 2026** — see below. |
 | **Employee of the Month** | **BOTH may show less entitlement** | **One extra AL day per award** [owner, 14 Sep 2026]. Neither system holds it: the workbook's allowance column reads a flat 32 for every CEA, and `getALEntitlement` returns a flat 32 too. **PARKED at the owner's request** — see below. |
 | **Leavers** | app may show a stale row | A leaver is `hidden` in the app but keeps their workbook row and figures. |
+| **A grade change, and a move into management** | app may show **no figures at all** | The sheet keeps a member in their old grade's row and block until the clerks move them; the app's `role` is the grade NOW, with `roleHistory` for the past, and the allowance agrees while both carry the same figure [measured, 14 Nov 2026]. **A member who becomes a MANAGER has no leave figures in the app at all**: Management has no entitlement (`getALEntitlement` → `null`) and is off every staff list, while the sheet still holds their year. Check them in the sheet only, and say so rather than reporting a mismatch. |
 | **Christmas Day and Boxing Day** | agree on the counts | The workbook marks both days `Closed` in every block, so neither is ever counted (§4). **The owner's rule [5 Nov 2026]:** anyone due at work on either day by their pattern — a named shift or a SPARE day, never a Sunday — is on leave that costs them nothing, and from Christmas 2026 the app SHOWS it as annual leave and lists it in the member's leave records, marked as not counted. **Built at v25.37** (`christmas-leave.js`): derived from the pattern and never stored, so the counts are untouched and the two systems agree on the figures — the app only displays what the workbook's `Closed` already implies. Leave somebody records on either day is not counted either. The published Christmas-week roster shows nothing for Christmas Day [owner, 5 Nov 2026], so no roster import will sit over it. |
 | **A Boxing Day WORKED by somebody due to work it** | check | **The owner's rule [5 Nov 2026]:** they earn **one annual-leave day in lieu**, added to their allowance. Somebody who works Boxing Day from a rest day earns none; it is overtime. **The app adds it to the Boxing Day's OWN year** [owner, 5 Nov 2026], and counts it **once** for a Dispatcher, whose bank-holiday rule already counts a Boxing Day that is a bank holiday [owner, 5 Nov 2026] — built at v25.37 (`boxingDayLieuDays`, read through `entitlementFor`). Whether the workbook's allowance column carries the lieu day, and on which year's row, is still **[unknown]** (§10, question 13) — the same open question as a Dispatcher's bank-holiday lieu days (question 4). If the clerks' sheet puts it on the next year's row, the two will differ by a day across the New Year and agree over the two years together. Note that 26 Dec is not always the bank holiday: in 2026 it is a Saturday and the holiday moves to Monday 28 Dec, which stays an ordinary bank holiday. |
 
@@ -736,6 +858,17 @@ difference as an error.
 4. For each person: workbook grid days + column E vs the app's recorded AL days.
 5. Report the **dates** that differ, never a count. A count cannot be acted on; a date can.
 
+**Run the app's OWN figures over the sheet before comparing** [measured, 14 Nov 2026]. Build each
+person's sheet days — grid and dated column E — as `annual_leave` overrides and call
+`alPosition({ overrides, member, year, todayStr })` (`al-entitlement.js`). That is what the app
+SHOULD show if it holds exactly those days, with every rule applied: rest days, Sundays, the start
+date, Christmas, a Dispatcher's lieu days. Compare the app with THAT, not with the sheet, and what is
+left is a recording difference, each one a date. On the 6 Nov file it moved twenty people's
+expected figures away from the sheet's — eleven of them Dispatchers — every one for a reason the
+app's rules give.
+**`consumesEntitlement(member, date)` takes the date as an ISO string** — handed a `Date`, it reports
+every day as uncounted, which reads as a catastrophic mismatch and is a calling mistake.
+
 ---
 
 ## 10 · Open questions for the owner
@@ -744,14 +877,16 @@ Answer any of these and strike it from this list rather than answering it again 
 when the workbook is next uploaded, rather than waiting to be volunteered an answer. Several of
 them change what a figure MEANS, so an unanswered one is not a tidiness problem.
 
-1. **The person in the workbook who is not on the app roster** (§8 defect 3) has 2026 bookings.
+1. ~~**The person in the workbook who is not on the app roster** (§8 defect 3) has 2026 bookings.
    Current staff member missing from the app, a leaver whose row was left behind, or somebody at
-   another location?
+   another location?~~ **Answered [owner, 14 Nov 2026]: somebody who has left.** Their grid days
+   stayed behind with no totals row, the same shape as §8 defect 12, and there is nothing to add to
+   the app.
 2. **The initial mismatches** in §7 — one is now owner-confirmed as the same person; are the other
    two first name vs known-as, or workbook errors?
 3. **Duplicate rows** — is one of each pair authoritative, or is that just untidiness to be ignored?
 4. **Dispatcher allowance** — does the workbook figure already include lieu days for bank holidays
-   worked, or is it the base only?
+   worked, or is it the base only? *(Asked again 14 Nov 2026: the owner is not sure yet.)*
 5. ~~**Carry-forward** — is c/f in use for 2027, and should the app model it?~~ **Answered [owner, 3 Nov
    2026]:** yes — a few 2026 days are being taken in early January 2027, and the app should model it
    per day (§9, the carry-forward row). Built at v25.18: anyone on their own leave, managers and the
@@ -809,9 +944,36 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
 Toward question 4 [measured, 8 Nov 2026]: three of the eleven Dispatcher rows carry an allowance of
 **24** and the rest **22** — consistent with lieu days being included for some, and not proof of it.
 
+**And against the app** [measured, 14 Nov 2026]: the app's own figure (`entitlementFor`, run from the
+pattern with no overrides) is HIGHER than the sheet's on every one of the ten Dispatcher rows it can
+be compared on, by one to six days — the bank holidays each pattern works. If the sheet's figure is
+the base alone, every Dispatcher's app balance reads that many days above the sheet all year, and a
+reconciliation that does not expect it reports ten discrepancies that are this one question.
+
+16. ~~**A CEA starter row with nobody on the app roster** [measured, 14 Nov 2026]. One CEA row reads
+   `START DATE 19/10`, with the pro-rating in column E and nothing booked, and the app has no member
+   it could be. Somebody to add, or a trainee with no line yet (the question 14 case)? Ask; do not
+   pair it with anybody by date.~~ **Answered [owner, 14 Nov 2026]: a new CEA in training** — the
+   question 14 case again, now for a CEA. The sheet carries a trainee from their start date; the app
+   carries them once the owner asks for them to be added (`/new-starter`), which for earlier trainees
+   was with their training pattern, before they had a line.
+
 ---
 
 ## 11 · If this ever becomes an uploader
+
+**It is now planned, and the first two phases are built** (owner, 14 Nov 2026):
+**`docs/AL_UPLOADER_PLAN.md`**. Phase 1 is the Operations card **Annual leave sheet**, which checks
+a leave file made by `scripts/make-leave-file.mjs` against the app. It **writes nothing**: it shows
+each person's differences and why. The plan's answer to each condition below:
+
+- **The identity join:** the name map is carried in the leave file, and a name that does not match
+  is asked about, never guessed.
+- **Column E:** read by §5's method, and a row it cannot read is refused by name.
+- **What an import would do:** reconcile-and-report only, for now. Whether the app ever writes is
+  Phase 2's decision, taken after Phase 1 has been used.
+
+The conditions as first written, kept because the plan is measured against them:
 
 Not committed to, and deliberately not designed here. Three things would have to be true first, and
 none of them is true today:
