@@ -91,26 +91,35 @@ The typed password is the real credential. A page asks for it through
 `ensureNamedSession(name, { password? })` (`session.js`), whose sign-in is
 `ensureFirebaseSession(name, gen, password)`:
 
-1. **Attempt 1 — raw typed value** (trimmed of leading/trailing whitespace, otherwise
-   UN-normalised — custom passwords have case/digits/symbols). This is the migrated member's path
-   and the end state.
-2. **Attempt 2 — the derived padded surname — ONLY IF
-   `normalise(typed) === normaliseSurname(name)`.** This gate is load-bearing: an ungated fallback
-   would sign an attacker typing *anything* into any un-migrated account (the surname attempt would
-   succeed regardless of the typed value) — strictly worse than before. Gated, the fallback only
-   covers what the local check allowed: caps ("Miller") and the <6-char padding cases
-   ("bibi" → "bibibi"). It grants an attacker nothing the surname doesn't already grant.
-   Micro-hardening: skip attempt 2 when the raw typed value already equals the derived padded value
-   (it would be byte-identical to attempt 1).
-3. **Both fail → wrong-password error.** Never anonymous (see 3.3).
+1. **The raw typed value** (trimmed of leading/trailing whitespace, otherwise UN-normalised —
+   custom passwords have case/digits/symbols). This is the migrated member's path and the end
+   state, and while the gate below is shut it is the only attempt.
+2. **The derived padded surname — ONLY IF `normalise(typed) === normaliseSurname(name)`.** This
+   gate is load-bearing: an ungated fallback would sign an attacker typing *anything* into any
+   un-migrated account (the surname attempt would succeed regardless of the typed value) — strictly
+   worse than before. Gated, the fallback only covers what the local check allowed: caps ("Miller")
+   and the <6-char padding cases ("bibi" → "bibibi"). It grants an attacker nothing the surname
+   doesn't already grant. Micro-hardening: when the raw typed value already equals the derived
+   padded value, the two are one attempt.
+3. **When the gate opens, the surname goes FIRST (v26.10).** Behind an open gate the raw value can
+   be the account's password only if it IS the default — and then it is one attempt — because
+   `validateNewPassword` refuses a chosen password that spells the surname (§ "Validation" below).
+   Raw-first therefore sent a request that could never succeed ahead of the real one: every sign-in
+   by a member with a surname under six letters typing it in lower case, as the sign-in form asks,
+   and any typed with a capital — 14 of 44 staff have such a surname (14 Nov 2026) — and each logged
+   a wrong password at Google. The pair is unchanged, so **what can sign in is unchanged**; only the
+   order moved. The raw value is still tried second, for an account whose password was set some
+   other way. `auth-identity.test.mjs` ties the order to the refusal: relax the refusal and it fails.
+4. **Both fail → wrong-password error.** Never anonymous (see 3.3).
 
 The old local pre-Firebase surname blocker is **demoted to the fallback-qualifier above** — not
-removed. Firebase is the authority for attempt 1.
+removed. Firebase is the authority for every attempt.
 
 **Timeout budget:** the whole sequence stays inside `runNamedSignIn`'s 8s `withTimeout`.
-Attempt 2 fires **only after a fast, definitive auth-server rejection** — never after a network
-timeout — so the budget holds; a timeout mid-attempt-2 is already handled by the login contract
-(no session saved, error shown, a late success benefits the next attempt).
+The second attempt fires **only after a fast, definitive auth-server rejection** of the first —
+never after a network timeout — so the budget holds; a timeout mid-way through the second is
+already handled by the login contract (no session saved, error shown, a late success benefits the
+next attempt).
 
 ### 3.3 A credential rejection never falls back (critical review fix #2)
 A **definitive credential rejection** (`auth/wrong-password` / `auth/invalid-credential`) resolves to
@@ -299,8 +308,8 @@ putting reset on the server).
 
 ## 8. Testing
 
-- **Unit:** `login-overlay.test.mjs` (typed-password param, no normalisation of attempt 1, gated
-  fallback, error copy, contract intact) · `session.test.mjs` (dual-attempt, credential rejection,
+- **Unit:** `login-overlay.test.mjs` (typed-password param, no normalisation of the typed value,
+  gated fallback, error copy, contract intact) · `session.test.mjs` (dual-attempt, credential rejection,
   page-load path) · `auth-identity.test.mjs` (`credentialCandidatesFor`, `isPasswordMigrated`,
   `validateNewPassword`) · `auth-endpoints.test.mjs` (the reset and the setupRosterAuth take-back).
 - **Rules:** `firestore.rules.test.mjs` — `passwordStatus` suite (owner/admin read, member
@@ -315,8 +324,13 @@ putting reset on the server).
 
 ## 9. Reading the App Speed card
 
-`loginTotal` on the App Speed card includes the dual-attempt cost for un-migrated short-surname
-members (always 2 attempts until they migrate) — expected, and transitional.
+`loginTotal` on the App Speed card is the **Signing in** figure, timed from pressing "Sign in" until
+the page is usable. Until v26.10 it carried a doomed first attempt for every sign-in on the surname
+default that was not typed exactly as stored: a capital letter, or any surname under six letters,
+even typed as the form asks. From v26.10 the default goes first (§3.2), so a member on it signs in
+with one attempt. Two attempts are left only for a member with a chosen password who types their
+surname, which is refused either way. The reading before the change is `LATENCY.md` → THE NOVEMBER
+READ; read the December card for the one after.
 
 ---
 

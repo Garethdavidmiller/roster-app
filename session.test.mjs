@@ -28,6 +28,9 @@ let _signInBehavior = 'ok';  // 'ok' | error code string
 let _createCalled  = false;  // did the code attempt browser-side account creation? (must never)
 let _anonCalled    = false;  // did the code attempt an anonymous fallback? (must never)
 let _signInCalls   = 0;      // how many times email/password sign-in was attempted (for retry tests)
+/** Every password the sign-in mock was handed, in order — the fake RECORDS rather than discards, so
+ *  a test can say which candidate went first (v26.10). Reset by the tests that read it. @type {string[]} */
+let _signInPasswords = [];
 let _onAuthSubs    = 0;      // how many times onAuthStateChanged was subscribed (primeAuth/fast-path tests)
 /** Live onAuthStateChanged subscribers, so a test can deliver a LATER emission. @type {Set<Function>} */
 const _authCbs = new Set();
@@ -102,9 +105,10 @@ mock.module('./firebase-client.js', {
         onAuthStateChanged:             (_auth, cb) => { _onAuthSubs++; _authCbs.add(cb); if (!_authNeverEmits) { if (_authEmitDelayMs) setTimeout(() => cb(_existingUser), _authEmitDelayMs); else Promise.resolve().then(() => cb(_existingUser)); } return () => { _authUnsubs++; _authCbs.delete(cb); }; },
         nameToEmail:                    name => name.toLowerCase().replace(/\s+/g, '.') + '@myb.test',
         normaliseSurname:               name => name.split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''),
-        // _signInBehavior may be a string (same every call) OR a function (callNumber → code),
-        // which lets a test model a transient blip that clears on a later retry.
-        signInWithEmailAndPassword:     async () => { const n = ++_signInCalls; if (_signInGate) await _signInGate; const b = typeof _signInBehavior === 'function' ? _signInBehavior(n) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
+        // _signInBehavior may be a string (same every call) OR a function (callNumber, password → code),
+        // which lets a test model a transient blip that clears on a later retry, or an ACCOUNT that
+        // accepts one password and refuses every other.
+        signInWithEmailAndPassword:     async (/** @type {any} */ _auth, /** @type {string} */ _email, /** @type {string} */ pw) => { const n = ++_signInCalls; _signInPasswords.push(pw); if (_signInGate) await _signInGate; const b = typeof _signInBehavior === 'function' ? _signInBehavior(n, pw) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
         // RECORDERS, not features. session.js no longer imports either (the account self-heal and the
         // anonymous fallback both ran only with `ENFORCE_NAMED_SESSION` off, retired v24.34). They
         // stay in the fake so that re-introducing either call is SEEN by the `_createCalled` /
@@ -820,14 +824,53 @@ describe('ensureFirebaseSession identity tracking', () => {
         assert.equal(_anonCalled, false, 'a wrong password must never become an anonymous session');
     });
 
-    test('gated dual-attempt: a typed MIXED-CASE surname tries raw then the derived surname → named (2 calls)', async () => {
-        // "Miller" ≠ "miller" (Firebase), so attempt 1 fails; attempt 2 (the gated surname) succeeds.
-        _signInCalls = 0;
-        _signInBehavior = /** @param {number} n */ (n) => (n === 1 ? 'auth/invalid-credential' : 'ok');
+    /** An account that accepts exactly one password, as Firebase does — the fake answers by WHAT it
+     *  is handed, not by call number, so the ORDER of the attempts is what a test sees.
+     *  @param {string} password */
+    const accountWithPassword = (password) => (/** @type {number} */ _n, /** @type {string} */ pw) =>
+        (pw === password ? 'ok' : 'auth/invalid-credential');
+
+    test('gated dual-attempt (v26.10): a typed MIXED-CASE surname signs an un-migrated member in with ONE request — the default first', async () => {
+        // The account is on its surname default "miller". Raw-first sent "Miller" ahead of it — a
+        // request that could never succeed, and a wrong password logged at Google.
+        _signInCalls = 0; _signInPasswords = [];
+        _signInBehavior = accountWithPassword('miller');
         const ok = await ensureFirebaseSession('G. Miller', undefined, 'Miller');
         assert.equal(ok, true);
         assert.equal(getFirebaseIdentity(), 'named');
-        assert.equal(_signInCalls, 2, 'raw typed value, then the gated derived surname');
+        assert.deepEqual(_signInPasswords, ['miller'], 'the default first, and nothing after it');
+    });
+
+    test('gated dual-attempt (v26.10): a SHORT surname typed as the form asks signs in with ONE request — the padded default', async () => {
+        // "Your surname in lowercase", says the form. For a surname under six letters that is never
+        // the password: the default is padded ("bibi" → "bibibi"). Every such sign-in paid a doomed
+        // first request before v26.10.
+        _signInCalls = 0; _signInPasswords = [];
+        _signInBehavior = accountWithPassword('bibibi');
+        const ok = await ensureFirebaseSession('T. Bibi', undefined, 'bibi');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.deepEqual(_signInPasswords, ['bibibi']);
+    });
+
+    test('gated dual-attempt: a member with a CHOSEN password who types their surname is refused after both — the typed value is still tried', async () => {
+        // The pair is unchanged, so what can sign in is unchanged: the default is refused (the
+        // account has moved on), the typed value is tried after it, and both refusals end in 'none'.
+        _signInCalls = 0; _signInPasswords = [];
+        _signInBehavior = accountWithPassword('a-chosen-passphrase');
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'Miller');
+        assert.equal(ok, false);
+        assert.equal(getFirebaseIdentity(), 'none');
+        assert.deepEqual(_signInPasswords, ['miller', 'Miller']);
+    });
+
+    test('gated dual-attempt: a NETWORK failure on the default stops there — the typed value is not sent behind it', async () => {
+        // §3.2's other half: the second attempt follows only a definitive rejection.
+        _signInCalls = 0; _signInPasswords = [];
+        _signInBehavior = 'auth/network-request-failed';
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'Miller');
+        assert.equal(ok, false);
+        assert.deepEqual(_signInPasswords, ['miller']);
     });
 
     test('gated dual-attempt: a typed CUSTOM password is the ONLY candidate → one call, no surname fallback', async () => {

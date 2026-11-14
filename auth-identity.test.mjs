@@ -94,14 +94,40 @@ describe('credentialCandidatesFor — gated dual-attempt (PASSWORD_DESIGN §3.2)
     test('typing the exact lowercase surname → one candidate (raw == derived, deduped)', () => {
         assert.deepEqual(credentialCandidatesFor('G. Miller', 'miller'), ['miller']);
     });
-    test('typing a mixed-case surname → raw first, THEN the derived surname (the gated fallback)', () => {
-        assert.deepEqual(credentialCandidatesFor('G. Miller', 'Miller'), ['Miller', 'miller']);
-        assert.deepEqual(credentialCandidatesFor('G. Miller', 'MILLER'), ['MILLER', 'miller']);
+    test('typing a mixed-case surname → the derived surname FIRST, then the raw value (v26.10)', () => {
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'Miller'), ['miller', 'Miller']);
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'MILLER'), ['miller', 'MILLER']);
     });
-    test('a short surname typed → raw then the PADDED derived surname', () => {
-        assert.deepEqual(credentialCandidatesFor('T. Bibi', 'Bibi'), ['Bibi', 'bibibi']);
+    test('a short surname typed as the form asks (lower case) → the PADDED default first, then the raw value', () => {
+        // The case v26.10 is for: the sign-in form says "your surname in lowercase", and for a surname
+        // under six letters that is never the account's password — the padded default is.
+        assert.deepEqual(credentialCandidatesFor('T. Bibi', 'bibi'), ['bibibi', 'bibi']);
+        assert.deepEqual(credentialCandidatesFor('T. Bibi', 'Bibi'), ['bibibi', 'Bibi']);
         // typing the padded form itself dedupes to one
         assert.deepEqual(credentialCandidatesFor('T. Bibi', 'bibibi'), ['bibibi']);
+    });
+    test('WHY the default goes first: whenever it is added, the typed text is a password nobody may choose', () => {
+        // The order is only safe while this holds. Raw-first existed for a member whose OWN password
+        // the typed text might be; `validateNewPassword` refuses every choice that spells the surname,
+        // so behind an open gate the typed text can only be right when it IS the default — and then
+        // the two are deduped to one. If the refusal is ever relaxed, this fails, and the order in
+        // credentialCandidatesFor must be argued again (PASSWORD_DESIGN.md §3.2).
+        let pairs = 0;
+        for (const { name, hidden } of teamMembers) {
+            if (hidden) continue;
+            const surname = normaliseSurname(name);
+            if (!surname) continue;
+            const cap = surname[0].toUpperCase() + surname.slice(1);
+            for (const typed of [surname, cap, surname.toUpperCase(), `${cap}2024`, `${surname}!!!!`]) {
+                const c = credentialCandidatesFor(name, typed);
+                if (c.length < 2) continue;
+                pairs++;
+                assert.equal(c[0], surnamePassword(name), `the default must be tried first for ${JSON.stringify(typed)}`);
+                assert.notEqual(validateNewPassword(name, c[1], c[1]), null,
+                    'a typed value behind an open gate is a password the app lets someone choose — raw-first could be the right order again');
+            }
+        }
+        assert.ok(pairs > 100, `premise: the roster should produce many gated pairs, got ${pairs}`);
     });
     test('the fallback is GATED: a non-surname password never yields the surname candidate', () => {
         // The security-critical case — an attacker typing junk must NOT get the surname attempt.

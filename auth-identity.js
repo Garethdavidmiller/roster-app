@@ -88,30 +88,37 @@ export function surnamePassword(fullName) {
 
 /**
  * The ordered Firebase Auth password candidates to try for a member who typed `typed` at the login
- * (or Settings reauth) field. PASSWORD_DESIGN.md §3.2:
- *   1. the RAW typed value (leading/trailing whitespace trimmed, otherwise untouched — a chosen
- *      password keeps its case / digits / symbols); and
- *   2. the derived surname password — appended ONLY when the typed value NORMALISES to the member's
- *      surname. This GATE is load-bearing: an ungated surname fallback would sign an attacker typing
- *      ANYTHING into an un-migrated account (the surname attempt would succeed regardless of input).
- *      Gated, it covers exactly what today's local check allows — caps ("Miller") and the <6-char
- *      padding cases ("bibi" → "bibibi") — and grants an attacker nothing the surname doesn't already.
+ * (or Settings reauth) field. PASSWORD_DESIGN.md §3.2. Two candidates at most:
+ *   · the RAW typed value (leading/trailing whitespace trimmed, otherwise untouched — a chosen
+ *     password keeps its case / digits / symbols); and
+ *   · the derived surname password — added ONLY when the typed value NORMALISES to the member's
+ *     surname. This GATE is load-bearing: an ungated surname fallback would sign an attacker typing
+ *     ANYTHING into an un-migrated account (the surname attempt would succeed regardless of input).
+ *     Gated, it covers exactly what today's local check allows — caps ("Miller") and the <6-char
+ *     padding cases ("bibi" → "bibibi") — and grants an attacker nothing the surname doesn't already.
  * Deduped when the two would be byte-identical. An empty typed value yields no candidates.
+ *
+ * WHEN THE GATE OPENS, THE SURNAME GOES FIRST (v26.10). Once the typed value spells the surname but
+ * is not byte-identical to its default, the raw value can never be the account's password: not the
+ * default (they differ), and not a chosen one, because `validateNewPassword` refuses any choice that
+ * spells the surname. Raw-first sent that doomed request to Google ahead of the real one on every
+ * such sign-in — every member with a surname under six letters typing it as the sign-in form asks,
+ * and anyone typing a capital — and logged a wrong password for each. The pair is unchanged, so what
+ * signs in is unchanged; only the order is. Raw stays second, for an account whose password was set
+ * some other way.
  * @param {string} fullName
  * @param {string} typed
  * @returns {string[]}
  */
 export function credentialCandidatesFor(fullName, typed) {
     const raw = (typeof typed === 'string' ? typed : '').trim();
-    /** @type {string[]} */
-    const candidates = [];
-    if (raw) candidates.push(raw);
+    if (!raw) return [];
     const normTyped = lettersOnly(raw);
     if (normTyped && normTyped === normaliseSurname(fullName)) {
         const sp = surnamePassword(fullName);
-        if (sp !== raw) candidates.push(sp);
+        if (sp !== raw) return [sp, raw];
     }
-    return candidates;
+    return [raw];
 }
 
 /**
@@ -208,7 +215,7 @@ export function passwordChangeFailure(code, reauthed) {
  * Firebase Auth error codes that mean the supplied credentials are DEFINITIVELY wrong — as opposed to
  * a transient failure (network / rate-limit / provider outage / requires-recent-login). Only on one of
  * these should a candidate-ladder try the NEXT password: a non-credential failure must stop
- * immediately, or the surname fallback would be retried needlessly (duplicate traffic, worse
+ * immediately, or the next candidate would be tried needlessly (duplicate traffic, worse
  * rate-limiting, a misleading final error). `invalid-credential` is the modern
  * email-enumeration-safe code; the others cover older SDK phrasings.
  *

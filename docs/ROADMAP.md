@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.10 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -183,7 +183,9 @@ release every few days rather than several a day. It needs no code and no securi
 recorded here rather than built. **Read "After a release" on the App Speed card first**
 (`readyUpdate`): it sizes what a release costs the member who meets one. It has given no share of
 opens since v24.98 (`perf-stats.js` says why); the last share, about one Calendar open in seven
-(September 2026), was an undercount (`LATENCY.md` → THE CARD WAS TRIMMED).
+(September 2026), was an undercount (`LATENCY.md` → THE CARD WAS TRIMMED). **The first reading:**
+in the first half of November 2026, while 99 versions reached `main`, 10% of the 163 returns to a
+page after a release took over a second to be usable (`LATENCY.md` → THE NOVEMBER READ).
 
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated
@@ -494,6 +496,38 @@ it. The roster import's name lists and Team Week's grade tabs read `role`, the g
 a promotion is released between the last upload under the old grade and the first under the new one
 (OPERATIONS_REFERENCE.md → "A member changes grade"). Reading the grade on each week's own dates would
 lift that rule. **Success:** a promotion released on any day imports the weeks either side of it.
+
+### Calendar sign-in without the reload
+**Status:** Conditional · **Trigger:** staff say signing in on the Calendar is slow, or **Signing in** on the App Speed card is still red on a full month after v26.10 · **Owner:** Gareth · **Review:** the December 2026 card, read in the first week of January 2027
+
+**Why.** A member who signs in on the Calendar watches the page reload, and the reload starts the app
+again from the top, including the round trip to Google's sign-in service that every start makes
+(`LATENCY.md` → "What the wall actually is"), straight after the sign-in has made one. Every other
+page carries on in place after a sign-in. The card times a sign-in from pressing "Sign in" until the
+page is usable, across the reload (`perf-reporter.js`), so this second start sits inside the
+**Signing in** figure: 28% over 3 seconds on 25 sign-ins in the first half of November 2026, and red
+at a fifth. v26.10 removed the other wait the app added itself, a first password attempt that could
+not succeed (`PASSWORD_DESIGN.md` §3.2), so the December card shows what is left.
+
+**Why it was not done with v26.10: the reload does three jobs**, and signing in in place has to do
+each of them another way:
+
+- **It rebuilds what the page built from the old session.** The drawer, its page pills and the name
+  picker are set up as the page loads, before access is decided, so that a locked visitor still has
+  the drawer. "Use the staff PIN instead" on a member's own sign-in card signs them out and reloads
+  for the same reason (`calendar-lock-cards.js`).
+- **It runs the forced set-password step**, which runs on the page's first grant (`_runPasswordForce`,
+  `calendar-app.js`).
+- **It finishes a document tap the lock held** (`calendar-huddle-viewer.js` → "A tap the lock held
+  survives a reload").
+
+It is also the Calendar's access code, where a change brings tests of the order of events it could
+break (`.claude/rules/calendar.md`).
+
+**Blocker:** none beyond the trigger. **Size:** small, which is why it waits. About 25 sign-ins a
+month across the whole app (a sign-in lasts 60 days), each saving one start. **Success:** fewer
+sign-ins over 3 seconds on the next full month, the forced step still appearing after a password
+reset, and a held Huddle tap still opening after a sign-in.
 
 ### Daily operations view
 **Status:** Conditional · **Trigger:** supervisors say the week view is insufficient
