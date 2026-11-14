@@ -1091,6 +1091,20 @@ test('Settings holds an update while a password save, or its "own password" reco
     for (const k of ['beforeReload', 'isBusy']) assert.match(reg[k] ?? '', /_busy/, `${k} does not ask the shared busy check`);
 });
 
+test('Operations: an update waits for the Annual leave sheet card; a notification tap does not (review, 14 Nov 2026)', () => {
+    // The card's answer is a long read with no Save, so an UPDATE holds while it is running or on
+    // screen. A notification TAP is the reader's own choice, and holding it asked "this one has unsaved
+    // changes or a save still on its way" of a check that saves nothing. The browser test reads the
+    // card's own hold and the tap's answer; this pins which of the two the registration consults.
+    const src = codeOf('operations-app.js');
+    const reg = swRegistrationProps(src) ?? {};
+    const def = (/** @type {string} */ name) => src.match(new RegExp(`const ${name}\\s*=[^;]*;`))?.[0] ?? '';
+    assert.match(reg.beforeReload ?? '', /alSheetBusy\(\)/, 'the update reload no longer waits for the leave sheet card');
+    const tapName = /isBusy:\s*([A-Za-z_$][\w$]*)/.exec(reg.isBusy ?? '')?.[1] ?? '';
+    assert.ok(tapName, 'isBusy is no longer a named check');
+    assert.doesNotMatch(`${reg.isBusy}\n${def(tapName)}`, /alSheetBusy/, 'a notification tap is held by the leave sheet card again');
+});
+
 // ── A MESSAGE BOX THAT HIDES WHILE EMPTY IS NEVER ITS OWN LIVE REGION (review, 11 Nov 2026) ──────────
 // Each box is display:none while empty, which takes it out of the accessibility tree, and a region only
 // announces changes made while it is in the tree. "Show the box, then write" was pinned here as the cure,

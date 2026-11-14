@@ -289,10 +289,18 @@ export const getDocs = (/** @type {any} */ ref) => {
   // the retired work-email check used for legacy stamps. Converting every number turned a seeded count: 4 into a
   // Timestamp object, so "asked 4 times" silently vanished from the card.
   const ts = (v) => (typeof v === 'number' && v >= 1e12 ? { toDate: () => new Date(v), toMillis: () => v } : v);
-  const docs = rows.map(r => ({
-    id: r.id,
-    data: () => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, ts(v)])),
-  }));
+  // A row carrying __pendingWrite: true is THIS device's own save not yet sent (14 Nov 2026): its
+  // snapshot says hasPendingWrites, and its server timestamp reads null unless the reader asks for
+  // the estimate — the SDK's own shape, which overrideFromSnapshot exists to read.
+  const docs = rows.map(r => {
+    const pending = r.__pendingWrite === true;
+    const fields = Object.fromEntries(Object.entries(r).filter(([k]) => k !== '__pendingWrite').map(([k, v]) => [k, ts(v)]));
+    return {
+      id: r.id,
+      metadata: { hasPendingWrites: pending, fromCache: !!e2e.docsFromCache },
+      data: (o) => (pending && !(o && o.serverTimestamps === 'estimate') ? { ...fields, createdAt: null } : fields),
+    };
+  });
   return wrap({ empty: false, size: docs.length, docs, metadata, forEach: cb => docs.forEach(cb) });
 };
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced

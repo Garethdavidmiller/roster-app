@@ -13,8 +13,11 @@ import { LOST_PHONE } from '../operations-reset.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
 import { describeRefusal } from '../al-leave-file.js';
 import { dayLabel, appWords, chipsFor, totalsLines, totalsEntries, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
-    moreDaysWords, notComparedWords, oldWords } from '../al-leave-words.js';
-import { LEAVE_FILE_MAX_AGE_DAYS } from '../al-leave-file.js';
+    moreDaysWords, notComparedWords, oldWords, beyondHeadWords } from '../al-leave-words.js';
+import { LEAVE_FILE_MAX_AGE_DAYS, LEAVE_FILE_MAX_BYTES } from '../al-leave-file.js';
+import { writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parseISODate } from '../roster-data.js';
 
 // ── OPERATIONS (operations.html) ──────────────────────────────────────────
@@ -4527,11 +4530,12 @@ test('operations annual leave sheet: each person is checked against their own re
     /** @param {string} d */
     const day = d => a.locator('.al-sheet-day', { hasText: dayLabel(d) });
     await expect(day(fx.dates.missing)).toHaveClass(/al-sheet-day--not-in-app/);
-    await expect(day(fx.dates.missing).locator('.al-sheet-app')).toHaveText(appWords({ state: 'not-in-app', app: null,
-        pattern: getBaseShift(fx.A, parseISODate(fx.dates.missing)) }, fx.year));
+    const missingPattern = getBaseShift(fx.A, parseISODate(fx.dates.missing));
+    await expect(day(fx.dates.missing).locator('.al-sheet-app')).toHaveText(appWords({ state: 'not-in-app', pattern: missingPattern,
+        drawn: { shift: missingPattern, rdwTime: '', fromPattern: true, type: null } }, fx.year));
     await expect(day(fx.dates.restDay)).toHaveClass(/al-sheet-day--rest-day/);
     await expect(day(fx.dates.appOnly)).toHaveClass(/al-sheet-day--app-only/);
-    await expect(day(fx.dates.appOnly).locator('.al-sheet-app')).toHaveText(appOnlyWords(true));
+    await expect(day(fx.dates.appOnly).locator('.al-sheet-app')).toHaveText(appOnlyWords(fx.year));
     // The day that agrees is folded away, not lost.
     const more = a.locator('.al-sheet-more');
     await expect(more.locator('summary')).toHaveText(moreDaysWords(1));
@@ -4609,20 +4613,215 @@ test('operations annual leave sheet: a read answered from this device’s cache 
     await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
 });
 
-test('operations annual leave sheet: an update waits while a check runs and while its answer is on screen', async ({ page }) => {
+/** The card's own hold, read from the module the page loaded — what the update reload waits on. */
+const alSheetCardBusy = (/** @type {import('@playwright/test').Page} */ page) =>
+    page.evaluate(async () => (await import('/operations-al-sheet.js')).alSheetBusy());
+
+test('operations annual leave sheet: an update waits while a check runs or its answer is on screen — a notification tap does not', async ({ page }) => {
+    // The update reload asks _opsBusy OR the card (operations-app.js); a tap asks _opsBusy alone, because
+    // it is the reader's own choice and a check saves nothing ("unsaved changes or a save still on its
+    // way" was untrue, review 14 Nov 2026). page-contract-parity.test.mjs pins the wiring itself.
     const fx = await alSheetFixture();
     await openAlSheet(page, fx.records);
-    expect(await alSheetBusy(page), 'nothing checked yet').toBe(false);
+    expect(await alSheetCardBusy(page), 'nothing checked yet').toBe(false);
     await chooseLeaveFile(page, fx.text);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
     await page.locator('#alSheetCheckBtn').click();
     await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.checking);
-    expect(await alSheetBusy(page), 'reading the records — a reload now loses the check').toBe(true);
+    expect(await alSheetCardBusy(page), 'reading the records — a reload now loses the check').toBe(true);
+    expect(await alSheetBusy(page), 'a tap is not held by a check that only reads').toBe(false);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
     await expect(page.locator('#alSheetResult')).toBeVisible();
-    expect(await alSheetBusy(page), 'forty people’s differences on screen — a reload takes them away unsaid').toBe(true);
+    expect(await alSheetCardBusy(page), 'forty people’s differences on screen — a reload takes them away unsaid').toBe(true);
+    expect(await alSheetBusy(page), 'nor by its answer on screen').toBe(false);
     await page.locator('#alSheetClearBtn').click();
-    expect(await alSheetBusy(page), 'cleared, so an update need wait no longer').toBe(false);
+    expect(await alSheetCardBusy(page), 'cleared, so an update need wait no longer').toBe(false);
+});
+
+test('operations annual leave sheet: the SAME file chosen again is read again', async ({ page }, testInfo) => {
+    // An input still holding a file fires no `change` when that file is chosen again, so a corrected
+    // copy saved over the old one was never read (review, 14 Nov 2026). Chosen BY PATH, as a person
+    // does — a buffer fires `change` every time and hides the fault. Written outside the repository.
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    const path = join(tmpdir(), `al-sheet-e2e-${process.pid}-${testInfo.workerIndex}-${testInfo.repeatEachIndex}.json`);
+    try {
+        writeFileSync(path, fx.text);
+        await page.locator('#alSheetFileInput').setInputFiles(path);
+        await page.locator('#alSheetCheckBtn').click();
+        await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+        writeFileSync(path, fx.text.replace(`"date":"${fx.dates.missing}"`, `"date":"${fx.dates.appOnly}"`));
+        await page.locator('#alSheetFileInput').setInputFiles(path);
+        await expect(page.locator('#alSheetResult'), 'a new choice takes the old answer off the screen').toBeHidden();
+        await page.locator('#alSheetCheckBtn').click();
+        await expect(page.locator('#alSheetFeedback'), 'the edited copy is the one checked').toHaveText(describeRefusal({ code: 'changed-since-made' }));
+    } finally {
+        rmSync(path, { force: true });
+    }
+});
+
+test('operations annual leave sheet: a new input takes the old answer away, and two checks draw one answer', async ({ page }) => {
+    const fx = await alSheetFixture();
+    const old = await alSheetFixture({ savedDaysAgo: LEAVE_FILE_MAX_AGE_DAYS + 9 });
+    await openAlSheet(page, fx.records);
+    const result = page.locator('#alSheetResult');
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(result).toBeVisible();
+    // Checked again: one answer, not two stacked.
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+    await expect(result.locator('.al-sheet-summary')).toHaveCount(1);
+    // A different file: the first file's answer and status go — it read as the new file's (review, 14 Nov 2026).
+    await chooseLeaveFile(page, old.text);
+    await expect(result).toBeHidden();
+    await expect(page.locator('#alSheetFeedback')).toHaveText('');
+    await expect(page.locator('#alSheetClearBtn')).toBeHidden();
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(result.locator('.al-sheet-warn')).toHaveText(oldWords(LEAVE_FILE_MAX_AGE_DAYS));
+    // Typing in the paste box does the same.
+    await page.locator('#alSheetPaste').fill('x');
+    await expect(result).toBeHidden();
+    await expect(page.locator('#alSheetFeedback')).toHaveText('');
+    // And a check still reading when a new file is chosen draws NOTHING when its reads land: it was
+    // the old file's, and the label already names the new one.
+    await page.locator('#alSheetPaste').fill('');
+    await chooseLeaveFile(page, fx.text);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.checking);
+    await page.locator('#alSheetFileInput').setInputFiles({ name: 'second.leave.json', mimeType: 'application/json', buffer: Buffer.from(old.text) });
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(page.locator('#alSheetCheckBtn'), 'the stale check has settled').toBeEnabled();
+    await expect(result, 'the stale check drew nothing').toBeHidden();
+    await expect(page.locator('#alSheetFeedback')).toHaveText('');
+    await expect(page.locator('#alSheetFileName')).toHaveText('second.leave.json');
+});
+
+test('operations annual leave sheet: a slow read that lands after a newer input is dropped', async ({ page }) => {
+    // A cloud-backed file on a phone can take seconds. The newest input must win however late the
+    // older one's read lands (review, 14 Nov 2026).
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    await page.evaluate(() => {
+        const read = File.prototype.text;
+        File.prototype.text = function () {
+            return this.name === 'slow.leave.json' ? new Promise(r => setTimeout(() => r(read.call(this)), 600)) : read.call(this);
+        };
+    });
+    const choose = (/** @type {string} */ name, /** @type {string} */ text) => page.locator('#alSheetFileInput')
+        .setInputFiles({ name, mimeType: 'application/json', buffer: Buffer.from(text) });
+    // A slow file, then text pasted while it is read: the TEXT is what is checked.
+    await choose('slow.leave.json', fx.text);
+    await page.locator('#alSheetPaste').fill('not a leave file');
+    await expect(page.locator('#alSheetFileName')).toHaveText('');
+    await page.waitForTimeout(900);
+    await expect(page.locator('#alSheetFileName'), 'the late read does not bring the file back').toHaveText('');
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(describeRefusal({ code: 'not-json' }));
+    // A slow bad file, then a fast good one: the GOOD one is checked, under its own name.
+    await page.locator('#alSheetPaste').fill('');
+    await choose('slow.leave.json', 'not a leave file');
+    await choose('leave-2026.leave.json', fx.text);
+    await page.waitForTimeout(900);
+    await expect(page.locator('#alSheetFileName')).toHaveText('leave-2026.leave.json');
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+});
+
+test('operations annual leave sheet: a file too large is refused before it is read, and Clear hands focus back', async ({ page }) => {
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const read = File.prototype.text;
+        w.__reads = 0;
+        File.prototype.text = function () { w.__reads++; return read.call(this); };
+    });
+    await page.locator('#alSheetFileInput').setInputFiles({ name: 'huge.json', mimeType: 'application/json',
+        buffer: Buffer.alloc(LEAVE_FILE_MAX_BYTES + 1, 0x20) });
+    await expect(page.locator('#alSheetFeedback')).toHaveText(describeRefusal({ code: 'too-large' }));
+    await expect(page.locator('#alSheetCheckBtn')).toBeDisabled();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__reads), 'never loaded into memory').toBe(0);
+    // Clear hides itself; focus goes to the file control, not to the page (review, 14 Nov 2026).
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await page.locator('#alSheetClearBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#alSheetClearBtn')).toBeHidden();
+    await expect(page.locator('#alSheetFileInput')).toBeFocused();
+});
+
+test('operations annual leave sheet: a failed read, and a fault, each say so — never "Checking…" for good', async ({ page }) => {
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records);
+    await chooseLeaveFile(page, fx.text);
+    // A read that fails outright (not from the cache).
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsHeld = true; e.heldFailWith = 'e2e: read failed'; });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.checking);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.readFailed);
+    await expect(page.locator('#alSheetCheckBtn')).toBeEnabled();
+    // A fault inside the check — nothing there is meant to throw.
+    await page.evaluate(async () => {
+        const e = /** @type {any} */ (window).__E2E; e.heldFailWith = undefined;
+        const { teamMembers } = await import('/roster-data.js');
+        /** @type {any} */ (teamMembers).find = () => { throw new TypeError('e2e fault'); };
+    });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.failed);
+    await expect(page.locator('#alSheetResult')).toBeHidden();
+    await expect(page.locator('#alSheetCheckBtn')).toBeEnabled();
+});
+
+test('operations annual leave sheet: a member who has left since the file was made is not read, and is said to have left', async ({ page }) => {
+    const fx = await alSheetFixture({ withLeaver: true });
+    const L = /** @type {any} */ (fx.L);
+    await openAlSheet(page, fx.records);
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+    expect(await memberReads(page)).not.toContain(L.name);
+    await expect(page.locator('#alSheetResult .al-sheet-list li')).toContainText([notComparedWords({ name: L.name, reason: 'leaver' })]);
+});
+
+test('operations annual leave sheet: this device’s own unsent save is read as its own copy', async ({ page }) => {
+    // The SDK hands an unsent record over with no server time; read as it came, the older shift on
+    // the same day would win it (overrideFromSnapshot). The stub's __pendingWrite is that shape.
+    const fx = await alSheetFixture();
+    const records = fx.records.map(r => (r.memberName === fx.A.name && r.date === fx.dates.match
+        ? { ...r, createdAt: 1_780_000_000_000, __pendingWrite: true } : r));
+    records.push({ id: `${fx.A.name}|${fx.dates.match}|shift`, memberName: fx.A.name, date: fx.dates.match, type: 'shift',
+        value: '10:00-18:00', note: '', source: 'manual', createdAt: 1_770_000_000_000 });
+    await openAlSheet(page, records);
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    const a = page.locator('.al-sheet-person').filter({ has: page.locator('.al-sheet-name', { hasText: fx.A.name }) });
+    await a.locator('.al-sheet-person-head').click();
+    await a.locator('.al-sheet-more > summary').click();
+    await expect(a.locator('.al-sheet-day', { hasText: dayLabel(fx.dates.match) })).toHaveClass(/al-sheet-day--match/);
+});
+
+test('operations annual leave sheet: leave after the sheet ends is listed, and a file with no save date says so', async ({ page }) => {
+    const fx = await alSheetFixture({ savedDaysAgo: null });
+    // A day B works, after the sheet's last date (2 Jan 2027) — found from the pattern, as the fixture's are.
+    let after = '2027-01-04';
+    while (!/^\d\d:\d\d-\d\d:\d\d$/.test(getBaseShift(fx.B, parseISODate(after)))) {
+        after = new Date(Date.parse(`${after}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    }
+    expect(after.startsWith('2027-01-'), `the case needs a January working day, found ${after}`).toBe(true);
+    await openAlSheet(page, [...fx.records, { id: `${fx.B.name}|${after}`, memberName: fx.B.name, date: after, type: 'annual_leave',
+        value: 'AL', note: '', source: 'manual', createdAt: 1_770_000_000_000, leaveYear: fx.year }]);
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    const result = page.locator('#alSheetResult');
+    await expect(result.locator('.al-sheet-warn')).toHaveText(CARD_WORDS.ageUnknown);
+    const b = result.locator('.al-sheet-person').filter({ has: page.locator('.al-sheet-name', { hasText: fx.B.name }) });
+    await expect(b.locator('.al-sheet-chip--beyond')).toHaveText(chipsFor({ beyond: 1 })[0].text);
+    await b.locator('.al-sheet-person-head').click();
+    await expect(b.locator('.al-sheet-subhead')).toHaveText(beyondHeadWords(fx.year));
+    await expect(b.locator('.al-sheet-day--beyond')).toContainText(dayLabel(after));
 });
 
 test('operations annual leave sheet: an old copy is flagged, and an allowance that differs is a reason to look on its own', async ({ page }) => {

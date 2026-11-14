@@ -19,26 +19,40 @@
  * admin-override-store.js, is the same rule). A record this device saved but has not sent is read as
  * its own copy (`overrideFromSnapshot`).
  *
+ * ── THE ANSWER ON SCREEN IS ALWAYS FOR THE INPUT ON SCREEN ──────────────────────────────────────
+ *
+ * Every new input — a file chosen, text typed or pasted, Clear — takes the old answer and status line
+ * off the screen and starts a new `generation`; a file read or a check that began under an older one
+ * is dropped when it settles. The first cut kept an answer under a newer file's name, and let a slow
+ * read land after a paste and be checked in its place (review, 14 Nov 2026). The file input is let go
+ * the moment its file is taken (the name and text are kept here), because an input still holding a
+ * file fires no `change` when the SAME file is chosen again — so a corrected copy saved over the old
+ * one, or the retry "could not be read" asks for, did nothing at all.
+ *
  * ── NOTHING IS KEPT ─────────────────────────────────────────────────────────────────────────────
  *
  * The file names colleagues against their leave. It is held in memory while the card shows it, and
  * Clear takes it off the screen; nothing is written to storage, and no error that could reach the
- * Error Log carries any of it — a refusal is returned and drawn, a failed read logs its code alone.
+ * Error Log carries any of it — a refusal is returned and drawn, a failed read or check logs its code
+ * or error name alone, never a message, which could quote the file.
  *
- * ── AN UPDATE WAITS WHILE IT IS ON SCREEN ───────────────────────────────────────────────────────
+ * ── AN UPDATE WAITS WHILE IT IS ON SCREEN; A NOTIFICATION TAP DOES NOT ─────────────────────────
  *
  * `alSheetBusy()` is true while a check runs and while its answer is on screen, and Operations holds
- * an update's reload on it (`_opsBusy`, operations-app.js): forty people's differences are a long
- * read, and a reload half way through takes them away with no word.
+ * an update's reload on it (operations-app.js): forty people's differences are a long read, and a
+ * reload half way through takes them away with no word. A notification tap is not held: it is the
+ * reader's own choice, nothing here is unsaved, and the question it would raise ("unsaved changes or
+ * a save still on its way") was untrue for a check that saves nothing (review, 14 Nov 2026).
  */
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 import { teamMembers, formatISO } from './roster-data.js';
 import { overrideFromSnapshot } from './override-compare.js';
-import { readLeaveFile, describeRefusal, leaveFileAgeDays, LEAVE_FILE_MAX_AGE_DAYS } from './al-leave-file.js';
+import { readLeaveFile, describeRefusal, leaveFileAgeDays, LEAVE_FILE_MAX_AGE_DAYS, LEAVE_FILE_MAX_BYTES } from './al-leave-file.js';
 import { compareLeaveFile, leaveRecordability, NEEDS_A_LOOK } from './al-leave-compare.js';
 import { dayLabel, sheetWords, appWords, figuresLine, personNotes, chipsFor, totalsEntries, ageWords, CARD_WORDS,
-    checkedWords, overallWords, oldWords, unplacedWords, appOnlyWords, moreDaysWords, notComparedWords } from './al-leave-words.js';
+    checkedWords, overallWords, oldWords, unplacedWords, appOnlyWords, moreDaysWords, notComparedWords,
+    beyondHeadWords } from './al-leave-words.js';
 
 /** How many members' records are read at once: enough to be quick, few enough to be gentle. */
 const READ_CONCURRENCY = 6;
@@ -99,6 +113,8 @@ export function initAlSheetCard(opts = {}) {
     const readFile = opts.fileReader ?? (f => f.text());
     const today = opts.today ?? (() => formatISO(new Date()));
     /** @type {string|null} */ let fileText = null;
+    /** Bumped by every new input; a read or check from an older one is dropped (header). */
+    let generation = 0;
 
     const sync = () => { checkBtn.disabled = _checking || !(fileText ?? paste.value.trim()); };
     /** @param {string[]} lines @param {'ok'|'err'|'working'} tone */
@@ -112,52 +128,65 @@ export function initAlSheetCard(opts = {}) {
         clearBtn.hidden = true;
         _shown = false;
     };
+    /** A new input: the old answer and status go, and anything still in flight is stale. */
+    const fresh = () => { generation++; clearResult(); say([], 'ok'); };
+    const dropFile = () => {
+        fileText = null;
+        fileInput.value = '';
+        fileName.textContent = '';
+        fileName.classList.remove('visible');
+    };
 
     // The most recent of the two ways in wins: picking a file empties the paste box, and typing
     // in the paste box lets go of the file, so the Check button never reads one while showing the other.
     fileInput.addEventListener('change', async () => {
         const f = fileInput.files?.[0];
-        fileText = null;
-        fileName.textContent = '';
-        fileName.classList.remove('visible');
+        fresh();
+        const mine = generation;
+        dropFile();
         if (!f) { sync(); return; }
         paste.value = '';
         fileName.textContent = f.name;
         fileName.classList.add('visible');
-        try { fileText = await readFile(f); } catch { say([CARD_WORDS.unreadable], 'err'); }
+        // Refused before it is read: a large file chosen by mistake is never loaded into memory.
+        if (f.size > LEAVE_FILE_MAX_BYTES) { say([describeRefusal({ code: 'too-large' })], 'err'); sync(); return; }
+        sync();
+        /** @type {string|null} */ let text = null;
+        try { text = await readFile(f); } catch { if (mine === generation) say([CARD_WORDS.unreadable], 'err'); }
+        if (mine !== generation) return;   // a newer input arrived while this file was read
+        fileText = text;
         sync();
     });
     paste.addEventListener('input', () => {
-        if (paste.value.trim() && fileText !== null) {
-            fileText = null;
-            fileInput.value = '';
-            fileName.textContent = '';
-            fileName.classList.remove('visible');
-        }
+        fresh();
+        // Typing lets go of a chosen file — one still being read included, whose read is now stale.
+        if (paste.value.trim()) dropFile();
         sync();
     });
 
     clearBtn.addEventListener('click', () => {
-        clearResult();
-        fileText = null;
-        fileInput.value = '';
+        fresh();
+        dropFile();
         paste.value = '';
-        fileName.textContent = '';
-        fileName.classList.remove('visible');
-        say([], 'ok');
         sync();
+        // Clear hides itself, so focus would fall to the page: hand it to the file control, where the
+        // next check starts (review, 14 Nov 2026).
+        fileInput.focus();
     });
 
     checkBtn.addEventListener('click', async () => {
         if (_checking) return;
         const text = fileText ?? paste.value;
         if (!text.trim()) return;
+        const mine = generation;
+        const stale = () => mine !== generation;
         _checking = true;
         sync();
         clearResult();
         say([CARD_WORDS.checking], 'working');
         try {
             const read = await readLeaveFile(text);
+            if (stale()) return;
             if (!read.ok) { say(read.refusals.map(describeRefusal), 'err'); return; }
             const file = read.file;
             await sessionReady;
@@ -169,9 +198,10 @@ export function initAlSheetCard(opts = {}) {
             } catch (err) {
                 const code = /** @type {any} */ (err)?.code;
                 console.error('[AL sheet] reading the app’s records failed:', code ?? 'unknown');
-                say([code === 'offline' ? CARD_WORDS.offline : CARD_WORDS.readFailed], 'err');
+                if (!stale()) say([code === 'offline' ? CARD_WORDS.offline : CARD_WORDS.readFailed], 'err');
                 return;
             }
+            if (stale()) return;
             const todayStr = today();
             const comparison = compareLeaveFile({ file, members: teamMembers, recordsByName: records, todayStr });
             render(result, file, comparison, todayStr);
@@ -179,6 +209,11 @@ export function initAlSheetCard(opts = {}) {
             clearBtn.hidden = false;
             _shown = true;
             say([checkedWords(comparison.totals.people)], 'ok');
+        } catch (err) {
+            // A fault, not a refusal — nothing above is meant to throw. It must not leave "Checking…" on
+            // screen for good, and its message is not logged: it could quote the file (header).
+            console.error('[AL sheet] the check failed:', /** @type {any} */ (err)?.name ?? 'unknown');
+            if (!stale()) { clearResult(); say([CARD_WORDS.failed], 'err'); }
         } finally {
             _checking = false;
             sync();
@@ -196,9 +231,8 @@ function render(root, file, c, todayStr) {
     const age = ageWords({ saved: file.source.clerksLastSaved, ageDays: leaveFileAgeDays(file, todayStr), maxAge: LEAVE_FILE_MAX_AGE_DAYS });
     const summary = el('div', 'al-sheet-summary');
     summary.append(el('p', 'al-sheet-age', age.line));
-    if (age.old) {
-        summary.append(el('p', 'al-sheet-warn', oldWords(LEAVE_FILE_MAX_AGE_DAYS)));
-    }
+    if (age.unknown) summary.append(el('p', 'al-sheet-warn', CARD_WORDS.ageUnknown));
+    else if (age.old) summary.append(el('p', 'al-sheet-warn', oldWords(LEAVE_FILE_MAX_AGE_DAYS)));
     if (file.source.lastSavedByClerk === false) {
         summary.append(el('p', 'al-sheet-warn', CARD_WORDS.notByClerk));
     }
@@ -216,7 +250,7 @@ function render(root, file, c, todayStr) {
     if (needing.length) {
         root.append(el('h3', 'al-sheet-heading', CARD_WORDS.needsALook));
         const list = el('div', 'al-sheet-people');
-        for (const p of needing) list.append(personBlock(p, file.year));
+        for (const p of needing) list.append(personBlock(p, file));
         root.append(list);
     }
     // The people who agree sit in ONE closed fold that says how many. They are the reassurance, not
@@ -227,7 +261,7 @@ function render(root, file, c, todayStr) {
         const head = el('summary', 'al-sheet-group-head');
         head.append(el('h3', 'al-sheet-heading', CARD_WORDS.agree), el('span', 'al-sheet-count', String(agreeing.length)));
         const list = el('div', 'al-sheet-people');
-        for (const p of agreeing) list.append(personBlock(p, file.year));
+        for (const p of agreeing) list.append(personBlock(p, file));
         group.append(head, list);
         root.append(group);
     }
@@ -250,9 +284,10 @@ function render(root, file, c, todayStr) {
 
 /**
  * One person: their figures and chips on the summary row, their days inside.
- * @param {import('./al-leave-compare.js').PersonComparison} p @param {number} year
+ * @param {import('./al-leave-compare.js').PersonComparison} p @param {any} file
  */
-function personBlock(p, year) {
+function personBlock(p, file) {
+    const year = file.year;
     const block = el('details', 'al-sheet-person');
     const summary = el('summary', 'al-sheet-person-head');
     const top = el('span', 'al-sheet-person-top');
@@ -267,20 +302,17 @@ function personBlock(p, year) {
     block.append(summary);
 
     const body = el('div', 'al-sheet-person-body');
-    for (const note of personNotes(p, teamMembers.find(m => m.name === p.name))) body.append(el('p', 'al-sheet-explain', note));
+    for (const note of personNotes(p, year)) body.append(el('p', 'al-sheet-explain', note));
     const differing = p.days.filter(d => NEEDS_A_LOOK.includes(d.state));
     const rest = p.days.filter(d => !NEEDS_A_LOOK.includes(d.state));
     if (differing.length) body.append(dayList(differing, year));
     if (p.appOnly.length) {
         body.append(el('p', 'al-sheet-subhead', CARD_WORDS.appOnlyHead));
-        const ul = el('ul', 'al-sheet-days');
-        for (const a of p.appOnly) {
-            const li = el('li', 'al-sheet-day al-sheet-day--app-only');
-            li.append(el('span', 'al-sheet-date', dayLabel(a.date)),
-                el('span', 'al-sheet-app', appOnlyWords(a.counts)));
-            ul.append(li);
-        }
-        body.append(ul);
+        body.append(extraList(p.appOnly.map(a => [a.date, appOnlyWords(a.chargedTo)]), 'app-only'));
+    }
+    if (p.beyond.length) {
+        body.append(el('p', 'al-sheet-subhead', beyondHeadWords(year)));
+        body.append(extraList(p.beyond.map(d => [d, CARD_WORDS.beyondDay]), 'beyond'));
     }
     if (rest.length) {
         const more = el('details', 'al-sheet-more');
@@ -288,7 +320,7 @@ function personBlock(p, year) {
         more.append(dayList(rest, year));
         body.append(more);
     }
-    if (!p.days.length && !p.appOnly.length) body.append(el('p', 'al-sheet-explain', CARD_WORDS.noDays));
+    if (!p.days.length && !p.appOnly.length && !p.beyond.length) body.append(el('p', 'al-sheet-explain', CARD_WORDS.noDays));
     block.append(body);
     return block;
 }
@@ -301,6 +333,17 @@ function dayList(days, year) {
         li.append(el('span', 'al-sheet-date', dayLabel(d.date)),
             el('span', 'al-sheet-sheet', sheetWords(d.foundIn, d.kind)),
             el('span', 'al-sheet-app', appWords(d, year)));
+        ul.append(li);
+    }
+    return ul;
+}
+
+/** Days the sheet does not have, each with what the app says of it. @param {Array<[string, string]>} rows @param {string} kind */
+function extraList(rows, kind) {
+    const ul = el('ul', 'al-sheet-days');
+    for (const [date, words] of rows) {
+        const li = el('li', `al-sheet-day al-sheet-day--${kind}`);
+        li.append(el('span', 'al-sheet-date', dayLabel(date)), el('span', 'al-sheet-app', words));
         ul.append(li);
     }
     return ul;

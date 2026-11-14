@@ -78,15 +78,15 @@ export function init() {
     // memory only, so a reload could lose it. The reader was told to reload; that is theirs to do.
     // And a Document links check or run still waiting for its answer holds it too (v25.92): a run can
     // take minutes, and its report is the only record of what it did (operations-doc-links.js).
-    // And an Annual leave sheet check, running or on screen (14 Nov 2026): a long read, with no Save.
+    // And an Annual leave sheet check, running or on screen (14 Nov 2026), holds an UPDATE — not a tap:
     const _opsBusy = () =>
         !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
         || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
         || !!document.querySelector('[data-uploading]')
         || writesInFlight() > 0
-        || docLinksRequestInFlight()
-        || alSheetBusy();
-    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_opsBusy), isBusy: _opsBusy });
+        || docLinksRequestInFlight();
+    // a tap is the reader's own choice, and the check saves nothing to lose (operations-al-sheet.js).
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => _opsBusy() || alSheetBusy()), isBusy: _opsBusy });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.

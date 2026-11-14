@@ -18,17 +18,20 @@
  *   · the no-record branch IS the Admin leave card's answer — `projectAlBooking`, the real function,
  *     compared date for date across months of two patterns and a joiner, never a copy of its rules;
  *   · the winning record is resolved first (manual beats a roster import; the newer copy wins);
- *   · app-only leave is found by its own pass, inside the sheet's dates only;
+ *   · app-only leave is found by its own pass, inside the sheet's dates only, with the year it costs;
  *   · the figures are the app's own (`alPosition`, `entitlementFor`), and an allowance difference
  *     reads the sheet as the clerks write it: carried forward on, a joiner's reduction off;
+ *   · "agree" means the FIGURES agree: the gap between the two is the sum of the reasons the card
+ *     names, and a gap no reason names still puts the person under "Needs a look";
+ *   · the swap question is asked exactly where the Admin leave card asks it;
  *   · who can be checked at all is `leaveRecordability`, and a manager is never a leaver;
  *   · the whole file is ordered and totalled the way the card shows it.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { DAY_STATES, NEEDS_A_LOOK, leaveRecordability, winnersByDate, comparePerson, compareLeaveFile } from './al-leave-compare.js';
+import { DAY_STATES, NEEDS_A_LOOK, COUNT_KEYS, leaveRecordability, winnersByDate, comparePerson, compareLeaveFile } from './al-leave-compare.js';
 import { projectAlBooking } from './admin-al-projection.js';
-import { alPosition, entitlementFor } from './al-entitlement.js';
+import { alPosition, entitlementFor, entitlementNote } from './al-entitlement.js';
 import { getBaseShift, parseISODate, isSunday, isBankHoliday } from './roster-data.js';
 import { isBeforeMemberStart } from './override-utils.js';
 import { LEAVE_FILE_FORMAT, LEAVE_FILE_VERSION } from './al-leave-file.js';
@@ -131,8 +134,12 @@ const stateOf = (res, date) => res.days.find((/** @type {any} */ d) => d.date ==
 
 test('the state lists agree with each other: NEEDS_A_LOOK is part of DAY_STATES, and agreement is not in it', () => {
     for (const s of NEEDS_A_LOOK) assert.ok(DAY_STATES.includes(s), s);
-    for (const s of ['match', 'before-start', 'sunday']) assert.ok(!NEEDS_A_LOOK.includes(s), s);
+    for (const s of ['match', 'carried', 'sunday']) assert.ok(!NEEDS_A_LOOK.includes(s), s);
+    // A day before the start date the sheet counts and the app never can: the figures differ by it.
+    assert.ok(NEEDS_A_LOOK.includes('before-start'));
     assert.equal(new Set(DAY_STATES).size, DAY_STATES.length);
+    for (const s of DAY_STATES) assert.ok(COUNT_KEYS.includes(s), s);
+    assert.deepEqual(COUNT_KEYS.filter(k => !DAY_STATES.includes(k)), ['app-only', 'beyond', 'undated', 'figures']);
 });
 
 describe('every state is reached, for the reason the header gives', () => {
@@ -166,6 +173,28 @@ describe('every state is reached, for the reason the header gives', () => {
         assert.equal(stateOf(res, e), 'free-in-app');
     });
 
+    test('the swap question is asked of a free day EXACTLY where the Admin leave card asks it (projectAlBooking)', () => {
+        // Plain leave on a rest day: Admin asks. Leave its record has already settled — over RDW, a
+        // correction, an Other day or a Spare turn on a rest day — Admin never asks, and the first cut
+        // did (review, 14 Nov 2026). A correction can sit on a WORKING pattern day, too.
+        const [r1, r2, r3, r4, r5] = [0, 1, 2, 3, 4].reduce((/** @type {string[]} */ acc) => [...acc, find(CEA, '2026-02-01', resting, acc)], []);
+        const w = find(CEA, '2026-02-01', timed);
+        const records = [AL(CEA, r1), AL(CEA, r2, { replacedType: 'rdw' }), AL(CEA, r3, { replacedType: 'correction' }),
+            AL(CEA, r4, { replacedType: 'other' }), AL(CEA, r5, { replacedType: 'spare_shift' }), AL(CEA, w, { replacedType: 'correction' })];
+        const dates = [r1, r2, r3, r4, r5, w];
+        const res = compare(CEA, dates.map(d => leave(CEA, d)), records);
+        const winners = winnersByDate(records, CEA.name);
+        for (const d of dates) {
+            const day = res.days.find((/** @type {any} */ x) => x.date === d);
+            assert.equal(day.state, 'free-in-app', d);
+            assert.equal(day.swapQuestion, projectAlBooking({ member: CEA, dates: [d], ovByDate: winners }).asked.includes(d), d);
+        }
+        assert.deepEqual(dates.map(d => res.days.find((/** @type {any} */ x) => x.date === d).swapQuestion), [true, false, false, false, false, false]);
+        // Nothing recorded on a rest day is Admin's question too; a working day and a match are not.
+        const empty = compare(CEA, [leave(CEA, r1), leave(CEA, w)]);
+        assert.deepEqual(empty.days.map((/** @type {any} */ x) => [x.state, x.swapQuestion]), [r1, w].sort().map(d => d === r1 ? ['rest-day', true] : ['not-in-app', false]));
+    });
+
     test('a SWAPPED working day — leave on a rest day carrying replacedType "shift" — is a match, not free', () => {
         const d = find(CEA, '2026-02-01', resting);
         const res = compare(CEA, [leave(CEA, d)], [AL(CEA, d, { replacedType: 'shift' })]);
@@ -184,7 +213,44 @@ describe('every state is reached, for the reason the header gives', () => {
     test('other-year: a January day the app has moved back to last year, which the sheet charges to its own', () => {
         const d = find(CEA, `${YEAR}-01-02`, timed);
         assert.ok(d.startsWith(`${YEAR}-01-`), `the case needs a January day, found ${d}`);
-        assert.equal(stateOf(compare(CEA, [leave(CEA, d)], [AL(CEA, d, { leaveYear: YEAR - 1 })]), d), 'other-year');
+        const res = compare(CEA, [leave(CEA, d)], [AL(CEA, d, { leaveYear: YEAR - 1 })]);
+        assert.equal(stateOf(res, d), 'other-year');
+        assert.equal(res.days[0].appYear, YEAR - 1, 'the year the app takes it from travels with the day');
+    });
+
+    test('carried: the sheet carries a day forward for each January day the app moves back — explained, and agreeing', () => {
+        // AL_WORKBOOK.md §9: the sheet adds the carried days to this year and counts the January days
+        // here; the app takes them from last year. Same figure left, so it is NOT a difference to look at.
+        const d = find(CEA, `${YEAR}-01-02`, timed);
+        const e = find(CEA, `${YEAR}-01-02`, timed, [d]);
+        const f = find(CEA, `${YEAR}-01-02`, timed, [d, e]);
+        assert.ok([d, e, f].every(x => x.startsWith(`${YEAR}-01-`)), 'the case needs three January days');
+        const days = [leave(CEA, d), leave(CEA, e), leave(CEA, f)];
+        const moved = [AL(CEA, d, { leaveYear: YEAR - 1 }), AL(CEA, e, { leaveYear: YEAR - 1 }), AL(CEA, f, { leaveYear: YEAR - 1 })];
+        const all = compare(CEA, days, moved, { sheet: { carriedForward: 3, used: 3 } });
+        assert.deepEqual(all.days.map((/** @type {any} */ x) => x.state), ['carried', 'carried', 'carried']);
+        assert.equal(all.carried, 3);
+        assert.equal(all.allowanceDiffers, false, 'the carried days come off the sheet’s allowance before it is compared');
+        assert.equal(all.figuresGap, 0);
+        assert.equal(all.needsALook, false);
+        // Only as many as the sheet carries: one forward, three moved — the earliest is carried, two differ.
+        const one = compare(CEA, days, moved, { sheet: { carriedForward: 1, used: 3 } });
+        assert.deepEqual(one.days.map((/** @type {any} */ x) => x.state), ['carried', 'other-year', 'other-year']);
+        assert.equal(one.needsALook, true);
+        // And the carry with nothing moved: the sheet allows more, and says so.
+        const none = compare(CEA, days, [AL(CEA, d), AL(CEA, e), AL(CEA, f)], { sheet: { carriedForward: 3, used: 3 } });
+        assert.deepEqual([none.carried, none.allowanceDiffers], [0, true]);
+    });
+
+    test('only a day moved BACK is carried — a next-January day the app leaves on its own year is not', () => {
+        // The sheet's carry pays for days the app takes from LAST year. A day the app charges to NEXT
+        // year is no part of it, whatever the sheet carries.
+        const d = find(CEA, `${YEAR + 1}-01-01`, timed);
+        assert.ok(d.startsWith(`${YEAR + 1}-01-`), `the case needs a next-January day, found ${d}`);
+        const res = compare(CEA, [leave(CEA, d, { leaveYear: YEAR })], [AL(CEA, d)],
+            { sheet: { carriedForward: 1, used: 1 }, lastDate: `${YEAR + 1}-01-31` });
+        assert.deepEqual([res.days[0].state, res.days[0].appYear, res.carried], ['other-year', YEAR + 1, 0]);
+        assert.equal(res.allowanceDiffers, true, 'the carried day is an allowance difference of its own');
     });
 
     test('differs: a shift, an absence or a rest day recorded instead of the leave', () => {
@@ -247,6 +313,7 @@ describe('every state is reached, for the reason the header gives', () => {
             [AL(CEA, x), rec(CEA, y, 'shift', '10:00-18:00'), rec(CEA, z, 'rdw', '08:00-16:00'), AL(CEA, v), AL(CEA, j, { leaveYear: YEAR - 1 })]);
         for (const d of res.days) seen.add(d.state);
         seen.add(stateOf(compare(JOINER, [leave(JOINER, find(JOINER, '2026-08-01', any))]), find(JOINER, '2026-08-01', any)));
+        seen.add(stateOf(compare(CEA, [leave(CEA, j)], [AL(CEA, j, { leaveYear: YEAR - 1 })], { sheet: { carriedForward: 1 } }), j));
         assert.deepEqual([...seen].sort(), [...DAY_STATES].sort());
     });
 });
@@ -298,7 +365,7 @@ describe('the record that wins the day is resolved first', () => {
         const d = find(CEA, '2026-06-01', timed);
         const res = compare(CEA, [leave(CEA, d)], [AL(CES, d), AL(CES, plus(d, 1))]);
         assert.equal(stateOf(res, d), 'not-in-app');
-        assert.deepEqual(res.app, alPosition({ overrides: [], member: CEA, year: YEAR, todayStr: TODAY }));
+        assert.deepEqual(res.app, { ...alPosition({ overrides: [], member: CEA, year: YEAR, todayStr: TODAY }), note: null });
         assert.deepEqual(res.appOnly, []);
     });
 
@@ -313,7 +380,7 @@ describe('the record that wins the day is resolved first', () => {
 });
 
 describe('app-only leave: its own pass, inside the sheet’s dates only', () => {
-    test('leave the sheet lacks is listed, with whether it costs THIS year a day', () => {
+    test('leave the sheet lacks is listed, with the year whose allowance it costs — or none', () => {
         const onSheet = find(CEA, '2026-07-01', timed);
         const working = find(CEA, '2026-07-01', timed, [onSheet]);
         const rest = find(CEA, '2026-07-01', resting);
@@ -325,20 +392,21 @@ describe('app-only leave: its own pass, inside the sheet’s dates only', () => 
             AL(CEA, `${YEAR - 1}-12-31`), AL(CEA, `${YEAR + 1}-01-04`),
         ]);
         assert.deepEqual(res.appOnly, [
-            { date: movedBack, counts: false, source: 'manual' },   // it comes out of LAST year's allowance
-            ...[{ date: working, counts: true, source: 'manual' }, { date: rest, counts: false, source: 'manual' }]
+            { date: movedBack, chargedTo: YEAR - 1, source: 'manual' },   // it comes out of LAST year's allowance
+            ...[{ date: working, chargedTo: YEAR, source: 'manual' }, { date: rest, chargedTo: null, source: 'manual' }]
                 .sort((p, q) => p.date.localeCompare(q.date)),
         ]);
         assert.equal(stateOf(res, onSheet), 'match');
         assert.equal(res.counts['app-only'], 3);
     });
 
-    test('next January inside the sheet: charged to this year it counts, left on its own year it does not', () => {
+    test('next January inside the sheet: charged to this year or left on its own, it names the year it costs', () => {
         const d1 = find(CEA, `${YEAR + 1}-01-02`, timed);
         const d2 = find(CEA, `${YEAR + 1}-01-02`, timed, [d1]);
         assert.ok(d2.startsWith(`${YEAR + 1}-01-`), `the case needs January days, found ${d1}, ${d2}`);
         const res = compare(CEA, [], [AL(CEA, d1, { leaveYear: YEAR }), AL(CEA, d2)], { lastDate: `${YEAR + 1}-01-31` });
-        assert.deepEqual(res.appOnly.map((/** @type {any} */ a) => [a.date, a.counts]), [[d1, true], [d2, false]]);
+        // "Costs nothing" was said of the second, which costs NEXT year a day (review, 14 Nov 2026).
+        assert.deepEqual(res.appOnly.map((/** @type {any} */ a) => [a.date, a.chargedTo]), [[d1, YEAR], [d2, YEAR + 1]]);
         // And with the sheet's own last date, neither is inside it.
         assert.deepEqual(compare(CEA, [], [AL(CEA, d1, { leaveYear: YEAR })]).appOnly, []);
     });
@@ -353,7 +421,16 @@ describe('app-only leave: its own pass, inside the sheet’s dates only', () => 
         assert.deepEqual(compare(JOINER, [], [AL(JOINER, early)]).appOnly, []);
         // A weekday rest day IS drawn (leave that costs nothing), so it stays a difference to look at.
         const rest = find(CEA, '2026-07-01', resting);
-        assert.deepEqual(compare(CEA, [], [AL(CEA, rest)]).appOnly.map((/** @type {any} */ a) => [a.date, a.counts]), [[rest, false]]);
+        assert.deepEqual(compare(CEA, [], [AL(CEA, rest)]).appOnly.map((/** @type {any} */ a) => [a.date, a.chargedTo]), [[rest, null]]);
+    });
+
+    test('nor is leave on Christmas Day or Boxing Day: the sheet marks both Closed, and neither side counts it', () => {
+        // A stored record there was listed, while the same leave shown from the pattern was not.
+        const xmas = [`${YEAR}-12-25`, `${YEAR}-12-26`];
+        const res = compare(CEA, [], xmas.map(d => AL(CEA, d)));
+        assert.deepEqual(res.appOnly, []);
+        assert.equal(res.needsALook, false);
+        assert.equal(res.app.taken + res.app.booked, 0, 'premise: the app counts neither day');
     });
 
     test('app-only leave alone is enough for somebody to look', () => {
@@ -362,7 +439,8 @@ describe('app-only leave: its own pass, inside the sheet’s dates only', () => 
         const res = compare(CEA, [leave(CEA, d)], [AL(CEA, d), AL(CEA, e)]);
         assert.equal(stateOf(res, d), 'match');
         assert.equal(res.needsALook, true);
-        assert.equal(compare(CEA, [leave(CEA, d)], [AL(CEA, d)]).needsALook, false);
+        // (The sheet's Used counts its one grid day, as a real sheet's must, so its figure agrees.)
+        assert.equal(compare(CEA, [leave(CEA, d)], [AL(CEA, d)], { sheet: { used: 1 } }).needsALook, false);
     });
 });
 
@@ -372,8 +450,12 @@ describe('the figures are the app’s own', () => {
         const b = find(CEA, '2026-11-20', timed);
         const own = [AL(CEA, a), AL(CEA, b), rec(CEA, plus(a, 1), 'sick', 'SICK')];
         const res = compare(CEA, [leave(CEA, a)], [...own, AL(CES, a)]);
-        assert.deepEqual(res.app, alPosition({ overrides: own, member: CEA, year: YEAR, todayStr: TODAY }));
+        assert.deepEqual(res.app, { ...alPosition({ overrides: own, member: CEA, year: YEAR, todayStr: TODAY }),
+                                    note: entitlementNote({ member: CEA, year: YEAR, overrides: own }) });
         assert.deepEqual([res.app.taken, res.app.booked], [1, 1]);
+        // A Dispatcher's figure carries the app's own breakdown — the words Admin's banner uses.
+        assert.equal(compare(DISP, []).app.note, entitlementNote({ member: DISP, year: YEAR, overrides: [] }));
+        assert.match(String(compare(DISP, []).app.note), /base/);
     });
 
     test('an allowance difference reads the sheet as the clerks write it: carried forward on, a joiner’s reduction off', () => {
@@ -400,7 +482,7 @@ describe('the figures are the app’s own', () => {
         assert.equal(res.otherRows, 1);
     });
 
-    test('needsALook: every state that wants a look sets it on its own; agreement, a start date and a Sunday do not', () => {
+    test('needsALook: every state that wants a look sets it on its own; agreement and a Sunday do not', () => {
         const w = find(CEA, '2026-09-01', timed);
         const r = find(CEA, '2026-09-01', resting);
         const j = find(CEA, `${YEAR}-01-02`, timed);
@@ -412,6 +494,8 @@ describe('the figures are the app’s own', () => {
             ['other-year', compare(CEA, [leave(CEA, j)], [AL(CEA, j, { leaveYear: YEAR - 1 })])],
             ['differs', compare(CEA, [leave(CEA, w)], [rec(CEA, w, 'sick', 'SICK')])],
             ['worked', compare(CEA, [leave(CEA, w)], [rec(CEA, w, 'other', 'TRG')])],
+            // The joiner's sheet allowance is their joining figure, so the allowances agree and only the day speaks.
+            ['before-start', compare(JOINER, [leave(JOINER, find(JOINER, '2026-08-01', any))], [], { sheet: { allowance: 9 } })],
         ]);
         for (const [state, res] of cases) {
             assert.equal(res.days[0].state, state);
@@ -419,11 +503,122 @@ describe('the figures are the app’s own', () => {
             assert.equal(res.needsALook, true, state);
         }
         assert.deepEqual(cases.map(([s]) => s).sort(), [...NEEDS_A_LOOK].sort());
-        assert.equal(compare(CEA, [leave(CEA, w)], [AL(CEA, w)]).needsALook, false, 'match');
+        assert.equal(compare(CEA, [leave(CEA, w)], [AL(CEA, w)], { sheet: { used: 1 } }).needsALook, false, 'match');
         assert.equal(compare(CEA, [tag(CEA, s)]).needsALook, false, 'sunday');
-        // (The joiner's sheet allowance is their joining figure, so the allowances agree and only the day speaks.)
-        assert.equal(compare(JOINER, [leave(JOINER, find(JOINER, '2026-08-01', any))], [], { sheet: { allowance: 9 } }).needsALook,
-            false, 'before-start');
+    });
+});
+
+describe('"agree" means the figures agree', () => {
+    /**
+     * The gap between the sheet's corrected figure and the app's, from the reasons the card names —
+     * the module header's claim, in arithmetic. Every leave day on the sheet the app does not count
+     * against this year is one of NEEDS_A_LOOK (or carried, which comes off the allowance instead).
+     * @param {any} res
+     */
+    const fromReasons = res => {
+        const s = res.sheet;
+        const look = NEEDS_A_LOOK.reduce((n, k) => n + res.counts[k], 0);
+        return (s.carriedForward - res.carried + s.allowance - s.joinerReduction - res.app.entitlement)
+            - s.undated - look + res.appOnly.filter((/** @type {any} */ a) => a.chargedTo === YEAR).length + res.beyond.length;
+    };
+    /** A sheet whose figures follow from its days, as a real one's must (al-leave-file.js `personSums`). */
+    const consistent = (/** @type {any} */ m, /** @type {any[]} */ days, /** @type {Record<string, number>} */ o = {}) => {
+        const grid = days.filter(d => d.foundIn === 'grid').length;
+        const sundays = days.filter(d => d.kind === 'sunday-counted').length;
+        const { allowance = 32, carriedForward = 0, lump = 0, unexplained = 0, joinerReduction = 0 } = o;
+        const columnE = lump + unexplained + joinerReduction;
+        // The corrected figure gives back a Sunday the sheet counts (`personSums`).
+        const corrected = carriedForward + allowance - grid - columnE + sundays;
+        return sheetPerson(m, { allowance, carriedForward, used: grid, columnE, lump, unexplained, joinerReduction, corrected });
+    };
+
+    test('undated over-quota days alone put somebody under "Needs a look" — the sheet leaves fewer days than the app', () => {
+        // The first cut filed this person under "Agree with the app" with "Sheet: 27 left · App: 29 left"
+        // on the same closed row (review, 14 Nov 2026). AL_WORKBOOK.md §0: over-quota days are real leave.
+        const res = compare(CEA, [], [], { sheet: { columnE: 2, unexplained: 2 } });
+        assert.equal(res.counts.undated, 2);
+        assert.equal(res.figuresGap, -2);
+        assert.equal(res.needsALook, true);
+        assert.equal(res.counts.figures, 0, 'a named reason, so no fallback');
+    });
+
+    test('a January day after the sheet ends, taken from this year in the app, is listed and needs a look', () => {
+        // The leave-year panel offers next January now; the sheet stops on its last date (here 2 Jan),
+        // and alPosition counts the day against this year — so the two figures part by it.
+        const d = find(CEA, `${YEAR + 1}-01-04`, timed);
+        assert.ok(d.startsWith(`${YEAR + 1}-01-`) && d > LAST, `the case needs a January day after the sheet ends, found ${d}`);
+        const res = compare(CEA, [], [AL(CEA, d, { leaveYear: YEAR })]);
+        assert.deepEqual(res.beyond, [d]);
+        assert.deepEqual(res.appOnly, [], 'it is outside the sheet’s dates, so not app-only');
+        assert.equal(res.counts.beyond, 1);
+        assert.equal(res.figuresGap, 1);
+        assert.equal(res.needsALook, true);
+        assert.equal(res.counts.figures, 0, 'a named reason — not "figures differ, nothing shows why"');
+        // Left on its own year, it costs this year nothing, and is not listed.
+        assert.deepEqual(compare(CEA, [], [AL(CEA, d)]).beyond, []);
+    });
+
+    test('the safety net: figures that differ for no reason the card names still need a look, and say so', () => {
+        // Unreachable through a sealed file whose sums hold — so it is built by hand.
+        const res = compare(CEA, [], [], { sheet: { corrected: 31 } });
+        assert.equal(res.figuresGap, -1);
+        assert.equal(res.counts.figures, 1);
+        assert.equal(res.needsALook, true);
+        // And never with a named reason beside it: the fallback is for the gap nothing else explains.
+        const named = compare(CEA, [leave(CEA, find(CEA, '2026-03-01', timed))], [], { sheet: { used: 1 } });
+        assert.equal(named.counts.figures, 0);
+    });
+
+    test('the gap IS the sum of the named reasons, across a sheet with every kind at once', () => {
+        const w = [0, 1, 2, 3].reduce((/** @type {string[]} */ acc) => [...acc, find(CEA, '2026-03-01', timed, acc)], []);
+        const r = find(CEA, '2026-03-01', resting);
+        const j = find(CEA, `${YEAR}-01-02`, timed);
+        const after = find(CEA, `${YEAR + 1}-01-04`, timed);
+        const extra = find(CEA, '2026-06-01', timed, w);
+        const sun = findSunday(CEA, '2026-04-01', any);
+        const days = [leave(CEA, w[0]), leave(CEA, w[1]), leave(CEA, w[2]), leave(CEA, w[3]), leave(CEA, r), leave(CEA, j), sundayCounted(CEA, sun)];
+        const records = [AL(CEA, w[0]), rec(CEA, w[1], 'sick', 'SICK'), rec(CEA, w[2], 'rdw', '08:00-16:00'), AL(CEA, r),
+            AL(CEA, j, { leaveYear: YEAR - 1 }), AL(CEA, after, { leaveYear: YEAR }), AL(CEA, extra)];
+        for (const o of [{}, { carriedForward: 1 }, { carriedForward: 3, unexplained: 2 }, { lump: 1 }]) {
+            const person = consistent(CEA, days, o);
+            const res = compare(CEA, days, records, { person });
+            assert.equal(res.figuresGap, fromReasons(res), JSON.stringify(o));
+            assert.equal(res.figuresGap, res.sheet.corrected - res.app.remaining);
+            assert.equal(res.counts.figures, 0, `every part of the gap is named (${JSON.stringify(o)})`);
+            assert.equal(res.needsALook, true);
+        }
+        // And a person who truly agrees: nothing named, no gap.
+        const agree = compare(CEA, [leave(CEA, w[0])], [AL(CEA, w[0])], { person: consistent(CEA, [leave(CEA, w[0])]) });
+        assert.deepEqual([agree.figuresGap, agree.needsALook], [0, false]);
+    });
+});
+
+describe('what the app SHOWS on a day is what the Calendar draws (resolveDayShift)', () => {
+    test('a record no surface draws leaves the pattern: leave on a Sunday, an absence on a rest day', () => {
+        const sun = findSunday(CEA, '2026-02-01', timed);
+        const rest = find(CEA, '2026-02-01', resting);
+        const res = compare(CEA, [tag(CEA, sun), leave(CEA, rest)], [AL(CEA, sun), rec(CEA, rest, 'sick', 'SICK')]);
+        const s = res.days.find((/** @type {any} */ d) => d.date === sun);
+        const r = res.days.find((/** @type {any} */ d) => d.date === rest);
+        assert.deepEqual(s.drawn, { shift: pat(CEA, sun), rdwTime: '', fromPattern: true, type: null });
+        assert.equal(r.state, 'differs');
+        assert.equal(r.drawn.fromPattern, true, 'an absence on a rest day is never drawn');
+    });
+
+    test('an old timed shift on a Sunday is drawn as rest day working, and an absence on a working day as itself', () => {
+        const sun = findSunday(CEA, '2026-02-01', any);
+        const w = find(CEA, '2026-02-01', timed);
+        const res = compare(CEA, [tag(CEA, sun), leave(CEA, w)], [rec(CEA, sun, 'shift', '08:00-16:00'), rec(CEA, w, 'sick', 'SICK')]);
+        const s = res.days.find((/** @type {any} */ d) => d.date === sun);
+        assert.deepEqual([s.drawn.shift, s.drawn.rdwTime, s.drawn.fromPattern], ['RDW', '08:00-16:00', false]);
+        const a = res.days.find((/** @type {any} */ d) => d.date === w);
+        assert.deepEqual([a.drawn.shift, a.drawn.fromPattern, a.drawn.type], ['SICK', false, 'sick']);
+    });
+
+    test('before the start date nothing recorded is drawn', () => {
+        const early = find(JOINER, '2026-08-01', any);
+        const res = compare(JOINER, [leave(JOINER, early)], [rec(JOINER, early, 'shift', '10:00-18:00')], { sheet: { allowance: 9 } });
+        assert.deepEqual([res.days[0].state, res.days[0].drawn.fromPattern], ['before-start', true]);
     });
 });
 
@@ -452,7 +647,8 @@ describe('the whole file, ordered and totalled as the card shows it', () => {
         format: LEAVE_FILE_FORMAT, version: LEAVE_FILE_VERSION, year: YEAR,
         source: { sha256: 'a'.repeat(64), firstDate: FIRST, lastDate: LAST, clerksLastSaved: null, lastSavedByClerk: null },
         made: { on: TODAY, script: 'test', appVersion: 'test' }, nameMap: { rows: {}, cells: {}, tags: {} },
-        people, days, absentFromWorkbook: ['Z. Example'], notImported: [{ name: 'Y. Example', reason: 'leaver' }],
+        people, days, absentFromWorkbook: ['Z. Example', 'H. Example'],
+        notImported: [{ name: 'E. Example', reason: 'leaver' }, { name: 'J. Example', reason: 'no-allowance' }, { name: 'Y. Example', reason: 'leaver' }],
         unplacedSundayTags: 0,
     });
 
@@ -461,24 +657,32 @@ describe('the whole file, ordered and totalled as the card shows it', () => {
         const cesDay = find(CES, '2026-05-01', timed);
         /** @type {any} */ const NEWCOMER = { name: 'G. Example', role: 'CEA', rosterType: 'main', currentWeek: 4 };
         /** @type {any} */ const GONE = { name: 'H. Example', role: 'CEA', rosterType: 'main', currentWeek: 5, hidden: true };
-        const people = [sheetPerson(CEA), sheetPerson(DISP, { allowance: 22 }), sheetPerson(CES), sheetPerson(LEAVER),
+        /** @type {any} */ const STILL_HERE = { name: 'Z. Example', role: 'CEA', rosterType: 'main', currentWeek: 6 };
+        /** Left out of the file for having no allowance then — and given one since. */
+        /** @type {any} */ const NOW_ALLOWED = { name: 'J. Example', role: 'CEA', rosterType: 'main', currentWeek: 7 };
+        // A's sheet counts its one grid day (a real sheet's Used must), so A's figures agree.
+        const people = [sheetPerson(CEA, { used: 1 }), sheetPerson(DISP, { allowance: 22 }), sheetPerson(CES), sheetPerson(LEAVER),
             { ...sheetPerson(CEA), name: 'X. Example' }];
         const file = fileOf(people, [leave(CEA, matchDay), leave(CES, cesDay)]);
         const result = compareLeaveFile({
-            file, members: [CEA, CES, DISP, LEAVER, MANAGER, NEWCOMER, GONE],
+            file, members: [CEA, CES, DISP, LEAVER, MANAGER, NEWCOMER, GONE, STILL_HERE, NOW_ALLOWED],
             recordsByName: new Map([[CEA.name, [AL(CEA, matchDay)]]]), todayStr: TODAY,
         });
         // B (a day not in the app) and C (an allowance that differs) need a look; A agrees.
         assert.deepEqual(result.people.map(p => [p.name, p.needsALook]),
             [['B. Example', true], ['C. Example', true], ['A. Example', false]]);
         assert.deepEqual(result.notChecked, [{ name: 'E. Example', reason: 'leaver' }, { name: 'X. Example', reason: 'not-in-app' }]);
-        assert.deepEqual(result.notInFile, file.notImported);
-        // What the file said, plus a recordable member added since — never a manager, a leaver, or
-        // somebody the file already lists (the leaver who is now not checked).
+        // The file's own lists are asked again of TODAY's roster (review, 14 Nov 2026): a leaver stays a
+        // leaver, one given an allowance since is `since`, and one gone from the roster is not in the app.
+        assert.deepEqual(result.notInFile, [{ name: 'E. Example', reason: 'leaver' }, { name: 'J. Example', reason: 'since' },
+            { name: 'Y. Example', reason: 'not-in-app' }]);
+        // What the file said, kept only for somebody the app can still record leave for (H. Example has
+        // left since), plus a recordable member added since — never a manager, a leaver, or somebody
+        // the file already lists.
         assert.deepEqual(result.absent, ['G. Example', 'Z. Example']);
         assert.equal(result.totals.people, 3);
         assert.equal(result.totals.needsALook, 2);
-        for (const s of [...DAY_STATES, 'app-only']) {
+        for (const s of COUNT_KEYS) {
             assert.equal(result.totals[s], result.people.reduce((n, p) => n + p.counts[s], 0), s);
         }
         assert.deepEqual([result.totals.match, result.totals['not-in-app']], [1, 1]);

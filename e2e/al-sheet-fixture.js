@@ -15,7 +15,9 @@
  *   member A — a day that matches, a day the app lacks, a day on a rest day, and a day only in the app
  *   member B — a day that matches, so one person needs a look and one agrees
  *
- * And one invented name, on the sheet but not in the app, for the "not compared" list.
+ * And one invented name, on the sheet but not in the app, for the "not compared" list. On request, a
+ * member who has LEFT since the file was made — on the roster, hidden, also taken by rule — whose
+ * records the card must not read.
  */
 import { teamMembers, getBaseShift, parseISODate, isBankHoliday, isSunday } from '../roster-data.js';
 import { leaveRecordability } from '../al-leave-compare.js';
@@ -56,7 +58,7 @@ const alRecord = (name, date) => ({ id: `${name}|${date}`, memberName: name, dat
  * @param {any} m @param {number} used @param {number} [off]
  */
 function person(m, used, off = 0) {
-    const allowance = /** @type {number} */ (entitlementFor(m, YEAR)) + off;
+    const allowance = (entitlementFor(m, YEAR) ?? 32) + off;
     const printed = { carriedForward: 0, allowance, used, columnE: 0, remaining: allowance - used };
     return {
         name: m.name, grade: 'CEA',
@@ -68,13 +70,17 @@ function person(m, used, off = 0) {
 
 /**
  * The file, its text, the records the app holds, and the dates each case landed on.
- * @param {{ savedDaysAgo?: number, bAllowanceOff?: number }} [o]  how long before today the clerks last
- *        saved the sheet, and how many days more than the app's figure the sheet allows member B
+ * @param {{ savedDaysAgo?: number|null, bAllowanceOff?: number, withLeaver?: boolean }} [o]  how long
+ *        before today the clerks last saved the sheet (null: the file does not say), how many days more
+ *        than the app's figure the sheet allows member B, and whether the file holds a member who has
+ *        left since it was made
  */
-export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0 } = {}) {
+export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, withLeaver = false } = {}) {
     const [A, B] = teamMembers.filter(m => m.role === 'CEA' && m.rosterType === 'main' && !m.startDate
         && leaveRecordability(m, YEAR) === null);
     if (!A || !B) throw new Error('the roster no longer has two recordable main-line CEAs');
+    const L = withLeaver ? teamMembers.find(m => leaveRecordability(m, YEAR) === 'leaver') : null;
+    if (withLeaver && !L) throw new Error('the roster has no leaver to stand for one');
 
     const match = findDay(A, '2026-03-02', isTimed);
     const missing = findDay(A, '2026-03-02', isTimed, [match]);
@@ -83,21 +89,24 @@ export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0 } = {
     const bMatch = findDay(B, '2026-05-04', isTimed);
 
     const today = new Date();
-    const saved = new Date(today.getTime() - savedDaysAgo * DAY_MS).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const saved = savedDaysAgo === null ? null
+        : new Date(today.getTime() - savedDaysAgo * DAY_MS).toISOString().replace(/\.\d{3}Z$/, 'Z');
     const file = await sealLeaveFile({
         format: LEAVE_FILE_FORMAT, version: LEAVE_FILE_VERSION, year: YEAR,
         source: { sha256: 'e'.repeat(64), firstDate: `${YEAR}-01-01`, lastDate: `${YEAR + 1}-01-02`,
                   clerksLastSaved: saved, lastSavedByClerk: true },
         made: { on: today.toISOString().slice(0, 10), script: 'e2e fixture', appVersion: 'e2e' },
         nameMap: { rows: {}, cells: {}, tags: {} },
-        people: [person(A, 3), person(B, 1, bAllowanceOff)],
+        // In code-unit order by name, as Stage 1 writes them.
+        people: [person(A, 3), person(B, 1, bAllowanceOff), ...(L ? [person(L, 0)] : [])]
+            .sort((p, q) => (p.name < q.name ? -1 : p.name > q.name ? 1 : 0)),
         days: [gridDay(A.name, match), gridDay(A.name, missing), gridDay(A.name, restDay), gridDay(B.name, bMatch)],
         absentFromWorkbook: [],
         notImported: [{ name: 'Z. Example', reason: 'not-in-app' }],
         unplacedSundayTags: 0,
     });
     return {
-        text: JSON.stringify(file), file, A, B, year: YEAR,
+        text: JSON.stringify(file), file, A, B, L, year: YEAR,
         dates: { match, missing, restDay, appOnly, bMatch },
         records: [alRecord(A.name, match), alRecord(A.name, appOnly), alRecord(B.name, bMatch)],
     };

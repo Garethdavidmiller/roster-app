@@ -1533,11 +1533,13 @@ body.auth-ready .container { display: grid; }
 /* ── Annual leave sheet card (14 Nov 2026) ───────────────────────────────────────────────────────
    A leave file in, every difference on screen (operations-al-sheet.js). Built to be SCANNED: a summary
    first, then one fold per person whose closed row already says what needs a look. Each kind of
-   difference has ONE colour, worn by its chip and by the edge of each day it names: not in the app,
-   the AL card's warning red; an allowance, a rest day, costs nothing or another year, the page's
-   needs-a-decision tone; something else recorded, the page's mid grey (near-black outweighed every other
-   edge); work, RDW; only in the app, leave. Every chip ink measured on its wash at 4.6:1 or more (the red
-   the tightest, 4.67:1; the grey 6.0:1), and every one carries words. */
+   difference has ONE colour, worn by its chip and by the edge of each day it names: not in the app, or
+   undated over quota, the AL card's warning red; an allowance, a rest day, costs nothing, another year,
+   before the start date, or figures nothing explains, the page's needs-a-decision tone; something else
+   recorded, the page's mid grey (near-black outweighed every other edge); work, RDW; only in the app or
+   after the sheet ends, leave; a day the carry-over explains, leave's own edge. Every chip ink measured
+   on its wash at 4.6:1 or more (the red the tightest, 4.67:1; the grey 6.0:1), and every one carries
+   words — the kinds added later reuse these pairs, so no new contrast is introduced. */
 .al-sheet-paste-label { display: block; font-size: var(--type-small); color: var(--text-mid); margin-bottom: 6px; }
 /* The Pay Calculator's paste box (.pt-paste), as a second way in — but capped at seven lines: a pasted
    leave file is machine text nobody reads, and at a third of the screen it buried the card's answer. */
@@ -1630,16 +1632,19 @@ body.auth-ready .container { display: grid; }
     color: var(--al-sheet-ink); background-color: var(--al-sheet-wash); font-variant-numeric: tabular-nums;
 }
 /* The colour of each kind, declared once and read by the chip and the day's edge alike. */
-.al-sheet-chip--not-in-app, .al-sheet-day--not-in-app, .al-sheet-total--not-in-app { --al-sheet-ink: var(--al-warning); --al-sheet-wash: var(--al-warning-bg); }
+.al-sheet-chip--not-in-app, .al-sheet-day--not-in-app, .al-sheet-total--not-in-app,
+.al-sheet-chip--undated, .al-sheet-total--undated { --al-sheet-ink: var(--al-warning); --al-sheet-wash: var(--al-warning-bg); }
 .al-sheet-chip--allowance, .al-sheet-total--allowance, .al-sheet-chip--rest-day, .al-sheet-day--rest-day,
 .al-sheet-total--rest-day, .al-sheet-chip--free-in-app, .al-sheet-day--free-in-app, .al-sheet-total--free-in-app,
-.al-sheet-chip--other-year, .al-sheet-day--other-year, .al-sheet-total--other-year {
+.al-sheet-chip--other-year, .al-sheet-day--other-year, .al-sheet-total--other-year, .al-sheet-chip--before-start,
+.al-sheet-day--before-start, .al-sheet-total--before-start, .al-sheet-chip--figures, .al-sheet-total--figures {
     --al-sheet-ink: var(--conflict-strong); --al-sheet-wash: var(--al-confirm-bg);
 }
 .al-sheet-chip--differs, .al-sheet-day--differs, .al-sheet-total--differs { --al-sheet-ink: var(--text-mid); --al-sheet-wash: var(--absence-light); }
 .al-sheet-chip--worked, .al-sheet-day--worked, .al-sheet-total--worked { --al-sheet-ink: var(--rdw-text); --al-sheet-wash: var(--rdw-light); }
-.al-sheet-chip--app-only, .al-sheet-day--app-only, .al-sheet-total--app-only { --al-sheet-ink: var(--al-deep); --al-sheet-wash: var(--al-light); }
-.al-sheet-day--match { --al-sheet-ink: var(--al); }
+.al-sheet-chip--app-only, .al-sheet-day--app-only, .al-sheet-total--app-only, .al-sheet-chip--beyond, .al-sheet-day--beyond,
+.al-sheet-total--beyond { --al-sheet-ink: var(--al-deep); --al-sheet-wash: var(--al-light); }
+.al-sheet-day--match, .al-sheet-day--carried { --al-sheet-ink: var(--al); }
 
 .al-sheet-person-body { display: flex; flex-direction: column; gap: 10px; padding: 0 12px 12px 32px; }
 .al-sheet-explain, .al-sheet-names { font-size: var(--type-label); color: var(--text-dark); }
