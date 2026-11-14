@@ -204,3 +204,38 @@ describe('a row or a card says what it is for, and only that', () => {
             'the guide promises a conversion the card does not make');
     });
 });
+
+// ── THE PRIVACY LINE CLAIMS WHAT THE APP CONTROLS, AND NO MORE (external review, 14 Nov 2026) ─────
+// It said the figures were "never sent to any server or seen by anyone". The first half is the app's
+// to promise and holds: nothing on this page uploads them (error reports carry an error's own words,
+// the page and the version; a bug report is an email the member writes). The second is not: anyone
+// holding the phone while the member is signed in can open the page, and the app itself makes
+// readable copies (Move Your Pay Data). A promise the app cannot keep is the one a member remembers
+// when it turns out untrue, so the line now says where the figures are and that the app never sends
+// them anywhere — two facts, both checkable.
+describe('the privacy line promises only what the app controls', () => {
+    const guide = readFileSync(new URL('./paycalc-guide.html', import.meta.url), 'utf8');
+    const words = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const OVERCLAIM = /seen by anyone|(?:no ?one|nobody)(?: else)? (?:can|could|will) see|only you can see/i;
+    /** The note at the top (first visit) and the one at the foot (every visit), by their own markup. */
+    const notes = () => [
+        /id="privacyNoteTop">([\s\S]*?)<\/div>/.exec(html)?.[1],
+        /class="disclaimer-privacy">([\s\S]*?)<\/p>/.exec(html)?.[1],
+    ];
+
+    test('the page and the guide never promise that nobody can see the figures', () => {
+        for (const [where, text] of [['paycalc.html', html], ['paycalc-guide.html', guide]]) {
+            assert.doesNotMatch(words(text), OVERCLAIM,
+                `${where} promises that nobody can see the pay figures — the app cannot keep that promise`);
+        }
+    });
+
+    test('both notes say the same sentence: where the figures are, and that the app never sends them', () => {
+        const [top, foot] = notes();
+        assert.ok(top && foot, 'premise: both privacy notes are found in paycalc.html');
+        assert.equal(words(top), words(foot), 'the two privacy notes have drifted apart');
+        assert.match(words(foot), /this browser on this device/,
+            'the note no longer says WHERE — on an iPhone, Safari and the Home Screen app keep separate copies');
+        assert.match(words(foot), /never sends it to a server/, 'the note no longer says the app keeps it off the server');
+    });
+});

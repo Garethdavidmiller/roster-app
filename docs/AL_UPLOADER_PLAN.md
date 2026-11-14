@@ -1,6 +1,6 @@
 # Annual leave uploader — plan of record
 
-*Written 14 November 2026 against v26.09 · reviewed (draft 2) · **Phases 0 and 1 BUILT in v26.10, check
+*Written 14 November 2026 against v26.09 · reviewed (draft 2) · **Phases 0 and 1 BUILT in v26.11, check
 only**; Phase 2 not started, and decided only after Phase 1 has been used (decision 1, §10)*
 
 **How to read this.** Part 1 is the plan, and Part 2 the review of its first draft: three separate
@@ -479,7 +479,7 @@ added.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Go ahead with Phase 0 and Phase 1 (no app writes), and decide on Phase 2 after using Phase 1? | **Yes.** Phases 0 and 1 built (v26.10). Phase 2 approved on 14 Nov 2026; 2a built (v26.11) |
+| 1 | Go ahead with Phase 0 and Phase 1 (no app writes), and decide on Phase 2 after using Phase 1? | **Yes.** Phases 0 and 1 built (v26.11). Phase 2 approved on 14 Nov 2026; 2a built (v26.11) |
 | 2 | The name map: carried forward in the latest leave file, or a private repository? | **The leave file carries it** (`nameMap`), and the next session reads it back |
 | 3 | Is the workbook the authority for which days are booked? | **Yes, for adding — never for removing** |
 | 4 | Age limit for the clerks' copy | **14 days** (`LEAVE_FILE_MAX_AGE_DAYS`). On the Phase 1 card it is a warning, because a check cannot do harm; Phase 2 is where it would stop a save |
@@ -507,14 +507,14 @@ added.
 
 ## 12. What was built, and what changed from the plan
 
-**Phase 0** (v26.10): `al-leave-file.js` (the format, the seal, every refusal, the sums the sheet's
+**Phase 0** (v26.11): `al-leave-file.js` (the format, the seal, every refusal, the sums the sheet's
 own figures must agree with), `scripts/make-leave-file.mjs` with `scripts/xlsx-read.mjs` (the session's
 method, which asks rather than guesses, and refuses to write inside the repository), and the privacy
 guards (`.gitignore`'s `*.leave.json` and `*.local.json`, `leave-file-privacy.test.mjs`). Measured on
 the 6 Nov copy, the script reproduces the hand reading of 14 Nov exactly — the same 1,247 (person, date,
 kind) entries — and two runs make byte-identical files.
 
-**Phase 1** (v26.10): the **Annual leave sheet** card on Operations (`operations-al-sheet.js`, its words
+**Phase 1** (v26.11): the **Annual leave sheet** card on Operations (`operations-al-sheet.js`, its words
 `al-leave-words.js`, its rules `al-leave-compare.js`). No Save. Each member's records are read whole;
 a read answered from this device's cache stops the whole check; nothing is kept; an update's reload
 waits while the answer is on screen.

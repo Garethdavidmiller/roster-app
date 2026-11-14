@@ -561,8 +561,13 @@ completeness first, updated live on every edit. Every line rotates and is checke
 hierarchy, ADDED rather than substituted: the sections below stay grouped by SOURCE — this app's
 checks, the company limits, the ORR's factors, today's link — because invariant 10 needs every limit to
 name whose it is. Each triage line names its source, and the block computes nothing of its own, so it
-cannot disagree with the rows. **Nothing to fix is said out loud, never as a tick**: "Nothing found that
-has to be fixed — the rows below say what was checked".
+cannot disagree with the rows. **Nothing to fix is said out loud, never as a tick**, and it says what
+follows it: "Nothing found that has to be fixed — but 3 points below are worth discussing", or, with
+nothing to discuss, "… — the rows below say what was checked". The count is there because the bare
+line read as a pass with warnings under it (external review, 14 Nov 2026); on a real design the
+"Worth discussing" group is never empty, as FF19 always asks for its definition to be confirmed. The
+review's own wording, "no failures against the configured limits", was not taken: the fix list holds
+this app's own checks too, so it would understate what was looked at.
 
 ### Hard limits vs advisory factors
 

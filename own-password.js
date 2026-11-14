@@ -13,12 +13,12 @@
  * ── TWO PROPERTIES AN EDIT CAN SILENTLY BREAK ──────────────────────────────────────────────────
  *
  *   1. RE-AUTHENTICATION TRIES THE NEXT CANDIDATE ONLY ON A DEFINITIVE REJECTION. The candidate list is
- *      the sign-in's own (`credentialCandidatesFor`: the typed value, then the surname default when the
- *      typed value normalises to it), so an un-migrated member typing their surname in any case
- *      re-authenticates. A transient failure — network, rate limit, provider outage,
- *      requires-recent-login — stops at once: retrying the surname behind it duplicates traffic, worsens
- *      rate-limiting and ends on a misleading error (PASSWORD_DESIGN.md §3.2). The one shared classifier
- *      (`isCredentialRejection`) keeps this ladder and the sign-in's in step.
+ *      the sign-in's own (`credentialCandidatesFor`: the typed value, or — when it normalises to the
+ *      surname — the surname default first, then the typed value), so an un-migrated member typing
+ *      their surname in any case re-authenticates at the first attempt. A transient failure — network,
+ *      rate limit, provider outage, requires-recent-login — stops at once: retrying behind it duplicates
+ *      traffic, worsens rate-limiting and ends on a misleading error (PASSWORD_DESIGN.md §3.2). The one
+ *      shared classifier (`isCredentialRejection`) keeps this ladder and the sign-in's in step.
  *   2. A CHANGED PASSWORD IS NEVER REPORTED AS UNCHANGED. `changeOwnPassword` resolves once the password
  *      HAS changed — the half a deadline belongs on (settings-ops-2): timed together, a slow commit read
  *      as "we couldn't confirm". The `passwordSetAt` stamp is a SEPARATE Firestore write that can fail on

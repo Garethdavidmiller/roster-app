@@ -293,8 +293,8 @@ export function primeAuth() {
  * @param {number} [_gen] - Internal: the caller's auth-attempt generation (stale-completion guard).
  *   ensureNamedSession passes its generation; omit on a direct call and a fresh one is taken.
  * @param {string} [password] - The password the member TYPED at the login field. When present, the
- *   gated dual-attempt (auth-identity.credentialCandidatesFor) is used: the raw typed value, then
- *   the derived surname ONLY if the typed value normalises to the surname. When ABSENT (a page-load
+ *   gated dual-attempt (auth-identity.credentialCandidatesFor, whose header argues the order): the
+ *   typed value, or ONLY if it normalises to the surname, the surname first. When ABSENT (a page-load
  *   re-establishment with no typed value), only the derived surname is tried — auto-reauth of an
  *   un-migrated member; a MIGRATED member fails cleanly and the page re-shows the login overlay
  *   (PASSWORD_DESIGN.md §3.4).
