@@ -4,7 +4,8 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect, withNewsletterInMenu } from './fixtures.js';
+import { test, expect, isoDaysAgo } from './fixtures.js';
+import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
 import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
@@ -1909,13 +1910,21 @@ for (const [card, file, words] of [['circularUpload', 'circularFileInput', 'Circ
 // An upload whose account went mid-save may still land, so the admin is sent to LOOK — and told where,
 // as the Huddle card does (whole-app check, 10 Nov 2026; cal-docs NAA 5). It said "…then check whether
 // it saved", with nowhere named.
-// The Newsletter's ☰ button can be hidden (CONFIG.NEWSLETTER_IN_MENU, owner, 14 Nov 2026), and then the menu is
-// nowhere to look: its #newsletter link still opens the latest issue, so that is where it sends the admin.
-for (const [prefix, drawer, inMenu] of [['circular', '☰ → Weekly Retail Circular', null],
-                                        ['newsletter', '☰ → Marylebone Newsletter', true],
-                                        ['newsletter', 'the Calendar with #newsletter on the end of its address', false]]) {
-    test(`operations: a ${prefix} upload signed out mid-save says where to check${inMenu === false ? ' — its ☰ button hidden' : ''}`, async ({ page }) => {
-        if (inMenu !== null) await withNewsletterInMenu(page, inMenu);
+// The Newsletter's ☰ button offers an issue for six weeks from its date (newsletter-recency.js, owner,
+// 14 Nov 2026), so an older issue is nowhere on the menu: its #newsletter link still opens the latest
+// issue, and that is where the admin is sent. The date is the one the upload is filed under.
+/** Set an upload card's (hidden, picker-driven) date field to `iso`. */
+const setUploadDate = (/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ prefix, /** @type {string} */ iso) =>
+    page.evaluate(([p, d]) => {
+        const el = /** @type {HTMLInputElement} */ (document.getElementById(`${p}Date`));
+        el.value = d; el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, [prefix, iso]);
+for (const [prefix, drawer, issue] of /** @type {[string, string, string|null][]} */ ([
+    ['circular', '☰ → Weekly Retail Circular', null],
+    ['newsletter', '☰ → Marylebone Newsletter', isoDaysAgo(2)],
+    ['newsletter', 'the Calendar with #newsletter on the end of its address', isoDaysAgo(60)],
+])) {
+    test(`operations: a ${prefix} upload signed out mid-save says where to check${issue === null ? '' : issue === isoDaysAgo(60) ? ' — an issue too old for the ☰ menu' : ' — a recent issue'}`, async ({ page }) => {
         await page.addInitScript(() => {
             const w = /** @type {any} */ (window);
             w.__E2E = { ...(w.__E2E || {}), failSetCode: 'auth/signed-out-during-request' };
@@ -1923,6 +1932,7 @@ for (const [prefix, drawer, inMenu] of [['circular', '☰ → Weekly Retail Circ
         await seedSession(page, 'G. Miller');
         await page.goto('/operations.html');
         await page.evaluate((p) => document.getElementById(`${p}UploadBody`)?.classList.add('open'), prefix);
+        if (issue) await setUploadDate(page, prefix, issue);
         await page.setInputFiles(`#${prefix}FileInput`, { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
         await page.locator(`#${prefix}UploadBtn`).click();
         await expect(page.locator(`#${prefix}Feedback`)).toHaveText(
@@ -1930,38 +1940,65 @@ for (const [prefix, drawer, inMenu] of [['circular', '☰ → Weekly Retail Circ
     });
 }
 
-// ── THE NEWSLETTER CARD SAYS WHEN ITS ☰ BUTTON IS HIDDEN (owner, 14 Nov 2026: "temporarily hide it") ─────
-// The card told the admin "staff open the latest from ☰ → Marylebone Newsletter", which is not so while the
-// button is hidden. Hidden, its header, its ? panel and its receipt say so, and what an upload still does;
-// shown, each names the menu again. The words are operations-tips.js → NEWSLETTER_CARD.
-for (const inMenu of [false, true]) {
-    test(`operations: the Newsletter card says where staff find it — ☰ button ${inMenu ? 'shown' : 'hidden'}`, async ({ page }) => {
-        await withNewsletterInMenu(page, inMenu);
+// ── THE NEWSLETTER CARD STATES THE SIX-WEEK RULE, AND ITS RECEIPT APPLIES IT (owner, 14 Nov 2026) ─────
+// Its header and ? panel say how long the ☰ button offers an issue; the receipt says whether THIS upload
+// will be offered, from the date it was filed under. The words are operations.html and operations-tips.js.
+test('operations: the Newsletter card says staff open it from ☰ for six weeks after its date', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#newsletterUploadHint')).toHaveText('PDF or Word — staff open it from ☰ → Marylebone Newsletter for six weeks after its date');
+    await page.locator('.btn-card-tips[data-card="newsletter"]').click();
+    const tips = page.locator('#tipsLightboxContent');
+    await expect(tips).toContainText('staff open it from ☰ → Marylebone Newsletter');
+    await expect(tips).toContainText('The ☰ button offers each issue for six weeks from its date, then hides until the next upload');
+    await expect(tips).toContainText('the six weeks are counted from it');
+});
+
+for (const [label, issue, told] of /** @type {[string, () => string, string][]} */ ([
+    ['today’s issue', () => '', 'staff can open it from ☰ → Marylebone Newsletter'],
+    ['an issue six weeks old', () => isoDaysAgo(42), 'it is six weeks old or more by its date, so the ☰ menu won’t offer it'],
+])) {
+    test(`operations: the Newsletter receipt for ${label} says whether the ☰ menu will offer it`, async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/operations.html');
-        await expect(page.locator('#newsletterUploadHint')).toHaveText(inMenu
-            ? 'PDF or Word — staff open the latest from ☰ → Marylebone Newsletter'
-            : 'PDF or Word — hidden from staff’s ☰ menu for now');
-
-        await page.locator('.btn-card-tips[data-card="newsletter"]').click();
-        const tips = page.locator('#tipsLightboxContent');
-        if (inMenu) await expect(tips).toContainText('staff open it from ☰ → Marylebone Newsletter');
-        else {
-            await expect(tips).toContainText('menu button is hidden');
-            await expect(tips).toContainText('An upload still notifies staff who have notifications on, and the notification opens it.');
-            await expect(tips).not.toContainText('staff open it from');
-        }
-        await page.locator('#tipsLightboxClose').click();
-        await expect(page.locator('#tipsLightbox')).toBeHidden();
-
         await page.evaluate(() => document.getElementById('newsletterUploadBody')?.classList.add('open'));
+        if (issue()) await setUploadDate(page, 'newsletter', issue());
         await page.setInputFiles('#newsletterFileInput', { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
         await page.locator('#newsletterUploadBtn').click();
-        await expect(page.locator('#newsletterFeedback')).toHaveText(new RegExp(`^Newsletter uploaded for \\d{1,2} [A-Z][a-z]{2} \\d{4} — ${inMenu
-            ? 'staff can open it from ☰ → Marylebone Newsletter$'
-            : 'staff with notifications on are told\\. Its ☰ menu button is still hidden$'}`));
+        const toldPattern = told.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        await expect(page.locator('#newsletterFeedback')).toHaveText(
+            new RegExp(`^Newsletter uploaded for \\d{1,2} [A-Z][a-z]{2} \\d{4} — ${toldPattern}$`));
     });
 }
+
+test('operations: uploading a recent issue brings the ☰ button back on this device at once, and an older one does not', async ({ page }) => {
+    await page.addInitScript((k) => { try { localStorage.setItem(k, '2026-07-31'); } catch { /* none */ } }, NEWSLETTER_LATEST_KEY);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const row = page.locator('#navPanel .nav-panel-link--newsletter');
+    // The open drawer's Latest list, read off the screen — "not offered" is the Huddle and the Circular
+    // SHOWING without it, so it cannot pass on a drawer that has not opened yet.
+    const latest = page.locator('#navPanel .nav-panel-links').first().locator('.nav-panel-link').filter({ visible: true });
+    await page.locator('#navMenuBtn').click();
+    await expect(latest, 'premise: July’s issue is not offered').toHaveText([/Daily Huddle/, /Weekly Retail Circular/]);
+    await page.locator('#navPanelClose').click();
+
+    const upload = async (/** @type {string} */ iso) => {
+        await page.evaluate(() => document.getElementById('newsletterUploadBody')?.classList.add('open'));
+        await setUploadDate(page, 'newsletter', iso);
+        await page.setInputFiles('#newsletterFileInput', { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+        await page.locator('#newsletterUploadBtn').click();
+        await expect(page.locator('#newsletterFeedback')).toContainText('Newsletter uploaded for');
+    };
+    await upload(isoDaysAgo(60));   // a back issue, filed for the record
+    await page.locator('#navMenuBtn').click();
+    await expect(latest, 'an issue too old for the menu was offered').toHaveText([/Daily Huddle/, /Weekly Retail Circular/]);
+    await page.locator('#navPanelClose').click();
+
+    await upload(isoDaysAgo(1));
+    await page.locator('#navMenuBtn').click();
+    await expect(row, 'the issue just uploaded is not on this device’s menu').toBeVisible();
+});
 
 // ── A tab left open past midnight can still pick today (v23.36) ─────────────────────────────────
 // `doc-upload.js` recomputes its date cap at init and on submit — the v16.23 stale-tab fix, written

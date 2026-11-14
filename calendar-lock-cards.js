@@ -54,7 +54,7 @@
  */
 
 import { clearSession } from './session.js';
-import { CONFIG } from './roster-data.js';
+import { newsletterInMenu } from './newsletter-recency.js';
 import { takeStaffPinEndedMark } from './staff-pin-ended.js';
 import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH, PIN_FIRST_HASH } from './calendar-access-core.js';
@@ -383,8 +383,9 @@ export async function showSignInPanel(notice = '') {
             // app is not for them. "Visiting or agency staff": the audience the owner named. The list
             // is the pages the PIN opens (auth-policy.js → `staffPin`), so Trains is on it and the
             // guides are not: the menu and every guide stay open without it (v25.82). The documents
-            // are the menu's, so the Newsletter is named only while its button is (CONFIG.NEWSLETTER_IN_MENU).
-            hint: CONFIG.NEWSLETTER_IN_MENU === true
+            // are the menu's, so the Newsletter is named only while its button is: while this device knows of
+            // an issue under six weeks old (newsletter-recency.js).
+            hint: newsletterInMenu()
                 ? 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and Trains.'
                 : 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular and Trains.',
             // The PIN card is the door's second view, so it takes a Back entry (sign-in check, 11 Nov

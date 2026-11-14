@@ -29,7 +29,6 @@ import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } from './links-desig
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { DAYTIME, renderFurtherChanges } from './trains-render.js';
-import { NEWSLETTER_CARD } from './operations-tips.js';
 
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
@@ -44,7 +43,7 @@ import { NEWSLETTER_CARD } from './operations-tips.js';
  */
 const PAGES = [
     { js: 'admin-app.js',      html: 'admin.html' },
-    { js: 'operations-tips.js', html: 'operations.html', scope: { NEWSLETTER_CARD } },
+    { js: 'operations-tips.js', html: 'operations.html' },
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
@@ -149,7 +148,7 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
     });
 
     test('the ? panel quotes the link in full', () => {
-        const first = readCardTips('operations-tips.js', { NEWSLETTER_CARD })['reset-requests'].sections[0].items[0].html;
+        const first = readCardTips('operations-tips.js')['reset-requests'].sections[0].items[0].html;
         assert.equal(/“([^”]+)”/.exec(first)?.[1], link);
     });
 });
