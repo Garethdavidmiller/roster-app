@@ -53,3 +53,11 @@ ui-debug.log
 # the same glob: doc-parity.test.mjs exempts EVERY `*.local.md` from its index as gitignored, so a
 # second private log named by the convention must be ignored too, not only this one path.
 *.local.md
+
+# THE LEAVE FILE NEVER ENTERS THE TREE (annual leave uploader, Nov 2026). A leave file names every
+# colleague against their dates of leave (al-leave-file.js), and its answers file names the personal
+# exceptions in matching them. scripts/make-leave-file.mjs refuses to write either inside the
+# repository; these are the rule both origins obey if one is copied in by hand. Guarded by
+# leave-file-privacy.test.mjs.
+*.leave.json
+*.local.json

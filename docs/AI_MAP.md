@@ -1418,6 +1418,22 @@ Which annual-leave days spend a member's entitlement, and where that leaves them
 - `isWorkingDate(memberObj, dateStr, ovByDate?)` — will this day be WRITTEN as leave (Sunday → override → base; no map means no override); re-exported by `admin-overrides.js`. `consumesEntitlement` asks the other half, whether it COSTS a day.
 - Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`. Grep for the import rather than trusting a list of callers.
 
+### `al-leave-file.js`
+The LEAVE FILE — the one contract between Stage 1 (`scripts/make-leave-file.mjs`, a session reading the clerks' workbook) and Stage 2 (the Operations card), so the two cannot disagree about a valid file or its seal (docs/AL_UPLOADER_PLAN.md §3). Pure, with no app import: it loads in Node and the browser alike. Names in it are the APP's; every day says where it was found and whether the sheet's own total counts it.
+- `LEAVE_FILE_FORMAT` · `LEAVE_FILE_VERSION` · `LEAVE_FILE_MAX_AGE_DAYS` (14, the owner's figure) · `LEAVE_FILE_MAX_BYTES` · `GRADES` · `DAY_KINDS` · `FOUND_IN` (each place fixes `countedBySheet`, so it is checked, not believed) · `ROW_WHY` · `NOT_IMPORTED_REASONS` · `CORRECTED_BECAUSE` — codes, so nothing in a file is free text to render.
+- `canonicalJson(value)` · `leaveFileDigest(file)` · `sealLeaveFile(file)` — the seal: SHA-256 of the canonical form of every field but `digest`, pinned to a vector in the test. A hand-edited file is refused, never half-trusted (owner, 14 Nov 2026).
+- `readLeaveFile(text)` → `{ ok, file }` or `{ ok: false, refusals }` — refused by name, never defaulted; the seal is checked before the structure. **Refusals are returned, never thrown**, and `JSON.parse`'s message is discarded: both would put names into the Error Log.
+- `validateLeaveFile(file)` — every structural rule (no Sunday leave, nothing on 25/26 December, a next-January day carries this year's `leaveYear`, one entry per person per date) and every sum. `personSums(person, days)` — the file re-added against the sheet's own printed figures, so a day dropped while it was made fails here. `usedRow(person)`.
+- `describeRefusal(r)` — the plain-text sentence for each code. `leaveFileAgeDays(file, todayStr)` · `isRealIsoDate` · `isSundayIso` · `isChristmasIso`.
+- Tested by `al-leave-file.test.mjs`.
+
+### `al-leave-compare.js`
+The leave sheet BESIDE the app, person by person and day by day — Phase 1 of the uploader, which decides and writes nothing (AL_WORKBOOK.md §11's reconcile-and-report). Every judgement is the app's own: what a day costs is `consumesEntitlement` after the winning record is resolved, what booking an empty day would do is `projectAlBooking` (so "a rest day" here is exactly the day Admin would ask the swap question about), where a person stands is `alPosition`.
+- `leaveRecordability(member, year)` → `null` or `'leaver'|'manager'|'no-allowance'|'not-in-app'` — who the app can record leave for. Stage 1 uses it to fill `notImported`; the card asks again, because the roster may have changed since the file was made.
+- `comparePerson({ person, days, member, records, year, todayStr, firstDate, lastDate })` — each sheet day in one of `DAY_STATES` (`not-in-app`, `rest-day`, `free-in-app`, `other-year`, `differs`, `worked`, `before-start`, `match`, `sunday`), the app-only leave from a separate pass over the records, both sides' figures and whether the allowances differ. `NEEDS_A_LOOK` — the states that want somebody to look.
+- `compareLeaveFile({ file, members, recordsByName, todayStr })` — the whole file: people needing a look first, who could not be checked and why, who is in the app and not on the sheet (including anybody added since), and the totals. `winnersByDate(records, name)`.
+- Tested by `al-leave-compare.test.mjs`; driven on Operations by `e2e/operations.spec.js`.
+
 ### `christmas-leave.js`
 Christmas Day and Boxing Day: who is on leave, what it costs, and the day in lieu (the owner's rules, 5 Nov 2026). Pure. **Derived, never stored**: the leave follows from the pattern and the date, so nothing is written to Firestore and anything recorded on the day wins. `getBaseShift` still makes both days a rest day for everybody (`isChristmasRD`); these rules sit on top, in their own module so `al-entitlement.js` can import them without a cycle. The header has the rules and the one door they cost.
 - `CHRISTMAS_LEAVE_FROM_YEAR` — earlier Christmases keep showing Rest.
