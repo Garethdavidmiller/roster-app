@@ -132,6 +132,20 @@ shown that yet.
   finding the long notes hard to follow on a laptop.** A `ch` is about 1.3 characters in Inter, so the
   64–72ch caps run to about 80–94 characters a line, not 75 (css-tokens.md → Reading measure).
   Narrowing them to a literal 75 adds roughly a line to every capped paragraph on a short window.
+- **The Newsletter button is hidden from the ☰ menu** (owner, 14 Nov 2026: "temporarily hide it") ·
+  **Trigger to revisit: a new Marylebone Newsletter.** None had come out since July, so the button
+  opened July's issue as though it were the latest. `CONFIG.NEWSLETTER_IN_MENU` (`roster-data.js`) is
+  the one switch. `false` takes the button out of the drawer on every page, the admin's included, and
+  out of every line that says it is there: the Calendar's PIN hint, the Staff Guide's Latest tile, the
+  welcome email and the Operations upload card, whose header, `?` panel and receipt say it is hidden.
+  Nothing else stops. An upload still notifies staff and the notification still opens the issue
+  (`#newsletter`), which is how its return will reach them, so Settings still lists that notification.
+  **To bring it back,** set the switch to `true`: `guide-app-parity.test.mjs` then fails on the two
+  static texts until they name it again (the Staff Guide's Latest tile, then `npm run
+  generate:guide-index`; and `welcome-email.html`, with its three copies). Deleting the switch instead
+  also takes its three lines off `roster-data.js`'s ratchet cap (`coordinator-ratchet.test.mjs`).
+  Declined (owner, 14 Nov 2026): an automatic version that hid the button once the latest issue was
+  six weeks old and brought it back with the next upload. The switch stays a decision someone makes.
 
 - **The month grid takes no pinch-zoom** (owner, 10 Nov 2026) · **Trigger to revisit: a member who
   needs to zoom the month and cannot.** The grid's `touch-action: pan-y` keeps a sideways swipe for

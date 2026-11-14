@@ -24,6 +24,12 @@
 //  3. THE ADMIN TYPE BUTTONS. admin-shift-types.js → PILL_TYPES and each type's `pill` label: the
 //     Shift Types table, the Change a Shift step and the Apply to Several Days step name the buttons
 //     by their own labels, in their own order (the bulk bar has no Other — admin.md says why).
+//  4. THE LATEST DOCUMENTS. nav-panel.js → NAV_INFORMATION, less the Newsletter while its button is
+//     hidden (CONFIG.NEWSLETTER_IN_MENU, owner, 14 Nov 2026): the guide's Latest tile
+//     ([data-menu-latest]) and the welcome email's "All under the ☰ menu" line name exactly those, in
+//     menu order. Both are static, so they cannot read the switch, and this is what makes switching it
+//     back a complete change rather than a menu button with the guide still saying it has gone.
+//     (welcome-email-parity.test.mjs carries the general template's line to the three ready copies.)
 //
 // Part of `npm run test:hygiene`. A failure here means the GUIDE is out of date, or the app changed
 // on purpose and the guide must follow in the same release — never "loosen the test".
@@ -33,6 +39,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PAGE_POLICIES } from './auth-policy.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
+import { CONFIG } from './roster-data.js';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
 const GUIDE = read('staff-guide.html');
@@ -113,15 +120,18 @@ test('1. the Staff Guide says which pages in every member\'s menu the staff PIN 
 });
 
 test('1. the Calendar\'s sign-in card names every page the staff PIN opens, and no page that is open to all', () => {
-    const hint = read('calendar-lock-cards.js').match(/alternative:\s*\{[\s\S]*?hint:\s*'([^']+)'/)?.[1];
-    assert.ok(hint, 'the PIN hint on the Calendar\'s sign-in card was not found in calendar-lock-cards.js — re-anchor this test');
-    const opens = opensClause(hint);
-    for (const page of PIN_PAGES) {
-        const word = READER_WORD[/** @type {keyof typeof READER_WORD} */ (page)];
-        assert.ok(word && opens.includes(word), `the staff PIN opens '${page}', but the Calendar card's hint does not say so: "${hint}"`);
-    }
-    for (const [page, word] of Object.entries(READER_WORD).filter(([pg]) => !PIN_PAGES.includes(pg))) {
-        assert.ok(!opens.includes(word), `the Calendar card says the PIN opens "${word}", which the PIN does not open ('${page}'): "${hint}"`);
+    // Two wordings, one per state of the Newsletter's menu button (item 4): each is held to the PIN's pages.
+    const m = read('calendar-lock-cards.js').match(/alternative:\s*\{[\s\S]*?hint:\s*CONFIG\.NEWSLETTER_IN_MENU === true\s*\?\s*'([^']+)'\s*:\s*'([^']+)'/);
+    assert.ok(m, 'the PIN hint on the Calendar\'s sign-in card was not found in calendar-lock-cards.js — re-anchor this test');
+    for (const hint of [m[1], m[2]]) {
+        const opens = opensClause(hint);
+        for (const page of PIN_PAGES) {
+            const word = READER_WORD[/** @type {keyof typeof READER_WORD} */ (page)];
+            assert.ok(word && opens.includes(word), `the staff PIN opens '${page}', but the Calendar card's hint does not say so: "${hint}"`);
+        }
+        for (const [page, word] of Object.entries(READER_WORD).filter(([pg]) => !PIN_PAGES.includes(pg))) {
+            assert.ok(!opens.includes(word), `the Calendar card says the PIN opens "${word}", which the PIN does not open ('${page}'): "${hint}"`);
+        }
     }
 });
 
@@ -132,6 +142,34 @@ test('2. the Staff Guide\'s menu names every page every member sees', () => {
         // A gated page belongs to "any others you have access to": naming it tells every member it is theirs.
         else assert.ok(!pages.includes(p.name), `the Staff Guide's Pages tile names "${p.name}", which only some people see (nav-panel.js gates it): "${pages}"`);
     }
+});
+
+/** The documents the menu's Latest section shows, read from nav-panel.js's own list and filtered as the
+ *  drawer filters it: the Newsletter only while CONFIG.NEWSLETTER_IN_MENU is on. */
+function latestDocs() {
+    const block = read('nav-panel.js').match(/const NAV_INFORMATION = \[([\s\S]*?)\n\];/);
+    assert.ok(block, 'NAV_INFORMATION not found in nav-panel.js');
+    const links = [...block[1].matchAll(/\{\s*icon:\s*'[^']*',\s*label:\s*'([^']+)'([^}]*)\}/g)]
+        .map(l => ({ label: l[1].trim(), newsletter: /\bnewsletter:\s*true\b/.test(l[2]) }));
+    assert.ok(links.length >= 3 && links.some(l => l.newsletter), `NAV_INFORMATION read as ${links.length} documents — re-anchor this test`);
+    return links.filter(l => !l.newsletter || CONFIG.NEWSLETTER_IN_MENU === true).map(l => l.label);
+}
+
+test('4. the Staff Guide\'s Latest tile names exactly the documents the menu shows', () => {
+    const tile = marked('data-menu-latest');
+    const named = tile.replace(/^Latest\s*—\s*/, '').split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
+    assert.deepEqual(named, latestDocs(), `the guide's Latest tile reads "${tile}" — name the documents the menu shows (nav-panel.js, `
+        + `with the Newsletter only while CONFIG.NEWSLETTER_IN_MENU is on), in menu order, then run npm run generate:guide-index`);
+});
+
+test('4. the welcome email names exactly the documents the menu shows', () => {
+    const email = read('.claude/skills/new-starter/welcome-email.html');
+    const at = email.indexOf('All under the &#9776; menu');
+    assert.ok(at > -1, 'the welcome email no longer says what is "All under the ☰ menu" — re-anchor this test');
+    const cell = email.slice(email.lastIndexOf('<td', at), at);
+    const named = [...cell.matchAll(/<strong[^>]*>([^<]+)<\/strong>/g)].map(x => x[1].trim());
+    assert.deepEqual(named, latestDocs(), 'the welcome email\'s menu line must name the documents the menu shows, in menu order — '
+        + 'edit welcome-email.html, and the three ready copies to match (welcome-email-parity.test.mjs)');
 });
 
 /** The Admin type buttons' own labels, in their own order. */

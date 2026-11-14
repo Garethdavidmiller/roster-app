@@ -40,7 +40,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { CARD_TIPS } from './operations-tips.js';
+import { CARD_TIPS, NEWSLETTER_CARD } from './operations-tips.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
@@ -766,6 +766,7 @@ export function init() {
     // MARYLEBONE NEWSLETTER UPLOAD
     // ============================================
     function initNewsletterUpload() {
+        if (NEWSLETTER_CARD.hint) document.getElementById('newsletterUploadHint')?.replaceChildren(NEWSLETTER_CARD.hint);   // the ☰ button is hidden
         initDocUploadCard({
             dateId: 'newsletterDate', fileId: 'newsletterFileInput',
             fileLabelId: 'newsletterFileName', uploadBtnId: 'newsletterUploadBtn',
@@ -773,11 +774,10 @@ export function init() {
             isAccepted: f => isPdfFile(f) || isDocxFile(f),
             rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
             sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-            // doc-upload.js hands the date over in words ("6 Nov 2026"), as app copy writes one — formatted
-            // a second time here, it read "uploaded for —" (whole-app check, 10 Nov 2026).
-            successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
+            // The date arrives in words ("6 Nov 2026"): formatted again here, it read "uploaded for —" (10 Nov 2026).
+            successMsg: date => `Newsletter uploaded for ${date} — ${NEWSLETTER_CARD.told}`,
             btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
-            whereToCheck: '☰ → Marylebone Newsletter',   // where a sign-out mid-upload is told to look
+            whereToCheck: NEWSLETTER_CARD.whereToCheck,   // where a sign-out mid-upload is told to look
         });
     }
 

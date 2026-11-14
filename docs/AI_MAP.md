@@ -2075,7 +2075,8 @@ Cross-guide search in the drawer's Reference zone: a member knows a term, not wh
 - `nav-guide-search.js` — `initGuideSearch({ guides })`, lazy-loaded with the index on the box's first focus; `guides` is the drawer's own `NAV_GUIDES`, passed in so the drawer keeps the single declaration. Result rows are ordinary `.nav-panel-link--guide` anchors with `data-open-id`, so the drawer's delegated handler gives them open-counting, `?from=` and the Back handling. Evidence shows as one chip per state (`EVIDENCE_LABELS`). Escape clears a non-empty box first.
 
 ### `operations-tips.js`
-`CARD_TIPS` — the content of every `?` panel on `operations.html`, one entry per card, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins. Pure data, no imports; `operations-app.js` passes it to `initTipsLightbox`.
+`CARD_TIPS` — the content of every `?` panel on `operations.html`, one entry per card, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins. Pure data; `operations-app.js` passes it to `initTipsLightbox`.
+- `NEWSLETTER_CARD` — the Newsletter card's words in the state its ☰ button is in (`CONFIG.NEWSLETTER_IN_MENU`, hidden by the owner on 14 Nov 2026): `{ hint, told, whereToCheck, tips }` — the header hint (`null` keeps the markup's), what the receipt says staff were given, where a sign-out mid-upload is told to look, and the first lines of its `?` panel. Its one import is `CONFIG`; `e2e/operations.spec.js` pins both states.
 
 ### `operations-attention.js`
 The "Needs attention" strip on `operations.html`: an index of exceptional card states. Its three refusals are the header — it runs no reads (every count comes from the card that owns it), it does not exist when clean, and it owns no navigation (hash anchors into `DEEP_LINK_CARDS`). Pure half tested by `operations-attention.test.mjs`; the wiring by `e2e/operations.spec.js`.

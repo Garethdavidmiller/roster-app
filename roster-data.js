@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.06';
+export const APP_VERSION = '26.07';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -61,6 +61,9 @@ export const CONFIG = {
     // already made age out by themselves. The code and its tests stay live while it is off, which is
     // what keeps it ready: OVERTIME_AVAILABILITY.md → "Paused" is the way back.
     OVERTIME_ENABLED:                 false,
+    // The Marylebone Newsletter's ☰ button — HIDDEN (owner, 14 Nov 2026: none since July, so July's issue read as
+    // current). `true` brings it back; DECISIONS.md → "The Newsletter button is hidden" lists what moves with it.
+    NEWSLETTER_IN_MENU:               false,
     // Who besides the admin could open the New link page while it was a PREVIEW (newlink-config.js → PHASE): S. Silva, the RMT
     // rep who leads the change (owner, 4 Nov 2026). Open since v25.60 to every colleague on a normal CEA contract and the
     // managers (auth-policy.js → `newlinkAudience`); this list keeps her in whatever the audience becomes. Page access only — the

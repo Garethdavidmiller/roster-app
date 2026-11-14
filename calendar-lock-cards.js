@@ -54,6 +54,7 @@
  */
 
 import { clearSession } from './session.js';
+import { CONFIG } from './roster-data.js';
 import { takeStaffPinEndedMark } from './staff-pin-ended.js';
 import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH, PIN_FIRST_HASH } from './calendar-access-core.js';
@@ -381,8 +382,11 @@ export async function showSignInPanel(notice = '') {
             // a visiting colleague with no account reads a sign-in form and reasonably concludes the
             // app is not for them. "Visiting or agency staff": the audience the owner named. The list
             // is the pages the PIN opens (auth-policy.js → `staffPin`), so Trains is on it and the
-            // guides are not: the menu and every guide stay open without it (v25.82).
-            hint: 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and Trains.',
+            // guides are not: the menu and every guide stay open without it (v25.82). The documents
+            // are the menu's, so the Newsletter is named only while its button is (CONFIG.NEWSLETTER_IN_MENU).
+            hint: CONFIG.NEWSLETTER_IN_MENU === true
+                ? 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and Trains.'
+                : 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular and Trains.',
             // The PIN card is the door's second view, so it takes a Back entry (sign-in check, 11 Nov
             // 2026): Back on a phone used to leave the app from here instead of returning.
             onSelect: () => {
