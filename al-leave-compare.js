@@ -156,9 +156,12 @@ export function comparePerson({ person, days, member, records, year, todayStr, f
  * @returns {string}
  */
 function leaveDayState({ member, date, ov, winners, chargedTo }) {
-    const beforeStart = isBeforeMemberStart(member, parseISODate(date));
+    // Before the start date the app shows and counts NOTHING, whatever is stored there: the Calendar,
+    // Team Week and the pay suggestions all suppress a record dated before it (`isBeforeMemberStart`),
+    // and Admin refuses to save one. So a stray shift there is no difference the app shows — asked
+    // first, for any record, rather than only for leave.
+    if (isBeforeMemberStart(member, parseISODate(date))) return 'before-start';
     if (ov && ov.type === 'annual_leave') {
-        if (beforeStart) return 'before-start';
         if (!consumesEntitlement(member, date, winners)) return 'free-in-app';
         return leaveYearOf({ ...ov, date }) === chargedTo ? 'match' : 'other-year';
     }
@@ -166,8 +169,7 @@ function leaveDayState({ member, date, ov, winners, chargedTo }) {
     // Nothing recorded: what WOULD booking it do? The Admin leave card's own answer (header).
     const p = projectAlBooking({ member, dates: [date], ovByDate: winners });
     if (p.asked.includes(date)) return 'rest-day';
-    if (p.consuming.includes(date)) return 'not-in-app';
-    return beforeStart ? 'before-start' : 'not-in-app';
+    return 'not-in-app';
 }
 
 /**
