@@ -96,6 +96,7 @@ export const COLLECTIONS = {
     linkTargetSets:    'linkTargetSets',
     analytics:         'analytics',
     resetRequests:     'resetRequests',
+    alUploads:         'alUploads',
 };
 
 // isSafeStorageUrl + isDocxUpload live in the pure, import-free storage-utils.js so they can be
