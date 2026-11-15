@@ -111,6 +111,13 @@ afterwards, which showed the closing panel again and moved focus into it (`creat
 `overlay.js`). Headless WebKit draws slowly enough to expose that race, and a phone rarely would. So
 before calling a test a flake, give it one run that logs what happens.
 
+**A long flow on this engine is split, not given more time** (15 Nov 2026). On the Links page at a
+desktop width, every change to the page (any text, anywhere) costs the Safari engine here one frame of
+300–450 ms, measured, and Playwright pays it before each click, because it waits for the element to
+hold still over two frames. The test of both Custom… routes spent 35–58 s of its 60 on CI that way,
+while the app's own answers landed in under 40 ms. It became two tests with the same assertions
+(`e2e/links.spec.js`); the budget stays where `playwright.webkit.mjs` argues it should.
+
 ## Two editors on one day: warned whenever the server can be asked
 
 Every manual record has one fixed id per member and date (`manualOverrideId` in `override-id.js`), so

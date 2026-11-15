@@ -898,14 +898,18 @@ the in-app dialogs and the collapsible card. Imported by most pages and many fea
 **The canonical lifecycle.** Every `.lb-overlay` lightbox is built with `createLightbox`, never
 hand-written in a page module. It owns focus save and restore, `.visible` → rAF → `.open`, the scroll
 lock, Android Back, Escape, the Tab trap, backdrop and close-button close, and the **mandatory 500 ms
-`transitionend` fallback** (iOS suppresses `transitionend` on a backgrounded tab; reduced motion finishes
-synchronously). Close controls are `<button class="lb-close">`, never a `<span>`.
+`transitionend` fallback** (iOS suppresses `transitionend` on a backgrounded tab). A close finishes at once
+when there is no fade to wait for: reduced motion, or an overlay closed before it faded in, which would
+otherwise leave an invisible layer over the page for half a second (`dismissOverlay`). A close before the
+open's first frame also retires that frame, so it cannot fade the panel back in or take the focus. Close
+controls are `<button class="lb-close">`, never a `<span>`.
 
 **Three exceptions, and the first two are one decision.** The drawer's `#navComingSoonLightbox` and
 `#navNoticesLightbox` (App Notices) belong to `nav-panel.js` alone and hand-roll the lifecycle because
 they share the drawer's history entry: never migrate either to `createLightbox`. Both are injected at
 runtime, so `overlay-parity.test.mjs`'s scan of the served HTML cannot see them. The third is
-`#huddleViewer`, a full-bleed panel with no backdrop close.
+`#huddleViewer`, a full-bleed panel with no backdrop close. All three keep the first-frame rule by hand:
+the frame that fades one in, and the drawer panels' 60 ms focus, ask whether it is still open first.
 
 - `createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose, afterClose })` →
   `{ open, close }`. `close()` returns a Promise that resolves, with `afterClose`, once the close has
@@ -2150,7 +2154,7 @@ The slide-out drawer every app page carries: it injects the overlay and drawer, 
 - `archiveNotice` and `isNoticeExpired` are **re-exported** from `notice-archive.js` (below), so every page that archives a notice imports them from here. The App Notices panel renders the archive (`readArchivedNotices`) and colours each section from `SECTION_MODS`, which stays here.
 - **The documents** (`_openLatestDoc`): refused at once when `canReadDocuments()` says no, before the blank tab opens; otherwise the tab opens on the gesture and is filled through `resolveDocumentOpenUrl`. When no tab comes back (a pop-up blocker, an iOS home-screen app) the tap hands over to the Calendar's in-app viewer through a hidden drawer link, so the unsaved-work question still runs.
 - **The bell** reads `peekNotifState()` on every open (no Firestore write); the push logic is `notif.js`. A labelled full-width row has been tried and reverted twice (CLAUDE.md).
-- **The drawer's two lightboxes** (Coming soon, App Notices) share the drawer's history entry, so they hand-roll `createLightbox`'s promises: a fallback beside `transitionend`, a close that runs ONCE, focus back to the burger, and key handlers that stand down under a higher `.lb-overlay` (`_overlayAbove`). App Notices' Tab cycles TWO stops, the ✕ and `#navNoticesList` (it scrolls under a still heading, so the keyboard must reach it — v25.61). `closePanelForNavigation()` closes the drawer without `history.back()` only when a link takes this page elsewhere, where `location.replace` overwrites the drawer's entry; a `./#…` hash on the Calendar, a new-tab click and the "you are here" pill pop the entry instead (`closePanel`), and a pop that lands on the drawer's own entry — a dialog's above it or above App Notices — is not the drawer's.
+- **The drawer's two lightboxes** (Coming soon, App Notices) share the drawer's history entry, so they hand-roll `createLightbox`'s promises: a fallback beside `transitionend`, a close that runs ONCE and finishes at once when the panel never faded in (`_finishNavLightboxClose`), a first frame and a 60 ms focus that each ask whether the panel is still open (the drawer's own 60 ms focus asks too), focus back to the burger, and key handlers that stand down under a higher `.lb-overlay` (`_overlayAbove`). App Notices' Tab cycles TWO stops, the ✕ and `#navNoticesList` (it scrolls under a still heading, so the keyboard must reach it — v25.61). `closePanelForNavigation()` closes the drawer without `history.back()` only when a link takes this page elsewhere, where `location.replace` overwrites the drawer's entry; a `./#…` hash on the Calendar, a new-tab click and the "you are here" pill pop the entry instead (`closePanel`), and a pop that lands on the drawer's own entry — a dialog's above it or above App Notices — is not the drawer's.
 - Adding a guide is one `NAV_GUIDES` entry with an `openId`, plus that id in the `firestore.rules` analytics allowlist and in `OPEN_META` (`firestore-contract-parity.test.mjs` checks all three). Adding a live document is one `links` entry in `NAV_INFORMATION`; `comingSoon: true` renders a button that opens `#navComingSoonLightbox`.
 - **The Newsletter's row** is drawn `hidden` unless `newsletterInMenu()` (`newsletter-recency.js`, below) says its latest issue is under six weeks old, and asked again on every open. The drawer never reads for it: the Calendar's check keeps the answer on the device.
 

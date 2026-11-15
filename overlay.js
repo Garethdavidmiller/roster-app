@@ -124,7 +124,8 @@ export function openNoticeIfClear(lightbox) {
 
 /**
  * Close an overlay: remove .open, then once the CSS fade-out ends (or after a
- * 500 ms safety fallback) remove .visible and unlock body scroll.
+ * 500 ms safety fallback) remove .visible and unlock body scroll — at once when there is no fade
+ * (reduced motion, or an overlay that never faded in).
  *
  * @param {Element}  el                  - The .lb-overlay element
  * @param {object}   [opts]
@@ -137,6 +138,7 @@ export function openNoticeIfClear(lightbox) {
  */
 export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler } = {}) {
     _clearOverlayHistory(backHandler);
+    const fadedIn = el.classList.contains('open');   // read before it goes: see the finish below
     el.classList.remove('open');
     if (onKey) document.removeEventListener('keydown', onKey);
     focusReturn?.focus();
@@ -159,7 +161,10 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
     // Reduced motion disables the fade transition entirely (shared.css), so transitionend never
     // fires — finish immediately (return null: nothing left pending) instead of making those users
     // wait out the 500 ms fallback with body scroll still locked.
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finishOnce(); return null; }
+    // NEVER FADED IN, NOTHING TO FADE OUT (15 Nov 2026): the same for an overlay closed before the
+    // open's first frame added `.open`. It is still transparent, so no transition runs, and waiting
+    // for one left half a second of an invisible layer over the page, swallowing every tap.
+    if (!fadedIn || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finishOnce(); return null; }
     _t = setTimeout(finishOnce, 500);
     el.addEventListener('transitionend', finishOnce);
     // Return the idempotent finisher so a caller re-opening DURING the fade can complete this close
