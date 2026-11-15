@@ -23,8 +23,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { getBaseShift, parseISODate, isSunday, isBankHoliday } from './roster-data.js';
 import { comparePerson } from './al-leave-compare.js';
-import { planPerson, logFields, dayKey } from './al-leave-plan.js';
+import { planPerson, logFields, logLists, dayKey } from './al-leave-plan.js';
 import { manualOverrideId } from './override-id.js';
+import { buildOverrideWrite } from './override-utils.js';
 import { SIGNED_OUT_CODE } from './claim-retry.js';
 
 // ── THE FAKE SERVER ─────────────────────────────────────────────────────────────────────────────
@@ -147,6 +148,8 @@ const { saveLeavePlans, readMemberRecords, readUploadLogs, writeUploadLog, newUp
 // ── INVENTED PEOPLE, REAL PATTERNS ──────────────────────────────────────────────────────────────
 const YEAR = 2026;
 const ADMIN = 'A. Clerkson';
+/** The id the Save under test marks its records with, where a test does not mint its own as the card does. */
+const SAVE_ID = 'SaveUnderTest0000001';
 /** @type {any} */ const CEA = { name: 'C. Specimen', role: 'CEA', rosterType: 'main', currentWeek: 1 };
 /** @type {any} */ const CES = { name: 'D. Placeholder', role: 'CES', rosterType: 'ces', currentWeek: 1 };
 const DAY = 86_400_000;
@@ -182,6 +185,18 @@ function seed(m, date, id, f = {}) {
     serverWrite(`overrides/${id}`, { memberName: m.name, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual',
         changedBy: 'E. Manager', createdAt: { toMillis: () => ms }, ...f });
 }
+/** A member compared with their sheet days over `records`, as the card compares them.
+ *  @param {any} m @param {string[]} dates @param {any[]} records */
+const compareWith = (m, dates, records) => comparePerson({ person: sheetPerson(m), days: dates.map(d => leave(m, d)), member: m,
+    records, year: YEAR, todayStr: '2026-11-14', firstDate: '2026-01-01', lastDate: '2027-01-31' });
+/** The same admin re-saving a day in Admin — in another tab, say — as Admin's leave card writes it:
+ *  the record as it stands, by the same name, a fresh stamp and no mark (override-utils.js → the builder).
+ *  @param {any} m @param {string} date */
+function resaveInAdmin(m, date) {
+    const key = `overrides/${manualOverrideId(m.name, date)}`;
+    const { uploadId: _mark, createdAt: _was, ...fields } = server.get(key);
+    serverWrite(key, land(buildOverrideWrite(/** @type {any} */ ({ ...fields, changedBy: ADMIN }), SERVER_TS)));
+}
 /** Read a member as the card does, compare them with their sheet days, and plan them.
  *  @param {any} m @param {string[]} dates @param {{ confirmed?: boolean, answers?: Map<string, string> }} [o] */
 async function planFor(m, dates, { confirmed = true, answers = new Map() } = {}) {
@@ -213,16 +228,17 @@ describe('the Save', () => {
     test('a confirmed person’s days go in ONE checked transaction, as the Admin leave card writes them; nobody unconfirmed is touched', async () => {
         const a = await planFor(CEA, [WORK, REST, NEXT_JAN], { answers: new Map([[REST, 'swapped']]) });
         const c = await planFor(CES, [CES_WORK], { confirmed: false });
-        const out = await saveLeavePlans([a, c]);
+        const out = await saveLeavePlans([a, c], { uploadId: SAVE_ID });
         assert.equal(out.stopped, null);
         assert.equal(out.partial, false);
         assert.deepEqual([...out.refused], []);
         assert.deepEqual([...out.saved], [[CEA.name, [WORK, REST, NEXT_JAN].sort()]]);
         assert.equal(commits.length, 1, 'one transaction for the person’s whole part');
         const w = atFixed(CEA, WORK);
-        assert.deepEqual(Object.keys(w).sort(), ['changedBy', 'createdAt', 'date', 'memberName', 'note', 'source', 'type', 'value']);
+        assert.deepEqual(Object.keys(w).sort(), ['changedBy', 'createdAt', 'date', 'memberName', 'note', 'source', 'type', 'uploadId', 'value']);
         assert.deepEqual({ ...w, createdAt: undefined }, { memberName: CEA.name, date: WORK, type: 'annual_leave', value: 'AL', note: '',
-            source: 'manual', changedBy: ADMIN, createdAt: undefined });
+            source: 'manual', changedBy: ADMIN, createdAt: undefined, uploadId: SAVE_ID });
+        for (const d of [REST, NEXT_JAN]) assert.equal(atFixed(CEA, d).uploadId, SAVE_ID, 'every record of the Save carries its id');
         assert.ok(w.createdAt.toMillis() > 0, 'stamped by the server');
         assert.equal(atFixed(CEA, REST).replacedType, 'shift', 'a rest day answered "swapped" costs a day');
         assert.equal(atFixed(CEA, NEXT_JAN).leaveYear, YEAR, 'a next-January day comes out of the sheet’s year');
@@ -233,7 +249,7 @@ describe('the Save', () => {
         const a = await planFor(CEA, [WORK, WORK2]);
         const c = await planFor(CES, [CES_WORK]);
         colleague(CEA, WORK)();
-        const out = await saveLeavePlans([a, c]);
+        const out = await saveLeavePlans([a, c], { uploadId: SAVE_ID });
         assert.deepEqual([...out.refused], [[CEA.name, [WORK]]]);
         assert.equal(atFixed(CEA, WORK).type, 'shift', 'the colleague’s record stands');
         assert.equal(atFixed(CEA, WORK2), undefined, 'the refused part wrote nothing at all');
@@ -245,7 +261,7 @@ describe('the Save', () => {
     test('a change landing between the transaction’s read and its commit is met by the re-run, and refused', async () => {
         const a = await planFor(CEA, [WORK]);
         betweenReadAndCommit = colleague(CEA, WORK);
-        const out = await saveLeavePlans([a]);
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
         assert.deepEqual([...out.refused], [[CEA.name, [WORK]]]);
         assert.equal(txRuns, 2, 'the stale attempt ran again');
         assert.equal(atFixed(CEA, WORK).type, 'shift');
@@ -254,7 +270,7 @@ describe('the Save', () => {
     test('a commit that landed with its answer lost is recognised on the re-run as its own: not refused, not written twice', async () => {
         const a = await planFor(CEA, [WORK, WORK2]);
         landsUnanswered = 1;
-        const out = await saveLeavePlans([a]);
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
         assert.deepEqual([...out.refused], []);
         assert.deepEqual([...out.saved], [[CEA.name, [WORK, WORK2]]]);
         assert.equal(commits.length, 1, 'the re-run found the Save already there and wrote nothing');
@@ -267,17 +283,40 @@ describe('the Save', () => {
         assert.equal(atFixed(CEA, WORK), undefined, 'the premise: the check read nothing there');
         // Booked in Admin after the check, as the leave card writes it: the Save's own record, field for field.
         seed(CEA, WORK, manualOverrideId(CEA.name, WORK), { changedBy: ADMIN, replacedType: null, leaveYear: null });
-        const out = await saveLeavePlans([a]);
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
         assert.deepEqual([...out.refused], [[CEA.name, [WORK]]], 'not taken for the Save’s own, which nothing has sent yet');
         assert.equal(out.saved.has(CEA.name), false);
         assert.equal(commits.length, 0, 'and nothing of that person was written');
+    });
+
+    test('…and one met on a RE-RUN is refused too: without the Save’s id it is not the Save’s write, landed (reviews, 15 Nov 2026)', async () => {
+        const a = await planFor(CEA, [WORK]);
+        // Booked by hand between the first attempt's read and its commit, so the attempt runs again and meets it.
+        betweenReadAndCommit = () => seed(CEA, WORK, manualOverrideId(CEA.name, WORK), { changedBy: ADMIN, replacedType: null, leaveYear: null });
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
+        assert.equal(txRuns, 2, 'the premise: the stale attempt ran again');
+        assert.deepEqual([...out.refused], [[CEA.name, [WORK]]], 'not called a write of the Save’s that landed');
+        assert.equal(out.saved.has(CEA.name), false);
+        assert.equal(atFixed(CEA, WORK).uploadId, undefined, 'the admin’s booking stands');
+        assert.equal(commits.length, 0);
+    });
+
+    test('a Save given no id to mark its records with sends nothing, and says it never started', async () => {
+        const a = await planFor(CEA, [WORK]);
+        for (const opts of [undefined, {}, { uploadId: '' }]) {
+            const out = await saveLeavePlans([a], /** @type {any} */ (opts));
+            assert.equal(out.stopped, 'not-started');
+            assert.equal(out.partial, false);
+        }
+        assert.equal(txRuns, 0);
+        assert.equal(atFixed(CEA, WORK), undefined);
     });
 
     test('a stored day answered "swapped" is rewritten with the swap recorded, and the copy it replaces must still be there', async () => {
         seed(CEA, REST, 'r-booked');
         const a = await planFor(CEA, [REST], { answers: new Map([[REST, 'swapped']]) });
         assert.equal(a.writes[0]?.kind, 'swap');
-        const out = await saveLeavePlans([a]);
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
         assert.deepEqual([...out.saved], [[CEA.name, [REST]]]);
         assert.equal(server.has('overrides/r-booked'), false, 'the copy it replaces went in the same commit');
         assert.equal(atFixed(CEA, REST).replacedType, 'shift');
@@ -286,7 +325,7 @@ describe('the Save', () => {
         seed(CEA, REST, 'r-booked');
         const again = await planFor(CEA, [REST], { answers: new Map([[REST, 'swapped']]) });
         serverWrite('overrides/r-booked', null);   // a colleague deleted the leave after the check
-        const refused = await saveLeavePlans([again]);
+        const refused = await saveLeavePlans([again], { uploadId: SAVE_ID });
         assert.deepEqual([...refused.refused], [[CEA.name, [REST]]], 'leave cancelled since is not written back');
         assert.equal(atFixed(CEA, REST), undefined);
     });
@@ -296,7 +335,7 @@ describe('the Save', () => {
         const was = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
         Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true, writable: true });
         t.after(() => { if (was) Object.defineProperty(globalThis, 'navigator', was); else delete (/** @type {any} */ (globalThis)).navigator; });
-        const out = await saveLeavePlans([a]);
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
         assert.equal(out.stopped, 'offline');
         assert.equal(out.partial, false);
         assert.equal(txRuns, 0);
@@ -307,20 +346,20 @@ describe('the Save', () => {
         const a = await planFor(CEA, [WORK]);
         const c = await planFor(CES, [CES_WORK]);
         txFails = Object.assign(new Error('offline'), { code: 'unavailable' });
-        const lost = await saveLeavePlans([a, c]);
+        const lost = await saveLeavePlans([a, c], { uploadId: SAVE_ID });
         assert.equal(lost.stopped, 'offline');
         assert.equal(lost.code, 'unavailable');
         assert.equal(lost.partial, true, 'the last attempt may have committed, its answer lost');
         assert.deepEqual([...lost.saved], []);
         txFails = Object.assign(new Error('queued saves'), { code: 'unavailable', unsent: true });
-        const unsent = await saveLeavePlans([a, c]);
+        const unsent = await saveLeavePlans([a, c], { uploadId: SAVE_ID });
         assert.equal(unsent.partial, false, 'a transaction that waited for this device’s own saves never started');
     });
 
     test('an account gone mid-write stops everybody, unconfirmed — it may still send once they sign back in', async () => {
         const a = await planFor(CEA, [WORK]);
         writeFails = Object.assign(new Error('signed out'), { code: SIGNED_OUT_CODE });
-        const out = await saveLeavePlans([a]);
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
         assert.equal(out.stopped, 'unconfirmed');
         assert.equal(out.partial, true);
     });
@@ -340,7 +379,7 @@ describe('the Save', () => {
         const c = await planFor(CES, [CES_WORK]);
         colleague(CEA, dates[455])();
         /** @type {Array<[number, number]>} */ const progress = [];
-        const out = await saveLeavePlans([big, c], { onProgress: (d, n) => progress.push([d, n]) });
+        const out = await saveLeavePlans([big, c], { uploadId: SAVE_ID, onProgress: (d, n) => progress.push([d, n]) });
         assert.deepEqual(out.saved.get(CEA.name), dates.slice(0, 450));
         assert.deepEqual(out.refused.get(CEA.name), [dates[455]]);
         assert.equal(atFixed(CEA, dates[451]), undefined, 'nothing of the refused part');
@@ -351,7 +390,7 @@ describe('the Save', () => {
     test('a refusal in a person’s FIRST part stops that person: their later part, planned from the same check, is never sent', async () => {
         const { dates, big } = twoParts();
         colleague(CEA, dates[5])();
-        const out = await saveLeavePlans([big]);
+        const out = await saveLeavePlans([big], { uploadId: SAVE_ID });
         assert.deepEqual(out.refused.get(CEA.name), [dates[5]]);
         assert.equal(out.saved.has(CEA.name), false);
         assert.equal(atFixed(CEA, dates[455]), undefined, 'the second part was not sent');
@@ -404,23 +443,15 @@ describe('the upload log', () => {
         assert.equal(commits.length, 1, 'one create, and the re-run read it back');
     });
 
-    // ACCEPTED, NOT YET WRITTEN (v26.14, backend-first). The rules take `writesMarked` a release
-    // before the Save sends it (firestore.rules → alUploads). The release that writes it empties this
-    // list, and from then the writer and the rule are pinned to the same fields again. Nothing else
-    // may join it: a field the rules list and nobody writes is a gap, and this test exists to show one.
-    const RULES_AHEAD_OF_WRITER = ['writesMarked'];
-
     test('its fields are exactly the ones the rules accept — the writer pinned to the rule', async () => {
         const rules = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
         const block = rules.slice(rules.indexOf('match /alUploads/'));
         const listed = /function logFields\(\)\s*\{\s*return\s*\[([^\]]+)\]/.exec(block)?.[1];
         assert.ok(listed, 'logFields() is still in the rules block');
         const allowed = [...listed.matchAll(/'([^']+)'/g)].map(m => m[1]);
-        for (const f of RULES_AHEAD_OF_WRITER) assert.ok(allowed.includes(f), `${f} is no longer in the rules' list`);
         const id = newUploadLogId();
         await writeUploadLog(id, /** @type {any} */ (logFields({ file: FILE, inLine: ['x|2026-01-05'], added: [], savedBy: ADMIN, appVersion: '26.12' })));
-        assert.deepEqual(Object.keys(server.get(`alUploads/${id}`)).sort(),
-            allowed.filter(f => !RULES_AHEAD_OF_WRITER.includes(f)).sort());
+        assert.deepEqual(Object.keys(server.get(`alUploads/${id}`)).sort(), allowed.sort());
     });
 
     test('logs from before the year kept are deleted, and a read from the cache deletes nothing', async () => {
@@ -445,10 +476,10 @@ describe('the upload log', () => {
 describe('Undo', () => {
     /** Save CEA's three days, then write the log from what landed, as the card does. */
     async function savedAndLogged() {
-        const a = await planFor(CEA, [WORK, WORK2, NEXT_JAN]);
-        await saveLeavePlans([a]);
-        const added = [WORK, WORK2, NEXT_JAN].map(d => dayKey(CEA.name, d)).sort();
         const id = newUploadLogId();
+        const a = await planFor(CEA, [WORK, WORK2, NEXT_JAN]);
+        await saveLeavePlans([a], { uploadId: id });
+        const added = [WORK, WORK2, NEXT_JAN].map(d => dayKey(CEA.name, d)).sort();
         await writeUploadLog(id, /** @type {any} */ (logFields({ file: FILE, inLine: added, added, savedBy: ADMIN, appVersion: '26.12' })));
         const [log] = await readUploadLogs(YEAR);
         return { log, added, id };
@@ -475,6 +506,42 @@ describe('Undo', () => {
         assert.deepEqual(res.kept, [dayKey(CEA.name, WORK)]);
         assert.deepEqual(res.removed, added.filter(k => k !== dayKey(CEA.name, WORK)));
         assert.equal(atFixed(CEA, WORK).type, 'shift');
+    });
+
+    test('THE SAME ADMIN CHANGING A DAY BETWEEN THE SAVE AND ITS LOG: the Undo keeps that day and takes back the rest (external review, 15 Nov 2026)', async () => {
+        // As the card runs it (operations-al-save.js): the id first, the Save, the read-back, the log from that read.
+        const id = newUploadLogId();
+        const dates = [WORK, WORK2, NEXT_JAN];
+        const a = await planFor(CEA, dates);
+        await saveLeavePlans([a], { uploadId: id });
+        const read = await readMemberRecords([CEA.name]);
+        resaveInAdmin(CEA, WORK2);   // after the read-back, before the log is written
+        const lists = logLists({ after: [compareWith(CEA, dates, read.get(CEA.name) ?? [])], plans: [a], recordsByName: read,
+            savedBy: ADMIN, uploadId: id });
+        assert.deepEqual(lists.added, dates.map(d => dayKey(CEA.name, d)).sort(), 'the premise: read before the change, all three were the Save’s');
+        await writeUploadLog(id, /** @type {any} */ (logFields({ file: FILE, ...lists, savedBy: ADMIN, appVersion: '26.15' })));
+        const [log] = await readUploadLogs(YEAR);
+        const changed = atFixed(CEA, WORK2);
+        assert.ok(changed.changedBy === ADMIN && changed.createdAt.toMillis() < log.savedAt.toMillis(),
+            'the premise: by the log’s author and stamped before it, which the date rule took for the Save’s own');
+        const res = await undoUpload(log, { recordsByName: await recordsNow(), undoneBy: ADMIN });
+        assert.deepEqual(res.kept, [dayKey(CEA.name, WORK2)]);
+        assert.deepEqual(res.removed, [dayKey(CEA.name, WORK), dayKey(CEA.name, NEXT_JAN)].sort());
+        assert.equal(atFixed(CEA, WORK2)?.type, 'annual_leave', 'the admin’s change stands');
+        assert.deepEqual(server.get(`alUploads/${id}`).undone, res.removed, 'and the log says only what was taken back');
+    });
+
+    test('…and a change made before the read-back is never logged as the Save’s at all', async () => {
+        const id = newUploadLogId();
+        const dates = [WORK, WORK2];
+        const a = await planFor(CEA, dates);
+        await saveLeavePlans([a], { uploadId: id });
+        resaveInAdmin(CEA, WORK2);   // between the Save's commit and the card's read
+        const read = await readMemberRecords([CEA.name]);
+        const lists = logLists({ after: [compareWith(CEA, dates, read.get(CEA.name) ?? [])], plans: [a], recordsByName: read,
+            savedBy: ADMIN, uploadId: id });
+        assert.deepEqual(lists.added, [dayKey(CEA.name, WORK)]);
+        assert.deepEqual(lists.inLine, dates.map(d => dayKey(CEA.name, d)).sort(), 'still in line: the app holds it as leave');
     });
 
     test('a change landing just before the delete is refused and kept, and the rest of that person’s days still go', async () => {
@@ -529,11 +596,11 @@ describe('Undo', () => {
     });
 
     test('…and one cut short BETWEEN two people takes back the rest on the second press, marking both', async () => {
+        const id = newUploadLogId();
         const a = await planFor(CEA, [WORK, WORK2]);
         const c = await planFor(CES, [CES_WORK]);
-        await saveLeavePlans([a, c]);
+        await saveLeavePlans([a, c], { uploadId: id });
         const added = [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2), dayKey(CES.name, CES_WORK)].sort();
-        const id = newUploadLogId();
         await writeUploadLog(id, /** @type {any} */ (logFields({ file: FILE, inLine: added, added, savedBy: ADMIN, appVersion: '26.12' })));
         const [log] = await readUploadLogs(YEAR);
         const both = () => readMemberRecords([CEA.name, CES.name]);

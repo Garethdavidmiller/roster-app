@@ -34,6 +34,9 @@ const FIRST = '2026-01-01';
 const LAST = '2027-01-31';
 const TODAY = '2026-11-14';
 const ADMIN = 'A. Clerkson';
+/** The id of the Save under test, which every one of its records carries; and another Save's. */
+const UP = 'SaveUnderTest0000001';
+const OTHER_UP = 'AnEarlierSave0000002';
 
 /** @type {any} */ const CEA = { name: 'A. Example', role: 'CEA', rosterType: 'main', currentWeek: 1 };
 /** @type {any} */ const CES = { name: 'B. Example', role: 'CES', rosterType: 'ces', currentWeek: 1 };
@@ -341,15 +344,15 @@ describe('the log is built from what the app holds after the Save', () => {
         assert.equal(p.writes.length, 3);
         const at = new Map(p.writes.map(w => [w.date, w]));
         // What the server holds after: WORK landed as this Save's own; WORK2 never landed; REST was
-        // rewritten by a colleague between the Save and the read.
+        // rewritten by a colleague between the Save and the read, which took the Save's mark off it.
         const read = [
-            { id: manualOverrideId(CEA.name, WORK), ...at.get(WORK)?.fields, createdAt: { seconds: 5 } },
+            { id: manualOverrideId(CEA.name, WORK), ...at.get(WORK)?.fields, uploadId: UP, createdAt: { seconds: 5 } },
             { id: manualOverrideId(CEA.name, REST), ...at.get(REST)?.fields, changedBy: 'C. Manager', createdAt: { seconds: 6 } },
         ];
         const other = AL(CES, find(CES, '2026-03-02', timed));
         const after = [compare(CEA, [leave(CEA, WORK), leave(CEA, WORK2), leave(CEA, REST)], read),
             compare(CES, [leave(CES, other.date)], [other])];
-        const lists = logLists({ after, plans: [p], recordsByName: new Map([[CEA.name, read], [CES.name, [other]]]), savedBy: ADMIN });
+        const lists = logLists({ after, plans: [p], recordsByName: new Map([[CEA.name, read], [CES.name, [other]]]), savedBy: ADMIN, uploadId: UP });
         assert.deepEqual(lists.inLine, [dayKey(CEA.name, WORK), dayKey(CEA.name, REST), dayKey(CES.name, other.date)].sort());
         assert.deepEqual(lists.added, [dayKey(CEA.name, WORK)]);
     });
@@ -357,8 +360,9 @@ describe('the log is built from what the app holds after the Save', () => {
     test('a rewrite of a stored day is never "added": an undo cannot honestly put the old record back', () => {
         const stored = AL(CEA, REST, { id: manualOverrideId(CEA.name, REST) });
         const p = plan(compare(CEA, [leave(CEA, REST)], [stored]), [stored], { answers: new Map([[REST, 'swapped']]) });
-        const read = [{ id: stored.id, ...p.writes[0].fields, createdAt: { seconds: 9 } }];
-        const lists = logLists({ after: [compare(CEA, [leave(CEA, REST)], read)], plans: [p], recordsByName: new Map([[CEA.name, read]]), savedBy: ADMIN });
+        const read = [{ id: stored.id, ...p.writes[0].fields, uploadId: UP, createdAt: { seconds: 9 } }];
+        const lists = logLists({ after: [compare(CEA, [leave(CEA, REST)], read)], plans: [p], recordsByName: new Map([[CEA.name, read]]),
+            savedBy: ADMIN, uploadId: UP });
         assert.deepEqual(lists.added, []);
         assert.deepEqual(lists.inLine, [dayKey(CEA.name, REST)]);
     });
@@ -368,42 +372,64 @@ describe('the log is built from what the app holds after the Save', () => {
         const p = plan(person, [], { answers: new Map([[REST, 'swapped']]) });
         const at = new Map(p.writes.map(w => [w.date, w]));
         // WORK landed; WORK2 holds a colleague's record; REST holds leave without the swap answered.
+        // All three carry the Save's mark, so each check below is tested on its own.
         const read = [
-            { id: manualOverrideId(CEA.name, WORK), ...at.get(WORK)?.fields, createdAt: { seconds: 5 } },
-            { id: manualOverrideId(CEA.name, WORK2), ...at.get(WORK2)?.fields, changedBy: 'C. Manager', createdAt: { seconds: 6 } },
-            { id: manualOverrideId(CEA.name, REST), ...at.get(REST)?.fields, replacedType: undefined, createdAt: { seconds: 7 } },
+            { id: manualOverrideId(CEA.name, WORK), ...at.get(WORK)?.fields, uploadId: UP, createdAt: { seconds: 5 } },
+            { id: manualOverrideId(CEA.name, WORK2), ...at.get(WORK2)?.fields, changedBy: 'C. Manager', uploadId: UP, createdAt: { seconds: 6 } },
+            { id: manualOverrideId(CEA.name, REST), ...at.get(REST)?.fields, replacedType: undefined, uploadId: UP, createdAt: { seconds: 7 } },
         ];
-        const landed = () => landedWrites({ plans: [p], recordsByName: new Map([[CEA.name, read]]), savedBy: ADMIN });
+        const landed = () => landedWrites({ plans: [p], recordsByName: new Map([[CEA.name, read]]), savedBy: ADMIN, uploadId: UP });
         assert.deepEqual([...landed()], [[CEA.name, [WORK]]]);
         read[2].replacedType = at.get(REST)?.fields.replacedType;
         assert.deepEqual(landed().get(CEA.name)?.slice().sort(), [WORK, REST].sort(), 'the swap answer is part of what was written');
-        assert.equal(landedWrites({ plans: [p], recordsByName: new Map(), savedBy: ADMIN }).size, 0, 'nothing read, nothing landed');
+        assert.equal(landedWrites({ plans: [p], recordsByName: new Map(), savedBy: ADMIN, uploadId: UP }).size, 0, 'nothing read, nothing landed');
         // A rewrite (the stored day answered "swapped") landed is saved, though an Undo never takes it back.
         const stored = AL(CEA, REST2, { id: manualOverrideId(CEA.name, REST2) });
         const q = plan(compare(CEA, [leave(CEA, REST2)], [stored]), [stored], { answers: new Map([[REST2, 'swapped']]) });
         assert.equal(q.writes[0]?.kind, 'swap');
-        const back = [{ id: stored.id, ...q.writes[0].fields, createdAt: { seconds: 9 } }];
-        assert.deepEqual(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, back]]), savedBy: ADMIN }).get(CEA.name), [REST2]);
-        assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, [stored]]]), savedBy: ADMIN }).size, 0,
+        const back = [{ id: stored.id, ...q.writes[0].fields, uploadId: UP, createdAt: { seconds: 9 } }];
+        assert.deepEqual(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, back]]), savedBy: ADMIN, uploadId: UP }).get(CEA.name), [REST2]);
+        assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, [stored]]]), savedBy: ADMIN, uploadId: UP }).size, 0,
             'the stored day as it was is not the rewrite');
-        assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, back]]), savedBy: ADMIN, kinds: ['add', 'add-swapped'] }).size, 0);
+        assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, back]]), savedBy: ADMIN, uploadId: UP,
+            kinds: ['add', 'add-swapped'] }).size, 0);
     });
 
-    test('a day the Save was refused on is never its own, whatever the read finds there — the admin’s own booking by hand (review, 15 Nov 2026)', () => {
+    test('a day the Save was refused on is never its own, whatever the read finds there — even a record carrying its mark (review, 15 Nov 2026)', () => {
         const days = [leave(CEA, WORK), leave(CEA, WORK2)];
         const p = plan(compare(CEA, days), []);
         const at = new Map(p.writes.map(w => [w.date, w]));
-        // Both days read back exactly as the Save writes them: WORK landed, and WORK2 is the admin's own
-        // booking made in Admin after the check, which the Save's check refused.
-        const read = [WORK, WORK2].map((d, i) => ({ id: manualOverrideId(CEA.name, d), ...at.get(d)?.fields, createdAt: { seconds: 5 + i } }));
+        // Both days read back exactly as the Save writes them, mark and all: WORK landed, and WORK2 is the
+        // rare day a re-run was refused on after an earlier attempt of it landed with its answer lost.
+        const read = [WORK, WORK2].map((d, i) => ({ id: manualOverrideId(CEA.name, d), ...at.get(d)?.fields, uploadId: UP,
+            createdAt: { seconds: 5 + i } }));
         const recordsByName = new Map([[CEA.name, read]]);
         const exclude = new Map([[CEA.name, [WORK2]], [CES.name, [WORK]]]);
-        assert.deepEqual(landedWrites({ plans: [p], recordsByName, savedBy: ADMIN }).get(CEA.name), [WORK, WORK2], 'the premise: alike');
-        assert.deepEqual([...landedWrites({ plans: [p], recordsByName, savedBy: ADMIN, exclude })], [[CEA.name, [WORK]]],
+        assert.deepEqual(landedWrites({ plans: [p], recordsByName, savedBy: ADMIN, uploadId: UP }).get(CEA.name), [WORK, WORK2], 'the premise: alike');
+        assert.deepEqual([...landedWrites({ plans: [p], recordsByName, savedBy: ADMIN, uploadId: UP, exclude })], [[CEA.name, [WORK]]],
             'not counted as saved; another person’s refusal takes nothing of this one’s');
-        const lists = logLists({ after: [compare(CEA, days, read)], plans: [p], recordsByName, savedBy: ADMIN, exclude });
-        assert.deepEqual(lists.added, [dayKey(CEA.name, WORK)], 'so an Undo can never take the hand booking back');
+        const lists = logLists({ after: [compare(CEA, days, read)], plans: [p], recordsByName, savedBy: ADMIN, uploadId: UP, exclude });
+        assert.deepEqual(lists.added, [dayKey(CEA.name, WORK)], 'so an Undo can never take it back: kept is the side to be wrong on');
         assert.deepEqual(lists.inLine, [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2)].sort(), 'it is still in line: the app holds it as leave');
+    });
+
+    test('a record is the Save’s only while it carries the Save’s id: the admin’s own booking, field for field, is not (external review, 15 Nov 2026)', () => {
+        const days = [leave(CEA, WORK), leave(CEA, WORK2)];
+        const p = plan(compare(CEA, days), []);
+        const at = new Map(p.writes.map(w => [w.date, w]));
+        // WORK2 is exactly what the Save writes, by the same admin — booked by hand in Admin, or another tab.
+        const read = [
+            { id: manualOverrideId(CEA.name, WORK), ...at.get(WORK)?.fields, uploadId: UP, createdAt: { seconds: 5 } },
+            { id: manualOverrideId(CEA.name, WORK2), ...at.get(WORK2)?.fields, createdAt: { seconds: 6 } },
+        ];
+        const recordsByName = new Map([[CEA.name, read]]);
+        const landed = (/** @type {any} */ uploadId) => landedWrites({ plans: [p], recordsByName, savedBy: ADMIN, uploadId });
+        assert.deepEqual([...landed(UP)], [[CEA.name, [WORK]]], 'counted only where the mark is');
+        assert.equal(landed(OTHER_UP).size, 0, 'another Save’s mark is not this one’s');
+        for (const none of [undefined, null, '']) assert.equal(landed(none).size, 0, `with no id (${none}) nothing landed — never every unmarked record`);
+        const lists = logLists({ after: [compare(CEA, days, read)], plans: [p], recordsByName, savedBy: ADMIN, uploadId: UP });
+        assert.deepEqual(lists.added, [dayKey(CEA.name, WORK)], 'so the log never calls the admin’s booking the Save’s');
+        assert.deepEqual(lists.inLine, [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2)].sort());
     });
 
     test('logFields carries the file’s own identity, and refuses an empty log or one too long for the rules', () => {
@@ -411,7 +437,8 @@ describe('the log is built from what the app holds after the Save', () => {
             source: { sha256: 'f'.repeat(64), clerksLastSaved: '2026-11-06T10:00:00Z', lastSavedByClerk: null } };
         assert.deepEqual(logFields({ file, inLine: ['x|2026-01-02'], added: [], savedBy: ADMIN, appVersion: '26.12' }), {
             year: YEAR, fileDigest: file.digest, workbookSha256: file.source.sha256, clerksLastSaved: '2026-11-06T10:00:00Z',
-            lastSavedByClerk: null, savedBy: ADMIN, appVersion: '26.12', inLine: ['x|2026-01-02'], added: [] });
+            lastSavedByClerk: null, savedBy: ADMIN, appVersion: '26.12', inLine: ['x|2026-01-02'], added: [], writesMarked: true },
+            'and it says its Save marked every record, so its Undo goes by the mark');
         assert.equal(logFields({ file, inLine: [], added: [], savedBy: ADMIN, appVersion: '26.12' }), null);
         const many = Array.from({ length: LOG_MAX_DAYS + 1 }, (_, i) => `x|${i}`);
         assert.equal(logFields({ file, inLine: many, added: [], savedBy: ADMIN, appVersion: '26.12' }), null);
@@ -430,25 +457,66 @@ describe('the log is built from what the app holds after the Save', () => {
 
 describe('what an Undo may take back', () => {
     const savedAt = { seconds: 500 };
-    /** @param {string} date @param {Record<string, any>} [o] */
+    /** A record as the Save wrote it, carrying its id. @param {string} date @param {Record<string, any>} [o] */
     const own = (date, o = {}) => ({ id: manualOverrideId(CEA.name, date), memberName: CEA.name, date, type: 'annual_leave', value: 'AL',
-        note: '', source: 'manual', changedBy: ADMIN, createdAt: { seconds: 400 }, ...o });
+        note: '', source: 'manual', changedBy: ADMIN, uploadId: UP, createdAt: { seconds: 400 }, ...o });
+    /** A log as a Save writes one now, saying its records carry its id. @param {string[]} added @returns {any} */
+    const marked = added => ({ id: UP, savedAt, savedBy: ADMIN, writesMarked: true, added });
 
-    test('a day still the Save’s own is removed; one rewritten since, by anybody, is kept; one already gone is neither', () => {
-        const log = /** @type {any} */ ({ savedAt, savedBy: ADMIN,
-            added: [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2), dayKey(CEA.name, REST), dayKey(CEA.name, REST2), 'not a key'] });
-        const records = [own(WORK), own(WORK2, { createdAt: { seconds: 600 } }), own(REST, { changedBy: 'C. Manager' })];
+    test('a day still carrying the Save’s id is removed; one rewritten since, by anybody, is kept; one already gone is neither', () => {
+        const log = marked([dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2), dayKey(CEA.name, REST), dayKey(CEA.name, REST2), 'not a key']);
+        // WORK2 rewritten since by the log's own author, as Admin writes it: no mark. REST by a colleague.
+        const records = [own(WORK), own(WORK2, { uploadId: undefined, createdAt: { seconds: 600 } }),
+            own(REST, { changedBy: 'C. Manager', uploadId: undefined })];
         const u = planUndo({ log, recordsByName: new Map([[CEA.name, records]]) });
         assert.deepEqual(u.remove.map(r => r.date), [WORK]);
         assert.deepEqual(u.kept, [dayKey(CEA.name, WORK2), dayKey(CEA.name, REST)]);
         assert.deepEqual(u.gone, [dayKey(CEA.name, REST2)]);
     });
 
-    test('a day no longer leave is kept, whatever stamp it carries', () => {
-        const log = /** @type {any} */ ({ savedAt, savedBy: ADMIN, added: [dayKey(CEA.name, WORK)] });
-        const u = planUndo({ log, recordsByName: new Map([[CEA.name, [own(WORK, { type: 'sick', value: 'SICK' })]]]) });
-        assert.deepEqual(u.remove, []);
+    test('THE SAME ADMIN’S CHANGE BETWEEN THE SAVE AND ITS LOG is kept: stamped before the log and by its author, it has lost the mark (external review, 15 Nov 2026)', () => {
+        const log = marked([dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2)]);
+        // The Save wrote both days (400); the admin re-saved WORK2 in another tab (450); the log came last (500).
+        const changed = own(WORK2, { uploadId: undefined, createdAt: { seconds: 450 } });
+        const recordsByName = new Map([[CEA.name, [own(WORK), changed]]]);
+        // The reported bug, as the premise: judged by date, as before the mark, the change is the Save's.
+        const byDate = planUndo({ log: { ...log, writesMarked: undefined }, recordsByName });
+        assert.deepEqual(byDate.remove.map(r => r.date).sort(), [WORK, WORK2].sort(), 'the premise: the date rule undoes the admin’s change');
+        const u = planUndo({ log, recordsByName });
+        assert.deepEqual(u.remove.map(r => r.date), [WORK]);
+        assert.deepEqual(u.kept, [dayKey(CEA.name, WORK2)]);
+    });
+
+    test('a marked log takes back nothing carrying another Save’s id, and nothing at all without an id of its own', () => {
+        const log = marked([dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2)]);
+        const u = planUndo({ log, recordsByName: new Map([[CEA.name, [own(WORK, { uploadId: OTHER_UP }), own(WORK2)]]]) });
+        assert.deepEqual(u.remove.map(r => r.date), [WORK2]);
         assert.deepEqual(u.kept, [dayKey(CEA.name, WORK)]);
+        for (const id of [undefined, '']) {
+            const records = [own(WORK, { uploadId: id }), own(WORK2, { uploadId: id })];
+            const none = planUndo({ log: { ...log, id }, recordsByName: new Map([[CEA.name, records]]) });
+            assert.deepEqual(none.remove, [], `a log with no id (${JSON.stringify(id)}) matches no record, unmarked ones least of all`);
+        }
+    });
+
+    test('a day no longer leave is kept, whatever it carries', () => {
+        for (const log of [marked([dayKey(CEA.name, WORK)]), { savedAt, savedBy: ADMIN, added: [dayKey(CEA.name, WORK)] }]) {
+            const u = planUndo({ log: /** @type {any} */ (log), recordsByName: new Map([[CEA.name, [own(WORK, { type: 'sick', value: 'SICK' })]]]) });
+            assert.deepEqual(u.remove, []);
+            assert.deepEqual(u.kept, [dayKey(CEA.name, WORK)]);
+        }
+    });
+
+    test('a log from before the mark (v26.13) is still judged by date: its records carry no id', () => {
+        const log = /** @type {any} */ ({ savedAt, savedBy: ADMIN,
+            added: [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2), dayKey(CEA.name, REST), dayKey(CEA.name, REST2), 'not a key'] });
+        /** @param {string} d @param {Record<string, any>} [o] */
+        const unmarked = (d, o = {}) => own(d, { uploadId: undefined, ...o });
+        const records = [unmarked(WORK), unmarked(WORK2, { createdAt: { seconds: 600 } }), unmarked(REST, { changedBy: 'C. Manager' })];
+        const u = planUndo({ log, recordsByName: new Map([[CEA.name, records]]) });
+        assert.deepEqual(u.remove.map(r => r.date), [WORK]);
+        assert.deepEqual(u.kept, [dayKey(CEA.name, WORK2), dayKey(CEA.name, REST)]);
+        assert.deepEqual(u.gone, [dayKey(CEA.name, REST2)]);
     });
 });
 

@@ -4942,6 +4942,11 @@ test('operations annual leave sheet: the Save adds a confirmed person’s missin
         clerksLastSaved: fx.file.source.clerksLastSaved, lastSavedByClerk: true, savedBy: 'G. Miller', added });
     expect(logs[0].data.inLine, 'every sheet day the app now holds as leave, the days already right included').toEqual(
         [...added, `${fx.A.name}|${fx.dates.match}`, `${fx.B.name}|${fx.dates.bMatch}`].sort());
+    // Every record carries the id of the Save's own log, minted before the first write, and the log says
+    // so: that mark, not a date, is how its Undo knows a day is still the Save's (al-leave-plan.js).
+    const logId = String(logs[0].path).slice('alUploads/'.length);
+    expect(logs[0].data.writesMarked, 'the log says its Save marked every record').toBe(true);
+    for (const w of writes) expect(w.data.uploadId, `${w.data.date} carries the id of the Save’s log`).toBe(logId);
     // The fresh check: A's two days are in line, nothing is left to save, and the Save can be undone.
     await expect(page.locator('#alSheetSaveBtn'), 'the same file again has nothing to save').toHaveCount(0);
     await expect(page.locator('.al-sheet-last')).toContainText('adding 2 days of leave');
@@ -4967,6 +4972,35 @@ test('operations annual leave sheet: the Save adds a confirmed person’s missin
     expect(marks[0].data).toMatchObject({ undoneBy: 'G. Miller', undone: added });
     await expect(page.locator('.al-sheet-undo'), 'an undone Save is not offered again').toHaveCount(0);
     await expect(page.locator('#alSheetSaveBtn'), 'and its days are offered again').toHaveText(SAVE_WORDS.confirmFirst);
+    expect(errors).toEqual([]);
+});
+
+test('operations annual leave sheet: the Undo keeps a day the same admin changed after the Save, though it is stamped before the log (external review, 15 Nov 2026)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true, docsByQuery: { overrides: fx.records, alUploads: [] } });
+    await confirmA(page, fx);
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.recorded);
+    // The same admin re-saves one of the Save's days in Admin, in another tab: the record Admin's leave
+    // card writes — the same leave, the same name, no mark — stamped, as in the gap the review found,
+    // before the log was written. Judged by its date, it was the Save's own and went with the Undo.
+    const changed = manualOverrideId(fx.A.name, fx.dates.missing);
+    await page.evaluate((id) => {
+        const byQ = /** @type {any} */ (window).__E2E.docsByQuery;
+        const row = byQ.overrides.find((/** @type {any} */ r) => r.id === id);
+        delete row.uploadId;
+        row.createdAt = byQ.alUploads[0].savedAt - 1;
+    }, changed);
+    await page.locator('.al-sheet-undo').click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    const words = undoneWords({ removed: [`${fx.A.name}|${fx.dates.restDay}`], kept: [`${fx.A.name}|${fx.dates.missing}`], gone: [] });
+    await expect(feedback).toContainText(words[0]);
+    await expect(feedback, 'and the receipt names the day it kept').toContainText(words[1]);
+    const deleted = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(deleted, 'the admin’s change is not taken back').not.toContain(`overrides/${changed}`);
+    expect(deleted).toContain(`overrides/${manualOverrideId(fx.A.name, fx.dates.restDay)}`);
     expect(errors).toEqual([]);
 });
 
