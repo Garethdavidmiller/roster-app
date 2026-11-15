@@ -482,10 +482,58 @@ export function computeGross(i) {
            gRdw, gSunday, gBoxing, gPeer };
 }
 
+/** One "week 1" or "month 1" in any of the ways a payslip prints it: W1, WK1, WEEK1, M1, MTH1, MONTH1. */
+const WEEK_OR_MONTH_1 = '(?:W(?:EEK|K)?|M(?:ONTH|TH)?)1';
+/** The week 1 / month 1 marker at the end of a code, read once its spaces are gone: HMRC's W1, M1 or
+ *  X; a payslip's Wk1, Mth1 or "Week 1/Month 1"; after a slash or a dash, or in brackets. */
+const NON_CUMULATIVE_MARKER = new RegExp(`[/-]?\\(?(?:${WEEK_OR_MONTH_1}(?:[/-]?${WEEK_OR_MONTH_1})?|X)\\)?$`);
+
+/**
+ * A tax code as this calculator reads it: the ONE reader (15 Nov 2026). computeTax prices with it,
+ * and paycalc-periods.js asks it whether Year to Date figures can change a code at all, so the two
+ * cannot disagree about one; each kept its own regex before, held together only by a test.
+ *
+ * A WEEK 1 / MONTH 1 code taxes each payslip on its own, as if it were the first of the year. HMRC
+ * writes it W1, M1 or X after the code, but payslips also print Wk1, Mth1, "Week 1/Month 1", or a
+ * slash ("1257L/M1"). Those read as ordinary codes before — and Wk1 or Mth1 as an UNRECOGNISED one,
+ * priced on the standard allowance with the Year to Date figures still applied, the worse of both.
+ *  - Spaces go BEFORE the default, so a box holding only spaces is blank — 1257L — rather than an
+ *    empty code the engine does not recognise (v24.89; it priced the same bar the cumulative +9).
+ *  - A Welsh C prefix is dropped: Welsh income-tax rates are England's, so CBR/CD0/CD1/CNT price as
+ *    BR/D0/D1/NT, and C0T keeps no allowance. Without this they fell through to banded tax, and C0T
+ *    kept the full allowance. (Numeric C-codes like C1257L were already read by resolvePA's prefix.)
+ * @param {unknown} taxCode  the Tax Code box's text
+ * @returns {{ code: string, base: string, marker: string, nonCumulative: boolean, scottish: boolean,
+ *   recognised: boolean }}
+ *   code — upper case, spaces removed, 1257L when blank: what the member is told was used;
+ *   base — the code without its marker or a Welsh C; marker — the week 1 / month 1 text, or '';
+ *   recognised — a shape this engine prices on its own terms (an unknown one is priced on the
+ *   DEFAULT allowance, so `code` is then what was typed, not what was priced — v24.89).
+ */
+export function readTaxCode(taxCode) {
+  const code = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
+  const found = NON_CUMULATIVE_MARKER.exec(code);
+  const marker = found ? found[0] : '';
+  const base = code.slice(0, code.length - marker.length).replace(/^C/, '');
+  return {
+    code, base, marker, nonCumulative: !!found, scottish: /^S/.test(base),
+    // Every shape this engine prices on its own terms — mirrors computeTax's branches.
+    recognised: /^(NT|S?BR|S?D[01]|SD[23]|S?0T|S?K\d+|S?\d+[LMNT])$/.test(base),
+  };
+}
+
+/**
+ * How far the Year to Date Tax Paid may be ABOVE a normal working of the code before the figures are
+ * judged not to come from it (owner, 15 Nov 2026). Real payslips worked out the normal way land
+ * within 25p of this calculator's own cumulative figure (paycalc.md → "(code × 10) + 9"), so £2 is
+ * rounding room, not a margin of opinion. computeTax says why it is there.
+ */
+const YTD_FIT_TOLERANCE = 2;
+
 /**
  * Compute income tax for a pay period.
- * Supports: nL, BR, D0, D1, NT, 0T, Kn, W1/M1/X suffix, S prefix (Scottish).
- * When both ytdPay and ytdTax are provided (non-null) and the code is cumulative,
+ * Supports: nL, BR, D0, D1, NT, 0T, Kn, a week 1 / month 1 marker (`readTaxCode`), S prefix (Scottish).
+ * When both ytdPay and ytdTax are provided (non-null), the code is cumulative and the figures FIT it,
  * switches to HMRC cumulative PAYE method: total tax owed YTD minus already collected.
  * Pass null for either to fall back to per-period estimation.
  *
@@ -499,10 +547,13 @@ export function computeGross(i) {
  * @param {number} [opts.otherDeductions] - NI and student loans this payslip takes: the cumulative
  *   tax is bounded by what they leave of the pay
  * @returns {{ tax: number, usingCumulative: boolean, refund: number, code: string, recognised: boolean,
- *   payLimited: boolean }}
+ *   payLimited: boolean, ytdMisfit: { expected: number, paid: number } | null }}
  *   refund — tax the cumulative recalculation says was over-collected (>0 only on the cumulative
  *   path); never netted into `tax`. payLimited — the pay bound, not the year, set the tax: the Year to
  *   Date figures ask for more than this payslip can pay, which is a mistyped figure.
+ *   ytdMisfit — the Year to Date figures could not have come from this code worked out the normal
+ *   way, so they were NOT used: `expected` is what the code would have taken by the payslip they came
+ *   from, `paid` the Tax Paid given. null whenever they fit, or were not given.
  *   code — the code as this calculation READ it (upper case, no
  *   spaces, 1257L when the box was blank). recognised — whether it is a code this engine knows.
  *   An unrecognised one ("OT" with a letter O, "1182" with no letter) is priced on the DEFAULT
@@ -510,19 +561,7 @@ export function computeGross(i) {
  *   and the "Check against your payslip" line must say so rather than quote it as applied (v24.89).
  */
 export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null, otherDeductions = 0 } = {}) {
-  // Spaces go BEFORE the default, so a box holding only spaces is blank — 1257L — rather than an
-  // empty code the engine does not recognise (v24.89; it priced the same bar the cumulative +9).
-  const rawCode    = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
-  const isNonCum   = /[WM]1$|X$/.test(rawCode);
-  // Welsh (C-prefix) income-tax rates are identical to rUK/English (Wales has not diverged from
-  // the Westminster rates), so strip a leading C and treat it as the equivalent rUK code. Without
-  // this, CBR/CD0/CD1/CNT fell through to banded tax and C0T wrongly kept the full allowance.
-  // (Numeric C-codes like C1257L were already handled by resolvePA's [SC]? prefix.)
-  const baseCode   = rawCode.replace(/[WM]1$|X$/, '').replace(/^C/, '');
-  const isScottish = /^S/.test(baseCode);
-  // Every shape this engine prices on its own terms — mirrors the branches below. Anything else
-  // falls through to the default allowance, and is reported as not recognised (v24.89).
-  const recognised = /^(NT|S?BR|S?D[01]|SD[23]|S?0T|S?K\d+|S?\d+[LMNT])$/.test(baseCode);
+  const { code: rawCode, base: baseCode, nonCumulative: isNonCum, scottish: isScottish, recognised } = readTaxCode(taxCode);
   const TAX = /** @type {any} */ (t.tax), SCOT = /** @type {any} */ (t.scottishTax);
 
   function resolvePA(/** @type {boolean} */ cumulative) {
@@ -592,9 +631,26 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   // the cumulative liability).
   const isKCode = /^[SC]?K\d+$/.test(baseCode);
   const overridingLimit = isKCode ? Math.max(0, sacGross) * 0.5 : Infinity;
+  /** This payslip on its own: the estimate without Year to Date figures. */
+  const standard = () => ({ tax: taxPennies(Math.min(taxOnAmount(sacGross, null), overridingLimit)), usingCumulative: false,
+    payLimited: false, refund: 0, code: rawCode, recognised, ytdMisfit: null });
 
   if (ytdPay != null && ytdTax != null && !isNonCum && periodN !== null) {
     const N = periodN;
+    // THE FIGURES MUST FIT THE CODE (owner, 15 Nov 2026). Worked out the normal way, a code takes
+    // exactly what it is due on the year so far, so the Tax Paid on the payslip the figures came from
+    // (period N − 1) is what this code takes on its Taxable Pay, to within pennies. Paid well beyond
+    // that, the figures did not come from this code worked out the normal way: a payroll taxing each
+    // payslip on its own (a week 1 / month 1 basis nothing on the payslip names), a code that has
+    // just changed, or a mistyped figure. The cumulative method then reported the difference as a
+    // REFUND and took no tax at all: a take-home a whole payslip's tax too high, on the screenshot that
+    // reported it. So such figures are not used, and the result says why. Only OVER the code: below it is a
+    // code lowered mid-year, which real cumulative PAYE collects exactly as the method below does.
+    // Period 1 has no payslip before it in the year, so there is nothing to compare.
+    if (N > 1) {
+      const expected = taxPennies(taxOnAmount(ytdPay, N - 1));
+      if (ytdTax - expected > YTD_FIT_TOLERANCE) return { ...standard(), ytdMisfit: { expected, paid: ytdTax } };
+    }
     const cumGross = ytdPay + sacGross;
     const cumTaxDue = taxPennies(taxOnAmount(cumGross, N));   // the year's liability, to the penny below
     // An OVER-collected year (a new starter off an emergency code, a code raised mid-year) is
@@ -610,10 +666,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     const due = Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit);
     const payLeft = Math.max(0, sacGross - otherDeductions);
     return { tax: taxPennies(Math.min(due, payLeft)), usingCumulative: true, payLimited: due > payLeft,
-             refund: Math.max(0, ytdTax - cumTaxDue), code: rawCode, recognised };
+             refund: Math.max(0, ytdTax - cumTaxDue), code: rawCode, recognised, ytdMisfit: null };
   }
 
-  return { tax: taxPennies(Math.min(taxOnAmount(sacGross, null), overridingLimit)), usingCumulative: false, payLimited: false, refund: 0, code: rawCode, recognised };
+  return standard();
 }
 
 /**

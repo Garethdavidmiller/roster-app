@@ -38,6 +38,7 @@ are about to break. Each states WHAT must hold; the WHY is below, or in the modu
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary silently under-reported tax years — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so the headers are not the only EXPLANATION — they are the only route that costs the reader nothing and asks nothing of them first: a member who has never heard of HPP has no reason to open a guide looking for it. Never hide, group or shorten these headers without an owner decision; the case that nearly did is DECISIONS.md → "More pay tools" … DECLINED, and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
 | 17 | **A payslip is priced at the grade held on its days** (owner, 13 Nov 2026). The roster dates a grade (`roleHistory`), so a promotion re-prices nothing before it; a payslip that SPANS one is each grade's rate weighted by its days, UNROUNDED — `calculate()` asks `periodRate`, never the field's two decimals, which would leave 140 contracted hours 45p short of 35 at one rate and 105 at the other. A grade chosen by hand covers WHOLE payslips from the one the member names, and only the roster's own dates split one. A member who never changed grade is priced to the last binary digit as before (`byDays` hands back the shared figure itself). The back-pay card prices ONE grade, so a promotion dated inside an award's backdated months fails a data test before it can be priced. By days is the owner's reading, not yet a payslip's: VAL-PAY-005 holds it open until the real one settles it. | `paycalc-grade.js` · `paycalc-settings.js` (`periodRate`, `settledRateFor`, `awardGrade`) · `paycalc-grade.test.mjs` · `paycalc-grade-wiring.test.mjs` |
+| 18 | **Year to Date figures are used only when they FIT the tax code** (owner, 15 Nov 2026). Tax Paid more than £2 over what the code takes, worked out over the year, by the payslip the figures came from cannot have come from that code: the payslip is then taxed ON ITS OWN and the line under Income Tax shows both figures — never £0 tax and "a refund may be due", which is what such figures read as before. Only OVER the code: under it is a code lowered mid-year, which cumulative PAYE collects. The figure is a whole payslip's tax: a real screenshot showed a take-home that high. | `paycalc-calc.js` → `computeTax` (`ytdMisfit`) · `paycalc.test.mjs` ("must fit the tax code") · `e2e/paycalc.spec.js` ("cannot come from the tax code") |
 
 Unverified assumptions behind these figures are in `VALIDATION_REGISTER.md`, not here; the back-pay
 accrual and the 28 Aug 2026 award step were settled against a real payslip and are in that file's
@@ -251,8 +252,34 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   `computeSL(plan) + computeSL('postgrad')`. HMRC deducts both independently.
 - **Scottish flat-rate codes:** `SD0`→intermediate 21% (`bands[2]`), `SD1`→higher 42% (`bands[3]`),
   `SD2`→advanced 45% (`bands[4]`), `SD3`→top 48% (`bands[5]`). rUK has no D2/D3.
-- **An over-collected cumulative year is REPORTED, never netted.** Real cumulative PAYE refunds it (a
-  new starter off an emergency code, a code raised mid-year). `computeTax` keeps the deduction at £0
+- **A week 1 / month 1 code is read however a payslip prints it** (15 Nov 2026). `readTaxCode`
+  (`paycalc-calc.js`) is the ONE reader of a tax code — `computeTax` prices with it and the Year to Date
+  rules in `paycalc-periods.js` ask it — and it takes HMRC's W1, M1 or X and a payslip's Wk1, Mth1,
+  "Week 1/Month 1", a slash or brackets. Before, Wk1 and Mth1 read as unrecognised codes, priced on the
+  standard allowance with the Year to Date figures still applied. "NC" is not HMRC's marker and is not
+  guessed at: it stays unrecognised. The Tax Code box's hint asks for the marker and says what it means.
+- **Year to Date figures must FIT the code, or they are not used** (owner, 15 Nov 2026; invariant 18).
+  Worked out the normal way, a code takes exactly what it is due on the year so far, so the Tax Paid on
+  the payslip the figures came from (period N − 1) is what the code takes on their Taxable Pay, to
+  within pennies — the real payslips land within 25p. `computeTax` checks that first: Tax Paid more than
+  **£2** over it means the figures did not come from this code worked out the normal way — a payroll
+  taxing each payslip ON ITS OWN (a week 1 / month 1 basis, which a payslip may print as nothing more
+  than "1257L"), a code changed since, or a mistyped figure. The payslip is then priced on its own (the
+  standard method) and `ytdMisfit: { expected, paid }` goes to the summary, whose Income Tax line names
+  both figures and says a code that has just changed may bring some back; the Year to Date card says
+  "they don't fit your tax code", its chip reads "not in use", and the take-home's line does not ask
+  for the same figures again.
+  - **Why it exists:** before, such figures read as an OVER-COLLECTED year — no tax at all and "a
+    refund of about £X may be due" — a take-home a whole payslip's tax too high, from a real
+    screenshot. With figures that fit, the cumulative method alone produces an over-collection only on
+    a payslip paying less than its share of the allowance, where the standard method takes nil too.
+  - **Only OVER the code.** Below it is a code LOWERED mid-year, which real cumulative PAYE collects the
+    way the cumulative method does. Period 1 has no payslip before it in the year, so it is not compared.
+  - **The cost, accepted by the owner:** a member who types a code raised since the payslip the figures
+    came from gets the standard figure, with the line saying payroll may give some back, rather than
+    the refund itself.
+- **An over-collected cumulative year that FITS its code is REPORTED, never netted.** Real cumulative
+  PAYE refunds it — with figures that fit, a short-paid payslip. `computeTax` keeps the deduction at £0
   and returns the over-collection as `refund`; the summary's Income Tax row says a refund of about £X
   may be due and is not in the estimate. It is not netted into take-home because a single mistyped
   Year to Date figure would then invent money.
@@ -781,8 +808,11 @@ opens the card at `#ytdPay`. It is quiet:
 - on a payslip already paid — the year keeps ONE pair of figures, so asking for an older payslip's
   would undo the estimate the member is waiting on;
 - on the tax year's first payslip, where Year to Date starts again;
-- for a W1/M1/X or NT code, which the figures cannot change — read exactly as `computeTax` reads the
-  code, and cross-checked against `computeTax` over twenty codes in `paycalc-periods.test.mjs`;
+- for a week 1 / month 1 or NT code, which the figures cannot change — read by `readTaxCode`, the
+  reader `computeTax` uses, and cross-checked against `computeTax` over every code in
+  `paycalc-periods.test.mjs`;
+- while the figures do not fit the code (`misfit`, `computeTax`'s `ytdMisfit`, invariant 18): they are
+  already the right payslip's, so asking again would send the member to copy the same two figures;
 - for a code `computeTax` does not recognise (`recognised: false`), whose estimate they make worse;
 - for a payslip from before a mid-year joiner started, which carries none of their figures;
 - while the figures are in use (`inUse` is `computeTax`'s `usingCumulative`, so one figure, or an

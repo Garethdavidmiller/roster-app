@@ -13,14 +13,18 @@
  */
 
 import { fmt, fmtRate, decimalToHM } from './paycalc-format.js';
+import { readTaxCode } from './paycalc-calc.js';
 
 /** A tax code fit to quote on the page — letters and digits, which every real PAYE code is — or null.
  *  Anything else is described, never written in, so nothing typed into the box becomes markup.
  *  @param {unknown} code @returns {string|null} */
 const plainTaxCode = code => typeof code === 'string' && /^[A-Z0-9]{1,12}$/.test(code) ? code : null;
-/** A code as a payslip prints it: the emergency suffix is a word of its own ("1257L M1", v24.96).
- *  @param {string} code */
-const shownTaxCode = code => code.replace(/(W1|M1|X)$/, ' $1');
+/** A code as a payslip prints it: the week 1 / month 1 marker is a word of its own ("1257L M1",
+ *  v24.96; "1257L WK1" since the code reader learnt Wk1, 15 Nov 2026). @param {string} code */
+const shownTaxCode = code => {
+    const { marker } = readTaxCode(code);
+    return marker ? `${code.slice(0, code.length - marker.length)} ${marker}` : code;
+};
 
 /**
  * What the page says when the Tax Code box holds a code `computeTax` does not recognise (whole-app
@@ -64,12 +68,15 @@ export function fmtHrsMins(h) {
  * `taxCode` and `taxCodeRecognised` are what `computeTax` read and whether it knew it: an unknown code
  * gets a line under Income Tax saying the figure is on the standard allowance (`taxCodeNotRecognised`).
  * `taxPayLimited` is `computeTax`'s `payLimited`: the Year to Date figures asked for more tax than the
- * payslip pays, which only a mistyped figure does, so the row says to check them.
+ * payslip pays, which only a mistyped figure does, so the row says to check them. `taxYtdMisfit` is
+ * its `ytdMisfit` — figures that do not fit the code, and so were not used — and `ytdFrom` the payday
+ * of the payslip they came from ("23 Oct"), for the line that says so (`ytdMisfitNote`).
  * @param {{
  *   _bpThisPeriod:number, _hppForPeriod:number, gross:number, grossWithBp:number,
  *   _bpIsEstimate:boolean, _hppIsEstimate:boolean, pension:number, sacGross:number,
  *   usingCumulative:boolean, tax:number, ni:number, slLines:string, net:number, taxRefund?:number,
- *   taxCode?:string, taxCodeRecognised?:boolean, taxPayLimited?:boolean
+ *   taxCode?:string, taxCodeRecognised?:boolean, taxPayLimited?:boolean,
+ *   taxYtdMisfit?:{ expected:number, paid:number }|null, ytdFrom?:string
  * }} d
  * @returns {string} innerHTML for #summary
  */
@@ -77,10 +84,11 @@ export function buildSummaryRows(d) {
     const {
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
         pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund = 0,
-        taxCode = '', taxCodeRecognised = true, taxPayLimited = false,
+        taxCode = '', taxCodeRecognised = true, taxPayLimited = false, taxYtdMisfit = null, ytdFrom = '',
     } = d;
     const codeNote = (taxCodeRecognised === false ? `<span class="sum-net-sub">${taxCodeNotRecognised(taxCode).row}</span>` : '')
-        + (taxPayLimited ? '<span class="sum-net-sub">Your Year to Date figures ask for more tax than this payslip pays, so this shows only what it can — check Taxable Pay and Tax Paid against your payslip.</span>' : '');
+        + (taxPayLimited ? '<span class="sum-net-sub">Your Year to Date figures ask for more tax than this payslip pays, so this shows only what it can — check Taxable Pay and Tax Paid against your payslip.</span>' : '')
+        + (taxYtdMisfit ? `<span class="sum-net-sub">${ytdMisfitNote(taxYtdMisfit, taxCode, ytdFrom)}</span>` : '');
     return `
         ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
           ? `<div class="sum-row"><span class="lbl">Regular pay</span><span class="val">${fmt(gross)}</span></div>
@@ -150,6 +158,26 @@ export function buildLoanLines({ sacGross, plan, planLabel, pgLoan, slUnder, slP
 function _refundNote(refund) {
     if (!(refund >= 0.005)) return '';
     return `<span class="sum-net-sub">Your Year to Date figures suggest a tax refund of about ${fmt(refund)} may be due on this payslip — not included in this estimate.</span>`;
+}
+
+/**
+ * The line under Income Tax when the Year to Date figures do not fit the tax code (owner, 15 Nov
+ * 2026): computeTax did not use them, so the figure is this payslip's tax on its own, and the member
+ * is shown the two numbers that disagree. Before, the same figures read as an over-collected year —
+ * "a tax refund … may be due", no tax at all — and a take-home a whole payslip's tax too high. The
+ * last sentence is the case that does refund: a code raised since that payslip, typed in already.
+ * The code is quoted only when it is plain letters and digits (`plainTaxCode`); markup otherwise.
+ * @param {{ expected: number, paid: number }} misfit  computeTax's `ytdMisfit`
+ * @param {string} code  the code as computeTax read it
+ * @param {string} [from]  the payday of the payslip the figures came from, "23 Oct"; '' when unknown
+ * @returns {string}
+ */
+export function ytdMisfitNote(misfit, code, from = '') {
+    const plain = plainTaxCode(code);
+    const theCode = plain ? `tax code <strong>${shownTaxCode(plain)}</strong>` : 'your tax code';
+    const thePayslip = from ? `your ${from} payslip` : 'the payslip they came from';
+    return `Your Year to Date figures don't fit ${theCode}: it would have taken about ${fmt(misfit.expected)} by ${thePayslip}, `
+        + `not ${fmt(misfit.paid)}. So this payslip's tax is worked out on its own. If your code has just changed, payroll may give some back.`;
 }
 
 /**
