@@ -828,6 +828,41 @@ only from the admin writing manual annual leave. A log from before the mark is s
 **What would reopen it:** another writer needing to mark records as its own — the builder takes the mark
 only as its own argument, and a test fails if any caller but the Save passes one.
 
+## Pay's first-visit Settings, and the Railcard's corrections: what moved, and what stayed (15 Nov 2026)
+
+The external review of 15 Nov 2026 found the Pay Calculator's Settings long on a phone's first visit,
+and asked that the Railcard guide keep the current rule prominent with its history expandable. Each line
+was judged by one question — what would a member stop knowing if it went? — and moved only where the
+answer was "nothing", or "nothing they need on this screen yet".
+
+**Pay: four lines moved, none deleted outright.** How a promotion is priced went from the Grade hint to
+a new Grade tip in the ? panel: the member it concerns is told when it happens (the roster line under
+Grade gains its dates, and a one-time note says there is nothing to change). "Saved per payslip" left
+the pension box: its label names the payslip being edited, and the header hint and ? panel say the rest.
+The hint under "I'm not in the pension scheme" went: it repeated the tick's words, and what opting out
+means is the ? panel's. "A loan applies to every payslip" moved from under the plan, which every first
+visit reads, to the block shown only once a loan is chosen, naming the Hours tick it sends you to.
+Measured at 375px on a first visit: the card is 109px shorter (1,155 to 1,046), including v26.16's
+longer tax-code hint, which arrived in between.
+
+**Pay: two lines kept that a trim would have taken.** The rate's "it updates with each pay award on its
+own" is often the only place a member learns it — the step note shows only on a payslip from before an
+award. The Postgraduate Loan's "repaid in addition to any plan above" is what a member with only that
+loan needs.
+
+**Railcard: reordered, not collapsed.** Three boxes opened on the date and the old wrong wording, so a
+reader at the gateline met the wrong rule first. Each now opens with the rule, and the dated history
+follows on its own line. Hiding the history was the review's suggestion and was not taken: it is written
+for the member who learned the old rule from this page, and a note they must open to learn it changed is
+one they will not open.
+
+**What holds it:** `paycalc-copy-parity.test.mjs` → "Settings: a fact the card stopped repeating still
+has a home"; `e2e/paycalc.spec.js` → "the loan's every-payslip line shows only once a loan is chosen";
+`guide-sources.test.mjs` → "a box that tells of this guide's old wording leads with the rule, and its
+history follows".
+
+**Open (owner):** when the Railcard boxes' history lines may go altogether.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

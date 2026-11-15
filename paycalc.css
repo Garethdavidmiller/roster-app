@@ -668,6 +668,11 @@
     }
     .adj-sign-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }
+    /* A hint that LEADS its field, above the label (#slEveryPayslip, review 15 Nov 2026). A hint
+       normally follows its control and has no space below it, so one placed first ran straight into
+       the label beneath and read as the end of the field above. 10px under it and the field gap over
+       it make it the start of its own block. */
+    .field-hint.field-hint-lead { margin: 0 0 10px; }
     /* No one-word last lines in the calculator's teaching prose (measured at 390px: "payslip" alone
        under the Year to Date header, "it." closing a back-pay hint). `pretty` rebalances only the
        final lines; the words, and every collapsed header's teaching (invariant 16), are untouched. */
