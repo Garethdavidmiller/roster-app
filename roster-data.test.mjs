@@ -1328,6 +1328,24 @@ test('parseSmartFloat: a comma placed like a thousands separator still is one', 
     assert.equal(parseSmartFloatOrNull('£1,500'), 1500);
 });
 
+// A space INSIDE a number (15 Nov 2026): parseFloat stops at the first one. A phone keyboard that adds
+// a space after a full stop turned a Year to Date "3105.40" into "3105. 40", read as £3,105, and a
+// space between thousands, "3 105.40", read as £3 — in the Tax Paid box, that asked one payslip for
+// nearly the whole year's tax. Figures invented.
+test('parseSmartFloat: a space anywhere inside a number is ignored', () => {
+    assert.equal(parseSmartFloat('3105. 40'), 3105.40, 'a space after the point');
+    assert.equal(parseSmartFloat('3 105.40'), 3105.40, 'a space between thousands');
+    assert.equal(parseSmartFloat('3 105.40'), 3105.40, 'a no-break space, as a paste brings it');
+    assert.equal(parseSmartFloat('3 105.40'), 3105.40, 'a narrow no-break space');
+    assert.equal(parseSmartFloat('3 105,40'), 3105.40, 'a thin space, with a decimal comma');
+    assert.equal(parseSmartFloat('£ 1,234.56'), 1234.56);
+    assert.equal(parseSmartFloat('- 50'), -50, 'a sign and its number, apart');
+    assert.equal(parseSmartFloatOrNull('3105. 40'), 3105.40);
+    assert.equal(parseSmartFloatOrNull('3 105.40'), 3105.40);
+    assert.equal(parseSmartFloatOrNull('   '), null, 'spaces alone are still nothing');
+    assert.equal(parseSmartFloat('   '), 0);
+});
+
 test('parseSmartFloat: iOS smart minus is normalised so parseFloat succeeds', () => {
     // U+2212 MINUS SIGN — raw parseFloat('−5') returns NaN; the strip fixes it.
     assert.equal(parseSmartFloat('−5'), -5);

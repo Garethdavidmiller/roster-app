@@ -12,7 +12,7 @@
  */
 
 import {
-  P_YR, TAX_YEARS, getTaxYearForOffset,
+  P_YR, TAX_YEARS, getTaxYearForOffset, readTaxCode,
 } from './paycalc-calc.js';
 import { bhsForYear } from './paycalc-roster-suggestions.js';
 import { fdLong, fdShort } from './paycalc-format.js';
@@ -519,14 +519,15 @@ export function ytdSourceAfterRetype(raw, { p, ty, now = new Date(), firstPNum =
  *  - The note is '' while no source is recorded or no figure is entered: the card's hint, its field
  *    labels and the select's label all ask for them already, and a fourth asking was noise.
  *  - Otherwise it names the source payslip, date first. On the payslip straight after it, figures not
- *    in use say why (a code that works each payslip out alone, or a pair not yet complete); elsewhere
- *    it offers the payslip before this one to update from once that one has been paid — never one
- *    from before the member started.
+ *    in use say why (a code that works each payslip out alone, a pair that does not fit the code —
+ *    `misfit`, computeTax's `ytdMisfit` — or a pair not yet complete); elsewhere it offers the payslip
+ *    before this one to update from once that one has been paid — never one from before the member
+ *    started.
  * @param {{ p: any, ty: { label: string, first: number }, src: number, hasFigures: boolean,
- *           inUse?: boolean, taxCode?: string, now?: Date, firstPNum?: number }} a
+ *           inUse?: boolean, taxCode?: string, misfit?: boolean, now?: Date, firstPNum?: number }} a
  * @returns {{ note: string, noteLive: boolean, chip: string, chipLive: boolean }}
  */
-export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode = '', now = new Date(), firstPNum = _firstEmployed() }) {
+export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode = '', misfit = false, now = new Date(), firstPNum = _firstEmployed() }) {
   const srcP = src ? getPeriods().find((/** @type {any} */ x) => x.num === src) : null;
   const next = !!srcP && p.num === src + 1;
   const first = (p.num - 48) - ty.first + 1 <= 1;   // 1-based HMRC period within the tax year
@@ -536,9 +537,13 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   if (!srcP || !hasFigures) return { ...out, note: '' };
   const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
   if (inUse) return { ...out, note: `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.` };
-  if (next) return { ...out, note: _isNonCumulativeCode(taxCode)
+  if (next) return { ...out, note: readTaxCode(taxCode).nonCumulative
     ? `Your Year to Date figures are from ${from}, but a tax code ending in W1, M1 or X works out each payslip on its own, so this payslip uses the standard method.`
-    : `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> to sharpen this payslip's tax estimate.` };
+    : misfit
+      // The figures are complete and from the right payslip; the code is what they disagree with
+      // (owner, 15 Nov 2026). The Income Tax line carries the two figures; this says what to check.
+      ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip uses the standard method. Check the code in Your Settings is the one on that payslip.`
+      : `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> to sharpen this payslip's tax estimate.` };
   const prevP = getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1);
   const upd = prevP && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
     ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
@@ -655,28 +660,27 @@ export function nextPeriod(onPeriodChange) {
  *    why the "Check against your payslip" line holds that advice back too;
  *  - never while the figures are IN USE (`inUse` is computeTax's `usingCumulative`, so a box holding
  *    something unreadable counts as not in use), nor when they come from this payslip or a later one;
+ *  - never while they do not fit the tax code (`misfit`, computeTax's `ytdMisfit`, owner, 15 Nov
+ *    2026): they are already the right payslip's, so asking for them again would send the member to
+ *    copy the same two figures, and the Year to Date card says what to check instead;
  *  - never for a payslip from before the member started (`firstPNum`), which carries none of theirs;
  *  - and only once the payslip to copy from can be in the member's hand (from its cut-off).
  * Which payslip that is, is `ytdCopyFrom` — shared with the source a re-typed pair moves to.
  * @param {{ p: any, ty: { first: number }, src: number, inUse: boolean, taxCode: string,
- *           recognised?: boolean, now?: Date, firstPNum?: number }} a
+ *           recognised?: boolean, misfit?: boolean, now?: Date, firstPNum?: number }} a
  * @returns {any} the period to copy the figures from, or null
  */
-export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised = true, now = new Date(), firstPNum = _firstEmployed() }) {
+export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised = true, misfit = false, now = new Date(), firstPNum = _firstEmployed() }) {
   if (!p) return null;
-  if (_isNonCumulativeCode(taxCode)) return null;
-  if (_normalCode(taxCode).replace(/^C/, '') === 'NT') return null;
+  const read = readTaxCode(taxCode);   // as computeTax reads it, so the two cannot disagree about one
+  if (read.nonCumulative) return null;
+  if (read.base === 'NT') return null;
   if (recognised === false) return null;
+  if (misfit) return null;
   if (inUse || (src && src >= p.num)) return null;
   return ytdCopyFrom({ p, ty, now, firstPNum });
 }
 
-/** A tax code as computeTax reads it (paycalc-calc.js), so the two cannot disagree about one.
- *  @param {string} taxCode */
-const _normalCode = taxCode => String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
-/** A week 1 / month 1 code (W1, M1, X): each payslip is taxed alone, so the figures never change it.
- *  @param {string} taxCode */
-const _isNonCumulativeCode = taxCode => /[WM]1$|X$/.test(_normalCode(taxCode));
 
 /**
  * The payslip whose Year to Date figures would sharpen the estimate for `p` — the one before it — or

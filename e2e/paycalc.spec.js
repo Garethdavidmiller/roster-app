@@ -2037,9 +2037,16 @@ test('paycalc: a mistyped Tax Paid never makes the take-home negative, and the s
     expect(errors).toHaveLength(0);
 });
 
-test('paycalc: Year to Date figures showing tax over-collected say a refund may be due', async ({ page }) => {
+// ── FIGURES THAT DO NOT FIT THE TAX CODE ARE NOT USED (owner, 15 Nov 2026) ──────────────────────
+// A payroll taxing each payslip on its own, under a code printed plainly, produces Year to Date figures
+// the code could never have produced worked out over the year. The cumulative method read them as an
+// over-collected year: no tax at all, and "a refund may be due" — a take-home a whole payslip's tax
+// too high, from a real screenshot. computeTax now refuses such a pair and reports both figures; this
+// pins calculate() handing that to every surface that speaks of the figures and, above all, the £:
+// exactly the estimate with no Year to Date figures at all. Figures invented.
+test('paycalc: Year to Date figures that cannot come from the tax code are not used, and the estimate says why', async ({ page }) => {
     const errors = collectFatalErrors(page);
-    await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
     await seedSession(page);
     await seedMember(page);
     await page.addInitScript(() => {
@@ -2047,12 +2054,61 @@ test('paycalc: Year to Date figures showing tax over-collected say a refund may 
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
         localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
         localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '20000');
-        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '9000');   // far more than was due
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '9000');   // 1257L takes £2,451.80 on £20,000 by 23 Oct
     });
     await page.goto('/paycalc.html');
     await expect(page.locator('#pensionAmt')).toBeVisible();
     await page.locator('#periodSelect').selectOption('58');
+    const summary = page.locator('#summary');
+    await expect(summary).toContainText("Your Year to Date figures don't fit tax code 1257L: it would have taken about "
+        + '£2,451.80 by your 23 Oct payslip, not £9,000.00. So this payslip\'s tax is worked out on its own.');
+    await expect(summary).not.toContainText('may be due on this payslip');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote')).toContainText("they don't fit your tax code");
+    await expect(page.locator('#provChips')).not.toContainText('Cumulative tax');
+    await expect(page.locator('#netYtdNudge'), 'the figures are the right payslip\'s already: nothing to ask for').toBeHidden();
+
+    // THE £ — the figures do not reach it. Emptied, the take-home must not move, and the line under it
+    // then asks for figures: it was quiet above because of the misfit, not because it could not speak.
+    const withFigures = poundsOf(await page.locator('#netDisplay').textContent());
+    expect(withFigures, 'a payslip\'s tax was taken: the take-home is not the whole pay after NI').toBeGreaterThan(0);
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+    for (const id of ['#ytdPay', '#ytdTax']) {
+        await page.fill(id, '');
+        await page.dispatchEvent(id, 'input');
+    }
+    await expect(page.locator('#netYtdNudge')).toBeVisible();
+    expect(poundsOf(await page.locator('#netDisplay').textContent()), 'the same £ with no figures at all').toBe(withFigures);
+    await expect(summary).not.toContainText("don't fit");
+    expect(errors).toHaveLength(0);
+});
+
+// …while figures that FIT still report a refund where real cumulative PAYE makes one: a payslip paying
+// less than its share of the tax-free allowance. Invented: a normal 1257L year to 23 Oct, then a
+// 20 Nov payslip cut to a few hundred pounds by an adjustment.
+test('paycalc: after figures that fit, a short-paid payslip still says a refund may be due', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '20000');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '2451.80');   // exactly what 1257L takes by 23 Oct
+        localStorage.setItem('myb_pc_gmiller_p58', JSON.stringify({
+            satH: 0, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0,
+            rdwH: 0, rdwM: 0, sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0,
+            slSkip: false, otherAdj: -3000, actualNet: null,
+        }));
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
     await expect(page.locator('#summary')).toContainText('may be due on this payslip');
+    await expect(page.locator('#summary')).not.toContainText("don't fit");
     expect(errors).toHaveLength(0);
 });
 
@@ -2093,8 +2149,9 @@ test('paycalc: the take-home asks for the latest Year to Date figures, and stops
     await expect(line).toBeVisible();
     await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
     await expect(page.locator('#ytdUptoNote')).toContainText('fill in both Taxable Pay and Tax Paid');
-    // Both figures, stamped to the 23 Oct payslip: in use, so the line goes.
-    await page.fill('#ytdTax', '1650');
+    // Both figures, stamped to the 23 Oct payslip: in use, so the line goes. £1,091.80 is what 1257L
+    // takes on £13,200 by that payslip — figures must fit their code to be used (owner, 15 Nov 2026).
+    await page.fill('#ytdTax', '1091.80');
     await page.dispatchEvent('#ytdTax', 'input');
     await expect(page.locator('#ytdSrcSelect')).toHaveValue('57');
     await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
@@ -2135,7 +2192,7 @@ test('paycalc: Year to Date figures from an older payslip are asked for again', 
     await page.locator('#netYtdNudgeBtn').click();
     await page.fill('#ytdPay', '14300');
     await page.dispatchEvent('#ytdPay', 'input');
-    await page.fill('#ytdTax', '1840');
+    await page.fill('#ytdTax', '1311.80');   // what 1257L takes on £14,300 by 23 Oct: the pair fits
     await page.dispatchEvent('#ytdTax', 'input');
     await expect(page.locator('#ytdSrcSelect')).toHaveValue('57');
     await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
@@ -2197,12 +2254,14 @@ test('paycalc: under a week 1 / month 1 tax code the Year to Date card says its 
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
         localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
         localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '13200');
-        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '1650');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '1091.80');   // fits 1257L by 23 Oct
     });
     await page.goto('/paycalc.html');
     await expect(page.locator('#pensionAmt')).toBeVisible();
     await page.locator('#periodSelect').selectOption('58');
     await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    // The box's own hint says to type the marker, and what it means (15 Nov 2026).
+    await expect(page.locator('#taxCode + .field-hint')).toContainText('If W1, M1 or X comes after it, type that too');
     await page.locator('#taxCode').fill('1257L M1');
     await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
     await expect(page.locator('#ytdUptoNote')).toContainText('a tax code ending in W1, M1 or X works out each payslip on its own');

@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.15';
+export const APP_VERSION = '26.16';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -1040,16 +1040,16 @@ export function parseSmartFloat(v) {
     return parseFloat(_cleanNumericString(v)) || 0;
 }
 
-/** Shared numeric-input cleaning: smart hyphens/minus → '-', curly quotes normalised, thousands
- *  commas and £ signs stripped (a payslip figure pasted verbatim as "£23,456.78" must parse —
- *  parseFloat stops at the first comma, silently turning "23,456.78" into 23, badly corrupting
- *  YTD-based cumulative PAYE). @param {any} v */
+/** Shared numeric-input cleaning: smart hyphens/minus → '-', curly quotes normalised; £ signs, thousands
+ *  commas and EVERY space stripped — parseFloat stops at the first comma or space, so "23,456.78" read as
+ *  23, a phone's "3105. 40" as £3,105 and "3 105.40" as £3 (15 Nov 2026), each corrupting a Year to Date
+ *  Tax Paid. `\s` also covers the no-break, narrow and thin spaces a paste brings. @param {any} v */
 function _cleanNumericString(v) {
     const s = String(v)
         .replace(/[‐-―−−]/g, '-')
         .replace(/[‘’]/g, "'")
         .replace(/£/g, '')
-        .trim();
+        .replace(/\s+/g, '');
     // ONE comma, with only digits after it, is a thousands separator only where it sits like one: a
     // leading group of one to three digits not starting with 0, then exactly three ("1,234", "21,758").
     // Anything else is a DECIMAL comma. A phone set to a decimal-comma region offers "," on the decimal
