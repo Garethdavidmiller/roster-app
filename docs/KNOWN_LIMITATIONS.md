@@ -509,11 +509,12 @@ classification in `AUTH_PLAN.md` §2. What still holds:
   class that went wrong, a NAME next to a FIGURE. It is not a classification guard: a new personal
   field in a doc that never names anybody passes it, and so does a name beside something neither
   vocabulary lists.
-- **The leave uploader's file is kept out by its own three locks** (Nov 2026): it names every
-  colleague against their dates of leave, so `scripts/make-leave-file.mjs` will not write inside the
-  repository, `.gitignore` excludes `*.leave.json` and `*.local.json`, and `leave-file-privacy.test.mjs`
-  fails on a tracked file that IS a leave file — recognised by its format marker and a full seal. That
-  recognises the file, not what it says: the same days copied into a doc without the seal pass it,
+- **The leave uploader's file is kept out by its own four locks** (Nov 2026): it names every
+  colleague against their dates of leave, so `scripts/make-leave-file.mjs` will not write inside any
+  checkout, `.gitignore` excludes a leave or answers file in every name a copy is given, the commit
+  hook refuses a staged leave file by content (where the hook is installed), and
+  `leave-file-privacy.test.mjs` fails in CI on a tracked file that IS a leave file — recognised by its
+  format marker and a full seal. That recognises the file, not what it says: the same days copied into a doc without the seal pass it,
   and pass `payroll-anonymity.test.mjs` too, whose leave words are counts and a reason for absence,
   never a date.
 
@@ -1030,6 +1031,11 @@ open:
   days are deleted in Admin instead), and its days are not protected against coming back until the
   next Save's log, which names every day in line, is written.
 - **The Undo is for the newest Save of the year, once.** An earlier Save is undone by hand in Admin.
+- **One spelling is one answer, in every grade block.** The session's script keys a row's name by its
+  spelling, so two people spelt alike in two blocks (a trainee the app does not hold, and a member it
+  does) share one answer. It never files one's days under the other: named as the member, the other's
+  row stops the file; answered "not in the app", the member shows on the card as in the app but not on
+  the sheet, and the question comes back with every copy.
 - **It knows only what the workbook says.** Column E's undated days (a joiner's reduction, a lump in
   words, a value its comment does not explain) are reported as figures and cannot be placed on
   dates, so the Save never writes them. A column-E value with no comment has lost its dates for good
