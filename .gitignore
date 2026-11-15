@@ -58,6 +58,15 @@ ui-debug.log
 # colleague against their dates of leave (al-leave-file.js), and its answers file names the personal
 # exceptions in matching them. scripts/make-leave-file.mjs refuses to write either inside the
 # repository; these are the rule both origins obey if one is copied in by hand. Guarded by
-# leave-file-privacy.test.mjs.
-*.leave.json
-*.local.json
+# leave-file-privacy.test.mjs, and a commit holding a leave file by any name is refused by
+# githooks/pre-commit, which reads what each staged file IS.
+# IN EVERY NAME A PHONE OR A DOWNLOAD GIVES IT, in either case — measured with `git check-ignore
+# --no-index` on 15 Nov 2026, the bare `*.leave.json` let all of these be tracked: `x.Leave.json`,
+# `x.LEAVE.JSON`, a re-download's `x.leave (1).json`, `x.leave(1).json` and `x.leave 2.json`, and
+# `x.leave.json.txt`. The `*` after `.leave` takes the copy's suffix; the one after `.json` the
+# extension a phone adds. The answers file is named `*.local.json` (the script's usage line says so),
+# and `answers*.json` is the name it once suggested. Rules this wide still ignore no tracked file:
+# the privacy test lists any with `git ls-files -ci`.
+*.[lL][eE][aA][vV][eE]*.[jJ][sS][oO][nN]*
+*.[lL][oO][cC][aA][lL]*.[jJ][sS][oO][nN]*
+[aA][nN][sS][wW][eE][rR][sS]*.[jJ][sS][oO][nN]*

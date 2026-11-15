@@ -961,8 +961,12 @@ that differs any other way is changed in Admin, with Change a Shift. Plan of rec
   duplicate row or a January date is asked again on every copy, because rows move between copies.
 
 **The file names colleagues against their leave**, so it is kept outside the repository and never
-committed (`.gitignore` and `leave-file-privacy.test.mjs` stop it). It is **sealed**: the card
-refuses a file that has been edited by hand. A correction goes back through the session.
+committed: the script will not write it inside any checkout, `.gitignore` keeps a copy dropped into the
+tree out of `git add` under the names a phone gives a download, the commit hook (`githooks/pre-commit`,
+where it is installed) refuses a commit that holds one by any name, and `leave-file-privacy.test.mjs`
+fails if one is ever tracked — in CI, after the push, so it is the alarm rather than the lock. It is
+**sealed**: the card refuses a file that has been edited by hand. A correction goes back through the
+session.
 
 **Step 2, on Operations.** Open the card and choose the file, or paste its text. The card reads
 every comparable member's records and shows three things:
