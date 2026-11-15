@@ -10,7 +10,27 @@
 
 import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
+
+// The month on screen, kept for a moment (below). Only this module reads or writes them, so they are
+// not in storage-keys.js: Admin's Calendar pill used to write the first two as well, and now names
+// its date in the link instead (v26.19). 0-indexed month, full year, and when they were stored (ms).
+const VIEWED_MONTH = 'myb_roster_month';
+const VIEWED_YEAR  = 'myb_roster_year';
+const VIEWED_AT    = 'myb_roster_month_at';
+
+/**
+ * How long a stored month is kept once the member stops looking at it (owner, 15 Nov 2026).
+ *
+ * It used to be kept until they came back to today's month, however long that took, and every draw
+ * of it stored it again, so it never ran out. "It always reopens on June 2026" was the month the owner
+ * installed the app: until 10 Nov 2026 every render stored the month on screen, today's included, so
+ * June was stored in June and every launch after it opened there. Today's month is what opening the
+ * roster is for; a kept month is only for coming straight back: Android or iOS reloading the app
+ * behind another one, or a quick trip to another page and back through the drawer. Half an hour covers
+ * those, and anything longer opens on today. A link that names a date (`?date=`) still opens that
+ * month whenever it is followed.
+ */
+export const BROWSED_MONTH_KEPT_MS = 30 * 60 * 1000;
 
 /** @type {number} */
 let _month = new Date().getMonth();
@@ -18,9 +38,9 @@ let _month = new Date().getMonth();
 let _year  = new Date().getFullYear();
 
 // Restore last-viewed month: a `?date=` the link named first, else localStorage (if valid, within app
-// bounds, and not a future month — staff should open on today's roster, not a month they previously
-// browsed ahead to). Only a month the member moved AWAY from today to is ever stored — see
-// `persistViewedMonth` — so nothing stored means today.
+// bounds, stored in the last BROWSED_MONTH_KEPT_MS, and not a future month — staff should open on
+// today's roster, not a month they previously browsed ahead to). Only a month the member moved AWAY
+// from today to is ever stored — see `persistViewedMonth` — so nothing stored means today.
 (function restoreViewedMonth() {
     // A LINK THAT NAMES A DATE WINS, a future month included (whole-app review, Oct 2026): the Pay
     // Calculator's "View these dates in your roster calendar" and Admin's Calendar pill both say which
@@ -34,6 +54,11 @@ let _year  = new Date().getFullYear();
         try { const u = new URL(loc.href); u.searchParams.delete('date'); history.replaceState(history.state, '', u); } catch { /* address left as it is */ }
         if (y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) { _month = m; _year = y; return; }
     }
+    // A month stored more than BROWSED_MONTH_KEPT_MS ago opens on today, and so does one stored with
+    // no time at all — every month stored before v26.19, which is how an install month stayed. A
+    // time AHEAD of the clock (the clock put back since) is not trusted either: today is the safe answer.
+    const age = Date.now() - parseInt(lsGet(VIEWED_AT) ?? '', 10);
+    if (!(age >= 0 && age <= BROWSED_MONTH_KEPT_MS)) return;
     const m = parseInt(lsGet(VIEWED_MONTH) ?? '', 10);
     const y = parseInt(lsGet(VIEWED_YEAR)  ?? '', 10);
     if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {
@@ -92,7 +117,11 @@ export function addMonths(month, year, delta) {
  * A display on the month the old date fell in is moved to the new date's month FIRST, so the repaint
  * draws today (cal-data-1, 10 Nov 2026). Across a month end that display was "now", and keeping it
  * left a phone resumed on 1 December showing November with no today in it. A month the member had
- * browsed to stays where it is.
+ * browsed to stays where it is — unless they were AWAY for longer than BROWSED_MONTH_KEPT_MS (owner,
+ * 15 Nov 2026): an app left in memory on June is not reloaded when it is opened again, it is just
+ * shown, so without this the restore's half-hour rule would hold only when the phone had happened to
+ * close it. Back after longer than that, the display returns to today's month and repaints, whether
+ * or not the date has turned.
  *
  * @param {() => void} onChange
  * @param {{ doc?: Document, now?: () => Date, setTimer?: typeof setTimeout, clearTimer?: typeof clearTimeout }} [env] test seams
@@ -106,13 +135,17 @@ export function watchLocalDate(onChange, env = {}) {
     const dayOf = (/** @type {Date} */ d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     let lastDate = now();
     let last = dayOf(lastDate);
+    /** When the page went out of sight; null while it is on screen. @type {number|null} */
+    let hiddenAt = null;
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     let timer;
-    const check = () => {
+    /** @param {boolean} [away] back after longer than BROWSED_MONTH_KEPT_MS out of sight */
+    const check = (away = false) => {
         const date = now();
         const today = dayOf(date);
-        if (today === last) return;
-        if (_month === lastDate.getMonth() && _year === lastDate.getFullYear()) { _month = date.getMonth(); _year = date.getFullYear(); }
+        const onToday = _month === date.getMonth() && _year === date.getFullYear();
+        if (today === last && (onToday || !away)) return;
+        if (away || (_month === lastDate.getMonth() && _year === lastDate.getFullYear())) { _month = date.getMonth(); _year = date.getFullYear(); }
         last = today;
         lastDate = date;
         try { onChange(); } catch (e) { console.error('[Calendar] date-change repaint failed', e); }
@@ -125,7 +158,13 @@ export function watchLocalDate(onChange, env = {}) {
         const next = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 1);
         timer = setTimer(() => { check(); arm(); }, Math.max(1000, next.getTime() - n.getTime()));
     };
-    const onVisibility = () => { if (doc.visibilityState === 'visible') { check(); arm(); } };
+    const onVisibility = () => {
+        if (doc.visibilityState === 'hidden') { hiddenAt ??= now().getTime(); return; }
+        if (doc.visibilityState !== 'visible') return;
+        const away = hiddenAt !== null && now().getTime() - hiddenAt > BROWSED_MONTH_KEPT_MS;
+        hiddenAt = null;
+        check(away); arm();
+    };
     doc.addEventListener('visibilitychange', onVisibility);
     arm();
     return () => { clearTimer(timer); doc.removeEventListener('visibilitychange', onVisibility); };
@@ -139,14 +178,22 @@ export function watchLocalDate(onChange, env = {}) {
  * tell it from a month browsed back to: the Calendar opened on November on every launch in December
  * until somebody navigated. With nothing stored the restore falls back to today, which is what a
  * member reading "this month" meant.
+ *
+ * A browsed month is stored WITH THE TIME, which the restore holds to BROWSED_MONTH_KEPT_MS. And only
+ * a page somebody can see stores anything (v26.19): a copy in the background — a second tab, or the
+ * app behind another one — still redraws when the date turns or a read lands, and would otherwise
+ * keep its month, and its time, fresh for the next launch to open on.
  */
 export function persistViewedMonth() {
+    if (/** @type {any} */ (globalThis).document?.visibilityState === 'hidden') return;
     const today = new Date();
     if (_month === today.getMonth() && _year === today.getFullYear()) {
         lsDel(VIEWED_MONTH);
         lsDel(VIEWED_YEAR);
+        lsDel(VIEWED_AT);
         return;
     }
     lsSet(VIEWED_MONTH, _month);
     lsSet(VIEWED_YEAR,  _year);
+    lsSet(VIEWED_AT,    today.getTime());
 }

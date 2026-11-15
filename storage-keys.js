@@ -19,12 +19,6 @@
  *  stay in sync when you hop between them. */
 export const SELECTED_MEMBER = 'myb_roster_selected_member';
 
-/** The month/year the calendar is currently viewing — persisted by calendar-state.js and
- *  seeded by admin so "open the calendar on the month I was editing" works. Both 0-indexed
- *  month + full year, stored as separate keys. */
-export const VIEWED_MONTH = 'myb_roster_month';
-export const VIEWED_YEAR  = 'myb_roster_year';
-
 /** Whether the Calendar is in TEAM WEEK VIEW — written by calendar-team-view.js on every toggle,
  *  and read back at boot by calendar-app.js (which surface to build). calendar-access.js read it too
  *  until the provisional paint was retired (26 Sep 2026).
