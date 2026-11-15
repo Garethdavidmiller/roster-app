@@ -71,7 +71,8 @@ replacedType Optional — the `type` of the override this document REPLACED, or 
              and the rules still accept them because a re-save carries the name forward.
 leaveYear    Optional — on ANNUAL LEAVE DATED IN JANUARY only: the year whose allowance the day
              comes out of, when that is the PREVIOUS year (owner, 3 Nov 2026 — some staff take a
-             few of their 2026 days in early January 2027). Absent means the day counts against its
+             few of their 2026 days in early January 2027). Every January has it from January
+             2026 on (v26.18, owner, 15 Nov 2026). Absent means the day counts against its
              own year, which is the default and what every earlier document says, so no migration.
              The rules hold the shape: `annual_leave`, a January date, and exactly the date's year
              minus one, as an integer. Who may set it is the ordinary isolation — a member on their

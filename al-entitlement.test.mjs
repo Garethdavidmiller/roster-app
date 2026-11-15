@@ -811,8 +811,31 @@ describe('the January days the Admin card offers to move', () => {
     });
 
     test('a January before the choice begins is never offered', () => {
+        const jan25 = datesWhere('2025-01-06', false, 1)[0];
+        assert.deepEqual(leaveYearChoices({ overrides: [al(jan25)], member: MEMBER, todayStr: '2025-01-10' }), []);
+    });
+
+    // January 2026 joined at v26.18 (owner, 15 Nov 2026). Until then the choice began with January
+    // 2027, so nobody could charge a January 2026 day to 2025.
+    test('January 2026 is offered out of 2025\'s allowance, and the cap reads 2025', () => {
         const jan26 = datesWhere('2026-01-05', false, 1)[0];
-        assert.deepEqual(leaveYearChoices({ overrides: [al(jan26)], member: MEMBER, todayStr: '2026-01-10' }), []);
+        const got = leaveYearChoices({ overrides: [al(jan26)], member: MEMBER, todayStr: NOV });
+        assert.equal(got.length, 1);
+        assert.equal(got[0].january, 2026);
+        assert.equal(got[0].prev, 2025);
+        assert.deepEqual(got[0].days, [{ date: jan26, from: 2026 }]);
+        assert.equal(got[0].prevOpen, true);
+        // Moved, it spends a day of 2025's and gives the day back to 2026.
+        const moved = leaveYearChoices({ overrides: [{ ...al(jan26), leaveYear: 2025 }], member: MEMBER, todayStr: NOV });
+        assert.deepEqual(moved[0].days, [{ date: jan26, from: 2025 }]);
+        assert.equal(moved[0].positions[2025].remaining, /** @type {number} */ (got[0].positions[2025].remaining) - 1);
+        assert.equal(moved[0].positions[2026].remaining, /** @type {number} */ (got[0].positions[2026].remaining) + 1);
+        // THE CAP, on 2025: with 2025's allowance used up, the day cannot move back.
+        const ent25 = /** @type {number} */ (getALEntitlement(MEMBER, 2025, []));
+        const spent25 = datesWhere('2025-03-03', false, ent25).map(al);
+        const capped = leaveYearChoices({ overrides: [...spent25, al(jan26)], member: MEMBER, todayStr: NOV });
+        assert.equal(capped[0].positions[2025].remaining, 0);
+        assert.equal(capped[0].prevOpen, false);
     });
 
     test('a role with no entitlement on record is offered nothing — there is no figure to cap by', () => {
