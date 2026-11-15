@@ -376,6 +376,16 @@ The "must not say" guards therefore skip those blocks — and a separate test fa
 block lacks an explicit negation, so the class cannot become somewhere to park a live claim. The
 exemption is **earned, not granted by the class name**.
 
+**And the rule comes first, the history after it** (review, 15 Nov 2026). Three boxes opened on the
+date and the old wording ("Changed Aug 2026: this guide used to say the Saver was digital only…"), so a
+reader at the gateline met the wrong rule before the right one. Each box that tells of this guide's
+past wording — a correction or an unsourced note alike — now opens with the rule as its label, and the
+history follows on a line of its own under a dated label (`<br><span class="ct-label">Changed Aug
+2026:</span>`, the page's existing two-label shape). The history is **not collapsed**: it is for the
+member who learned the old rule here, and a note they must open to find out it changed is one they will
+not open. `guide-sources.test.mjs` → "a box that tells of this guide's old wording leads with the rule,
+and its history follows". When the history lines may go altogether is an open owner question.
+
 ## FIP guide
 
 `fip-guide.html` is a low-frequency educational reference — not a core workflow. Judge it as an

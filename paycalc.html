@@ -266,8 +266,11 @@
         <div class="field-hint" id="gradeRosterLine" hidden></div>
         <!-- Static copy that names the two grades; nothing writes it. The rate itself is the read-only
              field below, derived from the grade on each payslip's days (paycalc-settings.js →
-             updateRateForPeriod; paycalc-grade.js). -->
-        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. <strong>From the roster</strong> uses the grade you held on each payslip's days, so a promotion changes your rate from the right payslip.</div>
+             updateRateForPeriod; paycalc-grade.js). HOW A PROMOTION IS PRICED is not here (review,
+             15 Nov 2026): every first visit read it and almost nobody needs it then. The member it
+             concerns is told when it happens — the roster line above gains its dates and the one-time
+             grade note says so — and the ? panel's Grade tip explains it on demand. -->
+        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor.</div>
         <!-- A grade chosen by hand covers WHOLE payslips from the one named here (v26.00). The roster
              needs no date of its own, so this shows only while CEA or CES is chosen. -->
         <div class="field hidden" id="gradeFromField">
@@ -303,13 +306,17 @@
                loadPeriodData), and a hard-coded one here was a past default by the next award. -->
           <input type="text" id="pensionAmt" value="" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
-        <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — the <strong>Railways Pension Scheme</strong>. <strong>Saved per payslip</strong> — change it here and past payslips keep their own amount.</div>
+        <!-- What it is and where it is on the payslip — nothing more (review, 15 Nov 2026). That it is
+             saved per payslip is in the card's header hint and the ? panel, and the label says which
+             payslip is being edited. -->
+        <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — the <strong>Railways Pension Scheme</strong>.</div>
         <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> Pension exceeds gross pay — check the amount</div>
         <label class="toggle-row">
           <input type="checkbox" id="pensionOptOutCheck">
           <span class="toggle-row-text">I'm <strong>not in the pension scheme</strong></span>
         </label>
-        <div class="field-hint">Tick this if you have opted out of or withdrawn from the Railways Pension Scheme.</div>
+        <!-- No hint under the tick (review, 15 Nov 2026): it said the tick's own words again. Opted
+             out or left, and what the date below does, are the ? panel's "Not in the pension scheme". -->
         <!-- The DATE is the whole control (v21.78). As a bare tick this said "every payslip then
              assumes no pension deduction", which was true and was the bug: payslips from before
              she left were rewritten too, because a payslip whose pension matches the expected
@@ -332,7 +339,7 @@
           <option value="plan4">Plan 4 (Scotland)</option>
           <option value="plan5">Plan 5</option>
         </select>
-        <div class="field-hint">Pick a plan only if a student loan deduction shows on your payslip. Repaying by direct debit? Leave as None. A plan then applies to every payslip — if one didn't deduct it, say so under Hours → Unusual deductions or corrections.</div>
+        <div class="field-hint">Pick a plan only if a student loan deduction shows on your payslip. Repaying by direct debit? Leave as None.</div>
       </div>
 
       <div class="field">
@@ -353,6 +360,10 @@
            "stopped being deducted but not repaid" is a common state the old label called a lie —
            and it was the control a member in that position would reach for first. -->
       <div class="field hidden" id="slPaidOffField">
+        <!-- SAID WHEN IT APPLIES (review, 15 Nov 2026). It sat under the plan, where every first visit
+             read it and most have no loan; this block shows only once a loan is chosen — the same
+             condition that puts the tick it names under Hours (paycalc-app.js, `_anyLoan`). -->
+        <div class="field-hint field-hint-lead" id="slEveryPayslip">A loan applies to every payslip — if one didn't deduct it, say so under <strong>Hours → Unusual deductions or corrections</strong>.</div>
         <label for="slPaidOffFrom">Student loan stopped being deducted?</label>
         <select id="slPaidOffFrom">
           <!-- "No — still deducted", NOT "…from my payslip" (v22.10). The longer label needed 276px

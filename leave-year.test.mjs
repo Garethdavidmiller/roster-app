@@ -76,18 +76,25 @@ describe('a rewrite keeps the choice while the day stays leave', () => {
 });
 
 describe('where the choice is offered', () => {
-    test('a January day from 2027, never earlier and never outside January', () => {
-        assert.equal(LEAVE_YEAR_FROM, 2027);
+    test('a January day from 2026, never earlier and never outside January', () => {
+        assert.equal(LEAVE_YEAR_FROM, 2026);
         assert.equal(canChooseLeaveYear('2027-01-04'), true);
-        assert.equal(canChooseLeaveYear('2026-01-05'), false);
+        // January 2026 joined at v26.18 (owner, 15 Nov 2026): its days can come out of 2025's allowance.
+        assert.equal(canChooseLeaveYear('2026-01-05'), true);
+        assert.equal(canChooseLeaveYear('2025-01-06'), false);
         assert.equal(canChooseLeaveYear('2027-02-01'), false);
     });
     test('this year\'s January and next year\'s — this one stays open after January ends', () => {
-        assert.deepEqual(offeredJanuaries('2026-11-03'), [2027]);
+        assert.deepEqual(offeredJanuaries('2026-11-03'), [2026, 2027]);
         assert.deepEqual(offeredJanuaries('2027-01-10'), [2027, 2028]);
         assert.deepEqual(offeredJanuaries('2027-06-30'), [2027, 2028]);
         assert.deepEqual(offeredJanuaries('2028-01-02'), [2028, 2029]);
-        assert.deepEqual(offeredJanuaries('2025-12-01'), []);
+        assert.deepEqual(offeredJanuaries('2025-12-01'), [2026]);
+        assert.deepEqual(offeredJanuaries('2024-12-01'), []);
+    });
+    test('a January leaves the panel at the end of its own year — January 2026 on 31 December 2026', () => {
+        assert.deepEqual(offeredJanuaries('2026-12-31'), [2026, 2027]);
+        assert.deepEqual(offeredJanuaries('2027-01-01'), [2027, 2028]);
     });
     test('the switch is ON (v25.19, after the rules went live), and the test seam pins either state', () => {
         // It shipped OFF at v25.18 because the rules accepting the field had to deploy first (backend

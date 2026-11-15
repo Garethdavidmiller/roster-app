@@ -239,3 +239,72 @@ describe('the privacy line promises only what the app controls', () => {
         assert.match(words(foot), /never sends it to a server/, 'the note no longer says the app keeps it off the server');
     });
 });
+
+// ── THE SETTINGS CARD SAYS A FACT WHERE IT IS NEEDED, AND THE ? PANEL KEEPS THE REST (review, 15 Nov 2026) ─
+// A first visit opens Settings with every hint showing, and four of them said what was already on the
+// screen or what only some members need: how a promotion is priced, that the pension is kept per
+// payslip (the label names the payslip), what the pension tick means (its own words again), and that
+// a loan applies to every payslip (most members have no loan). Each fact MOVED rather than went, and
+// this pins where each one went, so a later trim cannot take the last copy with it. Two lines were
+// kept on purpose and are not tested here: the rate's "updates with each pay award on its own" (often
+// the only mention, since #rateStepNote shows only on a pre-award payslip) and the Postgraduate Loan's
+// "in addition to any plan above" (a member with only that loan needs it).
+describe('Settings: a fact the card stopped repeating still has a home', () => {
+    const words = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/&nbsp;|\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const settingsTips = async () => (await import('./paycalc-help.js')).HELP_CONTENT.settings.tips.map(words);
+    /** The markup of the element carrying this id, to the first `</div>` that ends a `<div>` it opened. */
+    const block = (/** @type {string} */ id) => {
+        const at = html.indexOf(`id="${id}"`);
+        assert.ok(at !== -1, `#${id} is missing from paycalc.html`);
+        const open = html.lastIndexOf('<div', at);
+        let depth = 0;
+        for (const m of html.slice(open).matchAll(/<div\b|<\/div>/g)) {
+            depth += m[0] === '</div>' ? -1 : 1;
+            if (depth === 0) return html.slice(open, open + /** @type {number} */ (m.index) + m[0].length);
+        }
+        assert.fail(`#${id} is never closed`);
+    };
+
+    test('the ? panel explains Grade — the roster, a promotion, and a grade picked by hand', async () => {
+        const tip = (await settingsTips()).find(t => /^Grade:/.test(t));
+        assert.ok(tip, 'the Settings help has no Grade tip, and the card no longer says how a promotion is priced');
+        assert.match(tip, /From the roster/, 'the tip must explain the default the box shows');
+        assert.match(tip, /promotion/i, 'the tip must say what happens when the grade changes');
+        assert.match(tip, /first payslip/i, 'a grade picked by hand applies from a payslip the member names');
+        // The card still expands both grades on first sight — a member may not know the letters.
+        const hint = words(/id="gradeRateHint">([\s\S]*?)<\/div>/.exec(html)?.[1] ?? '');
+        assert.match(hint, /Customer Experience Ambassador/);
+        assert.match(hint, /Customer Experience Supervisor/);
+    });
+
+    test('the pension stays explained: per payslip, and what the not-in-the-scheme tick is for', async () => {
+        const tips = await settingsTips();
+        assert.ok(tips.some(t => /^Pension contribution:/.test(t) && /saved separately for each period/i.test(t)),
+            'the ? panel no longer says the pension is kept per payslip');
+        assert.ok(tips.some(t => /^Not in the pension scheme:/.test(t) && /opted out of or left/i.test(t)),
+            'the ? panel no longer says what the tick is for');
+        // The label names the payslip being edited on every visit (paycalc-app.js writes it).
+        assert.match(html, /<label for="pensionAmt">Pension contribution <span id="pensionPeriodLabel"/);
+    });
+
+    test('a loan\'s every-payslip rule is said once a loan is chosen, and names the tick it sends you to', async () => {
+        // Under the plan, every first visit read it and most members have no loan. #slPaidOffField
+        // shows only once a loan is chosen — the condition that puts the tick under Hours (`_anyLoan`).
+        const field = block('slPaidOffField');
+        const rule = /id="slEveryPayslip">([\s\S]*?)<\/div>/.exec(field)?.[1];
+        assert.ok(rule, 'the every-payslip rule has left the block that shows only with a loan');
+        assert.match(words(rule), /every payslip/);
+        const planHint = words(/<select id="studentLoan">[\s\S]*?<\/select>\s*<div class="field-hint">([\s\S]*?)<\/div>/.exec(html)?.[1] ?? '');
+        assert.ok(planHint, 'premise: the plan box has its hint');
+        assert.doesNotMatch(planHint, /every payslip/, 'the plan hint says it again, so every first visit reads it twice');
+        // Both copies send the member to the Hours section and the tick by their real names.
+        const section = words(/id="hoursShowMoreLabel">([^<]*)</.exec(html)?.[1] ?? '');
+        const tick = words(/id="slSkipRow">[\s\S]*?<span class="toggle-row-text">([\s\S]*?)<\/span>\s*<\/label>/.exec(html)?.[1] ?? '');
+        assert.ok(section && tick, 'premise: the Hours section and the not-deducted tick are found');
+        assert.ok(words(rule).includes(section), `the Settings line names a section that is not "${section}"`);
+        const loanTip = (await settingsTips()).find(t => /^Student loan:/.test(t));
+        assert.ok(loanTip, 'the Settings help has no Student loan tip');
+        assert.ok(loanTip.includes(tick), `the ? tip does not name the tick as it reads: "${tick}"`);
+        assert.ok(loanTip.includes(section), `the ? tip does not name the section as it reads: "${section}"`);
+    });
+});

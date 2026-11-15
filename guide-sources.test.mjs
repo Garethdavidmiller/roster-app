@@ -857,6 +857,33 @@ test('railcard: a correction callout must actually negate what it quotes', () =>
     }
 });
 
+test('railcard: a box that tells of this guide\'s old wording leads with the rule, and its history follows', () => {
+    // Review, 15 Nov 2026. Three boxes opened "Changed Aug 2026: this guide used to say the Saver was
+    // digital only…", so a reader at the gateline met the old wrong rule before the right one, and the
+    // instruction to act on came last. Each now opens on the rule; the history follows on a line of its
+    // own, dated, because a member who learned the old rule here needs to be told when it changed and
+    // in what words. This holds every box that tells of the guide's past wording, whatever its class:
+    // the Jobcentre Plus note is an UNSOURCED box, not a correction, and had the same order.
+    const boxes = [...RC_HTML.matchAll(/<div class="rc-chiltern[^"]*"[^>]*>([\s\S]*?)<\/div>/g)]
+        .map(m => m[1]).filter(b => /this guide used to/i.test(b));
+    assert.ok(boxes.length >= 3, `expected the three boxes that tell of this guide's old wording, found ${boxes.length}`);
+    for (const b of boxes) {
+        const [lead, ...rest] = b.split(/<br\s*\/?>/i);
+        const said = lead.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const label = (lead.match(/<span class="ct-label">([\s\S]*?)<\/span>/) || [])[1] ?? '';
+        assert.ok(label, `the box must open with its rule as a label:\n  ${said.slice(0, 120)}`);
+        assert.doesNotMatch(label, /\b(?:19|20)\d{2}\b|\b(?:changed|removed|corrected|updated)\b/i,
+            `the box opens on WHEN it changed, not on what to do — the rule leads:\n  ${said.slice(0, 120)}`);
+        assert.doesNotMatch(lead, /used to|was wrong/i,
+            `the old wording comes before the rule — put it after the rule, on its own line:\n  ${said.slice(0, 120)}`);
+        assert.ok(rest.length, `the history needs a line of its own, after the rule:\n  ${said.slice(0, 120)}`);
+        const history = rest.join(' ');
+        assert.match(history, /this guide used to/i, `the history line is missing:\n  ${said.slice(0, 120)}`);
+        assert.match(history, /<span class="ct-label">(?:Changed|Removed|Corrected) [A-Z][a-z]{2} \d{4}:<\/span>/,
+            `the history must keep its date, so a member who learned the old rule can tell when it changed:\n  ${said.slice(0, 120)}`);
+    }
+});
+
 test('railcard: the Network area ends at Banbury, and Birmingham is outside it', () => {
     // THIS TEST HAS NOW BEEN WRITTEN THREE TIMES, AND THE HISTORY IS THE USEFUL PART.
     //   1. It pinned "the area reaches Birmingham" — a v20.38 "correction" inferred from the

@@ -414,6 +414,41 @@ test('paycalc: changing a setting never writes over saved entries that could not
         'only something the member TYPES may replace damaged entries').toBe('{not json');
 });
 
+// Review, 15 Nov 2026: "a loan applies to every payslip" moved from under the plan, which every first
+// visit read, into the block that shows only once a loan is chosen. paycalc-copy-parity.test.mjs pins
+// WHERE the words are; this pins that their block is shown with a loan and only then — a Postgraduate
+// Loan on its own included, which puts the same "not deducted" tick under Hours.
+test('paycalc: the loan\'s every-payslip line shows only once a loan is chosen', async ({ page }) => {
+    await page.clock.setFixedTime(AUDIT_DAY);
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);   // a first visit: nothing saved, so Settings starts open
+    await page.goto('/paycalc.html');
+    await payPageReady(page);
+    if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#settingsToggle .card-toggle-arrow').click();
+    }
+    await expect(page.locator('#settingsBody')).toHaveCSS('visibility', 'visible');
+    const line = page.locator('#slEveryPayslip');
+    const tick = page.locator('#slSkipRow');   // under Hours → Unusual deductions or corrections
+    const plan = (/** @type {string} */ value) => page.evaluate(v => {
+        const s = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
+        s.value = v; s.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+
+    await expect(line, 'no loan: the line is not read on a first visit').toBeHidden();
+    await expect(tick, 'premise: no loan, no tick').toHaveClass(/\bhidden\b/);
+    await plan('plan2');
+    await expect(line, 'a plan: the line is shown').toBeVisible();
+    await expect(tick, '…and the tick it names is there to find').not.toHaveClass(/\bhidden\b/);
+    await plan('none');
+    await expect(line, 'back to None: the line goes again').toBeHidden();
+    await page.locator('#pgLoanCheck').check();
+    await expect(line, 'a Postgraduate Loan on its own: the line is shown').toBeVisible();
+    await expect(tick).not.toHaveClass(/\bhidden\b/);
+    await page.locator('#pgLoanCheck').uncheck();
+    await expect(line).toBeHidden();
+});
+
 test('paycalc: with Year to Date figures in use, a payslip gap names the payslip they count from (v24.89)', async ({ page }) => {
     /*
      * On 22 Oct a first entry is stamped with the 25 Sep payslip — the latest PAID one — while a

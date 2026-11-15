@@ -315,6 +315,13 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   deductions or corrections), which is the truth-bearing field and is honoured by `calculate()` AND
   `computeYearSoFar`.
 
+  **That a plan applies to every payslip is said where it applies** (review, 15 Nov 2026): in the
+  Settings block shown only once a loan is chosen (`#slEveryPayslip`, the condition that also puts
+  this tick under Hours), naming the tick by its label, and in the ? panel's Student loan tip — not
+  under the plan box, which every first visit reads. `paycalc-copy-parity.test.mjs` holds the words
+  to the page's own labels; `e2e/paycalc.spec.js` → "the loan's every-payslip line shows only once a
+  loan is chosen" holds the showing.
+
   **A resumption (ON → OFF → ON) is expressible, but only per payslip.** `slPaidOff` is monotonic, so it
   CANNOT model a gap — using it would zero the resumed payslips too. Tick `slSkip` on each payslip in
   the gap instead. **A range/bulk editor was considered and REJECTED (owner, Jul 2026):** the capability

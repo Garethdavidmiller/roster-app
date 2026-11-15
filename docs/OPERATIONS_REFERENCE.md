@@ -924,6 +924,15 @@ their own days, a manager or the admin anyone's, and a day can never move to a y
 left. The design and the owner's decisions are in `leave-year.js`; the field is `leaveYear` in
 docs/DATA_MODEL.md.
 
+**Every January, from January 2026.** Nothing in the rule names a year: each January's days can come
+out of the year before. The panel lists this year's January and next year's, so a January stays on it
+until the end of its own year: January 2026 until 31 December 2026, January 2027 through 2027, and so
+on. January 2026 joined at v26.18 (owner, 15 Nov 2026); before that the choice began with January
+2027. **The cap reads the app's own figures for the earlier year**, so for January 2026 it is only as
+good as the 2025 leave recorded in the app. Where 2025 was not all recorded, the panel shows 2025 with
+days left that were in fact taken, and will not stop a move it should. Check the panel's 2025 figure
+against the depot workbook before moving a day.
+
 **It is ON.** The switch is `LEAVE_YEAR_CHOICE` in `leave-year.js`, and the assertion in
 `leave-year.test.mjs` changes with it, deliberately. It shipped switched off first and was turned on
 only once **Deploy Firestore and Storage Rules** had finished green, because the rules that accept
