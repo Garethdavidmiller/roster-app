@@ -45,7 +45,13 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 14 Nov 2026 (v26.11, the annual leave uploader's log): one rule added — `alUploads`,
+// Last swept 15 Nov 2026 (v26.14, the leave sheet's Undo): two optional fields accepted, no rule
+// tightened. A leave record may carry `uploadId`, the id of the Annual leave sheet Save that wrote
+// it — the admin only, on manual annual leave only — and that Save's log may say so
+// (`writesMarked: true`). Backend-first: no client writes either in this release. Both new clauses
+// were re-read against their comments, and against the two blocks' own hasOnly lists; no
+// collection's posture changed, so the audit table above stands as it was.
+// Prior sweep 14 Nov 2026 (v26.11, the annual leave uploader's log): one rule added — `alUploads`,
 // admin-only in both directions, with its line in the audit table above. Backend-first: no client
 // writes it in this release. No other rule has changed since the v26.04 sweep below, so the re-read
 // was of the new block against its comments and of every comment that lists the collections: the
@@ -346,7 +352,7 @@ service cloud.firestore {
         // as surely as `false`.)
         request.resource.data.keys().hasOnly(
           ['date', 'memberName', 'type', 'value', 'note', 'source', 'createdAt', 'changedBy',
-           'replacedType', 'leaveYear']
+           'replacedType', 'leaveYear', 'uploadId']
         ) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
@@ -464,6 +470,30 @@ service cloud.firestore {
           request.resource.data.date.matches('[0-9]{4}-01-[0-9]{2}') &&
           request.resource.data.leaveYear is int &&
           request.resource.data.leaveYear == int(request.resource.data.date[0:4]) - 1
+        )) &&
+        // ── uploadId — OPTIONAL: the Annual leave sheet's Save that wrote this record (v26.14) ──
+        //
+        // The id of the Save's log (`alUploads/{id}`), on each leave record that Save writes, so its
+        // Undo can tell its own writes from everybody else's. It could not before: it judged a
+        // record by who wrote it and when, and the same admin changing a day in another tab while
+        // the Save ran left a record exactly like the Save's, stamped before its log — and the Undo
+        // took the change away (external review, 15 Nov 2026). Every other save replaces the whole
+        // record and never writes this field, so a record still carrying the id is the Save's own
+        // write and nothing written since: a rewrite drops it, as the rules re-stamp `createdAt`.
+        //
+        // BACKEND-FIRST: nothing writes it in the release that adds this clause; the Save writes it
+        // only once these rules are live (CLAUDE.md). The admin only, on manual annual leave only,
+        // because only the admin's Operations page saves the sheet, and a mark a member or a manager
+        // could write would let them make their own later change look like the Save's — for its Undo
+        // to delete. The shape is Firestore's own auto-id, which is how the log's id is made
+        // (`newUploadLogId`, al-leave-save.js); whether that log exists is not asked, because the log
+        // is written after the records it describes. `matches()` is a string method, so a number, a
+        // list or a null is an evaluation error and refused; no `is string` is needed before it.
+        (!request.resource.data.keys().hasAny(['uploadId']) || (
+          request.auth.token.admin == true &&
+          request.resource.data.type == 'annual_leave' &&
+          request.resource.data.source == 'manual' &&
+          request.resource.data.uploadId.matches('[A-Za-z0-9]{20}')
         )) &&
         // ── Per-member write isolation (B3, STRICT form) ──────────────────────────────────
         // A staff member may write only their OWN override (token.name == the doc's memberName).
@@ -1081,7 +1111,8 @@ service cloud.firestore {
     //   · an older copy of the workbook is refused by name: "you uploaded a newer copy, saved 6 Nov,
     //     on 14 Nov" (`clerksLastSaved`, `savedAt`);
     //   · an undo removes only the leave this Save created, and only where nobody has written the
-    //     day since (`added`, `savedAt`, `savedBy`).
+    //     day since (`added`, `savedAt`, `savedBy` — and, once the Save marks its writes, the id on
+    //     each record: `writesMarked`).
     //
     // ADMIN ONLY, both ways. A log names colleagues against their leave days, and only the admin's
     // own page writes one. A manager, a member and the PIN viewer get nothing.
@@ -1108,13 +1139,20 @@ service cloud.firestore {
       }
       function logFields() {
         return ['year', 'fileDigest', 'workbookSha256', 'clerksLastSaved', 'lastSavedByClerk',
-                'savedAt', 'savedBy', 'appVersion', 'inLine', 'added'];
+                'savedAt', 'savedBy', 'appVersion', 'inLine', 'added', 'writesMarked'];
       }
       allow read, delete: if isAdminSession();
       allow create: if isAdminSession() &&
-        // Nothing else rides in. Every field is REQUIRED as well, by its own check below: reading a
-        // missing field is an evaluation error, which refuses the write as surely as `false`.
+        // Nothing else rides in. Every field but `writesMarked` is REQUIRED as well, by its own check
+        // below: reading a missing field is an evaluation error, which refuses the write as surely as
+        // `false`.
         request.resource.data.keys().hasOnly(logFields()) &&
+        // `writesMarked` (v26.14): this Save's leave records carry the log's id (`uploadId`, the
+        // overrides block above says why), so its Undo asks for the id rather than judging by who
+        // and when. OPTIONAL, and only ever `true`: a log written before the Save marked its writes
+        // has none, and its Undo keeps the old judgement, because its records carry no id to ask
+        // for. Backend-first, like `uploadId`: nothing writes it in the release that adds it.
+        (!('writesMarked' in request.resource.data) || request.resource.data.writesMarked == true) &&
         // The leave file's own year, with the same bounds its format holds (al-leave-file.js).
         request.resource.data.year is int &&
         request.resource.data.year >= 2020 &&

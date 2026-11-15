@@ -571,6 +571,67 @@ describe('overrides — the real builder, and provenance the writer cannot forge
         await assertFails(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), build({ source: 'roster_import', changedBy: 'S. Stewart' })));
     });
 
+    // ── THE LEAVE SHEET SAVE'S MARK (v26.14) ─────────────────────────────────────────────────
+    //
+    // `uploadId` names the Annual leave sheet Save that wrote a leave record, so that Save's Undo can
+    // tell its own writes from a later change (firestore.rules → overrides). Backend-first: these
+    // prove the rules ACCEPT what the Save will send — the builder's own output — before any client
+    // sends it, and refuse a mark anybody else could use to make their change look like the Save's.
+    describe('uploadId — the leave sheet Save\'s mark on its own writes (v26.14)', () => {
+        const ID = 'Ab3dEf6hIj9kLm2nOp5q';   // the shape of a Firestore auto-id, which the log's id is
+        const LEAVE = { memberName: 'S. Boyle', type: 'annual_leave', value: 'AL', changedBy: 'G. Miller' };
+        /** The Save's write of a day, exactly as the builder makes it. @param {any} [f] @param {any} [uploadId] */
+        const marked = (f = {}, uploadId = ID) => buildOverrideWrite({
+            memberName: 'G. Miller', date: '2026-06-25', type: 'shift', value: '06:30-14:30', source: 'manual', changedBy: 'G. Miller',
+            ...LEAVE, ...f,
+        }, serverTimestamp(), { uploadId });
+
+        test('the admin\'s leave, on behalf, carrying the log\'s id: created, and updated at the fixed id', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            assert.equal(marked().uploadId, ID, 'the builder sends the mark');
+            await assertSucceeds(setDoc(ref, marked()));
+            await assertSucceeds(setDoc(ref, marked({ replacedType: 'shift' })));   // the Save's "swapped" rewrite
+            const jan = doc(namedAdminDb(), 'overrides', manualOverrideId('S. Boyle', '2027-01-05'));
+            await assertSucceeds(setDoc(jan, marked({ date: '2027-01-05', leaveYear: 2026 })));   // a next-January day
+        });
+
+        test('any other save of the day replaces the record whole, and the mark goes with it', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            await assertSucceeds(setDoc(ref, marked()));
+            // The admin's own leave card, the same day, the same name: everything the Save wrote but the mark.
+            await assertSucceeds(setDoc(ref, build({ ...LEAVE })));
+            const after = (await assertSucceeds(getDoc(ref))).data();
+            assert.equal(after?.type, 'annual_leave', 'the day still holds leave');
+            assert.ok(after && !('uploadId' in after), 'a rewrite leaves no mark behind for the Undo to find');
+        });
+
+        test('only the admin may write one — never a member on their own leave, never a manager on behalf', async () => {
+            await assertFails(setDoc(fixed(namedDb('G. Miller')), marked({ memberName: 'G. Miller', changedBy: 'G. Miller' })));
+            await assertFails(setDoc(fixed(managerDb('S. Stewart'), 'S. Boyle'), marked({ changedBy: 'S. Stewart' })));
+            // Guard the guard: the same writes without the mark are the ordinary saves, and pass.
+            await assertSucceeds(setDoc(fixed(namedDb('G. Miller')), build({ ...LEAVE, memberName: 'G. Miller', changedBy: 'G. Miller' })));
+            await assertSucceeds(setDoc(fixed(managerDb('S. Stewart'), 'S. Boyle'), build({ ...LEAVE, changedBy: 'S. Stewart' })));
+        });
+
+        test('only on manual annual leave — the Save writes nothing else', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            await assertFails(setDoc(ref, marked({ type: 'shift', value: '06:30-14:30' })));
+            await assertFails(setDoc(ref, marked({ type: 'sick', value: 'SICK' })));
+            await assertFails(setDoc(doc(namedAdminDb(), 'overrides', uid()), marked({ source: 'roster_import' })));
+        });
+
+        test('only an id of the log\'s own shape: twenty letters and digits', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            for (const bad of [ID.slice(1), ID + 'x', 'Ab3dEf6hIj9kLm2nOp5-', 'Ab3dEf6hIj9kLm2nOp5_', 'Ab3dEf6hIj9kLm2n p5q']) {
+                await assertFails(setDoc(ref, marked({}, bad)));
+            }
+            // The builder sends anything truthy as given (override-utils.js), so these reach the rules too.
+            await assertFails(setDoc(ref, marked({}, 20262026)));
+            await assertFails(setDoc(ref, { ...marked(), uploadId: null }));
+            await assertFails(setDoc(ref, { ...marked(), uploadId: [ID] }));
+        });
+    });
+
     // ── THE CHECK BEFORE A SAVE (v25.90) ─────────────────────────────────────────────────────
     //
     // Every online save now commits through ONE transaction that first READS each day it is about
@@ -1527,6 +1588,24 @@ describe('alUploads (the annual leave uploader\'s log)', () => {
         for (const change of [{ year: 2020 }, { year: 2100 }, { lastSavedByClerk: false }, { lastSavedByClerk: null }, { added: [] }]) {
             await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), ...change }));
         }
+    });
+
+    // v26.14, backend-first: a Save whose leave records carry its log's id says so, and its Undo then
+    // asks for the id. A log without the flag is still written — the release live before it sends none.
+    test('writesMarked: true is accepted, and nothing else; a log without it is still written', async () => {
+        const db = loggingAdminDb();
+        await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), writesMarked: true }));
+        await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), LOG()));
+        for (const writesMarked of [false, 'true', 1, null, ['true']]) {
+            await refused(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), writesMarked }),
+                `writesMarked ${JSON.stringify(writesMarked)} was accepted`);
+        }
+    });
+
+    test('an undo cannot add writesMarked to a log written without it', async () => {
+        const id = await writtenLog();
+        await assertFails(updateDoc(doc(loggingAdminDb(), 'alUploads', id), { ...UNDO(), writesMarked: true }));
+        await assertSucceeds(updateDoc(doc(loggingAdminDb(), 'alUploads', id), UNDO()));   // the undo alone still goes
     });
 
     test('the lists are capped: 4,000 days in line at most, and no more added than are in line', async () => {
