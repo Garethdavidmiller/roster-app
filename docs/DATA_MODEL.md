@@ -95,9 +95,10 @@ uploadId     Optional — on leave written by a Save on Operations → Annual le
              only, on manual annual leave only, in the shape of a Firestore auto-id; `buildOverrideWrite`
              writes it from its own third argument alone, never from the fields it is given, so a save
              that copies a record it read cannot carry the mark forward. Accepted by the rules from
-             v26.14 and written by no client in that release (backend-first); absent on every record
-             written before the Save marks its writes, whose logs keep the old judgement
-             (`writesMarked`, alUploads below). Nothing else reads it.
+             v26.14 and written by every Save from v26.15 (backend-first); absent on every record
+             written before then, whose logs keep the old judgement (`writesMarked`, alUploads below).
+             Read by the Save's read-back and its Undo, and by the checked commit's re-run, which takes
+             a record for a save's own landed write only with that save's mark (`commitChecked`).
 createdAt    Firestore server timestamp — the rules require it to BE the server's clock at the write
              (`== request.time`), on create and on the fixed-id update alike, so the newest-wins
              ordering cannot be gamed. firestore.rules.test.mjs writes the real
@@ -294,10 +295,10 @@ added             list of "Name|YYYY-MM-DD" — the days this Save CREATED, the 
                   Never longer than inLine
 writesMarked      Optional, and only ever `true` — every leave record this Save wrote carries this log's id
                   as `uploadId` (overrides above), so its undo asks for the id instead of judging by who
-                  wrote the day and when. Accepted by the rules from v26.14, before any client writes it
-                  (backend-first). A log without it is one written before the Save marked its writes: its
-                  records carry no id, so its undo keeps the old judgement, and its gap with it
-                  (KNOWN_LIMITATIONS.md → "The leave sheet's Undo and a change made during its Save")
+                  wrote the day and when. Accepted by the rules from v26.14, and written by every Save
+                  from v26.15. A log without it was written before then: its records carry no id, so its
+                  undo keeps the old judgement, and its gap with it (KNOWN_LIMITATIONS.md → "The leave
+                  sheet's Undo and a change made during its Save")
 undoneAt          Firestore server timestamp — set once, by an undo; absent until then
 undoneBy          the admin's own name, set with undoneAt
 undone            list of "Name|YYYY-MM-DD" — what the undo took back: every added day gone by its end, whether

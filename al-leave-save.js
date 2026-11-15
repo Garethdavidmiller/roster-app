@@ -14,9 +14,10 @@
  * transaction that refuses, writing nothing and naming the days, unless each day still holds what the
  * check read and each fixed id holds nothing the check did not see. It waits for this device's own
  * unsent saves first, and recognises its own write after an answer was lost — on a RE-RUN only
- * (`lostAnswerOnly`): on a first attempt nothing of the Save's can be there yet, so a record exactly
- * like it is the admin's own booking of the day, made by hand after the check, and is refused like
- * any other change (review, 15 Nov 2026). The store is loaded with a check that can be saved, never
+ * (`lostAnswerOnly`), and only by the Save's own id on the record: on a first attempt nothing of the
+ * Save's can be there yet, and on any attempt a record exactly like it without that id is the admin's
+ * own booking of the day, made by hand after the check, refused like any other change (reviews,
+ * 15 Nov 2026). The store is loaded with a check that can be saved, never
  * with the page (`preloadSaveStore`): a page load only reads, and Operations loads none of Admin's
  * store until a Save is on offer (e2e/operations.spec.js). Loading it then, from the release the page
  * came from, means an update arriving later cannot hand the Save a newer store than its page; when it
@@ -46,8 +47,9 @@
  * After the Save the card reads every compared person again (`readMemberRecords`), builds the log
  * from that read (`logLists`, `logFields`) and writes it here, in a transaction that reads first. A
  * create whose answer is lost is sent again, and the copy arrives as an UPDATE, which the rules refuse
- * (firestore.rules → alUploads). So the id is minted once per Save (`newUploadLogId`), and a run that
- * finds the log already there writes nothing. Logs older than last year are then deleted
+ * (firestore.rules → alUploads). So the id is minted once per Save (`newUploadLogId`), before its first
+ * write, which carries it — as every record of the Save does — and a run that finds the log already
+ * there writes nothing. Logs older than last year are then deleted
  * (`pruneUploadLogs`): a log is only needed while its year's sheet can still be saved, which is this
  * year's and last year's (al-leave-plan.js → `saveRefusal`). The deleting is housekeeping, and the
  * Save does not wait for it: a batch with no answer waits for the connection, and held the card on
@@ -58,7 +60,8 @@
  *
  * ── UNDO TAKES BACK ONLY WHAT IS STILL THE SAVE'S OWN ───────────────────────────────────────────
  *
- * `planUndo` keeps any day changed since the Save. A colleague's change landing between that read and
+ * `planUndo` keeps any day changed since the Save: any rewrite of a day, by anybody, takes the Save's
+ * id off its record (al-leave-plan.js → header). A colleague's change landing between that read and
  * the delete is refused by the check, and the refused days are kept while the rest of the person's
  * days still go — because the log can be marked undone only ONCE, so a refusal that kept a whole
  * person would leave their days with no Undo at all.
@@ -142,13 +145,15 @@ export async function readUploadLogs(year) {
  *             stopped: null|'offline'|'unconfirmed'|'failed'|'not-started', code: string|null, partial: boolean }} SaveOutcome
  *   `saved`: each person's dates whose part committed; `refused`: each person's dates a colleague
  *   changed after the check (nothing of that part was written, nor of their later parts); `stopped`:
- *   why the Save ended early, with the error's `code` — 'not-started' when the store could not load
- *   and nothing was sent; `partial`: a part may have landed without saying so, so only the read after
+ *   why the Save ended early, with the error's `code` — 'not-started' when the store could not load,
+ *   or the Save had no id to mark its records with, and nothing was sent; `partial`: a part may have landed without saying so, so only the read after
  *   the Save can say what is there
  */
 
 /** What an Undo or a Save throws, or stops with, when Admin's checked commit could not be loaded. */
 export const STORE_UNLOADED = 'leave-sheet/store-unloaded';
+/** What a Save stops with, before sending anything, when it was given no id to mark its records with. */
+const NO_UPLOAD_ID = 'leave-sheet/no-upload-id';
 
 /** Admin's checked commit, loaded with a check that can be saved, not with the page (header). */
 const adminStore = () => import('./admin-override-store.js').catch((/** @type {any} */ err) => {
@@ -177,14 +182,19 @@ function stopFor(err, refused) {
 }
 
 /**
- * Send the planned writes, person by person, part by part, each part checked (header).
+ * Send the planned writes, person by person, part by part, each part checked (header). Every record
+ * written carries `uploadId`, the id of the log this Save will write (al-leave-plan.js → header): it
+ * is how the Save's records are told from everybody else's, by its read-back and by its Undo.
  * @param {import('./al-leave-plan.js').PersonPlan[]} plans
- * @param {{ onProgress?: (done: number, total: number) => void }} [opts]
+ * @param {{ uploadId: string, onProgress?: (done: number, total: number) => void }} opts
  * @returns {Promise<SaveOutcome>}
  */
-export async function saveLeavePlans(plans, { onProgress } = {}) {
+export async function saveLeavePlans(plans, { uploadId, onProgress } = /** @type {any} */ ({})) {
     /** @type {SaveOutcome} */
     const out = { saved: new Map(), refused: new Map(), stopped: null, code: null, partial: false };
+    // Never a record without the mark: nothing could tell it from the admin's own booking afterwards, so
+    // the read-back would call it not saved, and no Undo could take it back (al-leave-plan.js → header).
+    if (typeof uploadId !== 'string' || !uploadId) return { ...out, stopped: 'not-started', code: NO_UPLOAD_ID };
     if (globalThis.navigator?.onLine === false) return { ...out, stopped: 'offline', code: 'unavailable' };
     /** @type {Awaited<ReturnType<typeof adminStore>>} */ let store;
     try { store = await adminStore(); } catch { return { ...out, stopped: 'not-started', code: STORE_UNLOADED }; }
@@ -200,7 +210,7 @@ export async function saveLeavePlans(plans, { onProgress } = {}) {
             const fill = (w) => {
                 for (const pw of part) {
                     for (const r of pw.replaces) w.delete(doc(db, COLLECTIONS.overrides, r.id));
-                    w.set(doc(db, COLLECTIONS.overrides, pw.fixedId), buildOverrideWrite(pw.fields, serverTimestamp()));
+                    w.set(doc(db, COLLECTIONS.overrides, pw.fixedId), buildOverrideWrite(pw.fields, serverTimestamp(), { uploadId }));
                 }
             };
             try {
@@ -225,7 +235,8 @@ export async function saveLeavePlans(plans, { onProgress } = {}) {
     return out;
 }
 
-/** A new upload log's id, minted once per Save so every attempt lands on the same document (header). @returns {string} */
+/** A new upload log's id, minted once per Save, before anything is sent: every record the Save writes
+ *  carries it, and every attempt to write the log lands on the same document (header). @returns {string} */
 export function newUploadLogId() {
     return doc(collection(db, COLLECTIONS.alUploads)).id;
 }

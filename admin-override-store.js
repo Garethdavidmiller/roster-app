@@ -549,7 +549,8 @@ const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
  *        with no server such a save is refused, writing nothing, as a removal has been since v25.89; never
  *        held unchecked; `lostAnswerOnly`: its own write is recognised on a RE-RUN only, so a record exactly
  *        like it found on the first attempt is somebody else's, and refused (the leave sheet's Save, whose
- *        admin may have booked the same day by hand since the check — al-leave-save.js)
+ *        admin may have booked the same day by hand since the check — al-leave-save.js). On any attempt a
+ *        record is this save's only with this save's `uploadId`, or none when the save carries none
  * @returns {Promise<{ checked: boolean, done: boolean }>} `checked` false: held unchecked, offline;
  *          `done`: the server already held exactly this save, so nothing was written
  */
@@ -568,12 +569,15 @@ export async function commitChecked(write, { shownFor, removed = [], line, holdO
             if (shown?.id !== id) { items.push(id); mustBeAbsent.push(id); }
         }
         // The server already holds this save: every record as written (bar its stamp, which only the
-        // server knows) and every deleted copy gone. Never true of an empty save — an empty `every`
-        // would call a refusal done.
+        // server knows), with the same leave-sheet Save's id or none (`uploadId`, al-leave-plan.js) —
+        // a record exactly like this save with another writer's mark, or without the mark this save
+        // carries, is somebody else's write — and every deleted copy gone. Never true of an empty
+        // save: an empty `every` would call a refusal done.
         const stamp = new Date();
         const alreadyDone = (/** @type {Map<string, any>} */ latest, /** @type {number} */ attempt) => sets.size > 0
             && (!lostAnswerOnly || attempt > 1)
-            && [...sets].every(([id, data]) => sameOverrideRecord({ ...data, createdAt: stamp }, latest.get(id)))
+            && [...sets].every(([id, data]) => sameOverrideRecord({ ...data, createdAt: stamp }, latest.get(id))
+                && (data.uploadId ?? null) === (latest.get(id)?.uploadId ?? null))
             && [...deletes].every(id => latest.get(id) == null);
         try {
             const { done } = await commitIfUnchanged(items, write, { mustExist, mustBeAbsent, line, alreadyDone });

@@ -355,6 +355,15 @@ CHECKED"), with one difference from the roster import that matters:
 unchanged since. It cannot honestly cover a replaced record. The rules stamp a fresh `createdAt` and
 `changedBy` on any rewrite, so a "restored" absence would be a new record claiming to be the old one.
 
+**"Unchanged since" is a mark on the record, not a date** (external review, 15 Nov 2026). Every record
+a Save writes carries that Save's log id (`uploadId`), minted before anything is sent; every other
+writer builds its record without it, so the first rewrite of the day, by anybody, takes it off. The
+Undo removes a day only while it still carries the id. It first went by date — leave by the log's
+author, stamped no later than the log — but the log is written after the leave and a read of it, and
+the same admin's change in another tab during that time passed the date test and was undone. Rules
+first (v26.14), the Save after them (v26.15); a log from before then has no marked records and is
+still judged by date.
+
 **Removing app-only leave is not planned.** Every way of deciding it is weak:
 
 - `createdAt` is the last write, not when the leave was booked.
@@ -658,6 +667,29 @@ Mutation, after the fixes: each of the 20 new guard lines in the modules and the
 test when broken. Two of those tests were themselves found wanting by breaking their guard (a hand
 booking over two days, which could never read as already saved; and the update's hold, which the tap's
 question had stood in for), and were corrected.
+
+**The Undo after its second review** (v26.14 rules, v26.15 Save; 15 Nov 2026). The Undo judged a day
+the Save's own by who wrote it and when, and the log it compared with is written last, so the same
+admin's change in another tab between the Save and its log was taken back with it, against the
+question's own promise. The reviewer and this session both reproduced it with the real planning
+function. Now:
+
+- **Every record of a Save carries that Save's id** (`uploadId`, `buildOverrideWrite`'s third argument,
+  passed by `saveLeavePlans` alone — a test reads every writer to hold that), and the log says so
+  (`writesMarked: true`). The rules take the id only on manual annual leave written by the admin.
+- **What landed, what the log calls added, and what an Undo takes back all ask for the id** —
+  `landedWrites`, `logLists`, `planUndo`. With no id to look for, nothing is the Save's: an unmarked
+  record never matches an empty mark. A Save given no id sends nothing.
+- **The checked commit's re-run asks for it too**: a record exactly like a save, but without that
+  save's mark or with another's, is somebody else's write (`commitChecked`, the leave sheet's Save and
+  Admin's own saves alike).
+- **A log written before the mark** keeps the date rule, because its records carry no id.
+
+Tests that failed before it: the reviewer's sequence through the real writer, read-back, log and Undo,
+with the admin's change both after the read-back and before it; the same in the browser through the
+card; and a re-run meeting the admin's own booking. Each new guard line, broken on purpose, failed a
+test: the seven in the modules, the builder scan both ways, the card passing no id or a different one
+from its log's, and the date rule put back, in the browser too.
 
 **The check card after its review** (live from v26.11; 15 Nov 2026): leave on a swapped working day
 before a member's start date no longer costs a day in the shared allowance rule (`consumesEntitlement`

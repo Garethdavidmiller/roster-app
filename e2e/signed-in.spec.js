@@ -64,9 +64,10 @@
  *  18. the leave sheet's Save — the admin checks a leave file on Operations, answers a rest day,
  *                         confirms a person and saves: each day lands at its fixed id as Admin writes
  *                         it, the upload log passes the `alUploads` rules (written last, in a
- *                         transaction that reads first, `savedAt` the server's clock), and the Undo
- *                         takes both days back and marks the log once — every write through the real
- *                         rules, where the stub would accept a field the rules refuse.
+ *                         transaction that reads first, `savedAt` the server's clock), each record
+ *                         carries the log's id (`uploadId`), and the Undo takes both days back and
+ *                         marks the log once — every write through the real rules, where the stub
+ *                         would accept a field the rules refuse.
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -996,8 +997,14 @@ test('the leave sheet: a Save adds a confirmed person\'s missing leave through t
     const added = [fx.dates.missing, fx.dates.restDay].map(d => `${fx.A.name}|${d}`).sort();
     const logs = await readCollection('alUploads');
     expect(logs, 'one log').toHaveLength(1);
-    expect(logs[0]).toMatchObject({ year: fx.year, fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256, savedBy: ADMIN, added });
+    expect(logs[0]).toMatchObject({ year: fx.year, fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256, savedBy: ADMIN, added,
+        writesMarked: true });
     expect(Date.parse(logs[0].savedAt), 'stamped by the server').toBeGreaterThan(0);
+    // Each record carries the log's id, through the rules that take it from the admin alone, on manual
+    // leave alone — the mark the Undo asks for (al-leave-plan.js; v26.14 rules, v26.15 Save).
+    for (const date of [fx.dates.missing, fx.dates.restDay]) {
+        expect((await overridesFor(fx.A.name, date))[0].uploadId, `${date} carries the Save's own id`).toBe(logs[0]._id);
+    }
 
     await page.locator('.al-sheet-undo').click();
     await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText(undoConfirmWords(2));
