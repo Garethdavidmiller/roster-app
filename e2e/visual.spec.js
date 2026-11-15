@@ -46,6 +46,9 @@ import { test, expect } from './fixtures.js';
 import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, stubUsageReads, usageStats, openPinCard, sheetAction } from './helpers.js';
 import { FIXED_TIME, dismissOneTimeOverlays, prep, settle } from './visual-harness.js';
 import { ROTATING_LINES } from '../links-design.js';
+import { alSheetFixture } from './al-sheet-fixture.js';
+import { teamMembers } from '../roster-data.js';
+import { SAVE_WORDS, questionWords, confirmWords, saveButtonWords, receiptWords, undoConfirmWords, undoneWords } from '../al-leave-words.js';
 
 // The determinism levers (clock, session, overlays, settle) live in `visual-harness.js`, shared
 // with print-visual.spec.js and visual-webkit.spec.js. Three copies of a settle recipe is the most
@@ -329,6 +332,97 @@ test('operations — roster review table, every row state (mobile 390)', async (
     expect(skipBg, 'Skip must not wear the colour that means "this will be saved"').not.toBe(valueBg);
 
     await expect(page.locator('#rosterReviewSection')).toHaveScreenshot('operations-roster-review.png');
+});
+
+// ── The Annual leave sheet: its review, its Save's receipt and its Undo (external review, 15 Nov 2026) ──
+//
+// The Operations baseline still showed this card's old hint ("nothing is saved") a release after its
+// Save shipped: the lane only reports, so a drifted baseline is a neutral check that nobody has to act
+// on. These capture the three states the Save added, so a change to any of them is seen.
+//
+// THE CLOCK AND THE FILE ARE BOTH FIXED. The fixture seals its file "made today" and "saved two days
+// ago"; from the real today, the card would read a day older every day after a baseline was drawn.
+//
+// NO COLLEAGUE'S NAME IS CAPTURED. The fixture's two people are members of the roster, taken by rule,
+// because the card compares only people the app holds (al-sheet-fixture.js says why). An image in a
+// public repository showing a colleague's name beside leave days reads as their leave, invented or not,
+// so each name is swapped for a placeholder of its own just before each capture — after every lookup by
+// name is done, because the swap changes what those find. So is the list of everybody "in the app, not
+// on the sheet", which against this two-person file is the whole roster: it would set every colleague's
+// name beside a leave sheet, and redraw the baseline whenever the roster changed. The admin's own name,
+// on the "last saved by" line, is the signed-in account, as on every other signed-in baseline.
+/** @param {import('@playwright/test').Page} page @param {string[]} names */
+async function nameless(page, names) {
+    const pairs = names.map((name, i) => [name, `${String.fromCharCode(65 + i)}. Example`]);
+    await page.evaluate((swap) => {
+        const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            let text = n.nodeValue ?? '';
+            for (const [from, to] of swap) text = text.split(from).join(to);
+            if (text !== n.nodeValue) n.nodeValue = text;
+        }
+        for (const list of document.querySelectorAll('#alSheetCard .al-sheet-names')) {
+            list.textContent = 'C. Example, D. Example, E. Example';
+        }
+    }, pairs);
+    // The signed-in admin is the one roster name allowed to stay (the header above says why).
+    const others = teamMembers.map(m => m.name).filter(n => n !== 'G. Miller');
+    const left = await page.locator('#alSheetCard').evaluate((card, list) => list.filter(n => card.textContent?.includes(n)), others);
+    expect(left, 'no colleague\'s name is left to capture').toEqual([]);
+}
+
+test('operations — Annual leave sheet: the review, the Save\'s receipt and its Undo (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 2400 });
+    const fx = await alSheetFixture({ today: FIXED_TIME });
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [], docsByQuery: { overrides: rows }, writesLand: true };
+    }, fx.records);
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await page.goto('/operations.html');
+    await page.locator('#alSheetChevron').click();
+    await page.locator('#alSheetFileInput').setInputFiles({ name: 'leave-2026.leave.json', mimeType: 'application/json',
+        buffer: Buffer.from(fx.text) });
+    await page.locator('#alSheetCheckBtn').click();
+    const card = page.locator('#alSheetCard');
+    const save = page.locator('#alSheetSaveBtn');
+    const feedback = page.locator('#alSheetFeedback');
+
+    // 1 — THE REVIEW: one person open, their rest day answered "swapped", confirmed, and the Save on offer.
+    const a = page.locator('#alSheetResult .al-sheet-person').filter({ has: page.locator('.al-sheet-name', { hasText: fx.A.name }) });
+    await a.locator('.al-sheet-person-head').click();
+    await a.getByRole('radiogroup', { name: questionWords(fx.dates.restDay) }).getByRole('radio', { name: SAVE_WORDS.swapped }).check();
+    await a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }).check();
+    // Sentinels: a regeneration that lost the state would otherwise draw the wrong card as the new truth.
+    await expect(save).toHaveText(saveButtonWords({ days: 2, people: 1 }));
+    await expect(a.locator('.al-sheet-after')).toContainText('After this Save — ');
+    await nameless(page, [fx.A.name, fx.B.name]);
+    await page.evaluate(() => document.fonts.ready);
+    await transitionsDone(card);
+    await expect(card).toHaveScreenshot('operations-al-sheet-review.png');
+
+    // 2 — THE RECEIPT: what was saved, that it is recorded, and the Undo it can be taken back with.
+    await save.click();
+    await expect(feedback).toContainText(receiptWords({ days: 2, people: 1, refused: new Map() })[0]);
+    await expect(feedback).toContainText(SAVE_WORDS.recorded);
+    await expect(page.locator('.al-sheet-undo')).toBeVisible();
+    await expect(save, 'the same file again has nothing to save').toHaveCount(0);
+    await nameless(page, [fx.A.name, fx.B.name]);
+    await transitionsDone(card);
+    await expect(card).toHaveScreenshot('operations-al-sheet-saved.png');
+
+    // 3 — THE UNDO: asked first, then what it took back, and the days on offer again.
+    await page.locator('.al-sheet-undo').click();
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText(undoConfirmWords(2));
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(page.locator('.lb-overlay.open')).toHaveCount(0);
+    await expect(feedback).toContainText(undoneWords({ removed: [fx.dates.missing, fx.dates.restDay].map(d => `${fx.A.name}|${d}`).sort(),
+        kept: [], gone: [] })[0]);
+    await expect(page.locator('.al-sheet-undo'), 'an undone Save is not offered again').toHaveCount(0);
+    await expect(save).toHaveText(SAVE_WORDS.confirmFirst);
+    await nameless(page, [fx.A.name, fx.B.name]);
+    await transitionsDone(card);
+    await expect(card).toHaveScreenshot('operations-al-sheet-undone.png');
 });
 
 // ── Links workspace ───────────────────────────────────────────────────────────────────────────

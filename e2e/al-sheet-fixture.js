@@ -72,14 +72,18 @@ function person(m, used, off = 0, lump = 0) {
 /**
  * The file, its text, the records the app holds, and the dates each case landed on.
  * @param {{ savedDaysAgo?: number|null, bAllowanceOff?: number, withLeaver?: boolean, bMissing?: boolean,
- *           bUndatedOnly?: number }} [o]
+ *           bUndatedOnly?: number, today?: Date }} [o]
  *        how long before today the clerks last saved the sheet (null: the file does not say), how many
  *        days more than the app's figure the sheet allows member B, whether the file holds a member who
  *        has left since it was made, whether B too has a day the app lacks — so a Save can write for
  *        two people, one of whom a colleague's change stops — and, instead of B's days, how many days
- *        over quota the sheet takes off B with no date: leave on the sheet that no day of it shows
+ *        over quota the sheet takes off B with no date: leave on the sheet that no day of it shows.
+ *        `today`: the day the file is made, and its save date counted back from — the real today unless
+ *        a test fixes the page's clock (the visual baselines do: a file made on the day the baseline was
+ *        drawn would read a day older every day after it)
  */
-export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, withLeaver = false, bMissing = false, bUndatedOnly = 0 } = {}) {
+export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, withLeaver = false, bMissing = false, bUndatedOnly = 0,
+    today = new Date() } = {}) {
     const [A, B] = teamMembers.filter(m => m.role === 'CEA' && m.rosterType === 'main' && !m.startDate
         && leaveRecordability(m, YEAR) === null);
     if (!A || !B) throw new Error('the roster no longer has two recordable main-line CEAs');
@@ -93,7 +97,6 @@ export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, with
     const bMatch = findDay(B, '2026-05-04', isTimed);
     const bLacks = bMissing ? findDay(B, '2026-05-04', isTimed, [bMatch]) : null;
 
-    const today = new Date();
     const saved = savedDaysAgo === null ? null
         : new Date(today.getTime() - savedDaysAgo * DAY_MS).toISOString().replace(/\.\d{3}Z$/, 'Z');
     const file = await sealLeaveFile({

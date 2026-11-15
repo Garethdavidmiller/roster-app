@@ -85,6 +85,19 @@ leaveYear    Optional — on ANNUAL LEAVE DATED IN JANUARY only: the year whose 
              being annual leave. The depot workbook records carried days as one number added to the
              next year (AL_WORKBOOK.md §9), so the two agree on next year's remaining and differ on
              last year's by exactly the carried days.
+uploadId     Optional — on leave written by a Save on Operations → Annual leave sheet only: the id of
+             that Save's log (`alUploads/{id}`), so its Undo can tell its own writes from a later
+             change. Without it the Undo judged a record by who wrote it and when, and the same admin
+             changing a day in another tab while the Save ran left a record exactly like the Save's,
+             stamped before its log, which the Undo then took away (external review, 15 Nov 2026).
+             Every other save replaces the whole record and never writes the field, so a record still
+             carrying the id is the Save's own write and nothing since. The rules allow it to the admin
+             only, on manual annual leave only, in the shape of a Firestore auto-id; `buildOverrideWrite`
+             writes it from its own third argument alone, never from the fields it is given, so a save
+             that copies a record it read cannot carry the mark forward. Accepted by the rules from
+             v26.14 and written by no client in that release (backend-first); absent on every record
+             written before the Save marks its writes, whose logs keep the old judgement
+             (`writesMarked`, alUploads below). Nothing else reads it.
 createdAt    Firestore server timestamp — the rules require it to BE the server's clock at the write
              (`== request.time`), on create and on the fixed-id update alike, so the newest-wins
              ordering cannot be gamed. firestore.rules.test.mjs writes the real
@@ -279,6 +292,12 @@ inLine            list of "Name|YYYY-MM-DD" — every sheet leave day the app he
                   done: the days it added and the days that were already right. 1 to 4,000 entries
 added             list of "Name|YYYY-MM-DD" — the days this Save CREATED, the only days an undo may remove.
                   Never longer than inLine
+writesMarked      Optional, and only ever `true` — every leave record this Save wrote carries this log's id
+                  as `uploadId` (overrides above), so its undo asks for the id instead of judging by who
+                  wrote the day and when. Accepted by the rules from v26.14, before any client writes it
+                  (backend-first). A log without it is one written before the Save marked its writes: its
+                  records carry no id, so its undo keeps the old judgement, and its gap with it
+                  (KNOWN_LIMITATIONS.md → "The leave sheet's Undo and a change made during its Save")
 undoneAt          Firestore server timestamp — set once, by an undo; absent until then
 undoneBy          the admin's own name, set with undoneAt
 undone            list of "Name|YYYY-MM-DD" — what the undo took back: every added day gone by its end, whether
@@ -289,9 +308,12 @@ undone            list of "Name|YYYY-MM-DD" — what the undo took back: every a
 reads the logs of the file's year AND the year before, because last year's sheet ran into this January. A sheet day a
 log says was brought into line, and the app no longer holds, was removed in the app since: it is shown,
 never ticked, so leave cancelled in the app does not come back. A copy of the workbook saved before the
-newest one logged is refused by name. An undo removes only `added` days nobody has written since
-`savedAt`. It is also where an uploaded day records where it came from, without a field on the leave
-record itself. The entries take the override cache key's form, `memberName|YYYY-MM-DD`.
+newest one logged is refused by name. An undo removes only `added` days nobody has written since the
+Save: once its records carry the log's id (`writesMarked`), a day still holding it; on an older log, a
+day stamped no later than `savedAt`. The log says what the Save did with each day; the one field it
+needed on the leave record itself is that id, because no timestamp can tell the Save's own write from
+the same admin's change made between the Save and its log. The entries take the override cache key's
+form, `memberName|YYYY-MM-DD`.
 **Admin only, both ways** (`firestore.rules` → alUploads), because it names colleagues against their
 leave days. Create: every field and nothing else, `savedAt` the server's clock, `savedBy` the writer's
 own bound name, so the admin must be signed in as themselves. Update: the undo only, once, and nothing

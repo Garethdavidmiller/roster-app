@@ -275,28 +275,27 @@ export function collectOverrideRecords(snapshot) {
 
 /**
  * Assemble an override's Firestore WRITE document — the SINGLE source for the exact field set the
- * Firestore rules require (`memberName`, `date`, `type`, `value`, `note`, `source`, `createdAt`,
- * `changedBy`). Three save paths (executeSave + recordRangeOverrides in admin-overrides.js, and the
- * roster-import _saveOverrideBatches) each hand-built this inline: a new required rules field meant
- * editing all three, and a miss = a silent `permission-denied` on ONE path only. `createdAt` is
- * INJECTED (the caller passes `serverTimestamp()`) so this module stays Firebase-free. Extra fields
- * on the input are dropped — the shape is enforced.
+ * Firestore rules require, for every save path (a field hand-built on one path was a silent
+ * `permission-denied` on that path alone). `createdAt` is INJECTED (the caller passes
+ * `serverTimestamp()`) so this module stays Firebase-free. Extra fields on `f` are dropped.
  *
- * `note` IS WRITE-ONLY AND ALWAYS '' (v22.69). No save path has ever offered a field for it, no
- * override in production carries one, and its three display paths — the calendar hover tooltip,
- * the day-detail panel and the Admin Saved Changes list — were removed on the owner's decision:
- * free text about a named colleague is a GDPR exposure with nothing using it. It is still WRITTEN
- * because `firestore.rules` requires `note is string` and a missing field is null, so dropping it
- * here alone would permission-deny every override write on every device. Retiring the field is a
- * three-push backend-first sequence, and the two rules clauses fail in OPPOSITE directions:
- * (1) rules drop the `is string`/`size()` requirement, keeping `note` in `hasOnly`; (2) the client
- * stops writing it; (3) rules drop it from `hasOnly`. Any other order breaks writes. The sequence
- * and the reason are in docs/DATA_MODEL.md → overrides.
+ * `note` IS WRITE-ONLY AND ALWAYS '' (v22.69): nothing offers or displays it — free text about a named
+ * colleague is a GDPR exposure — but `firestore.rules` requires `note is string`, so dropping it here
+ * alone would permission-deny every write. Retiring it is three backend-first pushes, whose two rules
+ * clauses fail in OPPOSITE directions: (1) rules drop `is string`/`size()`, keeping `note` in
+ * `hasOnly`; (2) the client stops writing it; (3) rules drop it from `hasOnly`. Any other order breaks
+ * writes (docs/DATA_MODEL.md → overrides).
+ *
+ * `uploadId` (v26.14) comes ONLY from the third argument, never from `f`: the leave sheet Save's Undo
+ * trusts a record carrying it as that Save's own write, which holds only while every other save drops
+ * it — and a save that copies a record it read into `f` would carry it on. Sent unchecked: a bad id is
+ * the Save's fault, and the rules refusing the write says so, where dropping it would lose the Undo.
  * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, changedBy:string, replacedType?:string|null, leaveYear?:number|null}} f
  * @param {*} createdAt  a Firestore serverTimestamp() sentinel for the write
- * @returns {{memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:*, changedBy:string}}
+ * @param {{ uploadId?: string|null }} [opts]  `uploadId`: the leave sheet Save's log id, from that Save alone
+ * @returns {{memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:*, changedBy:string, uploadId?:string}}
  */
-export function buildOverrideWrite(f, createdAt) {
+export function buildOverrideWrite(f, createdAt, { uploadId = null } = {}) {
     return {
         memberName: f.memberName,
         date:       f.date,
@@ -312,6 +311,7 @@ export function buildOverrideWrite(f, createdAt) {
         ...(isValidLeaveYear(f.date, f.leaveYear) && f.type === 'annual_leave' ? { leaveYear: f.leaveYear } : {}),
         createdAt,
         changedBy:  f.changedBy,
+        ...(uploadId ? { uploadId } : {}),
     };
 }
 

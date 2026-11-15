@@ -313,7 +313,10 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         }
         _viewerOpen = true;
         viewer.classList.add('visible');
-        requestAnimationFrame(() => viewer.classList.add('open'));
+        // A CLOSE BEFORE THIS FRAME RETIRES IT (15 Nov 2026), as createLightbox's does: an Escape before
+        // a slow engine draws, or a tab that runs no frames while hidden. Run after the close, the
+        // frame faded the viewer back in over the page it had just been closed off.
+        requestAnimationFrame(() => { if (_viewerOpen) viewer.classList.add('open'); });
     }
     function closeViewer() {
         // ALREADY CLOSING? Do nothing. The ✕ stays clickable through the fade, so a second tap ran

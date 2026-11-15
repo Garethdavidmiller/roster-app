@@ -47,7 +47,7 @@ global.requestAnimationFrame = fn => fn();
 
 const {
     lockBodyScroll, unlockBodyScroll,
-    trapFocus, initCardCollapse, createLightbox,
+    trapFocus, initCardCollapse, createLightbox, dismissOverlay,
 } = await import('./overlay.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -990,22 +990,24 @@ describe('createLightbox — a close before the first frame retires that frame',
             assert.equal(panelFocused(), 0, 'premise: nor moved focus');
             lb.close();
             assert.equal(global.document.activeElement, day, 'premise: the close gave focus back to the day');
+            // It never faded in, so there is no fade to wait for (15 Nov 2026): the close lands NOW,
+            // not after the 500 ms fallback with an invisible overlay over the page.
+            assert.equal(overlay.classList.contains('visible'), false, 'an overlay that never faded in waited to go');
+            assert.equal(_bodyClasses.has('lb-open'), false, 'and kept the page from scrolling while it waited');
             frames.forEach(fn => fn());
             assert.equal(overlay.classList.contains('open'), false, 'the closing panel was faded back in');
             assert.equal(panelFocused(), 0, 'the late frame moved focus into a panel that is going');
             assert.equal(global.document.activeElement, day, 'focus left the day it was given back to');
-            overlay._trigger('transitionend');
-            assert.equal(overlay.classList.contains('visible'), false, 'and the close still lands');
         } finally { global.requestAnimationFrame = realRaf; }
     });
 
-    test('opened again during that close, the NEW open keeps its frame', () => {
+    test('opened again straight after that close, the NEW open keeps its frame', () => {
         try {
             const { overlay, content, day, lb, panelFocused } = build();
             day.focus();
             lb.open();
             lb.close();
-            lb.open();   // during the fade: finishes the close, then opens afresh
+            lb.open();   // before either frame has run
             assert.equal(overlay.classList.contains('open'), false, 'premise: neither frame has run');
             frames.forEach(fn => fn());
             assert.equal(overlay.classList.contains('open'), true, 'the second open never faded in');
@@ -1025,8 +1027,47 @@ describe('createLightbox — a close before the first frame retires that frame',
             assert.equal(overlay.classList.contains('open'), true);
             assert.equal(global.document.activeElement, content);
             lb.close();
+            assert.equal(overlay.classList.contains('visible'), true, 'a panel that faded in fades out: it waits');
             overlay._trigger('transitionend');
+            assert.equal(overlay.classList.contains('visible'), false);
         } finally { global.requestAnimationFrame = realRaf; }
+    });
+});
+
+// ── NO FADE TO WAIT FOR (15 Nov 2026) ───────────────────────────────────────────────────────────────
+// `dismissOverlay` waits for the fade-out, or 500 ms, before it removes `.visible`. An overlay without
+// `.open` is transparent already, so no transition runs and only the fallback ended it: half a second of
+// an invisible layer over the page, taking every tap. Both callers reach it, createLightbox and the Huddle
+// viewer, when a close beats the open's first frame.
+describe('dismissOverlay — an overlay that never faded in goes at once', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    test('without .open: hidden, unlocked and finished before it returns, with nothing left pending', () => {
+        const overlay = makeEl({ classes: ['visible'] });
+        lockBodyScroll();
+        let landed = 0;
+        const finisher = dismissOverlay(overlay, { backHandler: () => {}, afterClose: () => { landed++; } });   // a handler of its own: the shared Back stack is left alone
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        assert.equal(landed, 1);
+        assert.equal(finisher, null, 'a finisher returned for a close that has already finished');
+        overlay._trigger('transitionend');
+        assert.equal(landed, 1, 'a later transitionend finished it a second time');
+    });
+
+    test('with .open: it still waits for the fade, then finishes once', () => {
+        const overlay = makeEl({ classes: ['visible', 'open'] });
+        lockBodyScroll();
+        let landed = 0;
+        const finisher = dismissOverlay(overlay, { backHandler: () => {}, afterClose: () => { landed++; } });   // a handler of its own: the shared Back stack is left alone
+        assert.equal(overlay.classList.contains('open'), false);
+        assert.equal(overlay.classList.contains('visible'), true, 'a panel that faded in was cut off mid-fade');
+        assert.equal(landed, 0);
+        assert.equal(typeof finisher, 'function');
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        assert.equal(landed, 1);
     });
 });
 

@@ -475,49 +475,67 @@ test('links: a night duty in a design is never offered as a paint chip', async (
 // tapped was PAINTED where the designer meant to open it. And a refused time — no colon, a night start,
 // a finish past midnight — closed the prompt exactly as Cancel did (links-app-7), in the paint bar and
 // in the cell sheet alike, so a refusal could not be told from a slip.
+/** Type `typed` into the open Custom… prompt, press Set, and wait for the prompt to go. */
+async function setCustomShift(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ typed) {
+    await page.locator('.dialog-overlay .dialog-input').fill(typed);
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+}
+
+// TWO TESTS, ONE STANDARD (15 Nov 2026). The paint bar's Custom… and the cell sheet's are two routes to
+// the same prompt, and these were one test, which spent 35–58 s of its 60 on the Safari engine in CI:
+// four prompts and three sheets, every one waited out by Playwright's "hold still for two frames",
+// and on that engine at desktop size every change to the page costs a frame of 300–450 ms (measured,
+// 15 Nov 2026 — any text change, anywhere on the page, the live region or not). Split, each half has
+// the whole budget, and nothing is checked less: every assertion below is the one test's, word for
+// word. The cell-sheet half starts on a fresh page and takes its two silent ways out before the
+// refusal, so no brush has to be put down first and the status line never has to be wiped by hand.
 test('links: a Custom… time gets its own lit chip, and a refused one says why', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.setViewportSize({ width: 1280, height: 900 });
     await openLinks(page);
     const status = page.locator('#linksSaveStatus');
-    const custom = async (/** @type {string} */ typed) => {
-        await page.locator('.dialog-overlay .dialog-input').fill(typed);
-        await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
-    };
 
     await page.locator('#brushBar .brush-chip--custom').click();
-    await custom('05:00-13:00');
+    await setCustomShift(page, '05:00-13:00');
     const chip = page.locator('#brushBar .brush-chip[data-shift="05:00-13:00"]');
     await expect(chip, 'armed AND shown armed').toHaveAttribute('aria-pressed', 'true');
     await expect(chip, 'focus is not dropped with the Custom… button the bar replaced').toBeFocused();
     await expect(status).toHaveText('');
 
     await page.locator('#brushBar .brush-chip--custom').click();
-    await custom('22:00-06:00');
+    await setCustomShift(page, '22:00-06:00');
     await expect(status).toContainText('“22:00-06:00” wasn’t used');
     await expect(status).toContainText('04:00 and 20:59');
     await expect(chip, 'a refusal leaves the armed brush as it was').toHaveAttribute('aria-pressed', 'true');
-
-    // The cell sheet's Custom… holds the same standard; Cancel stays silent.
-    await page.keyboard.press('Escape');   // disarm, so a cell tap opens its sheet
+    await page.keyboard.press('Escape');   // and Escape puts it down
     await expect(chip).toHaveAttribute('aria-pressed', 'false');
-    await page.evaluate(() => { const s = document.getElementById('linksSaveStatus'); if (s) s.textContent = ''; });
-    await page.locator('tr[data-pos="2"] .shift-cell-btn').first().click();
-    await page.locator('.picker-opt[data-value="__custom__"]').click();
-    await custom('1400-2230');
-    await expect(status).toContainText('“1400-2230” wasn’t used');
-    await expect(page.locator('tr[data-pos="2"] .shift-cell-btn').first(), 'nothing applied').toHaveText('RD');
-    await page.evaluate(() => { const s = document.getElementById('linksSaveStatus'); if (s) s.textContent = ''; });
-    await page.locator('tr[data-pos="2"] .shift-cell-btn').first().click();
-    await page.locator('.picker-opt[data-value="__custom__"]').click();
+});
+
+test('links: the cell sheet\'s Custom… holds the same standard, and Cancel stays silent', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openLinks(page);
+    const status = page.locator('#linksSaveStatus');
+    const cell = page.locator('tr[data-pos="2"] .shift-cell-btn').first();
+    const openCustom = async () => {
+        await cell.click();   // no brush is armed, so a tap opens the cell's sheet
+        await page.locator('.picker-opt[data-value="__custom__"]').click();
+    };
+
+    // The two silent ways out first, while the status line is still empty, so nothing has to be wiped
+    // between the steps; the refusal last, whose cell check then covers all three.
+    await openCustom();
     await page.locator('.dialog-overlay .dialog-btn-cancel').click();
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     await expect(status, 'a cancel explains nothing').toHaveText('');
-    await page.locator('tr[data-pos="2"] .shift-cell-btn').first().click();
-    await page.locator('.picker-opt[data-value="__custom__"]').click();
-    await custom('');   // Set with nothing typed — the same as a cancel
+    await openCustom();
+    await setCustomShift(page, '');   // Set with nothing typed — the same as a cancel
     await expect(status, 'an empty Set explains nothing').toHaveText('');
+    await openCustom();
+    await setCustomShift(page, '1400-2230');
+    await expect(status).toContainText('“1400-2230” wasn’t used');
+    await expect(cell, 'nothing applied — by the refusal, or by either silent way out before it').toHaveText('RD');
 });
 
 test('links: the coverage card carries a demand row per day class, in the same table', async ({ page }) => {

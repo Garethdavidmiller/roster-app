@@ -111,6 +111,13 @@ afterwards, which showed the closing panel again and moved focus into it (`creat
 `overlay.js`). Headless WebKit draws slowly enough to expose that race, and a phone rarely would. So
 before calling a test a flake, give it one run that logs what happens.
 
+**A long flow on this engine is split, not given more time** (15 Nov 2026). On the Links page at a
+desktop width, every change to the page (any text, anywhere) costs the Safari engine here one frame of
+300–450 ms, measured, and Playwright pays it before each click, because it waits for the element to
+hold still over two frames. The test of both Custom… routes spent 35–58 s of its 60 on CI that way,
+while the app's own answers landed in under 40 ms. It became two tests with the same assertions
+(`e2e/links.spec.js`); the budget stays where `playwright.webkit.mjs` argues it should.
+
 ## Two editors on one day: warned whenever the server can be asked
 
 Every manual record has one fixed id per member and date (`manualOverrideId` in `override-id.js`), so
@@ -1056,6 +1063,27 @@ open:
   anyone who can run the script could seal an altered file and propose leave that was never booked.
   Using it needs the admin's own sign-in, and what stands in the way is the admin's own look at each
   person before confirming them.
+
+### The leave sheet's Undo and a change made during its Save (external review, 15 Nov 2026)
+The Undo on Operations → Annual leave sheet takes back only leave its Save created and nobody has
+changed since. Until the Save marks its own records, it tells the two apart by who wrote a day and
+when: annual leave written by the admin, stamped no later than the Save's log. But the log is written
+after the leave and after a read of it — and when that read fails, at the next check of the same file.
+A change the admin makes to one of those days in that time, in another tab, leaves a record that
+passes both tests, and the Undo deletes it, although its question promises to keep days changed since
+the Save. A colleague's change is safe: it carries their name. The reviewer reproduced it with the
+real planning function, and so did this session.
+
+**The fix is two releases, backend-first** (CLAUDE.md). v26.14 lets the rules accept the Save's log id
+on each leave record it writes (`uploadId`) and a flag on the log (`writesMarked`), and writes neither
+(DATA_MODEL.md). The release after it, once those rules are live, has the Save write both, and the Undo
+of a marked log takes back only records that still carry its id — which every other save drops,
+because each replaces the whole record. A log written before then keeps the old judgement, since its
+records carry no id; it loses its Undo anyway at the next Save, because only the newest is undone.
+
+**Until then:** change no leave in another tab while a Save of the sheet runs, nor before its receipt
+says it is recorded. If that happened, put the day right in Admin after an Undo, or skip the Undo and
+remove the Save's days in Admin.
 
 ### A device that missed the ended-month release in November may open on November once in December
 The Calendar keeps the month on screen between visits, but since the whole-app fix (November 2026) it
