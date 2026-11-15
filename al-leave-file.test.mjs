@@ -15,6 +15,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
     LEAVE_FILE_FORMAT, LEAVE_FILE_VERSION, LEAVE_FILE_MAX_AGE_DAYS, FOUND_IN,
     canonicalJson, leaveFileDigest, sealLeaveFile, readLeaveFile, validateLeaveFile,
@@ -108,6 +109,42 @@ describe('the seal', () => {
             const read = await readLeaveFile(JSON.stringify({ ...f, digest }));
             assert.deepEqual(read.ok ? [] : read.refusals.map(r => r.code), ['not-sealed'], String(digest));
         }
+    });
+
+    test('a copy that only changed FORM is the file that was made: accents decomposed, a byte-order mark', async () => {
+        // Invented accented names (NFC, as the workbook and the roster write them), and two map keys
+        // whose ORDER flips when decomposed: `ö` (U+00F6) sorts after `p`, `o` + U+0308 before it — so
+        // normalising the canonical TEXT, after the keys were sorted, would still have refused this.
+        const f = JSON.parse(JSON.stringify(sample()).replaceAll('A. Example', 'Å. Exåmple'));
+        f.nameMap.cells = { 'CEA|öst . ö': null, 'CEA|pst . p': null };
+        const text = await sealedText(f);
+        const nfd = text.normalize('NFD');
+        assert.notEqual(nfd, text, 'the copy is decomposed');
+        const read = await readLeaveFile(nfd);
+        assert.equal(read.ok, true, read.ok ? '' : JSON.stringify(read.refusals));
+        // …and it comes back in NFC, so its names are the roster's however the copy spelt them.
+        assert.ok(read.ok && read.file.people[0].name === 'Å. Exåmple' && read.file.days[0].name === 'Å. Exåmple');
+        assert.ok(read.ok && Object.keys(read.file.nameMap.cells).every(k => k === k.normalize('NFC')));
+        // A byte-order mark is not part of the file: `Blob.text()` drops one, Node's `readFileSync` keeps it.
+        const bom = await readLeaveFile(String.fromCharCode(0xFEFF) + text);
+        assert.equal(bom.ok, true, bom.ok ? '' : JSON.stringify(bom.refusals));
+        assert.deepEqual(await readLeaveFile(String.fromCharCode(0xFEFF)), { ok: false, refusals: [{ code: 'empty' }] });
+        // The seal of an NFC file is what it always was: a file sealed before this still verifies.
+        const { digest: _d, ...rest } = await sealLeaveFile(sample());
+        assert.equal(await leaveFileDigest(sample()), 'sha256:' + createHash('sha256').update(canonicalJson(rest)).digest('hex'));
+    });
+
+    test('a file sealed before the seal was worked out over NFC still verifies, whatever form its text was in', async () => {
+        // Sealed the old way — over the text as it stood — with names that were never NFC.
+        const f = JSON.parse(JSON.stringify(sample()).replaceAll('A. Example', 'Å. Exåmple'.normalize('NFD')));
+        const oldSeal = 'sha256:' + createHash('sha256').update(canonicalJson(f)).digest('hex');
+        assert.notEqual(oldSeal, await leaveFileDigest(f), 'the old seal differs from the NFC one, or this tests nothing');
+        const read = await readLeaveFile(JSON.stringify({ ...f, digest: oldSeal }));
+        assert.equal(read.ok, true, read.ok ? '' : JSON.stringify(read.refusals));
+        assert.ok(read.ok && read.file.people[0].name === 'Å. Exåmple');
+        // …and an edit is still an edit, under either seal.
+        const edited = await readLeaveFile(JSON.stringify({ ...f, digest: oldSeal }).replace('2026-02-24', '2026-02-25'));
+        assert.deepEqual(edited.ok ? [] : edited.refusals.map(r => r.code), ['changed-since-made']);
     });
 
     test('a page that cannot work out the seal refuses rather than throws', async () => {
@@ -293,6 +330,13 @@ describe('the sums: the file must agree with the sheet’s own printed figures',
     });
     test('exactly one row is the used one', () => {
         assert.deepEqual(after(f => { f.people[0].sheetRows[1].used = true; delete f.people[0].sheetRows[1].why; }), ['bad-field']);
+    });
+    test('a person’s grade is the grade of the row their figures come from — an unused row may be another’s', () => {
+        // The card shows the grade beside figures read from that row's block; the two must agree.
+        assert.deepEqual(after(f => { f.people[0].grade = 'CES'; }), ['bad-field']);
+        assert.deepEqual(after(f => { f.people[0].sheetRows[0].grade = 'DISP'; }), ['bad-field']);
+        // A stale row in another grade is the cross-grade duplicate (AL_WORKBOOK.md §8 defect 1): fine.
+        assert.deepEqual(after(f => { f.people[0].sheetRows[1].grade = 'CES'; }), []);
     });
 });
 

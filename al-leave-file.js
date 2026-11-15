@@ -20,11 +20,20 @@
  *     `countedBySheet`), so a misspelt day or an over-quota day with a blank count is still that
  *     person's leave (owner, 14 Nov 2026) and is not mistaken for one the sheet charged.
  *   · The sheet's own printed figures travel with it, and `personSums` re-adds every person's days
- *     against them. A day dropped while the file was made then fails HERE — it does not pass because
- *     the stage that made the file marked its own work.
- *   · A SEAL (`digest`): SHA-256 over one canonical form of everything else. A file edited by hand is
- *     refused, never half-trusted (owner's decision, 14 Nov 2026) — a correction goes back through a
- *     session, which is the only place the method lives.
+ *     against them. A day THE SHEET COUNTS — a grid day its own COUNTIF finds, a plain-name Sunday, an
+ *     over-quota day dated in column E — that was dropped while the file was made then fails HERE: it
+ *     does not pass because the stage that made the file marked its own work. A day the sheet does
+ *     NOT count (a misspelt grid name, a dated comment beside a blank count, a person with no totals
+ *     row) has no printed figure to fail against: `corrected` is worked out from those same days, so a
+ *     dropped one moves both sides and still agrees. Those are checked only by Stage 1's own tests.
+ *   · A person's grade is the grade of the row their figures come from, and the two must agree.
+ *   · A SEAL (`digest`): SHA-256 over one canonical form of everything else, every string in Unicode
+ *     NFC. A file edited by hand is refused, never half-trusted (owner's decision, 14 Nov 2026) — a
+ *     correction goes back through a session, which is the only place the method lives. A copy that
+ *     only changed form is the same file: re-indented, its keys reordered, a byte-order mark added (a
+ *     `Blob.text()` drops one, Node's `readFileSync` keeps it), or its accents decomposed (`ö` as `o`
+ *     and U+0308, which some copies make). Each of those once read as "changed since made" in one of
+ *     the two stages and not the other.
  *
  * ── REFUSALS ARE RETURNED, NEVER THROWN ─────────────────────────────────────────────────────────
  *
@@ -112,13 +121,33 @@ async function sha256Hex(text) {
 }
 
 /**
- * The seal a file should carry: SHA-256 over the canonical form of every field but `digest`.
+ * The same value with every string in it — keys too — in Unicode NFC. The workbook and the roster
+ * write NFC, so this changes nothing in a file as Stage 1 makes it, and a file sealed before it was
+ * added still verifies; what it changes is a COPY that was decomposed on the way (`ö` as `o` + U+0308),
+ * which is the file that was made, not an edited one. Built with `Object.fromEntries`, so a key named
+ * `__proto__` stays a key and never becomes a prototype.
+ * @param {unknown} value
+ * @returns {any}
+ */
+function inNfc(value) {
+    if (typeof value === 'string') return value.normalize('NFC');
+    if (Array.isArray(value)) return value.map(inNfc);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k.normalize('NFC'), inNfc(v)]));
+    }
+    return value;
+}
+
+/**
+ * The seal a file should carry: SHA-256 over the canonical form of every field but `digest`, every
+ * string in NFC first (header). Normalised BEFORE the canonical form is made, never after: the form
+ * sorts keys, and decomposing a key can move it past another (`o` + U+0308 sorts before `p`, `ö` after).
  * @param {Record<string, unknown>} file
  * @returns {Promise<string>} `sha256:<hex>`
  */
 export async function leaveFileDigest(file) {
     const { digest: _ignored, ...rest } = file;
-    return 'sha256:' + await sha256Hex(canonicalJson(rest));
+    return 'sha256:' + await sha256Hex(canonicalJson(inNfc(rest)));
 }
 
 /**
@@ -243,28 +272,44 @@ export function personSums(person, days) {
  * Read a leave file from its text: refused by name, never defaulted. Order matters — the seal is
  * checked before the structure, because a file that is not what was made is refused as such
  * whatever else is wrong with it, and a sealed file that still fails is a fault in Stage 1.
+ *
+ * Both stages read through this, so they agree on what a file is: a leading byte-order mark is not
+ * part of it (the card's `Blob.text()` drops one; Stage 1's `readFileSync` kept it, and `--previous`
+ * was refused as "not JSON"), and the file handed back is its NFC form (header), so its names match
+ * the roster's however the copy spelt its accents.
  * @param {string} text
  * @returns {Promise<{ ok: true, file: any } | { ok: false, refusals: Refusal[] }>}
  */
 export async function readLeaveFile(text) {
-    if (typeof text !== 'string' || !text.trim()) return { ok: false, refusals: [{ code: 'empty' }] };
-    if (text.length > LEAVE_FILE_MAX_BYTES) return { ok: false, refusals: [{ code: 'too-large' }] };
-    /** @type {any} */ let file;
+    if (typeof text !== 'string') return { ok: false, refusals: [{ code: 'empty' }] };
+    const body = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+    if (!body.trim()) return { ok: false, refusals: [{ code: 'empty' }] };
+    if (body.length > LEAVE_FILE_MAX_BYTES) return { ok: false, refusals: [{ code: 'too-large' }] };
+    /** @type {any} */ let raw;
     // The parse error is DISCARDED, not reported: its message quotes the file (header).
-    try { file = JSON.parse(text); } catch { return { ok: false, refusals: [{ code: 'not-json' }] }; }
-    if (!file || typeof file !== 'object' || Array.isArray(file) || file.format !== LEAVE_FILE_FORMAT) {
+    try { raw = JSON.parse(body); } catch { return { ok: false, refusals: [{ code: 'not-json' }] }; }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || raw.format !== LEAVE_FILE_FORMAT) {
         return { ok: false, refusals: [{ code: 'not-a-leave-file' }] };
     }
-    if (file.version !== LEAVE_FILE_VERSION) {
-        const newer = Number.isInteger(file.version) && file.version > LEAVE_FILE_VERSION;
+    if (raw.version !== LEAVE_FILE_VERSION) {
+        const newer = Number.isInteger(raw.version) && raw.version > LEAVE_FILE_VERSION;
         return { ok: false, refusals: [{ code: newer ? 'newer-version' : 'unknown-version' }] };
     }
-    if (typeof file.digest !== 'string' || !SEAL.test(file.digest)) return { ok: false, refusals: [{ code: 'not-sealed' }] };
+    if (typeof raw.digest !== 'string' || !SEAL.test(raw.digest)) return { ok: false, refusals: [{ code: 'not-sealed' }] };
+    const file = inNfc(raw);
     // `crypto.subtle` exists only in a secure context. The app is always served over HTTPS, but a
     // page without it must still refuse rather than throw (header).
     /** @type {string} */ let seal;
     try { seal = await leaveFileDigest(file); } catch { return { ok: false, refusals: [{ code: 'cannot-check-seal' }] }; }
-    if (seal !== file.digest) return { ok: false, refusals: [{ code: 'changed-since-made' }] };
+    // A file sealed before the seal was worked out over NFC was hashed as its text stood. Stage 1 wrote
+    // NFC then too, so the two agree for every such file; this is for one whose sheet spellings were
+    // not, which must still read as the file that was made.
+    if (seal !== raw.digest) {
+        const { digest: _ignored, ...rest } = raw;
+        /** @type {string} */ let asWritten;
+        try { asWritten = 'sha256:' + await sha256Hex(canonicalJson(rest)); } catch { return { ok: false, refusals: [{ code: 'cannot-check-seal' }] }; }
+        if (asWritten !== raw.digest) return { ok: false, refusals: [{ code: 'changed-since-made' }] };
+    }
     // A sealed file the validator did not foresee must still be REFUSED, never thrown: the error's
     // message would reach the Error Log, and the file names people (header).
     /** @type {Refusal[]} */ let refusals;
@@ -340,9 +385,12 @@ export function validateLeaveFile(file) {
             && isObj(r.printed) && only(r.printed, ['carriedForward', 'allowance', 'used', 'columnE', 'remaining'])
             && ['carriedForward', 'allowance', 'used', 'columnE'].every(k => isCount(r.printed[k]))
             && Number.isInteger(r.printed.remaining) && Math.abs(r.printed.remaining) <= 1000);
-        const usedCount = p.sheetRows.filter((/** @type {any} */ r) => r && r.used === true).length;
+        const usedRows = p.sheetRows.filter((/** @type {any} */ r) => r && r.used === true);
+        // A person's grade is the grade of the row their figures come from (header): the card draws the
+        // grade beside figures that were read from that row's block, and the two must say the same.
         const figuresOk = p.sheetRows.length
-            ? usedCount === 1 && isObj(p.columnE) && only(p.columnE, ['datedDays', 'joinerReduction', 'lump', 'unexplained'])
+            ? usedRows.length === 1 && usedRows[0].grade === p.grade
+              && isObj(p.columnE) && only(p.columnE, ['datedDays', 'joinerReduction', 'lump', 'unexplained'])
               && ['datedDays', 'joinerReduction', 'lump', 'unexplained'].every(k => isCount(p.columnE[k]))
               && isObj(p.corrected) && only(p.corrected, ['remaining', 'because']) && Number.isInteger(p.corrected.remaining)
               && Array.isArray(p.corrected.because) && p.corrected.because.every((/** @type {any} */ b) => CORRECTED_BECAUSE.includes(b))
