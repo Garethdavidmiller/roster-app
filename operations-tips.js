@@ -92,7 +92,7 @@ export const CARD_TIPS = {
         sections: [
             { heading: 'What it does', items: [
                 { icon: '📒', html: 'The clerks keep everybody’s annual leave in a workbook of their own. This card sets that sheet beside what the app holds, <strong>person by person and day by day</strong>, and shows each place they differ, and why.' },
-                { icon: '🔒', html: 'It is a <strong>check only</strong>. Nothing is saved and nothing is kept on this device; <strong>Clear the check</strong> takes it off the screen. To change a day, use <strong>Change a Shift</strong> on the Admin page.' },
+                { icon: '🔒', html: 'Nothing is kept on this device, and <strong>Clear the check</strong> takes it off the screen. Nothing is saved until you <strong>confirm a person</strong> and press <strong>Save</strong>.' },
             ]},
             { heading: 'Getting a leave file', items: [
                 { icon: '🧾', html: 'The app can’t read the workbook itself. Upload it in a Claude session and ask for a <strong>leave file</strong>. Where the sheet is unclear — a misspelt name, a date with no year — the session asks you rather than guessing.' },
@@ -107,6 +107,12 @@ export const CARD_TIPS = {
                 { icon: '💼', html: '<strong>Work recorded</strong> — the app has RDW, an Other day or a Spare turn there. That is pay evidence: never overwrite it just to make the two agree.' },
                 { icon: '➕', html: '<strong>Only in the app</strong> — leave the app holds that the sheet does not. Often it was booked after the clerks last saved.' },
                 { icon: '📅', html: 'The clerks mark some <strong>Sundays</strong> with a tag. A Sunday is never contracted, so it is never leave on either side; each one is listed with what the app has that day.' },
+            ]},
+            { heading: 'Saving', items: [
+                { icon: '✅', html: 'The Save only <strong>adds</strong> leave the app is missing, and only for the people you tick. It never removes leave, and never writes over a shift, an absence or work recorded there: those are changed in Admin, with <strong>Change a Shift</strong>.' },
+                { icon: '❓', html: 'Leave on a <strong>rest day</strong> is asked about, as the Admin leave card asks: <strong>Swapped — counts</strong> books it as a day of leave, <strong>Rest day — free</strong> leaves it. Unanswered, it is not saved.' },
+                { icon: '🛡️', html: 'Each day is checked again as it is written. If somebody changed it after your check, nothing is saved for that person, your answers are kept, and the card shows what changed.' },
+                { icon: '↩️', html: '<strong>Undo this Save</strong> takes back the leave a Save added, except any day changed since. A copy older than one already saved, or more than 14 days old, can be checked but not saved.' },
             ]},
             { heading: 'Who is left out', items: [
                 { icon: '👋', html: 'Leavers, managers and anybody with no leave allowance in the app are listed under <strong>On the sheet, not compared</strong>. Anybody in the app that the sheet does not list comes last.' },

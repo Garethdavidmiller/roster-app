@@ -166,24 +166,33 @@ describe('the position a manager reads', () => {
         assert.equal(consumesEntitlement(MEMBER, ''), false);
     });
 
-    test('leave dated before the member joined never counts — via the rest-day rule, not its own', () => {
-        // The calendar added an explicit start-date test at v17.41 because ITS balance disagreed
-        // with ITS grid; it had no rest-day test. Here such a check would be dead code, and this
-        // test exists to pin the MECHANISM that makes it dead: `getBaseShift` returns 'RD' before a
-        // member's startDate. If that ever stops being true, this fails and names the reason —
-        // which a redundant `isBeforeMemberStart` guard never could, because nothing can kill it.
+    test('leave dated before the member joined never counts — a swapped working day included (review, 15 Nov 2026)', () => {
+        // For a bare record the base roster answers it: `getBaseShift` returns 'RD' before a member's
+        // startDate. But a record carrying its own evidence — leave over a swapped working day, with
+        // `replacedType` — was answered from that evidence first, and charged; the Calendar and the
+        // leave sheet's card both said it cost nothing. So the start-date test is asked first.
         const joiner = teamMembers.find(m => m.startDate && !m.hidden);
         assert.ok(joiner, 'fixture needs a member with a startDate');
-        const before = formatISO(new Date(joiner.startDate.getTime() - 14 * 86_400_000));
+        let t = joiner.startDate.getTime() - 14 * 86_400_000;
+        while (isSunday(formatISO(new Date(t)))) t -= 86_400_000;   // a Sunday would be free for its own reason
+        const before = formatISO(new Date(t));
 
         assert.equal(getBaseShift(joiner, parseISODate(before)), 'RD',
-            'the mechanism: pre-start days are suppressed to RD, which is what excludes them');
+            'the mechanism for a bare record: pre-start days are suppressed to RD');
         assert.equal(consumesEntitlement(joiner, before), false);
-        const got = countedAlDates({
-            overrides: [{ memberName: joiner.name, type: 'annual_leave', date: before }],
-            member: joiner, year: before.slice(0, 4),
-        });
-        assert.equal(got.size, 0, 'and the set builder agrees, because it asks the same predicate');
+        const swapped = { memberName: joiner.name, type: 'annual_leave', value: 'AL', date: before, replacedType: 'shift' };
+        assert.equal(consumesEntitlement(joiner, before, new Map([[before, swapped]])), false,
+            'a record marked as a swapped working day does not cost a day before the start date either');
+        for (const overrides of [[{ memberName: joiner.name, type: 'annual_leave', date: before }], [swapped]]) {
+            const got = countedAlDates({ overrides, member: joiner, year: before.slice(0, 4) });
+            assert.equal(got.size, 0, 'and the set builder agrees, because it asks the same predicate');
+        }
+        // The same record ON the start date is the member's to spend: the guard is the start date, not "a joiner".
+        const from = formatISO(joiner.startDate);
+        if (!isSunday(from)) {
+            assert.equal(consumesEntitlement(joiner, from, new Map([[from, { ...swapped, date: from }]])), true,
+                'from the start date a swapped working day costs a day as usual');
+        }
     });
 
     test('the banner and the cap check now count the SAME days', () => {

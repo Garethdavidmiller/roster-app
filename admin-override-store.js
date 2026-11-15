@@ -432,8 +432,10 @@ export function asShown(ids) {
  * commit whose ANSWER was lost (`unavailable`, `deadline-exceeded`), and the commit may have landed:
  * the re-run then reads this call's own write. A delete meets nothing there, which is no difference;
  * a REWRITE meets a record that is no longer the one the page showed, and would say "nothing was
- * saved" about a save that was made. `alreadyDone(latest)` answers that: when it holds, the server
- * already says what this commit would, so nothing is written and nothing refused — `done` says so.
+ * saved" about a save that was made. `alreadyDone(latest, attempt)` answers that: when it holds, the
+ * server already says what this commit would, so nothing is written and nothing refused — `done` says
+ * so. `attempt` counts the runs of this call, from 1: on the FIRST nothing of this call's can have
+ * landed yet, which a caller may insist on (`commitChecked` → `lostAnswerOnly`).
  *
  * An id in `mustBeAbsent` (v25.90) must hold NOTHING on the server, whatever the cache holds under it
  * now: the fixed id of a day whose row showed no record there, where a colleague's save of the same
@@ -451,7 +453,7 @@ export function asShown(ids) {
  * @param {(tx: any, latest: Map<string, any>) => void} write  adds the writes to `tx`; `latest` is each
  *        id's server data (or null) as this attempt read it — called again on every re-run
  * @param {{ mustExist?: Iterable<string>, mustBeAbsent?: Iterable<string>, line?: string|((dates: string[]) => string),
- *           alreadyDone?: ((latest: Map<string, any>) => boolean)|null }} [opts]
+ *           alreadyDone?: ((latest: Map<string, any>, attempt: number) => boolean)|null }} [opts]
  * @returns {Promise<{ done: boolean, latest: Map<string, any> }>} `done`: nothing written, as nothing
  *          needed to be; `latest`: the server's copies as the attempt that finished read them
  */
@@ -470,10 +472,12 @@ export async function commitIfUnchanged(items, write, { mustExist = [], mustBeAb
     let done = false;
     /** @type {Map<string, any>} */
     let latest = new Map();
+    let attempt = 0;
     if (!(await whenOwnWritesSent())) {
         throw Object.assign(new Error('this device still has saves it has not sent'), { code: 'unavailable', unsent: true });
     }
     await runTransaction(db, async (/** @type {any} */ tx) => {
+        attempt++;
         const ids = [...expected.keys()];
         const snaps = await Promise.all(ids.map(id => tx.get(doc(db, COLLECTIONS.overrides, id))));
         latest = new Map(ids.map((id, i) => [id, snaps[i].exists() ? snaps[i].data() : null]));
@@ -483,7 +487,7 @@ export async function commitIfUnchanged(items, write, { mustExist = [], mustBeAb
             return was === null ? now !== null : now === null ? required.has(id) : !sameOverrideRecord(was, now);
         });
         if (changed.length) {
-            if (alreadyDone?.(latest)) { done = true; return; }
+            if (alreadyDone?.(latest, attempt)) { done = true; return; }
             const dates = [...new Set(changed.map(id => expected.get(id)?.date ?? latest.get(id)?.date).filter(Boolean))].sort();
             const text = typeof line === 'function' ? line(dates) : line;
             throw Object.assign(new Error(text), { code: DELETE_REFUSED, line: text, dates });
@@ -539,14 +543,17 @@ const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
  * itself, and recognises the save's own records after a lost answer (`commitIfUnchanged`).
  * @param {(w: any) => void} write
  * @param {{ shownFor: (memberName: string, date: string) => any, removed?: Iterable<string|{id: string}>,
- *           line: string|((dates: string[]) => string), holdOffline?: boolean }} opts  `shownFor`: the record
- *        the page showed for a day this save writes, or null; `removed`: the days it removes, as
- *        `commitIfUnchanged` takes them; `holdOffline: false` for a save that removes any — with no
- *        server such a save is refused, writing nothing, as a removal has been since v25.89; never held unchecked
+ *           line: string|((dates: string[]) => string), holdOffline?: boolean, lostAnswerOnly?: boolean }} opts
+ *        `shownFor`: the record the page showed for a day this save writes, or null; `removed`: the days
+ *        it removes, as `commitIfUnchanged` takes them; `holdOffline: false` for a save that removes any —
+ *        with no server such a save is refused, writing nothing, as a removal has been since v25.89; never
+ *        held unchecked; `lostAnswerOnly`: its own write is recognised on a RE-RUN only, so a record exactly
+ *        like it found on the first attempt is somebody else's, and refused (the leave sheet's Save, whose
+ *        admin may have booked the same day by hand since the check — al-leave-save.js)
  * @returns {Promise<{ checked: boolean, done: boolean }>} `checked` false: held unchecked, offline;
  *          `done`: the server already held exactly this save, so nothing was written
  */
-export async function commitChecked(write, { shownFor, removed = [], line, holdOffline = true }) {
+export async function commitChecked(write, { shownFor, removed = [], line, holdOffline = true, lostAnswerOnly = false }) {
     if (!holdOffline || globalThis.navigator?.onLine !== false) {
         /** @type {Map<string, any>} */ const sets = new Map();
         /** @type {Set<string>} */ const deletes = new Set();
@@ -564,7 +571,8 @@ export async function commitChecked(write, { shownFor, removed = [], line, holdO
         // server knows) and every deleted copy gone. Never true of an empty save — an empty `every`
         // would call a refusal done.
         const stamp = new Date();
-        const alreadyDone = (/** @type {Map<string, any>} */ latest) => sets.size > 0
+        const alreadyDone = (/** @type {Map<string, any>} */ latest, /** @type {number} */ attempt) => sets.size > 0
+            && (!lostAnswerOnly || attempt > 1)
             && [...sets].every(([id, data]) => sameOverrideRecord({ ...data, createdAt: stamp }, latest.get(id)))
             && [...deletes].every(id => latest.get(id) == null);
         try {

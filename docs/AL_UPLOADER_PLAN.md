@@ -1,7 +1,8 @@
 # Annual leave uploader — plan of record
 
 *Written 14 November 2026 against v26.09 · reviewed (draft 2) · **Phases 0 and 1 BUILT in v26.11, check
-only**; Phase 2 not started, and decided only after Phase 1 has been used (decision 1, §10)*
+only** · **Phase 2 approved** on 14 Nov 2026 (decision 1, §10): 2a, the log's rules, BUILT in v26.11, and
+2b, the Save, in v26.13*
 
 **How to read this.** Part 1 is the plan, and Part 2 the review of its first draft: three separate
 reviews, what each found, and what changed because of it. **§10 records the owner's decisions and
@@ -108,7 +109,8 @@ must still persist:
 
 ### 3.5 The leave file format
 
-*Draft 2's sketch. The built format differs in three places (§12), and `al-leave-file.js` is its authority.*
+*Draft 2's sketch. The built format differs in three places (§12), and `al-leave-file.js` is its authority.
+Since 15 Nov 2026 the seal is worked out over every string in Unicode NFC (§12, Stage 1's second review).*
 
 One JSON file per upload, e.g. `leave-2026-as-of-2026-11-06.leave.json`. With invented people:
 
@@ -190,7 +192,8 @@ Pages mirror serves every committed file.
 - **The script never writes inside the repository.** Its output goes to the session's scratch
   space, then to you.
 - **`.gitignore`** gains `*.leave.json` and `*.local.json`, each with a guard test. A test also
-  fails if any tracked file contains `"format": "myb-annual-leave"`.
+  fails if any tracked file contains `"format": "myb-annual-leave"`. *Built wider (§12): case-blind
+  rules for every name a copy is given, and the commit hook refuses a staged leave file by content.*
 - **Tests use invented people and invented dates.** The synthetic workbook is built when the tests
   run (`.xlsx` is ignored), and its figures are invented too. Real joiner dates would identify a real
   joiner, because `roster-member-data.js` already quotes one. The card's tests pass the reader an
@@ -479,7 +482,7 @@ added.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Go ahead with Phase 0 and Phase 1 (no app writes), and decide on Phase 2 after using Phase 1? | **Yes.** Phases 0 and 1 built (v26.11). Phase 2 approved on 14 Nov 2026; 2a built (v26.11) |
+| 1 | Go ahead with Phase 0 and Phase 1 (no app writes), and decide on Phase 2 after using Phase 1? | **Yes.** Phases 0 and 1 built (v26.11). Phase 2 approved on 14 Nov 2026; 2a built (v26.11), 2b (v26.13) |
 | 2 | The name map: carried forward in the latest leave file, or a private repository? | **The leave file carries it** (`nameMap`), and the next session reads it back |
 | 3 | Is the workbook the authority for which days are booked? | **Yes, for adding — never for removing** |
 | 4 | Age limit for the clerks' copy | **14 days** (`LEAVE_FILE_MAX_AGE_DAYS`). On the Phase 1 card it is a warning, because a check cannot do harm; Phase 2 is where it would stop a save |
@@ -544,7 +547,7 @@ each now asks, refuses, or reads correctly, with a test that failed before the f
   carrying a second date. Both need the workbook to change, so neither can be answered.
 - **Reads correctly:** a full stop makes a date only between two-digit parts (`1.5 DAYS` was 1 May);
   Excel's legacy copy of a thread is split back into its entries; a one-word Sunday tag is matched only
-  within its own grade block.
+  within its own grade block (since the second review, never by itself: it may be a first name).
 - **The reader** refuses malformed XML where it stands (an unclosed comment rescanned the part
   quadratically), duplicate zip entries, and an entry that inflates past its cap.
 - **The command line** refuses an output inside ANY git checkout or worktree, a path with `..`, a day
@@ -576,9 +579,127 @@ left open:
 - **Mutation:** each of the 28 guard lines fails a test when broken. Three `is string` checks placed
   before a `matches()` were removed, because `matches()` on any other type already refuses the write.
 
-**Still open before Phase 2b:** `AL_WORKBOOK.md` §10 Q3 (are duplicate rows ever different?) and Q7 (what
-column E means); Q8 (does anyone besides the clerks save the file?) before the older-file refusal is
-relied on.
+**Phase 2b** (v26.13): the Save, its log and its Undo. What a Save writes is `al-leave-plan.js` (pure),
+sending it is `al-leave-save.js`, and the card's part is `operations-al-save.js`. What it settled, and
+where it narrows or extends §4.7–4.10:
+
+- **Each day is Admin's own write**, at the fixed id, through the same checked commit (`commitChecked`):
+  a day somebody has changed since the check is refused, and that person's part is written whole or not
+  at all. A lost answer is recognised as the Save's own write, not doubled.
+- **Removed since is never written**, even when confirmed: a day an earlier log calls in line that the
+  app has lost is shown, with Admin as the way to put it back (§4.6).
+- **`inLine` covers everyone compared**, not only the people saved, so a later copy is protected for the
+  days that were already right too.
+- **Answers outlive any new check** — after a Save or an Undo, and (since the review below) Check again,
+  a new copy and the paste box — for each day still asked. A **confirmation** outlives one only when the
+  person's box would say exactly what it said; after a Save it never does, because what the box covers
+  has changed (§4.9). Only Clear forgets them.
+- **What was saved is read back**: the receipt counts what the server holds afterwards
+  (`landedWrites`), so a Save whose answer was lost on the way back is reported and recorded rather than
+  called "nothing". Where that read fails, the next check of the same file in the visit writes the log.
+- **A fault never leaves the card locked.** An error nothing expects, after the writes or in the check
+  that follows them, still unlocks the card. Its line says the Save stopped part way, never "saved" or
+  "nothing", and the fresh check shows what landed.
+- **The Undo works per person, in parts**, and resends what was not refused: the log can be marked
+  undone only once, so a partial undo is finished in the same press — and one cut short (the connection
+  lost after its deletes) is finished by pressing it again, because the mark lists every added day gone
+  by then. An Undo records nothing only when every day it added has changed since. It is offered for the
+  newest Save of the year.
+- **Logs are kept for this year and last** (`pruneUploadLogs`), deleted after that by each Save, which
+  does not wait for the deletion; a check reads both years' logs. A sheet for a year before last is a
+  check only: the Save that wrote its log would delete it.
+- **A refusal for age replaces the age warning**, so the card does not say the same thing twice.
+- **The Sunday rule's seventh layer**: `writableDate` never writes leave on a Sunday, or on Christmas
+  Day or Boxing Day (CLAUDE.md → Sundays).
+
+**The three questions §10 left open went ahead on defaults that only narrow what is written:** Q3
+(duplicate rows) — the script already asks about differing duplicates, so the Save never sees one
+unanswered; Q7 (column E) — only dated days are written, never an undated lump; Q8 (who saves the
+file) — the older-copy refusal trusts the clerks' save time, and "removed since" protects whichever way
+it is answered. An answer that differs changes the script or this plan, not the Save's guards.
+
+**Mutation:** 21 of the store's guard lines and 42 of the card's 43 wiring lines each failed a test when
+broken. The 43rd, `alSaveWorking()` in `alSheetBusy`, was replaced in the review below by the unsaved
+answers themselves, which a test now sees.
+
+**The Save after its review** (15 Nov 2026). A review of the built Save found faults that lost work,
+though none wrote wrong leave. Each fix came with a test that failed before it:
+
+- **A Save that sent nothing changes nothing.** Offline, or with the checked commit unable to load, the
+  Save writes nothing, and the review stays exactly as it was, every answer and tick with it. The fresh
+  check after it used to fail offline and clear the card.
+- **No way off the page skips the question.** The header logo now asks, as the drawer does
+  (`leaveAfterAsking`); a free answer, which writes nothing, no longer counts as unsaved; and a reload
+  because the identity changed in another tab is no longer stopped by "Leave site?".
+- **Check again, a new copy and the paste box keep the answers** (above). The receipts say "Check again",
+  and it used to throw every answer away.
+- **An Undo cut short is finished by pressing it again** (above). It used to leave an Undo button that
+  removed nothing and marked nothing, for good.
+- **A Save that landed nothing records nothing**, so the last Save keeps its Undo.
+- **The days answered "Rest day — free" are named on the receipt**, as Admin's receipt names them.
+- **Leave the admin books by hand after the check is the admin's.** A record exactly like the Save's,
+  found on the commit's FIRST attempt, is refused like any other change (`lostAnswerOnly`); only a re-run
+  after a lost answer may call one the Save's own. And a day the Save was refused on is never counted,
+  logged or undone as the Save's (`exclude`).
+- **A Save that could not be recorded is recorded by the next check of the same file**, whether the read
+  after it or the log itself failed — never by the check straight after the Save, whose receipt has just
+  said what happened.
+- **Housekeeping never holds the Save**: the old logs are deleted without waiting, in a fresh batch for
+  each attempt. **Protection reaches across the new year**: last year's log protects this file's first
+  January days. The receipt **never promises an Undo** it cannot show. What the Save writes with is
+  **loaded when a Save is offered** (`preloadSaveStore`), from the release the page came from, and a Save
+  or an Undo that cannot load it says it never started.
+- **An Undo that sent nothing changes nothing**, as a Save that sent nothing does (found in the fixes'
+  own review): one whose records could not be read, or whose store could not load, says nothing was
+  taken back and keeps its review and its Undo. It said "stopped part way" — and offline, the check after
+  it took the review, and the button it pointed at, off the screen.
+
+Mutation, after the fixes: each of the 20 new guard lines in the modules and the 26 in the card fails a
+test when broken. Two of those tests were themselves found wanting by breaking their guard (a hand
+booking over two days, which could never read as already saved; and the update's hold, which the tap's
+question had stood in for), and were corrected.
+
+**The check card after its review** (live from v26.11; 15 Nov 2026): leave on a swapped working day
+before a member's start date no longer costs a day in the shared allowance rule (`consumesEntitlement`
+asks the start date first; Admin and the Calendar share it); an Other day reads as its word, never as
+"TRG"; the clerks' save date is their London day; a day of next January the app takes from next year's
+allowance is next year's sheet's, and no reason to look; a person whose only leave is undated over-quota
+days is never said to have none; a figure below zero reads "1 over limit", never "-1"; and a person
+listed on two rows is told when the other row carries a different number of days forward. Nine
+mutations, each caught.
+
+**Stage 1 after its second review** (15 Nov 2026). Each of these made a file with exit 0 and a day lost
+or misfiled, or stopped the file with nothing a person could answer; each now reads, asks or notes, with
+a test that failed before the fix (invented people only):
+
+- **Every totals row is looked at**, not only those with a Used. A row whose Used is blank but which
+  still holds a name, a column-E figure or a column-E comment stops the file; a grade and nothing else
+  is one of the sheet's empty placeholders, left out with a note.
+- **A carried name is checked, never just believed.** A carried "not in the app" whose spelling now
+  matches a member (a trainee added since), or a carried name the match now gives to somebody else, is
+  asked again; an unchanged roster still asks nothing.
+- **A name is matched only within its own grade block** — rows, grid cells and tags — and a one-word
+  Sunday tag never by itself. A stale cross-grade row settles by rule only when it loses no column-E
+  date the live row lacks.
+- **Asked, where the method used to guess:** dates beside a blank count that have words with them
+  (`NOT TAKEN`; `A/L`, `AL` and `A.L.` are the whitelist); a date in a shape the method does not read
+  (`24 Dec`, `Christmas Eve`, the 24th, a half day); "start" in a phrase about leave; a date no leave can
+  be on; a commented row that counts nobody. An answer the question does not allow is asked again.
+- **Left out with a note, where it used to stop the file:** column E of somebody whose leave is not
+  imported, and an uncounted name on a Sunday or a closed day.
+- **Privacy:** `.gitignore` ignores a leave or answers file in every name a copy is given, either case
+  (`x.Leave.json`, `x.leave (1).json`, `x.leave.json.txt`, `answers.json`); the commit hook refuses a
+  staged file that IS a leave file, whatever its name, reading the format out of `al-leave-file.js` as
+  staged; and an output with another name (a hard link) is refused.
+- **The two stages agree on one file:** the seal is worked out over NFC (a file sealed before still
+  verifies), `readLeaveFile` drops a byte-order mark, the validator checks a person's grade against
+  their used row, and the clerks' save time with a UTC offset is converted, not relabelled.
+
+Measured on the 6 Nov copy: re-made with `--previous` and the same answers, the file is identical bar
+`made` and its seal, and the day list byte for byte; the new notes name four empty placeholder rows and
+three rows whose column E is no longer read because their leave is not imported. 51 of 52 mutations
+were caught; the 52nd, the one-word tag's early return, is backed by the initial-letter comparison, and
+breaking both fails a test.
 
 # Part 2 — The review of draft 1
 

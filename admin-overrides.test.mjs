@@ -1040,13 +1040,15 @@ describe('validateShiftRules', () => {
     });
 });
 
-// ── recordRangeOverrides — Sunday prohibition (layer 3 of 6) ─────────────────
+// ── recordRangeOverrides — Sunday prohibition (layer 3 of 7) ─────────────────
 //
 // CLAUDE.md: "Sundays are non-contracted — AL and Absent cannot be recorded on
-// Sundays."  The filter in recordRangeOverrides is layer 3 of the SIX CLAUDE.md
-// numbers (this said five until the test audit, 7 Nov 2026): the week-grid pills,
-// the bulk-bar skip, this filter, the roster-upload normalisation, the display
-// suppression (`isOverrideDisplaySuppressed`) and the single-row save in admin-app.js.
+// Sundays."  The filter in recordRangeOverrides is layer 3 of the SEVEN CLAUDE.md
+// numbers (this said five until the test audit, 7 Nov 2026, and six until the leave
+// sheet's Save, 15 Nov 2026): the week-grid pills, the bulk-bar skip, this filter, the
+// roster-upload normalisation, the display suppression (`isOverrideDisplaySuppressed`),
+// the single-row save in admin-app.js and the leave sheet's Save (`writableDate`,
+// al-leave-plan.js).
 //
 // Test date: Mon 15 Jun – Sun 21 Jun 2026.  G. Miller is on main roster Week 1
 // (Mon-Sat all SPARE) for 15-20 Jun and Week 2 (sun: '14:30-23:25') for 21 Jun.

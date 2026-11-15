@@ -222,6 +222,33 @@ describe('the hook checks the commit, and says when it could not', () => {
     });
 });
 
+// ── A LEAVE FILE IS REFUSED BY WHAT IT IS (15 November 2026) ───────────────────────────────────
+//
+// The privacy test that finds a tracked leave file runs in CI, after the push, and the repository is
+// public — so the hook reads every staged file for one, by content (leave-file-privacy.test.mjs runs
+// that block against staged files). What only this file can pin is how the block finds the FORMAT:
+// it reads `LEAVE_FILE_FORMAT` out of al-leave-file.js as staged, by a pattern, and a declaration
+// reworded so the pattern stops matching makes the hook refuse every commit (loudly, by design —
+// it will not pass unchecked). This fails in CI first.
+describe('the hook refuses a leave file by what it is, not by its name', () => {
+    test('it reads every staged file, and the format out of al-leave-file.js as staged', () => {
+        assert.match(code, /staged\('al-leave-file\.js'\)/, 'the leave-file step no longer reads the format from al-leave-file.js as staged');
+        assert.match(code, /process\.env\.STAGED_FILES/, 'the leave-file step no longer reads the one staged list');
+        assert.doesNotMatch(code, /'myb-annual-leave'|"myb-annual-leave"/, 'the format is written into the hook — a second copy, free to drift');
+    });
+
+    test('and al-leave-file.js still declares the format the way the hook reads it', async () => {
+        const literal = /match\((\/\^export const LEAVE_FILE_FORMAT[^\n]*?\/m)\)/.exec(code)?.[1];
+        assert.ok(literal, 'could not read the leave-file step’s pattern for LEAVE_FILE_FORMAT out of the hook');
+        const pattern = new RegExp(literal.slice(1, -2), 'm');
+        const declared = pattern.exec(readFileSync(join(ROOT, 'al-leave-file.js'), 'utf8'))?.[1];
+        const { LEAVE_FILE_FORMAT } = await import('./al-leave-file.js');
+        assert.equal(declared, LEAVE_FILE_FORMAT,
+            'githooks/pre-commit cannot read LEAVE_FILE_FORMAT out of al-leave-file.js with its pattern, so every commit '
+            + 'would be refused. Keep the declaration on one line, single-quoted, or change the pattern in the hook with it.');
+    });
+});
+
 describe('the hook and CI check the same documents', () => {
     // The hook says it "mirrors sw-asset-check.test.mjs exactly", which is the claim that makes it
     // safe to lean on locally. Nothing was checking the claim, and at v22.47 it stopped being true:

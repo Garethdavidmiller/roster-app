@@ -103,8 +103,8 @@ export function entryControlHtml(key, s, date) {
     }).join('');
     // The Sunday exclusions are DERIVED for the note as well as for the pills (rule 2). A `title`
     // is not a mobile affordance and every admin here is on a phone, so the reason four of the six
-    // pills are dead has to be on screen — but naming them in prose would be the seventh copy of a
-    // list with six enforcement layers, so it names what is LEFT, read from `isForbiddenOnSunday`.
+    // pills are dead has to be on screen — but naming them in prose would be one more copy of a
+    // list with seven enforcement layers, so it names what is LEFT, read from `isForbiddenOnSunday`.
     const sunNote = !sun ? '' : `<p class="roster-entry-sunday">Only ${
         esc(PILL_TYPES.filter(t => !isForbiddenOnSunday(t)).map(t => TYPES[t].pill).join(' and '))
     } can be recorded on a Sunday — Sunday work is always RDW.</p>`;

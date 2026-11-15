@@ -281,10 +281,12 @@ added             list of "Name|YYYY-MM-DD" — the days this Save CREATED, the 
                   Never longer than inLine
 undoneAt          Firestore server timestamp — set once, by an undo; absent until then
 undoneBy          the admin's own name, set with undoneAt
-undone            list of "Name|YYYY-MM-DD" — what the undo removed: the added days nobody had written since.
-                  Never longer than added
+undone            list of "Name|YYYY-MM-DD" — what the undo took back: every added day gone by its end, whether
+                  that press removed it, an earlier press cut short did, or somebody removed it since — so an
+                  undo stopped part way is finished by pressing it again. Never longer than added
 ```
-**What it is for**: the Save (Phase 2b) reads it three ways (AL_UPLOADER_PLAN.md §4.6, §4.10). A sheet day a
+**What it is for**: the Save (Phase 2b) reads it three ways (AL_UPLOADER_PLAN.md §4.6, §4.10). A check
+reads the logs of the file's year AND the year before, because last year's sheet ran into this January. A sheet day a
 log says was brought into line, and the app no longer holds, was removed in the app since: it is shown,
 never ticked, so leave cancelled in the app does not come back. A copy of the workbook saved before the
 newest one logged is refused by name. An undo removes only `added` days nobody has written since
@@ -296,10 +298,20 @@ own bound name, so the admin must be signed in as themselves. Update: the undo o
 the Save wrote may move. A create sent again after its answer was lost arrives as an update and is
 refused, so the Save writes its log in a transaction that reads first. Delete: the admin. The rules
 cannot check the entries or that `added` lies inside `inLine` (a rule has no loop); the Save must.
-**Nothing writes it yet.** The rules shipped first, in a release with no writer (CLAUDE.md → backend-first).
-**Retention, planned with the Save:** a log is needed while its year's sheet can still be uploaded, which
-is its own year and the January after (carried days); the Save is to delete logs older than that. Losing
-one costs only memory: the next upload behaves like the first.
+**Written by the Save on Operations → Annual leave sheet** (`al-leave-save.js`): one log per Save, LAST,
+from a read of what the server then holds — so `added` names only days the read shows are the Save's own,
+and a Save whose answer was lost on the way back is still recorded. Where that read cannot be made, the
+next check of the same file in the same visit writes it — and so does it when the log itself could not be
+written; a closed page loses it (KNOWN_LIMITATIONS.md). A Save the read shows landed nothing writes no log, so
+the last Save keeps its Undo. A day the Save was refused on is never in `added`, even when it holds leave
+exactly like the Save's: that is the admin's own booking. An Undo sets the three undo fields once; it records
+nothing only when every added day was changed by somebody since. The rules shipped
+first, in a release with no writer (CLAUDE.md → backend-first).
+**Retention:** each Save deletes the logs from before last year (`pruneUploadLogs`), without waiting for the
+deletion. A log is needed while its year's sheet can still be uploaded, which is its own year and the January
+after, so keeping last year's whole covers that January with room to spare — and a sheet for a year before
+last is a check only, because the Save that wrote its log would delete it. Losing one costs only memory: the next upload of
+that year behaves like the first.
 
 **analytics** — anonymous usage counters; **no member identity is ever stored**
 ```
@@ -359,7 +371,7 @@ uploadedAt   Firestore server timestamp — the rules require `== request.time`;
 uploadedBy   Member name string
 ```
 Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
-Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
+Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-doc-uploads.js` (the card's settings for `doc-upload.js`).
 Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens **directly** in a new tab, one tap: a PDF by its URL, a Word doc via the Office Online viewer; the URL is a short-lived one from `getDocumentUrl` when the server grants it, else the stored `storageUrl`) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `pruneOldDocs()` in `doc-retention.js`.
 
@@ -375,7 +387,7 @@ uploadedAt   Firestore server timestamp — the rules require `== request.time`;
 uploadedBy   Member name string
 ```
 Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
-Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
+Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-doc-uploads.js` (the card's settings for `doc-upload.js`).
 Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens **directly** in a new tab, one tap: a PDF by its URL, a Word doc via the Office Online viewer; short-lived `getDocumentUrl` URL first, stored `storageUrl` as fallback) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
 Also read once per Calendar load, for the latest issue's `date` only (`checkLatestNewsletter`, `newsletter-recency.js`): the ☰ button shows while it is under six weeks old, and the date is kept on the device (localStorage `myb_newsletter_latest`, `''` once the server has said there is none) for every page's drawer to read.
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `pruneOldDocs()` in `doc-retention.js`.

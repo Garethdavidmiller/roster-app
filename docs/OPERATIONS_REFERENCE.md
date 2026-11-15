@@ -946,22 +946,33 @@ differs by exactly the moved days (AL_WORKBOOK.md §9).
 ## Checking the clerks' leave sheet against the app
 
 Operations → **Annual leave sheet** (admin only) answers one question: where do the clerks'
-annual-leave workbook and the app disagree, person by person, and why? **It is a check only.
-Nothing is saved and nothing is changed**; to change a day, use Change a Shift on the Admin page.
-Plan of record: `docs/AL_UPLOADER_PLAN.md`.
+annual-leave workbook and the app disagree, person by person, and why? Then, for the people you
+confirm, it **adds the leave the app is missing** (Step 3). **That is all it ever writes**: a day
+that differs any other way is changed in Admin, with Change a Shift. Plan of record:
+`docs/AL_UPLOADER_PLAN.md`.
 
 **Step 1, in a Claude session.** Upload the workbook and ask for a **leave file**. The session runs
 `scripts/make-leave-file.mjs`, which reads the workbook by the `AL_WORKBOOK.md` method:
 
 - It **asks** about anything it cannot settle mechanically, such as a name that does not match, a
-  duplicate row or a January date. It writes nothing until those are answered.
-- It refuses a workbook that is not shaped the way the method knows.
-- The name answers are carried inside the file, so the next copy does not ask them again. A
-  duplicate row or a January date is asked again on every copy, because rows move between copies.
+  duplicate row, a January date, a comment date it cannot read (`24 Dec`, `Christmas Eve`, a half day),
+  or dates beside a blank count that have words with them (`NOT TAKEN`). A name is only ever matched
+  within its own grade block, and a one-word Sunday tag never by itself. It writes nothing until those
+  are answered.
+- It refuses a workbook that is not shaped the way the method knows, and a person's row whose Used is
+  blank while it still holds a name or a column-E figure or comment.
+- The name answers are carried inside the file, so the next copy does not ask them again — unless the
+  roster now says otherwise: "not in the app" for somebody it now holds, or a name it now gives to
+  somebody else, is asked again. Every other answer (a duplicate row, a January date, a comment read
+  by hand) is asked again on every copy, because rows move between copies.
 
 **The file names colleagues against their leave**, so it is kept outside the repository and never
-committed (`.gitignore` and `leave-file-privacy.test.mjs` stop it). It is **sealed**: the card
-refuses a file that has been edited by hand. A correction goes back through the session.
+committed: the script will not write it inside any checkout, `.gitignore` keeps a copy dropped into the
+tree out of `git add` under the names a phone gives a download, the commit hook (`githooks/pre-commit`,
+where it is installed) refuses a commit that holds one by any name, and `leave-file-privacy.test.mjs`
+fails if one is ever tracked — in CI, after the push, so it is the alarm rather than the lock. It is
+**sealed**: the card refuses a file that has been edited by hand. A correction goes back through the
+session.
 
 **Step 2, on Operations.** Open the card and choose the file, or paste its text. The card reads
 every comparable member's records and shows three things:
@@ -999,25 +1010,75 @@ the app takes those days from last year's allowance, so both leave the same figu
 sheet figure is explained on the row: a day the sheet's own total misses takes one off, and a
 Sunday it counts gives one back.
 
-**Age.** The card says when the clerks last saved the sheet. Past **14 days** it warns you to ask for
-a fresh copy, and still shows the comparison: a check that writes nothing cannot do harm. If a later
-phase ever saves, that is where the limit would stop it (AL_UPLOADER_PLAN.md §10, decision 4).
+**Age.** The card says when the clerks last saved the sheet. Past **14 days** the comparison is still
+shown, because a check cannot do harm, but the file **cannot be saved**: ask the clerks for a fresh copy
+(AL_UPLOADER_PLAN.md §10, decision 4). A file that does not say when it was saved cannot be saved either.
 
 **Offline, it stops.** A read answered from this device's copy could call leave missing that is
 not, so the card refuses to check until it can reach the server.
 
 **The answer on screen is always for the file on screen.** Choosing another file, or typing in the
 paste box, takes the old answer away; choosing the SAME file again (a corrected copy saved over the
-old one) reads it again. An app update waits while a check runs or its answer is on screen — **Clear
-the check** when you are done to let it in. A notification tap does not wait: the check saves
-nothing, so leaving it costs nothing but running it again.
+old one) reads it again. **Your answers are not lost with it:** Check again, a new copy and the paste
+box bring back every answer for a day the new check still asks about, and every confirmation whose
+box says exactly what it said. Only Clear forgets them, and it asks first. An app update waits while
+a check runs, while its answer is on screen, and while anything you have answered is unsaved —
+**Clear the check** when you are done to let it in. A notification tap waits only for work that
+would be lost: a confirmation or a "Swapped — counts" answer not yet saved, or a Save or an Undo
+still running.
 
 **Who is left out, and why:** leavers, managers, anybody the app has no allowance on record for, and
 anybody the app does not hold. The summary names each one with the reason **as the roster stands
 today** — somebody who could be compared now, but whose days the file does not carry, says a new
 leave file would include them. A member in the app and not on the sheet is listed too. Leave the app
 holds on a Sunday, before a member's start date, or on Christmas Day or Boxing Day is not counted as
-"only in the app": no screen shows the first two, and neither side counts the third.
+"only in the app": no screen shows the first two, and neither side counts the third. Nor is a day of
+next January that the app takes from next year's allowance: it is next year's sheet's to hold.
+
+**Step 3, the Save** (v26.13). Under each person who needs a look:
+
+- **A rest day is asked about in Admin's own words**: "Was it a swapped working day?" — *Swapped —
+  counts* or *Rest day — free*. Nothing is chosen for you, and a rest day left unanswered is not saved.
+- **Confirm the person.** The box says what it adds ("Add 2 days of leave for …"), and beside it are
+  that person's figures **after** the Save and whatever would still differ. There is no "accept all":
+  each person is confirmed on their own row.
+- **Press Save.** Each day is written as Admin's leave card writes it, at the same fixed place, and
+  checked again as it is written: a day somebody has changed since the check is **refused, by name**,
+  nothing of that person is written, and your answers stay on screen. That includes a day you booked
+  by hand in Admin after the check: it is refused, not counted as the Save's, so the Save's Undo can
+  never take your own booking back. **Offline, nothing is written**, and the review stays exactly as it
+  was, so you can save once you are back online. If the page could not load what it saves with (after
+  an update, offline), the receipt says the Save **never started**: reload, check again and save.
+- **The receipt** says what was saved, read back from the server — so a Save whose answer was lost on
+  the way back is still reported, and recorded. It names every rest day you answered *Rest day — free*:
+  nothing is written for those, and leave already recorded there is left as it is. The card then checks
+  the file again: what was saved shows as already right. If it says the Save **stopped part way**, check
+  again and save again: what landed shows as already right, so only the rest is sent.
+
+**What it will not do.** It never writes a day that differs any other way, a Sunday, Christmas Day or
+Boxing Day. A day the sheet has that **was removed in the app since** this sheet was last saved here is
+never put back: it is shown, with "add it in Admin" if it should be there. It refuses the whole file
+when the file is past 14 days old or does not say its age, when a **newer copy has already been saved
+here** (an older copy could put back leave cancelled since), when the record of earlier Saves cannot be
+read, or when you are not signed in as yourself.
+
+**The log and the Undo.** Each Save is recorded (`alUploads`, admin only — DATA_MODEL.md): which copy
+of the sheet, who saved it, and which days it added. A Save that landed nothing records nothing, so the
+last Save keeps its Undo. When the record cannot be written, or the records cannot be read after the
+Save, the receipt says so, and the **next check of the same file** records it. The card names the
+newest Save of the year with an **Undo** beside it, which takes back only the days that Save added and
+nobody has changed since; any others are kept, and named. It can be undone once — and an Undo that
+**stops part way** is finished by pressing Undo again: what it already took back stays taken back. An
+Undo that could not read the app's records (offline, say) took nothing back and says so, and its review
+and its Undo button stay on screen for the next press.
+Records are kept for this year's sheet and last year's (last year's ran into this January); a sheet for
+an earlier year is a check only.
+
+**Unsaved answers ask before they go.** Clear, a drawer link, the header logo, signing out and closing
+the tab each ask first while a confirmation or a *Swapped — counts* answer is unsaved, on screen or
+waiting for the next check. Signing out also asks while any change is still on its way to the server,
+as it does on Admin. The answers are never stored: they name colleagues against their leave, so they
+live on the page alone.
 
 ## Staff PIN access for the Calendar
 

@@ -46,7 +46,19 @@
  *     as Excel's legacy copy, two rows with the same figures and different comments, a one-word
  *     Sunday tag outside its own grade, and an order that changed with the session's locale. The
  *     reader refuses an XML part it cannot read where it stands, an entry that inflates past its cap
- *     and two entries with one name; the command line, an output that names an input.
+ *     and two entries with one name; the command line, an output that names an input;
+ *   · and what the second review found (15 Nov 2026), each of which made a file without a word or
+ *     stopped one with nothing to answer: a person's row with a BLANK Used (stops the file; a grade
+ *     alone is a placeholder, noted); a carried "not in the app" for a trainee the app now holds, and a
+ *     carried name the roster now contradicts (asked again — an unchanged roster still asks nothing);
+ *     a stale duplicate whose column-E dates the live row lacks, and one spelling in two grades'
+ *     blocks (asked); words beside a blank count, a date in a shape the method does not read,
+ *     "start" in a phrase about leave, a mistyped year, an over-quota Sunday (asked, with an answer
+ *     route each); an answer that is not one the question allows (asked again); a one-word Sunday tag
+ *     (never matched — it may be a first name); a surname with an accent or a curly apostrophe (a
+ *     name); a commented row that counts no name (asked); what is discarded anyway — a no-row name on
+ *     a Sunday, a leaver's comment — (noted, never refused); a save time with an offset (converted);
+ *     and, on the command line, a hard-linked output and a previous file with a byte-order mark.
  */
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -163,6 +175,9 @@ const MEMBERS = [
 
 /** What only a person can answer, answered. */
 const ANSWERS = {
+    // G. Mover is CES, and their stale row 9 is in the CEA block: a row is matched mechanically only
+    // within its own grade, so a first run asks — and the one answer covers both of their rows.
+    rows: { 'mover . g': 'G. Mover' },
     cells: { 'CES|trail . d': 'D. Trial' },
     tags: { 'CEA|bee': 'B. Sample', 'CES|zed': null },
     duplicates: { 'R. Split': 19 },
@@ -435,7 +450,9 @@ describe('the method (buildLeaveFile)', () => {
         const { file, questions } = build(leaveWorkbook(), { answers: {} });
         assert.equal(file, null);
         assert.deepEqual(asked(questions), [
-            'cell-name CES|trail . d', 'comment-date 17|02/01', 'duplicate-rows R. Split', 'tag-name CEA|bee', 'tag-name CES|zed']);
+            'cell-name CES|trail . d', 'comment-date 17|02/01', 'duplicate-rows R. Split', 'row-name mover . g', 'tag-name CEA|bee', 'tag-name CES|zed']);
+        // One key covers both of G. Mover's rows, so the question shows both blocks it covers.
+        assert.deepEqual(questions.find(q => q.key === 'mover . g')?.rows?.map((/** @type {any} */ r) => [r.row, r.grade]), [[9, 'CEA'], [10, 'CES']]);
         const zed = questions.find(q => q.key === 'CES|zed');
         // The slot column is EVIDENCE in the question — D. Trial on both sides — and never the answer.
         assert.deepEqual(zed?.neighbours, [{ date: '2026-05-10', saturday: 'D. Trial', monday: 'D. Trial' }]);
@@ -688,16 +705,34 @@ describe('the method: where it once guessed, it now asks or refuses', () => {
             [[21, null], [22, 'duplicate-identical']]);
     });
 
-    test('a surname alone on a Sunday is matched only within its own grade block', () => {
-        // B. Sample is the only Sample on the roster, and a CEA: in the CES columns the tag is not theirs.
-        const ces = build(leaveWorkbook({ extraPlaced: [['2026-05-17', 'H', 'N/A Sample']] }));
+    test('a ONE-word Sunday tag is never matched mechanically — it may be a first name — and its answer is carried', () => {
+        // §7 measured first names among the one-word tags. T. Grace's SURNAME is Grace, and the tag in
+        // A. Example's slot is A. Example's first name: read as a surname, the Sunday went to T. Grace.
+        const members = [...MEMBERS, { name: 'T. Grace', role: 'CEA', rosterType: 'main', currentWeek: 11 }];
+        const book = leaveWorkbook({ extraPlaced: [['2026-05-17', 'D', 'N/A Grace'], ['2026-05-24', 'H', 'N/A Trial']] });
+        const first = build(book, { members });
+        assert.equal(first.file, null);
+        // …in its own grade's block too: `N/A Trial` among the CES columns is still only a word.
+        assert.deepEqual(asked(first.questions), ['tag-name CEA|grace', 'tag-name CES|trial']);
+        // Answered, the answer is used; carried in the file's map, the next copy asks nothing.
+        const answers = { ...ANSWERS, tags: { ...ANSWERS.tags, 'CEA|grace': 'A. Example', 'CES|trial': 'D. Trial' } };
+        const made = build(book, { members, answers }).file;
+        assert.ok(made);
+        assert.ok(daysOf(made).some((/** @type {string[]} */ d) => d.join() === 'A. Example,2026-05-17,sunday-tag,grid-tag'));
+        assert.ok(daysOf(made).some((/** @type {string[]} */ d) => d.join() === 'D. Trial,2026-05-24,sunday-tag,grid-tag'));
+        assert.ok(!daysOf(made).some((/** @type {string[]} */ d) => d[0] === 'T. Grace'));
+        const again = build(book, { members, previousMap: made.nameMap, answers: { duplicates: ANSWERS.duplicates, commentDates: ANSWERS.commentDates } });
+        assert.deepEqual(again.questions, []);
+        assert.equal(canonicalJson(again.file), canonicalJson(made));
+    });
+
+    test('two words carry an initial, and are matched only within the block the tag sits in', () => {
+        // A. Example is a CEA: their tag in their own columns is theirs (the fixture's three)…
+        assert.ok(daysOf(build(leaveWorkbook()).file).some((/** @type {string[]} */ d) => d.join() === 'A. Example,2026-02-08,sunday-tag,grid-tag'));
+        // …and in the CES columns it is somebody's the method cannot name.
+        const ces = build(leaveWorkbook({ extraPlaced: [['2026-06-07', 'H', 'N/A A Example']] }));
         assert.equal(ces.file, null);
-        assert.deepEqual(asked(ces.questions), ['tag-name CES|sample']);
-        // In their own block it is, and a CES surname in the CES block is still matched.
-        const own = build(leaveWorkbook({ extraPlaced: [['2026-05-24', 'H', 'N/A Trial'], ['2026-05-31', 'F', 'N/A Sample']] })).file;
-        assert.ok(own);
-        assert.ok(daysOf(own).some((/** @type {string[]} */ d) => d.join() === 'D. Trial,2026-05-24,sunday-tag,grid-tag'));
-        assert.ok(daysOf(own).some((/** @type {string[]} */ d) => d.join() === 'B. Sample,2026-05-31,sunday-tag,grid-tag'));
+        assert.deepEqual(asked(ces.questions), ['tag-name CES|a example']);
     });
 
     test('the file — and so its seal — is the same whatever the session’s collation', () => {
@@ -737,6 +772,281 @@ describe('the method: where it once guessed, it now asks or refuses', () => {
             { answers: { ...ANSWERS, cells: { ...ANSWERS.cells, [`CEA|${normaliseKey(spelt)}`]: null } } });
         assert.equal(file, null);
         assert.deepEqual(refusals(questions), ['the file the method made is refused: Part of the file is not in the expected form (notImported).']);
+    });
+});
+
+// ── The second review of Stage 1 (15 Nov 2026) ──────────────────────────────────────────────────
+//
+// Each of these made a file without a word, or stopped one with nothing a person could answer, on
+// the code before it; each test failed there.
+
+describe('the method: a row it skipped, a carried name it believed, a duplicate it settled', () => {
+    test('a person’s row whose Used is BLANK or missing stops the file — its column E is never dropped', () => {
+        // Skipped, the row's grid day came out as "no totals row" and its over-quota day vanished (§0),
+        // and the run exited 0: only rows with something in Used were looked at.
+        const why = ['totals row 21: its Used is blank, but the row has a name, a column-E figure or a column-E comment, so its days and its column E cannot be read'];
+        const silent = { ...BROKEN_ROW, thread: undefined };
+        for (const [what, more, row] of /** @type {Array<[string, Record<string, any>, TotalsRow]>} */ ([
+            ['Used missing, the row in full', { G21: null }, BROKEN_ROW],
+            ['Used an empty string', { G21: '' }, BROKEN_ROW],
+            ['a name and nothing else', { G21: null, A21: null, E21: null }, silent],
+            ['a figure in column E and nothing else', { G21: null, A21: null, B21: 'Vacancy' }, silent],
+            ['a threaded comment on E and nothing else', { G21: null, A21: null, B21: 'Vacancy', E21: null }, BROKEN_ROW],
+            ['a legacy note on E and nothing else', { G21: null, A21: null, B21: 'Vacancy', E21: null }, { ...silent, note: '24/03' }],
+        ])) {
+            const { file, questions } = build(brokenBook(more, row), { members: [...MEMBERS, T_BROKEN] });
+            assert.equal(file, null, what);
+            assert.deepEqual(refusals(questions), why, what);
+        }
+        // A comment on E is a row even when nothing else on the row is there at all.
+        const bare = build(leaveWorkbook({ extraThreads: { E30: ['24/03'] } }));
+        assert.equal(bare.file, null);
+        assert.deepEqual(refusals(bare.questions), [why[0].replace('row 21', 'row 30')]);
+    });
+
+    test('a grade with a blank Used and nothing else is the sheet’s empty placeholder: left out, with a note', () => {
+        // The real totals sheet has these, a grade in column A and no more, and they must not stop it.
+        const plain = build(leaveWorkbook());
+        const held = build(leaveWorkbook({ totalsCells: { A30: 'CEA', A31: 'BLCEA', A32: 'CES', A33: 'DISP', G33: '', A34: ' cea ' } }));
+        assert.ok(plain.file && held.file);
+        assert.equal(canonicalJson(held.file), canonicalJson(plain.file));
+        assert.deepEqual(held.notes.filter(n => !plain.notes.includes(n)),
+            [30, 31, 32, 33, 34].map(r => `totals row ${r}: a grade with a blank Used and nothing else, a placeholder (left out)`));
+    });
+
+    test('a carried "not in the app" is asked again once the app holds them — the trainee of AL_WORKBOOK.md §10', () => {
+        const TRAINEE = { row: 21, role: 'CEA', crit: 'Novice . V', d: 32, e: 26, thread: [{ text: 'START DATE 19/10' }, { text: '24/11', reply: true }] };
+        const book = leaveWorkbook({ extraTotals: [TRAINEE], extraPlaced: [['2026-11-10', 'D', 'Novice . V'], ['2026-11-11', 'D', 'Novice . V']] });
+        // While the app does not hold them, the session answers "not in the app" (§10 Q14, Q16).
+        const before = build(book, { answers: { ...ANSWERS, rows: { ...ANSWERS.rows, 'novice . v': null } } }).file;
+        assert.ok(before);
+        assert.ok(before.notImported.some((/** @type {any} */ n) => n.name === 'Novice . V' && n.reason === 'not-in-app'));
+        // `/new-starter` adds them, and the next copy carries the map: the null is checked, not believed.
+        const V_NOVICE = { name: 'V. Novice', role: 'CEA', rosterType: 'main', currentWeek: 11, startDate: new Date(2026, 9, 19), proRatedAL: { 2026: 7 } };
+        const members = [...MEMBERS, V_NOVICE];
+        const carried = { duplicates: ANSWERS.duplicates, commentDates: ANSWERS.commentDates };
+        const after = build(book, { members, previousMap: before.nameMap, answers: carried });
+        assert.equal(after.file, null);
+        assert.deepEqual(asked(after.questions), ['row-name novice . v']);
+        assert.equal(after.questions[0].carried, null);
+        assert.deepEqual(after.questions[0].suggestions, ['V. Novice']);
+        assert.ok(after.notes.some(n => n.includes('"not in the app" in the previous file and now matches V. Novice')), after.notes.join('\n'));
+        // Answered, their days are in the file: the two in the grid and the one over quota.
+        const added = build(book, { members, previousMap: before.nameMap, answers: { ...carried, rows: { 'novice . v': 'V. Novice' } } }).file;
+        assert.deepEqual(daysFor(added, 'V. Novice'), [['V. Novice', '2026-11-10', 'leave', 'grid'], ['V. Novice', '2026-11-11', 'leave', 'grid'],
+            ['V. Novice', '2026-11-24', 'leave', 'column-e']]);
+    });
+
+    test('a carried name stands while nothing contradicts it, and is asked again when the match names somebody else, or two', () => {
+        // A row spelt with another initial, answered by hand (§7: a known-as name).
+        const book = leaveWorkbook({ extraTotals: [{ row: 21, role: 'CEA', crit: 'Initial . K', d: 32 }], extraPlaced: [['2026-07-01', 'E', 'Initial . K']] });
+        const Y = { name: 'Y. Initial', role: 'CEA', rosterType: 'main', currentWeek: 11 };
+        const carried = { duplicates: ANSWERS.duplicates, commentDates: ANSWERS.commentDates };
+        const first = build(book, { members: [...MEMBERS, Y], answers: { ...ANSWERS, rows: { ...ANSWERS.rows, 'initial . k': 'Y. Initial' } } }).file;
+        assert.ok(first);
+        // The match finds nobody for `Initial . K`, so nothing contradicts the answer: the next copy asks nothing.
+        const same = build(book, { members: [...MEMBERS, Y], previousMap: first.nameMap, answers: carried });
+        assert.deepEqual(same.questions, []);
+        assert.equal(canonicalJson(same.file), canonicalJson(first));
+        // A K. Initial joins: the spelling now names them, so the carried answer is asked again.
+        const K = { name: 'K. Initial', role: 'CEA', rosterType: 'main', currentWeek: 12 };
+        const joined = build(book, { members: [...MEMBERS, Y, K], previousMap: first.nameMap, answers: carried });
+        assert.equal(joined.file, null);
+        assert.deepEqual(asked(joined.questions), ['row-name initial . k']);
+        assert.equal(joined.questions[0].carried, 'Y. Initial');
+        // …and so is one the match now gives to TWO members. (Contrived: names that differ only in case
+        // are the one way an initial and a surname can match twice.)
+        const twice = build(leaveWorkbook(), { members: [...MEMBERS, { name: 'H. quota', role: 'CEA', rosterType: 'main', currentWeek: 13 }],
+            previousMap: build(leaveWorkbook()).file.nameMap, answers: carried });
+        assert.equal(twice.file, null);
+        assert.deepEqual(asked(twice.questions), ['row-name quota . h']);
+    });
+
+    test('a stale duplicate is settled by rule only when it loses nothing: every column-E date of it on the live row', () => {
+        // G. Mover's stale CEA row dates a day their live CES row does not; settled, the day was dropped.
+        const uncovered = build(leaveWorkbook({ extraThreads: { E9: ['15/06'] }, columnE: { 9: 1 } }));
+        assert.equal(uncovered.file, null);
+        assert.deepEqual(asked(uncovered.questions), ['duplicate-rows G. Mover']);
+        // …nor when its date is one the method cannot read.
+        assert.deepEqual(asked(build(leaveWorkbook({ extraThreads: { E9: ['24 Dec'] }, columnE: { 9: 1 } })).questions), ['duplicate-rows G. Mover']);
+        // The pair as measured on the 6 Nov copy: the stale CEA row carries forward 2 and dates two days,
+        // both on the live CES row's comment. It settles without a question, and keeps its figures.
+        const pair = build(leaveWorkbook({ extraThreads: { E9: ['02/01', '03/01'], E10: ['02/01 03/01', '27/08'] }, columnE: { 9: 2, 10: 3 } }));
+        assert.deepEqual(pair.questions, []);
+        const mover = pair.file.people.find((/** @type {any} */ p) => p.name === 'G. Mover');
+        assert.deepEqual(mover.sheetRows.map((/** @type {any} */ r) => [r.row, r.grade, r.used ? null : r.why, r.printed]),
+            [[9, 'CEA', 'duplicate-stale', pr([2, 32, 0, 2, 32])], [10, 'CES', null, pr([0, 34, 2, 3, 29])]]);
+        assert.deepEqual(mover.columnE, ce([3, 0, 0, 0]));
+        assert.deepEqual(daysFor(pair.file, 'G. Mover').map(d => [d[1], d[3]]),
+            [['2026-01-02', 'column-e'], ['2026-01-03', 'column-e'], ['2026-07-07', 'grid'], ['2026-07-08', 'grid'], ['2026-08-27', 'column-e']]);
+    });
+
+    test('one spelling in two grades’ blocks is matched only within each: a CEA trainee’s days never go to a CES member', () => {
+        const U_CROSS = { name: 'U. Cross', role: 'CES', rosterType: 'ces', currentWeek: 5 };
+        const members = [...MEMBERS, U_CROSS];
+        const trainee = { row: 21, role: 'CEA', crit: 'Cross . U', d: 32 };
+        const days = /** @type {Array<[string, string, string]>} */ ([['2026-03-10', 'C', 'Cross . U'], ['2026-03-11', 'C', 'Cross . U']]);
+        // The trainee's row alone: not the CES member's, so asked.
+        const alone = build(leaveWorkbook({ extraTotals: [trainee], extraPlaced: days }), { members });
+        assert.equal(alone.file, null);
+        assert.deepEqual(asked(alone.questions), ['row-name cross . u']);
+        // Beside the member's own CES row, one key covers both rows, and the question shows both.
+        const book = leaveWorkbook({ extraTotals: [trainee, { row: 22, role: 'CES', crit: 'Cross . U', d: 34 }], extraPlaced: days });
+        const both = build(book, { members });
+        assert.equal(both.file, null);
+        assert.deepEqual(asked(both.questions), ['row-name cross . u']);
+        assert.deepEqual(both.questions[0].rows.map((/** @type {any} */ r) => [r.row, r.grade]), [[21, 'CEA'], [22, 'CES']]);
+        // Answered as the CES member, the CEA row is still not settled onto them by rule: their live row
+        // would be another grade's — so which row is theirs is asked.
+        const answered = build(book, { members, answers: { ...ANSWERS, rows: { ...ANSWERS.rows, 'cross . u': 'U. Cross' } } });
+        assert.equal(answered.file, null);
+        assert.deepEqual(asked(answered.questions), ['duplicate-rows U. Cross']);
+    });
+
+    test('a name in the grid no row counts is matched only within its own block too', () => {
+        // E. Pilot, a Dispatcher with no totals row, by name in the CEA columns: not theirs by rule. It
+        // was matched to them, and then refused as "days in two grades" with nothing to answer.
+        const cea = build(leaveWorkbook({ extraPlaced: [['2026-06-03', 'C', 'Pilot . E']] }));
+        assert.equal(cea.file, null);
+        assert.deepEqual(asked(cea.questions), ['cell-name CEA|pilot . e']);
+        assert.deepEqual(refusals(cea.questions), []);
+    });
+
+    test('a duplicate-rows answer that is not one of their rows is not used: asked again, with a note', () => {
+        const { file, questions, notes } = build(leaveWorkbook(), { answers: { ...ANSWERS, duplicates: { 'R. Split': 99 } } });
+        assert.equal(file, null);
+        assert.deepEqual(asked(questions), ['duplicate-rows R. Split']);
+        assert.ok(notes.includes('the answer for "R. Split" is not one of their rows, so it is asked again'));
+    });
+});
+
+describe('the method: column E read as leave it did not say, or not read at all', () => {
+    test('a dated comment beside a blank count is leave only while the thread is the dates alone — words beside them are asked about', () => {
+        /** L. Blank's row 14, its thread replaced. @param {string[]} thread @param {Record<string, string[]>} [uncounted] */
+        const blank = (thread, uncounted) => build(leaveWorkbook({ extraThreads: { E14: thread } }), uncounted ? { answers: { ...ANSWERS, uncounted } } : {});
+        for (const thread of [['10/04', 'CANCELLED'], ['10/04 NOT TAKEN']]) {
+            const r = blank(thread);
+            assert.equal(r.file, null, thread.join(' / '));
+            assert.deepEqual(asked(r.questions), ['uncounted-dates 14|2026-04-10'], thread.join(' / '));
+        }
+        // `A/L` beside the date is the whitelist, not words: it reads as leave, as the bare date does.
+        const marked = [['L. Blank', '2026-04-09', 'leave', 'grid'], ['L. Blank', '2026-04-10', 'leave', 'column-e-uncounted']];
+        for (const entry of ['A/L 10/04', 'al 10/04', 'A.L. 10/04']) assert.deepEqual(daysFor(blank([entry]).file, 'L. Blank'), marked, entry);
+        // Answered: none of the dates is leave, so the day is left out — with a note — and the figure is the sheet's.
+        const none = blank(['10/04', 'CANCELLED'], { '14|2026-04-10': [] });
+        assert.deepEqual(daysFor(none.file, 'L. Blank'), [['L. Blank', '2026-04-09', 'leave', 'grid']]);
+        assert.deepEqual(none.file.people.find((/** @type {any} */ p) => p.name === 'L. Blank').corrected, { remaining: 31, because: [] });
+        assert.ok(none.notes.includes('totals row 14: 2026-04-10, dated beside a blank count, was answered as not leave (left out)'));
+        assert.deepEqual(daysFor(blank(['10/04', 'CANCELLED'], { '14|2026-04-10': ['2026-04-10'] }).file, 'L. Blank'), marked);
+        // An answer must be drawn from the dates themselves.
+        const wrong = blank(['10/04', 'CANCELLED'], { '14|2026-04-10': ['2026-04-11'] });
+        assert.equal(wrong.file, null);
+        assert.deepEqual(asked(wrong.questions), ['uncounted-dates 14|2026-04-10']);
+    });
+
+    test('a date in a shape the method does not read is asked about — never read as words, and never dropped', () => {
+        // M. Lump's row 15 (E 3), its thread replaced. Read as words, each was an undated lump.
+        for (const entry of ['24-12', '24 Dec', '24th December', 'Dec 24', 'Christmas Eve', 'the 24th', '1/2 DAY 24/12', 'HALF DAY 23/12']) {
+            const r = build(leaveWorkbook({ extraThreads: { E15: [entry] } }));
+            assert.equal(r.file, null, entry);
+            assert.deepEqual(asked(r.questions), [`comment-entry 15|${normaliseKey(entry)}`], entry);
+        }
+        // A month NAME with no day beside it is not a date: the sheet's own lump reads as one still.
+        for (const entry of ['A/L FROM PRE JUNE 2026', 'A/L FROM PRE JUNE']) {
+            const f = build(leaveWorkbook({ extraThreads: { E15: [entry] } })).file;
+            assert.deepEqual(f?.people.find((/** @type {any} */ p) => p.name === 'M. Lump').columnE, ce([0, 0, 3, 0]), entry);
+        }
+        // Read by hand, the days an entry names are used in place of the reading…
+        const read = build(leaveWorkbook({ extraThreads: { E15: ['24 Dec'] } }), { answers: { ...ANSWERS, entryDates: { '15|24 dec': ['2026-12-24'] } } }).file;
+        assert.deepEqual(daysFor(read, 'M. Lump'), [['M. Lump', '2026-12-24', 'leave', 'column-e']]);
+        assert.deepEqual(read.people.find((/** @type {any} */ p) => p.name === 'M. Lump').columnE, ce([1, 0, 0, 2]));
+        // …but only days the sheet could hold as leave: Christmas Day is asked again, with a note.
+        const christmas = build(leaveWorkbook({ extraThreads: { E15: ['25 Dec'] } }), { answers: { ...ANSWERS, entryDates: { '15|25 dec': ['2026-12-25'] } } });
+        assert.deepEqual(asked(christmas.questions), ['comment-entry 15|25 dec']);
+        assert.ok(christmas.notes.some(n => n.includes('not a list of days the sheet could hold as leave')));
+    });
+
+    test('"start" in a phrase about leave is not a joiner’s start date: asked, never dropped as one', () => {
+        // Read as a joiner's, the date went as a start date and E as a joiner's reduction.
+        for (const entry of ['START OF A/L 24/12', 'A/L START 24/12', 'START OF ANNUAL LEAVE 24/12', 'STARTS HIS LEAVE 24/12']) {
+            const r = build(leaveWorkbook({ extraThreads: { E15: [entry] } }));
+            assert.equal(r.file, null, entry);
+            assert.deepEqual(asked(r.questions), [`comment-entry 15|${normaliseKey(entry)}`], entry);
+        }
+        // A joiner's entry is still one: its leave word is not beside its start word (the fixture's row 5).
+        const joiner = build(leaveWorkbook({ extraThreads: { E5: ['STARTED ON 28/09 9 DAYS LEAVE ALLOWANCE', '12/10', '13/10'] } })).file;
+        assert.deepEqual(joiner.people.find((/** @type {any} */ p) => p.name === 'C. Joiner').columnE, ce([2, 25, 0, 0]));
+    });
+
+    test('a comment-date answer must be one of the token’s own readings', () => {
+        // `2026-03-16` for `02/01` was written as given: a day nobody's comment named.
+        const { file, questions, notes } = build(leaveWorkbook(), { answers: { ...ANSWERS, commentDates: { '17|02/01': '2026-03-16' } } });
+        assert.equal(file, null);
+        assert.deepEqual(asked(questions), ['comment-date 17|02/01']);
+        assert.ok(notes.includes('totals row 17: the answer for 02/01 is not one of its readings, so it is asked again'));
+    });
+
+    test('a date no leave can be on is read by hand — a mistyped year, a Sunday — where it once stopped the file', () => {
+        // H. Quota's row 11, its `15/09` replaced. Neither had any answer that could let the file through.
+        for (const [entry, why] of [['15/09/25', "a date outside the sheet's own dates (15/09/25)"], ['13/09', 'a date no leave can be on (2026-09-13)']]) {
+            const r = build(leaveWorkbook({ extraThreads: { E11: [entry] } }));
+            assert.equal(r.file, null, entry);
+            assert.deepEqual(r.questions.map(q => [q.kind, q.key, q.why]), [['comment-entry', `11|${entry}`, why]], entry);
+        }
+        const typo = build(leaveWorkbook({ extraThreads: { E11: ['15/09/25'] } }), { answers: { ...ANSWERS, entryDates: { '11|15/09/25': ['2026-09-15'] } } }).file;
+        assert.deepEqual(daysFor(typo, 'H. Quota'), EXPECTED_DAYS.filter(d => d[0] === 'H. Quota'));
+    });
+});
+
+describe('the method: a name it could not read, and what is discarded anyway', () => {
+    test('a surname in any script, with a curly apostrophe, is a name — matched to the roster’s own spelling', () => {
+        // ASCII alone made both "something that is not a name": the file stopped, or (Used 0, a blank
+        // count) the person was left out in silence with the day their comment dates.
+        const members = [...MEMBERS, { name: "K. O'Brien", role: 'CEA', rosterType: 'main', currentWeek: 11 },
+            { name: 'M. Agüero', role: 'CES', rosterType: 'ces', currentWeek: 5 }];
+        const book = leaveWorkbook({ extraTotals: [{ row: 21, role: 'CEA', crit: 'O’Brien . K', d: 32 },
+            // decomposed, as some copies write it: `u` and U+0308
+            { row: 22, role: 'CES', crit: 'Agu\u0308ero . M', d: 34, thread: [{ text: '24/12' }] }],
+        extraPlaced: [['2026-07-01', 'E', 'O’Brien . K']] });
+        const { file, questions } = build(book, { members });
+        assert.deepEqual(questions, []);
+        assert.deepEqual(daysFor(file, "K. O'Brien"), [["K. O'Brien", '2026-07-01', 'leave', 'grid']]);
+        assert.deepEqual(daysFor(file, 'M. Agüero'), [['M. Agüero', '2026-12-24', 'leave', 'column-e-uncounted']]);
+    });
+
+    test('a row that counts no name is left out in silence only while its column E says nothing either', () => {
+        // The fixture's row 8: an overtyped criterion, Used 0, a blank count — and now a dated comment.
+        const key = `8|${normaliseKey("Gone A8+'New Marylebone Totals'!F8. Q")}`;
+        const commented = build(leaveWorkbook({ extraThreads: { E8: ['10/06'] } }));
+        assert.equal(commented.file, null);
+        assert.deepEqual(asked(commented.questions), [`unnamed-row ${key}`]);
+        // Read by hand and answered: left out, with a note, and the file is the plain one.
+        const read = build(leaveWorkbook({ extraThreads: { E8: ['10/06'] } }), { answers: { ...ANSWERS, unnamedRows: { [key]: null } } });
+        assert.equal(canonicalJson(read.file), canonicalJson(build(leaveWorkbook()).file));
+        assert.ok(read.notes.includes('totals row 8 counts no name and nothing, and its column-E comment was read by hand (left out)'));
+    });
+
+    test('what is discarded anyway no longer stops the file: a no-row name on a Sunday, a leaver’s unreadable comment', () => {
+        // E. Pilot has no totals row (defect 10). Their name on a Sunday is not leave, and nothing counts it.
+        const sunday = build(leaveWorkbook({ extraPlaced: [['2026-06-07', 'I', 'Pilot . E']] }));
+        assert.deepEqual(sunday.questions, []);
+        assert.deepEqual(daysFor(sunday.file, 'E. Pilot'), EXPECTED_DAYS.filter(d => d[0] === 'E. Pilot'));
+        assert.ok(sunday.notes.includes('2026-06-07: a name no row counts, on a Sunday in the DISP columns (not leave, left out)'));
+        // F. Leaver's days are not imported, so a mistyped year in their comment is noted, never refused.
+        const leaver = build(leaveWorkbook({ extraThreads: { E7: ['24/12/25'] }, columnE: { 7: 1 } }));
+        assert.deepEqual(leaver.questions, []);
+        assert.deepEqual(leaver.file.notImported, [{ name: 'F. Leaver', reason: 'leaver' }, { name: 'J. Boss', reason: 'manager' }]);
+        assert.ok(leaver.notes.includes('totals row 7: not imported (leaver), so its column E is not read'));
+    });
+
+    test('the clerks’ last save is the real UTC instant: an offset is converted, never relabelled', () => {
+        for (const [modified, instant] of /** @type {Array<[string, string|null]>} */ ([
+            ['2026-11-06T15:07:42+01:00', '2026-11-06T14:07:42Z'], ['2026-11-06T00:30:00+01:00', '2026-11-05T23:30:00Z'],
+            ['2026-11-06T09:07:42-05:00', '2026-11-06T14:07:42Z'], ['2026-11-06T15:07:42+0100', '2026-11-06T14:07:42Z'],
+            ['2026-11-06T14:07:42.250Z', '2026-11-06T14:07:42Z'], ['2026-11-06T14:07:42', '2026-11-06T14:07:42Z'],
+            ['2026-11-06T14:07Z', '2026-11-06T14:07:00Z'], ['2026-02-30T10:00:00Z', null], ['yesterday', null]])) {
+            assert.equal(build(leaveWorkbook({ modified })).file?.source.clerksLastSaved, instant, modified);
+        }
     });
 });
 
@@ -857,5 +1167,40 @@ describe('the command line (main)', () => {
         // …and with distinct files the same answers make a file, so the refusals above were the names.
         const fine = cli([...base, '--first-run', '--answers', answersPath, '--out', join(TMP, 'c3.leave.json'), '--csv', join(TMP, 'c3.csv')]);
         assert.equal(fine.status, 0, fine.stderr);
+    });
+
+    test('it will not write over a file with another name — a hard link — wherever its other names are', () => {
+        // `ln <a tracked file> /tmp/x.leave.json` passed: writing one name writes the file all of them share.
+        const answersPath = answerEverything();
+        for (const flag of ['--out', '--csv']) {
+            const shared = join(TMP, `shared-for${flag.slice(1)}.txt`);
+            writeFileSync(shared, 'a file with a name of its own');
+            const linked = join(TMP, `linked-for${flag.slice(1)}${flag === '--out' ? '.leave.json' : '.csv'}`);
+            linkSync(shared, linked);
+            const outputs = flag === '--out' ? ['--out', linked] : ['--out', join(TMP, 'h.leave.json'), '--csv', linked];
+            const run = cli([...base, '--first-run', '--answers', answersPath, ...outputs]);
+            assert.equal(run.status, 1, `${flag}\n${run.stderr}`);
+            assert.match(run.stderr, /refusing to write .* over a file with another name \(a hard link\)/, flag);
+            assert.equal(readFileSync(shared, 'utf8'), 'a file with a name of its own', flag);
+        }
+        assert.ok(!existsSync(join(TMP, 'h.leave.json')));
+    });
+
+    test('a previous leave file and an answers file with a byte-order mark are read, as the card reads one', () => {
+        // Node's readFileSync keeps the mark, and `--previous` was refused as not JSON — though the card,
+        // whose Blob.text() drops it, read the same file.
+        const answersPath = answerEverything();
+        const made = join(TMP, 'bom-source.leave.json');
+        assert.equal(cli([...base, '--first-run', '--answers', answersPath, '--out', made]).status, 0);
+        const BOM = String.fromCharCode(0xFEFF);
+        const withMark = join(TMP, 'bom-previous.leave.json');
+        writeFileSync(withMark, BOM + readFileSync(made, 'utf8'));
+        const again = join(TMP, 'bom-again.leave.json');
+        const run = cli([...base, '--previous', withMark, '--out', again]);
+        assert.equal(run.status, 0, run.stderr);
+        assert.equal(readFileSync(again, 'utf8'), readFileSync(made, 'utf8'));
+        const markedAnswers = join(TMP, 'bom-answers.local.json');
+        writeFileSync(markedAnswers, BOM + readFileSync(answersPath, 'utf8'));
+        assert.equal(cli([...base, '--first-run', '--answers', markedAnswers, '--out', join(TMP, 'bom-answers.leave.json')]).status, 0);
     });
 });

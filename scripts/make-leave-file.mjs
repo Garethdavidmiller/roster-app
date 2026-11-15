@@ -6,13 +6,14 @@
  * real workbook: the workbook and the file both name colleagues against their leave.
  *
  *   node scripts/make-leave-file.mjs --workbook <book.xlsx> --year 2026 \
- *        (--previous <last.leave.json> | --first-run) [--answers <answers.json>] \
+ *        (--previous <last.leave.json> | --first-run) [--answers <answers.local.json>] \
  *        --out <outside-the-repo>/leave-2026-as-of-<date>.leave.json [--csv <outside>/days.csv] [--today YYYY-MM-DD]
  *
  * Exit 0: the file is written, sealed, and has passed the app's own validator. Exit 2: questions
  * only a person can answer are printed as JSON — answer them in an answers file and run again.
  * Exit 3: the workbook is not shaped the way the method knows; read docs/AL_WORKBOOK.md before
- * changing anything here. Exit 1: a usage or input error.
+ * changing anything here. Exit 1: a usage or input error. Name the answers file `*.local.json`, which
+ * .gitignore excludes: its answers are personal facts about colleagues.
  *
  * ── THE METHOD IS docs/AL_WORKBOOK.md, AND THIS FOLLOWS IT ─────────────────────────────────────
  *
@@ -22,25 +23,47 @@
  *   · A totals row is a row whose Used is ONE COUNTIF of the calendar, and what it COUNTS is the
  *     formula's criterion. A row relabelled "Vacancy" still counts its leaver's days (measured,
  *     14 Nov 2026), and the reader's own count must equal the sheet's cached Used on every row, or
- *     nothing is written. A row that looks like a person's (a role, a `Surname . I`, a figure or a
- *     comment in column E) whose Used is anything else stops the file: skipping it lost the row's
- *     column E, the §0 failure, with exit 0.
- *   · Grade blocks come from the COUNTIF ranges, so a name is only ever counted in its own block (§3).
+ *     nothing is written. EVERY row of the totals sheet is looked at, not only the rows with a Used:
+ *     a row that looks like a person's (a role, a `Surname . I`, a figure or a comment in column E)
+ *     whose Used is anything else stops the file, and so does a row whose Used is BLANK while it
+ *     still carries something to lose — a `Surname . I`, a column-E figure or a column-E comment.
+ *     Skipping either lost the row's column E, the §0 failure, with exit 0. A blank Used beside a
+ *     grade and nothing else is one of the sheet's empty placeholder rows, and is left out with a note.
+ *   · Grade blocks come from the COUNTIF ranges, so a name is only ever counted in its own block (§3),
+ *     and only ever MATCHED in it: a row, a cell or a tag in one grade's block is matched mechanically
+ *     only to a member of that grade (a manager, whose leave is never imported, to any). Two people
+ *     can share one spelling in two blocks — a CEA trainee the app does not hold, and a CES member it
+ *     does — and a grade-blind match gave the CES member the trainee's days.
  *   · Column E is read with its threaded comment, scoped to the totals sheet through its own
  *     relationships, replies included; where only Excel's legacy copy of a thread survives, it is split
  *     back into the thread's entries. `D/M` and `DD.MM` are both dates, the full stop only between two
  *     digits each side (`1.5 DAYS` is not 1 May). A START entry's first date after the word is the
- *     start date and is dropped; another date in that entry is asked about. A date the grid already
- *     holds is counted once (§5, §6).
+ *     start date and is dropped; another date in that entry is asked about — but "start" in a phrase
+ *     about LEAVE (`START OF A/L 24/12`) is not a joiner, and is asked about rather than dropped. An
+ *     entry that names a date in a shape the method does not read (`24 Dec`, `24-12`, `Christmas
+ *     Eve`, `the 24th`, a half day) is asked about too: read as words, it became an undated lump. So
+ *     is one whose date no leave can be on — outside the sheet (a year mistyped), a Sunday, 25 or 26
+ *     December — which stopped the file with no answer to give. A date the grid already holds is
+ *     counted once (§5, §6).
+ *   · A comment that dates days beside a BLANK count (§8 defect 7) is real leave the count missed —
+ *     but only while the thread is the dates alone. Words beside them (`CANCELLED`, `NOT TAKEN`) may
+ *     say a day was not taken, so that thread is asked about. `A/L`, `AL` and `A.L.` in any case are
+ *     the one whitelist (LEAVE_MARKER): they say what the date is, not whether it stands.
  *   · Sunday tags are never leave. A tag is placed by its TEXT, or by an answer; its slot column —
  *     whoever holds the days either side — is offered as evidence and never decides (measured: one
- *     neighbour agrees with a readable tag 51 times in 83, §7). A surname alone is matched only within
- *     its own grade block.
+ *     neighbour agrees with a readable tag 51 times in 83, §7). A ONE-word tag is never matched
+ *     mechanically: §7 measured first names among them, so `N/A Grace` could be filed under a member
+ *     whose SURNAME is Grace.
  *   · Everything is ordered by code unit, never by locale, so the seal does not depend on the session.
  *   · A misspelt name in the grid is still that person's leave (owner, 14 Nov 2026), recorded as not
  *     counted by the sheet, so the file says what the sheet's own total missed (§8 defect 9).
  *   · NEVER KEY ANYTHING BY NAME ALONE (§8 defect 6): rows are kept by row number, and a person with
- *     two rows has both listed, with which was used and why.
+ *     two rows has both listed, with which was used and why. A stale row is settled by rule only when
+ *     it loses nothing: every column-E date on it must also be on the row that is used, which must be
+ *     in the member's own grade block. Otherwise which row is theirs is asked.
+ *   · Somebody whose days are not imported (a leaver, a manager) has their column E left unread, with
+ *     a note: a comment nobody will use is no reason to stop the file. An uncounted name on a Sunday or
+ *     a closed day is not leave and no figure counts it, so it is noted and left out the same way.
  *
  * ── IT ASKS, NEVER GUESSES ─────────────────────────────────────────────────────────────────────
  *
@@ -49,15 +72,43 @@
  * that could be either January with no date beside it to settle it: each becomes a QUESTION, and
  * no file is written until it is answered. Every NAME answer and match goes into the file's
  * `nameMap`, and the NEXT run reads them from the previous file — so two sessions match the same names
- * from the same workbook (plan §3.4). The other answers (which duplicate row, which January) are keyed
- * by row and cell, which move between copies of the sheet, so they are not carried: a new copy asks
- * them again (leave-file-script.test.mjs pins it). The map is never committed: the exceptions in it are
+ * from the same workbook (plan §3.4). The other answers (which duplicate row, which January, an entry
+ * read by hand, the dates beside a blank count, a commented row that counts nobody) are keyed by row
+ * and cell, which move between copies of the sheet, so they are not carried: a new copy asks them
+ * again (leave-file-script.test.mjs pins it). The map is never committed: the exceptions in it are
  * personal.
+ *
+ * A carried name is CHECKED, never just believed: the roster moves between copies. An answer in THIS
+ * run's answers file is taken as given; a value carried from the previous file stands only while the
+ * mechanical match does not contradict it. A carried "not in the app" (null) whose spelling now
+ * matches a member is asked again — the trainee of AL_WORKBOOK.md §10 Q14/Q16 is answered null while
+ * the sheet carries them and the app does not, and stayed null after `/new-starter` added them, their
+ * days silently left out. A carried name is asked again when the match now names somebody else, or
+ * more than one member. A carried name the match finds nobody for (an answered misspelling, or the
+ * other block's row of a person with a row in each) still stands, so an unchanged roster makes the
+ * same file and asks nothing.
+ *
+ * What each question is, and the answers file's field for it (an object; every field optional):
+ *
+ *   row-name, cell-name, tag-name  → `rows`, `cells`, `tags`: { <key>: "<app name>" | null }, null for
+ *                                    somebody the app does not hold. Carried in the next file's map.
+ *   duplicate-rows                 → `duplicates`: { <app name>: <the row number that is theirs> }
+ *   comment-date                   → `commentDates`: { <key>: "<one of its candidates>" }
+ *   comment-entry                  → `entryDates`: { <key>: ["YYYY-MM-DD", …] } — the days of leave that
+ *                                    comment entry names, read by hand; [] for none. Given for an entry
+ *                                    the method can read, it is used instead of the reading.
+ *   uncounted-dates                → `uncounted`: { <key>: ["YYYY-MM-DD", …] } — which of the dates
+ *                                    beside a blank count are leave; [] for none
+ *   unnamed-row                    → `unnamedRows`: { <key>: null } — the comment on a row that counts
+ *                                    no name was read by hand, and the row is left out
+ *
+ * An answer that is not one the question allows is not used: the question is asked again, with a note.
  *
  * ── IT NEVER WRITES INSIDE THE REPOSITORY ──────────────────────────────────────────────────────
  *
  * The Pages mirror serves every committed file. `--out` and `--csv` are refused inside the
- * repository, inside any other git checkout or worktree, and by a path with `..` in it; the leave file
+ * repository, inside any other git checkout or worktree, by a path with `..` in it, and over an
+ * existing file with another name (a hard link, whose other names could be anywhere); the leave file
  * must end `.leave.json` and the day list `.csv`, which .gitignore excludes besides. No output may
  * name an input or the other output (`isOutsideRepo`, `fileOf`).
  */
@@ -75,37 +126,67 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── Names ───────────────────────────────────────────────────────────────────────────────────────
 
-/** One spelling of a key: lower case, single spaces, nothing at either end. Dots are kept: `Smith . J` is the sheet's form. @param {string} s */
-export const normaliseKey = s => s.toLowerCase().replace(/\s+/g, ' ').trim();
+/**
+ * One spelling of a key: NFC, lower case, single spaces, nothing at either end. Dots are kept:
+ * `Smith . J` is the sheet's form. NFC because the seal is worked out over NFC (al-leave-file.js), so
+ * a carried key comes back NFC whatever the workbook wrote. Apostrophes are NOT folded here: a key is
+ * the spelling as written, and COUNTIF tells `O’Brien` from `O'Brien` just as this does — folding
+ * belongs to MATCHING (`forMatching`), never to what a key is.
+ * @param {string} s
+ */
+export const normaliseKey = s => s.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** `I. Surname` → its parts, lower case. @param {string} name */
+/**
+ * A spelling made ready to be MATCHED to a member: NFC, curly apostrophes straightened (Word and a
+ * phone type `O’Brien`; the roster may say `O'Brien`), lower case. Used by the app's form, the sheet's
+ * form and a tag's alike, so the three can never disagree about one name.
+ * @param {string} s
+ */
+const forMatching = s => s.normalize('NFC').replace(/[\u2018\u2019]/g, "'").toLowerCase();
+
+/** `I. Surname` → its parts, ready to match; an initial is any letter (`Ö. Öst`). @param {string} name */
 function appParts(name) {
-    const m = /^([A-Za-z])\.\s+(.+)$/.exec(name.trim());
-    return m ? { initial: m[1].toLowerCase(), surname: m[2].toLowerCase() } : null;
+    const m = /^(\p{L})\.\s+(.+)$/u.exec(forMatching(name).trim());
+    return m ? { initial: m[1], surname: m[2] } : null;
 }
-/** `Surname . I` → its parts, lower case; anything else (a garbled criterion) is not a name. @param {string} s */
+/**
+ * `Surname . I` → its parts, ready to match; anything else (a garbled criterion) is not a name. Letters
+ * are any script's (`Agüero . M`), with an apostrophe, a hyphen or a space inside the surname. ASCII
+ * alone made a real surname "something that is not a name", which stopped the file — or, on a row
+ * counting nothing, left the person out in silence.
+ * @param {string} s
+ */
 export function sheetParts(s) {
-    const m = /^([A-Za-z][A-Za-z' -]*[A-Za-z])\s+\.\s+([A-Za-z])$/.exec(s.trim());
-    return m ? { surname: m[1].toLowerCase(), initial: m[2].toLowerCase() } : null;
+    const m = /^(\p{L}[\p{L}\p{M}' -]*\p{L})\s+\.\s+(\p{L})$/u.exec(forMatching(s).trim());
+    return m ? { surname: m[1], initial: m[2] } : null;
 }
-/** A Sunday tag's words, the state removed: `J Surname`, `J. Surname` or `Surname`. @param {string} key */
+/** A Sunday tag's words, the state removed: `J Surname`, `J. Surname` or one word. @param {string} key */
 function tagParts(key) {
-    const words = key.replace(/\./g, ' ').split(/\s+/).filter(Boolean);
+    const words = forMatching(key).replace(/\./g, ' ').split(/\s+/).filter(Boolean);
     if (words.length >= 2 && words[0].length === 1) return { initial: words[0], surname: words.slice(1).join(' ') };
     if (words.length === 1) return { initial: null, surname: words[0] };
     return null;
 }
 /**
- * The one member whose initial and surname match, or null.
- * @param {{ initial: string|null, surname: string }|null} parts @param {any[]} members
+ * May a member be matched into a grade block? Only their own (§3) — except a member with no block, a
+ * manager, whose leave is never imported (`leaveRecordability`): matching one cannot file a day under
+ * the wrong person, it only names whose row was left out.
+ * @param {any} m a teamMembers entry @param {string} grade
  */
-function mechanicalMatch(parts, members) {
-    if (!parts) return null;
-    const hits = members.filter(m => {
+const fitsBlock = (m, grade) => { const g = memberGrade(m); return g === null || g === grade; };
+/**
+ * Every member whose initial and surname match, in that grade block — the names, so a caller can tell
+ * nobody from more than one. A ONE-word tag (no initial) matches nobody: §7 measured first names
+ * among them, and a surname match filed `N/A Grace` under a member whose SURNAME is Grace.
+ * @param {{ initial: string|null, surname: string }|null} parts @param {any[]} members @param {string} grade
+ * @returns {string[]}
+ */
+function mechanicalHits(parts, members, grade) {
+    if (!parts || parts.initial === null) return [];
+    return members.filter(m => {
         const p = appParts(m.name);
-        return p && p.surname === parts.surname && (parts.initial === null || p.initial === parts.initial);
-    });
-    return hits.length === 1 ? hits[0].name : null;
+        return p && p.surname === parts.surname && p.initial === parts.initial && fitsBlock(m, grade);
+    }).map(m => m.name);
 }
 /** Members a person might mean, for a question — never used to answer one. */
 function suggestions(/** @type {string} */ surname, /** @type {any[]} */ members) {
@@ -131,9 +212,36 @@ const STATE_TOKEN = /(?<![A-Za-z])(?:n\s*\/\s*a|na)(?![A-Za-z])/gi;
 // clerks write `19.08` and `21.10` (§5), so the full stop stays — but only between TWO-digit parts,
 // or a quantity reads as a day: `1.5 DAYS FROM PRE JUNE` was the first of May.
 const DATE_TOKEN = /(?<!\d)(?:(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?|(\d{2})\.(\d{2})(?:\.(\d{2}|\d{4}))?)(?!\d)/g;
+// The ways a comment names a date that DATE_TOKEN does not read. Read as words they became an
+// undated lump, and the day was lost from the person's list with nothing to say so; each is asked
+// about instead. A month NAME alone is not a date — `A/L FROM PRE JUNE 2026` is the sheet's own lump
+// (§5) — so a month counts only with a day number beside it, and a four-digit year is not a day.
+const MONTH = '(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+const UNREAD_DATE_SHAPES = [
+    new RegExp(`(?<![\\p{L}\\d])\\d{1,2}(?:st|nd|rd|th)?\\s*(?:of\\s+)?${MONTH}(?!\\p{L})`, 'iu'),   // 24 Dec · 24th of December
+    new RegExp(`(?<!\\p{L})${MONTH}\\.?\\s*\\d{1,2}(?:st|nd|rd|th)?(?!\\d)`, 'iu'),                   // Dec 24 · December 24th
+    /(?<![\d/.])\d{1,2}-\d{1,2}(?![\d/.])/,                // 24-12 (and never the `04-11` inside `10/04-11/04`)
+    /(?<!\d)\d{1,2}(?:st|nd|rd|th)(?!\p{L})/iu,            // the 24th
+    /\b(?:christmas|xmas|boxing\s+day|new\s+year|easter)\b/i,   // a day by its name
+    /\bhalf\b|(?<!\d)1\s*\/\s*2\s*(?:a\s+)?days?\b/i,      // a part day: `1/2 DAY` read as the first of February
+];
+/** @param {string} text @returns {boolean} does a comment entry name a date in a shape the method does not read? */
+const namesUnreadDate = text => UNREAD_DATE_SHAPES.some(re => re.test(text));
+// The words that say a dated day IS leave, and no more — the one whitelist beside a blank count
+// (§8 defect 7): `A/L 10/04` is the date alone; `10/04 NOT TAKEN` or a reply `CANCELLED` is not.
+const LEAVE_MARKER = /(?<!\p{L})(?:a\s*\/\s*l|a\.l\.?|al)(?!\p{L})/giu;
+/** @param {string} text @returns {boolean} letters in it besides its dates and the leave markers */
+const hasWords = text => /\p{L}/u.test(text.replace(DATE_TOKEN, ' ').replace(LEAVE_MARKER, ' '));
+// "start" in a phrase about LEAVE — `START OF A/L 24/12`, `A/L START 24/12` — is when the leave
+// starts, not a joiner's start date. Read as a joiner, its date was dropped as a start date and the
+// rest of column E became a joiner's reduction. `STARTED ON 20/09 9 DAYS LEAVE ALLOWANCE` is a joiner:
+// its leave word is not beside the start word.
+const LEAVE_WORD = '(?:a\\s*\\/\\s*l|a\\.l\\.?|al|annual\\s+leave|leave|holidays?|hols?)';
+const LEAVE_START = new RegExp(`\\bstart\\w*\\s+(?:(?:of|on|from)\\s+)?(?:(?:my|his|her|their|the)\\s+)?${LEAVE_WORD}(?!\\p{L})`
+    + `|(?<!\\p{L})${LEAVE_WORD}\\s+start`, 'iu');
 const COUNTIF = /^COUNTIF\(\s*'?([^'!]+)'?!\$?([A-Z]{1,3})\$?(\d+):\$?([A-Z]{1,3})\$?(\d+)\s*,\s*"((?:[^"]|"")*)"\s*\)$/i;
 const ROLE_GRADE = /** @type {Record<string, string>} */ ({ CEA: 'CEA', BLCEA: 'CEA', CES: 'CES', DISP: 'DISP' });
-/** The sheet's grade block for an app role. Management has none: a manager is never matched into one. */
+/** The sheet's grade block for an app role. Management has none (`fitsBlock` says what that means for a match). */
 const MEMBER_GRADE = /** @type {Record<string, string>} */ ({ CEA: 'CEA', CES: 'CES', Dispatcher: 'DISP' });
 /** @param {any} m a teamMembers entry @returns {string|null} */
 const memberGrade = m => (typeof m?.role === 'string' && Object.hasOwn(MEMBER_GRADE, m.role) ? MEMBER_GRADE[m.role] : null);
@@ -148,6 +256,36 @@ const byCodeUnit = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** @param {string} iso @param {number} n */
 const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Every reading of one DATE_TOKEN match inside the sheet's own dates: one with a year, else this
+ * year's and next year's (the grid runs into next January, §2), each kept only if it is a real date
+ * the sheet covers.
+ * @param {RegExpMatchArray} tk @param {number} year @param {string} first @param {string} last
+ * @returns {string[]}
+ */
+function tokenCandidates(tk, year, first, last) {
+    const mm = (tk[2] ?? tk[5]).padStart(2, '0'), dd = (tk[1] ?? tk[4]).padStart(2, '0'), yy = tk[3] ?? tk[6];
+    return (yy ? [`${yy.length === 2 ? `20${yy}` : yy}-${mm}-${dd}`] : [`${year}-${mm}-${dd}`, `${year + 1}-${mm}-${dd}`])
+        .filter(c => isRealIsoDate(c) && c >= first && c <= last);
+}
+
+/**
+ * The clerks' last save (`dcterms:modified`) as the UTC instant the file records, or null. W3CDTF
+ * carries its zone, and an offset is CONVERTED: `14:07:42+01:00` is 13:07:42Z, where it was relabelled
+ * 14:07:42Z, an hour out, and a day out for a save just after midnight. A time with no zone is read as
+ * UTC, which is what Excel writes.
+ * @param {string|null} v
+ * @returns {string|null} `YYYY-MM-DDTHH:MM:SSZ`
+ */
+export function savedInstant(v) {
+    const m = typeof v === 'string'
+        ? /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(v.trim()) : null;
+    if (!m || !isRealIsoDate(m[1])) return null;
+    const zone = !m[5] || m[5] === 'Z' ? 'Z' : m[5].includes(':') ? m[5] : `${m[5].slice(0, 3)}:${m[5].slice(3)}`;
+    const ms = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4] ?? '00'}${zone}`);
+    return Number.isNaN(ms) ? null : `${new Date(ms).toISOString().slice(0, 19)}Z`;
+}
 
 /**
  * A column-E comment's entries from Excel's LEGACY note, read where no thread survives. Excel's copy
@@ -170,7 +308,10 @@ function legacyNoteEntries(note) {
 /**
  * @typedef {{ kind: string, key?: string, [k: string]: unknown }} Question
  * @typedef {{ rows?: Record<string, string|null>, cells?: Record<string, string|null>, tags?: Record<string, string|null>,
- *             duplicates?: Record<string, number>, commentDates?: Record<string, string> }} Answers
+ *             duplicates?: Record<string, number>, commentDates?: Record<string, string>,
+ *             entryDates?: Record<string, string[]>, uncounted?: Record<string, string[]>,
+ *             unnamedRows?: Record<string, null> }} Answers
+ *   What each field answers: the header (IT ASKS, NEVER GUESSES).
  */
 
 /**
@@ -215,25 +356,44 @@ export function readLeaveWorkbook(wb, year, unexpected, note = () => {}) {
         return typeof v === 'number' && Number.isInteger(v) ? v : NaN;
     };
 
+    /** @param {number} row @returns {boolean} a grade (CEA, BLCEA, CES, DISP) in column A */
+    const gradeIn = row => Object.hasOwn(ROLE_GRADE, String(val(`A${row}`) ?? '').trim().toUpperCase());
+    /**
+     * Does a totals row carry something a skipped row would LOSE: a `Surname . I` in column B, a figure
+     * in column E, or a comment on E (threaded, or a legacy note)? Column E's text is the header's, so
+     * only a FIGURE or a comment there counts. A grade alone does not: the sheet has empty placeholder
+     * rows that hold a grade in A and nothing else.
+     * @param {number} row
+     */
+    const losable = row => !!sheetParts(String(val(`B${row}`) ?? '')) || typeof val(`E${row}`) === 'number'
+        || tot.threaded.has(`E${row}`) || tot.notes.has(`E${row}`);
     /**
      * Does a totals row look like a person's, whatever its Used holds? Then a Used the method cannot
      * read stops the file. Skipped, the row's grid days came out as "no totals row" and its column E
-     * — the leave §0 is about — went with it, and the run still succeeded. Column E's text is the
-     * header's, so only a FIGURE or a comment there marks a person.
+     * — the leave §0 is about — went with it, and the run still succeeded.
      * @param {number} row
      */
-    const personLike = row => {
-        const e = val(`E${row}`);
-        return Object.hasOwn(ROLE_GRADE, String(val(`A${row}`) ?? '').trim().toUpperCase())
-            || !!sheetParts(String(val(`B${row}`) ?? '')) || typeof e === 'number'
-            || tot.threaded.has(`E${row}`) || tot.notes.has(`E${row}`);
-    };
+    const personLike = row => gradeIn(row) || losable(row);
+
+    // EVERY row the totals sheet holds anything on — a cell, or only a comment — in order. Reading
+    // only the rows with something in Used skipped a person whose Used was blank or missing, column E
+    // and all, with exit 0: the §0 failure again, one column along.
+    /** @type {Set<number>} */ const sheetRowNumbers = new Set();
+    for (const ref of [...tot.cells.keys(), ...tot.threaded.keys(), ...tot.notes.keys()]) sheetRowNumbers.add(splitRef(ref).row);
 
     /** @type {any[]} */ const totals = [];
-    for (const [ref, c] of tot.cells) {
-        const { col, row } = splitRef(ref);
-        if (col !== 'G') continue;
-        if (!c.f && (c.v === null || (typeof c.v === 'string' && !c.v.trim()))) continue;   // nothing there
+    for (const row of [...sheetRowNumbers].sort((a, b) => a - b)) {
+        const c = tot.cells.get(`G${row}`);
+        if (!c || (!c.f && (c.v === null || (typeof c.v === 'string' && !c.v.trim())))) {
+            // Used is blank, or not there at all. A placeholder (a grade and nothing else) is nobody's.
+            // Anything a person's row carries is not read by skipping it, so it stops the file.
+            if (losable(row)) {
+                unexpected({ kind: 'unexpected', what: `totals row ${row}: its Used is blank, but the row has a name, a column-E figure or a column-E comment, so its days and its column E cannot be read` });
+            } else if (gradeIn(row)) {
+                note(`totals row ${row}: a grade with a blank Used and nothing else, a placeholder (left out)`);
+            }
+            continue;
+        }
         // A totals row is ONE COUNTIF of this calendar, by name. Anything else in Used — two counts
         // added, a criterion that is a cell, a figure typed over the formula, another sheet's count —
         // is not a reading the method has, on a person's row or anywhere else.
@@ -293,8 +453,7 @@ export function readLeaveWorkbook(wb, year, unexpected, note = () => {}) {
     // compared with them, so the file can say whether a clerk saved it last without naming anybody.
     const authors = new Set([...tot.threaded.values()].flat().map(t => wb.persons.get(t.personId ?? '')).filter(Boolean));
     const lastBy = wb.props.lastModifiedBy;
-    const modified = wb.props.modified && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(wb.props.modified)
-        ? `${wb.props.modified.slice(0, 19)}Z` : null;
+    const modified = savedInstant(wb.props.modified);
     return {
         calendarName: cal.name, totalsName: tot.name, dateOfRow, rows, lastDate, totals, blocks: blockList, grid,
         source: { firstDate: first, lastDate, clerksLastSaved: modified,
@@ -321,21 +480,45 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
     const prev = previousMap && typeof previousMap === 'object' ? previousMap : { rows: {}, cells: {}, tags: {} };
 
     /**
-     * Resolve one spelling: this run's answer, then the previous file's map, then the mechanical match.
-     * @param {'rows'|'cells'|'tags'} kind @param {string} key @param {() => string|null} mechanical
+     * Resolve one spelling: this run's answer, then the previous file's map CHECKED against the
+     * mechanical match, then the mechanical match (header: A carried name is CHECKED).
+     *
+     * An answer in this run's file is the session's word, taken as given. A carried value stands only
+     * while the roster does not contradict it: a carried null ("not in the app") whose spelling now
+     * matches anybody, or a carried name the match now gives to somebody else or to more than one
+     * member, is asked again with what was carried. A carried name the match finds nobody for stands —
+     * a misspelling answered by hand, or the other block's row of a person with a row in each block —
+     * so an unchanged roster asks nothing.
+     * @param {'rows'|'cells'|'tags'} kind @param {string} key @param {() => string[]} mechanical every match
      * @param {() => Question} question
      * @returns {string|null|undefined} a name, null (not in the app / not placeable), undefined (asked)
      */
     function resolveName(kind, key, mechanical, question) {
-        for (const source of [answers[kind], prev[kind]]) {
-            if (source && Object.prototype.hasOwnProperty.call(source, key)) {
-                const v = source[key];
-                if (v === null || known.has(v)) { nameMap[kind][key] = v; return v; }
-                notes.push(`${kind} "${key}" was mapped to a name no longer on the roster, so it is asked again`);
+        // Once per spelling, though a cell's spelling is resolved again on every date it is written on.
+        const noteOnce = (/** @type {string} */ n) => { if (!notes.includes(n)) notes.push(n); };
+        const given = answers[kind];
+        if (given && Object.hasOwn(given, key)) {
+            const v = given[key];
+            if (v === null || known.has(v)) { nameMap[kind][key] = v; return v; }
+            noteOnce(`${kind} "${key}" was answered with a name no longer on the roster, so it is asked again`);
+        }
+        const hits = mechanical();
+        const carried = prev[kind];
+        if (carried && typeof carried === 'object' && Object.hasOwn(carried, key)) {
+            const v = carried[key];
+            if (v !== null && !known.has(v)) {
+                noteOnce(`${kind} "${key}" was mapped to a name no longer on the roster, so it is asked again`);
+            } else if (v === null ? hits.length === 0 : hits.length === 0 || (hits.length === 1 && hits[0] === v)) {
+                nameMap[kind][key] = v;
+                return v;
+            } else {
+                noteOnce(`${kind} "${key}" was ${v === null ? '"not in the app"' : v} in the previous file and now matches `
+                    + `${hits.length === 1 ? hits[0] : `${hits.length} members`}, so it is asked again`);
+                ask({ ...question(), carried: v });
+                return undefined;
             }
         }
-        const m = mechanical();
-        if (m) { nameMap[kind][key] = m; return m; }
+        if (hits.length === 1) { nameMap[kind][key] = hits[0]; return hits[0]; }
         ask(question());
         return undefined;
     }
@@ -364,15 +547,28 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
         if (/[*?~]/.test(t.criterion) || /^[=<>]/.test(t.criterion)) { ask({ kind: 'unexpected', what: `totals row ${t.row} counts a pattern, not a name` }); continue; }
         const isName = !!sheetParts(t.criterion);
         if (!isName) {
-            // A relabelled row whose criterion was overtyped — measured once, counting nothing.
-            if (t.printed.used === 0 && t.printed.columnE === 0) { notes.push(`totals row ${t.row} counts no name and nothing (left out)`); continue; }
+            // A relabelled row whose criterion was overtyped — measured once, counting nothing. It is
+            // left out in silence only while its column E says nothing either: a comment there may
+            // date somebody's leave, and only a person reading it can say whose, or that it is nobody's.
+            if (t.printed.used === 0 && t.printed.columnE === 0) {
+                const key = `${t.row}|${normaliseKey(t.criterion)}`;
+                if (!t.eEntries.some((/** @type {string} */ e) => e.trim())) notes.push(`totals row ${t.row} counts no name and nothing (left out)`);
+                else if (answers.unnamedRows && Object.hasOwn(answers.unnamedRows, key) && answers.unnamedRows[key] === null) {
+                    notes.push(`totals row ${t.row} counts no name and nothing, and its column-E comment was read by hand (left out)`);
+                } else ask({ kind: 'unnamed-row', key, row: t.row, spelt: t.label, entries: t.eEntries });
+                continue;
+            }
             ask({ kind: 'unexpected', what: `totals row ${t.row} counts something that is not a name` });
             continue;
         }
         if (sheetParts(t.label) && normaliseKey(t.label) !== normaliseKey(t.criterion)) notes.push(`totals row ${t.row}: column B and the count name different spellings; the count's is used`);
         const key = normaliseKey(t.criterion);
-        const name = resolveName('rows', key, () => mechanicalMatch(sheetParts(t.criterion), members), () => ({
+        // One key for every row with this spelling, in any block, so one answer covers them all; the
+        // question lists them, so a spelling that is two people in two blocks shows as such.
+        const sharing = wbr.totals.filter(o => o.grade && normaliseKey(o.criterion) === key);
+        const name = resolveName('rows', key, () => mechanicalHits(sheetParts(t.criterion), members, t.grade), () => ({
             kind: 'row-name', key, spelt: t.criterion, row: t.row, grade: t.grade,
+            ...(sharing.length > 1 ? { rows: sharing.map(o => ({ row: o.row, grade: o.grade, printed: o.printed })) } : {}),
             suggestions: suggestions(/** @type {any} */ (sheetParts(t.criterion)).surname, members) }));
         if (name === undefined) continue;
         t.name = name;
@@ -390,13 +586,51 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
         && a.grade === b.grade && normaliseKey(a.criterion) === normaliseKey(b.criterion)
         && a.range.c1 === b.range.c1 && a.range.c2 === b.range.c2
         && JSON.stringify(a.eEntries.map(normaliseKey)) === JSON.stringify(b.eEntries.map(normaliseKey));
+    /**
+     * The column-E dates a row's comment writes, each as every reading it has inside the sheet — a
+     * joiner's start date left out (it is not leave) — or null when the comment holds a date the
+     * method cannot read at all (a shape DATE_TOKEN does not know, or "start" in a phrase about leave).
+     * @param {any} row @returns {string[][]|null}
+     */
+    const eDateReadings = row => {
+        /** @type {string[][]} */ const out = [];
+        for (const text of row.eEntries) {
+            if (namesUnreadDate(text) || LEAVE_START.test(text)) return null;
+            const tokens = [...text.matchAll(DATE_TOKEN)];
+            const start = /\bstart/i.exec(text);
+            const startDate = start ? tokens.find(tk => (tk.index ?? 0) > start.index) : undefined;
+            for (const tk of tokens) if (tk !== startDate) out.push(tokenCandidates(tk, year, wbr.source.firstDate, wbr.lastDate));
+        }
+        return out;
+    };
+    /**
+     * Would settling `stale` as an abandoned copy of `used` lose a day? It would unless every date its
+     * column E writes is also written on the used row — the same readings, or a narrower one (`02/01/2026`
+     * beside `02/01`). Measured on the 6 Nov copy: the stale CEA row's `02/01` and `03/01` are both on
+     * the live CES row's comment, and that pair settles; a stale row dating a day the used row does not
+     * once dropped it with exit 0.
+     * @param {any} stale @param {any} used
+     */
+    const staleLoses = (stale, used) => {
+        const mine = eDateReadings(stale);
+        if (mine === null) return true;
+        if (!mine.length) return false;
+        const theirs = eDateReadings(used) ?? [];
+        return !mine.every(c => theirs.some(u => c.every(iso => u.includes(iso))));
+    };
     for (const [name, list] of rowsOf) {
         if (list.length === 1) { usedOf.set(name, list[0]); continue; }
         /** @type {any} */ let used;
         /** @type {string} */ let why = 'duplicate-chosen';
+        const live = list.filter(r => r.printed.used > 0);
+        const own = memberGrade(members.find(m => m.name === name));
         if (list.every(r => same(r, list[0]))) { used = list[0]; why = 'duplicate-identical'; }
-        else if (new Set(list.map(r => r.grade)).size === list.length && list.filter(r => r.printed.used > 0).length === 1) {
-            used = list.find(r => r.printed.used > 0); why = 'duplicate-stale';
+        // A row per grade, one of them in use: the others abandoned when the person moved grade (§8
+        // defect 1) — settled by rule only when the live row is in the member's own block and the
+        // stale rows lose nothing by it. Their printed figures stay in `sheetRows` either way.
+        else if (new Set(list.map(r => r.grade)).size === list.length && live.length === 1
+            && (own === null || live[0].grade === own) && !list.some(r => r !== live[0] && staleLoses(r, live[0]))) {
+            used = live[0]; why = 'duplicate-stale';
         } else if (list.every(r => r.grade === list[0].grade && normaliseKey(r.criterion) === normaliseKey(list[0].criterion)
             && r.printed.used === list[0].printed.used && r.printed.allowance === list[0].printed.allowance
             && r.printed.carriedForward === list[0].printed.carriedForward)
@@ -404,9 +638,10 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
             && list.filter(r => r.printed.columnE === 0).every(r => r.eEntries.length === 0)) {
             used = list.find(r => r.printed.columnE > 0); why = 'duplicate-missing-column-e';
         } else {
-            const chosen = answers.duplicates?.[name];
+            const chosen = answers.duplicates && Object.hasOwn(answers.duplicates, name) ? answers.duplicates[name] : undefined;
             used = list.find(r => r.row === chosen) ?? null;
             if (!used) {
+                if (chosen !== undefined) notes.push(`the answer for "${name}" is not one of their rows, so it is asked again`);
                 ask({ kind: 'duplicate-rows', key: name, rows: list.map(r => ({ row: r.row, grade: r.grade, printed: r.printed })) });
                 continue;
             }
@@ -467,7 +702,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
             const key = `${b.grade}|${trimmed}`;
             speltOf.set(key, text.trim());
             const near = wbr.totals.find(t => t.grade === b.grade && t.name && normaliseKey(t.criterion) === trimmed);
-            const name = near ? /** @type {string} */ (near.name) : resolveName('cells', key, () => mechanicalMatch(sheetParts(text), members), () => ({
+            const name = near ? /** @type {string} */ (near.name) : resolveName('cells', key, () => mechanicalHits(sheetParts(text), members, b.grade), () => ({
                 kind: 'cell-name', key, spelt: text.trim(), grade: b.grade, dates: [date],
                 suggestions: suggestions(sheetParts(text)?.surname ?? trimmed, members) }));
             if (near) nameMap.cells[key] = near.name;
@@ -478,7 +713,10 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
             }
             if (name === null) continue;
             holder.set(`${row}:${col}`, name);
-            if (sunday || isChristmasIso(date)) { ask({ kind: 'unexpected', what: `an uncounted name on ${date}` }); continue; }
+            // Uncounted, on a Sunday or a closed day: not leave the app could hold (SUNDAY_FORBIDDEN_TYPES,
+            // §4), and no figure on the sheet counts it — so nothing depends on it and it is left out,
+            // where it once stopped the whole file with no answer that could let it through.
+            if (sunday || isChristmasIso(date)) { notes.push(`${date}: a name no row counts, on a ${sunday ? 'Sunday' : 'closed day'} in the ${b.grade} columns (not leave, left out)`); continue; }
             const used = usedOf.get(name);
             if (used && used.grade !== b.grade) { ask({ kind: 'unexpected', what: `${date}: a person's days in another grade's columns` }); continue; }
             if (!used && rowsOf.has(name)) continue;   // their row is still being asked about
@@ -500,13 +738,13 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
     for (const t of tags) {
         const key = `${t.grade}|${t.key}`;
         const neighbours = { date: t.date, saturday: holder.get(`${t.row - 1}:${t.col}`) ?? null, monday: holder.get(`${t.row + 1}:${t.col}`) ?? null };
-        // A surname alone is matched only among the members of the block it sits in: `N/A Smith` in
-        // the CES columns is not the CEA Smith, however few Smiths the roster has. Two words carry
-        // their initial, so they are matched as a row's name is.
+        // Two words carry their initial, so they are matched as a row's name is, within the block the
+        // tag sits in. ONE word is never matched: it may be a first name (§7 measured three, across
+        // eight tags), and read as a surname `N/A Grace` went to a member whose surname is Grace. It is
+        // asked, and the answer is carried, so the next copy does not ask it again.
         const parts = tagParts(t.key);
-        const pool = parts?.initial === null ? members.filter(m => memberGrade(m) === t.grade) : members;
-        const name = resolveName('tags', key, () => mechanicalMatch(parts, pool), () => ({
-            kind: 'tag-name', key, grade: t.grade, dates: [], neighbours: [], suggestions: suggestions(tagParts(t.key)?.surname ?? t.key, members) }));
+        const name = resolveName('tags', key, () => mechanicalHits(parts, members, t.grade), () => ({
+            kind: 'tag-name', key, grade: t.grade, dates: [], neighbours: [], suggestions: suggestions(parts?.surname ?? t.key, members) }));
         if (name === undefined) {
             const q = questions.find(x => x.kind === 'tag-name' && x.key === key);
             if (q && Array.isArray(q.dates) && Array.isArray(q.neighbours)) { q.dates.push(t.date); q.neighbours.push(neighbours); }
@@ -524,12 +762,44 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
 
     // ── Column E: the over-quota days and what else the column carries (§5) ──
     /** @type {Map<string, any>} */ const columnEOf = new Map();
+    const inSheet = (/** @type {unknown} */ d) => isRealIsoDate(d) && d >= wbr.source.firstDate && d <= wbr.lastDate;
     for (const [name, used] of usedOf) {
+        // Not imported — a leaver, a manager, anybody the app has no allowance for: their days are
+        // discarded and their column E is no part of the file, so a comment the method cannot read (a
+        // mistyped year, say) is no reason to stop it. Read, it once stopped the file with nothing a
+        // person could answer to let it through.
+        const reason = leaveRecordability(members.find(m => m.name === name), year);
+        if (reason) {
+            if (used.printed.columnE || used.eEntries.some((/** @type {string} */ t) => t.trim())) {
+                notes.push(`totals row ${used.row}: not imported (${reason}), so its column E is not read`);
+            }
+            continue;
+        }
         const grid = daysOf.get(name) ?? new Map();
         /** @type {string[]} */ const dated = [];
-        let joiner = false, words = false, mixed = false;
-        /** @type {Array<{ token: string, candidates: string[] }>} */ const found = [];
+        // `words`: an entry with no date at all (a lump's explanation, or a reply such as CANCELLED);
+        // `wordy`: an entry with dates AND words besides them (`10/04 NOT TAKEN`).
+        let joiner = false, words = false, wordy = false, mixed = false, unread = false;
+        /** @type {Array<{ token: string, candidates: string[], entry?: string }>} */ const found = [];
         for (const text of used.eEntries) {
+            // An entry the method cannot read is asked about, and the answer — the days of leave it
+            // names, read by hand — is used in place of any reading. Its key carries the entry's own
+            // text, so a changed comment on a later copy is asked again, never answered by an old reply.
+            const entryKey = `${used.row}|${normaliseKey(text)}`;
+            const why = namesUnreadDate(text) ? 'a date in a shape the method does not read'
+                : LEAVE_START.test(text) ? '"start" in a phrase about leave, which is not a joiner\'s start date' : null;
+            if (answers.entryDates && Object.hasOwn(answers.entryDates, entryKey)) {
+                const given = answers.entryDates[entryKey];
+                if (Array.isArray(given) && given.every(d => inSheet(d) && !isSundayIso(d) && !isChristmasIso(d))) {
+                    for (const iso of new Set(given)) found.push({ token: iso, candidates: [iso] });
+                    continue;
+                }
+                notes.push(`totals row ${used.row}: the answer for a comment entry is not a list of days the sheet could hold as leave, so it is asked again`);
+                ask({ kind: 'comment-entry', key: entryKey, row: used.row, entry: text.trim(), why: why ?? 'the answer given for it could not be used' });
+                unread = true;
+                continue;
+            }
+            if (why) { ask({ kind: 'comment-entry', key: entryKey, row: used.row, entry: text.trim(), why }); unread = true; continue; }
             const tokens = [...text.matchAll(DATE_TOKEN)];
             const start = /\bstart/i.exec(text);
             if (start) {
@@ -545,15 +815,18 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
                 continue;
             }
             if (!tokens.length) { if (text.trim()) words = true; continue; }
-            for (const tk of tokens) {
-                const mm = (tk[2] ?? tk[5]).padStart(2, '0'), dd = (tk[1] ?? tk[4]).padStart(2, '0'), yy = tk[3] ?? tk[6];
-                const candidates = (yy ? [`${yy.length === 2 ? `20${yy}` : yy}-${mm}-${dd}`]
-                    : [`${year}-${mm}-${dd}`, `${year + 1}-${mm}-${dd}`])
-                    .filter(c => isRealIsoDate(c) && c >= wbr.source.firstDate && c <= wbr.lastDate);
-                found.push({ token: tk[0], candidates });
-            }
+            if (hasWords(text)) wordy = true;
+            for (const tk of tokens) found.push({ token: tk[0], candidates: tokenCandidates(tk, year, wbr.source.firstDate, wbr.lastDate), entry: text });
         }
-        if (mixed) continue;
+        if (mixed || unread) continue;
+        // A date the method reads but no leave can be — outside the sheet (a year mistyped: `24/12/25`
+        // on the 2026 sheet), on a Sunday, on 25 or 26 December — is the entry's to read by hand, as
+        // an unreadable one is. It once stopped the whole file with nothing a person could answer.
+        /** @param {{ entry?: string|null }} f @param {string} why */
+        const readByHand = (f, why) => {
+            const entry = f.entry ?? '';
+            ask({ kind: 'comment-entry', key: `${used.row}|${normaliseKey(entry)}`, row: used.row, entry: entry.trim(), why });
+        };
         // A DD/MM in the first days of January can be this January or next (the grid runs into it,
         // §2). It is settled only by a date BESIDE it: exactly one of its readings within three days of
         // another date in the thread that has one reading of its own. `02/01 03/01` (the next day) and
@@ -561,26 +834,53 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
         // January once — the likelier reading is one block over Christmas into next, so it is asked.
         const anchors = found.filter(f => f.candidates.length === 1).map(f => Date.parse(f.candidates[0]));
         const beside = (/** @type {string} */ iso) => anchors.some(a => Math.abs(Date.parse(iso) - a) <= 3 * 86_400_000);
+        let pending = false;   // a date of this thread is asked about, so its dates are not all known yet
         for (const f of found) {
             const qKey = `${used.row}|${f.token}`;
             let iso = f.candidates.length === 1 ? f.candidates[0] : undefined;
             if (f.candidates.length > 1) {
-                const near = f.candidates.filter(beside);
-                iso = answers.commentDates?.[qKey] ?? (near.length === 1 ? near[0] : undefined);
+                // An answer must be one of the token's own readings: `2026-03-16` for `02/01` was
+                // written as given, a day nobody's comment named.
+                const given = answers.commentDates && Object.hasOwn(answers.commentDates, qKey) ? answers.commentDates[qKey] : undefined;
+                if (given !== undefined && !f.candidates.includes(given)) {
+                    notes.push(`totals row ${used.row}: the answer for ${f.token} is not one of its readings, so it is asked again`);
+                } else {
+                    const near = f.candidates.filter(beside);
+                    iso = given ?? (near.length === 1 ? near[0] : undefined);
+                }
             }
             if (!iso) {
                 if (f.candidates.length) ask({ kind: 'comment-date', key: qKey, row: used.row, token: f.token, candidates: f.candidates });
-                else ask({ kind: 'unexpected', what: `totals row ${used.row}: a comment date outside the sheet (${f.token})` });
+                else readByHand(f, `a date outside the sheet's own dates (${f.token})`);
+                pending = true;
                 continue;
             }
             if (grid.has(iso) || dated.includes(iso)) continue;   // counted once, from the grid
-            if (isSundayIso(iso) || isChristmasIso(iso)) { ask({ kind: 'unexpected', what: `totals row ${used.row}: an over-quota date on ${iso}` }); continue; }
+            if (isSundayIso(iso) || isChristmasIso(iso)) { readByHand(f, `a date no leave can be on (${iso})`); pending = true; continue; }
             dated.push(iso);
         }
+        // What column E then says waits for those answers: asked now, a blank count's question would be
+        // keyed on dates that are not all there, and a sum would be judged on half a thread.
+        if (pending) continue;
         const e = used.printed.columnE;
         if (e === 0 && dated.length) {
-            // Defect 7: dated in the comment, the count left blank — real leave the total misses.
-            for (const iso of dated) addDay(name, { name, date: iso, kind: 'leave', foundIn: 'column-e-uncounted', countedBySheet: false });
+            // Defect 7: dated in the comment, the count left blank — real leave the total misses. But
+            // only while the thread is the dates alone: words beside them (`10/04 NOT TAKEN`, a reply
+            // `CANCELLED`) may say a day was not taken, and read as leave the day became one to add.
+            // Then which of the dates are leave is asked; `A/L` beside a date is not a word here.
+            let leave = dated;
+            if (words || wordy) {
+                const key = `${used.row}|${[...dated].sort().join(' ')}`;
+                const given = answers.uncounted && Object.hasOwn(answers.uncounted, key) ? answers.uncounted[key] : undefined;
+                if (!Array.isArray(given) || !given.every(d => dated.includes(d))) {
+                    if (given !== undefined) notes.push(`totals row ${used.row}: the answer for its dates is not drawn from them, so it is asked again`);
+                    ask({ kind: 'uncounted-dates', key, row: used.row, entries: used.eEntries, dates: [...dated].sort() });
+                    continue;
+                }
+                leave = given;
+                for (const iso of dated) if (!leave.includes(iso)) notes.push(`totals row ${used.row}: ${iso}, dated beside a blank count, was answered as not leave (left out)`);
+            }
+            for (const iso of dated) if (leave.includes(iso)) addDay(name, { name, date: iso, kind: 'leave', foundIn: 'column-e-uncounted', countedBySheet: false });
             columnEOf.set(name, { datedDays: 0, joinerReduction: 0, lump: 0, unexplained: 0 });
             continue;
         }
@@ -699,12 +999,19 @@ function insideGitWorkTree(dir) {
  * committed from any of them), and not by a path with `..` in it. A FILE that is a symlink is judged
  * by where it points, existing or not, and a name that merely begins with two dots (`..x.leave.json`)
  * is inside, not above. With no git to ask, only this repository is judged.
+ *
+ * And an existing file with MORE THAN ONE NAME (a hard link) is refused wherever it is: writing to
+ * one name writes the file every other name shares, and one of those may be inside a checkout —
+ * `ln <a tracked file> /tmp/x.leave.json` passed, because nothing here can say where a file's other
+ * names are without searching every disk for them.
  * @param {string} path
  * @returns {boolean}
  */
 export function isOutsideRepo(path) {
     const target = writeTarget(path);
     if (!target) return false;
+    const existing = statSync(target.file, { throwIfNoEntry: false });
+    if (existing && !existing.isDirectory() && existing.nlink > 1) return false;
     const rel = relative(realpathSync.native(REPO), target.file);
     if (!(rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))) return false;
     return insideGitWorkTree(target.dir) !== true;
@@ -743,19 +1050,22 @@ export async function main(argv) {
     if (!Number.isInteger(year)) throw new Error('--year must be a year');
     if (!out.endsWith('.leave.json')) throw new Error('--out must end .leave.json, which .gitignore excludes');
     if (typeof args.csv === 'string' && !args.csv.endsWith('.csv')) throw new Error('--csv must end .csv, which .gitignore excludes');
-    for (const p of [out, args.csv]) {
-        if (typeof p === 'string' && !isOutsideRepo(p)) {
-            throw new Error(`refusing to write inside the repository or any git checkout, or by a path with .. in it: ${p}`);
-        }
-    }
     // An output must not be an input, or the other output: `--csv <the workbook>` once wrote a CSV
-    // header over the workbook and exited 0. Every pair is checked before anything is read or written.
+    // header over the workbook and exited 0. Every pair is checked before anything is read or written,
+    // and before where an output lands: a hard link to the workbook is refused as the workbook, by name,
+    // rather than as a file with another name somewhere (`isOutsideRepo`).
     /** @type {Array<[string, string]>} */ const named = [];
     for (const k of ['workbook', 'previous', 'answers', 'out', 'csv']) if (typeof args[k] === 'string') named.push([k, /** @type {string} */ (args[k])]);
     const files = named.map(([, p]) => fileOf(p));
     for (let i = 0; i < named.length; i++) for (let j = i + 1; j < named.length; j++) {
         if (files[i].file === files[j].file || (files[i].inode !== null && files[i].inode === files[j].inode)) {
             throw new Error(`--${named[i][0]} and --${named[j][0]} name the same file; refusing before anything is written`);
+        }
+    }
+    for (const p of [out, args.csv]) {
+        if (typeof p === 'string' && !isOutsideRepo(p)) {
+            throw new Error(`refusing to write inside the repository or any git checkout, by a path with .. in it, `
+                + `or over a file with another name (a hard link): ${p}`);
         }
     }
     if (!args.previous && !args['first-run']) throw new Error('give --previous <last.leave.json>, or --first-run to be asked about every match');
@@ -768,7 +1078,9 @@ export async function main(argv) {
         if (!read.ok) throw new Error(`the previous leave file is refused: ${read.refusals.map(describeRefusal).join(' ')}`);
         previousMap = read.file.nameMap;
     }
-    const answers = typeof args.answers === 'string' ? JSON.parse(readFileSync(args.answers, 'utf8')) : {};
+    // A byte-order mark is stripped, as the card's file reader does for the leave file itself.
+    const answers = typeof args.answers === 'string' ? JSON.parse(readFileSync(args.answers, 'utf8').replace(/^\uFEFF/, '')) : {};
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) throw new Error('the answers file must hold one JSON object');
     const bytes = readFileSync(workbookPath);
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const { teamMembers, APP_VERSION } = await import('../roster-data.js');

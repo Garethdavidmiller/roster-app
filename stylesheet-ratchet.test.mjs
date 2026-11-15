@@ -62,8 +62,9 @@ const CAPS = {
     'links.css':      2650,
     // 2150 → 2300 (14 Nov 2026, at 2,244), a deliberate RAISE: the Annual leave sheet card is a new
     // surface and this page's alone — a summary, a fold per person, chips and day rows, in 112 compact
-    // lines. A dead-rule sweep found nothing to delete first: every class the sheet styles is emitted,
-    // the speed-* and al-sheet-* modifiers by template.
+    // lines; the Save's questions, boxes and receipt brought it to 2,288 (v26.13). A dead-rule sweep
+    // found nothing to delete first: every class the sheet styles is emitted, the speed-* and al-sheet-*
+    // modifiers by template.
     'operations.css': 2300,
     // 2100 → 1950 on 8 Nov 2026, brought DOWN (2,099 measured lines to 1,891): changelog comments cut
     // to their reasons, and rules that shared.css's `.hidden` or an identical twin already set.

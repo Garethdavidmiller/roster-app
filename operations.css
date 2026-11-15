@@ -1669,6 +1669,22 @@ body.auth-ready .container { display: grid; }
 .al-sheet-more[open] > summary { margin-bottom: 8px; }
 @media (pointer: coarse) { .al-sheet-more > summary { min-height: 36px; align-items: center; } }
 .al-sheet-note { font-size: var(--type-small); color: var(--text-mid); }
+/* The Save (Phase 2b, operations-al-save.js): a rest day's two answers under the day, a person's box at
+   the foot of their fold with the figures it would leave, and the Save itself under the list. The radios
+   and the box are the app's own drawn controls (shared.css); only their layout is here. */
+.al-sheet-answer { display: flex; flex-wrap: wrap; gap: 2px 16px; margin-top: 6px; }
+.al-sheet-answer label, .al-sheet-confirm {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: var(--type-label); color: var(--text-dark);
+}
+.al-sheet-confirm { font-weight: 600; }
+.al-sheet-confirm[hidden] { display: none; }
+@media (pointer: coarse) { .al-sheet-answer label, .al-sheet-confirm { min-height: 44px; } }
+.al-sheet-removed { margin-top: 4px; font-size: var(--type-small); color: var(--text-mid); }
+.al-sheet-save-person { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border-light); }
+.al-sheet-save, .al-sheet-last { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.al-sheet-save { padding: 12px 14px; background-color: var(--surface-sunken); border-radius: var(--radius-sm); }
+.al-sheet-save-intro, .al-sheet-last p { font-size: var(--type-label); color: var(--text-dark); }
 
 @media print {
     /* Operations is an interactive-only page (Huddle upload, Roster upload,

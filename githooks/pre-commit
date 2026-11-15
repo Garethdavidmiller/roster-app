@@ -89,6 +89,55 @@ while IFS= read -r _f; do
 done <<< "$STAGED_FILES"
 export STAGED_FILES STAGED_RENAMES STAGED_MODULES
 
+# ── A LEAVE FILE NEVER ENTERS A COMMIT, BY ANY NAME (annual leave uploader, 15 November 2026) ──
+#
+# A leave file names every colleague against their dates of leave (al-leave-file.js). .gitignore
+# keeps one out of `git add` under the names it knows, and leave-file-privacy.test.mjs fails when one
+# is tracked — but that test runs in CI, AFTER the push, and the repository is public: by then the
+# Pages mirror can already be serving it, and git history keeps it. So the commit itself is read, by
+# CONTENT, whatever each file is called (a phone renames a download; a person renames anything): a
+# staged file that parses as JSON whose `format` is the module's LEAVE_FILE_FORMAT, or that holds the
+# format marker beside a full 64-character seal (the CI test's own needle, which a plan's example
+# with an elided seal never has), is refused. The format is read out of al-leave-file.js AS STAGED,
+# never written here, so the two cannot drift; anything this step cannot read is a refusal, never a
+# pass. It runs FIRST, so no other step's exit can skip it. leave-file-privacy.test.mjs runs this very
+# block against staged files, and pre-commit-parity.test.mjs pins how it finds the format.
+if [[ -n "$HAVE_NODE" ]]; then
+  node - << 'NODEEOF'
+const { execFileSync } = require('child_process');
+const staged = (p) => execFileSync('git', ['show', `:${p}`], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+let format = null;
+try { format = (staged('al-leave-file.js').match(/^export const LEAVE_FILE_FORMAT = '([^']+)';$/m) || [])[1] || null; } catch { /* reported below */ }
+if (!format) {
+    process.stderr.write('  leave-file: LEAVE_FILE_FORMAT could not be read from al-leave-file.js as staged,\n'
+        + '  so this commit was NOT checked for a leave file. Refusing rather than passing unchecked.\n');
+    process.exit(1);
+}
+const marker = new RegExp(`"format"\\s*:\\s*"${format.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')}"`);
+const seal = /"digest"\s*:\s*"sha256:[0-9a-f]{64}"/;
+const found = [];
+const unread = [];
+for (const p of (process.env.STAGED_FILES || '').split('\n').filter(Boolean)) {
+    let text;
+    try { text = staged(p); } catch { unread.push(p); continue; }
+    const body = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;   // a byte-order mark is not part of it
+    let parsed = null;
+    if (/^\s*\{/.test(body)) { try { parsed = JSON.parse(body); } catch { /* not JSON: the needle still reads it */ } }
+    if ((parsed !== null && typeof parsed === 'object' && parsed.format === format) || (marker.test(text) && seal.test(text))) found.push(p);
+}
+for (const p of found) process.stderr.write(`  leave-file: ${p} is a leave file, or holds one — it names colleagues against their leave.\n`);
+for (const p of unread) process.stderr.write(`  leave-file: ${p} could not be read as staged, so it was NOT checked for a leave file.\n`);
+if (found.length || unread.length) {
+    process.stderr.write('\n  A leave file is never committed: the repository is public, and the Pages mirror serves every\n'
+        + '  committed file. Unstage it (git restore --staged <file>) and keep it outside the repository.\n');
+    process.exit(1);
+}
+NODEEOF
+  if [ $? -ne 0 ]; then exit 1; fi
+else
+  not_checked "The leave-file check"
+fi
+
 # ── EVERY MODULE IN THE COMMIT IS DOCUMENTED IN THE COMMIT ─────────────────────────────────────
 # The documents AS STAGED, and a mention matched as a whole file name: `grep -q picker.js` matched
 # `date-picker.js`, so a new `picker.js` passed with no entry at all — and five existing modules

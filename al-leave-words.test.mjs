@@ -16,6 +16,8 @@ import {
     dayLabel, sheetWords, patternWords, drawnWords, appWords, figuresLine, personNotes,
     chipsFor, totalsLines, totalsEntries, reasonWords, ageWords, CARD_WORDS, checkedWords, overallWords, oldWords,
     unplacedWords, appOnlyWords, moreDaysWords, notComparedWords, beyondHeadWords,
+    SAVE_WORDS, questionWords, confirmWords, afterWords, stillDiffersWords, unansweredWords, saveButtonWords, savingWords,
+    refusalWords, receiptWords, lastSaveWords, undoConfirmWords, undoneWords, leftFreeWords,
 } from './al-leave-words.js';
 import { FOUND_IN, NOT_IMPORTED_REASONS } from './al-leave-file.js';
 import { DAY_STATES, NEEDS_A_LOOK, COUNT_KEYS } from './al-leave-compare.js';
@@ -64,7 +66,12 @@ test('a pattern shift in words', () => {
     assert.equal(patternWords('OFF'), 'a rest day');
     assert.equal(patternWords('SPARE'), 'a spare day');
     assert.equal(patternWords('06:20-14:20'), '06:20–14:20');
-    assert.equal(patternWords('TRG'), 'TRG');
+    // An Other day reads as the Calendar's word for it, never as its code (review, 15 Nov 2026).
+    assert.equal(patternWords('TRG'), 'Training');
+    assert.equal(patternWords('MEET 09:00-12:00'), 'Meeting 09:00–12:00');
+    assert.equal(patternWords('IND RDW'), 'Induction (rest day worked)');
+    assert.equal(drawnWords(day({ pattern: 'TRG' })), 'Training on their pattern');
+    assert.equal(patternWords('XYZ'), 'XYZ', 'a value the app cannot read is shown as it is, not guessed');
 });
 
 test('what the Calendar draws, in words — the drawn day, never the stored record', () => {
@@ -137,13 +144,13 @@ test('a corrected sheet figure says which way each day moved it — a counted Su
     const corrected = (/** @type {any[]} */ days, remaining, correctedTo) =>
         personNotes(person({ days, sheet: { ...person().sheet, remaining, corrected: correctedTo } }), 2026)[0];
     assert.equal(corrected([day({ foundIn: 'grid-misspelt', kind: 'leave' }), day({ foundIn: 'grid-misspelt', kind: 'leave' })], 12, 10),
-        'Corrected, the sheet leaves 10, not 12: its total misses 2 days under another spelling.');
+        'Corrected, the sheet says 10 left, not 12 left: its total misses 2 days under another spelling.');
     assert.equal(corrected([day({ foundIn: 'column-e-uncounted', kind: 'leave' })], 12, 11),
-        'Corrected, the sheet leaves 11, not 12: 1 day is dated over quota with the count beside it left blank.');
+        'Corrected, the sheet says 11 left, not 12 left: 1 day is dated over quota with the count beside it left blank.');
     assert.equal(corrected([day({ foundIn: 'grid', kind: 'sunday-counted', state: 'sunday' })], 12, 13),
-        'Corrected, the sheet leaves 13, not 12: it counts 1 Sunday, and a Sunday is never annual leave.');
+        'Corrected, the sheet says 13 left, not 12 left: it counts 1 Sunday, and a Sunday is never annual leave.');
     assert.equal(corrected([day({ foundIn: 'grid-misspelt', kind: 'leave' }), day({ foundIn: 'grid', kind: 'sunday-counted', state: 'sunday' })], 13, 12),
-        'Corrected, the sheet leaves 12, not 13: its total misses 1 day under another spelling; it counts 1 Sunday, and a Sunday is never annual leave.');
+        'Corrected, the sheet says 12 left, not 13 left: its total misses 1 day under another spelling; it counts 1 Sunday, and a Sunday is never annual leave.');
     // One of each cancels out: the figure does not move, so there is nothing to explain.
     assert.deepEqual(personNotes(person({ days: [day({ foundIn: 'grid-misspelt', kind: 'leave' }), day({ foundIn: 'grid', kind: 'sunday-counted', state: 'sunday' })] }), 2026), []);
 });
@@ -176,8 +183,19 @@ test('the other notes: undated days, a gap nothing explains, a second row', () =
     assert.match(personNotes(person({ sheet: { ...person().sheet, undated: 1 } }), 2026)[0], /1 more day over quota with no date, so it cannot/);
     assert.match(personNotes(person({ sheet: { ...person().sheet, undated: 3 } }), 2026)[0], /3 more days over quota with no date, so they cannot/);
     assert.deepEqual(personNotes(person({ counts: { figures: 1 }, sheet: { ...person().sheet, corrected: 12 }, app: { ...person().app, remaining: 11 } }), 2026),
-        ['The sheet leaves 12 and the app 11, and nothing on the sheet shows why.']);
+        ['The sheet says 12 left and the app 11 left, and nothing on the sheet shows why.']);
+    // Overdrawn on either side, in the Admin banner's words: never a bare minus (review, 15 Nov 2026).
+    assert.deepEqual(personNotes(person({ counts: { figures: 1 }, sheet: { ...person().sheet, remaining: -2, corrected: -2 }, app: { ...person().app, remaining: 1 } }), 2026),
+        ['The sheet says 2 over limit and the app 1 left, and nothing on the sheet shows why.']);
+    assert.match(personNotes(person({ days: [day({ foundIn: 'grid-misspelt', kind: 'leave' })], sheet: { ...person().sheet, remaining: 0, corrected: -1 } }), 2026)[0],
+        /^Corrected, the sheet says 1 over limit, not 0 left: /);
+    for (const line of personNotes(person({ counts: { figures: 1 }, days: [day({ foundIn: 'grid-misspelt', kind: 'leave' })],
+        sheet: { ...person().sheet, remaining: -1, corrected: -2 }, app: { ...person().app, remaining: -3 } }), 2026)) assert.doesNotMatch(line, /-\d/, line);
     assert.deepEqual(personNotes(person({ otherRows: 1 }), 2026), ['The sheet lists them on 2 rows; this uses the one with their days.']);
+    // The other row's days carried forward, when they differ, are said — not chosen between (review, 15 Nov 2026).
+    assert.deepEqual(personNotes(person({ otherRows: 1, otherCarry: [2] }), 2026), ['The sheet lists them on 2 rows; this uses the one with their days. '
+        + 'The other carries 2 days forward from 2025, and this one 0: only the clerks can say which is right.']);
+    assert.match(personNotes(person({ otherRows: 2, otherCarry: [1] }), 2026)[0], / Another carries 1 day forward from 2025, and this one 0/);
 });
 
 test('a chip for every reason a person needs a look — a closed row in that list always says why', () => {
@@ -239,6 +257,8 @@ test('every reason somebody is not compared has words of its own — the re-aske
 
 test('the age line: today, yesterday, days ago, old only PAST the limit, and unknown when the file does not say', () => {
     assert.match(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 0, maxAge: 14 }).line, /on 6 Nov 2026 \(today\)/);
+    // The London day: saved at 00:30 on 21 July is 23:30 on the 20th in UTC (review, 15 Nov 2026).
+    assert.match(ageWords({ saved: '2026-07-20T23:30:00Z', ageDays: 0, maxAge: 14 }).line, /on 21 Jul 2026 \(today\)/);
     assert.match(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 1, maxAge: 14 }).line, /\(yesterday\)/);
     assert.equal(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 8, maxAge: 14 }).line,
         'The clerks last saved this sheet on 6 Nov 2026 (8 days ago). Anything booked since then shows as only in the app.');
@@ -303,5 +323,148 @@ test('the fixed lines: the offline one says why a cached read is not used, and t
     for (const [key, line] of Object.entries(CARD_WORDS)) {
         assert.doesNotMatch(line, /!/, key);
         assert.doesNotMatch(line, /\bthe admin\b(?! page)/i, key);
+    }
+});
+
+// ── THE SAVE'S WORDS (Phase 2b, 14 Nov 2026) ────────────────────────────────────────────────────
+// Every line the Save, its receipt and its Undo can say, singular and plural, in the names the
+// test people use. The browser tests (e2e/operations.spec.js) read these same functions, so a
+// change of wording lands in both.
+
+test('the Save’s question, confirmation and button, singular and plural', () => {
+    assert.equal(questionWords('2026-03-03'), `Was ${dayLabel('2026-03-03')} a swapped working day?`);
+    assert.equal(confirmWords({ name: 'C. Specimen', add: 1, swap: 0 }), 'Add 1 day of leave for C. Specimen');
+    assert.equal(confirmWords({ name: 'C. Specimen', add: 2, swap: 1 }),
+        'Add 2 days of leave, and count 1 booked rest day as swapped for C. Specimen');
+    assert.equal(confirmWords({ name: 'C. Specimen', add: 0, swap: 2 }), 'Count 2 booked rest days as swapped for C. Specimen');
+    assert.equal(saveButtonWords({ days: 0, people: 0 }), SAVE_WORDS.confirmFirst);
+    assert.equal(saveButtonWords({ days: 1, people: 1 }), 'Save 1 day for 1 person');
+    assert.equal(saveButtonWords({ days: 5, people: 2 }), 'Save 5 days for 2 people');
+    assert.equal(savingWords(0, 1), 'Saving… 0 of 1 day');
+    assert.equal(savingWords(2, 5), 'Saving… 2 of 5 days');
+    assert.equal(unansweredWords(1), '1 rest day above is still to answer, and won’t be saved until it is.');
+    assert.equal(unansweredWords(2), '2 rest days above are still to answer, and won’t be saved until they are.');
+    assert.equal(stillDiffersWords([{ text: '1 missing in the app' }, { text: '2 work recorded' }]),
+        'Still different after it: 1 missing in the app · 2 work recorded');
+    assert.match(afterWords(person()), /^After this Save — /);
+});
+
+test('the receipt: what was saved, for whom nothing was — and never "nothing" when that would be a guess', () => {
+    const none = new Map();
+    assert.deepEqual(receiptWords({ days: 3, people: 2, refused: none }), ['Saved 3 days for 2 people.']);
+    assert.deepEqual(receiptWords({ days: 1, people: 1, refused: none }), ['Saved 1 day for 1 person.']);
+    assert.deepEqual(receiptWords({ days: 0, people: 0, refused: none }), ['Nothing was saved.']);
+    // A Save that stopped where its writes may have landed, the server unread since: the line saying
+    // why it stopped goes on alone (operations-al-save.js → runSave).
+    assert.deepEqual(receiptWords({ days: 0, people: 0, refused: none, unsure: true }), []);
+    assert.deepEqual(receiptWords({ days: 1, people: 1, refused: new Map([['D. Placeholder', ['2026-03-03', '2026-03-04']]]) }), [
+        'Saved 1 day for 1 person.',
+        `Nothing was saved for D. Placeholder: ${dayLabel('2026-03-03')}, ${dayLabel('2026-03-04')} changed after the check. `
+            + 'Their answers are kept; look at them again below.']);
+    assert.equal(receiptWords({ days: 0, people: 0, refused: new Map([['D. Placeholder', ['2026-03-03']]]) }).length, 1,
+        'a refusal is the whole story: no "Nothing was saved." after it');
+    // The read after the Save shows some of a refused person's days landed all the same (a part whose
+    // answer was lost, re-run after a colleague's change): "Nothing was saved" would be untrue.
+    const both = new Map([['D. Placeholder', ['2026-03-03']], ['E. Example', ['2026-03-04', '2026-03-05']]]);
+    assert.deepEqual(receiptWords({ days: 2, people: 1, refused: both, landedFor: new Set(['D. Placeholder', 'E. Example']) }), [
+        'Saved 2 days for 1 person.',
+        `Some of D. Placeholder’s days were saved, but ${dayLabel('2026-03-03')} changed after the check and was left as it is. Look at them again below.`,
+        `Some of E. Example’s days were saved, but ${dayLabel('2026-03-04')}, ${dayLabel('2026-03-05')} changed after the check and were left as they are. Look at them again below.`]);
+    assert.match(receiptWords({ days: 2, people: 1, refused: both, landedFor: new Set(['E. Example']) })[1], /^Nothing was saved for D\. Placeholder:/,
+        'only the people the read shows saved for');
+});
+
+test('a day answered "Rest day — free" is named in the receipt: a Save never does nothing silently', () => {
+    assert.equal(leftFreeWords('C. Specimen', [{ date: '2026-03-03', held: false }]),
+        `For C. Specimen, ${dayLabel('2026-03-03')} was left as a rest day, as answered: nothing was written.`);
+    assert.equal(leftFreeWords('C. Specimen', [{ date: '2026-03-03', held: false }, { date: '2026-03-10', held: true }]),
+        `For C. Specimen, ${dayLabel('2026-03-03')}, ${dayLabel('2026-03-10')} were left as rest days, as answered: nothing was written. `
+        + `The leave already recorded on ${dayLabel('2026-03-10')} was left as it is.`, 'answering never deletes, and the Calendar still shows that leave');
+});
+
+test('the refusals each say why, and what to do instead', () => {
+    assert.equal(refusalWords('age-unknown', { maxAge: 14 }),
+        'This file doesn’t say when the clerks last saved the sheet, so it can’t be saved. Ask the clerks for a fresh copy and make a new leave file.');
+    assert.equal(refusalWords('too-old', { maxAge: 14 }),
+        'This copy is more than 14 days old, so it can’t be saved. Ask the clerks for a fresh copy and make a new leave file.');
+    assert.equal(refusalWords('older-copy', { maxAge: 14, newest: { clerksLastSaved: '2026-11-10T09:00:00Z', savedAt: new Date('2026-11-12T12:00:00Z') } }),
+        'A newer copy of this sheet, saved by the clerks on 10 Nov 2026, was saved here on 12 Nov 2026. '
+        + 'This copy is older, so it can’t be saved: it could put back leave cancelled since.');
+    assert.match(refusalWords('older-copy', { maxAge: 14, newest: { clerksLastSaved: '2026-11-10T09:00:00Z', savedAt: null } }),
+        /saved by the clerks on 10 Nov 2026, was saved here\. /, 'no stamp yet: the day it was saved here is left out, not guessed');
+    assert.match(refusalWords('older-copy', { maxAge: 14, newest: { clerksLastSaved: '2026-07-20T23:30:00Z', savedAt: new Date('2026-07-21T23:15:00Z') } }),
+        /saved by the clerks on 21 Jul 2026, was saved here on 22 Jul 2026\. /, 'both days are London’s');
+    assert.match(lastSaveWords({ savedAt: new Date(NaN), savedBy: 'A. Clerkson', added: 1 }), /^This sheet was last saved here on — by A\. Clerkson/,
+        'an unreadable stamp reads as no date, never a fault');
+    assert.equal(refusalWords('old-year', { maxAge: 14, year: 2024 }),
+        'This is the 2024 sheet. Only this year’s sheet and last year’s can be saved here, so this one is a check only.');
+    assert.match(refusalWords('old-year', { maxAge: 14 }), /^This is an earlier year’s sheet\. /, 'no year given: still a sentence');
+});
+
+test('the last Save and its Undo, singular and plural', () => {
+    assert.equal(lastSaveWords({ savedAt: new Date('2026-11-14T10:00:00Z'), savedBy: 'A. Clerkson', added: 1 }),
+        'This sheet was last saved here on 14 Nov 2026 by A. Clerkson, adding 1 day of leave.');
+    assert.equal(lastSaveWords({ savedAt: null, savedBy: 'A. Clerkson', added: 2 }),
+        'This sheet was last saved here by A. Clerkson, adding 2 days of leave.');
+    assert.equal(undoConfirmWords(1), 'This takes back the 1 day of leave the Save added — except any that somebody has changed since.');
+    assert.equal(undoConfirmWords(3), 'This takes back the 3 days of leave the Save added — except any that somebody has changed since.');
+    assert.deepEqual(undoneWords({ removed: [], kept: ['C. Specimen|2026-03-03'], gone: [] }), [SAVE_WORDS.undoNothing,
+        `1 day was kept, because it has changed since: C. Specimen, ${dayLabel('2026-03-03')}.`]);
+    // An Undo cut short is finished by pressing it again: what it took back the first time is gone now.
+    assert.deepEqual(undoneWords({ removed: [], kept: [], gone: ['C. Specimen|2026-03-02', 'C. Specimen|2026-03-05'] }), [SAVE_WORDS.undoAllGone]);
+    assert.deepEqual(undoneWords({ removed: [], kept: ['C. Specimen|2026-03-03'], gone: ['C. Specimen|2026-03-02'] }), [SAVE_WORDS.undoNothingLeft,
+        `1 day was kept, because it has changed since: C. Specimen, ${dayLabel('2026-03-03')}.`, '1 day was already gone.']);
+    assert.deepEqual(undoneWords({ removed: ['C. Specimen|2026-03-02'], kept: [], gone: [] }), ['Took back 1 day of leave.']);
+    assert.deepEqual(undoneWords({ removed: ['C. Specimen|2026-03-02', 'C. Specimen|2026-03-05'], kept: ['C. Specimen|2026-03-03'],
+        gone: ['C. Specimen|2026-03-06', 'C. Specimen|2026-03-09'] }), [
+        'Took back 2 days of leave.',
+        `1 day was kept, because it has changed since: C. Specimen, ${dayLabel('2026-03-03')}.`,
+        '2 days were already gone.']);
+    assert.deepEqual(undoneWords({ removed: ['C. Specimen|2026-03-02'], kept: ['C. Specimen|2026-03-03', 'C. Specimen|2026-03-04'], gone: ['C. Specimen|2026-03-06'] }).slice(1), [
+        `2 days were kept, because they have changed since: C. Specimen, ${dayLabel('2026-03-03')}; C. Specimen, ${dayLabel('2026-03-04')}.`,
+        '1 day was already gone.']);
+});
+
+test('a fault in the check after a Save says so without contradicting the receipt above it', () => {
+    assert.match(SAVE_WORDS.recheckFailed, /Check again/);
+    assert.doesNotMatch(SAVE_WORDS.recheckFailed, /Nothing was saved/);
+});
+
+test('the lines a Save or an Undo ends on when it could not finish each say what to do next (review, 15 Nov 2026)', () => {
+    // Nothing was sent: the store could not load. Never "stopped part way", which would send the reader to look.
+    assert.match(SAVE_WORDS.notStarted, /nothing was saved/);
+    assert.match(SAVE_WORDS.undoNotStarted, /nothing was taken back/);
+    // An Undo that could not read the records sent nothing either, and its button is still on screen.
+    for (const line of [SAVE_WORDS.undoOffline, SAVE_WORDS.undoUnread]) {
+        assert.match(line, /nothing was taken back\. .*[Pp]ress Undo again/);
+        assert.doesNotMatch(line, /part way/);
+    }
+    assert.match(SAVE_WORDS.undoOffline, /^You’re offline/);
+    // Landed, but the log is not written yet: undoable only once it is, and the reader is told how.
+    assert.match(SAVE_WORDS.notRecordedYet, /can’t be undone until it is.*Check again with a connection/);
+    // Recorded, but the logs could not be read back: the Undo comes with the next check.
+    assert.match(SAVE_WORDS.recordedUndoLater, /^This Save is recorded\. .*check again with a connection/);
+    // An Undo cut short is finished by pressing it again, and nothing it took back comes back.
+    assert.match(SAVE_WORDS.undoStopped, /Press Undo again to finish it/);
+    assert.doesNotMatch(SAVE_WORDS.undoStopped, /Nothing about it was recorded/);
+});
+
+test('the Save’s voice: calm, never "override", never names the admin — the reader is the admin', () => {
+    const lines = [
+        ...Object.values(SAVE_WORDS),
+        questionWords('2026-03-03'), confirmWords({ name: 'C. Specimen', add: 2, swap: 1 }), saveButtonWords({ days: 2, people: 1 }),
+        unansweredWords(2), savingWords(1, 2),
+        ...['age-unknown', 'too-old', 'older-copy', 'old-year'].map(c => refusalWords(/** @type {any} */ (c), { maxAge: 14, year: 2024 })),
+        ...receiptWords({ days: 2, people: 1, refused: new Map([['D. Placeholder', ['2026-03-03']]]) }),
+        ...receiptWords({ days: 2, people: 1, refused: new Map([['D. Placeholder', ['2026-03-03']]]), landedFor: new Set(['D. Placeholder']) }),
+        leftFreeWords('C. Specimen', [{ date: '2026-03-03', held: true }]),
+        lastSaveWords({ savedAt: null, savedBy: 'A. Clerkson', added: 2 }), undoConfirmWords(2),
+        ...undoneWords({ removed: ['C. Specimen|2026-03-02'], kept: ['C. Specimen|2026-03-03'], gone: ['C. Specimen|2026-03-04'] }),
+    ];
+    for (const s of lines) {
+        assert.doesNotMatch(s, /!/, s);
+        assert.doesNotMatch(s, /\bthe admin\b(?! page)/i, s);
+        assert.doesNotMatch(s, /\boverride\b/i, s);
+        assert.doesNotMatch(s, /\bcoming soon\b/i, s);
     }
 });

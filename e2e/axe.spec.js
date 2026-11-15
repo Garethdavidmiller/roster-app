@@ -16,6 +16,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES, isTouchProject } from './helpers.js';
 import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 import { alSheetFixture } from './al-sheet-fixture.js';
+import { SAVE_WORDS } from '../al-leave-words.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -540,12 +541,15 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // rows with a coloured edge — exists only after a check, the reason the roster review went unscanned
     // for years (below), so it is driven here: a file checked, a person's days open, their agreeing days
     // unfolded, and the fold of the people who agree opened too (its head is a heading inside a
-    // <summary>). The file and its people are al-sheet-fixture.js's.
-    test('operations — the annual leave sheet, checked (admin, signed in)', async ({ page }) => {
+    // <summary>). The file and its people are al-sheet-fixture.js's. Then the Save's own states (Phase
+    // 2b): a rest day answered and the person confirmed — the "after" figures and an enabled Save — and
+    // the Save done, its receipt and the last Save with its Undo. The stub lands what the Save writes, so
+    // the fresh check after it draws them.
+    test('operations — the annual leave sheet, checked and saved (admin, signed in)', async ({ page }) => {
         const fx = await alSheetFixture();
         await page.addInitScript((rows) => {
             const w = /** @type {any} */ (window);
-            w.__E2E = { ...(w.__E2E || {}), authUser: true, docs: [], docsByQuery: { overrides: rows } };
+            w.__E2E = { ...(w.__E2E || {}), authUser: true, docs: [], docsByQuery: { overrides: rows }, writesLand: true };
         }, fx.records);
         await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));
         await seedSession(page, 'G. Miller');
@@ -563,6 +567,16 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect(page.locator('.al-sheet-group .al-sheet-person').first()).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
+
+        await first.getByRole('radio', { name: SAVE_WORDS.swapped }).check();
+        await first.locator('.al-sheet-confirm input').check();
+        await expect(page.locator('#alSheetSaveBtn')).toBeEnabled();
+        const answered = await scan(page);
+        expect(answered.length, report(answered)).toBe(0);
+        await page.locator('#alSheetSaveBtn').click();
+        await expect(page.locator('.al-sheet-undo')).toBeVisible();
+        const saved = await scan(page);
+        expect(saved.length, report(saved)).toBe(0);
     });
 
     // ── THE ROSTER REVIEW TABLE (v24.00) ────────────────────────────────────────────────────────

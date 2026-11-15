@@ -81,8 +81,7 @@ export {
 };
 
 /** Firestore collection name constants — single source of truth. Import these
- *  instead of bare string literals to prevent silent typos across modules.
- */
+ *  instead of bare string literals to prevent silent typos across modules. */
 export const COLLECTIONS = {
     huddles:           'huddles',
     circulars:         'circulars',
@@ -96,6 +95,7 @@ export const COLLECTIONS = {
     linkTargetSets:    'linkTargetSets',
     analytics:         'analytics',
     resetRequests:     'resetRequests',
+    alUploads:         'alUploads',
 };
 
 // isSafeStorageUrl + isDocxUpload live in the pure, import-free storage-utils.js so they can be
