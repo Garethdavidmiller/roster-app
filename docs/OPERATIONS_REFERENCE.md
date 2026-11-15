@@ -955,10 +955,16 @@ that differs any other way is changed in Admin, with Change a Shift. Plan of rec
 `scripts/make-leave-file.mjs`, which reads the workbook by the `AL_WORKBOOK.md` method:
 
 - It **asks** about anything it cannot settle mechanically, such as a name that does not match, a
-  duplicate row or a January date. It writes nothing until those are answered.
-- It refuses a workbook that is not shaped the way the method knows.
-- The name answers are carried inside the file, so the next copy does not ask them again. A
-  duplicate row or a January date is asked again on every copy, because rows move between copies.
+  duplicate row, a January date, a comment date it cannot read (`24 Dec`, `Christmas Eve`, a half day),
+  or dates beside a blank count that have words with them (`NOT TAKEN`). A name is only ever matched
+  within its own grade block, and a one-word Sunday tag never by itself. It writes nothing until those
+  are answered.
+- It refuses a workbook that is not shaped the way the method knows, and a person's row whose Used is
+  blank while it still holds a name or a column-E figure or comment.
+- The name answers are carried inside the file, so the next copy does not ask them again — unless the
+  roster now says otherwise: "not in the app" for somebody it now holds, or a name it now gives to
+  somebody else, is asked again. Every other answer (a duplicate row, a January date, a comment read
+  by hand) is asked again on every copy, because rows move between copies.
 
 **The file names colleagues against their leave**, so it is kept outside the repository and never
 committed: the script will not write it inside any checkout, `.gitignore` keeps a copy dropped into the

@@ -456,8 +456,13 @@ leave sheet checks against the app (`docs/AL_UPLOADER_PLAN.md`; the usage line i
 header). Its rules, in short:
 
 - It **asks** about anything it cannot settle mechanically, such as a name, a duplicate row or a
-  January date, and writes nothing until it has the answers.
-- It **refuses** a workbook that is not shaped the way this file describes.
+  January date, and writes nothing until it has the answers. Since 15 Nov 2026 it also asks about a
+  comment date in a shape it does not read (`24 Dec`, `Christmas Eve`, a half day), dates beside a blank
+  count that have words with them (`NOT TAKEN`), and a carried name the roster now contradicts.
+- A name is matched only within its own grade block (§3), and a **one-word Sunday tag never by
+  itself**: §7 measured first names among the tags, so it is always asked, and the answer is carried.
+- It **refuses** a workbook that is not shaped the way this file describes, and a person's row whose
+  Used is blank while the row still holds a name or a column-E figure or comment.
 - Its own count must equal the sheet's cached Used on **every** row.
 - It will not write its output inside the repository.
 

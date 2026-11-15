@@ -109,7 +109,8 @@ must still persist:
 
 ### 3.5 The leave file format
 
-*Draft 2's sketch. The built format differs in three places (§12), and `al-leave-file.js` is its authority.*
+*Draft 2's sketch. The built format differs in three places (§12), and `al-leave-file.js` is its authority.
+Since 15 Nov 2026 the seal is worked out over every string in Unicode NFC (§12, Stage 1's second review).*
 
 One JSON file per upload, e.g. `leave-2026-as-of-2026-11-06.leave.json`. With invented people:
 
@@ -191,7 +192,8 @@ Pages mirror serves every committed file.
 - **The script never writes inside the repository.** Its output goes to the session's scratch
   space, then to you.
 - **`.gitignore`** gains `*.leave.json` and `*.local.json`, each with a guard test. A test also
-  fails if any tracked file contains `"format": "myb-annual-leave"`.
+  fails if any tracked file contains `"format": "myb-annual-leave"`. *Built wider (§12): case-blind
+  rules for every name a copy is given, and the commit hook refuses a staged leave file by content.*
 - **Tests use invented people and invented dates.** The synthetic workbook is built when the tests
   run (`.xlsx` is ignored), and its figures are invented too. Real joiner dates would identify a real
   joiner, because `roster-member-data.js` already quotes one. The card's tests pass the reader an
@@ -545,7 +547,7 @@ each now asks, refuses, or reads correctly, with a test that failed before the f
   carrying a second date. Both need the workbook to change, so neither can be answered.
 - **Reads correctly:** a full stop makes a date only between two-digit parts (`1.5 DAYS` was 1 May);
   Excel's legacy copy of a thread is split back into its entries; a one-word Sunday tag is matched only
-  within its own grade block.
+  within its own grade block (since the second review, never by itself: it may be a first name).
 - **The reader** refuses malformed XML where it stands (an unclosed comment rescanned the part
   quadratically), duplicate zip entries, and an entry that inflates past its cap.
 - **The command line** refuses an output inside ANY git checkout or worktree, a path with `..`, a day
@@ -665,6 +667,39 @@ allowance is next year's sheet's, and no reason to look; a person whose only lea
 days is never said to have none; a figure below zero reads "1 over limit", never "-1"; and a person
 listed on two rows is told when the other row carries a different number of days forward. Nine
 mutations, each caught.
+
+**Stage 1 after its second review** (15 Nov 2026). Each of these made a file with exit 0 and a day lost
+or misfiled, or stopped the file with nothing a person could answer; each now reads, asks or notes, with
+a test that failed before the fix (invented people only):
+
+- **Every totals row is looked at**, not only those with a Used. A row whose Used is blank but which
+  still holds a name, a column-E figure or a column-E comment stops the file; a grade and nothing else
+  is one of the sheet's empty placeholders, left out with a note.
+- **A carried name is checked, never just believed.** A carried "not in the app" whose spelling now
+  matches a member (a trainee added since), or a carried name the match now gives to somebody else, is
+  asked again; an unchanged roster still asks nothing.
+- **A name is matched only within its own grade block** — rows, grid cells and tags — and a one-word
+  Sunday tag never by itself. A stale cross-grade row settles by rule only when it loses no column-E
+  date the live row lacks.
+- **Asked, where the method used to guess:** dates beside a blank count that have words with them
+  (`NOT TAKEN`; `A/L`, `AL` and `A.L.` are the whitelist); a date in a shape the method does not read
+  (`24 Dec`, `Christmas Eve`, the 24th, a half day); "start" in a phrase about leave; a date no leave can
+  be on; a commented row that counts nobody. An answer the question does not allow is asked again.
+- **Left out with a note, where it used to stop the file:** column E of somebody whose leave is not
+  imported, and an uncounted name on a Sunday or a closed day.
+- **Privacy:** `.gitignore` ignores a leave or answers file in every name a copy is given, either case
+  (`x.Leave.json`, `x.leave (1).json`, `x.leave.json.txt`, `answers.json`); the commit hook refuses a
+  staged file that IS a leave file, whatever its name, reading the format out of `al-leave-file.js` as
+  staged; and an output with another name (a hard link) is refused.
+- **The two stages agree on one file:** the seal is worked out over NFC (a file sealed before still
+  verifies), `readLeaveFile` drops a byte-order mark, the validator checks a person's grade against
+  their used row, and the clerks' save time with a UTC offset is converted, not relabelled.
+
+Measured on the 6 Nov copy: re-made with `--previous` and the same answers, the file is identical bar
+`made` and its seal, and the day list byte for byte; the new notes name four empty placeholder rows and
+three rows whose column E is no longer read because their leave is not imported. 51 of 52 mutations
+were caught; the 52nd, the one-word tag's early return, is backed by the initial-letter comparison, and
+breaking both fails a test.
 
 # Part 2 — The review of draft 1
 
