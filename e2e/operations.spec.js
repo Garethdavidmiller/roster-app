@@ -15,7 +15,7 @@ import { describeRefusal } from '../al-leave-file.js';
 import { manualOverrideId } from '../override-id.js';
 import { dayLabel, appWords, chipsFor, totalsLines, totalsEntries, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
     moreDaysWords, notComparedWords, beyondHeadWords, SAVE_WORDS, questionWords, confirmWords, saveButtonWords, receiptWords,
-    refusalWords, undoConfirmWords, undoneWords, savingWords } from '../al-leave-words.js';
+    refusalWords, undoConfirmWords, undoneWords, savingWords, leftFreeWords } from '../al-leave-words.js';
 import { LEAVE_FILE_MAX_AGE_DAYS, LEAVE_FILE_MAX_BYTES } from '../al-leave-file.js';
 import { writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,8 +37,8 @@ test('operations: shows the in-place login when not signed in', async ({ page })
 // Operations imported admin-overrides.js for one function, loadOverrides, which returns at once on this
 // page (it has no member picker and no Saved Changes list) — and the import brought a dozen of Admin's
 // modules with it. The roster import's re-read is an explicit no-op here now, and none of them loads.
-// The Annual leave sheet's Save writes through Admin's own checked commit, and loads the store with
-// its first Save or Undo (al-leave-save.js → adminStore), so a page that only checks loads none of it.
+// The Annual leave sheet's Save writes through Admin's own checked commit, and loads the store only once
+// a check offers a Save (al-leave-save.js → preloadSaveStore), so a page load loads none of it.
 test('operations: the page loads none of Admin\'s saved-changes modules', async ({ page }) => {
     const loaded = [];
     page.on('request', r => { const m = /\/(admin-[a-z-]+)\.js(?:\?|$)/.exec(r.url()); if (m) loaded.push(m[1]); });
@@ -4491,8 +4491,10 @@ const chooseLeaveFile = (page, text) => page.locator('#alSheetFileInput')
 /** Every member the card asked for by name, in order. @param {import('@playwright/test').Page} page */
 const memberReads = page => page.evaluate(() => (/** @type {any} */ (window).__E2E?.whereCalls || [])
     .filter((/** @type {any[]} */ w) => w[0] === 'memberName').map((/** @type {any[]} */ w) => w[2]));
-/** What the page would answer the worker's "busy?" — an update's reload waits while it is true. */
-const alSheetBusy = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => new Promise(resolve => {
+/** What the page answers the worker's "busy?" when a notification is tapped (sw-register.js →
+ *  answerNotificationTaps): while true the tap does not take the page away. The update reload's own hold
+ *  is a different question, `alSheetCardBusy` below. */
+const tapIsHeld = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => new Promise(resolve => {
     const ch = new MessageChannel();
     ch.port1.onmessage = (e) => resolve(e.data?.busy);
     navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
@@ -4624,9 +4626,10 @@ const alSheetCardBusy = (/** @type {import('@playwright/test').Page} */ page) =>
     page.evaluate(async () => (await import('/operations-al-sheet.js')).alSheetBusy());
 
 test('operations annual leave sheet: an update waits while a check runs or its answer is on screen — a notification tap does not', async ({ page }) => {
-    // The update reload asks _opsBusy OR the card (operations-app.js); a tap asks _opsBusy alone, because
-    // it is the reader's own choice and a check saves nothing ("unsaved changes or a save still on its
-    // way" was untrue, review 14 Nov 2026). page-contract-parity.test.mjs pins the wiring itself.
+    // The update reload asks _opsBusy OR the card (operations-app.js); a tap asks _opsBusy and the card's
+    // UNSAVED answers only, because it is the reader's own choice and a check saves nothing ("unsaved
+    // changes or a save still on its way" was untrue, review 14 Nov 2026). page-contract-parity.test.mjs
+    // pins the wiring itself.
     const fx = await alSheetFixture();
     await openAlSheet(page, fx.records);
     expect(await alSheetCardBusy(page), 'nothing checked yet').toBe(false);
@@ -4635,11 +4638,11 @@ test('operations annual leave sheet: an update waits while a check runs or its a
     await page.locator('#alSheetCheckBtn').click();
     await expect(page.locator('#alSheetFeedback')).toHaveText(CARD_WORDS.checking);
     expect(await alSheetCardBusy(page), 'reading the records — a reload now loses the check').toBe(true);
-    expect(await alSheetBusy(page), 'a tap is not held by a check that only reads').toBe(false);
+    expect(await tapIsHeld(page), 'a tap is not held by a check that only reads').toBe(false);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
     await expect(page.locator('#alSheetResult')).toBeVisible();
     expect(await alSheetCardBusy(page), 'forty people’s differences on screen — a reload takes them away unsaid').toBe(true);
-    expect(await alSheetBusy(page), 'nor by its answer on screen').toBe(false);
+    expect(await tapIsHeld(page), 'nor by its answer on screen').toBe(false);
     await page.locator('#alSheetClearBtn').click();
     expect(await alSheetCardBusy(page), 'cleared, so an update need wait no longer').toBe(false);
 });
@@ -4907,14 +4910,14 @@ test('operations annual leave sheet: the Save adds a confirmed person’s missin
     await expect(group.getByRole('radio', { checked: true })).toHaveCount(0);
     await expect(a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 1, swap: 0 }) })).toBeVisible();
     await expect(a.locator('.al-sheet-save-person .al-sheet-explain').first()).toContainText('still to answer');
-    expect(await alSheetBusy(page), 'nothing answered yet: a notification tap goes straight through').toBe(false);
+    expect(await tapIsHeld(page), 'nothing answered yet: a notification tap goes straight through').toBe(false);
     const confirmOne = a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 1, swap: 0 }) });
     await confirmOne.check();
-    expect(await alSheetBusy(page), 'a person confirmed and not saved: a tap asks first').toBe(true);
+    expect(await tapIsHeld(page), 'a person confirmed and not saved: a tap asks first').toBe(true);
     await confirmOne.uncheck();
-    expect(await alSheetBusy(page), 'unticked again, nothing is unsaved').toBe(false);
+    expect(await tapIsHeld(page), 'unticked again, nothing is unsaved').toBe(false);
     await group.getByRole('radio', { name: SAVE_WORDS.swapped }).check();
-    expect(await alSheetBusy(page), 'an answer not yet saved: a notification tap asks first').toBe(true);
+    expect(await tapIsHeld(page), 'an answer not yet saved: a notification tap asks first').toBe(true);
     await a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }).check();
     await expect(a.locator('.al-sheet-after')).toContainText('After this Save — ');
     await expect(save).toHaveText(saveButtonWords({ days: 2, people: 1 }));
@@ -4942,10 +4945,11 @@ test('operations annual leave sheet: the Save adds a confirmed person’s missin
     // The fresh check: A's two days are in line, nothing is left to save, and the Save can be undone.
     await expect(page.locator('#alSheetSaveBtn'), 'the same file again has nothing to save').toHaveCount(0);
     await expect(page.locator('.al-sheet-last')).toContainText('adding 2 days of leave');
-    expect(await alSheetBusy(page), 'saved: nothing unsaved holds a tap').toBe(false);
-    const pruned = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchDeletes || []);
-    expect(pruned, 'a log from before last year is cleared').toContain('alUploads/log-too-old');
-    expect(pruned, 'last year’s is kept: a January check of last year’s sheet still needs it').not.toContain('alUploads/log-last-year');
+    expect(await tapIsHeld(page), 'saved: nothing unsaved holds a tap').toBe(false);
+    // Housekeeping, off the Save's path (it never holds the receipt — its own test is below).
+    const pruned = () => page.evaluate(() => /** @type {any} */ (window).__E2E.batchDeletes || []);
+    await expect.poll(pruned, 'a log from before last year is cleared').toContain('alUploads/log-too-old');
+    expect(await pruned(), 'last year’s is kept: a January check of last year’s sheet still needs it').not.toContain('alUploads/log-last-year');
 
     // Undo asks first, and a Cancel removes nothing.
     await page.locator('.al-sheet-undo').click();
@@ -4988,16 +4992,28 @@ test('operations annual leave sheet: a day a colleague saves after the check is 
     await expect(a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 1, swap: 0 }) })).not.toBeChecked();
 });
 
-test('operations annual leave sheet: offline, the Save writes nothing and says so', async ({ page, context }) => {
+test('operations annual leave sheet: offline, the Save writes nothing, says so, and keeps every answer and tick', async ({ page, context }) => {
+    // Offline, a read is answered from this device's cache, which the card refuses — so the fresh check
+    // after a Save that sent nothing could only take the review off the screen, and every answer with it
+    // (review, 14 Nov 2026). Nothing was sent, so nothing has changed: the review stays as it is.
     const fx = await alSheetFixture();
     await openAlSheet(page, fx.records, { writesLand: true });
-    await confirmA(page, fx);
+    const a = await confirmA(page, fx);
     await context.setOffline(true);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
     await page.locator('#alSheetSaveBtn').click();
-    await expect(page.locator('#alSheetFeedback')).toContainText(SAVE_WORDS.offlineNow);
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.offlineNow);
     expect(await writtenTo(page, 'overrides')).toEqual([]);
     expect(await writtenTo(page, 'alUploads')).toEqual([]);
+    await expect(page.locator('#alSheetResult'), 'the review stays on screen').toBeVisible();
+    await expect(a.getByRole('radiogroup', { name: questionWords(fx.dates.restDay) }).getByRole('radio', { name: SAVE_WORDS.swapped }),
+        'the answer stays').toBeChecked();
+    await expect(a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }), 'and the tick').toBeChecked();
     await context.setOffline(false);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = false; });
+    await page.locator('#alSheetSaveBtn').click();
+    await expect(feedback, 'back online, the same Save goes through').toContainText(receiptWords({ days: 2, people: 1, refused: new Map() })[0]);
 });
 
 test('operations annual leave sheet: while a Save or an Undo is on its way the card is locked, and an update and a notification tap both wait', async ({ page }) => {
@@ -5017,7 +5033,7 @@ test('operations annual leave sheet: while a Save or an Undo is on its way the c
         for (const id of ['#alSheetCheckBtn', '#alSheetClearBtn', '#alSheetFileInput', '#alSheetPaste']) await expect(page.locator(id), why).toBeDisabled();
         expect(await result.evaluate(n => /** @type {HTMLElement} */ (n).inert), `${why}: the result cannot be used`).toBe(true);
         expect(await alSheetCardBusy(page), `${why}: an update waits`).toBe(true);
-        expect(await alSheetBusy(page), `${why}: a notification tap waits`).toBe(true);
+        expect(await tapIsHeld(page), `${why}: a notification tap waits`).toBe(true);
         expect(await saveWorking(), `${why}: the Save's own flag`).toBe(true);
     };
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = true; });
@@ -5028,7 +5044,7 @@ test('operations annual leave sheet: while a Save or an Undo is on its way the c
     await expect(feedback).toContainText(SAVE_WORDS.recorded);
     expect(await result.evaluate(n => /** @type {HTMLElement} */ (n).inert), 'unlocked once the fresh check has drawn').toBe(false);
     await expect(page.locator('#alSheetClearBtn')).toBeEnabled();
-    expect(await alSheetBusy(page), 'saved, and nothing unsaved on screen: a tap goes straight through').toBe(false);
+    expect(await tapIsHeld(page), 'saved, and nothing unsaved on screen: a tap goes straight through').toBe(false);
     expect(await saveWorking(), 'the Save has finished').toBe(false);
 
     // The Undo is held at its first READ, before anything is sent: no write is in flight to hold the tap
@@ -5040,7 +5056,7 @@ test('operations annual leave sheet: while a Save or an Undo is on its way the c
     await lockedNow('an Undo on its way');
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
     await expect(feedback).toContainText(undoneWords({ removed: [fx.dates.missing, fx.dates.restDay].map(d => `${fx.A.name}|${d}`).sort(), kept: [], gone: [] })[0]);
-    expect(await alSheetBusy(page), 'undone: a tap goes straight through').toBe(false);
+    expect(await tapIsHeld(page), 'undone: a tap goes straight through').toBe(false);
     expect(await saveWorking(), 'the Undo has finished').toBe(false);
 });
 
@@ -5160,7 +5176,10 @@ test('operations annual leave sheet: a fault after the Save’s writes still unl
     await expect(feedback).not.toContainText(savingWords(2, 2));
     await expect(feedback).toHaveClass(/huddle-feedback--err/);
     for (const id of ['#alSheetCheckBtn', '#alSheetFileInput', '#alSheetPaste']) await expect(page.locator(id), 'unlocked').toBeEnabled();
-    expect(await alSheetBusy(page), 'nothing running and nothing unsaved: a tap goes straight through').toBe(false);
+    expect(await page.evaluate(async () => (await import('/operations-al-save.js')).alSaveWorking()), 'nothing is running').toBe(false);
+    // What landed is unknown until a check reads it, so the tick and the answer wait for that check —
+    // and a tap asks first, rather than taking them away (operations-al-save.js → the memory).
+    expect(await tapIsHeld(page), 'the answers wait for the next check').toBe(true);
     expect(await writtenTo(page, 'alUploads'), 'never recorded').toEqual([]);
 });
 
@@ -5203,7 +5222,7 @@ test('operations annual leave sheet: unsaved answers ask before Clear, and befor
     expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'a declined sign-out keeps the session').not.toBeNull();
     const a = personRow(page, fx.A.name);
     await expect(a.getByRole('radiogroup', { name: questionWords(fx.dates.restDay) }).getByRole('radio', { name: SAVE_WORDS.swapped })).toBeChecked();
-    // Unticked and unanswered, there is nothing left to lose.
+    // Unticked, the "Swapped — counts" answer is still something a Save would write.
     await a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }).uncheck();
     expect(await armed(), 'an answer is still on screen').toBe(true);
     // Clear, answered "Clear", takes the answers with it: nothing is left to warn about.
@@ -5211,5 +5230,329 @@ test('operations annual leave sheet: unsaved answers ask before Clear, and befor
     await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
     await expect(page.locator('#alSheetResult')).toBeHidden();
     expect(await armed(), 'cleared: the leave-page warning stands down').toBe(false);
-    expect(await alSheetBusy(page), 'and a tap goes straight through').toBe(false);
+    expect(await tapIsHeld(page), 'and a tap goes straight through').toBe(false);
+});
+
+// ── THE SAVE'S REVIEW FIXES (15 Nov 2026) ───────────────────────────────────────────────────────────
+// Each test below failed against the Save as first built (v26.13 before its review), for the reason it
+// names; every name and date comes from al-sheet-fixture.js, by rule.
+
+test('operations annual leave sheet: Check again, a new copy of the file and the paste box keep every answer, and a tick whose Save is unchanged', async ({ page }) => {
+    // The receipts say "Check again", and a check that fails offline takes the review off the screen. The
+    // answers are the admin's, so they outlive any new check of the days it still asks about; a tick
+    // outlives one whose box would say exactly the same (operations-al-save.js → the memory).
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx);
+    const feedback = page.locator('#alSheetFeedback');
+    /** @param {string} why */
+    const kept = async (why) => {
+        const a = personRow(page, fx.A.name);
+        if (!(await a.locator('.al-sheet-person-body').isVisible())) await a.locator('.al-sheet-person-head').click();
+        await expect(a.getByRole('radiogroup', { name: questionWords(fx.dates.restDay) }).getByRole('radio', { name: SAVE_WORDS.swapped }), why).toBeChecked();
+        await expect(a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }), why).toBeChecked();
+        await expect(page.locator('#alSheetSaveBtn'), why).toHaveText(saveButtonWords({ days: 2, people: 1 }));
+    };
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(feedback).toHaveText(checkedWords(2));
+    await kept('Check again');
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(feedback).toHaveText(checkedWords(2));
+    await kept('the same file chosen again');
+    await page.locator('#alSheetPaste').fill(fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(feedback).toHaveText(checkedWords(2));
+    await kept('the file pasted');
+    // A check that cannot read takes the review off the screen, and the answers wait for the next one.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(feedback).toContainText(CARD_WORDS.offline);
+    await expect(page.locator('#alSheetResult')).toBeHidden();
+    expect(await tapIsHeld(page), 'answers off the screen are still unsaved: a tap asks first').toBe(true);
+    expect(await alSheetCardBusy(page), 'and an update waits for them: its reload would take them away').toBe(true);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = false; });
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(feedback).toHaveText(checkedWords(2));
+    await kept('after a check that could not read');
+});
+
+test('operations annual leave sheet: the header logo asks before leaving unsaved answers, as the drawer does', async ({ page }) => {
+    // A phone never shows the browser's own question, and the logo was the one way off the page that did
+    // not ask (page-session.js → leaveAfterAsking). "Leave" must not meet that question a second time.
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    const a = await confirmA(page, fx);
+    await page.locator('#appIcon').click();
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText('You have unsaved changes. Leave this page anyway?');
+    await page.locator('.lb-overlay.open .dialog-btn-cancel').click();
+    await expect(page).toHaveURL(/operations\.html/);
+    await expect(a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }), 'Cancel keeps the review').toBeChecked();
+    await page.locator('#appIcon').click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(page, 'Leave goes to the calendar').not.toHaveURL(/operations\.html/);
+});
+
+test('operations annual leave sheet: an Undo cut short is finished by pressing Undo again', async ({ page }) => {
+    // The log can be marked undone only once (firestore.rules → alUploads). An Undo whose deletes landed
+    // and whose mark did not left a button that removed nothing and marked nothing, for good; what it had
+    // already taken back now counts as taken back (al-leave-save.js → undoUpload).
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx);
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.recorded);
+    const added = [fx.dates.missing, fx.dates.restDay].map(d => `${fx.A.name}|${d}`).sort();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txFailOn = { col: 'alUploads', code: 'unavailable', times: 1 }; });
+    await page.locator('.al-sheet-undo').click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(feedback).toContainText(SAVE_WORDS.undoStopped);
+    const deleted = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(deleted, 'the days went').toEqual(expect.arrayContaining([fx.dates.missing, fx.dates.restDay].map(d => `overrides/${manualOverrideId(fx.A.name, d)}`)));
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.updateWrites || []), 'the mark did not').toEqual([]);
+    await expect(page.locator('.al-sheet-undo'), 'so the Undo is still offered').toBeVisible();
+    await page.locator('.al-sheet-undo').click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(feedback).toContainText(SAVE_WORDS.undoAllGone);
+    const marks = await page.evaluate(() => /** @type {any} */ (window).__E2E.updateWrites || []);
+    expect(marks, 'marked once, now').toHaveLength(1);
+    expect(marks[0].data).toMatchObject({ undoneBy: 'G. Miller', undone: added });
+    await expect(page.locator('.al-sheet-undo'), 'finished: not offered again').toHaveCount(0);
+    await expect(page.locator('#alSheetSaveBtn'), 'and its days are offered again').toHaveText(SAVE_WORDS.confirmFirst);
+});
+
+test('operations annual leave sheet: a Save that landed nothing records nothing, and the last Save keeps its Undo', async ({ page }) => {
+    // A part that never got its answer may have landed, so the Save reads back; when the read shows nothing
+    // of it, there is nothing to record. A log with nothing added became the newest and hid the earlier
+    // Save's Undo (operations-al-save.js → record).
+    const fx = await alSheetFixture();
+    const earlier = { id: 'log-earlier', year: fx.year, fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256,
+        clerksLastSaved: fx.file.source.clerksLastSaved, lastSavedByClerk: true, savedAt: Date.now() - 3_600_000,
+        savedBy: 'G. Miller', appVersion: 'e2e', inLine: [`${fx.B.name}|${fx.dates.bMatch}`], added: [`${fx.B.name}|${fx.dates.bMatch}`] };
+    await openAlSheet(page, fx.records, { writesLand: true, docsByQuery: { overrides: fx.records, alUploads: [earlier] } });
+    await confirmA(page, fx);
+    await expect(page.locator('.al-sheet-last')).toContainText('adding 1 day of leave');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txFailOn = { col: 'overrides', code: 'unavailable', times: 1 }; });
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.lost);
+    expect(await writtenTo(page, 'overrides'), 'premise: nothing landed').toEqual([]);
+    expect(await writtenTo(page, 'alUploads'), 'nothing landed, so nothing is recorded').toEqual([]);
+    await expect(page.locator('.al-sheet-last'), 'the earlier Save keeps its Undo').toContainText('adding 1 day of leave');
+});
+
+test('operations annual leave sheet: a rest day answered "Rest day — free" is named on the receipt, and leaves nothing unsaved', async ({ page }) => {
+    // A Save may not do nothing silently (.claude/rules/admin.md), and a free answer writes nothing — so
+    // after the Save, every way off the page asked about "unsaved changes" that a Save would never make.
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx, 'free');
+    expect(await tapIsHeld(page), 'premise: a confirmed person holds a tap').toBe(true);
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(receiptWords({ days: 1, people: 1, refused: new Map() })[0]);
+    await expect(feedback).toContainText(leftFreeWords(fx.A.name, [{ date: fx.dates.restDay, held: false }]));
+    const a = personRow(page, fx.A.name);
+    await a.locator('.al-sheet-person-head').click();
+    await expect(a.getByRole('radiogroup', { name: questionWords(fx.dates.restDay) })
+        .getByRole('radio', { name: SAVE_WORDS.free }), 'the answer is still shown').toBeChecked();
+    expect(await tapIsHeld(page), 'a free answer writes nothing, so nothing is left unsaved').toBe(false);
+    const armed = await page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+    expect(armed, 'and leaving asks nothing').toBe(false);
+});
+
+test('operations annual leave sheet: leave the admin books by hand after the check is not counted as the Save’s, nor recorded for its Undo', async ({ page }) => {
+    // The read after the Save says what landed (al-leave-plan.js → landedWrites), and a record at a day's
+    // fixed id that the admin wrote looks like the Save's own. A day the Save was refused on never is.
+    const fx = await alSheetFixture({ bMissing: true });
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx);
+    const b = personRow(page, fx.B.name);
+    await b.locator('.al-sheet-person-head').click();
+    await b.getByRole('checkbox', { name: confirmWords({ name: fx.B.name, add: 1, swap: 0 }) }).check();
+    await page.evaluate(([id, rec]) => { /** @type {any} */ (window).__E2E.docsByQuery.overrides.push({ id, ...rec }); },
+        [manualOverrideId(fx.A.name, fx.dates.missing), { memberName: fx.A.name, date: fx.dates.missing, type: 'annual_leave',
+            value: 'AL', note: '', source: 'manual', changedBy: 'G. Miller', createdAt: Date.now() }]);
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(receiptWords({ days: 1, people: 1, refused: new Map() })[0]);
+    await expect(feedback).toContainText(receiptWords({ days: 0, people: 0, refused: new Map([[fx.A.name, [fx.dates.missing]]]) })[0]);
+    const logs = await writtenTo(page, 'alUploads');
+    expect(logs).toHaveLength(1);
+    expect(logs[0].data.added, 'only what the Save wrote').toEqual([`${fx.B.name}|${fx.dates.bMissing}`]);
+});
+
+test('operations annual leave sheet: days the admin booked by hand exactly as the Save would are not taken for the Save’s own', async ({ page }) => {
+    // The checked commit recognises its OWN write after a lost answer (admin-override-store.js →
+    // alreadyDone). On a first attempt nothing of the Save's can be there yet, so an identical record is
+    // somebody's, and is refused like any other change.
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx);
+    /** @param {string} date @param {Record<string, any>} [extra] */
+    const own = (date, extra = {}) => [manualOverrideId(fx.A.name, date), { memberName: fx.A.name, date, type: 'annual_leave',
+        value: 'AL', note: '', source: 'manual', changedBy: 'G. Miller', createdAt: Date.now(), ...extra }];
+    await page.evaluate((rows) => { for (const [id, rec] of rows) /** @type {any} */ (window).__E2E.docsByQuery.overrides.push({ id, ...rec }); },
+        [own(fx.dates.missing), own(fx.dates.restDay, { replacedType: 'shift' })]);
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(receiptWords({ days: 0, people: 0,
+        refused: new Map([[fx.A.name, [fx.dates.missing, fx.dates.restDay].sort()]]) })[0]);
+    expect(await writtenTo(page, 'alUploads'), 'nothing of the Save landed, so nothing is recorded').toEqual([]);
+});
+
+test('operations annual leave sheet: a Save whose record could not be written is recorded by the next check of the same file', async ({ page }) => {
+    // Only a failed READ after the Save was finished later; a failed WRITE of the record was lost for good,
+    // and with it the Undo and the protection against leave cancelled since.
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txFailOn = { col: 'alUploads', code: 'unavailable', times: 1 }; });
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.notRecordedYet);
+    expect(await writtenTo(page, 'alUploads')).toEqual([]);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(feedback).toContainText(SAVE_WORDS.nowRecorded);
+    const logs = await writtenTo(page, 'alUploads');
+    expect(logs).toHaveLength(1);
+    expect(logs[0].data.added).toEqual([fx.dates.missing, fx.dates.restDay].map(d => `${fx.A.name}|${d}`).sort());
+    await expect(page.locator('.al-sheet-undo')).toBeVisible();
+});
+
+test('operations annual leave sheet: when the record of Saves cannot be read after a Save, the receipt promises no Undo it cannot show', async ({ page }) => {
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocsByQuery = { alUploads: true }; });
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.recordedUndoLater);
+    await expect(feedback).not.toContainText(SAVE_WORDS.recorded);
+    await expect(page.locator('.al-sheet-undo')).toHaveCount(0);
+});
+
+test('operations annual leave sheet: a Save that cannot load what it writes with says it never started, and keeps the review', async ({ page }) => {
+    // The store loads with the Save (al-leave-save.js → adminStore). When it cannot — offline after an
+    // update, say — nothing has been sent, and "stopped part way" would send the admin looking for a part.
+    const fx = await alSheetFixture();
+    await page.route('**/admin-override-store.js', route => route.abort('failed'));
+    await openAlSheet(page, fx.records, { writesLand: true });
+    const a = await confirmA(page, fx);
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.notStarted);
+    expect(await writtenTo(page, 'overrides')).toEqual([]);
+    await expect(a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }), 'the review stays').toBeChecked();
+});
+
+test('operations annual leave sheet: a person whose only leave is undated over-quota days is never said to have none', async ({ page }) => {
+    // "No days on the sheet" sat under "The sheet deducts 2 more days over quota with no date" — both
+    // about the same person, and the first untrue (review, 15 Nov 2026).
+    const fx = await alSheetFixture({ bUndatedOnly: 2 });
+    await openAlSheet(page, fx.records);
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+    const b = personRow(page, fx.B.name);
+    await b.locator('.al-sheet-person-head').click();
+    await expect(b).toContainText('2 more days over quota with no date');
+    await expect(b.getByText(CARD_WORDS.noDays)).toHaveCount(0);
+});
+
+test('operations annual leave sheet: an Undo that cannot load what it writes with says it never started', async ({ page }) => {
+    // The Undo deletes through the same checked commit. Nothing was sent, so "stopped part way" would be
+    // untrue, and pressing again would only meet the same failure until the page is reloaded.
+    const fx = await alSheetFixture();
+    const earlier = { id: 'log-earlier', year: fx.year, fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256,
+        clerksLastSaved: fx.file.source.clerksLastSaved, lastSavedByClerk: true, savedAt: Date.now() - 3_600_000,
+        savedBy: 'G. Miller', appVersion: 'e2e', inLine: [`${fx.B.name}|${fx.dates.bMatch}`], added: [`${fx.B.name}|${fx.dates.bMatch}`] };
+    await page.route('**/admin-override-store.js', route => route.abort('failed'));
+    await openAlSheet(page, fx.records, { writesLand: true, docsByQuery: { overrides: fx.records, alUploads: [earlier] } });
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('.al-sheet-undo')).toBeVisible();
+    const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E.docReads || 0);
+    const before = await reads();
+    await page.locator('.al-sheet-undo').click();
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(page.locator('#alSheetFeedback')).toContainText(SAVE_WORDS.undoNotStarted);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []), 'nothing was taken back').toEqual([]);
+    // Nothing was sent, so nothing is checked again: the Undo's own read of the one person it names, and no more.
+    expect(await reads(), 'no fresh check after an Undo that sent nothing').toBe(before + 1);
+    await expect(page.locator('.al-sheet-undo'), 'its review, and its Undo, stay').toBeVisible();
+});
+
+test('operations annual leave sheet: an Undo that cannot read the records takes nothing back, says so, and keeps its review', async ({ page, context }) => {
+    // The Undo reads the app's records before it removes anything (operations-al-save.js → runUndo). When
+    // that read fails nothing was sent, so "stopped part way" was untrue — and offline, the check after it
+    // could only be refused, taking the review and the Undo it pointed at off the screen.
+    const fx = await alSheetFixture();
+    await openAlSheet(page, fx.records, { writesLand: true });
+    await confirmA(page, fx);
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.recorded);
+    const undo = async () => {
+        await page.locator('.al-sheet-undo').click();
+        await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    };
+    const deleted = () => page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocsByQuery = { overrides: true }; });
+    await undo();
+    await expect(feedback).toContainText(SAVE_WORDS.undoUnread);
+    await expect(feedback).not.toContainText(SAVE_WORDS.undoStopped);
+    expect(await deleted(), 'nothing was taken back').toEqual([]);
+    await expect(page.locator('.al-sheet-undo'), 'the Undo is still there to press').toBeVisible();
+    await expect(page.locator('.al-sheet-undo')).toBeEnabled();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocsByQuery = null; });
+
+    await context.setOffline(true);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await undo();
+    await expect(feedback).toContainText(SAVE_WORDS.undoOffline);
+    expect(await deleted(), 'offline, nothing was taken back').toEqual([]);
+    await expect(page.locator('#alSheetResult'), 'the review stays on screen').toBeVisible();
+    await expect(page.locator('.al-sheet-undo'), 'and its Undo').toBeVisible();
+
+    await context.setOffline(false);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = false; });
+    await undo();
+    const added = [fx.dates.missing, fx.dates.restDay].map(d => `${fx.A.name}|${d}`).sort();
+    await expect(feedback, 'back online, the same Undo goes through').toContainText(undoneWords({ removed: added, kept: [], gone: [] })[0]);
+});
+
+test('operations annual leave sheet: what the Save writes with is loaded when a Save is offered, not when it is pressed', async ({ page }) => {
+    // Loaded with the review, from the release this page came from: an update that arrives before the
+    // press cannot hand the Save a newer store than its page (al-leave-save.js → preloadSaveStore).
+    const fx = await alSheetFixture();
+    const loaded = [];
+    page.on('request', r => { if (/\/admin-override-store\.js(?:\?|$)/.test(r.url())) loaded.push(r.url()); });
+    await openAlSheet(page, fx.records, { writesLand: true });
+    expect(loaded, 'the page alone loads none of it').toEqual([]);
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetSaveBtn')).toBeVisible();
+    await expect.poll(() => loaded.length, 'a check that offers a Save loads it, before anything is pressed').toBeGreaterThan(0);
+});
+
+test('operations annual leave sheet: clearing out old records never holds the Save', async ({ page }) => {
+    // Housekeeping (al-leave-save.js → pruneUploadLogs) deletes in a batch, and a batch with no answer
+    // waits for the connection. Awaited inside the Save, it kept the card locked on "Saving…".
+    const fx = await alSheetFixture();
+    const old = { id: 'log-too-old', year: new Date().getFullYear() - 2, fileDigest: `sha256:${'a'.repeat(64)}`, workbookSha256: 'a'.repeat(64),
+        clerksLastSaved: '2000-01-03T09:00:00Z', lastSavedByClerk: true, savedAt: Date.now() - 800 * 86_400_000,
+        savedBy: 'G. Miller', appVersion: 'e2e', inLine: [], added: [] };
+    await openAlSheet(page, fx.records, { writesLand: true, docsByQuery: { overrides: fx.records, alUploads: [old] } });
+    await confirmA(page, fx);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.holdBatchCommits = true; });
+    await page.locator('#alSheetSaveBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toContainText(SAVE_WORDS.recorded);
+    await expect(page.locator('#alSheetClearBtn'), 'the card is unlocked while the clearing waits').toBeEnabled();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.batchDeletes || []), 'premise: the clearing is under way')
+        .toContain('alUploads/log-too-old');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits?.());
 });

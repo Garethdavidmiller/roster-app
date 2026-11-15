@@ -72,7 +72,8 @@ const _landWrite = (/** @type {any} */ path, /** @type {any} */ data, /** @type 
   if (at >= 0) rows[at] = row; else rows.push(row);
 };
 const _matches = (/** @type {any} */ row, /** @type {any[]} */ wheres) => wheres.every(w => (w.op === '==' ? row[w.field] === w.value
-  : w.op === '<' ? row[w.field] < w.value : true));
+  : w.op === '<' ? row[w.field] < w.value
+  : w.op === 'in' ? Array.isArray(w.value) && w.value.includes(row[w.field]) : true));
 // where() RECORDS its constraint (v21.38), like writeBatch records its writes and doc captures its
 // path. The staged Admin load's whole claim is about WHICH query runs — one member versus the
 // collection — and that is invisible from the rendered DOM: both produce a correct-looking table.
@@ -123,9 +124,12 @@ export const writeBatch = () => {
         // test calls window.__E2E.releaseCommits() — the way a real commit waits on a weak signal
         // for the server's answer. That wait is what slow-save.js explains, and without a way to
         // make it happen here the notice could only be tested as a unit, never as wired.
+        // window.__E2E.holdBatchCommits holds a BATCH's commit alone, transactions going through (15 Nov
+        // 2026): the leave sheet's housekeeping deletes in a batch after its Save's transactions, and only
+        // a hold on that batch can show the Save is not waiting for it. No backticks: inside FIREBASE_STUB.
         commit: () => {
             const land = () => { for (const [p, d, m] of landing.splice(0)) _landWrite(p, d, m); };
-            if (!e2e.holdCommits) { land(); return Promise.resolve(); }
+            if (!e2e.holdCommits && !e2e.holdBatchCommits) { land(); return Promise.resolve(); }
             return new Promise(resolve => {
                 (e2e._held = e2e._held || []).push(resolve);
                 e2e.releaseCommits = () => { const h = e2e._held || []; e2e._held = []; h.forEach(r => r()); };
@@ -164,8 +168,20 @@ export const runTransaction = (_db, fn) => {
     return rows.find(r => r.id === id) || null;
   };
   const ts = (v) => (typeof v === 'number' && v >= 1e12 ? { toDate: () => new Date(v), toMillis: () => v } : v);
+  // window.__E2E.txFailOn = { col, code, times } makes the next 'times' transactions that touch a
+  // document of collection 'col' REJECT with 'code', at that first touch and so before any of their
+  // writes land (15 Nov 2026): the leave sheet's upload log lost on its own while the leave it records
+  // went through. Every other transaction runs as before. No backticks: inside FIREBASE_STUB.
+  const failOn = (ref) => {
+    const f = e2e.txFailOn;
+    const parts = ref && ref.path ? String(ref.path).split('/') : [];
+    if (!f || !(f.times > 0) || parts[parts.length - 2] !== f.col) return;
+    f.times -= 1;
+    throw Object.assign(new Error('e2e: transaction refused'), { code: f.code || 'unavailable' });
+  };
   const tx = {
     get: (ref) => {
+      failOn(ref);
       const row = find(ref);
       return Promise.resolve({
         exists: () => !!row,
@@ -284,6 +300,12 @@ export const getDocs = (/** @type {any} */ ref) => {
   if (failByPath && ref && ref.path && failByPath[ref.path]) {
     const why = failByPath[ref.path];
     return settle(Promise.reject(new Error(typeof why === 'string' ? why : 'e2e: collection read failed')));
+  }
+  // …and a QUERY of one collection (15 Nov 2026): failGetDocsByQuery = { alUploads: true } fails the
+  // queries of that collection and serves every other read, so a page that reads two can lose one.
+  const failByQuery = e2e.failGetDocsByQuery;
+  if (failByQuery && ref && ref.queryOf && failByQuery[ref.queryOf]) {
+    return settle(Promise.reject(Object.assign(new Error('e2e: query failed'), { code: 'unavailable' })));
   }
   // Per-collection seeding (v21.04): window.__E2E.docsByPath = { linkTargetSets: [rows] } serves
   // those rows ONLY to reads of that collection, so a page reading two collections (designs AND

@@ -163,8 +163,27 @@ export function isChristmasIso(iso) {
 export function leaveFileAgeDays(file, todayStr) {
     const saved = file?.source?.clerksLastSaved;
     if (typeof saved !== 'string' || !ISO_INSTANT.test(saved) || !isRealIsoDate(todayStr)) return null;
-    const ms = Date.parse(`${todayStr}T00:00:00Z`) - Date.parse(`${saved.slice(0, 10)}T00:00:00Z`);
+    const day = londonDayOf(saved);
+    if (!day) return null;
+    const ms = Date.parse(`${todayStr}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`);
     return Math.round(ms / 86_400_000);
+}
+
+/**
+ * The LONDON calendar day an instant falls on, as 'YYYY-MM-DD', or null for one that is not an instant.
+ * The clerks' save time is stored in UTC, and its first ten characters are the UTC day: a save made at
+ * 00:30 on a summer night read as the day before (review, 15 Nov 2026). Through `Intl`, not an app
+ * module, because this one loads in Node as well as the browser (header).
+ * @param {string} iso
+ * @returns {string|null}
+ */
+export function londonDayOf(iso) {
+    const d = new Date(iso);
+    if (typeof iso !== 'string' || Number.isNaN(d.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' })
+        .formatToParts(d);
+    const get = (/** @type {string} */ type) => parts.find(p => p.type === type)?.value;
+    return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
 // ── The sums the sheet's own figures must agree with ────────────────────────────────────────────

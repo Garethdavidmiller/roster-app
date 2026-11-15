@@ -82,6 +82,13 @@ import { writesInFlight } from './slow-save.js';
 /** Set once a sign-out or a leave has been answered, so `warnOnUnload` does not ask a second time and
  *  `keepDraftWhenHidden` keeps nothing of the work the member chose to leave. */
 let _leaving = false;
+/** Set when the page reloads because the IDENTITY changed under it (`reloadIfRestoredForSomeoneElse`).
+ *  That reload must not be stoppable — "Stay" kept a page up for somebody who had signed out in another
+ *  tab (review, 15 Nov 2026) — but nobody answered a leave, so a draft is still kept (`_leaving` is not). */
+let _identityReload = false;
+
+/** What every way off a page with unsaved work asks. */
+const LEAVE_QUESTION = 'You have unsaved changes. Leave this page anyway?';
 
 /**
  * Warn before the tab closes or navigates while there is unsaved work.
@@ -89,7 +96,7 @@ let _leaving = false;
  */
 export function warnOnUnload(isDirty) {
     window.addEventListener('beforeunload', (e) => {
-        if (!_leaving && isDirty()) { e.preventDefault(); e.returnValue = ''; }
+        if (!_leaving && !_identityReload && isDirty()) { e.preventDefault(); e.returnValue = ''; }
     });
 }
 
@@ -141,7 +148,7 @@ export function askBeforeLeavingByDrawer(isDirty) {
         if (!link || !LEAVING_ZONES.some(zone => link.closest(zone)) || !leavesPage(link)) return;
         e.preventDefault();
         e.stopPropagation();
-        confirmDialog({ message: 'You have unsaved changes. Leave this page anyway?', confirmLabel: 'Leave' })
+        confirmDialog({ message: LEAVE_QUESTION, confirmLabel: 'Leave' })
             .then((ok) => {
                 if (!ok) return;
                 _leaving = true;   // answered: the unload warning must not ask a second time
@@ -149,6 +156,19 @@ export function askBeforeLeavingByDrawer(isDirty) {
                 try { link.click(); } finally { passing = false; }
             });
     }, true);
+}
+
+/**
+ * Ask before ONE control leaves the page with unsaved work, as a drawer link does — the header logo
+ * on Operations, the one way off that page that did not ask (review, 15 Nov 2026): a phone never shows
+ * the browser's own question. On "Leave" the unload warning stands aside, as it does for the drawer.
+ * @param {() => boolean} isDirty @param {() => void} go what leaving does
+ * @returns {Promise<void>}
+ */
+export async function leaveAfterAsking(isDirty, go) {
+    if (isDirty() && !(await confirmDialog({ message: LEAVE_QUESTION, confirmLabel: 'Leave' }))) return;
+    _leaving = true;
+    go();
 }
 
 /**
@@ -258,7 +278,7 @@ export function reloadIfRestoredForSomeoneElse() {
     window.addEventListener('pagehide', () => { leftAs = getSession()?.name ?? null; });
     window.addEventListener('pageshow', (e) => {
         const now = getSession()?.name ?? null;
-        if (e.persisted && (now !== builtFor || now !== leftAs)) window.location.reload();
+        if (e.persisted && (now !== builtFor || now !== leftAs)) { _identityReload = true; window.location.reload(); }
     });
     // ANOTHER TAB, WHILE THIS ONE IS OPEN (v24.56, auth review). The restore above covers Back; a
     // tab left open did nothing at all — sign out in one tab of a shared PC and Operations stayed
@@ -270,7 +290,7 @@ export function reloadIfRestoredForSomeoneElse() {
     // renewal for the same member changes nothing and reloads nothing.
     window.addEventListener('storage', (e) => {
         if (e.key !== AUTH_KEY) return;
-        if (sessionName(e.oldValue) !== (getSession()?.name ?? null)) window.location.reload();
+        if (sessionName(e.oldValue) !== (getSession()?.name ?? null)) { _identityReload = true; window.location.reload(); }
     });
 }
 

@@ -299,6 +299,35 @@ describe('back/forward cache', () => {
             assert.deepEqual(log, ['reload'], 'a signed-out (or PIN) tab follows a sign-in elsewhere');
         });
     });
+
+    test('a reload because the identity changed is never stopped by "Leave site?" — and still keeps the draft (review, 15 Nov 2026)', async () => {
+        // "Stay" on that question kept the page up, still drawn for a member who had signed out in
+        // another tab. Nobody answered a leave, so the work is still kept as a draft for them.
+        const fresh = await import('./page-session.js?identity-reload');
+        listeners = {}; docListeners = {};
+        const slot = { keep: () => log.push('keep'), forget: () => log.push('forget') };
+        fresh.warnOnUnload(() => true);
+        fresh.keepDraftWhenHidden(() => true, slot);
+        fresh.reloadIfRestoredForSomeoneElse();
+        const ask = () => { const e = { prevented: false, returnValue: undefined, preventDefault() { this.prevented = true; } }; fire('beforeunload', e); return e.prevented; };
+        assert.equal(ask(), true, 'the premise: unsaved work is asked about');
+        session = null;
+        fire('storage', { key: 'myb_admin_session', oldValue: JSON.stringify({ name: 'A. Member', ver: 3, expiry: 1 }), newValue: null });
+        assert.deepEqual(log, ['reload']);
+        assert.equal(ask(), false, 'the reload goes through');
+        log = [];
+        fire('pagehide');
+        assert.deepEqual(log, ['keep'], 'not a discard: the member gets their work back when they sign in again');
+
+        const restored = await import('./page-session.js?identity-restore');
+        listeners = {}; log = []; session = { name: 'A. Member' };
+        restored.warnOnUnload(() => true);
+        restored.reloadIfRestoredForSomeoneElse();
+        session = { name: 'B. Member' };
+        fire('pageshow', { persisted: true });
+        assert.deepEqual(log, ['reload']);
+        assert.equal(ask(), false, 'a page restored for somebody else reloads unasked too');
+    });
 });
 
 // ── LEAVING BY A LINK THE APP DRAWS (iPhone audit, Nov 2026) ─────────────────────────────────────
@@ -389,6 +418,34 @@ describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', (
 });
 
 // ── KEEPING UNSAVED WORK WHEN THE PAGE IS HIDDEN (iPhone audit, Nov 2026) ───────────────────────
+// ── LEAVING BY ONE CONTROL (review, 15 Nov 2026) ─────────────────────────────────────────────────
+// The Operations header logo was the one way off that page that did not ask: a phone never shows
+// the browser's own question, so a tap discarded a leave sheet's answers without a word.
+describe('leaving by one control (leaveAfterAsking) — the Operations header logo', () => {
+    const ask = () => { const e = { prevented: false, returnValue: undefined, preventDefault() { this.prevented = true; } }; fire('beforeunload', e); return e.prevented; };
+
+    test('with unsaved work it asks first: Cancel stays, Leave goes — and the browser does not ask again', async () => {
+        const fresh = await import('./page-session.js?logo');
+        listeners = {};
+        fresh.warnOnUnload(() => true);
+        confirmAnswer = false;
+        await fresh.leaveAfterAsking(() => true, () => log.push('go'));
+        assert.deepEqual(log, ['confirm'], 'Cancel: the page and its work stay');
+        assert.match(lastConfirm, /unsaved changes\. Leave this page anyway\?/, 'the drawer\'s own question');
+        assert.equal(ask(), true, 'still unsaved, still asked about');
+        log = []; confirmAnswer = true;
+        await fresh.leaveAfterAsking(() => true, () => log.push('go'));
+        assert.deepEqual(log, ['confirm', 'go']);
+        assert.equal(ask(), false, 'answered: the unload warning stands aside, as it does for the drawer');
+    });
+
+    test('with nothing unsaved it simply goes, asking nothing', async () => {
+        const fresh = await import('./page-session.js?logo-clean');
+        await fresh.leaveAfterAsking(() => false, () => log.push('go'));
+        assert.deepEqual(log, ['go']);
+    });
+});
+
 describe('keepDraftWhenHidden — the trigger for unsaved-draft.js', () => {
     const slot = { keep: () => log.push('keep'), forget: () => log.push('forget') };
 

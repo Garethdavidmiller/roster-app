@@ -20,7 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ANSWERS, LOG_MAX_DAYS, HELD_STATES, WRITE_KINDS, dayKey, parseDayKey, writableDate, questionsFor, planPerson,
-    writesFor, saveTotals, recordsAfter, judgeUploads, saveRefusal, logLists, logFields, planUndo, landedWrites } from './al-leave-plan.js';
+    writesFor, saveTotals, recordsAfter, judgeUploads, saveRefusal, logLists, logFields, planUndo, landedWrites, oldestSaveableYear } from './al-leave-plan.js';
 import { comparePerson, DAY_STATES } from './al-leave-compare.js';
 import { getBaseShift, parseISODate, isSunday, isBankHoliday } from './roster-data.js';
 import { manualOverrideId } from './override-id.js';
@@ -296,12 +296,23 @@ describe('what the logs already written say about a new file', () => {
         assert.equal(judgeUploads({ logs: [], file: file('2026-11-01T08:00:00Z') }).older, false, 'the first upload has nothing to be older than');
     });
 
-    test('only this year’s logs count, and the same leave file is recognised by its seal', () => {
-        const other = log({ year: YEAR - 1, clerksLastSaved: '2027-01-30T10:00:00Z', inLine: ['A. Example|2025-05-05'] });
+    test('only this year’s logs say which copy is newer; last year’s still protect the January they ran into', () => {
+        // Last year's sheet ran into the first days of this January (al-leave-plan.js header), so a day
+        // its Save brought into line and the app has lost since must not come back from this year's.
+        const other = log({ year: YEAR - 1, clerksLastSaved: '2027-01-30T10:00:00Z', inLine: [`A. Example|${YEAR}-01-05`] });
         const j = judgeUploads({ logs: [other, log({ fileDigest: 'sha256:' + 'c'.repeat(64) })], file: file('2026-11-06T10:00:00Z') });
-        assert.equal(j.older, false);
+        assert.equal(j.older, false, 'a later save time on last year’s log does not make this year’s copy older');
+        assert.equal(j.newest?.year, YEAR, 'nor is it this year’s newest');
         assert.equal(j.sameFile, true);
-        assert.equal(j.protectedKeys.has('A. Example|2025-05-05'), false);
+        assert.equal(j.protectedKeys.has(`A. Example|${YEAR}-01-05`), true);
+    });
+
+    test('a sheet for a year before last is a check only: its log would be cleared by the Save that wrote it', () => {
+        assert.equal(oldestSaveableYear(TODAY), Number(TODAY.slice(0, 4)) - 1);
+        const judged = judgeUploads({ logs: [], file: file('2026-11-06T10:00:00Z') });
+        const old = { ...file('2026-11-06T10:00:00Z'), year: Number(TODAY.slice(0, 4)) - 2 };
+        assert.equal(saveRefusal({ file: old, todayStr: TODAY, judged }), 'old-year');
+        assert.equal(saveRefusal({ file: { ...old, year: Number(TODAY.slice(0, 4)) - 1 }, todayStr: TODAY, judged }), null, 'last year’s may still be saved');
     });
 
     test('the protected days are every log’s days in line, less what its own undo took back', () => {
@@ -376,6 +387,23 @@ describe('the log is built from what the app holds after the Save', () => {
         assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, [stored]]]), savedBy: ADMIN }).size, 0,
             'the stored day as it was is not the rewrite');
         assert.equal(landedWrites({ plans: [q], recordsByName: new Map([[CEA.name, back]]), savedBy: ADMIN, kinds: ['add', 'add-swapped'] }).size, 0);
+    });
+
+    test('a day the Save was refused on is never its own, whatever the read finds there — the admin’s own booking by hand (review, 15 Nov 2026)', () => {
+        const days = [leave(CEA, WORK), leave(CEA, WORK2)];
+        const p = plan(compare(CEA, days), []);
+        const at = new Map(p.writes.map(w => [w.date, w]));
+        // Both days read back exactly as the Save writes them: WORK landed, and WORK2 is the admin's own
+        // booking made in Admin after the check, which the Save's check refused.
+        const read = [WORK, WORK2].map((d, i) => ({ id: manualOverrideId(CEA.name, d), ...at.get(d)?.fields, createdAt: { seconds: 5 + i } }));
+        const recordsByName = new Map([[CEA.name, read]]);
+        const exclude = new Map([[CEA.name, [WORK2]], [CES.name, [WORK]]]);
+        assert.deepEqual(landedWrites({ plans: [p], recordsByName, savedBy: ADMIN }).get(CEA.name), [WORK, WORK2], 'the premise: alike');
+        assert.deepEqual([...landedWrites({ plans: [p], recordsByName, savedBy: ADMIN, exclude })], [[CEA.name, [WORK]]],
+            'not counted as saved; another person’s refusal takes nothing of this one’s');
+        const lists = logLists({ after: [compare(CEA, days, read)], plans: [p], recordsByName, savedBy: ADMIN, exclude });
+        assert.deepEqual(lists.added, [dayKey(CEA.name, WORK)], 'so an Undo can never take the hand booking back');
+        assert.deepEqual(lists.inLine, [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2)].sort(), 'it is still in line: the app holds it as leave');
     });
 
     test('logFields carries the file’s own identity, and refuses an empty log or one too long for the rules', () => {

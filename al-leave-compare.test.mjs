@@ -400,13 +400,18 @@ describe('app-only leave: its own pass, inside the sheet’s dates only', () => 
         assert.equal(res.counts['app-only'], 3);
     });
 
-    test('next January inside the sheet: charged to this year or left on its own, it names the year it costs', () => {
+    test('next January inside the sheet: a day charged to this year is listed; one left on its own year is next year’s', () => {
         const d1 = find(CEA, `${YEAR + 1}-01-02`, timed);
         const d2 = find(CEA, `${YEAR + 1}-01-02`, timed, [d1]);
         assert.ok(d2.startsWith(`${YEAR + 1}-01-`), `the case needs January days, found ${d1}, ${d2}`);
         const res = compare(CEA, [], [AL(CEA, d1, { leaveYear: YEAR }), AL(CEA, d2)], { lastDate: `${YEAR + 1}-01-31` });
-        // "Costs nothing" was said of the second, which costs NEXT year a day (review, 14 Nov 2026).
-        assert.deepEqual(res.appOnly.map((/** @type {any} */ a) => [a.date, a.chargedTo]), [[d1, YEAR], [d2, YEAR + 1]]);
+        assert.deepEqual(res.appOnly.map((/** @type {any} */ a) => [a.date, a.chargedTo]), [[d1, YEAR]]);
+        // Left on its own year it is next year's leave, for next year's sheet: no difference here, and
+        // no reason to look — it put everybody who booked January in December under "Needs a look"
+        // (review, 15 Nov 2026).
+        const own = compare(CEA, [], [AL(CEA, d2)], { lastDate: `${YEAR + 1}-01-31` });
+        assert.deepEqual(own.appOnly, []);
+        assert.equal(own.needsALook, false);
         // And with the sheet's own last date, neither is inside it.
         assert.deepEqual(compare(CEA, [], [AL(CEA, d1, { leaveYear: YEAR })]).appOnly, []);
     });
@@ -480,6 +485,15 @@ describe('the figures are the app’s own', () => {
         assert.deepEqual(res.sheet, { allowance: 32, carriedForward: 0, used: 20, columnE: 3, remaining: 9, corrected: 8,
                                       undated: 3, joinerReduction: 0 });
         assert.equal(res.otherRows, 1);
+        assert.deepEqual(res.otherCarry, [], 'a second row with the same figures says nothing more');
+    });
+
+    test('another row carrying a different number of days forward is passed on, never resolved (review, 15 Nov 2026)', () => {
+        const person = sheetPerson(CEA, { rows: 2 });
+        person.sheetRows[1] = { ...person.sheetRows[1], why: 'duplicate-stale', printed: { ...person.sheetRows[1].printed, carriedForward: 2 } };
+        const res = compare(CEA, [], [], { person });
+        assert.deepEqual(res.otherCarry, [2]);
+        assert.equal(res.sheet?.carriedForward, 0, 'the row with their days is still the one used');
     });
 
     test('needsALook: every state that wants a look sets it on its own; agreement and a Sunday do not', () => {

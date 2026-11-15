@@ -1009,16 +1009,21 @@ not, so the card refuses to check until it can reach the server.
 
 **The answer on screen is always for the file on screen.** Choosing another file, or typing in the
 paste box, takes the old answer away; choosing the SAME file again (a corrected copy saved over the
-old one) reads it again. An app update waits while a check runs or its answer is on screen — **Clear
-the check** when you are done to let it in. A notification tap waits only for work that would be
-lost: an answer or a confirmation not yet saved, or a Save or an Undo still running.
+old one) reads it again. **Your answers are not lost with it:** Check again, a new copy and the paste
+box bring back every answer for a day the new check still asks about, and every confirmation whose
+box says exactly what it said. Only Clear forgets them, and it asks first. An app update waits while
+a check runs, while its answer is on screen, and while anything you have answered is unsaved —
+**Clear the check** when you are done to let it in. A notification tap waits only for work that
+would be lost: a confirmation or a "Swapped — counts" answer not yet saved, or a Save or an Undo
+still running.
 
 **Who is left out, and why:** leavers, managers, anybody the app has no allowance on record for, and
 anybody the app does not hold. The summary names each one with the reason **as the roster stands
 today** — somebody who could be compared now, but whose days the file does not carry, says a new
 leave file would include them. A member in the app and not on the sheet is listed too. Leave the app
 holds on a Sunday, before a member's start date, or on Christmas Day or Boxing Day is not counted as
-"only in the app": no screen shows the first two, and neither side counts the third.
+"only in the app": no screen shows the first two, and neither side counts the third. Nor is a day of
+next January that the app takes from next year's allowance: it is next year's sheet's to hold.
 
 **Step 3, the Save** (v26.13). Under each person who needs a look:
 
@@ -1029,11 +1034,16 @@ holds on a Sunday, before a member's start date, or on Christmas Day or Boxing D
   each person is confirmed on their own row.
 - **Press Save.** Each day is written as Admin's leave card writes it, at the same fixed place, and
   checked again as it is written: a day somebody has changed since the check is **refused, by name**,
-  nothing of that person is written, and your answers stay on screen. Offline, nothing is written.
+  nothing of that person is written, and your answers stay on screen. That includes a day you booked
+  by hand in Admin after the check: it is refused, not counted as the Save's, so the Save's Undo can
+  never take your own booking back. **Offline, nothing is written**, and the review stays exactly as it
+  was, so you can save once you are back online. If the page could not load what it saves with (after
+  an update, offline), the receipt says the Save **never started**: reload, check again and save.
 - **The receipt** says what was saved, read back from the server — so a Save whose answer was lost on
-  the way back is still reported, and recorded. The card then checks the file again: what was saved
-  shows as already right. If it says the Save **stopped part way**, check again and save again: what
-  landed shows as already right, so only the rest is sent.
+  the way back is still reported, and recorded. It names every rest day you answered *Rest day — free*:
+  nothing is written for those, and leave already recorded there is left as it is. The card then checks
+  the file again: what was saved shows as already right. If it says the Save **stopped part way**, check
+  again and save again: what landed shows as already right, so only the rest is sent.
 
 **What it will not do.** It never writes a day that differs any other way, a Sunday, Christmas Day or
 Boxing Day. A day the sheet has that **was removed in the app since** this sheet was last saved here is
@@ -1043,13 +1053,22 @@ here** (an older copy could put back leave cancelled since), when the record of 
 read, or when you are not signed in as yourself.
 
 **The log and the Undo.** Each Save is recorded (`alUploads`, admin only — DATA_MODEL.md): which copy
-of the sheet, who saved it, and which days it added. The card names the newest Save of the year with an
-**Undo** beside it, which takes back only the days that Save added and nobody has changed since; any
-others are kept, and named. It can be undone once.
+of the sheet, who saved it, and which days it added. A Save that landed nothing records nothing, so the
+last Save keeps its Undo. When the record cannot be written, or the records cannot be read after the
+Save, the receipt says so, and the **next check of the same file** records it. The card names the
+newest Save of the year with an **Undo** beside it, which takes back only the days that Save added and
+nobody has changed since; any others are kept, and named. It can be undone once — and an Undo that
+**stops part way** is finished by pressing Undo again: what it already took back stays taken back. An
+Undo that could not read the app's records (offline, say) took nothing back and says so, and its review
+and its Undo button stay on screen for the next press.
+Records are kept for this year's sheet and last year's (last year's ran into this January); a sheet for
+an earlier year is a check only.
 
-**Unsaved answers ask before they go.** Clear, a drawer link, signing out and closing the tab each
-ask first while an answer or a confirmation is on screen unsaved. The answers are never stored: they
-name colleagues against their leave, so they live on the page alone.
+**Unsaved answers ask before they go.** Clear, a drawer link, the header logo, signing out and closing
+the tab each ask first while a confirmation or a *Swapped — counts* answer is unsaved, on screen or
+waiting for the next check. Signing out also asks while any change is still on its way to the server,
+as it does on Admin. The answers are never stored: they name colleagues against their leave, so they
+live on the page alone.
 
 ## Staff PIN access for the Calendar
 

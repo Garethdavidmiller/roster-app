@@ -39,18 +39,23 @@
  *
  * ── AN UPDATE WAITS WHILE IT IS ON SCREEN; UNSAVED ANSWERS ASK BEFORE THE PAGE IS LEFT ─────────
  *
- * `alSheetBusy()` is true while a check, a Save or an Undo runs and while an answer is on screen, and
- * Operations holds an update's reload on it (operations-app.js): forty people's differences are a long
- * read, and a reload half way through takes them away with no word. `alSheetUnsaved()` is narrower —
- * answers or confirmations not yet saved, or a Save or an Undo running — and it is what a notification
- * tap, a drawer link, sign-out and closing the tab ask about: until Phase 2b nothing here was unsaved,
- * and that question was untrue for a check (review, 14 Nov 2026). While a Save or an Undo runs every
- * control is locked, so no new input can start a check under it.
+ * `alSheetBusy()` is true while a check, a Save or an Undo runs, while an answer is on screen, and while
+ * anything the Save would write is unsaved — on screen or waiting off it for the next check
+ * (operations-al-save.js) — and Operations holds an update's reload on it (operations-app.js): forty
+ * people's differences are a long read, and a reload half way through takes them away with no word.
+ * `alSheetUnsaved()` is narrower — a tick or a "Swapped — counts" answer not yet saved, or a Save or an
+ * Undo running — and it is what a notification tap, a drawer link, the header logo, sign-out and
+ * closing the tab ask about: a check saves nothing, so that question was untrue for one (review, 14 Nov
+ * 2026). While a Save or an Undo runs every control is locked, so no new input can start a check under it.
+ *
+ * A new input takes the answer off the screen, not the answers: Check again, a new copy and the paste
+ * box each draw a new review, which takes the answers and ticks that still apply (operations-al-save.js).
+ * Only Clear forgets them, and it asks first.
  */
 import { sessionReady, getSession } from './session.js';
 import { teamMembers, formatISO } from './roster-data.js';
 import { readMemberRecords, readUploadLogs, CACHED_READ } from './al-leave-save.js';
-import { createReview, finishPendingLog, alSaveWorking, alSaveUnsaved, dropReview } from './operations-al-save.js';
+import { createReview, finishPendingLog, alSaveUnsaved, forgetReview } from './operations-al-save.js';
 import { warnOnUnload, askBeforeLeavingByDrawer } from './page-session.js';
 import { confirmDialog } from './overlay.js';
 import { readLeaveFile, describeRefusal, leaveFileAgeDays, LEAVE_FILE_MAX_AGE_DAYS, LEAVE_FILE_MAX_BYTES } from './al-leave-file.js';
@@ -63,13 +68,11 @@ let _checking = false;
 let _shown = false;
 
 /**
- * True while a check, a Save or an Undo runs, or an answer is on screen — Operations holds an update's
- * reload on it. Today a Save runs only with its answer on screen, so `_shown` already holds the reload
- * through it; `alSaveWorking()` is what still holds it if that ever stops being so (mutation-checked:
- * removing it alone changes nothing a test can see, by design).
+ * True while a check, a Save or an Undo runs, an answer is on screen, or something the Save would write
+ * is unsaved, off the screen included (header) — Operations holds an update's reload on it.
  */
 export function alSheetBusy() {
-    return _checking || _shown || alSaveWorking();
+    return _checking || _shown || alSaveUnsaved();
 }
 
 /** True while answers or confirmations are unsaved, or a Save or an Undo runs — what leaving the page asks about. */
@@ -118,7 +121,6 @@ export function initAlSheetCard(opts = {}) {
         result.hidden = true;
         clearBtn.hidden = true;
         _shown = false;
-        dropReview();
     };
     /** A new input: the old answer and status go, and anything still in flight is stale. */
     const fresh = () => { generation++; clearResult(); say([], 'ok'); };
@@ -161,6 +163,7 @@ export function initAlSheetCard(opts = {}) {
 
     clearBtn.addEventListener('click', async () => {
         if (alSaveUnsaved() && !(await confirmDialog({ message: SAVE_WORDS.clearAsk, confirmLabel: 'Clear' }))) return;
+        forgetReview();
         fresh();
         dropFile();
         paste.value = '';
@@ -172,10 +175,10 @@ export function initAlSheetCard(opts = {}) {
 
     /**
      * Check a file against the app and draw the answer. After a Save or an Undo it runs again with the
-     * receipt to show and the answers to carry across (operations-al-save.js), and with the records the
-     * Save has just read, when it has.
+     * receipt to show, and with the records the Save has just read, when it has; the answers come across
+     * either way, from the review's memory (operations-al-save.js).
      */
-    const check = async (/** @type {string} */ text, /** @type {{ carry?: any, receipt?: string[]|null, tone?: 'ok'|'err', records?: Map<string, any[]>|null }} */ { carry = null, receipt = null, tone = 'ok', records: given = null } = {}) => {
+    const check = async (/** @type {string} */ text, /** @type {{ receipt?: string[]|null, tone?: 'ok'|'err', records?: Map<string, any[]>|null }} */ { receipt = null, tone = 'ok', records: given = null } = {}) => {
         const mine = generation;
         const stale = () => mine !== generation;
         const fail = (/** @type {string} */ line) => { if (!stale()) { clearResult(); say([...(receipt ?? []), line], 'err'); } };
@@ -212,17 +215,22 @@ export function initAlSheetCard(opts = {}) {
             if (stale()) return;
             const todayStr = today();
             const comparison = compareLeaveFile({ file, members: teamMembers, recordsByName: records, todayStr });
-            const finished = logs ? await finishPendingLog({ file, comparison, records }) : null;
+            // An earlier Save not yet recorded is finished by the NEXT check — not by the one straight
+            // after the Save, whose receipt has just said what the record did.
+            const finished = logs && !receipt ? await finishPendingLog({ file, comparison, records }) : null;
             if (finished) logs = await readLogs();
             if (stale()) return;
             clearResult();
-            const review = createReview({ file, comparison, records, logs, todayStr, me: getSession()?.name ?? null, carry, hooks });
+            const review = createReview({ file, comparison, records, logs, todayStr, me: getSession()?.name ?? null, hooks });
             render(result, file, comparison, todayStr, review);
             result.hidden = false;
             clearBtn.hidden = false;
             _shown = true;
             const extra = finished ? [finished] : [];
-            say(receipt ? [...receipt, ...extra] : [checkedWords(comparison.totals.people), ...extra], receipt ? tone : 'ok');
+            // Recorded, but with the record of Saves unread the Undo cannot be drawn: the receipt does not
+            // promise one it cannot show.
+            const told = receipt && !logs ? receipt.map(l => (l === SAVE_WORDS.recorded ? SAVE_WORDS.recordedUndoLater : l)) : receipt;
+            say(told ? [...told, ...extra] : [checkedWords(comparison.totals.people), ...extra], told ? tone : 'ok');
         } catch (err) {
             // A fault, not a refusal — nothing above is meant to throw. It must not leave "Checking…" on
             // screen for good, and its message is not logged: it could quote the file (header).
@@ -244,10 +252,10 @@ export function initAlSheetCard(opts = {}) {
             result.inert = on;
             sync();
         },
-        async recheck({ carry, receipt, tone, records = null }) {
+        async recheck({ receipt, tone, records = null }) {
             const text = fileText ?? paste.value;
             if (!text.trim()) { say(receipt, tone); return; }
-            await check(text, { carry, receipt, tone, records });
+            await check(text, { receipt, tone, records });
             feedback.focus();
         },
     };
@@ -368,7 +376,8 @@ function personBlock(p, file, review) {
         more.append(dayList(rest, year));
         body.append(more);
     }
-    if (!p.days.length && !p.appOnly.length && !p.beyond.length) body.append(el('p', 'al-sheet-explain', CARD_WORDS.noDays));
+    // A person whose only days are column E's undated ones has days on the sheet: the note above says so.
+    if (!p.days.length && !p.appOnly.length && !p.beyond.length && !((p.sheet?.undated ?? 0) > 0)) body.append(el('p', 'al-sheet-explain', CARD_WORDS.noDays));
     review?.person(p, body);
     block.append(body);
     return block;

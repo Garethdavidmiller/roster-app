@@ -54,28 +54,32 @@ const alRecord = (name, date) => ({ id: `${name}|${date}`, memberName: name, dat
 
 /**
  * A person whose figures agree with their own grid days, and whose allowance is the app's own — or
- * `off` days more than it, for the case of an allowance the two sides disagree about.
- * @param {any} m @param {number} used @param {number} [off]
+ * `off` days more than it, for the case of an allowance the two sides disagree about — with `lump`
+ * days over quota in column E and no date, which no record can be checked against.
+ * @param {any} m @param {number} used @param {number} [off] @param {number} [lump]
  */
-function person(m, used, off = 0) {
+function person(m, used, off = 0, lump = 0) {
     const allowance = (entitlementFor(m, YEAR) ?? 32) + off;
-    const printed = { carriedForward: 0, allowance, used, columnE: 0, remaining: allowance - used };
+    const printed = { carriedForward: 0, allowance, used, columnE: lump, remaining: allowance - used - lump };
     return {
         name: m.name, grade: 'CEA',
         sheetRows: [{ row: 10, spelt: 'Sheet spelling', grade: 'CEA', used: true, printed }],
-        columnE: { datedDays: 0, joinerReduction: 0, lump: 0, unexplained: 0 },
+        columnE: { datedDays: 0, joinerReduction: 0, lump, unexplained: 0 },
         corrected: { remaining: printed.remaining, because: [] },
     };
 }
 
 /**
  * The file, its text, the records the app holds, and the dates each case landed on.
- * @param {{ savedDaysAgo?: number|null, bAllowanceOff?: number, withLeaver?: boolean }} [o]  how long
- *        before today the clerks last saved the sheet (null: the file does not say), how many days more
- *        than the app's figure the sheet allows member B, and whether the file holds a member who has
- *        left since it was made
+ * @param {{ savedDaysAgo?: number|null, bAllowanceOff?: number, withLeaver?: boolean, bMissing?: boolean,
+ *           bUndatedOnly?: number }} [o]
+ *        how long before today the clerks last saved the sheet (null: the file does not say), how many
+ *        days more than the app's figure the sheet allows member B, whether the file holds a member who
+ *        has left since it was made, whether B too has a day the app lacks — so a Save can write for
+ *        two people, one of whom a colleague's change stops — and, instead of B's days, how many days
+ *        over quota the sheet takes off B with no date: leave on the sheet that no day of it shows
  */
-export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, withLeaver = false } = {}) {
+export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, withLeaver = false, bMissing = false, bUndatedOnly = 0 } = {}) {
     const [A, B] = teamMembers.filter(m => m.role === 'CEA' && m.rosterType === 'main' && !m.startDate
         && leaveRecordability(m, YEAR) === null);
     if (!A || !B) throw new Error('the roster no longer has two recordable main-line CEAs');
@@ -87,6 +91,7 @@ export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, with
     const restDay = findDay(A, '2026-03-02', isResting);
     const appOnly = findDay(A, '2026-04-06', isTimed, [match, missing]);
     const bMatch = findDay(B, '2026-05-04', isTimed);
+    const bLacks = bMissing ? findDay(B, '2026-05-04', isTimed, [bMatch]) : null;
 
     const today = new Date();
     const saved = savedDaysAgo === null ? null
@@ -98,16 +103,18 @@ export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, with
         made: { on: today.toISOString().slice(0, 10), script: 'e2e fixture', appVersion: 'e2e' },
         nameMap: { rows: {}, cells: {}, tags: {} },
         // In code-unit order by name, as Stage 1 writes them.
-        people: [person(A, 3), person(B, 1, bAllowanceOff), ...(L ? [person(L, 0)] : [])]
+        people: [person(A, 3), bUndatedOnly ? person(B, 0, bAllowanceOff, bUndatedOnly) : person(B, bLacks ? 2 : 1, bAllowanceOff),
+            ...(L ? [person(L, 0)] : [])]
             .sort((p, q) => (p.name < q.name ? -1 : p.name > q.name ? 1 : 0)),
-        days: [gridDay(A.name, match), gridDay(A.name, missing), gridDay(A.name, restDay), gridDay(B.name, bMatch)],
+        days: [gridDay(A.name, match), gridDay(A.name, missing), gridDay(A.name, restDay),
+            ...(bUndatedOnly ? [] : [gridDay(B.name, bMatch)]), ...(bLacks ? [gridDay(B.name, bLacks)] : [])],
         absentFromWorkbook: [],
         notImported: [{ name: 'Z. Example', reason: 'not-in-app' }],
         unplacedSundayTags: 0,
     });
     return {
         text: JSON.stringify(file), file, A, B, L, year: YEAR,
-        dates: { match, missing, restDay, appOnly, bMatch },
-        records: [alRecord(A.name, match), alRecord(A.name, appOnly), alRecord(B.name, bMatch)],
+        dates: { match, missing, restDay, appOnly, bMatch, bMissing: bLacks },
+        records: [alRecord(A.name, match), alRecord(A.name, appOnly), ...(bUndatedOnly ? [] : [alRecord(B.name, bMatch)])],
     };
 }

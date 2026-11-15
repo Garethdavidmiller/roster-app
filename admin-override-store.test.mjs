@@ -786,6 +786,17 @@ describe('6 · a delete compares what it removes with what the page showed, in O
         assert.equal(res.latest.get(al.id)?.leaveYear, 2026, 'and the caller is handed the server\'s copy');
     });
 
+    test('`alreadyDone` is told which run it is, from 1: on the FIRST nothing of this call’s can have landed (review, 15 Nov 2026)', async () => {
+        const moved = { ...al, leaveYear: 2026, createdAt: { toMillis: () => 9_000 } };
+        const store = await seed([al]);
+        serverWrite(al.id, { ...al }); _landsUnanswered = 1;
+        /** @type {number[]} */ const asked = [];
+        const res = await store.commitIfUnchanged([al], (/** @type {any} */ tx) => tx.set({ id: al.id }, moved), { mustExist: [al.id],
+            alreadyDone: (/** @type {Map<string, any>} */ latest, /** @type {number} */ attempt) => { asked.push(attempt); return latest.get(al.id)?.leaveYear === 2026; } });
+        assert.equal(res.done, true);
+        assert.deepEqual(asked, [2], 'asked only on the re-run, where the record differed, and told it is the second');
+    });
+
     test('`alreadyDone` is asked only when something differs — an unchanged day is simply written', async () => {
         const store = await seed([al]);
         serverWrite(al.id, { ...al });

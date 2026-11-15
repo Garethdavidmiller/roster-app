@@ -1025,8 +1025,8 @@ open:
   cancelled in the app after the clerks' last save reads as "not in the app", and a confirmed person
   would have it added back. What stands in the way is the person-by-person confirmation with every
   day on screen, and the 14-day limit on a copy's age.
-- **A Save the app could not read back is recorded only by the next check of the same file, in the
-  same visit.** Close the page first and that Save has no log: it cannot be undone from the card (its
+- **A Save the app could not read back, or whose record could not be written, is recorded only by the
+  next check of the same file, in the same visit.** Close the page first and that Save has no log: it cannot be undone from the card (its
   days are deleted in Admin instead), and its days are not protected against coming back until the
   next Save's log, which names every day in line, is written.
 - **The Undo is for the newest Save of the year, once.** An earlier Save is undone by hand in Admin.
@@ -1039,11 +1039,13 @@ open:
   earliest first. A carry the app has not moved, or more moved days than the sheet carries, still
   shows as a difference.
 - **An old copy is compared, not saved.** Past 14 days, or with no save date, the card still
-  compares, because a check cannot do harm, and refuses the Save.
-- **An update waits while an answer is on screen,** for as long as it stays there: forty people's
-  differences are a long read, and a reload would take them away unsaid. Clearing the check lets it
-  in. A notification tap waits only while an answer or a confirmation is unsaved, or a Save or an
-  Undo runs.
+  compares, because a check cannot do harm, and refuses the Save. So is a sheet for a year before
+  last: every Save deletes the records of those years, so its own record would go the moment it was
+  written, and with it the Undo and the protection against leave cancelled since.
+- **An update waits while an answer is on screen,** for as long as it stays there, and while answers
+  wait unsaved for the next check: forty people's differences are a long read, and a reload would take
+  them away unsaid. Clearing the check lets it in. A notification tap waits only while a confirmation
+  or a "Swapped — counts" answer is unsaved, or a Save or an Undo runs.
 - **The seal catches a hand edit, not a forgery.** The file's digest is worked out by public code, so
   anyone who can run the script could seal an altered file and propose leave that was never booked.
   Using it needs the admin's own sign-in, and what stands in the way is the admin's own look at each

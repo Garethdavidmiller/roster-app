@@ -38,7 +38,10 @@
  *
  * App-only leave — leave the app holds on a date the sheet does not have — comes from a separate
  * pass over the member's records: a loop over the sheet's days can never find it. Leave the app
- * takes from this year's allowance AFTER the sheet's last date is a third list, `beyond`.
+ * takes from this year's allowance AFTER the sheet's last date is a third list, `beyond`. A day of
+ * NEXT January that the app leaves on its own year is next year's leave, for next year's sheet: it
+ * is not this sheet's to hold, so it is no difference here (review, 15 Nov 2026 — every member who
+ * booked January leave in December was put under "Needs a look" by it).
  *
  * ── "AGREE" MEANS THE FIGURES AGREE ─────────────────────────────────────────────────────────────
  *
@@ -46,8 +49,8 @@
  * disagreed on the same closed row — an undated over-quota day, a moved January day after the sheet
  * ends — read as agreement (review, 14 Nov 2026). The gap between the sheet's corrected figure and
  * the app's is the sum of the reasons below, every one a chip on the closed row: the allowance, the
- * day states in NEEDS_A_LOOK, app-only leave that costs this year, `beyond`, and the sheet's undated
- * days. So a person needs a look whenever any reason is present — and, as a safety net for a cause
+ * day states in NEEDS_A_LOOK, app-only leave (the days of it that cost this year are its share of the
+ * gap), `beyond`, and the sheet's undated days. So a person needs a look whenever any reason is present — and, as a safety net for a cause
  * this module does not know, whenever the figures differ at all (`counts.figures`).
  *
  * THE CARRY-OVER IS AN EXPLAINED DIFFERENCE (AL_WORKBOOK.md §9). The sheet adds days carried forward
@@ -124,7 +127,8 @@ export function winnersByDate(records, name) {
  *             app: { entitlement: number|null, taken: number, booked: number, remaining: number|null, note: string|null },
  *             allowanceDiffers: boolean, carried: number, days: DayComparison[],
  *             appOnly: Array<{ date: string, chargedTo: number|null, source: string|null }>, beyond: string[],
- *             counts: Record<string, number>, figuresGap: number, needsALook: boolean, otherRows: number }} PersonComparison
+ *             counts: Record<string, number>, figuresGap: number, needsALook: boolean, otherRows: number,
+ *             otherCarry: number[] }} PersonComparison
  *   `app.note` is the app's own word on its allowance (`entitlementNote`); `figuresGap` is the sheet's
  *   corrected figure less the app's, 0 when either is missing
  */
@@ -177,8 +181,10 @@ export function comparePerson({ person, days, member, records, year, todayStr, f
         const day = parseISODate(date);
         if (isBeforeMemberStart(member, day) || isOverrideDisplaySuppressed(w, getBaseShift(member, day), isSunday(date))) continue;
         if (isChristmasClosureDate(date)) continue;
-        // WHICH year's allowance it costs, not only whether: a next-January day left on its own year
-        // costs that year a day, and "costs nothing" said otherwise (review, 14 Nov 2026).
+        // Next January belongs here only when the app takes it from THIS year (header).
+        if (date > `${year}-12-31` && leaveYearOf({ ...w, date }) !== year) continue;
+        // WHICH year's allowance it costs, not only whether: a this-January day moved back costs last
+        // year a day, and "costs nothing" would say otherwise (review, 14 Nov 2026).
         appOnly.push({ date, chargedTo: consumesEntitlement(member, date, winners) ? leaveYearOf({ ...w, date }) : null,
                        source: w.source ?? null });
     }
@@ -214,7 +220,11 @@ export function comparePerson({ person, days, member, records, year, todayStr, f
     return { name: person.name, grade: person.grade, sheet,
              app: { ...position, note: entitlementNote({ member, year, overrides: mine }) },
              allowanceDiffers, carried, days: out, appOnly, beyond, counts, figuresGap,
-             needsALook: reasons || counts.figures > 0, otherRows: Math.max(0, (person.sheetRows?.length ?? 0) - 1) };
+             needsALook: reasons || counts.figures > 0, otherRows: Math.max(0, (person.sheetRows?.length ?? 0) - 1),
+             // Each other row of theirs that carries a different number of days forward: the row used
+             // here may have lost them, and only the clerks can say which is right (review, 15 Nov 2026).
+             otherCarry: (person.sheetRows ?? []).filter((/** @type {any} */ r) => r && r !== row && r.printed
+                 && r.printed.carriedForward !== (row?.printed?.carriedForward ?? 0)).map((/** @type {any} */ r) => r.printed.carriedForward) };
 }
 
 /**

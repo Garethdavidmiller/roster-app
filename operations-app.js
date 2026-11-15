@@ -36,7 +36,7 @@ import { resetQuestion, resetFailure, resetOutcome } from './operations-reset.js
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, leaveAfterAsking } from './page-session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -777,7 +777,7 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
+        wireHeaderLogo(() => leaveAfterAsking(alSheetUnsaved, () => { window.location.href = './'; }));   // asks first, as the drawer does
     })();
 
     // ============================================

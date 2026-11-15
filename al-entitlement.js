@@ -35,13 +35,14 @@
  * high and a booking well inside the entitlement meets a spurious "over entitlement" confirm bar.
  * `admin-al.js` had this and carried the reasoning; the other three did not have it at all.
  *
- * **A day before the member joined never counts — and it needs no rule of its own.** The calendar
- * added an explicit `isBeforeMemberStart` test at v17.41 because its balance disagreed with its own
- * grid. That was the right fix THERE, where there was no rest-day test; here it would be dead code,
- * because `getBaseShift` already returns `'RD'` for every date before `startDate`, so the rest-day
- * rule answers it. It is written down rather than coded because a redundant guard is worse than
- * none: nothing can make it fail, so nothing tells you when it stops being redundant. The test
- * pins the MECHANISM — if `getBaseShift` ever stops suppressing pre-start days, it fails there.
+ * **A day before the member joined never counts — and it needs a rule of its own.** `getBaseShift`
+ * returns `'RD'` for every date before `startDate`, so for a record with nothing to say about the day
+ * the rest-day rule answers it. But a record that carries its OWN evidence — leave written over a
+ * swapped working day, with `replacedType` — is answered from that evidence BEFORE the base is asked,
+ * and was charged (review, 15 Nov 2026). This module once argued the start-date test was dead code
+ * here; that held only for records with no evidence. So `isBeforeMemberStart` is asked first, as the
+ * calendar has asked it since v17.41 and as the leave sheet's card does (al-leave-compare.js), and the
+ * test pins both halves: the mechanism for a bare record, and the guard for one with evidence.
  *
  * ── WHICH YEAR A DAY BELONGS TO IS ITS OWN — UNLESS IT IS A JANUARY DAY MOVED BACK (v25.18) ─────
  *
@@ -61,7 +62,7 @@
  */
 
 import { getALEntitlement, dispatcherBaseAL, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride } from './override-utils.js';
+import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
 import { isChristmasClosureDate, boxingDayLieuDays } from './christmas-leave.js';
 
@@ -107,6 +108,8 @@ export function entitlementFor(member, year, overrides = []) {
 export function consumesEntitlement(member, date, ovByDate = null) {
     if (!member || !date) return false;
     if (isSunday(date)) return false;
+    // Before the member joined, nothing costs a day — a record's own evidence included (header).
+    if (isBeforeMemberStart(member, parseISODate(date))) return false;
     // CHRISTMAS DAY AND BOXING DAY NEVER COST A DAY, FROM 2026 (v25.37, owner 5 Nov 2026). The
     // station is closed, so leave on either day is free. The Christmas leave a member due at work is
     // SHOWN (`isChristmasLeaveDay`, christmas-leave.js) writes nothing and so never reaches this function;
@@ -131,9 +134,8 @@ export function consumesEntitlement(member, date, ovByDate = null) {
     if (contracted !== null) return contracted;
 
     // No override information — the base roster decides, which is what this function did for every
-    // date before v21.55 and still does for every AL written before it. This also settles leave
-    // dated before the member joined: `getBaseShift` returns 'RD' for every such date, so no
-    // separate start-date test belongs here (see the header).
+    // date before v21.55 and still does for every AL written before it. (Leave dated before the
+    // member joined never gets this far: the start-date test above answers it, evidence or none.)
     return !isRestShift(base);
 }
 

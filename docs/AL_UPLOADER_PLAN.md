@@ -588,8 +588,10 @@ where it narrows or extends §4.7–4.10:
   app has lost is shown, with Admin as the way to put it back (§4.6).
 - **`inLine` covers everyone compared**, not only the people saved, so a later copy is protected for the
   days that were already right too.
-- **Answers carry across the fresh check after every Save and Undo**, for each day still asked;
-  **confirmations do not**, because what a person's box covers has changed (§4.9).
+- **Answers outlive any new check** — after a Save or an Undo, and (since the review below) Check again,
+  a new copy and the paste box — for each day still asked. A **confirmation** outlives one only when the
+  person's box would say exactly what it said; after a Save it never does, because what the box covers
+  has changed (§4.9). Only Clear forgets them.
 - **What was saved is read back**: the receipt counts what the server holds afterwards
   (`landedWrites`), so a Save whose answer was lost on the way back is reported and recorded rather than
   called "nothing". Where that read fails, the next check of the same file in the visit writes the log.
@@ -597,9 +599,13 @@ where it narrows or extends §4.7–4.10:
   that follows them, still unlocks the card. Its line says the Save stopped part way, never "saved" or
   "nothing", and the fresh check shows what landed.
 - **The Undo works per person, in parts**, and resends what was not refused: the log can be marked
-  undone only once, so a partial undo is finished in the same press. An Undo that removed nothing
-  records nothing. It is offered for the newest Save of the year.
-- **Logs are kept for this year and last** (`pruneUploadLogs`), deleted after that by each Save.
+  undone only once, so a partial undo is finished in the same press — and one cut short (the connection
+  lost after its deletes) is finished by pressing it again, because the mark lists every added day gone
+  by then. An Undo records nothing only when every day it added has changed since. It is offered for the
+  newest Save of the year.
+- **Logs are kept for this year and last** (`pruneUploadLogs`), deleted after that by each Save, which
+  does not wait for the deletion; a check reads both years' logs. A sheet for a year before last is a
+  check only: the Save that wrote its log would delete it.
 - **A refusal for age replaces the age warning**, so the card does not say the same thing twice.
 - **The Sunday rule's seventh layer**: `writableDate` never writes leave on a Sunday, or on Christmas
   Day or Boxing Day (CLAUDE.md → Sundays).
@@ -610,9 +616,55 @@ unanswered; Q7 (column E) — only dated days are written, never an undated lump
 file) — the older-copy refusal trusts the clerks' save time, and "removed since" protects whichever way
 it is answered. An answer that differs changes the script or this plan, not the Save's guards.
 
-**Mutation:** 21 of the store's guard lines and 42 of the card's 43 wiring lines each fail a test when
-broken (the tests and the browser spec name which). The 43rd, `alSaveWorking()` in `alSheetBusy`,
-changes nothing a test can see by design; its comment says why.
+**Mutation:** 21 of the store's guard lines and 42 of the card's 43 wiring lines each failed a test when
+broken. The 43rd, `alSaveWorking()` in `alSheetBusy`, was replaced in the review below by the unsaved
+answers themselves, which a test now sees.
+
+**The Save after its review** (15 Nov 2026). A review of the built Save found faults that lost work,
+though none wrote wrong leave. Each fix came with a test that failed before it:
+
+- **A Save that sent nothing changes nothing.** Offline, or with the checked commit unable to load, the
+  Save writes nothing, and the review stays exactly as it was, every answer and tick with it. The fresh
+  check after it used to fail offline and clear the card.
+- **No way off the page skips the question.** The header logo now asks, as the drawer does
+  (`leaveAfterAsking`); a free answer, which writes nothing, no longer counts as unsaved; and a reload
+  because the identity changed in another tab is no longer stopped by "Leave site?".
+- **Check again, a new copy and the paste box keep the answers** (above). The receipts say "Check again",
+  and it used to throw every answer away.
+- **An Undo cut short is finished by pressing it again** (above). It used to leave an Undo button that
+  removed nothing and marked nothing, for good.
+- **A Save that landed nothing records nothing**, so the last Save keeps its Undo.
+- **The days answered "Rest day — free" are named on the receipt**, as Admin's receipt names them.
+- **Leave the admin books by hand after the check is the admin's.** A record exactly like the Save's,
+  found on the commit's FIRST attempt, is refused like any other change (`lostAnswerOnly`); only a re-run
+  after a lost answer may call one the Save's own. And a day the Save was refused on is never counted,
+  logged or undone as the Save's (`exclude`).
+- **A Save that could not be recorded is recorded by the next check of the same file**, whether the read
+  after it or the log itself failed — never by the check straight after the Save, whose receipt has just
+  said what happened.
+- **Housekeeping never holds the Save**: the old logs are deleted without waiting, in a fresh batch for
+  each attempt. **Protection reaches across the new year**: last year's log protects this file's first
+  January days. The receipt **never promises an Undo** it cannot show. What the Save writes with is
+  **loaded when a Save is offered** (`preloadSaveStore`), from the release the page came from, and a Save
+  or an Undo that cannot load it says it never started.
+- **An Undo that sent nothing changes nothing**, as a Save that sent nothing does (found in the fixes'
+  own review): one whose records could not be read, or whose store could not load, says nothing was
+  taken back and keeps its review and its Undo. It said "stopped part way" — and offline, the check after
+  it took the review, and the button it pointed at, off the screen.
+
+Mutation, after the fixes: each of the 20 new guard lines in the modules and the 26 in the card fails a
+test when broken. Two of those tests were themselves found wanting by breaking their guard (a hand
+booking over two days, which could never read as already saved; and the update's hold, which the tap's
+question had stood in for), and were corrected.
+
+**The check card after its review** (live from v26.11; 15 Nov 2026): leave on a swapped working day
+before a member's start date no longer costs a day in the shared allowance rule (`consumesEntitlement`
+asks the start date first; Admin and the Calendar share it); an Other day reads as its word, never as
+"TRG"; the clerks' save date is their London day; a day of next January the app takes from next year's
+allowance is next year's sheet's, and no reason to look; a person whose only leave is undated over-quota
+days is never said to have none; a figure below zero reads "1 over limit", never "-1"; and a person
+listed on two rows is told when the other row carries a different number of days forward. Nine
+mutations, each caught.
 
 # Part 2 — The review of draft 1
 

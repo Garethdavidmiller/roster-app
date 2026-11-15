@@ -49,6 +49,11 @@ let txRuns = 0;
 /** @type {any} */ let txFails = null;
 /** @type {any} */ let writeFails = null;
 let cached = false;
+/** A transaction that READ a document of `col` fails with `code` before it commits — after `skip` such
+ *  transactions have gone through, for `times` of them. @type {{ col: string, code: string, skip?: number, times: number }|null} */
+let txFailOn = null;
+/** Batch commits that fail with this code, the batch then spent as Firestore spends one. @type {{ code: string, times: number }|null} */
+let batchFails = null;
 /** @type {any[]} */ let reads = [];
 let autoIds = 0;
 
@@ -69,6 +74,10 @@ async function runTx(fn) {
             update: (/** @type {any} */ ref, /** @type {any} */ data) => { ops.push(['update', ref.key, data]); },
             delete: (/** @type {any} */ ref) => { ops.push(['delete', ref.key, null]); },
         });   // a refusal thrown inside rejects the whole transaction, as the real one does
+        if (txFailOn && txFailOn.times > 0 && [...readAt.keys()].some(k => k.startsWith(`${txFailOn.col}/`))) {
+            if ((txFailOn.skip ?? 0) > 0) txFailOn.skip = /** @type {number} */ (txFailOn.skip) - 1;
+            else { txFailOn.times--; throw Object.assign(new Error('never reached the server'), { code: txFailOn.code }); }
+        }
         const between = betweenReadAndCommit; betweenReadAndCommit = null; between?.();
         if ([...readAt].some(([k, v]) => (versions.get(k) ?? 0) !== v)) continue;   // stale: run it again
         for (const [kind, k, data] of ops) {
@@ -101,7 +110,8 @@ mock.module('./firebase-client.js', {
             reads.push(q);
             const rows = [...server].filter(([k]) => k.startsWith(`${q.col}/`))
                 .map(([k, d]) => ({ id: k.slice(q.col.length + 1), data: d }))
-                .filter(r => q.wheres.every((/** @type {any} */ w) => (w.op === '==' ? r.data[w.f] === w.v : w.op === '<' ? r.data[w.f] < w.v : false)));
+                .filter(r => q.wheres.every((/** @type {any} */ w) => (w.op === '==' ? r.data[w.f] === w.v : w.op === '<' ? r.data[w.f] < w.v
+                    : w.op === 'in' ? w.v.includes(r.data[w.f]) : false)));
             return { metadata: { fromCache: cached },
                 forEach: (/** @type {any} */ fn) => rows.forEach(r => fn({ id: r.id, metadata: { hasPendingWrites: false }, data: () => ({ ...r.data }) })) };
         },
@@ -109,11 +119,22 @@ mock.module('./firebase-client.js', {
         runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => runTx(fn),
         writeBatch: () => {
             /** @type {string[]} */ const dels = [];
+            let spent = false;
             return { set: () => {}, delete: (/** @type {any} */ ref) => { dels.push(ref.key); },
-                commit: async () => { for (const k of dels) serverWrite(k, null); if (dels.length) commits.push(dels.map(k => `delete ${k}`)); } };
+                commit: async () => {
+                    // As Firestore's: a batch commits once, and a commit that FAILED has spent it too.
+                    if (spent) throw new Error('A write batch can no longer be used after commit() has been called.');
+                    spent = true;
+                    if (batchFails && batchFails.times > 0) { batchFails.times--; throw Object.assign(new Error('refused'), { code: batchFails.code }); }
+                    for (const k of dels) serverWrite(k, null); if (dels.length) commits.push(dels.map(k => `delete ${k}`));
+                } };
         },
         serverTimestamp: () => SERVER_TS,
-        writeWithClaimRetry: (/** @type {() => Promise<any>} */ fn) => (writeFails ? Promise.reject(writeFails) : fn()),
+        // As the real one (claim-retry.js): a stale-claim refusal is retried once, by calling `fn` again.
+        writeWithClaimRetry: async (/** @type {() => Promise<any>} */ fn) => {
+            if (writeFails) throw writeFails;
+            try { return await fn(); } catch (err) { if (/** @type {any} */ (err)?.code !== 'permission-denied') throw err; return fn(); }
+        },
         whenOwnWritesSent: async () => true,
     },
 });
@@ -179,6 +200,7 @@ const colleague = (m, date, type = 'shift', value = '06:00-14:00') => () =>
 beforeEach(() => {
     server.clear(); versions.clear(); commits = []; reads = [];
     txRuns = 0; betweenReadAndCommit = null; landsUnanswered = 0; txFails = null; writeFails = null; cached = false;
+    txFailOn = null; batchFails = null;
 });
 
 test('the premises: the found days are what their names say', () => {
@@ -236,6 +258,19 @@ describe('the Save', () => {
         assert.deepEqual([...out.refused], []);
         assert.deepEqual([...out.saved], [[CEA.name, [WORK, WORK2]]]);
         assert.equal(commits.length, 1, 'the re-run found the Save already there and wrote nothing');
+    });
+
+    test('a record exactly like the Save’s, there on its FIRST attempt, is the admin’s own booking by hand since the check — refused (review, 15 Nov 2026)', async () => {
+        // ONE day: the person the sheet had one day missing for, booked in Admin after the check. With a
+        // second day still unwritten the part could never read as already saved, so it would test nothing.
+        const a = await planFor(CEA, [WORK]);
+        assert.equal(atFixed(CEA, WORK), undefined, 'the premise: the check read nothing there');
+        // Booked in Admin after the check, as the leave card writes it: the Save's own record, field for field.
+        seed(CEA, WORK, manualOverrideId(CEA.name, WORK), { changedBy: ADMIN, replacedType: null, leaveYear: null });
+        const out = await saveLeavePlans([a]);
+        assert.deepEqual([...out.refused], [[CEA.name, [WORK]]], 'not taken for the Save’s own, which nothing has sent yet');
+        assert.equal(out.saved.has(CEA.name), false);
+        assert.equal(commits.length, 0, 'and nothing of that person was written');
     });
 
     test('a stored day answered "swapped" is rewritten with the swap recorded, and the copy it replaces must still be there', async () => {
@@ -335,11 +370,13 @@ describe('reading', () => {
         await assert.rejects(readMemberRecords([CEA.name]), (/** @type {any} */ e) => e.code === CACHED_READ && !String(e.message).includes(CEA.name));
     });
 
-    test('the upload logs are read for one year, ids included, and never from the cache', async () => {
+    test('the upload logs are read for a year and the year before, ids included, and never from the cache', async () => {
+        // Last year's sheet ran into this January, so its log protects this file's first days too.
         serverWrite('alUploads/L1', { year: 2026, added: [] });
         serverWrite('alUploads/L2', { year: 2025, added: [] });
+        serverWrite('alUploads/L3', { year: 2024, added: [] });
         const logs = await readUploadLogs(2026);
-        assert.deepEqual(logs.map(l => l.id), ['L1']);
+        assert.deepEqual(logs.map(l => l.id).sort(), ['L1', 'L2']);
         cached = true;
         await assert.rejects(readUploadLogs(2026), (/** @type {any} */ e) => e.code === CACHED_READ);
     });
@@ -386,6 +423,14 @@ describe('the upload log', () => {
         cached = false;
         assert.equal(await pruneUploadLogs(2025), 1);
         assert.deepEqual([...server.keys()].sort(), ['alUploads/b', 'alUploads/c']);
+    });
+
+    test('a stale-claim refusal retried sends a FRESH batch: the one that was refused cannot commit again (review, 15 Nov 2026)', async () => {
+        for (const [id, year] of [['a', 2023], ['b', 2024], ['c', 2026]]) serverWrite(`alUploads/${id}`, { year });
+        batchFails = { code: 'permission-denied', times: 1 };
+        assert.equal(await pruneUploadLogs(2025), 2);
+        assert.deepEqual([...server.keys()], ['alUploads/c']);
+        assert.equal(batchFails.times, 0, 'the premise: the first commit was refused');
     });
 });
 
@@ -451,6 +496,48 @@ describe('Undo', () => {
         assert.deepEqual([one.logged, two.logged].sort(), ['already', 'written']);
         assert.equal(server.get(`alUploads/${id}`).undoneBy, one.logged === 'written' ? ADMIN : 'F. Example');
         for (const d of [WORK, WORK2, NEXT_JAN]) assert.equal(atFixed(CEA, d), undefined);
+    });
+
+    test('a day of the Save’s that is gone since is taken back with the rest: the Undo withdraws the Save’s claim on it', async () => {
+        const { log, id } = await savedAndLogged();
+        serverWrite(`overrides/${manualOverrideId(CEA.name, WORK)}`, null);   // removed in Admin since
+        const res = await undoUpload(log, { recordsByName: await recordsNow(), undoneBy: ADMIN });
+        assert.deepEqual(res.removed, [dayKey(CEA.name, WORK2), dayKey(CEA.name, NEXT_JAN)].sort());
+        assert.deepEqual(res.gone, [dayKey(CEA.name, WORK)]);
+        assert.equal(res.logged, 'written');
+        assert.deepEqual(server.get(`alUploads/${id}`).undone, [WORK, WORK2, NEXT_JAN].map(d => dayKey(CEA.name, d)).sort());
+    });
+
+    test('an Undo whose deletes landed and whose mark did not is FINISHED by pressing it again (review, 15 Nov 2026)', async () => {
+        const { log, id, added } = await savedAndLogged();
+        txFailOn = { col: 'alUploads', code: 'unavailable', times: 1 };
+        await assert.rejects(undoUpload(log, { recordsByName: await recordsNow(), undoneBy: ADMIN }), (/** @type {any} */ e) => e.code === 'unavailable');
+        for (const d of [WORK, WORK2, NEXT_JAN]) assert.equal(atFixed(CEA, d), undefined, 'the deletes landed');
+        assert.equal('undoneAt' in server.get(`alUploads/${id}`), false, 'the mark did not');
+        const again = await undoUpload(log, { recordsByName: await recordsNow(), undoneBy: ADMIN });
+        assert.deepEqual(again.removed, [], 'nothing left to remove');
+        assert.equal(again.logged, 'written', 'and the Save is marked undone, so it reads as taken back');
+        assert.deepEqual(server.get(`alUploads/${id}`).undone, added);
+    });
+
+    test('…and one cut short BETWEEN two people takes back the rest on the second press, marking both', async () => {
+        const a = await planFor(CEA, [WORK, WORK2]);
+        const c = await planFor(CES, [CES_WORK]);
+        await saveLeavePlans([a, c]);
+        const added = [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2), dayKey(CES.name, CES_WORK)].sort();
+        const id = newUploadLogId();
+        await writeUploadLog(id, /** @type {any} */ (logFields({ file: FILE, inLine: added, added, savedBy: ADMIN, appVersion: '26.12' })));
+        const [log] = await readUploadLogs(YEAR);
+        const both = () => readMemberRecords([CEA.name, CES.name]);
+        txFailOn = { col: 'overrides', code: 'unavailable', skip: 1, times: 1 };   // the first person goes, the second does not
+        await assert.rejects(undoUpload(log, { recordsByName: await both(), undoneBy: ADMIN }), (/** @type {any} */ e) => e.code === 'unavailable');
+        const left = [WORK, WORK2].filter(d => atFixed(CEA, d)).length + (atFixed(CES, CES_WORK) ? 1 : 0);
+        assert.ok(left > 0 && left < 3, 'the premise: one person’s days went and the other’s did not');
+        const again = await undoUpload(log, { recordsByName: await both(), undoneBy: ADMIN });
+        assert.equal(again.removed.length, left);
+        assert.equal(again.logged, 'written');
+        assert.deepEqual(server.get(`alUploads/${id}`).undone, added, 'every day of the Save’s, both presses');
+        assert.equal(atFixed(CEA, WORK) ?? atFixed(CEA, WORK2) ?? atFixed(CES, CES_WORK), undefined);
     });
 
     test('a failure other than a refusal stops the Undo and records nothing, so it can be pressed again', async () => {

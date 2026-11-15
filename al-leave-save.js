@@ -13,9 +13,14 @@
  * read the day. So every part commits through `commitChecked` (admin-override-store.js): one
  * transaction that refuses, writing nothing and naming the days, unless each day still holds what the
  * check read and each fixed id holds nothing the check did not see. It waits for this device's own
- * unsent saves first, and recognises its own write after an answer was lost. The store is loaded with
- * the first Save or Undo, never with the page (`adminStore`): a check only reads, and Operations loads
- * none of Admin's store until something is to be written (e2e/operations.spec.js).
+ * unsent saves first, and recognises its own write after an answer was lost — on a RE-RUN only
+ * (`lostAnswerOnly`): on a first attempt nothing of the Save's can be there yet, so a record exactly
+ * like it is the admin's own booking of the day, made by hand after the check, and is refused like
+ * any other change (review, 15 Nov 2026). The store is loaded with a check that can be saved, never
+ * with the page (`preloadSaveStore`): a page load only reads, and Operations loads none of Admin's
+ * store until a Save is on offer (e2e/operations.spec.js). Loading it then, from the release the page
+ * came from, means an update arriving later cannot hand the Save a newer store than its page; when it
+ * cannot load at all, the Save says it never started (`STORE_UNLOADED`), because nothing was sent.
  *
  * OPERATIONS HAS NO ADMIN CACHE. `commitChecked` looks an id up in Admin's page cache, which this page
  * never fills, so here an id passed without its row means "must hold nothing at all". Every record a
@@ -43,14 +48,28 @@
  * create whose answer is lost is sent again, and the copy arrives as an UPDATE, which the rules refuse
  * (firestore.rules → alUploads). So the id is minted once per Save (`newUploadLogId`), and a run that
  * finds the log already there writes nothing. Logs older than last year are then deleted
- * (`pruneUploadLogs`): a log is only needed while its year's sheet can still be uploaded.
+ * (`pruneUploadLogs`): a log is only needed while its year's sheet can still be saved, which is this
+ * year's and last year's (al-leave-plan.js → `saveRefusal`). The deleting is housekeeping, and the
+ * Save does not wait for it: a batch with no answer waits for the connection, and held the card on
+ * "Saving…" (review). Each attempt builds its own batch, because a batch commits once.
+ *
+ * The logs read for a check are this year's AND last year's (`readUploadLogs`): last year's sheet ran
+ * into this January, so its log protects this file's first days too.
  *
  * ── UNDO TAKES BACK ONLY WHAT IS STILL THE SAVE'S OWN ───────────────────────────────────────────
  *
  * `planUndo` keeps any day changed since the Save. A colleague's change landing between that read and
  * the delete is refused by the check, and the refused days are kept while the rest of the person's
  * days still go — because the log can be marked undone only ONCE, so a refusal that kept a whole
- * person would leave their days with no Undo at all. Nothing is recorded when nothing was removed.
+ * person would leave their days with no Undo at all.
+ *
+ * AN UNDO CUT SHORT IS FINISHED BY PRESSING IT AGAIN (review, 15 Nov 2026). Its deletes can land and
+ * its mark not, or the connection can go between two people. Marking only what that press removed left
+ * a button that removed nothing and marked nothing, for good, and the first press's days "removed in
+ * the app since" for ever. So the mark is made whenever an Undo runs to its end having anything to
+ * mark, and it takes back every day of the Save's that is now gone, whoever removed it: the Undo
+ * withdraws the Save, and its claim on a day goes with it. A day kept because somebody changed it stays
+ * the changer's; an Undo that finds every day changed marks nothing, as before.
  *
  * ── NOTHING HERE QUOTES A NAME INTO A LOG ───────────────────────────────────────────────────────
  *
@@ -105,12 +124,13 @@ export async function readMemberRecords(names) {
 }
 
 /**
- * Every upload log for a year, ids included — refused when answered from the cache, like a record
- * read: a log this device has not seen would let an older copy through.
+ * Every upload log for a year AND the year before (header: last year's sheet runs into this January),
+ * ids included — refused when answered from the cache, like a record read: a log this device has not
+ * seen would let an older copy through.
  * @param {number} year @returns {Promise<Array<import('./al-leave-plan.js').UploadLog & { id: string }>>}
  */
 export async function readUploadLogs(year) {
-    const snap = await getDocs(query(collection(db, COLLECTIONS.alUploads), where('year', '==', year)));
+    const snap = await getDocs(query(collection(db, COLLECTIONS.alUploads), where('year', 'in', [year - 1, year])));
     refuseCached(snap);
     /** @type {any[]} */ const logs = [];
     snap.forEach(/** @param {any} d */ d => logs.push({ ...d.data(), id: d.id }));
@@ -119,15 +139,24 @@ export async function readUploadLogs(year) {
 
 /**
  * @typedef {{ saved: Map<string, string[]>, refused: Map<string, string[]>,
- *             stopped: null|'offline'|'unconfirmed'|'failed', code: string|null, partial: boolean }} SaveOutcome
+ *             stopped: null|'offline'|'unconfirmed'|'failed'|'not-started', code: string|null, partial: boolean }} SaveOutcome
  *   `saved`: each person's dates whose part committed; `refused`: each person's dates a colleague
  *   changed after the check (nothing of that part was written, nor of their later parts); `stopped`:
- *   why the Save ended early, with the error's `code`; `partial`: a part may have landed without
- *   saying so, so only the read after the Save can say what is there
+ *   why the Save ended early, with the error's `code` — 'not-started' when the store could not load
+ *   and nothing was sent; `partial`: a part may have landed without saying so, so only the read after
+ *   the Save can say what is there
  */
 
-/** Admin's checked commit, loaded with the first Save or Undo, not with the page (header). */
-const adminStore = () => import('./admin-override-store.js');
+/** What an Undo or a Save throws, or stops with, when Admin's checked commit could not be loaded. */
+export const STORE_UNLOADED = 'leave-sheet/store-unloaded';
+
+/** Admin's checked commit, loaded with a check that can be saved, not with the page (header). */
+const adminStore = () => import('./admin-override-store.js').catch((/** @type {any} */ err) => {
+    throw Object.assign(new Error('the checked commit could not be loaded'), { code: STORE_UNLOADED, cause: err });
+});
+
+/** Load the checked commit now, ahead of a Save (header). Never throws. @returns {Promise<boolean>} */
+export const preloadSaveStore = () => adminStore().then(() => true, () => false);
 
 /**
  * How a part's failure ends the Save, or null for a refusal, which ends only its person's part.
@@ -157,7 +186,9 @@ export async function saveLeavePlans(plans, { onProgress } = {}) {
     /** @type {SaveOutcome} */
     const out = { saved: new Map(), refused: new Map(), stopped: null, code: null, partial: false };
     if (globalThis.navigator?.onLine === false) return { ...out, stopped: 'offline', code: 'unavailable' };
-    const { commitChecked, DELETE_REFUSED } = await adminStore();
+    /** @type {Awaited<ReturnType<typeof adminStore>>} */ let store;
+    try { store = await adminStore(); } catch { return { ...out, stopped: 'not-started', code: STORE_UNLOADED }; }
+    const { commitChecked, DELETE_REFUSED } = store;
     const writing = plans.filter(p => p.writes.length);
     const total = writing.reduce((n, p) => n + p.writes.length, 0);
     let done = 0;
@@ -175,7 +206,7 @@ export async function saveLeavePlans(plans, { onProgress } = {}) {
             try {
                 await withSlowSaveNotice(writeWithClaimRetry(() => commitChecked(fill, {
                     shownFor: (/** @type {string} */ _name, /** @type {string} */ date) => shownByDate.get(date) ?? null,
-                    removed, line: REFUSED_LINE, holdOffline: false })), { batched: true, held: false });
+                    removed, line: REFUSED_LINE, holdOffline: false, lostAnswerOnly: true })), { batched: true, held: false });
             } catch (err) {
                 const e = /** @type {any} */ (err);
                 const stop = stopFor(e, DELETE_REFUSED);
@@ -225,9 +256,13 @@ export async function pruneUploadLogs(keepFrom) {
         /** @type {string[]} */ const ids = [];
         snap.forEach(/** @param {any} d */ d => ids.push(d.id));
         for (let i = 0; i < ids.length; i += 450) {
-            const batch = writeBatch(db);
-            for (const id of ids.slice(i, i + 450)) batch.delete(doc(db, COLLECTIONS.alUploads, id));
-            await writeWithClaimRetry(() => batch.commit());
+            const these = ids.slice(i, i + 450);
+            // A batch commits once, even a commit that failed: each attempt builds its own (header).
+            await writeWithClaimRetry(() => {
+                const batch = writeBatch(db);
+                for (const id of these) batch.delete(doc(db, COLLECTIONS.alUploads, id));
+                return batch.commit();
+            });
         }
         return ids.length;
     } catch (err) {
@@ -238,9 +273,9 @@ export async function pruneUploadLogs(keepFrom) {
 
 /**
  * Undo one Save (plan §4.10, header): delete each day it ADDED that is still its own — person by
- * person, each part checked, a refused day kept and the rest sent again — then record on the log what
- * was taken back, once, when anything was. A failure other than a refusal stops it, recording nothing,
- * so it can be pressed again.
+ * person, each part checked, a refused day kept and the rest sent again — then mark the log, once:
+ * taken back, every day of the Save's now gone, this press's and any earlier one's. A failure other
+ * than a refusal stops it before the mark, so pressing it again finishes it.
  * @param {import('./al-leave-plan.js').UploadLog & { id: string }} log
  * @param {{ recordsByName: Map<string, any[]>, undoneBy: string }} a
  * @returns {Promise<{ removed: string[], kept: string[], gone: string[], logged: 'written'|'already'|'missing'|'nothing' }>}
@@ -275,9 +310,12 @@ export async function undoUpload(log, { recordsByName, undoneBy }) {
             }
         }
     }
-    if (!removed.length) return { removed, kept: kept.sort(), gone: plan.gone, logged: 'nothing' };
+    // Nothing taken back and nothing gone: every day was changed by somebody since, and the log claims
+    // no undo that never happened. Anything else is marked (header): gone now, by this press or an
+    // earlier one cut short, either way the Save no longer has it.
+    if (!removed.length && !plan.gone.length) return { removed, kept: kept.sort(), gone: plan.gone, logged: 'nothing' };
     const ref = doc(db, COLLECTIONS.alUploads, log.id);
-    const undone = [...removed].sort();
+    const undone = [...new Set([...removed, ...plan.gone])].sort();
     const logged = await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists()) return 'missing';
@@ -285,5 +323,5 @@ export async function undoUpload(log, { recordsByName, undoneBy }) {
         tx.update(ref, { undoneAt: serverTimestamp(), undoneBy, undone });
         return 'written';
     }));
-    return { removed: undone, kept: kept.sort(), gone: plan.gone, logged: /** @type {any} */ (logged) };
+    return { removed: removed.sort(), kept: kept.sort(), gone: plan.gone, logged: /** @type {any} */ (logged) };
 }

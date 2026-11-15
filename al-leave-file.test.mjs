@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import {
     LEAVE_FILE_FORMAT, LEAVE_FILE_VERSION, LEAVE_FILE_MAX_AGE_DAYS, FOUND_IN,
     canonicalJson, leaveFileDigest, sealLeaveFile, readLeaveFile, validateLeaveFile,
-    personSums, usedRow, leaveFileAgeDays, describeRefusal, isSundayIso, isRealIsoDate,
+    personSums, usedRow, leaveFileAgeDays, londonDayOf, describeRefusal, isSundayIso, isRealIsoDate,
 } from './al-leave-file.js';
 
 const printed = (o = {}) => ({ carriedForward: 0, allowance: 32, used: 3, columnE: 1, remaining: 28, ...o });
@@ -311,6 +311,13 @@ describe('the age of the clerks’ copy', () => {
         assert.equal(leaveFileAgeDays(f, '2026-11-06'), 0);
         assert.equal(leaveFileAgeDays({ source: { clerksLastSaved: null } }, '2026-11-14'), null);
         assert.equal(leaveFileAgeDays(f, 'today'), null);
+        // The clerks' day is London's: 00:30 on a summer night is 23:30 the day before in UTC (review, 15 Nov 2026).
+        const late = (/** @type {string} */ at) => ({ source: { clerksLastSaved: at } });
+        assert.equal(leaveFileAgeDays(late('2026-07-20T23:30:00Z'), '2026-07-21'), 0, 'saved at 00:30 on 21 July, so today');
+        assert.equal(leaveFileAgeDays(late('2026-11-20T23:30:00Z'), '2026-11-21'), 1, 'in winter London is UTC: 23:30 on 20 Nov');
+        assert.equal(londonDayOf('2026-07-20T23:30:00Z'), '2026-07-21');
+        assert.equal(londonDayOf('2026-03-29T00:30:00Z'), '2026-03-29', 'the night the clocks go forward');
+        assert.equal(londonDayOf('not a time'), null);
         assert.equal(LEAVE_FILE_MAX_AGE_DAYS, 14);   // the owner's figure (14 Nov 2026) — a change is a decision
     });
 });

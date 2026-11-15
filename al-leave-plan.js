@@ -55,6 +55,19 @@
  * that read: `inLine` is every sheet leave day the app then holds as leave, and `added` only the days
  * the read shows this Save created. A part that ended with no answer from the server may still have
  * landed, so nothing about it is assumed either way.
+ *
+ * A DAY THE SAVE WAS REFUSED ON IS NEVER ITS OWN (review, 15 Nov 2026). A record at a day's fixed id,
+ * annual leave written by the admin, is what the Save writes — and also what the admin writes booking
+ * the same day by hand in Admin after the check. The refusal names the days that had changed, so those
+ * are `exclude`d from what landed: counted, logged and undone, the admin's own booking was the Save's.
+ *
+ * ── PROTECTION REACHES ACROSS THE NEW YEAR ──────────────────────────────────────────────────────
+ *
+ * Each year's sheet runs into the first days of the next January, so last year's log can call a day
+ * of this file in line. `judgeUploads` takes every log it is given for protection, and the card reads
+ * last year's with this year's; which copy is newer is still this year's logs' question alone. And a
+ * sheet for a year before last is a check only: its logs are deleted by every Save (`pruneUploadLogs`),
+ * so its own log would go the moment it was written, and with it the protection.
  */
 
 import { manualOverrideId } from './override-id.js';
@@ -64,6 +77,12 @@ import { nextLeaveYear, isValidLeaveYear } from './leave-year.js';
 import { isSunday } from './roster-data.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
 import { LEAVE_FILE_MAX_AGE_DAYS, leaveFileAgeDays } from './al-leave-file.js';
+
+/**
+ * The oldest year whose sheet may still be saved: last year's — the year whose logs every Save keeps
+ * (al-leave-save.js → `pruneUploadLogs`). @param {string} todayStr
+ */
+export const oldestSaveableYear = todayStr => Number(todayStr.slice(0, 4)) - 1;
 
 /** The two answers to "was it a swapped working day?". */
 export const ANSWERS = Object.freeze(['swapped', 'free']);
@@ -224,17 +243,18 @@ export function recordsAfter(records, plan, now = new Date()) {
  */
 
 /**
- * What the logs already written for this year say about a new file (plan §4.6): whether it may be
- * saved at all, and which days earlier Saves brought into line.
- *   · A copy saved BEFORE the newest one logged is refused by name. The same copy again is allowed:
- *     what its last Save wrote shows as already right, so a Save that stopped half way is finished
- *     by uploading it again.
+ * What the logs already written say about a new file (plan §4.6): whether it may be saved at all, and
+ * which days earlier Saves brought into line. `logs` are this year's and last year's (header).
+ *   · A copy saved BEFORE the newest one logged for its year is refused by name. The same copy again
+ *     is allowed: what its last Save wrote shows as already right, so a Save that stopped half way is
+ *     finished by uploading it again.
  *   · `protectedKeys`: every day any log calls in line, less what that log's undo took back.
  * @param {{ logs: UploadLog[], file: any }} a
  * @returns {{ newest: UploadLog|null, older: boolean, sameFile: boolean, protectedKeys: Set<string> }}
  */
 export function judgeUploads({ logs, file }) {
-    const ofYear = (logs || []).filter(l => l && l.year === file.year && typeof l.clerksLastSaved === 'string');
+    const all = (logs || []).filter(l => l && typeof l.clerksLastSaved === 'string');
+    const ofYear = all.filter(l => l.year === file.year);
     /** @type {UploadLog|null} */ let newest = null;
     for (const l of ofYear) {
         if (!newest || l.clerksLastSaved > newest.clerksLastSaved
@@ -243,7 +263,8 @@ export function judgeUploads({ logs, file }) {
     const saved = file?.source?.clerksLastSaved;
     const older = !!newest && typeof saved === 'string' && saved < newest.clerksLastSaved;
     /** @type {Set<string>} */ const protectedKeys = new Set();
-    for (const l of ofYear) {
+    // Every log given, last year's included (header): its next-January days are this file's first ones.
+    for (const l of all) {
         const undone = new Set(Array.isArray(l.undone) ? l.undone : []);
         for (const k of Array.isArray(l.inLine) ? l.inLine : []) if (!undone.has(k)) protectedKeys.add(k);
     }
@@ -253,14 +274,16 @@ export function judgeUploads({ logs, file }) {
 /**
  * Why a Save of this file is refused before anything is written, or null when it may go ahead. Each
  * is a code the card puts into words; none quotes the file.
+ *   · 'old-year'    — a sheet for a year before last (header: its log would not outlive its Save);
  *   · 'age-unknown' — the file cannot say when the clerks last saved the workbook, so it cannot be
  *     ordered against another copy or aged;
  *   · 'too-old'     — older than the limit (decision 4, LEAVE_FILE_MAX_AGE_DAYS): get a fresh copy;
  *   · 'older-copy'  — a newer copy of the workbook has already been saved (`judgeUploads`).
  * @param {{ file: any, todayStr: string, judged: ReturnType<typeof judgeUploads> }} a
- * @returns {null|'age-unknown'|'too-old'|'older-copy'}
+ * @returns {null|'old-year'|'age-unknown'|'too-old'|'older-copy'}
  */
 export function saveRefusal({ file, todayStr, judged }) {
+    if (!(file?.year >= oldestSaveableYear(todayStr))) return 'old-year';
     const age = leaveFileAgeDays(file, todayStr);
     if (age === null) return 'age-unknown';
     if (age > LEAVE_FILE_MAX_AGE_DAYS) return 'too-old';
@@ -274,16 +297,17 @@ export function saveRefusal({ file, todayStr, judged }) {
  * `added`, the days of `plans` this Save created that the read shows are its own record — at the
  * fixed id, annual leave, written by `savedBy`. Sorted, each once.
  * @param {{ after: import('./al-leave-compare.js').PersonComparison[], plans: PersonPlan[],
- *           recordsByName: Map<string, any[]>, savedBy: string }} a
+ *           recordsByName: Map<string, any[]>, savedBy: string, exclude?: Map<string, string[]> }} a
+ *   `exclude`: each person's days the Save was refused on (`landedWrites`)
  * @returns {{ inLine: string[], added: string[] }}
  */
-export function logLists({ after, plans, recordsByName, savedBy }) {
+export function logLists({ after, plans, recordsByName, savedBy, exclude }) {
     const inLine = new Set();
     for (const p of after) {
         for (const d of p.days) if (d.kind === 'leave' && HELD_STATES.includes(d.state)) inLine.add(dayKey(p.name, d.date));
     }
     const added = new Set();
-    for (const [name, dates] of landedWrites({ plans, recordsByName, savedBy, kinds: ADDING })) {
+    for (const [name, dates] of landedWrites({ plans, recordsByName, savedBy, kinds: ADDING, exclude })) {
         for (const date of dates) added.add(dayKey(name, date));
     }
     // Only a day that is in line can have been added: the rules hold `added` to no more than `inLine`.
@@ -300,15 +324,19 @@ const ADDING = ['add', 'add-swapped'];
  * Admin's leave card writes it, and carries the write's own swap answer. It is what the receipt
  * counts once the server has been read, because a Save whose answer was lost on the way back may
  * have landed whole, and "Nothing was saved" would then be untrue (14 Nov 2026). `kinds` narrows it
- * to the writes that create a record (`logLists`).
- * @param {{ plans: PersonPlan[], recordsByName: Map<string, any[]>, savedBy: string, kinds?: string[] }} a
+ * to the writes that create a record (`logLists`); `exclude` takes out the days the Save was refused
+ * on, whatever the read finds there (header: a refused day is never the Save's own).
+ * @param {{ plans: PersonPlan[], recordsByName: Map<string, any[]>, savedBy: string, kinds?: string[],
+ *           exclude?: Map<string, string[]> }} a
  * @returns {Map<string, string[]>}
  */
-export function landedWrites({ plans, recordsByName, savedBy, kinds }) {
+export function landedWrites({ plans, recordsByName, savedBy, kinds, exclude }) {
     /** @type {Map<string, string[]>} */ const out = new Map();
     for (const plan of plans) {
         const byId = new Map((recordsByName.get(plan.name) ?? []).map(r => [r.id, r]));
-        const dates = plan.writes.filter(w => (!kinds || kinds.includes(w.kind)) && landedAs(w, byId.get(w.fixedId), plan.name, savedBy))
+        const refused = new Set(exclude?.get(plan.name) ?? []);
+        const dates = plan.writes.filter(w => (!kinds || kinds.includes(w.kind)) && !refused.has(w.date)
+            && landedAs(w, byId.get(w.fixedId), plan.name, savedBy))
             .map(w => w.date);
         if (dates.length) out.set(plan.name, dates);
     }
