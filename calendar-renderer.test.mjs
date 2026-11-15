@@ -1125,12 +1125,27 @@ describe('Christmas leave — due at work on 25/26 December shows as leave that 
         assert.equal(cell.dataset.detailBy, undefined, 'Christmas leave is nobody\'s change');
     });
 
-    test('a worked Boxing Day is work, and carries the year its day in lieu is added to', () => {
+    test('a worked Boxing Day is work, and carries the year its day in lieu is added to: the NEXT one', () => {
+        // The day is valid for a year (the roster clerk, 15 Nov 2026), so it is in 2027's allowance.
         _overrideCache.set(`${MEMBER.name}|2026-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
         const cell = cellFor(build(MEMBER), 26);
         assert.equal(cell.dataset.detailShiftValue, 'RDW');
         assert.equal(cell.dataset.detailChristmas, undefined);
-        assert.equal(cell.dataset.detailBoxingLieu, '2026');
+        assert.equal(cell.dataset.detailBoxingLieu, '2027');
+    });
+
+    test('a Dispatcher whose Boxing Day is a bank holiday: the day is that year\'s, from the bank-holiday rule (2028)', () => {
+        const BOXING_2028 = new Date(2028, 11, 26);   // a Tuesday, and a bank holiday
+        const disp = realRosterData.teamMembers.find(m => m.role === 'Dispatcher' && !m.hidden && !m.startDate && due(m, BOXING_2028));
+        assert.ok(disp, 'needs a Dispatcher due at work on Boxing Day 2028');
+        _overrideCache.set(`${disp.name}|2028-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
+        _mockIsBH = (/** @type {Date} */ d) => realRosterData.isBankHoliday(d);   // the real calendar (beforeEach resets it)
+        noteKnowledge('2028-12', 'authoritative');
+        _member = disp;
+        /** @type {any} */ let container;
+        try { container = buildCalendarContainer(11, 2028); } finally { _member = FAKE_MEMBER; }
+        const cell = container._children[1]._children.find(c => /\b26 December 2028\b/.test(c.dataset?.detailDay || ''));
+        assert.equal(cell.dataset.detailBoxingLieu, '2028');
     });
 
     test('an absence hidden under the leave lends it no "changed by" line', () => {

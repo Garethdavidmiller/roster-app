@@ -33,7 +33,7 @@ import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS } from './override-utils.js';
 import { isWorkingDate } from './al-entitlement.js';
 import { formatDisplay } from './admin-period-dates.js';
-import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
+import { isChristmasLeaveDay, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
 import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
@@ -219,7 +219,8 @@ export function buildWeekGridInto(container, dateStr) {
         // CHRISTMAS LEAVE (v25.37) — said in the row, as the Sunday reason is, because the Base roster
         // column shows the rest day `getBaseShift` makes both Christmas days for everybody. A member due
         // at work is on leave that is never counted, unless work is recorded on the day; a Boxing Day
-        // worked by somebody due to work it adds a day in lieu (christmas-leave.js has the rules).
+        // worked by somebody due to work it adds a day in lieu to the NEXT year's allowance
+        // (christmas-leave.js has the rules).
         // Asked of the SAME resolver the Calendar draws with, so the note can never describe a day the
         // Calendar shows differently — a correction there is rest, and says nothing here.
         const xmasDue   = isChristmasLeaveDay(member, date);
@@ -228,7 +229,7 @@ export function buildWeekGridInto(container, dateStr) {
             : xmasShows === 'AL'
                 ? `${date.getDate() === 25 ? 'Christmas Day' : 'Boxing Day'}: due at work, so on annual leave that is never counted — nothing to record`
             : date.getDate() === 26 && isWorkedShift(xmasShows)
-                ? 'Boxing Day worked when due at work: one day of annual leave in lieu is added to the allowance'
+                ? `Boxing Day worked when due at work: one day of annual leave in lieu is added to the ${allowanceForBoxingDay(member, date.getFullYear())} allowance`
             : '';
 
         const row = document.createElement('div');

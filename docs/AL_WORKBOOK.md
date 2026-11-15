@@ -760,7 +760,7 @@ difference is.
 | **Leavers** | app may show a stale row | A leaver is `hidden` in the app but keeps their workbook row and figures. |
 | **A grade change, and a move into management** | app may show **no figures at all** | The sheet keeps a member in their old grade's row and block until the clerks move them; the app's `role` is the grade NOW, with `roleHistory` for the past, and the allowance agrees while both carry the same figure [measured, 14 Nov 2026]. **A member who becomes a MANAGER has no leave figures in the app at all**: Management has no entitlement (`getALEntitlement` → `null`) and is off every staff list, while the sheet still holds their year. Check them in the sheet only, and say so rather than reporting a mismatch. |
 | **Christmas Day and Boxing Day** | agree on the counts | The workbook marks both days `Closed` in every block, so neither is ever counted (§4). **The owner's rule [5 Nov 2026]:** anyone due at work on either day by their pattern — a named shift or a SPARE day, never a Sunday — is on leave that costs them nothing, and from Christmas 2026 the app SHOWS it as annual leave and lists it in the member's leave records, marked as not counted. **Built at v25.37** (`christmas-leave.js`): derived from the pattern and never stored, so the counts are untouched and the two systems agree on the figures — the app only displays what the workbook's `Closed` already implies. Leave somebody records on either day is not counted either. The published Christmas-week roster shows nothing for Christmas Day [owner, 5 Nov 2026], so no roster import will sit over it. |
-| **A Boxing Day WORKED by somebody due to work it** | check | **The owner's rule [5 Nov 2026]:** they earn **one annual-leave day in lieu**, added to their allowance. Somebody who works Boxing Day from a rest day earns none; it is overtime. **The app adds it to the Boxing Day's OWN year** [owner, 5 Nov 2026], and counts it **once** for a Dispatcher, whose bank-holiday rule already counts a Boxing Day that is a bank holiday [owner, 5 Nov 2026] — built at v25.37 (`boxingDayLieuDays`, read through `entitlementFor`). Whether the workbook's allowance column carries the lieu day, and on which year's row, is still **[unknown]** (§10, question 13) — the same open question as a Dispatcher's bank-holiday lieu days (question 4). If the clerks' sheet puts it on the next year's row, the two will differ by a day across the New Year and agree over the two years together. Note that 26 Dec is not always the bank holiday: in 2026 it is a Saturday and the holiday moves to Monday 28 Dec, which stays an ordinary bank holiday. |
+| **A Boxing Day WORKED by somebody due to work it** | check | **The owner's rule [5 Nov 2026]:** they earn **one annual-leave day in lieu**, added to their allowance. Somebody who works Boxing Day from a rest day earns none; it is overtime. **The app adds it to the NEXT year's allowance** [owner, 15 Nov 2026], because the roster clerk says the day in lieu is valid for one year, every year: a Boxing Day worked in 2026 is a day in the 2027 allowance, to take at any time in 2027. Until then the app added it to the Boxing Day's own year [owner, 5 Nov 2026], which left it five days. It counts it **once** for a Dispatcher, whose bank-holiday rule already counts a Boxing Day that is a bank holiday, in that year [owner, 5 Nov 2026]; Boxing Day is next a bank holiday in 2028 — built at v25.37 (`boxingDayLieuDays`, read through `entitlementFor`; the year is `allowanceForBoxingDay`). Whether the workbook's allowance column carries the lieu day, and on the next year's row as the clerk's rule implies, is still **[unknown]** (§10, question 13) — the same open question as a Dispatcher's bank-holiday lieu days (question 4). If the sheet puts it on the Boxing Day's own row instead, the two will differ by a day across the New Year and agree over the two years together. Note that 26 Dec is not always the bank holiday: in 2026 it is a Saturday and the holiday moves to Monday 28 Dec, which stays an ordinary bank holiday. |
 
 ### Employee of the Month — one extra day, held nowhere [owner, 14 Sep 2026] — **PARKED**
 
@@ -858,7 +858,7 @@ difference as an error.
 1. Read `New Marylebone Totals` rows; flag duplicate names before anything else.
 2. Map names to the app roster (§7); report anybody unmatched in either direction.
 3. For each person: workbook allowance vs the app's allowance — `entitlementFor`, which is
-   `getALEntitlement`/`proRatedAL` plus any Boxing Day lieu day (§9, and §10 question 13) — allowance
+   `getALEntitlement`/`proRatedAL` plus any lieu day from the Boxing Day before (§9, and §10 question 13) — allowance
    disagreements are the ones worth chasing, because they are wrong all year.
 4. For each person: workbook grid days + column E vs the app's recorded AL days.
 5. Report the **dates** that differ, never a count. A count cannot be acted on; a date can.
@@ -933,8 +933,11 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
 
 13. **The Boxing Day lieu day** (§9, 5 Nov 2026) — when somebody due to work Boxing Day works it,
    does the clerks' allowance column add the extra day, and on which year's row: the year of the
-   Boxing Day, or the next? **The app's answer is the Boxing Day's own year** [owner, 5 Nov 2026,
-   built v25.37], so the question that remains is only whether the clerks' sheet agrees.
+   Boxing Day, or the next? **Half answered [15 Nov 2026]:** the roster clerk says the day in lieu
+   is valid for one year, every year, and the owner chose the next year's allowance, so the app now
+   adds it there (it was the Boxing Day's own year from 5 Nov). What remains is whether the sheet's
+   allowance column carries the day at all, and on the next year's row: the first one to check is
+   2027's, for Boxing Day 2026.
 
 14. ~~**A Dispatcher on the app with no workbook row, and two workbook Dispatchers not on the app**
    [measured, 8 Nov 2026]. The app's newest Dispatcher appears nowhere in the live sheets, under any

@@ -28,9 +28,10 @@
  *
  * A hand-rolled fake, because the no-dependency lane (`npm run test:nodeps`) has to keep running on
  * a bare checkout. It stores `innerHTML` as a string rather than parsing it, which is why the grid
- * is built with NO existing overrides in every case that reaches `buildWeekGridInto` — with none,
- * every path after the markup is written is guarded on an element the fake returns as absent, so
- * the real function runs to completion. The row markup is then asserted as text. The prefill and
+ * is built with NO existing overrides in every case but one that reaches `buildWeekGridInto` — with
+ * none, every path after the markup is written is guarded on an element the fake returns as absent,
+ * so the real function runs to completion. The row markup is then asserted as text. The one record
+ * handed in (a worked Boxing Day) is there for the row's note, which is part of that markup. The prefill and
  * pill-interaction paths need a parser and are out of scope here; they are exercised in
  * e2e/admin.spec.js, where a real browser builds the rows.
  */
@@ -108,11 +109,13 @@ const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initW
 const { teamMembers, getBaseShift, formatISO } = await import('./roster-data.js');
 
 const _changed = [];
+/** The records the grid is drawn over: none, except where a test puts one (see the header). */
+let _dateMap = new Map();
 initWeekEditor({
     canPickMember: true,
     showSuccess: () => {},
     markChanged: () => { _changed.push(1); },
-    memberDateMap: () => new Map(),   // no existing overrides — see the header
+    memberDateMap: () => _dateMap,
 });
 
 /** A `.day-row` in one of the four states the grid can hold it in. */
@@ -434,6 +437,17 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.ok(old.every(r => !/class="christmas-note">(Christmas Day|Boxing Day):/.test(r.innerHTML)));
         // …while Boxing Day refuses an Other day in every year (owner, Jul 2026), and says so.
         assert.match(old.find(r => r.dataset.date === '2025-12-26').innerHTML, /Boxing Day can’t be an Other day/);
+    });
+
+    test('a worked Boxing Day names the NEXT year as the allowance its day in lieu goes into (15 Nov 2026)', () => {
+        // The roster clerk: the day in lieu is valid for a year. A manager reading "added to the
+        // allowance" under December 2026 would look for it in the 2026 figures, where it is not.
+        _dateMap = new Map([['2026-12-26', { memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00' }]]);
+        try {
+            const rows = buildWeek('G. Miller', '2026-12-26').slice(1);
+            assert.match(rows.find(r => r.dataset.date === '2026-12-26').innerHTML,
+                /class="christmas-note">Boxing Day worked when due at work: one day of annual leave in lieu is added to the 2027 allowance</);
+        } finally { _dateMap = new Map(); }
     });
 });
 

@@ -49,7 +49,7 @@ import { isRestShift, isBeforeMemberStart } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
-import { isChristmasClosureDate } from './christmas-leave.js';
+import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 
 /**
@@ -177,17 +177,22 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
  * with the work? Asked of `entitlementFor` with and without the leave, so every rule that earns a day
  * in lieu (a worked Boxing Day, a Dispatcher's worked bank holiday) answers through the one that
  * grants it, rather than a second copy of either.
+ *
+ * In EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), not just its own: a
+ * worked Boxing Day's day in lieu is in the NEXT year's allowance (owner, 15 Nov 2026), so leave over
+ * that work leaves its own year where it was and takes the day from the year after.
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
  * @returns {boolean}
  */
 function lowersAllowance(member, date, ovByDate) {
     const held = ovByDate && typeof ovByDate.values === 'function' ? [...ovByDate.values()].filter(Boolean) : [];
-    const year = date.slice(0, 4);
-    const before = entitlementFor(member, year, held);
-    if (before === null) return false;
     const leave = { memberName: member.name, date, type: 'annual_leave', value: 'AL', createdAt: { seconds: 4102444800 } };
-    const after = entitlementFor(member, year, [...held.filter(o => o.date !== date), leave]);
-    return after !== null && after < before;
+    const withLeave = [...held.filter(o => o.date !== date), leave];
+    return allowanceYearsOf(member, date).some(year => {
+        const before = entitlementFor(member, year, held);
+        const after = entitlementFor(member, year, withLeave);
+        return before !== null && after !== null && after < before;
+    });
 }
 
 /**
@@ -303,10 +308,13 @@ export function projectAlOverage({ member, memberName, overrides, consuming, exc
     // moves (7 Nov 2026 review): recording the work RAISES the allowance, and a member already over
     // was told they would be "1 day over — 34 used of 33" by a save that spends nothing and leaves
     // them better off. A year this save spends in is checked above whichever way its allowance went.
+    // A changed record touches every year it can reach (`allowanceYearsOf`): its own, and for a
+    // Boxing Day the NEXT year too, whose allowance holds that day's lieu (owner, 15 Nov 2026).
     if (after) {
         const before = new Set(overrides), later = new Set(after), touched = new Set();
-        for (const o of after) if (o && o.memberName === member.name && !before.has(o)) touched.add(String(o.date).slice(0, 4));
-        for (const o of overrides) if (o && o.memberName === member.name && !later.has(o)) touched.add(String(o.date).slice(0, 4));
+        const touch = (/** @type {any} */ o) => { for (const y of allowanceYearsOf(member, String(o.date))) touched.add(String(y)); };
+        for (const o of after) if (o && o.memberName === member.name && !before.has(o)) touch(o);
+        for (const o of overrides) if (o && o.memberName === member.name && !later.has(o)) touch(o);
         for (const y of touched) {
             const was = entitlementFor(member, y, overrides), now = entitlementFor(member, y, after);
             if (was !== null && now !== null && now < was) yearSet.add(y);

@@ -64,14 +64,15 @@
 import { getALEntitlement, dispatcherBaseAL, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
-import { isChristmasClosureDate, boxingDayLieuDays } from './christmas-leave.js';
+import { isChristmasClosureDate, boxingDayLieuDays, boxingDayForAllowance } from './christmas-leave.js';
 
 /**
  * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through
  * (v25.37). The contract figure is `getALEntitlement` (roster-data.js); on top of it goes the day in
  * lieu earned by working a Boxing Day the member was due to work (`boxingDayLieuDays`,
- * christmas-leave.js). No entitlement on record stays `null` — a day is not added to nothing, which
- * would make it a number (v22.45).
+ * christmas-leave.js), which is in the NEXT year's allowance: 2027 holds the day earned on
+ * 26 December 2026 (owner, 15 Nov 2026). No entitlement on record stays `null` — a day is not added
+ * to nothing, which would make it a number (v22.45).
  *
  * It is not inside `getALEntitlement` because christmas-leave.js imports roster-data.js, so
  * roster-data.js cannot import it back (christmas-leave.js's header). A second door would be a
@@ -276,9 +277,9 @@ export function leaveYearChoices({ overrides, member, todayStr }) {
  * The Admin AL banner subtracted a literal 22 to recover the lieu count, which is right only while
  * the base IS 22. For a mid-year joiner it is their pro-rated figure, so the subtraction went
  * negative and the card rendered `22 base + -8 BH lieu` — a nonsense line about a real person, on
- * the surface a manager reads to decide whether somebody can take a day off. It had been wrong for
- * B. Toth since she joined in June (as `-10`, when the pro-rata still suppressed her lieu days
- * entirely) and nothing failed, because a caption is not a calculation and nothing was checking it.
+ * the surface a manager reads to decide whether somebody can take a day off. It had been wrong for a
+ * Dispatcher who joined in June, from the day they joined, and nothing failed, because a caption is
+ * not a calculation and nothing was checking it.
  *
  * The split is DERIVED from the same figure `entitlementFor` returns rather than recomputed: the
  * base is what a pro-rated year replaces it with, and the lieu count is whatever the total exceeds
@@ -302,9 +303,10 @@ export function dispatcherBreakdown({ member, year, overrides }) {
 
     const proRated = member.proRatedAL?.[y] !== undefined;
     const base = dispatcherBaseAL(member, y);   // the figure getALEntitlement starts from — one formula
-    // A BOXING DAY IN LIEU IS NOT A BANK-HOLIDAY DAY (v25.37) — in 2026 Boxing Day is a Saturday and
-    // no bank holiday at all — so it is reported on its own and kept out of `lieu`, which the caption
-    // labels "BH lieu". `base + lieu + boxingDay === entitlement` is what the test pins.
+    // A BOXING DAY IN LIEU IS NOT A BANK-HOLIDAY DAY (v25.37). It was earned on the year before's
+    // Boxing Day (christmas-leave.js), and in 2026 that is a Saturday and no bank holiday at all, so
+    // it is reported on its own and kept out of `lieu`, which the caption labels "BH lieu".
+    // `base + lieu + boxingDay === entitlement` is what the test pins.
     const boxingDay = boxingDayLieuDays(member, y, overrides);
     return { base, lieu: entitlement - base - boxingDay, boxingDay, proRated };
 }
@@ -315,9 +317,14 @@ export function dispatcherBreakdown({ member, year, overrides }) {
  * both print it, so the two cannot describe the same number differently — which is how the panel's
  * own `22 base + …` sum would have filed a Boxing Day in lieu under "BH lieu" (v25.37).
  *
- * A Dispatcher: `22 base + 4 BH lieu`, with `(pro-rated)` for a joining year and `+ 1 Boxing Day in
- * lieu` when earned. Anybody else: a line only when they earned the Boxing Day day (christmas-leave.js
- * → `boxingDayLieuDays`), because a figure one higher than every colleague's needs its reason beside it.
+ * A Dispatcher: `22 base + 4 BH lieu`, with `(pro-rated)` for a joining year and `+ 1 in lieu for
+ * Boxing Day 2026` when earned. Anybody else: a line only when they earned the Boxing Day day
+ * (christmas-leave.js → `boxingDayLieuDays`), because a figure one higher than every colleague's needs
+ * its reason beside it.
+ *
+ * THE LINE NAMES THE BOXING DAY'S YEAR (15 Nov 2026). The day is in the next year's allowance, so the
+ * 2027 line is about December 2026. "For working Boxing Day" alone, under 2027, reads as a Boxing
+ * Day that has not happened yet.
  *
  * @param {{ member: any, year: number|string, overrides: any[] }} args
  * @returns {string|null}
@@ -327,12 +334,12 @@ export function entitlementNote({ member, year, overrides }) {
     const split = dispatcherBreakdown({ member, year, overrides });
     if (split) {
         const parts = [`${split.base} base${split.proRated ? ' (pro-rated)' : ''}`, `${split.lieu} BH lieu`];
-        if (split.boxingDay) parts.push(`${split.boxingDay} Boxing Day in lieu`);
+        if (split.boxingDay) parts.push(`${split.boxingDay} in lieu for Boxing Day ${boxingDayForAllowance(year)}`);
         return parts.join(' + ');
     }
     if (entitlementFor(member, year, overrides) === null) return null;
     const boxing = boxingDayLieuDays(member, year, overrides);
-    return boxing ? `Includes ${boxing} day in lieu for working Boxing Day` : null;
+    return boxing ? `Includes ${boxing} day in lieu for working Boxing Day ${boxingDayForAllowance(year)}` : null;
 }
 
 /**

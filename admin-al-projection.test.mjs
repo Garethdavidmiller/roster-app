@@ -300,18 +300,25 @@ describe('Christmas Day and Boxing Day — never asked, never written, named as 
 });
 
 describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => {
-    // A CEA due at work on Boxing Day 2026 with 32 days recorded — the whole contract figure. Working
-    // that Boxing Day earns a 33rd, so one more day of leave is inside the allowance; without the
-    // work it is one over. The warning reads the allowance through `entitlementFor`, and this is the
-    // test that would notice it reading the contract figure instead.
+    // A CEA due at work on Boxing Day 2026 with 32 days of 2027 leave recorded — the whole contract
+    // figure. Working that Boxing Day earns a 33rd, in the NEXT year's allowance (owner, 15 Nov
+    // 2026), so one more 2027 day is inside the allowance; without the work it is one over. The
+    // warning reads the allowance through `entitlementFor`, and this is the test that would notice it
+    // reading the contract figure instead.
     const BOXING = new Date(2026, 11, 26);
     const cea = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
         && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, BOXING)));
-    const used = [];
-    for (let d = new Date(2026, 2, 2); used.length < 33; d.setDate(d.getDate() + 1)) {
-        if (d.getDay() !== 0 && isWorkedShift(getBaseShift(cea, d)) && getBaseShift(cea, d) !== 'SPARE') used.push(formatISO(d));
-    }
-    const recorded = used.slice(0, 32).map((date, i) => ({ id: 'c' + i, memberName: cea.name, type: 'annual_leave', date, value: 'AL' }));
+    /** Working days the member's pattern has in `year`, from March. @param {number} year @param {number} n */
+    const workdays = (year, n) => {
+        /** @type {string[]} */ const out = [];
+        for (let d = new Date(year, 2, 2); out.length < n; d.setDate(d.getDate() + 1)) {
+            if (d.getDay() !== 0 && isWorkedShift(getBaseShift(cea, d)) && getBaseShift(cea, d) !== 'SPARE') out.push(formatISO(d));
+        }
+        return out;
+    };
+    const used = workdays(2027, 33);
+    const asLeave = (/** @type {string[]} */ dates) => dates.map((date, i) => ({ id: 'c' + i, memberName: cea.name, type: 'annual_leave', date, value: 'AL' }));
+    const recorded = asLeave(used.slice(0, 32));
     const worked = { id: 'bx', memberName: cea.name, type: 'rdw', date: '2026-12-26', value: '06:00-14:00' };
 
     test('the fixture is what it says: a 32-day CEA, due at work on Boxing Day', () => {
@@ -327,12 +334,19 @@ describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => 
         assert.equal(projectAlOverage({ member: cea, memberName: cea.name, overrides: [...recorded, worked], consuming: [used[32]] }), null);
     });
 
-    // LEAVE WRITTEN OVER THE WORKED BOXING DAY TAKES THE DAY IN LIEU BACK (6 Nov 2026 review). One day
-    // left (33 − 32), and a range over that one day AND the worked Boxing Day: the leave on 26 Dec is
-    // free, but it replaces the work that earned the 33rd day, so the save ends one over. Costed
-    // against the allowance before the save, the preview called 26 Dec "recorded at no cost", no bar
-    // appeared, and the member was −1 afterwards. These run the range card's own composition —
-    // projectAlBooking, then overridesAfterSave of what it writes, then projectAlOverage.
+    test('…and the year of the Boxing Day itself gains nothing: one more 2026 day at the limit is over', () => {
+        const in2026 = workdays(2026, 33);
+        assert.ok(projectAlOverage({ member: cea, memberName: cea.name, overrides: [...asLeave(in2026.slice(0, 32)), worked],
+            consuming: [in2026[32]] }), 'the day in lieu is 2027\'s, so 2026 is still at 32');
+    });
+
+    // LEAVE WRITTEN OVER THE WORKED BOXING DAY TAKES THE DAY IN LIEU BACK (6 Nov 2026 review) — from
+    // the year that holds it, 2027 (15 Nov 2026). One day left there (33 − 32), and a booking over
+    // that one day AND the worked Boxing Day: the leave on 26 Dec is free, but it replaces the work
+    // that earned the 33rd day, so the save ends one over. Costed against the allowance before the
+    // save, the preview called 26 Dec "recorded at no cost", no bar appeared, and the member was −1
+    // afterwards. These run the range card's own composition — projectAlBooking, then
+    // overridesAfterSave of what it writes, then projectAlOverage.
     const rangeCard = (/** @type {any[]} */ overrides, /** @type {string[]} */ dates) => {
         const ovByDate = new Map(overrides.map(o => [o.date, o]));
         const proj = projectAlBooking({ member: cea, dates, ovByDate });
@@ -341,21 +355,29 @@ describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => 
     };
 
     test('the preview names a worked Boxing Day the leave replaces, and does not call it free', () => {
-        const { proj } = rangeCard([...recorded, worked], [used[32], '2026-12-26']);
+        const { proj } = rangeCard([...recorded, worked], ['2026-12-26', used[32]]);
         assert.deepEqual(proj.lieuLost, ['2026-12-26']);
         assert.ok(proj.freeWritten.includes('2026-12-26'), 'premise: the leave itself costs nothing');
         assert.equal(proj.counts.lieuLost, 1);
     });
 
     test('a Boxing Day with no work on record loses nothing, so it is not named', () => {
-        assert.deepEqual(rangeCard(recorded, [used[32], '2026-12-26']).proj.lieuLost, []);
+        assert.deepEqual(rangeCard(recorded, ['2026-12-26', used[32]]).proj.lieuLost, []);
     });
 
     test('booking over the worked Boxing Day with one day left raises the bar: the save ends one over', () => {
-        const { overage } = rangeCard([...recorded, worked], [used[32], '2026-12-26']);
+        const { overage } = rangeCard([...recorded, worked], ['2026-12-26', used[32]]);
         assert.ok(overage, 'the save takes back the day in lieu, so the one day left is gone');
         assert.equal(overage.over, 1);
-        assert.match(overage.detail, /33 days used of 32 allowed in 2026/);
+        assert.match(overage.detail, /33 days used of 32 allowed in 2027/);
+    });
+
+    test('booking over the worked Boxing Day ALONE can leave the next year over: it spends nothing there', () => {
+        // 33 days of 2027 leave against 33 (32 and the day in lieu). The booking is one free day in
+        // 2026, and still takes 2027 to 33 of 32 — the year the save touches only through the lieu.
+        const { overage } = rangeCard([...asLeave(used.slice(0, 33)), worked], ['2026-12-26']);
+        assert.ok(overage, 'the day in lieu is 2027\'s, and the save takes it back');
+        assert.match(overage.detail, /33 days used of 32 allowed in 2027/);
     });
 
     test('booking the one day left WITHOUT touching Boxing Day still fits', () => {

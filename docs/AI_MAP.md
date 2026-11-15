@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: November 2026 — v26.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -238,8 +238,8 @@ unlike `admin-week-swipe.js`) are in the module.
 The Calendar's annual-leave panel and its day-detail panel — the only place a touch user reads what a
 day is. The reasoning sits beside each step, in `index.css` (layout) and in `index.html` (markup).
 - `initCalendarLightboxes({ navigateToPaycalc })` → `{ openDayDetail, closeALLightbox }`.
-- **Leave panel.** Reads the member's own `annual_leave` overrides (one member, to the end of next
-  January) and counts them with `countedAlDates`, `entitlementFor` and `entitlementNote`
+- **Leave panel.** Reads the member's own `annual_leave` overrides (one member, from last year's
+  Boxing Day, whose day in lieu is this year's, to the end of next January) and counts them with `countedAlDates`, `entitlementFor` and `entitlementNote`
   (`al-entitlement.js`), adding the carry line (`leave-year.js`) and the Christmas line
   (`christmas-leave.js`). A last-known-good memo per member and year paints at once, labelled as the
   saved copy until a read confirms it; a refresh that fails, or that the offline cache answered, keeps it
@@ -1425,12 +1425,12 @@ The Annual Leave booking section on `admin.html`: a thin configuration of `creat
 
 ### `al-entitlement.js`
 Which annual-leave days spend a member's entitlement, and where that leaves them: taken, booked, remaining. Pure. One module because the set of counted days used to be built by hand in four places that disagreed (the header has the story and the rules).
-- `entitlementFor(member, year, overrides)` → `number|null` — the WHOLE allowance: `getALEntitlement` plus the Boxing Day day in lieu (`boxingDayLieuDays`). **The one door**: `christmas-leave.test.mjs` fails if any other module calls `getALEntitlement`. `null` (no entitlement on record) stays `null`.
+- `entitlementFor(member, year, overrides)` → `number|null` — the WHOLE allowance: `getALEntitlement` plus the day in lieu for working the Boxing Day BEFORE the year (`boxingDayLieuDays`: 2027 holds 26 Dec 2026's, owner 15 Nov 2026). **The one door**: `christmas-leave.test.mjs` fails if any other module calls `getALEntitlement`. `null` (no entitlement on record) stays `null`.
 - `consumesEntitlement(member, date, ovByDate?)` — does leave on this date cost a day? Never a Sunday; never before the member's start date, a record's own evidence included (`isBeforeMemberStart`, asked first since 15 Nov 2026: a swapped working day there was charged); never Christmas Day or Boxing Day from 2026 (`isChristmasClosureDate`); otherwise what is UNDERNEATH decides — the override through `isContractedWorkOverride`, given the day's base (on an AL document, its `replacedType`, so a swapped-in day costs a day and a voluntary `rdw` does not, nor an Other day or a Spare turn on a base rest day — owner, 10 Nov 2026), else the base shift. Both halves of the overage projection ask it.
 - `countedAlDates({ overrides, member, year, exclude })` → `Set` — the AL days that spend `year`'s allowance, by the WINNING record and `leaveYearOf` it, so a January day moved back counts once, in the earlier year. `exclude` drops the dates a batch is about to rewrite.
 - `alPosition({ overrides, member, year, todayStr })` → `{ entitlement, taken, booked, remaining }` — split at `todayStr`; `remaining` may be negative (over the limit); a null entitlement gives a null remaining.
 - `leaveYearChoices({ overrides, member, todayStr })` — the January days the Admin panel may move between years, with both years' positions and `prevOpen`, the cap: "no more than the previous year has left".
-- `dispatcherBreakdown({ member, year, overrides })` → `{ base, lieu, boxingDay, proRated } | null` — the parts of a Dispatcher's figure, never `entitlement - 22` (the test pins `base + lieu + boxingDay === entitlementFor(...)`). `entitlementNote({ member, year, overrides })` — the one line explaining an entitlement, shared by the Admin AL banner and the Calendar's leave panel.
+- `dispatcherBreakdown({ member, year, overrides })` → `{ base, lieu, boxingDay, proRated } | null` — the parts of a Dispatcher's figure, never `entitlement - 22` (the test pins `base + lieu + boxingDay === entitlementFor(...)`). `entitlementNote({ member, year, overrides })` — the one line explaining an entitlement, shared by the Admin AL banner and the Calendar's leave panel. It names the Boxing Day's year, which is the year before.
 - `winningEntriesOfType(overrides, memberName, type)` — resolve the winning record for each date FIRST, then ask its type; filtering the raw collection finds an old AL document under a newer shift.
 - `isWorkingDate(memberObj, dateStr, ovByDate?)` — will this day be WRITTEN as leave (Sunday → override → base; no map means no override); re-exported by `admin-overrides.js`. `consumesEntitlement` asks the other half, whether it COSTS a day.
 - Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`. Grep for the import rather than trusting a list of callers.
@@ -1484,7 +1484,8 @@ Christmas Day and Boxing Day: who is on leave, what it costs, and the day in lie
 - `CHRISTMAS_LEAVE_FROM_YEAR` — earlier Christmases keep showing Rest.
 - `isChristmasLeaveDay(member, date)` — 25 or 26 December from 2026, not a Sunday, and the PATTERN (`getPatternShift`) had the member due at work: a shift or a spare day. Never before a start date.
 - `isChristmasClosureDate(dateStr)` — either day from 2026, for anybody. Leave there never costs a day, so the booking flows neither ask about it nor write it, and every receipt names it.
-- `boxingDayLieuDays(member, year, overrides)` → 0 or 1 — due at work on Boxing Day, and the WINNING record is a worked shift; it counts towards that Boxing Day's year. Counted once for a Dispatcher: 0 when Boxing Day is itself a bank holiday, which their bank-holiday rule has counted.
+- `allowanceForBoxingDay(member, year)` → the allowance a worked Boxing Day of `year` adds to: the NEXT year's (owner, 15 Nov 2026 — the roster clerk says the day is valid for a year), except a Dispatcher whose Boxing Day is a bank holiday, whose bank-holiday rule counts it in that year. The Calendar's day panel and Admin's week grid name the year it returns. `boxingDayForAllowance(year)` is the other end, the Boxing Day an allowance draws on (the year before): the leave panel reads from it and the note names it. `allowanceYearsOf(member, dateStr)` → the years a record on that date can move (its own, and the next for a Boxing Day), which Admin's save checks.
+- `boxingDayLieuDays(member, year, overrides)` → 0 or 1 — `year` is the ALLOWANCE, so it asks about the Boxing Day before it: due at work by pattern, and the WINNING record a worked shift. Counted once for a Dispatcher: 0 when that Boxing Day was itself a bank holiday, which their bank-holiday rule counted.
 - `resolveDayShift(override, baseShift, sunday, christmasLeave)` → `resolveEffectiveShift`'s shape plus `christmasLeave` — the shared ladder with the leave on top, called by EVERY surface that draws a day (Calendar, Team Week, the month legend, Overtime's roster, Admin's week grid), so no two show a Christmas day differently.
 - `isUncountedChristmasLeave(shift, dateStr, christmasLeave)` — is this leave never counted because it falls on Christmas? True for the leave shown from the pattern and for leave recorded on either day.
 - `christmasLeaveDates({ member, year, overrides })` · `christmasLeaveByYear({ member, overrides, thisYear })` · `christmasLeaveLine(dates)` — the leave records' Christmas dates and their one line ("…: annual leave, not counted"). The records list exactly the dates the Calendar shows as Christmas leave, because both ask `resolveDayShift`; a delete is offered only for leave somebody recorded.
@@ -1571,7 +1572,7 @@ What an Annual Leave booking WILL do, decided once so the preview, the over-enti
 - `lieuGoesWords(dates)` — the preview's sentence for `lieuLost`: Christmas Day and Boxing Day by name, another bank holiday by its date.
 - `rangeSundayCorrections({ dates, memberObj, ovByDate })` → the worked Sundays a range booking (leave OR absence) sets as rest days — `recordRangeOverrides`'s Sunday rule, stated here so both range cards' previews and receipts name them; the writer writes them only beside a day of the booking. Pinned to the writer by `admin-overrides.test.mjs`.
 - `overridesAfterSave(overrides, { memberName, writes, deleteIds })` — the overrides as they will stand after the save, because a save can move the allowance as well as spend it.
-- `projectAlOverage({ member, memberName, overrides, consuming, exclude, after })` → the over-entitlement message, or `null`. It takes the caller's `consuming` rather than re-deriving it; reads the allowance from `after` when given and also checks any year whose allowance the save LOWERS; charges a January day already moved to last year's allowance to that year; and skips a year with a `null` entitlement (the write still goes ahead).
+- `projectAlOverage({ member, memberName, overrides, consuming, exclude, after })` → the over-entitlement message, or `null`. It takes the caller's `consuming` rather than re-deriving it; reads the allowance from `after` when given and also checks any year whose allowance the save LOWERS (a Boxing Day record's next year too, `allowanceYearsOf`); charges a January day already moved to last year's allowance to that year; and skips a year with a `null` entitlement (the write still goes ahead).
 - Consumed by `admin-al.js` (the `project` and `preSave` hooks), `admin-al-week-save.js` and the leave sheet check (`al-leave-compare.js`, which asks `projectAlBooking` what booking a day with nothing recorded would do); `rangeSundayCorrections` by both range cards (`admin-range-booking.js`) and the writer (`admin-overrides.js`). Tested by `admin-al-projection.test.mjs`.
 
 ### `admin-time-inputs.js`
