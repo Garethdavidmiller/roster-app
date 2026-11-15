@@ -12,6 +12,11 @@
  * pay calculator all see an ordinary day off — but it spends a day of 2026's allowance, not 2027's.
  * The override for that one day carries `leaveYear: 2026`, and nothing else changes.
  *
+ * It belongs to EVERY January, not to 2026: each January's days may come out of the year before,
+ * and nothing in the rule names a year. January 2026 joined at v26.18 (owner, 15 Nov 2026), so a
+ * January 2026 day can come out of 2025's allowance. Why nothing earlier is offered is beside
+ * `LEAVE_YEAR_FROM`.
+ *
  * The pattern is DEFAULT BY RULE, EXCEPTION BY RECORD — the same shape as `replacedType`
  * (override-utils.js). The alternative the depot workbook uses, one "carried forward: 3" figure per
  * person, was weighed and declined: 2027 would read 35 days all year, even after the carried days
@@ -49,8 +54,13 @@
  *  @type {boolean} — declared, so flipping it is a one-word change the checker does not query. */
 export const LEAVE_YEAR_CHOICE = true;
 
-/** The first January the choice is offered for: 2027 is the first year staff carry days into. */
-export const LEAVE_YEAR_FROM = 2027;
+/** The first January the choice is offered for. It was 2027, the first January anybody had asked to
+ *  carry days into, and v26.18 made it 2026 (owner, 15 Nov 2026), so January 2026 can come out of
+ *  2025's allowance as well. A lower year would offer nothing more: the panel lists only this year's
+ *  January and next year's (`offeredJanuaries`), so every January leaves it at the end of its own
+ *  year, and January 2025 left on 31 December 2025. Counting never reads this: a stored
+ *  `leaveYear` on any January is honoured (`carriedFrom`). */
+export const LEAVE_YEAR_FROM = 2026;
 
 const JANUARY_RE = /^(\d{4})-01-(0[1-9]|[12]\d|3[01])$/;
 

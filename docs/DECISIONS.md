@@ -863,6 +863,32 @@ history follows".
 
 **Open (owner):** when the Railcard boxes' history lines may go altogether.
 
+## The January carry-back covers January 2026 too (15 Nov 2026)
+
+**Decided (owner, 15 Nov 2026):** a January 2026 leave day may come out of 2025's allowance, as every
+later January's may come out of the year before. Asked whether the arrangement made for 2026's days in
+January 2027 held for every year, the answer was yes going forward and no going back: the choice began
+with January 2027 (`LEAVE_YEAR_FROM`, `leave-year.js`), the first January anybody had asked to carry
+days into. The owner asked for the backward half too, and v26.18 starts the choice at January 2026.
+
+**Why 2026 and not earlier.** A lower year would offer nothing more. The panel lists only this year's
+January and next year's, so every January leaves it at the end of its own year: January 2025 left on
+31 December 2025, and January 2026 leaves on 31 December 2026.
+
+**Why no backend release first.** The rules already accept it: `leaveYear` must name the year before a
+January date, and no year is written into them. Only the app's offer had the floor, so the client
+change ships on its own; the backend-first rule asks that the rules accept before the client writes,
+and they already did.
+
+**The caveat, told to the owner:** the cap ("no more than the earlier year has left") is judged on the
+app's own 2025 figures, so it is only as good as the 2025 leave recorded in the app. A 2025 that was
+not all recorded shows days left that were in fact taken.
+
+**What holds it:** `leave-year.test.mjs` → "where the choice is offered"; `al-entitlement.test.mjs` →
+"January 2026 is offered out of 2025's allowance, and the cap reads 2025"; `e2e/admin.spec.js` → "a
+January 2026 leave day can be moved to 2025's allowance". Each fails with the start year put back to
+2027.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

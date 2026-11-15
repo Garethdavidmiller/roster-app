@@ -896,6 +896,9 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    2026]:** yes — a few 2026 days are being taken in early January 2027, and the app should model it
    per day (§9, the carry-forward row). Built at v25.18: anyone on their own leave, managers and the
    admin on anyone's, correctable after January, and never more days than the earlier year has left.
+   **Extended to January 2026 at v26.18 [owner, 15 Nov 2026]:** a January 2026 day can come out of
+   2025's allowance, until 31 December 2026. On the 2026 sheet such a day reads `carried` while column
+   C covers it, and `other-year` beyond that (`al-leave-compare.js`).
 6. **`Marylebone Block`** — what is the Week 1–4 grid for?
 7. **Column E** — is "granted when the quota was full" the right description, and is the
    pre-June lump a separate, deliberate use of the same column?

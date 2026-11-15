@@ -224,6 +224,41 @@ test('admin: a January leave day can be moved to last year\'s allowance, and bac
 
 });
 
+// January 2026 joined the choice at v26.18 (owner, 15 Nov 2026): its days can come out of 2025's
+// allowance until the panel lets January 2026 go, at the end of 2026. The years are unit-tested in
+// leave-year.test.mjs; this drives the real panel and save for the new January, so a copy of the
+// start year anywhere between the two would fail here.
+test('admin: a January 2026 leave day can be moved to 2025\'s allowance', async ({ page }) => {
+    const DAY = '2026-01-05';                        // a worked Monday on his line
+    const REC = { memberName: 'G. Miller', date: DAY, type: 'annual_leave', value: 'AL', note: '', source: 'manual' };
+    await page.clock.setFixedTime(new Date('2026-11-15T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((rec) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.leaveYearChoice = true;
+        w.__E2E.authUser = true;
+        w.__E2E.docs = [{ id: 'm_2026-01-05_G.%20Miller', ...rec }];
+    }, REC);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+
+    const panel = page.locator('#alLeaveYear');
+    await expect(panel).toBeVisible();
+    const figures = panel.locator('.ly-figures');
+    await expect(figures).toHaveText('2025: 32 days left · 2026: 31 days left');
+    const y2025 = panel.locator(`.leaveyear-opt[data-date="${DAY}"][data-year="2025"]`);
+    await expect(panel.locator(`.leaveyear-opt[data-date="${DAY}"][data-year="2026"]`)).toHaveAttribute('aria-pressed', 'true');
+
+    await y2025.click();
+    await expect(y2025).toHaveAttribute('aria-pressed', 'true');
+    await expect(figures).toHaveText('2025: 31 days left · 2026: 32 days left');
+    await expect(page.locator('#alLeaveYearFeedback')).toContainText('now comes out of 2025’s allowance');
+    const moved = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data);
+    expect(moved).toMatchObject({ date: DAY, type: 'annual_leave', value: 'AL', leaveYear: 2025, source: 'manual', changedBy: 'G. Miller' });
+});
+
 // The way back, from a fresh load of a day already moved — the stub's transaction does not write its
 // sets back into the seeded rows, so a second save on the same page would find the server still
 // holding the first state and (rightly, as far as it can tell) refuse. The stale-page refusal,
