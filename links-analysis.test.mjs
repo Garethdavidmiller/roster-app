@@ -775,7 +775,7 @@ describe('the design-checks triage block', () => {
             'the triage block wears a tick on a clean design. This card exists because a design '
             + 'showing nothing gets read as approved — that is the false-assurance failure the '
             + 'fatigue model is built around, arriving in the summary instead of the rows.');
-        assert.match(block, /Nothing found that has to be fixed/,
+        assert.match(block, /These checks found nothing that has to be fixed/,
             'a design with no blocking findings says nothing at all, so the reader cannot tell the '
             + 'difference between "checked, all clear" and "the block failed to render"');
     });
@@ -821,7 +821,7 @@ describe('the design-checks triage block', () => {
         initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
         const html = els.checksContent.innerHTML;
         const block = html.split('check-section-head')[0];
-        assert.match(block, /Nothing found that has to be fixed/,
+        assert.match(block, /These checks found nothing that has to be fixed/,
             'fixture is no longer amber-only — something is now RED, so this test is not testing '
             + 'what it claims');
         assert.match(block, /Worth discussing/,
@@ -850,7 +850,7 @@ describe('the design-checks triage block', () => {
         const discussed = (/check-triage--discuss[\s\S]*?<\/ul>/.exec(block)?.[0].match(/<li>/g) || []).length;
         assert.ok(discussed >= 2, `premise: the fixture leaves several points to discuss (found ${discussed})`);
         const head = /check-triage--none"><span class="check-triage-head">([^<]*)</.exec(block)?.[1];
-        assert.equal(head, `Nothing found that has to be fixed — but ${discussed} points below are worth discussing`,
+        assert.equal(head, `These checks found nothing that has to be fixed — but ${discussed} points below are worth discussing`,
             'the nothing-to-fix line does not say how many points follow it, so above the warnings it reads as a pass');
     });
 
@@ -921,7 +921,7 @@ describe('the hard-limit summaries', () => {
         assert.match(limitHead(), /\d+ breached/, 'the heading must count the breach');
         assert.match(html, POLICY_SOURCE_CONFIRMED ? /company limits? breached/ : /configured limits? breached/,
             'the triage must list the breach among the things that have to be fixed');
-        assert.doesNotMatch(html, /Nothing found that has to be fixed/);
+        assert.doesNotMatch(html, /found nothing that has to be fixed/);
     });
 
     test('a part-built design is "not yet assessable" — never "within limits"', () => {
