@@ -22,15 +22,16 @@ mock.module('./roster-data.js', {
     namedExports: { CONFIG: { MIN_YEAR: 2024, MAX_YEAR: 2030 } },
 });
 
-// Seed a valid PAST month/year so restoreViewedMonth picks it up on import.
-// (A future month would be ignored by the guard in the IIFE.)
+// Seed a valid PAST month/year so restoreViewedMonth picks it up on import, stored just now — a month
+// is kept for half an hour (BROWSED_MONTH_KEPT_MS). (A future month would be ignored by the guard.)
 store.set('myb_roster_month', '3');    // April (0-indexed)
 store.set('myb_roster_year',  '2025');
+store.set('myb_roster_month_at', String(Date.now()));
 
 const {
     getDisplayMonth, getDisplayYear,
     setDisplayMonth, setDisplayYear,
-    changeDisplay, persistViewedMonth, addMonths, watchLocalDate,
+    changeDisplay, persistViewedMonth, addMonths, watchLocalDate, BROWSED_MONTH_KEPT_MS,
 } = await import('./calendar-state.js');
 
 // Capture state IMMEDIATELY after import, before any beforeEach runs.
@@ -78,10 +79,13 @@ describe('restoreViewedMonth', () => {
     /** "Today" for these cases: 15 July 2026, midday. Months are 0-indexed, so July is 6. */
     const TODAY = new Date(2026, 6, 15, 12);
 
-    /** Re-evaluate the module against a freshly seeded store, on a pinned clock. */
-    async function restoreWith(month, year, tag, now = TODAY) {
+    /** Re-evaluate the module against a freshly seeded store, on a pinned clock. The month was stored
+     *  `storedAgo` ms before `now` — a minute, unless a case says otherwise; null stores no time at all. */
+    async function restoreWith(month, year, tag, now = TODAY, /** @type {number|null} */ storedAgo = 60_000) {
         store.set('myb_roster_month', String(month));
         store.set('myb_roster_year',  String(year));
+        if (storedAgo === null) store.delete('myb_roster_month_at');
+        else store.set('myb_roster_month_at', String(now.getTime() - storedAgo));
         mock.timers.enable({ apis: ['Date'], now });
         try {
             const m = await import('./calendar-state.js?restore=' + tag);
@@ -107,6 +111,29 @@ describe('restoreViewedMonth', () => {
         const got = await restoreWith(5, 2026, 'last-month');
         assert.deepEqual(got, { month: 5, year: 2026 },
             'a month the member was last looking at was thrown away');
+    });
+
+    // KEPT FOR HALF AN HOUR (owner, 15 Nov 2026): "It always reopens on June 2026." A past month was
+    // restored on every launch, for months, until the member happened to come back to today's month.
+    test('a month stored more than half an hour ago opens on today — the June that stayed for months', async () => {
+        assert.deepEqual(await restoreWith(5, 2026, 'stale', TODAY, 3 * 60 * 60 * 1000), { month: 6, year: 2026 },
+            'a month somebody looked at hours ago was restored over today');
+    });
+
+    test('the half hour is the boundary: stored exactly that long ago it is kept, a millisecond more it is not', async () => {
+        // The figure is the owner's; the tests below are relative to it, so it is pinned here once.
+        assert.equal(BROWSED_MONTH_KEPT_MS, 30 * 60 * 1000, 'the owner chose half an hour (15 Nov 2026)');
+        assert.deepEqual(await restoreWith(5, 2026, 'edge-in', TODAY, BROWSED_MONTH_KEPT_MS), { month: 5, year: 2026 });
+        assert.deepEqual(await restoreWith(5, 2026, 'edge-out', TODAY, BROWSED_MONTH_KEPT_MS + 1), { month: 6, year: 2026 });
+    });
+
+    test('a month stored with NO time — every one stored before v26.17 — opens on today', async () => {
+        assert.deepEqual(await restoreWith(5, 2026, 'no-time', TODAY, null), { month: 6, year: 2026 },
+            'an untimed month was restored: the June on the owner\'s phone would have stayed');
+    });
+
+    test('a time AHEAD of the clock is not trusted — the clock was put back since', async () => {
+        assert.deepEqual(await restoreWith(5, 2026, 'ahead', TODAY, -60_000), { month: 6, year: 2026 });
     });
 
     test('in JANUARY, last December is the past and next February the future — the year is compared first', async () => {
@@ -181,6 +208,7 @@ describe('persistViewedMonth', () => {
         persistViewedMonth();
         assert.equal(store.get('myb_roster_month'), '8');
         assert.equal(store.get('myb_roster_year'),  '2027');
+        assert.equal(store.get('myb_roster_month_at'), String(MID_JULY_2026.getTime()), 'stored without the time it was stored');
     }));
 
     test('overwrites a previous stored position', () => at(MID_JULY_2026, () => {
@@ -205,6 +233,22 @@ describe('persistViewedMonth', () => {
         persistViewedMonth();
         assert.equal(store.get('myb_roster_month'), undefined, 'today\'s month was stored, so it would be restored after it ended');
         assert.equal(store.get('myb_roster_year'),  undefined);
+        assert.equal(store.get('myb_roster_month_at'), undefined);
+    }));
+
+    // v26.17: what the member is LOOKING at, or nothing. A copy in the background — a second tab, or the
+    // app behind another one — still redraws when the date turns or a read lands, and kept its month,
+    // and its time, fresh for the next launch.
+    test('a page out of sight stores nothing — not a month, and not a clear either', () => at(MID_JULY_2026, () => {
+        store.set('myb_roster_month', '3'); store.set('myb_roster_year', '2026'); store.set('myb_roster_month_at', '1');
+        /** @type {any} */ (globalThis).document = { visibilityState: 'hidden' };
+        try {
+            setDisplayMonth(4); setDisplayYear(2026);   // May, browsed
+            persistViewedMonth();
+            setDisplayMonth(6); setDisplayYear(2026);   // July, today
+            persistViewedMonth();
+        } finally { delete /** @type {any} */ (globalThis).document; }
+        assert.deepEqual([store.get('myb_roster_month'), store.get('myb_roster_year'), store.get('myb_roster_month_at')], ['3', '2026', '1']);
     }));
 });
 
@@ -234,12 +278,16 @@ describe('a launch after the month on screen has ended', () => {
         assert.equal(await launchAt(new Date(2027, 0, 1, 5, 30), 'jan-1'), '0/2027', 'and across the year end');
     });
 
-    test('a month the member BROWSED back to is still the one restored', async () => {
-        // The other direction, and the decision the restore cases above pin: dropping a past month
-        // the member chose costs them a swipe, so the fix must not drop it with today's.
+    test('a month the member BROWSED back to is restored for half an hour — and not the next day', async () => {
+        // The other direction. Within the half hour (the app reloaded behind another one, a trip to
+        // another page and back) the member's own month comes back; the next day it is today's again
+        // (owner, 15 Nov 2026 — before, it stayed until somebody came back to today's month).
         store.clear();
         await launchAt(new Date(2026, 10, 15, 12), 'browse', m => { m.setDisplayMonth(9); m.setDisplayYear(2026); });
-        assert.equal(await launchAt(new Date(2026, 11, 1, 5, 30), 'browse-next'), '9/2026');
+        assert.equal(await launchAt(new Date(2026, 10, 15, 12, 20), 'browse-soon'), '9/2026',
+            'twenty minutes later the member\'s own month was dropped');
+        assert.equal(await launchAt(new Date(2026, 11, 1, 5, 30), 'browse-next'), '11/2026',
+            'a month browsed to a fortnight ago was restored over today');
     });
 });
 
@@ -339,6 +387,8 @@ describe('watchLocalDate', () => {
             env, doc,
             set: (/** @type {string} */ iso) => { t = new Date(iso); },
             resume: () => handlers.visibilitychange?.(),
+            hide: () => { doc.visibilityState = 'hidden'; handlers.visibilitychange?.(); },
+            show: () => { doc.visibilityState = 'visible'; handlers.visibilitychange?.(); },
             fireTimer: () => { const x = timer; timer = null; x?.fn(); },
             timer: () => timer,
         };
@@ -411,12 +461,72 @@ describe('watchLocalDate', () => {
             'the second month end compared the display with the date the page OPENED on, and kept December');
     });
 
-    test('a month the member browsed to is left where it is', () => {
-        const r = rig('2026-11-30T22:00:00');
+    test('a month the member browsed to is left where it is when they are back within half an hour — across midnight too', () => {
+        const r = rig('2026-11-30T23:50:00');
         setDisplayMonth(9); setDisplayYear(2026);   // October, browsed back to
-        watchLocalDate(() => {}, r.env);
-        r.set('2026-12-01T07:30:00'); r.resume();
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        r.hide();
+        r.set('2026-12-01T00:10:00'); r.show();
         assert.deepEqual([getDisplayMonth(), getDisplayYear()], [9, 2026],
             'the date turning took the member off a month they had chosen');
+        assert.equal(calls, 1, 'the date turned, so Today has to be redrawn');
+    });
+
+    // v26.17 (owner, 15 Nov 2026): "It always reopens on June 2026." An app left in memory is not
+    // reloaded when it is opened again — it is just shown — so the restore's half-hour rule only held
+    // when the phone had happened to close it. Back after longer than that: today's month.
+    test('back after more than half an hour, a browsed month returns to today\'s — and repaints on the same day', () => {
+        const r = rig('2026-11-15T12:00:00');
+        setDisplayMonth(5); setDisplayYear(2026);   // June, browsed back to
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        r.hide();
+        r.set('2026-11-15T12:31:00'); r.show();
+        assert.deepEqual([getDisplayMonth(), getDisplayYear()], [10, 2026], 'opened again after half an hour, still on June');
+        assert.equal(calls, 1, 'the month moved but nothing redrew it');
+    });
+
+    test('back after EXACTLY half an hour it stays — the boundary is the restore\'s', () => {
+        const r = rig('2026-11-15T12:00:00');
+        setDisplayMonth(5); setDisplayYear(2026);
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        r.hide();
+        r.set('2026-11-15T12:30:00'); r.show();
+        assert.deepEqual([getDisplayMonth(), getDisplayYear()], [5, 2026]);
+        assert.equal(calls, 0);
+    });
+
+    test('the time away counts from the FIRST time the page went out of sight', () => {
+        const r = rig('2026-11-15T12:00:00');
+        setDisplayMonth(5); setDisplayYear(2026);
+        watchLocalDate(() => {}, r.env);
+        r.hide();
+        r.set('2026-11-15T12:20:00'); r.hide();   // a second "hidden" with no "visible" between
+        r.set('2026-11-15T12:40:00'); r.show();
+        assert.deepEqual([getDisplayMonth(), getDisplayYear()], [10, 2026],
+            'the second hidden event restarted the clock: forty minutes away counted as twenty');
+    });
+
+    test('two short trips away are not added together', () => {
+        const r = rig('2026-11-15T12:00:00');
+        setDisplayMonth(5); setDisplayYear(2026);
+        watchLocalDate(() => {}, r.env);
+        r.hide(); r.set('2026-11-15T12:20:00'); r.show();   // twenty minutes away
+        r.set('2026-11-15T12:25:00'); r.hide();
+        r.set('2026-11-15T12:45:00'); r.show();             // and twenty more
+        assert.deepEqual([getDisplayMonth(), getDisplayYear()], [5, 2026],
+            'the first absence was still counted when the second ended: two short trips took the member off June');
+    });
+
+    test('long away on TODAY\'s month, on the same day, redraws nothing', () => {
+        const r = rig('2026-11-15T12:00:00');
+        setDisplayMonth(10); setDisplayYear(2026);  // November — today's month
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        r.hide();
+        r.set('2026-11-15T15:00:00'); r.show();
+        assert.equal(calls, 0, 'a page already on today repainted for nothing');
     });
 });

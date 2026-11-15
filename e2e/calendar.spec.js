@@ -231,12 +231,11 @@ test('day detail: the date clears the close button at every phone width', async 
         // 30 September 2026 — the longest date, carrying an RDW change so the whole panel is up.
         w.__E2E.docs = [{ id: 'x', memberName: 'G. Miller', date: '2026-09-30',
             type: 'rdw', value: '09:00-17:00', note: '', source: 'manual', changedBy: 'S. Silva' }];
-        localStorage.setItem('myb_roster_year', '2026');
-        localStorage.setItem('myb_roster_month', '8');
     });
-    // The month is only restored when it is not in the FUTURE, so the clock has to be past it.
+    // A clock after the month, so no day in it is Today; the link names the month (a stored one is kept
+    // only half an hour — calendar-state.js).
     await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
-    await page.goto('/');
+    await page.goto('/?date=2026-09-30');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.locator('.calendar-day:not(.other-month)').nth(29).click();
     await expect(page.locator('#dayDetailContent')).toBeVisible();
@@ -280,12 +279,8 @@ test('day detail: the date clears the close button at every phone width', async 
 // markers. Folding them into one test meant one of the two ran on a fixture that could not fail it.
 test('day detail: the day markers carry the calendar\'s own icons', async ({ page }) => {
     await seedMember(page);
-    await page.addInitScript(() => {
-        localStorage.setItem('myb_roster_year', '2026');
-        localStorage.setItem('myb_roster_month', '11');
-    });
     await page.clock.setFixedTime(new Date('2027-01-20T10:00:00Z'));
-    await page.goto('/');
+    await page.goto('/?date=2026-12-25');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     // 25 December 2026 — Christmas Day AND a bank holiday, so the row carries two chips.
     await page.locator('.calendar-day:not(.other-month)').nth(24).click();
@@ -828,6 +823,55 @@ test('calendar: coming back into view re-reads a month once it is ten minutes ol
     await page.clock.fastForward('11:00');
     await comeBack();
     await expect.poll(reads, { message: 'a stale month is re-read on return' }).toBeGreaterThan(settled);
+});
+
+// "It always reopens on June 2026" (owner, 15 Nov 2026): a month browsed to was kept until the member
+// came back to today's month, however long that took. It is kept for half an hour now (calendar-state.js,
+// BROWSED_MONTH_KEPT_MS), through both ways a phone opens the app again: a RELOAD (the phone closed it
+// behind another app) and simply being SHOWN again (it was still in memory). Each gap starts with the page
+// put away, as a phone's does: a page left on screen is still being looked at, and its redraws keep the
+// month (measured — a visible page's timers redraw it, and each redraw stores the month afresh). Driven
+// through the page, so the render that stores the month and the date watcher's repaint are the real ones.
+test('calendar: a month browsed to is kept for half an hour — reloaded or brought back — then today\'s month opens', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 10, 15, 12, 0, 0) });
+    await seedMember(page);
+    await page.goto('/');
+    const heading = page.locator('.month-year');
+    const back = async () => { for (let i = 0; i < 5; i++) await page.locator('#prevMonth').click(); };
+    /** Put the page away, or bring it back, the way a phone does: the state, then the event. */
+    const visibility = (/** @type {'hidden'|'visible'} */ state) => page.evaluate((v) => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v });
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => v === 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+    await expect(heading).toHaveText('November 2026');
+    await back();
+    await expect(heading).toHaveText('June 2026');
+
+    await visibility('hidden');
+    await page.clock.fastForward('20:00');
+    await page.reload();
+    await expect(heading, 'reopened twenty minutes later, the member\'s own month was dropped').toHaveText('June 2026');
+    await visibility('hidden');
+    await page.clock.fastForward('45:00');
+    await page.reload();
+    await expect(heading, 'reopened after 45 minutes away, still on June').toHaveText('November 2026');
+
+    // Not reloaded: put away, and shown again.
+    await back();
+    await expect(heading).toHaveText('June 2026');
+    await visibility('hidden');
+    await page.clock.fastForward('10:00');
+    await visibility('visible');
+    await expect(heading, 'ten minutes away took the member off their month').toHaveText('June 2026');
+    // What this return tests is the MONTH the date watcher moves to, not which draw shows it: after
+    // half an hour the stale-month re-check (calendar-initial-fetch.js, ten minutes) redraws the grid
+    // as well, so the watcher's own repaint cannot be told apart here (measured: removing it left this
+    // green). That repaint is pinned by "the Today highlight moves when the local date turns", above.
+    await visibility('hidden');
+    await page.clock.fastForward('31:00');
+    await visibility('visible');
+    await expect(heading, 'shown again after half an hour away, still on June').toHaveText('November 2026');
 });
 
 // …AND WHEN THAT RE-READ FAILS, THE PAGE SAYS SO (10 Nov 2026, external review F1). A month read in the
@@ -2731,12 +2775,7 @@ test('day detail: a month before the member joined confirms nothing', async ({ p
     // fixture would only prove the branch, not that any member reaches it.
     await seedMember(page, 'J. Davies');
     await seedMemberSession(page, 'J. Davies');
-    await page.addInitScript(() => {
-        // calendar-state.js restores a PAST month from these; a future one is refused.
-        localStorage.setItem('myb_roster_month', '3');    // April, 0-indexed
-        localStorage.setItem('myb_roster_year',  '2026');
-    });
-    await page.goto('/');
+    await page.goto('/?date=2026-04-01');   // a link that names the date opens its month
     await expect(page.locator('.calendar-day').first()).toBeVisible();
 
     const state = await page.evaluate(() => {
@@ -2749,7 +2788,7 @@ test('day detail: a month before the member joined confirms nothing', async ({ p
             claiming: cells.filter(c => c.dataset.detailAsRostered).length,
         };
     });
-    expect(state.month, 'the persisted month must have been restored').toContain('April 2026');
+    expect(state.month, 'the month the link named must open').toContain('April 2026');
     expect(state.n, 'precondition: the grid rendered its days').toBeGreaterThan(0);
     expect(state.claiming,
         'every day in this month is before J. Davies started, so none of them is a roster the app ' +

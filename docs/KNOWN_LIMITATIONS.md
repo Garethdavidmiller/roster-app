@@ -1079,14 +1079,6 @@ Only the newest Save of the year offers an Undo, so the next Save of a sheet end
 **Until then, for an older Save only:** if a day it added was changed in Admin while it ran, put the day
 right in Admin after an Undo, or skip the Undo and remove the Save's days in Admin.
 
-### A device that missed the ended-month release in November may open on November once in December
-The Calendar keeps the month on screen between visits, but since the whole-app fix (November 2026) it
-never stores the CURRENT month (`persistViewedMonth`, `calendar-state.js`). So a month that has ended
-is not brought back as though somebody had browsed to it. A device that did not open a release
-carrying that change during November may still hold a November stored by the release before. That
-month cannot be told from one browsed back to, so the Calendar opens on November until the member
-moves to another month. It cannot happen again after that.
-
 ---
 
 ## Navigation / accessibility

@@ -27,7 +27,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | The roster's people (`teamMembers`) | `roster-member-data.js` (re-exported by `roster-data.js`) |
 | Calendar coordinator — event wiring, month navigation, the access hooks | `calendar-app.js` |
-| Calendar display month and year — getDisplayMonth/Year, setDisplayMonth/Year, changeDisplay, addMonths, persistViewedMonth, watchLocalDate | `calendar-state.js` |
+| Calendar display month and year — getDisplayMonth/Year, setDisplayMonth/Year, changeDisplay, addMonths, persistViewedMonth, watchLocalDate, BROWSED_MONTH_KEPT_MS | `calendar-state.js` |
 | Calendar swipe carousel — initSwipeHandler, isSwipeGestureActive, isSwipeCooldown | `calendar-swipe.js` |
 | Calendar annual-leave panel and day-detail panel — initCalendarLightboxes | `calendar-al-lightbox.js` |
 | Calendar first three-month read and the sync chip — initInitialFetch | `calendar-initial-fetch.js` |
@@ -102,7 +102,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers (lsGet, lsSet, lsDel, lsKeys) | `ls.js` |
-| Cross-file localStorage key constants (SELECTED_MEMBER, VIEWED_MONTH/YEAR and the rest) | `storage-keys.js` |
+| Cross-file localStorage key constants (SELECTED_MEMBER, TEAM_VIEW and the rest) | `storage-keys.js` |
 | Cloud Functions — the composition root (`functions/index.js`); documents and the Huddle ingest (`functions/documents.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts and the PIN (`functions/auth-endpoints.js` with `functions/account-lifecycle.js`, the reset-request doorbell `functions/reset-request.js`, and the PIN's `functions/calendar-viewer-auth.js`); push (`functions/push.js`, and what every payload looks like, `functions/push-notices.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
@@ -209,14 +209,19 @@ The Calendar's display month and year, and the arithmetic that moves them. No DO
 - `changeDisplay(delta)` — clamped to `CONFIG.MIN_YEAR`–`MAX_YEAR`.
 - `addMonths(month, year, delta)` → `{ month, year }` — the one clamped month arithmetic, shared with the
   swipe carousel's adjacent panels so the two cannot disagree.
-- `persistViewedMonth()` — stores the position after each render; the CURRENT month is cleared
-  rather than stored, so a month that has ended is never restored as though it had been browsed to.
+- `persistViewedMonth()` — stores the position, with the time, after each render; the CURRENT month
+  is cleared rather than stored, so a month that has ended is never restored as though it had been
+  browsed to. A page out of sight stores nothing, so a copy in the background cannot keep a month fresh.
+- `BROWSED_MONTH_KEPT_MS` — half an hour (owner, 15 Nov 2026): how long a browsed month is kept once
+  the member stops looking at it. Longer than that, the Calendar opens on today's month.
 - `watchLocalDate(onChange, env?)` → a stop function — fires when the device's local date turns (on
   resume, and at local midnight while open), so a PWA resumed next morning stops highlighting
   yesterday. A display on the month the old date fell in is moved to the new date's month first, so
-  a page open over a month end shows the new month. Tested by `calendar-state.test.mjs`.
+  a page open over a month end shows the new month. Shown again after more than
+  `BROWSED_MONTH_KEPT_MS` out of sight, a browsed month goes back to today's too — an app kept in
+  memory is shown, not reloaded. Tested by `calendar-state.test.mjs`.
 - At load, `restoreViewedMonth` honours a `?date=` link once (then strips it), else the stored month
-  unless it is in the future.
+  if it was stored in the last `BROWSED_MONTH_KEPT_MS` and is not in the future.
 
 ### `calendar-swipe.js`
 The Pointer Events month carousel on `#calendarDisplay`. The design notes (panels built on
@@ -2270,7 +2275,7 @@ Safe `localStorage` wrappers — iOS Safari's private mode throws on any access.
 
 ### `storage-keys.js`
 The one spelling of every storage key read by MORE THAN ONE file, because a one-character typo loses data silently. A key one module uses stays local to it, and the Pay Calculator's namespace is `pcPrefix()` (`paycalc-migrations.js`), never here. `storage-key-parity.test.mjs` holds the shared keys to this file; each key's JSDoc names its writer and its readers.
-- `SELECTED_MEMBER` · `VIEWED_MONTH` / `VIEWED_YEAR` (the Calendar month Admin hands back) · `TEAM_VIEW` · `CALENDAR_SNAPSHOT` (the member's stored roster; `clearSession()` deletes it at every sign-out, so a misspelling would leave shifts on a shared device) · `NOTIF_PROMPT_DONE` · `PW_FORCE_PENDING_PREFIX` (the one-shot set-password marker).
+- `SELECTED_MEMBER` · `TEAM_VIEW` · `CALENDAR_SNAPSHOT` (the member's stored roster; `clearSession()` deletes it at every sign-out, so a misspelling would leave shifts on a shared device) · `NOTIF_PROMPT_DONE` · `PW_FORCE_PENDING_PREFIX` (the one-shot set-password marker).
 - `SW_UPDATE_RELOAD` — the one sessionStorage key: it describes one tab's journey, so it is read directly in a try/catch, not through `ls.js`. A drifted spelling would conceal itself — `readyUpdate` would never record, which reads as "no release has ever reloaded anybody".
 
 ### `status-text.js`

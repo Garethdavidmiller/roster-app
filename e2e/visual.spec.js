@@ -974,11 +974,9 @@ async function openDenseDayPanel(page, { width, height }) {
         w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
         w.__E2E.docs = [{ id: 'x', memberName: 'G. Miller', date: '2026-12-25',
             type: 'rdw', value: '09:00-17:00', note: '', source: 'manual', changedBy: 'S. Silva' }];
-        localStorage.setItem('myb_roster_year', '2026');
-        localStorage.setItem('myb_roster_month', '11');
     });
     await dismissOneTimeOverlays(page);
-    await page.goto('/');
+    await page.goto('/?date=2026-12-25');
     await settle(page, '.calendar-day');
     // OPENED BY THE KEYBOARD, and kept that way after v23.59 made a desktop CLICK open the panel
     // too. Both routes reach the identical panel, so the baseline is unaffected either way — and
@@ -1018,11 +1016,9 @@ test('overlay — day detail, an annual-leave day (calendar, mobile 390)', async
         w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
         w.__E2E.docs = [{ id: 'al', memberName: 'G. Miller', date: '2026-11-10',
             type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Silva' }];
-        localStorage.setItem('myb_roster_year', '2026');
-        localStorage.setItem('myb_roster_month', '10');
     });
     await dismissOneTimeOverlays(page);
-    await page.goto('/');
+    await page.goto('/?date=2026-11-10');
     await settle(page, '.calendar-day');
     const cell = page.locator('.calendar-day:not(.other-month)').nth(9);
     await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());
@@ -1046,11 +1042,9 @@ test('overlay — day detail, an UNCHANGED day (calendar, mobile 390)', async ({
         const w = /** @type {any} */ (window);
         w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
         w.__E2E.docs = [];                       // nothing changed anywhere in the month
-        localStorage.setItem('myb_roster_year', '2026');
-        localStorage.setItem('myb_roster_month', '10');   // November — no Christmas, no bank holiday
     });
     await dismissOneTimeOverlays(page);
-    await page.goto('/');
+    await page.goto('/?date=2026-11-10');   // November — no Christmas, no bank holiday
     await settle(page, '.calendar-day');
     const cell = page.locator('.calendar-day:not(.other-month)').nth(9);
     await cell.evaluate(el => /** @type {HTMLElement} */ (el).focus());

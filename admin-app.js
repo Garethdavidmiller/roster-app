@@ -34,7 +34,7 @@ import { initSelectSheets } from './select-sheet.js';
 import { openDatePicker } from './date-picker.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { SELECTED_MEMBER, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
+import { SELECTED_MEMBER } from './storage-keys.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse, createLightbox, confirmDialog, watchScrollFade } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
@@ -1716,9 +1716,10 @@ export function init() {
             beforeSignOut: askBeforeSignOut(hasUnsavedChanges),
             onSignOut:   () => signOutAndLeave(),
         });
-        // Calendar pill: write the current fieldDate month/year to localStorage before navigating so
-        // index.html opens on the same month the user was editing. (Replaces the removed v10.63 header
-        // back button.) Wired HERE — inside wireNavPanel, guarded per element — not at module scope: the
+        // Calendar pill: name the week's date in the link, so index.html opens on the month the user was
+        // editing — a `?date=` opens once, a future month included. Until v26.17 it also wrote the
+        // Calendar's stored month, a second writer. (Replaces the removed v10.63 header back button.)
+        // Wired HERE — inside wireNavPanel, guarded per element — not at module scope: the
         // B1 teardown path resetNavPanel()s and re-injects a FRESH pill, and a module-scope listener on
         // the old pill would be silently lost with it. initNavPanel's own guard means the pill element
         // survives repeat wireNavPanel() calls, so the dataset guard prevents double-attach.
@@ -1726,13 +1727,7 @@ export function init() {
         if (calPill && !calPill.dataset.monthPersistWired) {
             calPill.dataset.monthPersistWired = '1';
             calPill.addEventListener('click', () => {
-                if (fieldDate.value) {
-                    const d = parseISODate(fieldDate.value);
-                    lsSet(VIEWED_MONTH, d.getMonth());     // 0-indexed, matches app.js
-                    lsSet(VIEWED_YEAR,  d.getFullYear());
-                    // …and NAMED in the link, because the Calendar drops a stored FUTURE month (whole-app review).
-                    calPill.setAttribute('href', `./?date=${fieldDate.value}`);
-                }
+                if (fieldDate.value) calPill.setAttribute('href', `./?date=${fieldDate.value}`);
                 // Let the <a> navigate normally
             });
         }

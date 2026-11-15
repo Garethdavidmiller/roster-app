@@ -410,7 +410,7 @@ function renderCalendar() {
 
         document.title = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
 
-        // Persist so the user returns to the same month after closing the app
+        // Persist so a member coming straight back finds this month (kept half an hour: calendar-state.js)
         persistViewedMonth();
 
         const calendarContainer = buildCalendarContainer(getDisplayMonth(), getDisplayYear(), {

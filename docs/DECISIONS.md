@@ -828,6 +828,33 @@ only from the admin writing manual annual leave. A log from before the mark is s
 **What would reopen it:** another writer needing to mark records as its own — the builder takes the mark
 only as its own argument, and a test fails if any caller but the Save passes one.
 
+## The Calendar keeps a month somebody browsed to for half an hour, then opens on today (owner, 15 Nov 2026)
+
+"It always reopens on June 2026" — the owner's report, from the installed app on Android. The Calendar
+kept the month a member had browsed to until they came back to today's month, however long that took,
+so one look at June was where every launch opened, for months. Today's month is what opening the roster
+is for. The kept month is only for coming straight back: the phone reloading the app behind another
+one, or a quick trip to another page and back. Now the month is stored with the time
+(`BROWSED_MONTH_KEPT_MS`, `calendar-state.js`) and kept for half an hour. An app shown again after
+longer than that out of sight goes back to today's month too, because a phone that kept it in memory
+shows it and does not reload it. A page out of sight stores nothing, so a copy in the background (a
+second tab, the app behind another one) cannot keep a month fresh. Admin's Calendar pill names its
+week's date in the link (`?date=`) instead of writing the stored month as a second writer. A link that
+names a date still opens that month whenever it is followed.
+
+**Considered and not done.** Never keeping the month at all: then a phone that closes the app behind
+another one would lose the member's place a minute later, which is the one case the memory is for.
+Keeping it until the end of the day: a month browsed to in the morning would still open in the evening,
+which is the complaint again on a smaller scale. Snapping back only on a full relaunch: that misses the
+app kept in memory, which is how most phones bring it back.
+
+**What it costs:** a member who leaves the app on a month for more than half an hour and comes back
+finds today's month, one tap of Today away from where they were. A month stored before this release
+has no time, so it opens on today once.
+
+**What would reopen it:** the owner finding half an hour too short or too long in use. It is one
+constant.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither
