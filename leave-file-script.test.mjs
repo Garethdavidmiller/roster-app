@@ -903,6 +903,15 @@ describe('the method: a row it skipped, a carried name it believed, a duplicate 
         assert.deepEqual(asked(answered.questions), ['duplicate-rows U. Cross']);
     });
 
+    test('a name in the grid no row counts is matched only within its own block too', () => {
+        // E. Pilot, a Dispatcher with no totals row, by name in the CEA columns: not theirs by rule. It
+        // was matched to them, and then refused as "days in two grades" with nothing to answer.
+        const cea = build(leaveWorkbook({ extraPlaced: [['2026-06-03', 'C', 'Pilot . E']] }));
+        assert.equal(cea.file, null);
+        assert.deepEqual(asked(cea.questions), ['cell-name CEA|pilot . e']);
+        assert.deepEqual(refusals(cea.questions), []);
+    });
+
     test('a duplicate-rows answer that is not one of their rows is not used: asked again, with a note', () => {
         const { file, questions, notes } = build(leaveWorkbook(), { answers: { ...ANSWERS, duplicates: { 'R. Split': 99 } } });
         assert.equal(file, null);

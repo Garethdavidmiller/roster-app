@@ -494,23 +494,25 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
      * @returns {string|null|undefined} a name, null (not in the app / not placeable), undefined (asked)
      */
     function resolveName(kind, key, mechanical, question) {
+        // Once per spelling, though a cell's spelling is resolved again on every date it is written on.
+        const noteOnce = (/** @type {string} */ n) => { if (!notes.includes(n)) notes.push(n); };
         const given = answers[kind];
         if (given && Object.hasOwn(given, key)) {
             const v = given[key];
             if (v === null || known.has(v)) { nameMap[kind][key] = v; return v; }
-            notes.push(`${kind} "${key}" was answered with a name no longer on the roster, so it is asked again`);
+            noteOnce(`${kind} "${key}" was answered with a name no longer on the roster, so it is asked again`);
         }
         const hits = mechanical();
         const carried = prev[kind];
         if (carried && typeof carried === 'object' && Object.hasOwn(carried, key)) {
             const v = carried[key];
             if (v !== null && !known.has(v)) {
-                notes.push(`${kind} "${key}" was mapped to a name no longer on the roster, so it is asked again`);
+                noteOnce(`${kind} "${key}" was mapped to a name no longer on the roster, so it is asked again`);
             } else if (v === null ? hits.length === 0 : hits.length === 0 || (hits.length === 1 && hits[0] === v)) {
                 nameMap[kind][key] = v;
                 return v;
             } else {
-                notes.push(`${kind} "${key}" was ${v === null ? '"not in the app"' : v} in the previous file and now matches `
+                noteOnce(`${kind} "${key}" was ${v === null ? '"not in the app"' : v} in the previous file and now matches `
                     + `${hits.length === 1 ? hits[0] : `${hits.length} members`}, so it is asked again`);
                 ask({ ...question(), carried: v });
                 return undefined;

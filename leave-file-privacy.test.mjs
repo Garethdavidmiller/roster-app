@@ -165,12 +165,18 @@ test('the commit hook refuses a staged leave file BY WHAT IT IS — renamed, wit
         const step = join(tmp, 'leave-step.cjs');
         writeFileSync(step, hookLeaveStep());
         const leave = JSON.stringify({ format: LEAVE_FILE_FORMAT, version: 1, digest: `sha256:${'c'.repeat(64)}` }, null, 1);
+        // Unsealed — a draft, or one cut down by hand — so only READING it as JSON can find it: the
+        // marker-and-seal needle cannot, and each route must be seen to work without the other.
+        const draft = JSON.stringify({ format: LEAVE_FILE_FORMAT, version: 1, people: [] });
+        const BOM = String.fromCharCode(0xFEFF);
         const fence = '`'.repeat(3);
         /** @type {Record<string, string>} */
         const files = {
             'notes.txt': leave,                                                  // a leave file, renamed
-            'copy.leave (1).json': String.fromCharCode(0xFEFF) + leave,         // a re-download, with a BOM
+            'copy.leave (1).json': BOM + leave,                                 // a re-download, with a BOM
             'docs/pasted.md': `# Notes\n\n${fence}json\n${leave}\n${fence}\n`,  // one pasted into another file
+            'draft.txt': draft,                                                  // found only as JSON
+            'draft (1).json': BOM + draft,                                       // …with a BOM, which JSON.parse refuses
             // Not leave files: a plan's example (its seal elided), another format, code.
             'plan.md': `# Plan\n\n${fence}json\n{ "format": "${LEAVE_FILE_FORMAT}", "digest": "sha256:…" }\n${fence}\n`,
             'other.json': JSON.stringify({ format: 'myb-backup', digest: `sha256:${'c'.repeat(64)}` }),
@@ -186,7 +192,8 @@ test('the commit hook refuses a staged leave file BY WHAT IT IS — renamed, wit
             env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))), STAGED_FILES: paths.map(p => `${p}\n`).join('') } });
         const all = run(['al-leave-file.js', ...Object.keys(files)]);
         assert.equal(all.status, 1, all.stderr);
-        assert.deepEqual([...all.stderr.matchAll(/leave-file: (.+?) is a leave file/g)].map(m => m[1]), ['notes.txt', 'copy.leave (1).json', 'docs/pasted.md']);
+        assert.deepEqual([...all.stderr.matchAll(/leave-file: (.+?) is a leave file/g)].map(m => m[1]),
+            ['notes.txt', 'copy.leave (1).json', 'docs/pasted.md', 'draft.txt', 'draft (1).json']);
         // With only the honest files staged, the commit goes through.
         const clean = run(['al-leave-file.js', 'plan.md', 'other.json', 'code.js']);
         assert.equal(clean.status, 0, clean.stderr);
