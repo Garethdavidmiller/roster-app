@@ -918,6 +918,31 @@ describe('buildOverrideWrite', () => {
     });
 });
 
+// ── uploadId (v26.14): the leave sheet Save's mark, from its own argument alone ─────────────────
+// The Undo of a leave sheet Save trusts a record carrying the Save's log id as that Save's own write,
+// which holds only while every other save drops the id. A save that builds its fields from a record it
+// read would carry the mark forward if the builder took it from there (override-utils.js says why).
+describe('uploadId in the builder', () => {
+    const ts = { __serverTimestamp: true };
+    const ID = 'Ab3dEf6hIj9kLm2nOp5q';
+    const leave = { memberName: 'A. Member', date: '2026-03-03', type: 'annual_leave', value: 'AL', source: 'manual', changedBy: 'X' };
+    it('the third argument writes it', () => {
+        assert.equal(buildOverrideWrite(leave, ts, { uploadId: ID }).uploadId, ID);
+    });
+    it('a mark on the fields themselves is DROPPED — a copied record cannot carry it into another save', () => {
+        const copied = /** @type {any} */ ({ ...leave, uploadId: ID });
+        assert.ok(!('uploadId' in buildOverrideWrite(copied, ts)));
+        assert.ok(!('uploadId' in buildOverrideWrite(copied, ts, {})));
+    });
+    it('no mark, or an empty one, leaves the key ABSENT — the rules refuse a null', () => {
+        for (const uploadId of [undefined, null, '']) {
+            assert.ok(!('uploadId' in buildOverrideWrite(leave, ts, { uploadId })), String(uploadId));
+        }
+        assert.deepEqual(Object.keys(buildOverrideWrite(leave, ts)).sort(),
+            ['changedBy', 'createdAt', 'date', 'memberName', 'note', 'source', 'type', 'value']);
+    });
+});
+
 // ── leaveYear (v25.18): which year's allowance a January leave day comes out of ────────────────
 // The builders send it ONLY when the rules would accept it — January leave, the year before — because
 // a field the rules refuse permission-denies the WHOLE write, not just the field. Anything else is

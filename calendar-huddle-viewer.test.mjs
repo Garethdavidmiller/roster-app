@@ -702,3 +702,46 @@ describe('cal-docs-16 · what replaces "Loading…" is spoken', () => {
         assert.equal(statusLine.textContent, '', 'a stale message stayed in the status line under the Huddle');
     });
 });
+
+// ── A CLOSE BEFORE THE FIRST FRAME (15 Nov 2026) ─────────────────────────────────────────────────────
+// `openViewer` fades the viewer in on the next frame, and a close can come first: an Escape before a
+// slow engine draws, or a tab that runs no frames while hidden. Run late, that frame faded the viewer
+// back in over the page it had just been closed off. The frames are HELD so each test says when they run.
+describe('a close before the first frame keeps the viewer closed', () => {
+    /** Hold every frame until the test runs them. @returns {Function[]} */
+    const holdFrames = () => {
+        /** @type {Function[]} */ const frames = [];
+        /** @type {any} */ (globalThis).requestAnimationFrame = (/** @type {Function} */ fn) => { frames.push(fn); return 0; };
+        return frames;
+    };
+
+    test('the late frame does not fade a closed viewer back in', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const frames = holdFrames();
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('monday'), false);
+        tapHuddle();
+        await settle();
+        assert.ok(viewer.classList.contains('visible'), 'guard: the tap opened the viewer');
+        assert.equal(viewer.classList.contains('open'), false, 'guard: its first frame has not run');
+        closeTap();
+        frames.forEach(fn => fn());
+        assert.equal(viewer.classList.contains('open'), false, 'the late frame faded the closed viewer back in');
+        assert.equal(viewer.classList.contains('visible'), false);
+    });
+
+    test('a frame nothing closed still fades the viewer in', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const frames = holdFrames();
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('monday'), false);
+        tapHuddle();
+        await settle();
+        frames.forEach(fn => fn());
+        assert.ok(viewer.classList.contains('open'), 'an open viewer never faded in');
+    });
+});

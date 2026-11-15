@@ -606,6 +606,71 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
     }
 });
 
+// ── A CLOSE BEFORE THE FIRST FRAME (15 Nov 2026) ─────────────────────────────────────────────────────
+// Each panel fades in on the next frame and moves focus to its ✕ 60 ms later, and a close can come
+// first: an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run late, the
+// frame faded the closed panel back in over the page and the timer moved focus into it; and the close
+// waited 500 ms for a fade that never ran, an invisible layer swallowing every tap. createLightbox
+// learnt this in v26.12; these two hand-roll their lifecycle, so they had to learn it separately. The
+// frames are HELD here, so each test says when they run. The drawer's own 60 ms focus is the last pair.
+describe('a close before the first frame keeps the panel closed', () => {
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => mock.timers.reset());
+
+    /** Hold every frame until the test runs them. @returns {Function[]} */
+    const holdFrames = () => {
+        /** @type {Function[]} */ const frames = [];
+        global.requestAnimationFrame = /** @type {any} */ ((/** @type {Function} */ fn) => { frames.push(fn); return 0; });
+        return frames;
+    };
+
+    for (const lb of LIGHTBOXES) {
+        test(`${lb.name}: closed before it faded in, it goes at once and stays gone`, () => {
+            const { $, openFromDrawer } = mountLive();
+            const frames = holdFrames();
+            openFromDrawer(lb.link);
+            assert.equal($(lb.box).classList.contains('visible'), true, 'premise: the tap opened the panel');
+            assert.equal($(lb.box).classList.contains('open'), false, 'premise: its first frame has not run');
+            $(lb.close).fire('click');
+            assert.equal($(lb.box).classList.contains('visible'), false, 'a panel that never faded in waited for a fade that never ran');
+            assert.equal(scrollUnlocks, 1, 'the page behind stayed locked');
+            assert.equal(document.activeElement, $('navMenuBtn'), 'focus was not handed back to the burger');
+            frames.splice(0).forEach(fn => fn());
+            assert.equal($(lb.box).classList.contains('open'), false, 'the late frame faded the closed panel back in');
+            mock.timers.tick(60);
+            assert.equal(document.activeElement, $('navMenuBtn'), 'a 60 ms timer moved focus into a panel that had closed');
+            mock.timers.tick(500);
+            assert.equal(scrollUnlocks, 1, 'one open, one unlock');
+        });
+
+        test(`${lb.name}: a frame nothing closed still fades it in, and its ✕ takes the focus`, () => {
+            const { $, openFromDrawer } = mountLive();
+            const frames = holdFrames();
+            openFromDrawer(lb.link);
+            frames.splice(0).forEach(fn => fn());
+            assert.equal($(lb.box).classList.contains('open'), true, 'an open panel never faded in');
+            mock.timers.tick(60);
+            assert.equal(document.activeElement, $(lb.close), 'the open panel\'s ✕ never took the focus');
+        });
+    }
+
+    test('the drawer: closed inside 60 ms, its ✕ does not take the focus', () => {
+        const { $ } = mountLive();
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        /** @type {any} */ ($('navPanelClose')).fire('click');
+        assert.equal(document.activeElement, $('navMenuBtn'), 'premise: the close handed focus to the burger');
+        mock.timers.tick(60);
+        assert.equal(document.activeElement, $('navMenuBtn'), 'the 60 ms timer moved focus into the closed drawer');
+    });
+
+    test('the drawer: left open, its ✕ takes the focus at 60 ms', () => {
+        const { $ } = mountLive();
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        mock.timers.tick(60);
+        assert.equal(document.activeElement, $('navPanelClose'), 'the open drawer\'s ✕ never took the focus');
+    });
+});
+
 // ── THE 8-SECOND BUDGET COVERS THE WHOLE OPEN (whole-app check, Nov 2026) ─────────────────────────────
 // The drawer opens a blank tab on the tap and gives it a location once the Circular is read. The read
 // raced 8 s; the short-lived link after it did not — its own timeout starts only once a session and an

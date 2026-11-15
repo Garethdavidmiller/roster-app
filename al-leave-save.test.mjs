@@ -404,15 +404,23 @@ describe('the upload log', () => {
         assert.equal(commits.length, 1, 'one create, and the re-run read it back');
     });
 
+    // ACCEPTED, NOT YET WRITTEN (v26.14, backend-first). The rules take `writesMarked` a release
+    // before the Save sends it (firestore.rules → alUploads). The release that writes it empties this
+    // list, and from then the writer and the rule are pinned to the same fields again. Nothing else
+    // may join it: a field the rules list and nobody writes is a gap, and this test exists to show one.
+    const RULES_AHEAD_OF_WRITER = ['writesMarked'];
+
     test('its fields are exactly the ones the rules accept — the writer pinned to the rule', async () => {
         const rules = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
         const block = rules.slice(rules.indexOf('match /alUploads/'));
         const listed = /function logFields\(\)\s*\{\s*return\s*\[([^\]]+)\]/.exec(block)?.[1];
         assert.ok(listed, 'logFields() is still in the rules block');
-        const allowed = [...listed.matchAll(/'([^']+)'/g)].map(m => m[1]).sort();
+        const allowed = [...listed.matchAll(/'([^']+)'/g)].map(m => m[1]);
+        for (const f of RULES_AHEAD_OF_WRITER) assert.ok(allowed.includes(f), `${f} is no longer in the rules' list`);
         const id = newUploadLogId();
         await writeUploadLog(id, /** @type {any} */ (logFields({ file: FILE, inLine: ['x|2026-01-05'], added: [], savedBy: ADMIN, appVersion: '26.12' })));
-        assert.deepEqual(Object.keys(server.get(`alUploads/${id}`)).sort(), allowed);
+        assert.deepEqual(Object.keys(server.get(`alUploads/${id}`)).sort(),
+            allowed.filter(f => !RULES_AHEAD_OF_WRITER.includes(f)).sort());
     });
 
     test('logs from before the year kept are deleted, and a read from the cache deletes nothing', async () => {

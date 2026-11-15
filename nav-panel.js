@@ -299,7 +299,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const nl = panel.querySelector('.nav-panel-link--newsletter')?.parentElement; if (nl) nl.hidden = !newsletterInMenu();
         // Delay focus so the CSS transition has started — screen readers
         // announce the dialog heading rather than the close button label alone.
-        setTimeout(() => closeBtn?.focus(), 60);
+        // …unless the drawer has closed since (15 Nov 2026): a closed drawer stays visible through its
+        // slide-out, so the ✕ could still take focus, inside a panel already aria-hidden, and the focus
+        // was lost to the page when the slide-out ended. A slow phone can run a quick close first.
+        setTimeout(() => { if (_panelOpen) closeBtn?.focus(); }, 60);
     }
 
     // Shared closed-state DOM mutations. Callers move focus OUT of the panel
@@ -858,24 +861,33 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         csLightbox.setAttribute('aria-label', title);
 
         lockBodyScroll();
+        _comingSoonOpen = true;   // before the frame and the timer below, which both ask it
         csLightbox.classList.add('visible');
-        requestAnimationFrame(() => csLightbox.classList.add('open'));
+        // A CLOSE BEFORE THIS FRAME, OR THE TIMER, RETIRES THEM (15 Nov 2026), as createLightbox's does:
+        // an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run after the
+        // close, the frame faded the panel back in over the page and the timer moved focus into it.
+        requestAnimationFrame(() => { if (_comingSoonOpen) csLightbox.classList.add('open'); });
         document.addEventListener('keydown', _onComingSoonKey);
         // Reuse the panel's single history entry (normally already present, as
         // the lightbox opens from the open panel); push one only if missing.
         if (!_historyPushed) _pushDrawerEntry();
-        _comingSoonOpen = true;
-        setTimeout(() => csClose?.focus(), 60);
+        setTimeout(() => { if (_comingSoonOpen) csClose?.focus(); }, 60);
     }
 
     /**
-     * Shared teardown: hide `el` after its slide-out transition completes, then
-     * unlock scroll and return focus to the burger. A 500ms fallback fires in case
+     * Shared teardown: fade `el` out, hide it once the fade completes, then unlock
+     * scroll and return focus to the burger. A 500ms fallback fires in case
      * transitionend is suppressed (iOS backgrounded tab, prefers-reduced-motion).
+     * At once when there is no fade: reduced motion, or a panel that never faded in.
      * @param {HTMLElement} el - The .lb-overlay element to finish closing.
      */
     function _finishNavLightboxClose(el) {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const fadedIn = el.classList.contains('open');   // read before it goes: see the finish below
+        el.classList.remove('open');
+        // NEVER FADED IN, NOTHING TO FADE OUT (15 Nov 2026) — dismissOverlay's rule (overlay.js): a panel
+        // closed before its first frame added `.open` is still transparent, so no transition runs, and
+        // waiting for one left an invisible layer over the page for 500 ms, swallowing every tap.
+        if (!fadedIn || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             el.classList.remove('visible');
             unlockBodyScroll();
             burger.focus();
@@ -899,7 +911,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!csLightbox || !_comingSoonOpen) return;   // ONCE: a second ✕/backdrop tap mid-fade unlocked twice (test audit)
         _comingSoonOpen = false;
         document.removeEventListener('keydown', _onComingSoonKey);
-        csLightbox.classList.remove('open');
         if (_historyPushed) {
             _historyPushed = false;
             suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
@@ -914,7 +925,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         _comingSoonOpen = false;
         _historyPushed  = false;
         document.removeEventListener('keydown', _onComingSoonKey);
-        csLightbox.classList.remove('open');
         _finishNavLightboxClose(/** @type {HTMLElement} */ (csLightbox));
     }
 
@@ -984,19 +994,19 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (noticesEmpty) noticesEmpty.hidden = notices.length > 0;
         // Open the lightbox
         lockBodyScroll();
+        _noticesOpen = true;   // before the frame and the timer below, which both ask it
         noticesLightbox.classList.add('visible');
-        requestAnimationFrame(() => noticesLightbox.classList.add('open'));
+        // A close before this frame, or the timer, retires them — see _openComingSoon (15 Nov 2026).
+        requestAnimationFrame(() => { if (_noticesOpen) noticesLightbox.classList.add('open'); });
         document.addEventListener('keydown', _onNoticesKey);
         if (!_historyPushed) _pushDrawerEntry();
-        _noticesOpen = true;
-        setTimeout(() => noticesClose?.focus(), 60);
+        setTimeout(() => { if (_noticesOpen) noticesClose?.focus(); }, 60);
     }
 
     function _closeNotices() {
         if (!noticesLightbox || !_noticesOpen) return;   // ONCE — see _closeComingSoon (test audit)
         _noticesOpen = false;
         document.removeEventListener('keydown', _onNoticesKey);
-        noticesLightbox.classList.remove('open');
         if (_historyPushed) {
             _historyPushed = false;
             suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
@@ -1010,7 +1020,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         _noticesOpen    = false;
         _historyPushed  = false;
         document.removeEventListener('keydown', _onNoticesKey);
-        noticesLightbox.classList.remove('open');
         _finishNavLightboxClose(/** @type {HTMLElement} */ (noticesLightbox));
     }
 

@@ -854,7 +854,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (limits.breaches)      triage.fix.push(`${limits.breaches} ${POLICY_SOURCE_CONFIRMED ? 'company limit' : 'configured limit'}${limits.breaches === 1 ? '' : 's'} breached`);
         // THE AMBER ROWS BELONG HERE TOO. The first cut read only the red rows and the fatigue
         // counts, so a design short of contract, or with a third of the weekends off, produced
-        // "Nothing found that has to be fixed" and no "Worth discussing" group at all — while the
+        // "nothing that has to be fixed" and no "Worth discussing" group at all — while the
         // amber rows sat below saying otherwise. The block is the card's hierarchy; a level it
         // silently skips is a level nobody reads.
         if (hoursVerdict && !hoursVerdict.onTarget) {
@@ -875,15 +875,14 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
               `<span aria-hidden="true">${icon}</span> ${escapeHtml(head)}</span><ul class="check-triage-list">` +
               items.map(t => `<li>${escapeHtml(t)}</li>`).join('') + `</ul></div>`
             : '';
-        // NOTHING TO FIX IS SAID OUT LOUD, and it is deliberately not a tick: this card's whole
-        // reason for existing is that a quiet panel must never read as an approval. It names what
-        // follows it, because a bare line above the points to discuss read as a pass (external
-        // review, 14 Nov 2026) — and on a real design FF19 always leaves one. Why not the review's
-        // own wording: .claude/rules/links-design.md → the triage block.
+        // NOTHING TO FIX IS SAID OUT LOUD, never as a tick: a quiet panel must not read as approval.
+        // It names what follows it (a bare line above the points to discuss read as a pass) and whose
+        // finding it is, "these checks", since "Nothing found" claimed more than the rows establish
+        // (external reviews, 14 and 15 Nov 2026). Why: .claude/rules/links-design.md → the triage block.
         const discussing = triage.discuss.length;
         const nothingToFix = discussing
-            ? `Nothing found that has to be fixed — but ${discussing} ${discussing === 1 ? 'point below is' : 'points below are'} worth discussing`
-            : 'Nothing found that has to be fixed — the rows below say what was checked';
+            ? `These checks found nothing that has to be fixed — but ${discussing} ${discussing === 1 ? 'point below is' : 'points below are'} worth discussing`
+            : 'These checks found nothing that has to be fixed — the rows below say what each one looked at';
         const triageHtml =
             `<div class="check-triage">` +
             (triage.fix.length
