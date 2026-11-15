@@ -292,6 +292,18 @@ shown that yet.
   residue is that person's own. The proposal changes `persistentLocalCache`, an architecture
   decision, and buys nothing under that arrangement.
 
+- **Year to Date figures that do not fit the tax code are NOT used** (owner, 15 Nov 2026). A
+  member's estimate took no tax at all and said "a refund may be due": their Tax Paid was far above
+  what their code takes over the year (the figures fit a payroll working out each payslip on its own,
+  week 1 / month 1, though the payslip printed the code plainly), and the cumulative method read the
+  difference as over-collected tax. Three answers were weighed — keep the £0 and only reword the
+  line; show the standard tax whenever the year looks over-collected; or check the figures fit the
+  code — and the third was chosen: it refuses only figures that cannot have come from the code (Tax
+  Paid more than £2 over what it takes by their own payslip) and leaves a genuine short-paid refund
+  alone. The accepted cost: a code raised since that payslip, already typed in, gets the standard
+  figure, with a line saying payroll may give some back. Rule: `.claude/rules/paycalc.md` →
+  invariant 18.
+
 - **The Pay Calculator's "other payslip adjustment" stays TAXED, and expense refunds stay out of it**
   (owner, 7 Oct 2026). The guide used to suggest an expense belonged there, but the box is added to
   pay and taxed. Rather than add a "not taxed" option, the guide and the row now say it is taxed like

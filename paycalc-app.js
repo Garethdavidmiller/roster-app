@@ -260,13 +260,13 @@ export function init() {
     }
 
     /** The Year to Date note and header chip for the payslip on screen (`ytdAnchorStatus`), from what
-     *  computeTax DID — written by calculate() on every run, so a tax code or a half-typed pair that
-     *  stops the figures being used is said at once.
-     *  @param {any} ty @param {any} p @param {number} src @param {boolean} inUse @param {string} taxCode */
-    function _updateYtdNote(ty, p, src, inUse, taxCode) {
+     *  computeTax DID — written by calculate() on every run, so a tax code, a pair that does not fit
+     *  it (`misfit`) or a half-typed pair that stops the figures being used is said at once.
+     *  @param {any} ty @param {any} p @param {number} src @param {boolean} inUse @param {string} taxCode @param {boolean} [misfit] */
+    function _updateYtdNote(ty, p, src, inUse, taxCode, misfit = false) {
       const note = document.getElementById('ytdUptoNote');
       if (!note) return;
-      const s = ytdAnchorStatus({ p, ty, src, hasFigures: _ytdHasFigures(), inUse, taxCode });
+      const s = ytdAnchorStatus({ p, ty, src, hasFigures: _ytdHasFigures(), inUse, taxCode, misfit });
       note.classList.toggle('ytd-upto-note--live', s.noteLive);
       note.innerHTML = s.note;   // '' is hidden by `.ytd-upto-note:empty`
       const chip = document.getElementById('ytdStatusChip');
@@ -810,12 +810,12 @@ export function init() {
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
       if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
       const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
-      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown, payLimited: taxPayLimited } = computeTax(
+      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown, payLimited: taxPayLimited, ytdMisfit: taxYtdMisfit } = computeTax(
         sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
         { ytdPay: ytdP, ytdTax: ytdT, periodN, otherDeductions: ni + sl },
       );
       paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
-      _updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed);     // "in use" is what computeTax did
+      _updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed, !!taxYtdMisfit);   // "in use" is what computeTax did
 
       // The take-home is the summary's rows subtracted, each to the penny as shown (takeHomePay).
       const { afterPension: _shownAfterPension, net } = takeHomePay({ gross: grossWithBp, pension, tax, ni, sl });
@@ -881,7 +881,7 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = buildSummaryRows({
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
         pension, sacGross: _shownAfterPension, usingCumulative, tax, ni, slLines, net, taxRefund,
-        taxCode: taxCodeUsed, taxCodeRecognised: taxCodeKnown, taxPayLimited,
+        taxCode: taxCodeUsed, taxCodeRecognised: taxCodeKnown, taxPayLimited, taxYtdMisfit, ytdFrom: _srcP ? fdShort(_srcP.payday) : '',
       });
 
       const bd = buildBreakdownRows({
@@ -913,7 +913,7 @@ export function init() {
 
       // The Year to Date line under the £ (owner, 7 Nov 2026): the rule is ytdUpdateFrom, the words renderYtdLine.
       renderYtdLine(_actual ? null : ytdUpdateFrom({ p: _curP, ty: _ty, src: _ytdSrc, inUse: usingCumulative,
-        taxCode: taxCodeUsed, recognised: taxCodeKnown }));
+        taxCode: taxCodeUsed, recognised: taxCodeKnown, misfit: !!taxYtdMisfit }));
 
       // The two OPT-IN MONEY BANNERS (paycalc-money-banner.js): one set of three states — included,
       // available but not added, nothing to say — right only while "available" never means "added".

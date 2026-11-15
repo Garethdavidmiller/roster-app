@@ -1107,7 +1107,9 @@ describe('ytdUpdateFrom — when the take-home asks for the latest Year to Date 
         const moves = code => new Set([0, 1000, 2000, 4000, 8000, 16000].map(ytdTax =>
             computeTax(2400, code, t, { ytdPay: 15000, ytdTax, periodN }).tax)).size > 1;
         const codes = ['1257L', ' 1257l ', '', '1257L W1', '1257LM1', '1257LX', 'K100', 'S1257L', 'C1257L',
-            '0T', 'BR', 'D0', 'SD2', 'NT', 'CNT', 'nt', ' NT ', 'N T', 'SNT', 'NTX', '1257L W1 '];
+            '0T', 'BR', 'D0', 'SD2', 'NT', 'CNT', 'nt', ' NT ', 'N T', 'SNT', 'NTX', '1257L W1 ',
+            // The ways a payslip prints week 1 / month 1, which both readers learnt together (15 Nov 2026).
+            '1257L Wk1', '1257L Mth1', '1257L/M1', '1257L W1/M1', '1257L Week 1/Month 1', '1257L (Wk1/Mth1)'];
         for (const code of codes) {
             assert.equal(ask({ taxCode: code }) !== null, moves(code), `tax code ${JSON.stringify(code)}`);
         }
@@ -1115,6 +1117,13 @@ describe('ytdUpdateFrom — when the take-home asks for the latest Year to Date 
         assert.equal(ask({ taxCode: '1257L W1' }), null, 'week 1 never uses the figures');
         assert.equal(ask({ taxCode: 'NT' }), null, 'no tax to sharpen');
         assert.equal(ask({ taxCode: '1257L' }), oct23);
+    });
+
+    test('quiet while the figures do not fit the tax code — they are already the right payslip\'s', () => {
+        // Owner, 15 Nov 2026: asking again would send the member to copy the same two figures. The flag is
+        // computeTax's `ytdMisfit`, as calculate() hands it over; the control is the same state without it.
+        assert.equal(ask({ src: oct23.num, misfit: true }), null);
+        assert.equal(ask({ src: oct23.num }), oct23, 'the control: not in use, and fitting, it asks');
     });
 
     test('quiet for a code the calculator does not recognise — the figures would make it worse', () => {
@@ -1191,19 +1200,32 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     test('the chip and the note follow computeTax over every pair and code — never the boxes', () => {
         const t = getThresholds(TY.label);
         const periodN = nov20.num - 48 - TY.first + 1;
-        const pairs = [[13200, 1650], [13200, null], [null, 1650], [null, null]];
+        // £1,091.80 is what 1257L takes on £13,200 by the 23 Oct payslip; £1,650 is more than most of
+        // these codes could have taken, so the same pair fits some codes and not others (15 Nov 2026).
+        const pairs = [[13200, 1091.80], [13200, 1650], [13200, null], [null, 1650], [null, null]];
         for (const taxCode of ['1257L', '1257L M1', '0TW1', '1257LX', 'K100', 'BR', 'D0']) {
             for (const [ytdPay, ytdTax] of pairs) {
-                const { usingCumulative } = computeTax(3100, taxCode, t, { ytdPay, ytdTax, periodN });
+                const { usingCumulative, ytdMisfit } = computeTax(3100, taxCode, t, { ytdPay, ytdTax, periodN });
                 const hasFigures = ytdPay != null || ytdTax != null;
-                const s = status({ taxCode, hasFigures, inUse: usingCumulative });
+                const s = status({ taxCode, hasFigures, inUse: usingCumulative, misfit: !!ytdMisfit });
                 const at = `${taxCode} pay=${ytdPay} tax=${ytdTax}`;
                 assert.equal(s.chipLive, usingCumulative, at);
                 assert.equal(s.noteLive, usingCumulative, at);
                 assert.equal(/they sharpen/.test(s.note), usingCumulative, at);
+                assert.equal(/don't fit your tax code/.test(s.note), !!ytdMisfit, at);
                 assert.equal(s.chip, hasFigures ? (usingCumulative ? '✓ in use' : 'not in use') : '', at);
             }
         }
+        // The pair over its code is the state this note exists for, so the loop must have met it.
+        assert.ok(computeTax(3100, '1257L', t, { ytdPay: 13200, ytdTax: 1650, periodN }).ytdMisfit, 'premise: a misfit was met');
+    });
+
+    test('figures that do not fit the tax code: not in use, and the note says to check the code', () => {
+        const s = status({ misfit: true });
+        assert.deepEqual([s.chip, s.chipLive, s.noteLive], ['not in use', false, false]);
+        assert.equal(s.note, `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip `
+            + 'uses the standard method. Check the code in Your Settings is the one on that payslip.');
+        assert.match(status({ misfit: true, taxCode: '1257L M1' }).note, /W1, M1 or X/, 'a week 1 / month 1 code is the stronger reason');
     });
 
     test('no source on record: no note and no chip — the card already asks for one three times', () => {

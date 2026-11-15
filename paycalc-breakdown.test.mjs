@@ -6,7 +6,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fmtHrsMins, buildSummaryRows, buildLoanLines, buildBreakdownRows, buildActualCheck, buildProvChips, buildActualComparison,
-    buildBreakBar, taxCodeNotRecognised } from './paycalc-breakdown.js';
+    buildBreakBar, taxCodeNotRecognised, ytdMisfitNote } from './paycalc-breakdown.js';
 import { getThresholds } from './paycalc-calc.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
@@ -134,6 +134,27 @@ test('buildSummaryRows: Year to Date figures asking for more tax than the paysli
     assert.ok(!/ask for more tax/.test(buildSummaryRows({ ...SUM_BASE, usingCumulative: true })), 'quiet otherwise');
 });
 
+// ── YEAR TO DATE FIGURES THAT DO NOT FIT THE CODE (owner, 15 Nov 2026) ───────────────────────────
+// computeTax did not use them and reports the two figures that disagree; this is where it is SAID, in
+// place of the "refund may be due" line the same figures used to produce. Figures invented.
+test('buildSummaryRows: figures that do not fit the code say so under Income Tax, with both figures', () => {
+    const html = buildSummaryRows({ ...SUM_BASE, tax: 541, taxCode: '1100L', ytdFrom: '23 Oct',
+        taxYtdMisfit: { expected: 4100.4, paid: 4900 } });
+    const taxRow = html.split('\n').find(l => l.includes('Income Tax')) ?? '';
+    assert.match(taxRow, /don't fit tax code <strong>1100L<\/strong>: it would have taken about £4,100\.40 by your 23 Oct payslip, not £4,900\.00/);
+    assert.match(taxRow, /So this payslip's tax is worked out on its own\./);
+    assert.match(taxRow, /If your code has just changed, payroll may give some back\./);
+    assert.ok(!/may be due on this payslip/.test(html), 'no refund is claimed');
+    assert.ok(!/don't fit/.test(buildSummaryRows({ ...SUM_BASE, taxCode: '1100L' })), 'quiet when they fit');
+    assert.ok(!/don't fit/.test(buildSummaryRows({ ...SUM_BASE, taxYtdMisfit: null })), 'and when there is nothing to fit');
+});
+
+test('ytdMisfitNote: a code that is not plain letters and digits is described, never written in', () => {
+    const note = ytdMisfitNote({ expected: 10, paid: 20 }, '<img src=x onerror=1>');
+    assert.ok(!/<img/.test(note));
+    assert.match(note, /don't fit your tax code: .* by the payslip they came from, not £20\.00/);
+});
+
 // ── A TAX CODE THE CALCULATOR DOES NOT RECOGNISE (whole-app review, Nov 2026) ─────────────────────
 // computeTax prices it on the standard 1257L allowance and reports `recognised: false`. Only the
 // "Check against your payslip" line used to read that, and it is hidden until the payslip's cut-off:
@@ -158,6 +179,7 @@ describe('an unrecognised tax code is said under Income Tax', () => {
         assert.match(taxCodeNotRecognised('DO').field, /zero, not the letter O/);
         assert.ok(!/zero|ends in a letter/.test(taxCodeNotRecognised('500K').row), 'no hint that does not fit');
         assert.match(taxCodeNotRecognised('OTM1').row, /<strong>OT M1<\/strong>/, 'the emergency suffix is its own word');
+        assert.match(taxCodeNotRecognised('OTWK1').row, /<strong>OT WK1<\/strong>/, 'and so is the way a payslip prints it');
     });
 
     test('nothing typed into the box reaches the page as markup', () => {
