@@ -49,17 +49,35 @@
  * checked commit compares rows (`commitChecked`, admin-override-store.js), and Operations has no Admin
  * cache to look an id up in: there, an id given without its row must hold nothing at all.
  *
+ * ── EVERY RECORD A SAVE WRITES CARRIES THAT SAVE'S ID (external review, 15 Nov 2026) ────────────
+ *
+ * The upload log's id is minted before anything is sent, and every write carries it (`uploadId`,
+ * buildOverrideWrite's third argument; firestore.rules takes it only on manual annual leave written by
+ * the admin). Every other writer builds its record without it, so the mark goes with the first rewrite
+ * of the day by anybody — a colleague, the same admin in Admin or in another tab, a leave-year move —
+ * and a record still carrying it is that Save's write, unchanged. That is how a day is known to be the
+ * Save's everywhere below: what landed (`landedWrites`), what the log calls added (`logLists`) and what
+ * an Undo may take back (`planUndo`).
+ *
+ * It replaced a judgement by date. The log is written last, after the records and a read of them, and
+ * the first rule took any record its author wrote no later than the log for the Save's own — so a change
+ * the same admin made in the gap between the Save and its log was undone with it. A log written before
+ * the mark (no `writesMarked`, v26.13) is still judged that way, because its records carry no id; such
+ * logs are deleted with their year (al-leave-save.js → `pruneUploadLogs`), and the rule with them.
+ *
  * ── THE LOG IS WRITTEN FROM WHAT THE SERVER SAYS, NOT FROM WHAT WAS SENT ────────────────────────
  *
  * After a Save the app reads every compared person again, and `logLists` builds the upload log from
  * that read: `inLine` is every sheet leave day the app then holds as leave, and `added` only the days
- * the read shows this Save created. A part that ended with no answer from the server may still have
- * landed, so nothing about it is assumed either way.
+ * the read shows this Save created, still carrying its id. A part that ended with no answer from the
+ * server may still have landed, so nothing about it is assumed either way.
  *
- * A DAY THE SAVE WAS REFUSED ON IS NEVER ITS OWN (review, 15 Nov 2026). A record at a day's fixed id,
- * annual leave written by the admin, is what the Save writes — and also what the admin writes booking
- * the same day by hand in Admin after the check. The refusal names the days that had changed, so those
- * are `exclude`d from what landed: counted, logged and undone, the admin's own booking was the Save's.
+ * A DAY THE SAVE WAS REFUSED ON IS NEVER ITS OWN (review, 15 Nov 2026). The admin's own booking of the
+ * same day, made by hand after the check, is the Save's record field for field but for the id it lacks.
+ * The refusal names the days that had changed, and those are `exclude`d from what landed too, so a
+ * receipt never counts a day for a person it says was refused. (A part refused on a re-run, after an
+ * attempt whose answer was lost, can leave the Save's own record on such a day. It is not claimed, so an
+ * Undo keeps it: the side to be wrong on, since a day kept can be removed by hand and one undone is gone.)
  *
  * ── PROTECTION REACHES ACROSS THE NEW YEAR ──────────────────────────────────────────────────────
  *
@@ -239,7 +257,9 @@ export function recordsAfter(records, plan, now = new Date()) {
 /**
  * @typedef {{ year: number, fileDigest: string, workbookSha256: string, clerksLastSaved: string,
  *             lastSavedByClerk: boolean|null, savedAt?: any, savedBy: string, appVersion: string,
- *             inLine: string[], added: string[], undoneAt?: any, undoneBy?: string, undone?: string[], id?: string }} UploadLog
+ *             inLine: string[], added: string[], writesMarked?: true, undoneAt?: any, undoneBy?: string, undone?: string[],
+ *             id?: string }} UploadLog
+ *   `writesMarked`: every record of this Save carries its id (header); absent on a log from v26.13
  */
 
 /**
@@ -294,20 +314,20 @@ export function saveRefusal({ file, todayStr, judged }) {
 /**
  * The two lists of an upload log, built from the comparison of what the app holds AFTER the Save
  * (header): `inLine`, every sheet leave day of every compared person the app now holds as leave; and
- * `added`, the days of `plans` this Save created that the read shows are its own record — at the
- * fixed id, annual leave, written by `savedBy`. Sorted, each once.
+ * `added`, the days of `plans` this Save created that the read shows are still its own record — at
+ * the fixed id, annual leave, written by `savedBy`, carrying the Save's `uploadId`. Sorted, each once.
  * @param {{ after: import('./al-leave-compare.js').PersonComparison[], plans: PersonPlan[],
- *           recordsByName: Map<string, any[]>, savedBy: string, exclude?: Map<string, string[]> }} a
- *   `exclude`: each person's days the Save was refused on (`landedWrites`)
+ *           recordsByName: Map<string, any[]>, savedBy: string, uploadId: string, exclude?: Map<string, string[]> }} a
+ *   `uploadId`: the Save's own id, the log's (`landedWrites`); `exclude`: each person's days the Save was refused on
  * @returns {{ inLine: string[], added: string[] }}
  */
-export function logLists({ after, plans, recordsByName, savedBy, exclude }) {
+export function logLists({ after, plans, recordsByName, savedBy, uploadId, exclude }) {
     const inLine = new Set();
     for (const p of after) {
         for (const d of p.days) if (d.kind === 'leave' && HELD_STATES.includes(d.state)) inLine.add(dayKey(p.name, d.date));
     }
     const added = new Set();
-    for (const [name, dates] of landedWrites({ plans, recordsByName, savedBy, kinds: ADDING, exclude })) {
+    for (const [name, dates] of landedWrites({ plans, recordsByName, savedBy, uploadId, kinds: ADDING, exclude })) {
         for (const date of dates) added.add(dayKey(name, date));
     }
     // Only a day that is in line can have been added: the rules hold `added` to no more than `inLine`.
@@ -321,31 +341,39 @@ const ADDING = ['add', 'add-swapped'];
 /**
  * The writes of `plans` that a read made after the Save shows landed as written, by person: the
  * record at the write's fixed id is annual leave for that person and day, written by `savedBy` as
- * Admin's leave card writes it, and carries the write's own swap answer. It is what the receipt
- * counts once the server has been read, because a Save whose answer was lost on the way back may
- * have landed whole, and "Nothing was saved" would then be untrue (14 Nov 2026). `kinds` narrows it
- * to the writes that create a record (`logLists`); `exclude` takes out the days the Save was refused
- * on, whatever the read finds there (header: a refused day is never the Save's own).
- * @param {{ plans: PersonPlan[], recordsByName: Map<string, any[]>, savedBy: string, kinds?: string[],
- *           exclude?: Map<string, string[]> }} a
+ * Admin's leave card writes it, with the write's own swap answer, and still carries the Save's
+ * `uploadId` (header). It is what the receipt counts once the server has been read, because a Save
+ * whose answer was lost on the way back may have landed whole, and "Nothing was saved" would then be
+ * untrue (14 Nov 2026). `kinds` narrows it to the writes that create a record (`logLists`); `exclude`
+ * takes out the days the Save was refused on, whatever the read finds there (header).
+ * @param {{ plans: PersonPlan[], recordsByName: Map<string, any[]>, savedBy: string, uploadId: string,
+ *           kinds?: string[], exclude?: Map<string, string[]> }} a  `uploadId`: with none, nothing landed
  * @returns {Map<string, string[]>}
  */
-export function landedWrites({ plans, recordsByName, savedBy, kinds, exclude }) {
+export function landedWrites({ plans, recordsByName, savedBy, uploadId, kinds, exclude }) {
     /** @type {Map<string, string[]>} */ const out = new Map();
     for (const plan of plans) {
         const byId = new Map((recordsByName.get(plan.name) ?? []).map(r => [r.id, r]));
         const refused = new Set(exclude?.get(plan.name) ?? []);
         const dates = plan.writes.filter(w => (!kinds || kinds.includes(w.kind)) && !refused.has(w.date)
-            && landedAs(w, byId.get(w.fixedId), plan.name, savedBy))
+            && landedAs(w, byId.get(w.fixedId), plan.name, savedBy, uploadId))
             .map(w => w.date);
         if (dates.length) out.set(plan.name, dates);
     }
     return out;
 }
 
-/** @param {PlannedWrite} w @param {any} r the record read at its fixed id @param {string} name @param {string} savedBy */
-const landedAs = (w, r, name, savedBy) => !!r && r.type === LEAVE && r.memberName === name && r.date === w.date
-    && r.changedBy === savedBy && (r.source ?? '') === 'manual' && (r.replacedType ?? null) === (w.fields.replacedType ?? null);
+/** @param {PlannedWrite} w @param {any} r the record read at its fixed id @param {string} name @param {string} savedBy @param {string} uploadId */
+const landedAs = (w, r, name, savedBy, uploadId) => markedBy(r, uploadId) && r.type === LEAVE && r.memberName === name
+    && r.date === w.date && r.changedBy === savedBy && (r.source ?? '') === 'manual'
+    && (r.replacedType ?? null) === (w.fields.replacedType ?? null);
+
+/**
+ * Does `r` still carry the mark of the Save whose id is `id` (header)? Never with no id to look for:
+ * a record without a mark must not pass for the mark of a Save that had none.
+ * @param {any} r @param {unknown} id @returns {boolean}
+ */
+const markedBy = (r, id) => typeof id === 'string' && id !== '' && !!r && r.uploadId === id;
 
 /**
  * The upload log's fields, all but the server's `savedAt`. Null when there is nothing in line to
@@ -359,15 +387,17 @@ export function logFields({ file, inLine, added, savedBy, appVersion }) {
     if (typeof saved !== 'string') return null;
     return { year: file.year, fileDigest: file.digest, workbookSha256: file.source.sha256, clerksLastSaved: saved,
         lastSavedByClerk: typeof file.source.lastSavedByClerk === 'boolean' ? file.source.lastSavedByClerk : null,
-        savedBy, appVersion, inLine, added };
+        savedBy, appVersion, inLine, added, writesMarked: true };
 }
 
 /**
  * What an Undo of `log` may take back (plan §4.10): each day the Save ADDED whose record is still
- * the Save's own — at the fixed id, annual leave, written by the log's author, and stamped no later
- * than the log, which was written last. A day rewritten since by anybody carries a newer stamp and is
- * kept; a day already gone is neither. A rewrite of a stored day ('swap') is never undone: the rules
- * stamp every write afresh, so a "restored" record would be a new one claiming to be the old.
+ * the Save's own — at the fixed id, annual leave, written by the log's author, and still carrying the
+ * log's id (header). A day rewritten since, by anybody, has lost the mark and is kept; a day already
+ * gone is neither. A log written before the mark (no `writesMarked`) is judged by date, as it was: a
+ * record stamped no later than the log, which was written last — its records carry no id. A rewrite of
+ * a stored day ('swap') is never undone: the rules stamp every write afresh, so a "restored" record
+ * would be a new one claiming to be the old.
  * @param {{ log: UploadLog, recordsByName: Map<string, any[]> }} a
  * @returns {{ remove: any[], kept: string[], gone: string[] }} `remove`: the rows to delete, as read
  */
@@ -375,14 +405,18 @@ export function planUndo({ log, recordsByName }) {
     /** @type {any[]} */ const remove = [];
     /** @type {string[]} */ const kept = [];
     /** @type {string[]} */ const gone = [];
+    const marked = log.writesMarked === true;
     const savedAt = tsToMillis(log.savedAt);
+    /** @param {any} r */
+    const stillTheSaves = r => (marked ? markedBy(r, log.id)
+        : savedAt > 0 && tsToMillis(r.createdAt) > 0 && tsToMillis(r.createdAt) <= savedAt);
     for (const key of log.added ?? []) {
         const day = parseDayKey(key);
         if (!day) continue;
         const r = (recordsByName.get(day.name) ?? []).find(x => x?.id === manualOverrideId(day.name, day.date));
         if (!r) { gone.push(key); continue; }
         const own = r.type === LEAVE && r.memberName === day.name && r.date === day.date && (r.source ?? '') === 'manual'
-            && r.changedBy === log.savedBy && savedAt > 0 && tsToMillis(r.createdAt) > 0 && tsToMillis(r.createdAt) <= savedAt;
+            && r.changedBy === log.savedBy && stillTheSaves(r);
         if (own) remove.push(r); else kept.push(key);
     }
     return { remove, kept, gone };

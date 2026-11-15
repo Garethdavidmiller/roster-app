@@ -46,7 +46,8 @@
  * made, or the log cannot be written, the Save's plans are held in memory (`_pending`, every such Save,
  * oldest first), and the next check of the same file in this visit writes the log from its own fresh
  * read (`finishPendingLog`) — so the Undo, and the protection against leave cancelled since, are not
- * lost to a moment's lost signal. A closed page loses it: the next Save's log still names every day in
+ * lost to a moment's lost signal. The Save's records carry its id, so the later log calls added only
+ * what is still the Save's own, whatever was changed in between (al-leave-plan.js). A closed page loses it: the next Save's log still names every day in
  * line. And a Save of which nothing landed is recorded by nobody: a log with nothing added became the
  * newest and took the earlier Save's Undo off the screen.
  *
@@ -114,8 +115,9 @@ export async function finishPendingLog({ file, comparison, records }) {
     let recorded = false;
     for (const p of _pending.filter(x => x.digest === file.digest)) {
         const drop = () => { _pending = _pending.filter(x => x !== p); };
-        if (!landedWrites({ plans: p.plans, recordsByName: records, savedBy: p.me, exclude: p.exclude }).size) { drop(); continue; }
-        const lists = logLists({ after: comparison.people, plans: p.plans, recordsByName: records, savedBy: p.me, exclude: p.exclude });
+        const mine = { plans: p.plans, recordsByName: records, savedBy: p.me, uploadId: p.id, exclude: p.exclude };
+        if (!landedWrites(mine).size) { drop(); continue; }
+        const lists = logLists({ after: comparison.people, ...mine });
         const fields = logFields({ file, ...lists, savedBy: p.me, appVersion: APP_VERSION });
         if (!fields) { drop(); continue; }
         try {
@@ -316,11 +318,14 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
         let tone = /** @type {'ok'|'err'} */ ('err');
         let sentNothing = false;
         try {
+            // The log's id, before anything is sent: every record of this Save carries it (al-leave-plan.js).
+            const id = newUploadLogId();
             const total = saveTotals(chosen).days;
             hooks.say([savingWords(0, total)], 'working');
             /** @type {Awaited<ReturnType<typeof saveLeavePlans>>} */ let out;
             try {
-                out = await saveLeavePlans(chosen, { onProgress: (done, n) => hooks.say([savingWords(done, n)], 'working') });
+                out = await saveLeavePlans(chosen, { uploadId: id,
+                    onProgress: (done, n) => hooks.say([savingWords(done, n)], 'working') });
             } catch (err) {
                 console.error('[AL sheet] the Save failed:', /** @type {any} */ (err)?.code ?? /** @type {any} */ (err)?.name ?? 'unknown');
                 out = { saved: new Map(), refused: new Map(), stopped: 'failed', code: null, partial: true };
@@ -329,7 +334,6 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
             sentNothing = !!out.stopped && !out.saved.size && !out.refused.size && !out.partial;
             /** @type {string[]} */ const logLines = [];
             if (!sentNothing) {
-                const id = newUploadLogId();
                 try {
                     reread = await readMemberRecords([...people.keys()]);
                 } catch (err) {
@@ -342,7 +346,8 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
             // What was saved is what the server holds, once it has been read: a Save whose answer was lost
             // on the way back may have landed whole. Unread, it is what the Save saw confirmed — and where
             // more may have landed, the receipt does not say "nothing". A day it was refused on is never its own.
-            const saved = reread ? landedWrites({ plans: chosen, recordsByName: reread, savedBy: me, exclude: out.refused }) : out.saved;
+            const saved = reread ? landedWrites({ plans: chosen, recordsByName: reread, savedBy: me, uploadId: id, exclude: out.refused })
+                : out.saved;
             const finished = !!reread && chosen.every(p => out.refused.has(p.name) || (saved.get(p.name)?.length ?? 0) === p.writes.length);
             const days = [...saved.values()].reduce((n, d) => n + d.length, 0);
             receipt = receiptWords({ days, people: saved.size, refused: out.refused, unsure: !reread && out.partial,
@@ -387,11 +392,12 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
      */
     async function record(id, chosen, reread, exclude) {
         const savedBy = /** @type {string} */ (me);
-        if (!landedWrites({ plans: chosen, recordsByName: reread, savedBy, exclude }).size) return [];
+        const mine = { plans: chosen, recordsByName: reread, savedBy, uploadId: id, exclude };
+        if (!landedWrites(mine).size) return [];
         const after = [...people.values()].map(p => comparePerson({ person: filePeople.get(p.name), days: daysOf(p.name),
             member: teamMembers.find(m => m.name === p.name), records: reread.get(p.name) ?? [], year: file.year, todayStr,
             firstDate: file.source.firstDate, lastDate: file.source.lastDate }));
-        const lists = logLists({ after, plans: chosen, recordsByName: reread, savedBy, exclude });
+        const lists = logLists({ after, ...mine });
         const fields = logFields({ file, ...lists, savedBy, appVersion: APP_VERSION });
         if (!fields) return lists.added.length ? [SAVE_WORDS.notRecorded] : [];
         try {

@@ -792,6 +792,30 @@ fails the commit that would. Teaching Team Week and the roster import the same d
 
 **What would reopen it:** the real payslip pricing the change some other way (VAL-PAY-005).
 
+## The leave sheet's Undo knows its Save's records by a mark on each one, not by a date (15 Nov 2026)
+
+The Undo on Operations → Annual leave sheet may take back only leave its Save created and nobody has
+changed since. It judged that by who wrote a day and when — annual leave by the log's author, stamped no
+later than the log — and the log is written after the leave and a read of it. The same admin's change
+in another tab during that time passed the test and was undone (external review, 15 Nov 2026). Now the
+Save mints the log's id first and writes it onto every record (`uploadId`); every other writer builds
+its record without it, so any rewrite drops it, and the Undo takes back only what still carries it
+(AL_UPLOADER_PLAN.md §4.10). Rules first, the Save a release later (backend-first).
+
+**Considered and not done.** Keeping each added day's revision in the log, as the review put it, and
+undoing only records whose stamp still matches: the log is built from a read made AFTER the Save, so a
+change that lands before that read would be recorded as the Save's revision — the same fault, in a
+narrower window. Only something written in the Save's own transaction, with the record, can say the
+record is the Save's. A list of the Save's writes in a document of its own fails the same way, with a
+second set of rules to keep. Telling the admin's own booking apart by `source` was no help: it is
+exactly what the Save writes.
+
+**What it costs:** one optional field on a leave record, an id that names nobody, which the rules take
+only from the admin writing manual annual leave. A log from before the mark is still judged by date.
+
+**What would reopen it:** another writer needing to mark records as its own — the builder takes the mark
+only as its own argument, and a test fails if any caller but the Save passes one.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

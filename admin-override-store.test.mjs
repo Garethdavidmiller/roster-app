@@ -899,6 +899,17 @@ describe('7 · an ordinary save is checked too, whenever the server can be asked
         assert.deepEqual(named, [], 'a save that landed was reported as a colleague\'s change');
     });
 
+    test('a record exactly like this save but carrying the leave sheet Save’s mark is that Save’s — refused, never taken for this one (v26.15)', async () => {
+        // The admin's own save of a day the leave sheet's Save has just written, field for field, from a row
+        // drawn before it landed. Called "done", the day would stay the Save's, and its Undo would take back
+        // leave the admin believes was booked here (al-leave-plan.js → the mark).
+        const store = await seed([]);
+        serverWrite(FIXED, { ...rec(), uploadId: 'LeaveSheetSave000001', createdAt: null });
+        await assert.rejects(store.commitChecked(saveDay(), { shownFor: () => null, line }), refused(store));
+        assert.equal(_server.get(FIXED)?.uploadId, 'LeaveSheetSave000001', 'the Save’s record was left as it was');
+        assert.deepEqual(named, [[DAY]]);
+    });
+
     test('a colleague\'s IDENTICAL save is still a colleague\'s — refused, never taken for this one', async () => {
         const store = await seed([]);
         serverWrite(FIXED, { ...rec({ changedBy: 'S. Silva' }), createdAt: null });

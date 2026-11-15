@@ -45,7 +45,9 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 15 Nov 2026 (v26.14, the leave sheet's Undo): two optional fields accepted, no rule
+// Last swept 15 Nov 2026 (v26.15, the leave sheet's Save writes its mark): no rule changed. The
+// comments on `uploadId` and `writesMarked` were re-read and now say the Save writes both.
+// Prior sweep 15 Nov 2026 (v26.14, the leave sheet's Undo): two optional fields accepted, no rule
 // tightened. A leave record may carry `uploadId`, the id of the Annual leave sheet Save that wrote
 // it — the admin only, on manual annual leave only — and that Save's log may say so
 // (`writesMarked: true`). Backend-first: no client writes either in this release. Both new clauses
@@ -481,11 +483,11 @@ service cloud.firestore {
         // record and never writes this field, so a record still carrying the id is the Save's own
         // write and nothing written since: a rewrite drops it, as the rules re-stamp `createdAt`.
         //
-        // BACKEND-FIRST: nothing writes it in the release that adds this clause; the Save writes it
-        // only once these rules are live (CLAUDE.md). The admin only, on manual annual leave only,
-        // because only the admin's Operations page saves the sheet, and a mark a member or a manager
-        // could write would let them make their own later change look like the Save's — for its Undo
-        // to delete. The shape is Firestore's own auto-id, which is how the log's id is made
+        // BACKEND-FIRST: nothing wrote it in v26.14, the release that added this clause; the Save
+        // writes it from v26.15, once these rules were live (CLAUDE.md). The admin only, on manual
+        // annual leave only, because only the admin's Operations page saves the sheet, and a mark a
+        // member or a manager could write would let them make their own later change look like the
+        // Save's — for its Undo to delete. The shape is Firestore's own auto-id, which is how the log's id is made
         // (`newUploadLogId`, al-leave-save.js); whether that log exists is not asked, because the log
         // is written after the records it describes. `matches()` is a string method, so a number, a
         // list or a null is an evaluation error and refused; no `is string` is needed before it.
@@ -1111,8 +1113,8 @@ service cloud.firestore {
     //   · an older copy of the workbook is refused by name: "you uploaded a newer copy, saved 6 Nov,
     //     on 14 Nov" (`clerksLastSaved`, `savedAt`);
     //   · an undo removes only the leave this Save created, and only where nobody has written the
-    //     day since (`added`, `savedAt`, `savedBy` — and, once the Save marks its writes, the id on
-    //     each record: `writesMarked`).
+    //     day since (`added`, `savedBy`, and the id on each record, `writesMarked`; a log from
+    //     before v26.15 has no marked records, and is judged by `savedAt`).
     //
     // ADMIN ONLY, both ways. A log names colleagues against their leave days, and only the admin's
     // own page writes one. A manager, a member and the PIN viewer get nothing.
@@ -1151,7 +1153,7 @@ service cloud.firestore {
         // overrides block above says why), so its Undo asks for the id rather than judging by who
         // and when. OPTIONAL, and only ever `true`: a log written before the Save marked its writes
         // has none, and its Undo keeps the old judgement, because its records carry no id to ask
-        // for. Backend-first, like `uploadId`: nothing writes it in the release that adds it.
+        // for. Backend-first, like `uploadId`: accepted in v26.14, written from v26.15.
         (!('writesMarked' in request.resource.data) || request.resource.data.writesMarked == true) &&
         // The leave file's own year, with the same bounds its format holds (al-leave-file.js).
         request.resource.data.year is int &&

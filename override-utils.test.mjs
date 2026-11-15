@@ -941,7 +941,46 @@ describe('uploadId in the builder', () => {
         assert.deepEqual(Object.keys(buildOverrideWrite(leave, ts)).sort(),
             ['changedBy', 'createdAt', 'date', 'memberName', 'note', 'source', 'type', 'value']);
     });
+    // ONE WRITER MARKS A RECORD. The mark means "the leave sheet's Save wrote this, and nobody has rewritten
+    // it since" (al-leave-plan.js), which is true only while every other writer builds its record without
+    // it: a writer that passed one on would make its own rewrite look like the Save's, and the Save's Undo
+    // would take that rewrite back.
+    it('only the leave sheet’s Save hands the builder a third argument; every other writer passes two', () => {
+        const root = new URL('./', import.meta.url);
+        /** @type {Map<string, number[]>} */ const calls = new Map();
+        for (const f of readdirSync(root).filter(n => n.endsWith('.js') && !n.includes('.test.'))) {
+            const src = readFileSync(new URL(f, root), 'utf8');
+            for (const m of src.matchAll(/\bbuildOverrideWrite\(/g)) {
+                if (/function\s+$/.test(src.slice(Math.max(0, m.index - 9), m.index))) continue;   // the definition
+                calls.set(f, [...(calls.get(f) ?? []), argCount(src, m.index + m[0].length)]);
+            }
+        }
+        assert.deepEqual(calls.get('al-leave-save.js'), [3], 'the Save marks every record it writes');
+        const others = [...calls].filter(([f]) => f !== 'al-leave-save.js');
+        assert.ok(others.flatMap(([, n]) => n).length >= 4, `the scan found the other writers' calls: ${others.map(([f]) => f).join(', ')}`);
+        for (const [f, counts] of others) assert.ok(counts.every(n => n === 2), `${f} passes ${counts.join(', ')} arguments`);
+    });
 });
+
+/**
+ * How many arguments a call passes, read from just inside its "(": top-level commas, with strings and
+ * comments skipped, which is all a writer's call holds. @param {string} src @param {number} i @returns {number}
+ */
+function argCount(src, i) {
+    let depth = 0;
+    let commas = 0;
+    for (; i < src.length; i++) {
+        const c = src[i];
+        if (c === '"' || c === "'" || c === '`') {
+            for (i++; i < src.length && src[i] !== c; i++) if (src[i] === '\\') i++;
+        } else if (c === '/' && src[i + 1] === '/') i = src.indexOf('\n', i);
+        else if (c === '/' && src[i + 1] === '*') i = src.indexOf('*/', i) + 1;
+        else if ('([{'.includes(c)) depth++;
+        else if (')]}'.includes(c)) { if (depth === 0) return commas + 1; depth--; }
+        else if (c === ',' && depth === 0) commas++;
+    }
+    throw new Error('a call to the builder never closes');
+}
 
 // ── leaveYear (v25.18): which year's allowance a January leave day comes out of ────────────────
 // The builders send it ONLY when the rules would accept it — January leave, the year before — because
@@ -1086,7 +1125,7 @@ describe('composeOtherValue', () => {
 // two pin the sites that keep a bespoke copy for a reason (per-pill wording; three different
 // outcomes for four types), so a fifth forbidden type fails HERE rather than being writable there.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 const readSrc = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
 /**
